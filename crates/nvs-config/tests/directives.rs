@@ -1809,9 +1809,11 @@ fn every_queue_row_is_system_class() {
 /// (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
 ///
 /// What this pins is that the bytes a project command writes can never themselves be the reason a
-/// boot refuses. It resolves to [`Config::default`] because every key in the file is commented out,
-/// which is the property `rule:config/no-configuration-file-is-a-complete-configuration` rests the
-/// whole write on: taking the file changes nothing about the run that took it.
+/// boot refuses, live headers included: each one names a block the tree parses. Every key under
+/// them is commented out, which is the property
+/// `rule:config/no-configuration-file-is-a-complete-configuration` rests the whole write on: taking
+/// the file changes nothing about the run that took it. That the headers alone change nothing is
+/// the resolver's to prove, in `tests/resolve.rs`.
 #[test]
 fn the_default_file_parses_with_deny_unknown_fields() {
     let mut sources = SourceMap::new();
@@ -1820,14 +1822,33 @@ fn the_default_file_parses_with_deny_unknown_fields() {
         "crates/nvs-config/src/default.toml",
         nvs_config::default_file(),
     );
+    parsed.unwrap_or_else(|err| panic!("the shipped file was refused: {}", err.message));
 
-    let config =
-        parsed.unwrap_or_else(|err| panic!("the shipped file was refused: {}", err.message));
-    assert_eq!(
-        config,
-        Config::default(),
-        "a live key in the shipped file is a value every deployment that takes it inherits",
+    let table: toml::Table =
+        toml::from_str(nvs_config::default_file()).expect("it parsed a moment ago");
+    let mut live = Vec::new();
+    live_keys(&table, "", &mut live);
+    assert!(
+        live.is_empty(),
+        "a live key in the shipped file is a value every deployment that takes it inherits: \
+         {live:?}",
     );
+}
+
+/// Every dotted key in `table` that carries a value, where an `[[entry]]` counts as one: writing
+/// an entry says it exists, which an empty `[block]` header does not.
+fn live_keys(table: &toml::Table, prefix: &str, found: &mut Vec<String>) {
+    for (key, value) in table {
+        let dotted = if prefix.is_empty() {
+            key.clone()
+        } else {
+            format!("{prefix}.{key}")
+        };
+        match value {
+            toml::Value::Table(inner) => live_keys(inner, &dotted, found),
+            _ => found.push(dotted),
+        }
+    }
 }
 
 /// Whether a `#` line is a setting rather than the prose above one.
@@ -1861,15 +1882,18 @@ fn settings_with_prose() -> Vec<(String, String, String)> {
     let mut block = String::new();
     for line in nvs_config::default_file().lines() {
         let line = line.trim();
+        // A header is read live or commented out: the file ships both, and either one opens the
+        // block the settings below it belong to.
+        let header = line.strip_prefix('#').unwrap_or(line);
+        if header.starts_with('[') {
+            block = header.trim_matches(|c| c == '[' || c == ']').to_string();
+            prose.clear();
+            continue;
+        }
         let Some(rest) = line.strip_prefix('#') else {
             prose.clear();
             continue;
         };
-        if rest.starts_with('[') {
-            block = rest.trim_matches(|c| c == '[' || c == ']').to_string();
-            prose.clear();
-            continue;
-        }
         if is_setting(rest) {
             let (key, _) = rest.split_once('=').expect("a setting carries its `=`");
             found.push((block.clone(), key.trim().to_string(), prose.clone()));

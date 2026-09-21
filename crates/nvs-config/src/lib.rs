@@ -97,9 +97,11 @@ pub use tree::{Config, Setting};
 pub use value::{Quantity, Unit};
 
 /// The `nvs.toml` this project ships: every key [`mod@tree`] parses, commented out, under the prose
-/// that says what it does.
+/// that says what it does. Its `[block]` headers are live, so setting a key is removing one `#`;
+/// an `[[entry]]` header stays commented out, because an entry with no keys is refused.
 ///
-/// It is inert by construction, and that is the point of it. A file in which nothing is uncommented
+/// It is inert by construction, and that is the point of it. A header with no key under it is
+/// dropped by [`resolve()`](resolve::resolve), so a file in which no key is uncommented
 /// resolves to what a host with no file at all resolves to
 /// (`rule:config/no-configuration-file-is-a-complete-configuration`), so a project command can write
 /// it into a directory without changing the run that takes it, and a default this project later

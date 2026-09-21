@@ -603,7 +603,14 @@ impl Merge {
     }
 
     /// Deserializes the merged table into the typed tree.
-    fn finish(self) -> Result<Resolved, Diagnostic> {
+    ///
+    /// Empty tables are dropped first, so the typed tree never holds a block that says nothing:
+    /// `[metrics]` with no key under it is `None`, exactly as a file that never wrote the header.
+    /// That is what lets the shipped file carry live headers and still resolve to what no file
+    /// resolves to, and it is decided here, once, so that no reader of a block has to treat
+    /// "present and empty" and "absent" alike by remembering to.
+    fn finish(mut self) -> Result<Resolved, Diagnostic> {
+        drop_empty_tables(&mut self.table);
         let config = toml::Value::Table(self.table.clone())
             .try_into::<Config>()
             // Every file was typed on its own before it was merged, so nothing new can be unknown
@@ -619,6 +626,30 @@ impl Merge {
             secrets: BTreeMap::new(),
         })
     }
+}
+
+/// Removes every table with no key under it, at any depth, including one left empty by the removal
+/// of the tables inside it.
+///
+/// An `[[entry]]` is never removed, however little it says: writing one is a statement that the
+/// entry exists, and `[[app]]` with no path is refused as that (`E0609`) rather than skipped. The
+/// tables *inside* an entry are walked like any other.
+fn drop_empty_tables(table: &mut toml::Table) {
+    table.retain(|_, value| match value {
+        toml::Value::Table(inner) => {
+            drop_empty_tables(inner);
+            !inner.is_empty()
+        }
+        toml::Value::Array(entries) => {
+            for entry in entries {
+                if let toml::Value::Table(inner) = entry {
+                    drop_empty_tables(inner);
+                }
+            }
+            true
+        }
+        _ => true,
+    });
 }
 
 /// `rule:config/later-wins-and-every-override-is-recorded` and `rule:config/a-value-array-replaces-and-a-table-appends` as one walk: recurse into a table, append an array of tables, replace

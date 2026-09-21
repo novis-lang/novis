@@ -3348,8 +3348,8 @@ enum Unresolved {
     /// The configuration's own diagnostic is the refusal. `install` and `unit`
     /// take this one: the service would refuse the same file at every boot, and
     /// reading it as empty reports `E0632` about a file whose `[log] target`
-    /// the operator can see — a key under a header left commented out is the
-    /// usual way to get there.
+    /// the operator can see — a key written with no live header above it is
+    /// the usual way to get there.
     Refuses,
     /// It reads as a configuration that says nothing. `uninstall` takes this
     /// one, because a service whose configuration has since been broken or
@@ -3705,8 +3705,8 @@ mod tests {
     }
 
     /// A named configuration that does not resolve is refused as itself. The
-    /// file here is the shipped template with `target` uncommented and `[log]`
-    /// left commented out above it, which makes `target` a root key: read as
+    /// file here writes `target` and leaves `[log]` commented out above it,
+    /// which makes `target` a root key: read as
     /// empty, that file is refused as `E0632` with its destination in plain
     /// sight. An uninstall reads the same file as saying nothing, so a broken
     /// configuration never keeps a service installed.

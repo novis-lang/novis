@@ -234,7 +234,8 @@ fn the_shipped_defaults_resolve_to_the_default_tree() {
 /// so a directory that took it resolves to what that directory resolved to while it was empty. That
 /// equality is the whole licence for a command to write the file without being asked, and it holds
 /// only while every key in it is commented out — one live key moves this assertion and nothing else
-/// in the tree would notice.
+/// in the tree would notice. The file's live headers do not move it: a block with no key under it
+/// is no block, which is the case below this one.
 ///
 /// `files` is where the two part company, and deliberately: a tree that read a file names it, which
 /// is what `nvs config dump` reports and what the boot line announces.
@@ -257,6 +258,44 @@ fn the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all() {
         "a file that assigns nothing overrides nothing: {:?}",
         took_the_file.overrides,
     );
+}
+
+/// A header with no key under it says nothing, at any depth: the typed tree holds `None` for it,
+/// which is what a file that never wrote the header holds. A named block is the same case, so an
+/// empty `[db.main]` names no connection. Every reader of a block is spared the question of whether
+/// "present and empty" means something, because it never sees one.
+#[test]
+fn a_block_with_no_key_under_it_is_no_block() {
+    let fs = Fake::with(&[(
+        "app/nvs.toml",
+        "[metrics]\n\n[capabilities.fs]\n\n[http.client.tls]\n\n[db.main]\n\n[db.main.pool]\n\n\
+         [queue]\n\n[limits]\n\n[limits.hard]\nmemory = \"1GB\"\n",
+    )]);
+
+    let resolved = tree_of(&fs, "app/nvs.toml");
+
+    let only_the_key = Fake::with(&[("app/nvs.toml", "[limits.hard]\nmemory = \"1GB\"\n")]);
+    let written_bare = tree_of(&only_the_key, "app/nvs.toml");
+    assert_eq!(
+        resolved.config, written_bare.config,
+        "the empty headers around a key add nothing to it",
+    );
+    assert!(resolved.config.metrics.is_none() && resolved.config.capabilities.is_none());
+    assert!(
+        resolved.config.limits.is_some(),
+        "a block holding a block that says something stays"
+    );
+}
+
+/// An `[[entry]]` is the exception, and deliberately: writing one says the entry exists, so an empty
+/// `[[app]]` is still refused for naming no path and never skipped as though it were not there.
+#[test]
+fn an_empty_array_entry_is_still_an_entry() {
+    let fs = Fake::with(&[("app/nvs.toml", "[[app]]\n")]);
+
+    let diagnostic = refusal(&fs, "app/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_APP_BLOCK));
 }
 
 /// § 3: an include overrides the file that pulled it in — the base-plus-local shape, with the

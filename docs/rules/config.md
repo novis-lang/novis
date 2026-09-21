@@ -222,6 +222,20 @@ a program checked outside any project root has no configuration to be measured a
 that was read and says nothing about capabilities is an operator's written `no`. The offline audit
 reports the first as a tree of zero files.
 
+**A `[block]` header with no key under it says nothing, and the resolver drops it before the tree is
+typed**, at any depth and for a named block as much as a fixed one: `[metrics]` alone is no
+`[metrics]`, and `[db.main]` alone names no connection. No reader of a block is ever handed one that
+is present and empty, so none has to decide what that would mean. That is what lets the shipped file
+carry its headers live — setting a key there is removing one `#` — and still resolve to exactly what
+no file resolves to. An `[[entry]]` is the exception, because writing one says the entry exists: an
+`[[app]]` with no path is refused rather than skipped, and the shipped file keeps every `[[entry]]`
+header, and the tables belonging to one, commented out — and the two `pool` tables under `[db]`,
+each of which is the same TOML key as the `pool = false` beside it and cannot be live with it.
+`python tools/directives.py
+--check-template` refuses a key left under a commented-out header when the live header above it has
+a key of the same name, which is the one arrangement where uncommenting the key alone would be
+accepted into the wrong block.
+
 <sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>

@@ -82,7 +82,13 @@ commented out -- `#cpu_time = "5s"` -- because that file's effective content is
 empty on purpose, so a default this project later tightens for a security reason
 still reaches a deployment that took the file. The `#` with no space after it is
 what separates a commented-out setting from the prose above it, and that prose
-block is where a key's `# NOT IMPLEMENTED` note has to be.
+block is where a key's `# NOT IMPLEMENTED` note has to be. A `[block]` header is
+live, because an empty block resolves to nothing and a live header makes setting
+a key a one-character edit. Two arrangements of live and commented-out headers
+are refused: a setting that is the same TOML key as a live header, which is a
+duplicate key the moment it is uncommented, and a setting under a commented-out
+header whose name is also a key of the live header above it, which is accepted
+into the wrong block.
 """
 
 from __future__ import annotations
@@ -616,11 +622,16 @@ def explain(keys: list[Key], wanted: str) -> int:
 class Entry:
     """One setting in the default file: the key it spells, and the prose above it."""
 
-    def __init__(self, dotted: str, line: int, prose: list[str], commented: bool):
+    def __init__(self, dotted: str, line: int, prose: list[str], commented: bool,
+                 lands: str | None = None):
         self.dotted = dotted
         self.line = line
         self.prose = prose
         self.commented = commented
+        #: The key this line becomes when it is uncommented and its own header is not:
+        #: TOML puts it under the nearest live header above. `None` under a live header,
+        #: where the line already reads as what it says.
+        self.lands = lands
 
 
 def parse_template(text: str) -> list[Entry]:
@@ -630,6 +641,7 @@ def parse_template(text: str) -> list[Entry]:
     of keys is one explanation's worth; a blank line or a header ends the block."""
     entries: list[Entry] = []
     prefix = ""
+    live = ""
     prose: list[str] = []
     for number, raw in enumerate(text.split("\n"), start=1):
         line = raw.strip()
@@ -639,12 +651,15 @@ def parse_template(text: str) -> list[Entry]:
         header = HEADER.match(line)
         if header:
             prefix, prose = header.group(1), []
+            if not line.startswith("#"):
+                live = prefix
             continue
         setting = SETTING.match(line)
         if setting:
             key = setting.group("key")
+            lands = None if live == prefix else (f"{live}.{key}" if live else key)
             entries.append(Entry(f"{prefix}.{key}" if prefix else key, number, prose,
-                                 bool(setting.group("out"))))
+                                 bool(setting.group("out")), lands))
             continue
         if line.startswith("#"):
             prose.append(line.lstrip("#").strip())
@@ -683,8 +698,18 @@ def check_template(keys: list[Key], path: Path) -> list[str]:
         )
         return problems
 
+    text = path.read_text(encoding="utf-8")
+    live_headers = {match.group(1) for line in text.split("\n")
+                    if not line.startswith("#") and (match := HEADER.match(line.strip()))}
     seen: dict[str, Entry] = {}
-    for entry in parse_template(path.read_text(encoding="utf-8")):
+    for entry in parse_template(text):
+        if entry.dotted in live_headers:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` is a setting, and `[{entry.dotted}]` is "
+                f"a live header in the same file. They are one TOML key, so uncommenting "
+                f"this line gives a file the boot refuses as a duplicate key. Comment the "
+                f"header out and say why under it."
+            )
         key = find_key(keys, entry.dotted)
         if key is None:
             problems.append(
@@ -706,6 +731,15 @@ def check_template(keys: list[Key], path: Path) -> list[str]:
                 f"{rel}:{entry.line}: `{key.dotted}` is live. Every key in this "
                 f"file is commented out, so that a default this project later tightens "
                 f"still reaches a deployment that took the file once."
+            )
+        stray = find_key(keys, entry.lands) if entry.lands else None
+        if stray is not None:
+            problems.append(
+                f"{rel}:{entry.line}: `{key.dotted}` is under a commented-out header, and "
+                f"the live header above it has a key of the same name, `{stray.dotted}`. "
+                f"An operator who uncomments this line and not its header gets a file "
+                f"the boot accepts, with the value in the wrong block. Move this block "
+                f"below a live header that has no key of this name."
             )
         if key.trailer and not marked(entry, key.trailer[1]):
             problems.append(

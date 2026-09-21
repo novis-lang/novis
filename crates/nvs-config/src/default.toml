@@ -1,8 +1,17 @@
 # Novis reads this file as `./nvs.toml`. Every key the runtime parses is in it, commented out, so
 # that what a host can be told to do is something an operator reads rather than something they have
-# to go and find. A file in which nothing is uncommented is exactly a host with no file at all:
+# to go and find. A file in which no key is uncommented is exactly a host with no file at all:
 # capabilities grant nothing, `[mode] default` is `production`, and every other key is whatever the
 # code that enforces it ships (`rule:config/no-configuration-file-is-a-complete-configuration`).
+#
+# To set a key, remove the `#` in front of it. Under a `[header]` that is the whole edit: the
+# headers are already live, and a header with no key under it says nothing and is read as though it
+# were not written. An `[[entry]]` is the exception — `[[app]]`, `[[schedule]]`, `[[server.mount]]`,
+# `[[include]]`, `[[extension]]` — because writing one says the entry exists, and an entry with no
+# keys is refused. Those headers, and the `[app.*]` and `[schedule.*]` tables that belong to an
+# entry, still open with `#`: remove it from the header as well as from the keys you set.
+# `[db.pool]` and `[db.main.pool]` are the other two left commented out, and the comment under each
+# says why.
 #
 # Every key stays commented out, and that is deliberate. A file of live values pins today's numbers
 # into a deployment for as long as it keeps the file, so a default this project later tightens for a
@@ -29,7 +38,7 @@
 # [mode] — which end of the permissiveness scale a request starts at, and how far code may move it.
 # ----------------------------------------------------------------------------------------------
 
-#[mode]
+[mode]
 # `production` or `development`. Unset, `production`, which is also the mode a host with no file at
 # all starts in. The mode selects the default of five other directives, and each of the three that
 # are keys in this file names its production value where it appears below.
@@ -44,7 +53,7 @@
 # (`rule:config/three-changeability-classes`).
 # ----------------------------------------------------------------------------------------------
 
-#[limits]
+[limits]
 # `Runtime` — the keys a request may set wider or narrower at runtime, up to the matching
 # `[limits.hard]` ceiling. Unset, there is no cap of that kind at all: the runtime reads a missing
 # value as no ceiling, so the numbers below are spellings rather than the shipped bounds, and a
@@ -82,7 +91,7 @@
 #max_decompressed = "64M"
 #max_decompression_ratio = 1000
 
-#[limits.hard]
+[limits.hard]
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
 # removes the ceiling for that key. A request that asks for more gets `false` back from
 # `Core\Config::set` and keeps the value it had.
@@ -95,21 +104,21 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [capabilities] — deny-by-default grants. A block absent grants nothing, and that is the whole
-# of what an unconfigured host may do.
+# [capabilities] — deny-by-default grants. A block with no key written grants nothing, and that
+# is the whole of what an unconfigured host may do.
 # ----------------------------------------------------------------------------------------------
 
-#[capabilities.script]
+[capabilities.script]
 # The roots a `spawn script` target may live under. Being able to read a file is not permission to
 # run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).
 #spawn = ["scripts/"]
 
-#[capabilities.fs]
+[capabilities.fs]
 # The roots readable and the roots writable, each a path prefix.
 #read = ["public/", "storage/"]
 #write = ["storage/"]
 
-#[capabilities.net]
+[capabilities.net]
 # The hosts an outbound connection may reach.
 #connect = ["api.example.com:443"]
 # The hosts a call may name its own address for with `connectTo`
@@ -137,7 +146,7 @@
 # socket on this machine are different powers.
 #local = ["/run/novis/"]
 
-#[capabilities.tls]
+[capabilities.tls]
 # Where an outbound call may relax certificate verification
 # (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). Each key is a list of hosts,
 # matched as `net.connect` matches them, and **none has a `true` spelling**: what a deployment
@@ -156,16 +165,16 @@
 #any_name = ["10-4-0-9.internal"]
 #insecure = ["staging.example.com"]
 
-#[capabilities.process]
+[capabilities.process]
 # Whether a subprocess may be started — `true`, or the list of programs it may be.
 #exec = ["/usr/bin/convert"]
 
-#[capabilities.debug]
+[capabilities.debug]
 # Where a trace and where a profile may be written (`rule:testing/debug-probes`).
 #trace = ["storage/trace/"]
 #profile = ["storage/profile/"]
 
-#[capabilities.db]
+[capabilities.db]
 # Which `[db.<name>]` blocks a program may open, and which it may issue DDL to. A block named here
 # was written by an operator, so it is pre-approved against the denied address ranges. Opening a
 # connection is not permission to change what is behind it, so `schema` does not follow from
@@ -176,16 +185,16 @@
 # which is why they are named as hosts and the two keys above are named as blocks.
 #open = ["db.example.com:5432"]
 
-#[capabilities.mail]
+[capabilities.mail]
 # Which `[mail.<name>]` blocks a program may send through, by name and never by host.
 #send = ["default"]
 
-#[capabilities.cache]
+[capabilities.cache]
 # Whether this program may reach the coherent tier — whichever store `[cache.shared] url` names.
 # There is nothing to scope: a deployment has one shared store.
 #shared = true
 
-#[capabilities.queue]
+[capabilities.queue]
 # The queues whose rows a program may remove — `Core\Queue`'s `delete` and `purge`, the only two
 # members taking a grant at all (`rule:concurrency/queue-deletion-is-explicit-and-bounded`). Matched
 # exactly, so two queues differing only in case are two queues. A deployment that never removes a row
@@ -198,7 +207,7 @@
 # record itself looks like (`rule:errors/log-level`).
 # ----------------------------------------------------------------------------------------------
 
-#[log]
+[log]
 # Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument, plus the
 # memory and time reserved for it. The reserve is the engine's rather than the failing request's and
 # is sized once per core, so that the tier reporting an out-of-memory is not itself out of memory.
@@ -222,7 +231,7 @@
 # (`rule:core-classes/temporary-dir-sweep`).
 # ----------------------------------------------------------------------------------------------
 
-#[io]
+[io]
 # Unset, a `novis` subdirectory of the platform temporary directory, which is what an unconfigured
 # deployment gets. An operator writes this to put temporaries on a particular filesystem — a larger
 # disk, or a tmpfs. `Boot`-class: the orphan sweep runs at `nvs serve` boot over the root it was
@@ -235,7 +244,7 @@
 # [debug] — the probe set, the inline-dump switch and the temporary-file switch.
 # ----------------------------------------------------------------------------------------------
 
-#[debug]
+[debug]
 # NOT IMPLEMENTED — writing this turns nothing on. The probes are compiled into every unit and the
 # runtime's `DebugFlags` arms them, but nothing arms a bit from this file and the directive registry
 # carries no row for the key, so a value written here starts no coverage run and narrows nothing.
@@ -263,7 +272,7 @@
 # true with nothing written: headers on, CORS closed, cookies locked down, no unbounded wait.
 # ----------------------------------------------------------------------------------------------
 
-#[http]
+[http]
 # The key the door verifies a CSRF token against, and the one an application issues tokens under —
 # `Core\Csrf::issue($session, Core\Config::get("http.csrf_key"))`, with `Core\Crypto::generateKey()`
 # answering a value of the right length (`rule:security/csrf-is-on-by-default`). Naming it is what
@@ -275,12 +284,12 @@
 #csrf_key = "…"
 #csrf_key_file = "/run/secrets/nvs-csrf-key"
 
-#[http.errors]
+[http.errors]
 # What a request that never got a frame shows: `generic` or `full`. Unset, the production default,
 # `generic`; a `development` host shows `full`. `Runtime`-class, so a request may pick the other.
 #detail = "generic"
 
-#[http.headers]
+[http.headers]
 # The secure header set, applied with no configuration present
 # (`rule:http-server/secure-headers-with-nothing-written`). What is written here replaces the shipped
 # value for that one header and leaves the rest alone.
@@ -294,7 +303,7 @@
 #content_security_policy = "default-src 'self'"
 #permissions_policy = "geolocation=(), camera=()"
 
-#[http.cors]
+[http.cors]
 # Closed until origins are named (`rule:http-server/cors-is-closed-until-origins-are-named`): with no
 # `origins`, no cross-origin request is answered, whatever the other keys say. `["*"]` is permitted
 # only with `credentials = false`.
@@ -305,7 +314,7 @@
 #credentials = false                # whether credentials are allowed
 #max_age = "10m"                    # how long a preflight may be cached
 
-#[http.cookies]
+[http.cookies]
 # What every `Core\Response::addCookie` inherits
 # (`rule:http-server/cookies-are-secure-httponly-and-lax`). `same_site = "None"` with
 # `secure = false` is refused where the pair is read, because it is a cookie sent cross-site in the
@@ -315,7 +324,7 @@
 #same_site = "Lax"                  # `Lax`, `Strict` or `None`
 #path = "/"                         # the default path
 
-#[http.client]
+[http.client]
 # No outbound call may wait forever (`rule:http-server/no-spelling-for-an-unbounded-wait`), and
 # neither key has a spelling that removes the bound. `deadline` covers every attempt and every
 # redirect hop together.
@@ -340,7 +349,7 @@
 #pool_idle = 16
 #pool_idle_timeout = "30s"
 
-#[http.client.socket]
+[http.client.socket]
 # The two bounds an outbound WebSocket has that no other outbound call does
 # (`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`). Both are
 # settable by a request, as `[http.client] deadline` is: each bounds one call, so a program that
@@ -354,7 +363,7 @@
 # How long one frame may wait to be written before the send fails.
 #send_timeout = "30s"
 
-#[http.client.tls]
+[http.client.tls]
 # Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
 # carried in the binary — or a PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company
 # CA and a list without `"bundled"` trusts only its files. Each file is resolved against the
@@ -372,11 +381,11 @@
 # can read it — and announced at every start in `development`.
 #keylog = "/var/log/novis/tls-secrets.log"
 
-#[http.client.proxy]
+[http.client.proxy]
 # The forward proxy every `Core\Http\Client` call leaves through
 # (`rule:http-server/an-outbound-proxy-is-operator-configured`). Written here and nowhere else:
 # there is no call option, no client option and no program-side spelling, and no environment
-# variable is read — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`. Leave the block out and
+# variable is read — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`. Write no key here and
 # every call is dialled directly, which is what a deployment with no proxy wants. `http://` only:
 # every destination is tunnelled with `CONNECT` over plain TCP, and TLS to the proxy is a second
 # trust decision with no spelling here.
@@ -408,7 +417,7 @@
 # (`rule:http-server/the-server-block-is-boot-class`).
 # ----------------------------------------------------------------------------------------------
 
-#[server]
+[server]
 # The root every mount path must resolve inside, and what this instance accepts on. `root` must be
 # written when a `[[server.mount]]` is: the server does not start without it. `listen` is one
 # flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
@@ -447,7 +456,7 @@
 # keep-alive under another name, so lengthening the wait a proxy needs leaves the restart alone.
 #drain_timeout = "30s"              # the drain period
 
-#[server.connection]
+[server.connection]
 # What holds a connection that was upgraded out of a request — a WebSocket, or an event stream on
 # the door that has no peer speaking. Every one of these is finite with nothing written here, and
 # none of them has an unbounded spelling: `false` and `0` are both refused, because a connection is
@@ -477,11 +486,11 @@
 # ----------------------------------------------------------------------------------------------
 # [session] — where a `Core\Session` record lives, what it rides under, and how long an untouched
 # one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
-# The block being absent is not a default backend: `Core\Session::start()` throws naming this block,
-# which is the safe answer for a store nobody chose.
+# A block with no key written is not a default backend: `Core\Session::start()` throws naming this
+# block, which is the safe answer for a store nobody chose.
 # ----------------------------------------------------------------------------------------------
 
-#[session]
+[session]
 # `shared` or `db`. The local and process cache tiers are deliberately unspellable and writing
 # either is `E0626`: a tier that is one core's own memory, or one process's, cannot hold what must
 # be coherent across every core and process serving this deployment.
@@ -501,16 +510,18 @@
 # (`rule:core-classes/db-connection-is-named`).
 # ----------------------------------------------------------------------------------------------
 
-#[db]
+[db]
 # `pool = false` with no block in front of it turns pooling off everywhere, including for a
 # connection a program described for itself through `Core\Db::open` — which names no block, so no
 # per-block key could ever reach it (`rule:security/db-pool-reset-is-a-boundary`).
 #pool = false
 
 #[db.pool]
-# These four are refused written unscoped: bounds with no block are a default set for a pool whose
-# key is a credential hash, and could not be sized against any one server. They are listed because
-# the parser reads them, and they are spelled properly one block down, under `[db.<name>.pool]`.
+# This header stays commented out: `pool = false` above is the same key, and TOML refuses a file
+# that writes both. These four are refused written unscoped: bounds with no block are a default
+# set for a pool whose key is a credential hash, and could not be sized against any one server.
+# They are listed because the parser reads them, and they are spelled properly one block down,
+# under `[db.<name>.pool]`.
 #max = 8
 #idle = 2
 #lifetime = "30m"
@@ -518,7 +529,7 @@
 
 # A connection is named, and the name is what a program and a `capabilities.db` grant refer to.
 # `main` here is an example: any name may be used, and `[db.<name>]` is the shape.
-#[db.main]
+[db.main]
 # Which driver this block selects, and where it connects. SQLite takes a `path`, resolved against
 # the directory of the file it is written in, and has no host, port, user or password.
 #driver = "postgres"
@@ -556,6 +567,8 @@
 #pool = false
 
 #[db.main.pool]
+# This header stays commented out, because `pool = false` above is the same key and TOML refuses a
+# file that writes both: to set a bound, remove the `#` from the header as well.
 # The bounds on this block's pool. `max` is per core, so a deployment's ceiling on the server is
 # cores times `max` — the number to size `max_connections` against. Unset, the set
 # `nvs_config::db::PoolBounds` ships, which is where they live because it is what parses them.
@@ -570,7 +583,7 @@
 # grant names it, so nothing a program writes can reach past this block.
 # ----------------------------------------------------------------------------------------------
 
-#[mail.default]
+[mail.default]
 # The relay, and the sender every message carries. There is no call-site override for `from`: domain
 # alignment is a fact about the deployment. Unset, `port` is 25 and `timeout` is 30s.
 #host = "smtp.example.com"
@@ -592,7 +605,7 @@
 # is tightened in one of them and stays open through the other.
 # ----------------------------------------------------------------------------------------------
 
-#[storage.local]
+[storage.local]
 # The directory the disk's objects are files in. Every object is one entry directly under it, because
 # a key is one segment and never a path.
 #root = "storage/files"
@@ -603,14 +616,14 @@
 # which is `[opcache]` and has no key here.
 # ----------------------------------------------------------------------------------------------
 
-#[cache.local]
+[cache.local]
 # What this core's entries may hold together — a size, or `false` for no ceiling at all. Unset, the
 # cap `nvs_stdlib::cache` ships, which is that module's to state because it is the one thing that
 # enforces it. Exceeding it forgets entries rather than failing a write, so it is never a reason a
 # `put` throws. `System`-class: the footprint is charged to the core and not to any one request.
 #max_size = "32M"
 
-#[cache.process]
+[cache.process]
 # What the entries of the one map every core of this process reads may hold together — a size, or
 # `false` for no ceiling at all. Unset, the cap `nvs_stdlib::cache` ships. It is the same figure the
 # local tier takes, and the same number here is less memory rather than more: this map is held once
@@ -623,7 +636,7 @@
 # nothing ends has no spelling here.
 #fill_wait = "5s"
 
-#[cache.shared]
+[cache.shared]
 # Where the coherent tier lives: `redis://host[:port]`, `rediss://host[:port]` for the same store
 # reached through this process's one outbound TLS client, or `unix:/path/to.sock` for a store on
 # this machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather
@@ -654,11 +667,11 @@
 # [queue] — the durable job queue, which is a table in a database an operator names
 # (`rule:core-classes/queue-storage-is-a-table`). Every key is `System`: the queue is armed at boot
 # and a request may not move it, because work a request could redirect is work it could redirect into
-# a database it was never granted. The block's own absence is the off switch — nothing is enqueued
-# and nothing runs.
+# a database it was never granted. A block with no key written is the off switch — nothing is
+# enqueued and nothing runs.
 # ----------------------------------------------------------------------------------------------
 
-#[queue]
+[queue]
 # The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required, and best
 # the application's own: that is what makes an enqueue commit with the write that caused it.
 #connection = "main"
@@ -679,7 +692,7 @@
 # (`rule:concurrency/deferred-is-bounded-by-two-directives`).
 # ----------------------------------------------------------------------------------------------
 
-#[deferred]
+[deferred]
 # `System` — request trees per core kept alive for deferred work. Past the cap, `afterResponse`
 # throws rather than queueing, so the pressure is visible in the request that caused it.
 #max_concurrent = 32
@@ -778,7 +791,7 @@
 # [metrics] and [trace] — `System` blocks (`rule:observability/metrics-and-trace-blocks-are-system`).
 # ----------------------------------------------------------------------------------------------
 
-#[metrics]
+[metrics]
 # `false`, `prometheus` or `otlp`, and the bound on how many series one core accumulates between
 # scrapes. Past the bound a new series is refused rather than allowed to grow the registry without
 # end (`rule:observability/past-max-series-a-new-series-is-refused`).
@@ -794,7 +807,7 @@
 # `/v1/metrics` under a URL that names no path; a URL that names one is dialled as written.
 #endpoint = "http://127.0.0.1:4318" # the OTLP collector URL
 
-#[trace]
+[trace]
 # `false` or `otlp`, head-based sampling from 0.0 to 1.0, and whether `traceparent` is sent on
 # outbound `Core\Http\Client` calls. An inbound sampled trace is always continued regardless of the
 # sample rate.
@@ -810,7 +823,7 @@
 # [control] — the one local control socket (`rule:config/one-local-control-socket`).
 # ----------------------------------------------------------------------------------------------
 
-#[control]
+[control]
 # A path, `\\.\pipe\nvs-control` on Windows, or `false` to disable. There is no TCP listener, no token
 # and no auth middleware: the socket's owner and mode are the authentication.
 #socket = "/run/novis/control.sock"
@@ -821,7 +834,7 @@
 # (`rule:config/opcache-revalidation-is-system-class`). Every key is `System`.
 # ----------------------------------------------------------------------------------------------
 
-#[opcache]
+[opcache]
 # When a source file is re-`stat`ed, and the rate cap that bounds what those `stat`s cost. `never` is
 # the production answer, and it is what makes a warm start read no source at all.
 #validate = "never"
