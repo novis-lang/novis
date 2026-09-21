@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to build one compressed block from several pieces. `add` keeps the
+// pieces in the order you add them, and `finish` compresses all of them.
+
+var $letter = Core\Compress::compressor(Core\Codec::Gzip);
+$letter->add('Dear customer,');
+$letter->add(' your order 1042 is on its way.');
+$letter->add(' Thank you!');
+bytes $frame = $letter->finish();
+
+// The three pieces are 56 bytes together, so this prints 56.
+bytes $back = Core\Compress::decompress($frame, Core\Codec::Gzip);
+echo 'the three pieces came back as ', Core\Bytes::length($back), " bytes\n";
+
+// The same text added as one piece gives the same bytes. `finish` compresses
+// what you added, and not how you split it.
+var $whole = Core\Compress::compressor(Core\Codec::Gzip);
+$whole->add('Dear customer, your order 1042 is on its way. Thank you!');
+echo 'the same block: ', Core\Hash::equals($whole->finish(), $frame) ? 'yes' : 'no', "\n";

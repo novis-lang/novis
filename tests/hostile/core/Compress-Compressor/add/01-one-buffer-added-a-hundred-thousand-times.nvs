@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program feeds a compression stream the worst pieces it can. It
+// adds a piece after the stream ended, adds one buffer a hundred thousand
+// times, then asks for more bytes than the machine has. The program must not
+// crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. A finished stream takes no more pieces. `add` must throw a `RuntimeError`.
+var $ended = Core\Compress::compressor(Core\Codec::Gzip);
+$ended->add('one piece');
+$ended->finish();
+try {
+    $ended->add('one piece too many');
+    echo "step 1 added a piece to a finished stream\n";
+} catch (RuntimeError $finished) {
+    echo "step 1 stopped the piece that came after the end\n";
+}
+
+// 2. One buffer of a mebibyte, added a hundred thousand times. `add` keeps the
+//    piece, so this is one buffer; a copy for each would be 100 gibibytes.
+bytes $block = Core\Bytes::fill(1048576, 65);
+var $kept = Core\Compress::compressor(Core\Codec::Zstd);
+uint $added = 0;
+while ($added < 100000) {
+    $kept->add($block);
+    $added = $added + 1;
+}
+echo 'step 2 added ', $added, " pieces\n";
+
+// 3. The same buffer two thousand times, then the block. `finish` joins two
+//    gibibytes, so the program stops at its memory limit on the last line.
+var $joined = Core\Compress::compressor(Core\Codec::Gzip);
+uint $pieces = 0;
+while ($pieces < 2000) {
+    $joined->add($block);
+    $pieces = $pieces + 1;
+}
+echo 'step 3 added ', $pieces, " pieces\n";
+echo 'step 3 wrote ', Core\Bytes::length($joined->finish()), " bytes\n";

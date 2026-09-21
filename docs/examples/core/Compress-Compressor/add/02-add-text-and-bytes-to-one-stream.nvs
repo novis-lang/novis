@@ -1,0 +1,16 @@
+<?nvs
+// Shows that one stream takes both kinds of data. `add` accepts a `string`,
+// and it accepts `bytes`, in whatever order you need them.
+
+// 16 bytes that are not text, standing in for a small image.
+bytes $image = Core\Bytes::fill(16, 137);
+
+var $page = Core\Compress::compressor(Core\Codec::Zlib);
+$page->add('<html><body>');
+$page->add($image);
+$page->add('</body></html>');
+bytes $frame = $page->finish();
+
+// The stream was given 42 bytes in total: 12 of text, then 16, then 14.
+echo 'the page is ', Core\Bytes::length($frame), " bytes\n";
+echo 'it reads back as ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Zlib)), " bytes\n";
