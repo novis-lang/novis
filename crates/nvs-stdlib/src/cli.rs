@@ -4742,6 +4742,157 @@ mod tests {
         }
     }
 
+    /// `Core\Cli\Text::styled` renders as the escape sequence its `Cli\Style`
+    /// names, degraded to what the terminal at the other end can show, and
+    /// never as anything its own body carried.
+    ///
+    /// This is the half no `.nvst` case reaches. A case's output is captured,
+    /// so it runs at [`ColorDepth::None`], where every style renders as
+    /// nothing — and a `styled` that had dropped its style on the floor would
+    /// pass the whole suite. Asked for each terminal in turn, the bold red
+    /// comes back as its two SGR parameters and one reset, and a 24-bit blue
+    /// comes back as its three channels, as the nearest entry of the
+    /// 256-colour palette, and as the nearest of the sixteen below that. The
+    /// body's own escape stays substituted at every depth, so the two the
+    /// style put there are the only ones a terminal is sent.
+    // covers: Core\Cli\Text::styled
+    #[test]
+    fn styled_renders_its_style_at_every_depth_and_never_its_bodys_own_escape() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let style = warning(&mut ctx);
+        let body = Value::str(NvsStr::new("cost \u{1B}[31m9".as_bytes()));
+        let text = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
+            .expect("Text::styled answered");
+        let runs = crate::instance::slot(text.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
+        let want = "cost \u{241B}[31m9";
+
+        assert_eq!(
+            rendered_at(runs, ColorDepth::None).expect("a `Text` renders at every depth"),
+            want,
+            "a terminal with no colour was sent more than the text itself"
+        );
+        for depth in [
+            ColorDepth::Ansi16,
+            ColorDepth::Ansi256,
+            ColorDepth::TrueColor,
+        ] {
+            let rendered = rendered_at(runs, depth).expect("a `Text` renders at every depth");
+            assert_eq!(
+                rendered,
+                format!("\u{1B}[1;31m{want}\u{1B}[0m"),
+                "a terminal at {depth:?} was not sent the bold red the style names"
+            );
+            assert_eq!(
+                rendered.matches('\u{1B}').count(),
+                2,
+                "a terminal at {depth:?} was sent an escape the style did not put there"
+            );
+        }
+
+        // A colour only a 24-bit terminal has, which is where the three depths
+        // answer differently.
+        let dodger = nvs_runtime::call(
+            nvs_core_cli_color_rgb,
+            &mut ctx,
+            &[Value::uint(30), Value::uint(144), Value::uint(255)],
+        )
+        .expect("Color::rgb answered");
+        let options = [
+            dodger,
+            Value::null(),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+        ];
+        let blue = nvs_runtime::call(nvs_core_cli_style_of, &mut ctx, &options)
+            .expect("Style::of answered");
+        let label = Value::str(NvsStr::new("done".as_bytes()));
+        let shown = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[label, blue])
+            .expect("Text::styled answered");
+        let blue_runs =
+            crate::instance::slot(shown.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
+
+        for (depth, opening) in [
+            (ColorDepth::TrueColor, "\u{1B}[38;2;30;144;255m"),
+            (ColorDepth::Ansi256, "\u{1B}[38;5;75m"),
+            (ColorDepth::Ansi16, "\u{1B}[96m"),
+        ] {
+            assert_eq!(
+                rendered_at(blue_runs, depth).expect("a `Text` renders at every depth"),
+                format!("{opening}done\u{1B}[0m"),
+                "a terminal at {depth:?} was not sent the nearest colour it has"
+            );
+        }
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            body.release();
+            style.release();
+            text.release();
+            dodger.release();
+            blue.release();
+            label.release();
+            shown.release();
+        }
+    }
+
+    /// `Core\Cli\Text::text` answers the runs' own bodies, and not the
+    /// rendering the carrier slot holds for the stream `echo` writes.
+    ///
+    /// No `.nvst` case can tell those two apart. Every stream a case runs
+    /// under is captured, so the process renders at [`ColorDepth::None`],
+    /// where both slots hold the same bytes and a member answering the carrier
+    /// would pass `cli-a-texts-text-is-its-runs-without-their-styling.nvst`
+    /// line for line. The carrier here is given the rendering a colour
+    /// terminal would be sent, which is the one thing a program cannot
+    /// arrange, and the answer still comes back with no escape in it.
+    // covers: Core\Cli\Text::text
+    #[test]
+    fn text_answers_the_runs_and_not_the_carriers_rendering_for_a_terminal() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let style = warning(&mut ctx);
+        let body = Value::str(NvsStr::new("careful".as_bytes()));
+        let styled = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
+            .expect("Text::styled answered");
+        let runs =
+            crate::instance::slot(styled.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
+        let lit = rendered_at(runs, ColorDepth::Ansi16).expect("the runs render for a terminal");
+        assert!(
+            lit.contains('\u{1B}'),
+            "the fixture is not a terminal's rendering at all"
+        );
+
+        // The carrier a process writing to a terminal builds: the same runs,
+        // and the slot `echo` writes holding their escape sequences.
+        #[expect(
+            unsafe_code,
+            reason = "the second carrier takes a reference of its own to the runs"
+        )]
+        unsafe {
+            runs.retain();
+        }
+        let on_a_terminal =
+            crate::instance::build(&TEXT, [Value::str(NvsStr::new(lit.as_bytes())), runs]);
+        let read = nvs_runtime::call(nvs_core_cli_text_text, &mut ctx, &[on_a_terminal])
+            .expect("Text::text answered");
+        assert_eq!(
+            read.as_text(),
+            Some("careful"),
+            "the answer is the carrier's rendering rather than what the text says"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            body.release();
+            style.release();
+            styled.release();
+            on_a_terminal.release();
+            read.release();
+        }
+    }
+
     /// `rule:tooling/terminal-output-is-a-sink`: terminal output substitutes a control sequence
     /// **visibly**, and it does so at the sink rather than at any caller's
     /// discretion.
