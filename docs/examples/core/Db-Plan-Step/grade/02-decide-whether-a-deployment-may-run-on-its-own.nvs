@@ -1,0 +1,42 @@
+<?nvs
+// Shows how a deployment decides whether it may change the database on its
+// own. It may when every step of the plan is graded `Safe`.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+uint $needsAPerson = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->grade() != Grade::Safe) {
+        $needsAPerson = $needsAPerson + 1;
+    }
+}
+
+if ($needsAPerson == 0) {
+    echo "every step is safe\n";
+    // `applySafe` makes the same check itself and throws when a step is not
+    // `Safe`, so nothing half-applies.
+    $schema->applySafe($db);
+    echo "the database is up to date\n";
+} else {
+    echo $needsAPerson, " steps need a person\n";
+}
+
+$db->close();

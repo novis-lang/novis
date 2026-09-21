@@ -1,0 +1,58 @@
+<?nvs
+// Shows how a release sorts a plan into two lists: the steps the program runs
+// now, and the SQL a person runs in the next maintenance window.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What the last release left in the database.
+$db->execute('create table notes (id integer primary key, title text not null)', []);
+$db->execute('create table notes_2 (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text'],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+        ],
+    ],
+]);
+
+array<string> $now = [];
+array<string> $window = [];
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->grade() == Grade::Safe) {
+        $now[] = $step->sql();
+    } else {
+        $window[] = $step->sql();
+    }
+}
+
+// The steps that cannot lose data are run here, one statement at a time.
+foreach ($now as string $sql) {
+    $db->execute($sql, []);
+}
+echo 'steps run: ', Core\Arr::count($now), "\n";
+
+// The rest is written out for a person. `sql()` is the whole statement.
+foreach ($window as string $sql) {
+    echo 'for the window: ', $sql, "\n";
+}
+
+$db->close();

@@ -1,0 +1,74 @@
+--TEST--
+`Core\Db\Plan\Step::grade` answers one of three cases and the worst this step can cost — a new table is `Safe`, a reported drop is `Destructive`, and every step lands in exactly one case — `rule:core-classes/schema-plan`
+--FILE--
+<?nvs
+// Asked of every step and counted, rather than read off one line: a member
+// answering plausibly step by step would still fail the total below. SQLite
+// needs no server, so `main` is the `:memory:` block that makes the grades
+// real ones an emitter wrote.
+// covers: Core\Db\Plan\Step::grade
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect("main");
+
+// A table this schema does not name. Absence never destroys, so the plan
+// reports the drop instead of running it, and reports are graded on what they
+// would cost if somebody ran them.
+$db->execute("create table leftovers (id integer primary key)", []);
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+var $steps = $schema->planAgainst($db)->steps();
+
+uint $safe = 0;
+uint $locking = 0;
+uint $destructive = 0;
+foreach ($steps as Step $step) {
+    if ($step->grade() == Grade::Safe) {
+        $safe = $safe + 1;
+    } else if ($step->grade() == Grade::Locking) {
+        $locking = $locking + 1;
+    } else if ($step->grade() == Grade::Destructive) {
+        $destructive = $destructive + 1;
+    }
+}
+
+// A new table holds no rows, so creating it cannot lose any.
+echo "safe ", $safe, "\n";
+echo "locking ", $locking, "\n";
+// A drop can lose data, whether or not this plan will ever run it.
+echo "destructive ", $destructive, "\n";
+
+// The three counts add up to the whole plan, so every step landed in exactly
+// one case and none of them answered a value outside the three.
+echo "steps ", Core\Arr::count($steps), "\n";
+echo "graded ", $safe + $locking + $destructive, "\n";
+--FILE nvs.toml--
+# Planning is an ordinary read, so `db.connect` is the whole grant this case
+# needs: nothing here applies anything.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+safe 1
+locking 0
+destructive 1
+steps 2
+graded 2

@@ -1,0 +1,87 @@
+<?nvs
+// Attack: the grade of a step is read ten million times, and a million steps
+// are kept after the plan that made them is gone. The program should finish,
+// or stop at its memory limit with an error, and must not crash.
+// hostile: timeout-ms 120000
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+class Gone
+{
+    // The plan is released when this function returns. Every step it made is
+    // still held by the array, so a grade read afterwards must still work.
+    public static function stepsOf(Core\Db\Connection $db, Schema $schema): array<Step>
+    {
+        return $schema->planAgainst($db)->steps();
+    }
+}
+
+var $db = Db::connect('notes');
+
+// A schema of three thousand tables against an empty database, which is three
+// thousand steps.
+array<mixed> $tables = [];
+uint $t = 0;
+while ($t < 3000) {
+    $tables[] = [
+        'name' => 'table_' . ($t as string),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $t = $t + 1;
+}
+
+try {
+    var $schema = Schema::fromArray(['tables' => $tables]);
+
+    // 1. Every step outlives the plan it came from.
+    var $steps = Gone::stepsOf($db, $schema);
+    echo '1 steps: ', Core\Arr::count($steps), "\n";
+
+    // 2. The first step's grade read ten million times.
+    var $first = $steps[0];
+    uint $safe = 0;
+    uint $i = 0;
+    while ($i < 10000000) {
+        if ($first->grade() == Grade::Safe) {
+            $safe = $safe + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '2 safe: ', $safe, "\n";
+
+    // 3. A million steps kept in one array, then graded again.
+    array<Step> $kept = [];
+    $i = 0;
+    while ($i < 1000000) {
+        $kept[] = $first;
+        $i = $i + 1;
+    }
+    uint $graded = 0;
+    foreach ($kept as Step $step) {
+        if ($step->grade() != Grade::Destructive) {
+            $graded = $graded + 1;
+        }
+    }
+    echo '3 graded: ', $graded, "\n";
+
+    // 4. Every step of the whole plan, graded once more, after all of that.
+    uint $counted = 0;
+    foreach ($steps as Step $step) {
+        if ($step->grade() == Grade::Safe) {
+            $counted = $counted + 1;
+        }
+    }
+    echo '4 counted: ', $counted, "\n";
+} catch (Throwable $stopped) {
+    echo '1-4 stopped: ', $stopped->message, "\n";
+}
+
+// 5. The connection after all of that. An ordinary statement still works.
+$db->execute('create table still_here (id integer primary key)', []);
+echo '5 still usable: ', $db->query('select id from still_here', [])->count(), "\n";
+
+$db->close();
