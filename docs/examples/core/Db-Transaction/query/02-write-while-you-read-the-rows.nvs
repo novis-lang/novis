@@ -1,0 +1,24 @@
+<?nvs
+// Shows a loop that reads rows and writes one statement per row. `query` reads
+// every row into memory before it returns, so the transaction is free for the
+// next statement while you are still reading them.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (id integer primary key, title text not null, done int not null)', []);
+$db->execute('insert into tasks (title, done) values (?, 0), (?, 0), (?, 0)', ['pack', 'label', 'ship']);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    var $open = $tx->query('select id, title from tasks where done = 0 order by id', []);
+
+    // Each round reads one row and writes with it. Both statements run on the
+    // same transaction, so all three updates are saved together.
+    foreach ($open as Core\Db\Row $row) {
+        $tx->execute('update tasks set done = 1 where id = ?', [$row->int('id') ?? 0]);
+        echo 'done: ', $row->string('title') ?? '', "\n";
+    }
+});
+
+// This prints `3 of 3 done`.
+echo $db->query('select id from tasks where done = 1', [])->count(), ' of ', $db->query('select id from tasks', [])->count(), " done\n";
+
+$db->close();

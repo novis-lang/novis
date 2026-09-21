@@ -1,0 +1,21 @@
+<?nvs
+// Shows a `select` inside a transaction. The rows the transaction has written
+// are already there when you read them, before the transaction ends.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $tx->execute('insert into notes (text) values (?), (?)', ['buy milk', 'call Ana']);
+
+    // `query` returns every row of the statement. The two rows above are part
+    // of this transaction, so this prints both of them.
+    foreach ($tx->query('select id, text from notes order by id', []) as Core\Db\Row $row) {
+        echo $row->int('id') ?? 0, ': ', $row->string('text') ?? '', "\n";
+    }
+});
+
+// The transaction is over, so the rows are saved. This prints `2 notes`.
+echo $db->query('select id from notes', [])->count(), " notes\n";
+
+$db->close();

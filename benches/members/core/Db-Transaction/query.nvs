@@ -1,0 +1,30 @@
+<?nvs
+// Measures one `select` inside a transaction, as a program does when it reads a
+// few rows before it writes them back.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        while ($written < 10) {
+            $db->execute('insert into notes (n) values (?)', [$written as int]);
+            $written = $written + 1;
+        }
+        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+            uint $total = 0;
+            uint $i = 0;
+            while ($i < $rounds) {
+                // The rows read so far choose the value bound below, and the
+                // count grows by what this read returns, so nothing is hoisted.
+                var $rows = $tx->query('select n from notes where n >= ? order by n', [($total % 10) as int]);
+                $total = $total + $rows->count();
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(20000), "\n";

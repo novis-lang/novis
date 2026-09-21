@@ -1,0 +1,63 @@
+--TEST--
+`query` on a `Core\Db\Transaction` reads the rows that transaction has written but not committed, and buffers them before it returns, so a write inside the loop over its result runs on the same transaction — `rule:classes/no-traits`, `rule:core-classes/db-statement-members` and `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::query
+use Core\Db;
+use Core\Db\RolledBack;
+use Core\Db\Row;
+use Core\Db\Transaction;
+
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 18's buffered
+// read is the transaction's too. What only this receiver can be asked is what
+// the read sees: a row the open transaction wrote and nothing has committed.
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null, seen int not null)", []);
+$db->execute("insert into t (name, seen) values (?, 0), (?, 0)", ["ada", "grace"]);
+
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name, seen) values (?, 0)", ["katherine"]);
+    // Both counts, because a member that read through a second connection
+    // would print the committed two and look plausible on its own line.
+    echo "inside ", $tx->query("select id from t", [])->count(), "\n";
+
+    // § 4's buffered result is the claim here: every row is read before the
+    // call returns, so the connection the `COMMIT` has to go out on is free
+    // again and a write per row is not § 4's connection-busy refusal. A
+    // `stream` in this position is the case that pins the other answer.
+    foreach ($tx->query("select id, name from t order by id", []) as Row $row) {
+        $tx->execute("update t set seen = seen + 1 where id = ?", [$row->int("id") ?? 0]);
+    }
+    echo "seen ", $tx->query("select id from t where seen = 1", [])->count(), "\n";
+});
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+
+// § 7: what the read saw belonged to the transaction, so a rollback takes the
+// uncommitted row back out and the same read through the connection answers
+// what is left.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name, seen) values (?, 0)", ["barbara"]);
+        echo "before the rollback ", $tx->query("select id from t", [])->count(), "\n";
+        $tx->rollBack("keep nothing");
+    });
+} catch (RolledBack $gone) {
+    echo "gave up: ", $gone->reason, "\n";
+}
+echo "after ", $db->query("select id from t", [])->count(), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+inside 3
+seen 3
+kept 3
+before the rollback 4
+gave up: keep nothing
+after 3
