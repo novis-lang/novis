@@ -108,6 +108,10 @@ modules = [
   # `rule:core-classes/db-statement-members`'s one member that does not buffer: the walk over a
   # portal the connection is still holding open.
   "crates/nvs-stdlib/src/db/stream.rs",
+  # `Core\Db` — docs/spec/01-core-library.md § 18's entry points, over `nvs_db`'s wire half.
+  "crates/nvs-stdlib/src/db/mod.rs",
+  # ADR 0067 § 7: a transaction is a closure, and what happens when it conflicts.
+  "crates/nvs-stdlib/src/db/transaction.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
