@@ -1,0 +1,37 @@
+<?nvs
+// Shows a program that accepts a file only from the one publisher it knows.
+// The file and its signature arrive together, and the key was built into the
+// program beforehand.
+
+// What the publisher does, once, when it releases the file.
+Core\Crypto\KeyPair $publisher = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $published = $publisher->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+
+bytes $update = "print('version 3')" as bytes;
+bytes $signature = Core\Crypto::sign($update, $publisher);
+
+// What the program does with every file it downloads. The key it trusts is the
+// one it was shipped with.
+Core\Crypto\PublicKey $trusted = Core\Crypto\PublicKey::read(
+    $published,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Spki
+);
+
+// Check first, use afterwards. A file that does not check out is never used.
+try {
+    Core\Crypto::verify($update, $signature, $trusted);
+    echo "installing the update", "\n";
+} catch (Throwable $e) {
+    echo "this update did not come from the publisher", "\n";
+}
+
+// The same program, with a file somebody replaced on the way. The signature is
+// still the publisher's, but it does not cover these bytes.
+bytes $swapped = "print('version 3'); steal()" as bytes;
+try {
+    Core\Crypto::verify($swapped, $signature, $trusted);
+    echo "installing the update", "\n";
+} catch (Throwable $e) {
+    echo "this update did not come from the publisher", "\n";
+}

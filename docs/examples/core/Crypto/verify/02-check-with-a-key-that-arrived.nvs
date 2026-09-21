@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to check a signature with a public key that came from somewhere
+// else. A key travels as bytes, and you name the kind and the format you
+// expect.
+
+Core\Crypto\KeyPair $signer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $message = "price list 2026-04" as bytes;
+bytes $signature = Core\Crypto::sign($message, $signer);
+
+// The two formats other programs send a public key in. `Spki` is bytes, and
+// `Jwk` is JSON text that browsers and web services use.
+bytes $spki = $signer->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $jwk = $signer->publicKey()->write(Core\Crypto\KeyFormat::Jwk);
+
+array<Core\Crypto\KeyFormat> $formats = [Core\Crypto\KeyFormat::Spki, Core\Crypto\KeyFormat::Jwk];
+array<bytes> $arrived = [$spki, $jwk];
+
+// Both are the same key, so the same signature checks out under both. This
+// prints `checked out` twice.
+uint $i = 0;
+while ($i < 2) {
+    Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+        $arrived[$i as int],
+        Core\Crypto\KeyKind::P256,
+        $formats[$i as int]
+    );
+    Core\Crypto::verify($message, $signature, $key);
+    echo "checked out", "\n";
+    $i = $i + 1;
+}

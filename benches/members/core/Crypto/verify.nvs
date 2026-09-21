@@ -1,0 +1,35 @@
+<?nvs
+// Measures checking one Ed25519 signature, as a server does for every signed
+// message that arrives.
+// bench: iterations 5000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        Core\Crypto\PublicKey $key = $pair->publicKey();
+        array<bytes> $messages = [
+            "order 1042 shipped" as bytes,
+            "order 1043 shipped" as bytes,
+            "order 1044 shipped" as bytes,
+        ];
+        array<bytes> $signatures = [
+            Core\Crypto::sign($messages[0], $pair),
+            Core\Crypto::sign($messages[1], $pair),
+            Core\Crypto::sign($messages[2], $pair),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The message of every round is chosen by the round before it, so
+            // every round checks a different pair of message and signature.
+            int $which = ($total % 3) as int;
+            Core\Crypto::verify($messages[$which], $signatures[$which], $key);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";
