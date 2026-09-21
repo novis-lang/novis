@@ -838,7 +838,7 @@
     },
     {
       "id": "tooling/an-agent-asks-the-binary",
-      "title": "`nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface",
+      "title": "`nvs agent` answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface",
       "status": "shipped",
       "because": [
         "0167"
@@ -856,7 +856,7 @@
     },
     {
       "id": "tooling/the-index-is-one-line-per-member",
-      "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on",
+      "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on, and one per chapter heading",
       "status": "shipped",
       "because": [
         "0167"

@@ -75,10 +75,32 @@
 //! empty result that follows is indistinguishable from a name the language does
 //! not have.
 //!
-//! `find` succeeds having printed nothing when a query matches nothing: the index
-//! is complete, so an empty result is the answer that the name does not exist.
-//! `show` is the opposite — it was asked for one specific thing and exits
-//! non-zero when it cannot produce it, naming what it has instead.
+//! `find` succeeds having printed nothing on standard output when a query
+//! matches nothing: the index is complete, so an empty result is the answer that
+//! no `Core` symbol and no chapter heading carries the word. Standard error says
+//! so, and names the chapter map, because a keyword written under a heading that
+//! does not name it is in the language all the same. `show` is the opposite — it
+//! was asked for one specific thing and exits non-zero when it cannot produce it,
+//! naming what it has instead.
+//!
+//! ## A chapter, and a heading in it
+//!
+//! The registry holds what `Core` declares and nothing the grammar does, so a
+//! keyword — `autoload`, `require`, `match` — has no member to be found by. The
+//! chapters this binary carries are where those are written, and [`topics`] puts
+//! them on the same index: one line per chapter, whose symbol is the chapter's
+//! `id`, and one per heading, whose symbol is `id#slug`:
+//!
+//! ```text
+//! programs  chapter: Programs, files and names
+//! programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+//! ```
+//!
+//! A slug is the heading lowercased with every run of anything but a letter or a
+//! digit written as one `-`, so it holds no `(`, `<` or space and the rule above
+//! still cuts the symbol. `show` on a section prints the section as the chapter
+//! has it; on a chapter it prints the summary and the chapter's own lines, since
+//! a whole chapter is more than the question that reached it asked for.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -93,8 +115,10 @@ const MARKER: &str = "<!-- primer -->";
 ///
 /// The whole chapter is embedded rather than an extract of its marked sections,
 /// because an extract is a second artefact that can disagree with the chapter
-/// and the primer exists to be a document that cannot. It spends ~290 KB of the
-/// binary's read-only data — once per binary, never per request — to buy that.
+/// and the primer exists to be a document that cannot — and because the whole
+/// chapter is what `show` answers a section from. It spends the chapters' own
+/// size, a few hundred KB of the binary's read-only data — once per binary, never
+/// per request — to buy that.
 const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/lang/10-programs.md"),
     include_str!("../../../docs/reference/lang/20-types.md"),
@@ -108,6 +132,7 @@ const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/lang/90-attributes.md"),
     include_str!("../../../docs/reference/lang/95-testing.md"),
     include_str!("../../../docs/reference/tools/10-cli.md"),
+    include_str!("../../../docs/reference/tools/15-install.md"),
     include_str!("../../../docs/reference/tools/20-config.md"),
     include_str!("../../../docs/reference/tools/30-php-differences.md"),
     include_str!("../../../docs/reference/tools/40-editor.md"),
@@ -167,7 +192,8 @@ fn gates(document: &Value) -> Vec<(String, &str)> {
 }
 
 /// Every line of the index, in the registry's own order: the members class by
-/// class, then the enums, exceptions and attributes beside them.
+/// class, then the enums, exceptions and attributes beside them, then each
+/// chapter over its headings.
 fn entries(document: &Value) -> Vec<Entry> {
     let gates = gates(document);
     let mut out = Vec::new();
@@ -225,7 +251,126 @@ fn entries(document: &Value) -> Vec<Entry> {
         });
     }
 
+    for topic in topics() {
+        out.push(Entry {
+            symbol: topic.symbol,
+            line: topic.line,
+        });
+    }
+
     out
+}
+
+/// One thing a chapter is asked for: the chapter, or one heading in it.
+struct Topic {
+    symbol: String,
+    line: String,
+    /// The heading's level, and `0` for the chapter itself.
+    level: usize,
+    /// The section from its heading to the next heading at its level or above.
+    /// Empty for a chapter, whose card is its sections' lines.
+    lines: Vec<&'static str>,
+}
+
+/// Every chapter this binary carries, each followed by its headings in the order
+/// the chapter writes them.
+fn topics() -> Vec<Topic> {
+    let mut out = Vec::new();
+    for chapter in CHAPTERS.iter().map(|text| chapter(text)) {
+        out.push(Topic {
+            symbol: chapter.id.to_owned(),
+            line: format!("{}  chapter: {}", chapter.id, chapter.title),
+            level: 0,
+            lines: Vec::new(),
+        });
+
+        let lines: Vec<&'static str> = chapter.text.lines().collect();
+        let levels = heading_levels(&lines);
+        let mut slugs: Vec<String> = Vec::new();
+        for (i, line) in lines.iter().enumerate() {
+            let level = levels[i];
+            if level == 0 {
+                continue;
+            }
+            let heading = line[level..].trim();
+            let end = (i + 1..lines.len())
+                .find(|&j| levels[j] > 0 && levels[j] <= level)
+                .unwrap_or(lines.len());
+            let symbol = format!("{}#{}", chapter.id, unique_slug(&mut slugs, heading));
+            out.push(Topic {
+                line: format!("{symbol}  section: {heading}"),
+                symbol,
+                level,
+                lines: lines[i..end].to_vec(),
+            });
+        }
+    }
+    out
+}
+
+/// A heading as the half of a symbol after the `#`: lowercased, with every run
+/// of anything but a letter or a digit written as one `-`. A chapter that writes
+/// the same heading twice numbers the later ones, so every symbol resolves to
+/// one section.
+fn unique_slug(taken: &mut Vec<String>, heading: &str) -> String {
+    let mut slug = String::new();
+    for c in heading.chars() {
+        if c.is_alphanumeric() {
+            slug.extend(c.to_lowercase());
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+    }
+    let slug = slug.trim_end_matches('-').to_owned();
+
+    let mut unique = slug.clone();
+    let mut n = 2;
+    while taken.contains(&unique) {
+        unique = format!("{slug}-{n}");
+        n += 1;
+    }
+    taken.push(unique.clone());
+    unique
+}
+
+/// What `show` prints for a chapter or a section, or nothing where `symbol` is
+/// neither.
+///
+/// A section is the chapter's own text with the primer's markers taken out. A
+/// chapter is its summary over the lines of its sections, indented by depth.
+fn topic_card(symbol: &str) -> Option<String> {
+    let topics = topics();
+    let topic = topics.iter().find(|topic| topic.symbol == symbol)?;
+    let mut out = format!("{}\n\n", topic.line);
+
+    if topic.level > 0 {
+        let mut body = String::new();
+        for line in topic.lines.iter().filter(|line| line.trim() != MARKER) {
+            body.push_str(line.trim_end());
+            body.push('\n');
+        }
+        out.push_str(body.trim_end());
+        out.push('\n');
+        return Some(out);
+    }
+
+    let summary = CHAPTERS
+        .iter()
+        .map(|text| chapter(text))
+        .find(|chapter| chapter.id == symbol)
+        .map_or("", |chapter| chapter.summary);
+    out.push_str(summary);
+    out.push_str("\n\nsections:\n");
+    let prefix = format!("{symbol}#");
+    for section in topics
+        .iter()
+        .filter(|section| section.symbol.starts_with(&prefix))
+    {
+        out.push_str(&"  ".repeat(section.level));
+        out.push_str(&section.line);
+        out.push('\n');
+    }
+    Some(out)
 }
 
 /// The document that makes an agent productive: the marked chapter sections in
@@ -253,7 +398,13 @@ pub(crate) fn primer() -> ExitCode {
         }
     }
 
-    out.push_str("\n## The chapters\n\nThe reference is one chapter per topic, and these are all of them.\n\n");
+    out.push_str(
+        "\n## The chapters\n\n\
+         The reference is one chapter per topic, and these are all of them. This binary carries each \
+         one whole: `nvs agent show <id>` lists a chapter's sections, `nvs agent show <id>#<section>` \
+         prints one, and `nvs agent find <word>` matches a heading as it matches a member — which is \
+         how a keyword such as `autoload`, which no `Core` member is named for, is found.\n\n",
+    );
     for chapter in &chapters {
         out.push_str(&format!(
             "- **{}** — {}: {}\n",
@@ -378,8 +529,9 @@ fn push_section(out: &mut String, lines: &[&str]) {
     out.push('\n');
 }
 
-/// One line per member the registry holds, and one per enum, exception and
-/// attribute beside them (`rule:tooling/the-index-is-one-line-per-member`).
+/// One line per member the registry holds, one per enum, exception and
+/// attribute beside them, and one per chapter and heading this binary carries
+/// (`rule:tooling/the-index-is-one-line-per-member`).
 pub(crate) fn index() -> ExitCode {
     let document = crate::meta::document();
     let mut out = String::new();
@@ -392,6 +544,9 @@ pub(crate) fn index() -> ExitCode {
 }
 
 /// The index lines whose symbol contains `query`, compared without case.
+///
+/// A query nothing matches still succeeds with nothing on standard output, and
+/// says on standard error what that silence covers and where to look next.
 pub(crate) fn find(query: &str) -> ExitCode {
     let document = crate::meta::document();
     let wanted = query.to_lowercase();
@@ -401,6 +556,12 @@ pub(crate) fn find(query: &str) -> ExitCode {
             out.push_str(&entry.line);
             out.push('\n');
         }
+    }
+    if out.is_empty() {
+        eprintln!("nothing matches `{query}`: no `Core` symbol and no chapter heading has it.");
+        eprintln!(
+            "`nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
+        );
     }
     print!("{out}");
     ExitCode::SUCCESS
@@ -491,6 +652,9 @@ fn shared_run(a: &str, b: &str) -> usize {
 fn card(document: &Value, entry: &Entry) -> String {
     let mut out = format!("{}\n", entry.line);
     let Some((class_name, member_name)) = entry.symbol.split_once("::") else {
+        if let Some(card) = topic_card(&entry.symbol) {
+            return card;
+        }
         push_roster_card(&mut out, document, &entry.symbol);
         return out;
     };

@@ -1,21 +1,23 @@
 ---
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
-summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact
+summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact
 keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
 # nvs agent
 
-    nvs agent index                one line per Core member, enum, exception and attribute
+    nvs agent index                one line per Core member, enum, exception and attribute,
+                                   then one per chapter of this reference and per heading in it
     nvs agent find <query>         the index lines whose symbol matches the query
-    nvs agent show <symbol>        one member's card: signature, description, parameters, errors
+    nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
+                                   a heading's section; a chapter's list of sections
 
 The surface a coding agent reads the language through. Every verb renders the document
-`nvs meta --json` prints, writes nothing to disk and caches nothing, so the binary that compiles a
-program is the binary that answers for it and an answer can never describe a version that is not
-installed.
+`nvs meta --json` prints and the chapters this binary carries, writes nothing to disk and caches
+nothing, so the binary that compiles a program is the binary that answers for it and an answer can
+never describe a version that is not installed.
 
 An index line opens with the symbol `show` resolves and continues with that member's signature:
 
@@ -23,20 +25,30 @@ An index line opens with the symbol `show` resolves and continues with that memb
     Core\Json::decodeAs<T>(string $json): T
     Core\Order  enum {Asc, Desc}
     RuntimeError  exception extends Error
+    programs  chapter: Programs, files and names
+    programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
 
 The symbol is the line up to its first `(`, `<` or space, so nothing has to parse a line to get
 from it back to `show` — which also accepts that leading token with a generic's `<T>` still on it.
 A name in brackets after a signature is the capability the call is gated on, granted in `nvs.toml`;
 a line with no bracket names a member that reaches nothing outside the program.
 
+**A keyword is found by its heading.** The registry holds what `Core` declares, and `autoload`,
+`require` and `match` are grammar, so no member is named for them. Each heading of this reference
+has a line instead, whose symbol is the chapter's name, a `#`, and the heading in lowercase with
+`-` between its words. `show` prints that section as the chapter has it, and `show programs` — a
+chapter's name alone — prints the chapter's summary over the lines of its sections.
+
 `find` matches that symbol rather than the whole line, case-insensitively, so a query naming a type
 does not answer with every member that returns one. It is a command rather than an instruction to
 grep the index, because a namespaced name loses its backslash to the shell before `grep` sees it,
 and the empty result that follows is indistinguishable from a name the language does not have.
-`find` prints nothing and succeeds when a query matches nothing: the index is complete, so an empty
-result is the answer that no such name exists. `show` is the opposite — it was asked for one
-specific thing, and when it cannot resolve the symbol it exits non-zero and prints the nearest
-names it does have.
+`find` prints nothing on standard output and succeeds when a query matches nothing: the index is
+complete, so an empty result is the answer that no `Core` symbol and no heading carries that word.
+It is not yet the answer that the language lacks the thing — a keyword may be written under a
+heading that does not name it — so standard error says what was searched and points at the chapter
+map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
+symbol it exits non-zero and prints the nearest names it does have.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
 `nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
@@ -108,8 +120,8 @@ $ nvs agent find strlen
 $
 ```
 
-Nothing, and the exit status is `0`: the index is complete, so that is the answer that no such name
-exists. It searches for the operation instead of the spelling:
+Nothing on standard output, and the exit status is `0`: the index is complete, so no `Core` symbol
+and no heading has that name. It searches for the operation instead of the spelling:
 
 ```text
 $ nvs agent find length
@@ -155,4 +167,19 @@ echo Core\Str::length($name), "\n";
 ```
 ```output
 3
+```
+
+Asked next whether classes load themselves, it looks for the PHP word, which is a keyword here and
+no member's name. The line that comes back is a heading, and the same `show` prints the section:
+
+```text
+$ nvs agent find autoload
+programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+$ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'
+programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+
+# `autoload`: find a class by its namespace
+
+`autoload` declares a rule that maps a namespace prefix to a directory, so ordinary code names a
+class and never a file. …
 ```

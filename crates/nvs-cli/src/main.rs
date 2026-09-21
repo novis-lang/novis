@@ -722,24 +722,29 @@ enum AgentCommand {
     /// describes the language this binary compiles and nothing else.
     // `rule:tooling/a-primer-claim-is-executed`.
     Primer,
-    /// Print one line per registered member, and one per enum, exception and
-    /// attribute beside them.
+    /// Print one line per registered member, one per enum, exception and
+    /// attribute beside them, and one per chapter of the reference and per
+    /// heading in it.
     // `rule:tooling/the-index-is-one-line-per-member`.
     Index,
-    /// Print the index lines whose class or member name matches a query.
+    /// Print the index lines whose name matches a query: a class or member
+    /// name, or a heading of the reference, which is where a keyword such as
+    /// `autoload` is found.
     ///
     /// A command rather than an instruction to grep the index, because a
     /// namespaced name loses its backslash to the shell before `grep` sees it
     /// and the empty result that follows is indistinguishable from a name the
     /// language does not have.
     Find {
-        /// What to match against a class and member name, without case.
+        /// What to match against a name or a heading, without case.
         query: String,
     },
     /// Print one symbol's card — its signature, its prose, its parameters and
-    /// what it throws.
+    /// what it throws — or the section of the reference a line names.
     Show {
-        /// The symbol an index line opens with, as `Core\IO::read`.
+        /// The symbol an index line opens with, as `Core\IO::read` or
+        /// `programs#autoload-find-a-class-by-its-namespace`. A chapter's own
+        /// name, as `programs`, lists its sections.
         symbol: String,
     },
     /// Install this surface into the project in the working directory: an

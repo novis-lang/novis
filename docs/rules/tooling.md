@@ -1105,18 +1105,26 @@ one input added to one document, never a fork.
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 
-## `nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface
+## `nvs agent` answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface
 
 `rule:tooling/an-agent-asks-the-binary`
 
 `nvs agent` is the surface a coding agent reads the language through, and it is four commands that
-answer from the registry the binary already carries: `primer` prints the short document that makes an
-agent productive, `index` prints one line per member, `find <query>` prints the index lines matching a
-query, and `show <symbol>` prints one member's card. Nothing is written to disk and nothing is cached,
+answer from what the binary already carries — the registry, and the reference chapters embedded in it:
+`primer` prints the short document that makes an agent productive, `index` prints one line per member
+and per chapter heading, `find <query>` prints the index lines matching a query, and `show <symbol>`
+prints one member's card or one heading's section. Nothing is written to disk and nothing is cached,
 so the binary that compiles a program is the binary that answers for it and an answer can never
 describe a version that is not installed.
 
-All four render `nvs meta --json`'s document and decide nothing ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)),
+A keyword is grammar and no member is named for it, so the registry alone leaves `autoload`, `require`
+and `match` unfindable, and an agent told that an empty `find` means "no such name" concludes the
+language lacks them. The chapters are therefore on the same index under the same two verbs, and not
+behind a fifth command: `nvs agent init`'s stanza names these four, a stanza that reads differently from
+what the binary would write is refused, and a verb added later would turn every installed project's
+re-run into that refusal.
+
+Over the registry, all four render `nvs meta --json`'s document and decide nothing ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)),
 which makes them a fourth consumer rather than a fifth source of truth. `find` is a command rather than
 an instruction to grep the index, because a namespaced name loses its backslash to the shell before
 `grep` sees it and the empty result that follows is indistinguishable from a name the language does not
@@ -1130,14 +1138,15 @@ that got something wrong — so the check loop is part of the surface rather tha
 
 <a id="tooling-the-index-is-one-line-per-member"></a>
 
-## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on
+## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on, and one per chapter heading
 
 `rule:tooling/the-index-is-one-line-per-member`
 
-`nvs agent index` prints exactly one line for every member the registry holds, and one for every enum,
-exception and attribute beside them. It is derived at the call and kept nowhere
-([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s shape), so a member that lands owes its line at once and no list is
-ever stale.
+`nvs agent index` prints exactly one line for every member the registry holds, one for every enum,
+exception and attribute beside them, and one for every chapter of the reference the binary embeds and
+every heading in it. It is derived at the call and kept nowhere ([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s
+shape), so a member that lands owes its line at once and no list is ever stale. The one list written by
+hand is which chapters are embedded, and a test holds it to the files under `docs/reference/`.
 
 Completeness is the property the command exists to have. An agent that greps a complete list learns
 something from an empty result — that the name it guessed does not exist — and learns nothing at all
@@ -1151,6 +1160,11 @@ joined from [`security/capability-declaration-is-one-table`](security.md#securit
 copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather
 than reshaping it. So an agent learns the gate from the name of the thing it is about to call, which is
 where every arm of `0167`'s investigation was stopped.
+
+A chapter's line is `<id>  chapter: <title>` and a heading's is `<id>#<slug>  section: <heading>`, the
+slug being the heading in lowercase with every run of anything but a letter or a digit written as one
+`-`. Neither holds a `(`, a `<` or a space, so the symbol is cut from these lines as from a member's,
+and a `#` is in no other symbol, so a section can never shadow one.
 
 A line carries no behaviour: what `header: true` does to a row is the card's answer, which is what
 `show` is for.

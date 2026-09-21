@@ -354,6 +354,120 @@ fn show_on_an_unknown_symbol_exits_non_zero_naming_the_nearest_matches() {
     );
 }
 
+/// A keyword is in the grammar and not in the registry, so no member is named for
+/// it. The heading that documents it is on the index instead, and the symbol its
+/// line opens with is what `show` prints the section from — the same two calls
+/// that reach a member.
+#[test]
+fn a_keyword_no_member_is_named_for_is_found_by_its_heading_and_shown_as_its_section() {
+    let (out, _, ok) = agent(&["find", "autoload"]);
+    assert!(ok, "`nvs agent find` succeeds");
+    let line = out
+        .lines()
+        .find(|line| line.starts_with("programs#"))
+        .unwrap_or_else(|| panic!("a heading of `programs` is among: {out}"));
+
+    let (card, _, ok) = agent(&["show", symbol_of(line)]);
+    assert!(ok, "the section's symbol resolves");
+    assert!(
+        card.contains("autoload 'App' from './src';"),
+        "the section is printed as the chapter has it: {card}"
+    );
+    assert!(
+        !card.contains("<!-- primer -->"),
+        "the primer's marker is not part of a section"
+    );
+    assert!(
+        !card.contains("# Ending a program"),
+        "the section stops at the next heading of its level: {card}"
+    );
+}
+
+/// A chapter's own name resolves too, and answers with where to go next instead
+/// of with the whole chapter: its summary, and the line of every heading in it.
+#[test]
+fn show_on_a_chapter_lists_the_sections_the_index_has_for_it() {
+    let (card, _, ok) = agent(&["show", "programs"]);
+    assert!(ok, "a chapter's id resolves");
+
+    let sections: Vec<String> = index()
+        .into_iter()
+        .filter(|line| line.starts_with("programs#"))
+        .collect();
+    assert!(!sections.is_empty(), "the chapter has headings");
+    for section in &sections {
+        assert!(card.contains(section.as_str()), "{section} is on the card");
+    }
+}
+
+/// The chapter list is written by hand, so a chapter added to the reference and
+/// not to the list is one the binary cannot show while the primer says its map
+/// is all of them. Every file of the two reference directories has a line.
+#[test]
+fn every_chapter_of_the_reference_has_a_line_on_the_index() {
+    let printed: Vec<String> = index()
+        .iter()
+        .map(|line| symbol_of(line).to_owned())
+        .collect();
+
+    let mut missing = Vec::new();
+    for directory in ["lang", "tools"] {
+        let path = nvs_repo::path(&format!("docs/reference/{directory}"));
+        for file in std::fs::read_dir(&path).expect("the directory is readable") {
+            let name = file.expect("an entry").file_name();
+            let name = name.to_str().expect("a chapter's name is UTF-8");
+            if !name.ends_with(".md") {
+                continue;
+            }
+            let text = chapter(&format!("{directory}/{name}"));
+            let id = text
+                .lines()
+                .find_map(|line| line.strip_prefix("id:"))
+                .unwrap_or_else(|| panic!("{name} states its `id`"))
+                .trim()
+                .to_owned();
+            if !printed.contains(&id) {
+                missing.push(id);
+            }
+        }
+    }
+    assert!(missing.is_empty(), "chapters with no line: {missing:?}");
+}
+
+/// `show` compares without case, so two lines whose symbols differ only by case
+/// would leave the second unreachable — which is what a chapter named for an
+/// exception or an attribute would be.
+#[test]
+fn no_two_index_lines_open_with_the_same_symbol() {
+    let mut symbols: Vec<String> = index()
+        .iter()
+        .map(|line| symbol_of(line).to_lowercase())
+        .collect();
+    symbols.sort();
+    let twice: Vec<&String> = symbols
+        .windows(2)
+        .filter(|pair| pair[0] == pair[1])
+        .map(|pair| &pair[0])
+        .collect();
+    assert!(twice.is_empty(), "symbols on two lines: {twice:?}");
+}
+
+/// Nothing on standard output is still the answer, so a consumer reading the
+/// output sees what it always saw. What the silence covers is said beside it.
+#[test]
+fn find_with_no_match_prints_nothing_and_says_what_was_searched() {
+    let (out, err, ok) = agent(&["find", "strlen"]);
+    assert!(ok, "an empty result is an answer, not a failure");
+    assert!(
+        out.is_empty(),
+        "nothing is printed as if it were a line: {out}"
+    );
+    assert!(
+        err.contains("chapter"),
+        "the message names the chapters as the next place to look: {err}"
+    );
+}
+
 /// A fresh empty directory named for the test that owns it, so two tests never
 /// share a working directory.
 fn tree(name: &str) -> PathBuf {

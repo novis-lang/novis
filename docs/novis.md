@@ -224,7 +224,7 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
 - C.5 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
-- C.6 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.6 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
 
@@ -27494,14 +27494,16 @@ Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agen
 
 ### nvs agent
 
-    nvs agent index                one line per Core member, enum, exception and attribute
+    nvs agent index                one line per Core member, enum, exception and attribute,
+                                   then one per chapter of this reference and per heading in it
     nvs agent find <query>         the index lines whose symbol matches the query
-    nvs agent show <symbol>        one member's card: signature, description, parameters, errors
+    nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
+                                   a heading's section; a chapter's list of sections
 
 The surface a coding agent reads the language through. Every verb renders the document
-`nvs meta --json` prints, writes nothing to disk and caches nothing, so the binary that compiles a
-program is the binary that answers for it and an answer can never describe a version that is not
-installed.
+`nvs meta --json` prints and the chapters this binary carries, writes nothing to disk and caches
+nothing, so the binary that compiles a program is the binary that answers for it and an answer can
+never describe a version that is not installed.
 
 An index line opens with the symbol `show` resolves and continues with that member's signature:
 
@@ -27509,20 +27511,30 @@ An index line opens with the symbol `show` resolves and continues with that memb
     Core\Json::decodeAs<T>(string $json): T
     Core\Order  enum {Asc, Desc}
     RuntimeError  exception extends Error
+    programs  chapter: Programs, files and names
+    programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
 
 The symbol is the line up to its first `(`, `<` or space, so nothing has to parse a line to get
 from it back to `show` — which also accepts that leading token with a generic's `<T>` still on it.
 A name in brackets after a signature is the capability the call is gated on, granted in `nvs.toml`;
 a line with no bracket names a member that reaches nothing outside the program.
 
+**A keyword is found by its heading.** The registry holds what `Core` declares, and `autoload`,
+`require` and `match` are grammar, so no member is named for them. Each heading of this reference
+has a line instead, whose symbol is the chapter's name, a `#`, and the heading in lowercase with
+`-` between its words. `show` prints that section as the chapter has it, and `show programs` — a
+chapter's name alone — prints the chapter's summary over the lines of its sections.
+
 `find` matches that symbol rather than the whole line, case-insensitively, so a query naming a type
 does not answer with every member that returns one. It is a command rather than an instruction to
 grep the index, because a namespaced name loses its backslash to the shell before `grep` sees it,
 and the empty result that follows is indistinguishable from a name the language does not have.
-`find` prints nothing and succeeds when a query matches nothing: the index is complete, so an empty
-result is the answer that no such name exists. `show` is the opposite — it was asked for one
-specific thing, and when it cannot resolve the symbol it exits non-zero and prints the nearest
-names it does have.
+`find` prints nothing on standard output and succeeds when a query matches nothing: the index is
+complete, so an empty result is the answer that no `Core` symbol and no heading carries that word.
+It is not yet the answer that the language lacks the thing — a keyword may be written under a
+heading that does not name it — so standard error says what was searched and points at the chapter
+map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
+symbol it exits non-zero and prints the nearest names it does have.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
 `nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
@@ -27594,8 +27606,8 @@ $ nvs agent find strlen
 $
 ```
 
-Nothing, and the exit status is `0`: the index is complete, so that is the answer that no such name
-exists. It searches for the operation instead of the spelling:
+Nothing on standard output, and the exit status is `0`: the index is complete, so no `Core` symbol
+and no heading has that name. It searches for the operation instead of the spelling:
 
 ```text
 $ nvs agent find length
@@ -27641,6 +27653,21 @@ echo Core\Str::length($name), "\n";
 ```
 ```output
 3
+```
+
+Asked next whether classes load themselves, it looks for the PHP word, which is a keyword here and
+no member's name. The line that comes back is a heading, and the same `show` prints the section:
+
+```text
+$ nvs agent find autoload
+programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+$ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'
+programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+
+### `autoload`: find a class by its namespace
+
+`autoload` declares a rule that maps a namespace prefix to a directory, so ordinary code names a
+class and never a file. …
 ```
 
 # Part D — Coming from PHP
