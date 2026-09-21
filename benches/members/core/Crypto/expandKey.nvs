@@ -1,0 +1,31 @@
+<?nvs
+// Measures making a key from a shared secret. A program does this once per use
+// it names, right after two sides reach that secret.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $material = Core\Crypto::generateKey();
+        bytes $salt = Core\Bytes::fill(16, 65);
+        array<string> $uses = ["client to server", "server to client"];
+        array<secret bytes> $known = [
+            Core\Crypto::expandKey($material, $salt, $uses[0]),
+            Core\Crypto::expandKey($material, $salt, $uses[1]),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The use of every round is chosen by the round before it, so no
+            // round can be left out.
+            int $use = ($total % 2) as int;
+            secret bytes $key = Core\Crypto::expandKey($material, $salt, $uses[$use]);
+            $total = $total + (($key == $known[$use] ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

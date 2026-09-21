@@ -1,0 +1,37 @@
+<?nvs
+// Shows a service that holds one root key and gives every customer a key of
+// their own. Nothing extra is stored: a customer's key is made again from the
+// root key and their name whenever it is needed.
+
+secret bytes $root = Core\Crypto::generateKey();
+bytes $salt = Core\Random::bytes(16);
+
+array<string> $customers = ["acme", "globex"];
+foreach ($customers as string $customer) {
+    secret bytes $key = Core\Crypto::expandKey($root, $salt, "customer " . $customer);
+    bytes $sealed = Core\Crypto::seal(
+        ("invoice for " . $customer) as bytes,
+        $key,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+
+    // Later, with only the root key and the customer's name, the same key comes
+    // back. This prints one line per customer.
+    secret bytes $again = Core\Crypto::expandKey($root, $salt, "customer " . $customer);
+    echo Core\Crypto::open($sealed, $again, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+}
+
+// One customer's key does not open another customer's data, so a key that leaks
+// costs you that customer and no other.
+secret bytes $acme = Core\Crypto::expandKey($root, $salt, "customer acme");
+bytes $forGlobex = Core\Crypto::seal(
+    "invoice for globex" as bytes,
+    Core\Crypto::expandKey($root, $salt, "customer globex"),
+    Core\Crypto\Cipher::XChaCha20Poly1305
+);
+try {
+    Core\Crypto::open($forGlobex, $acme, Core\Crypto\Cipher::XChaCha20Poly1305);
+    echo "one key opened another customer's data", "\n";
+} catch (RuntimeError $e) {
+    echo "one key opens one customer's data only", "\n";
+}

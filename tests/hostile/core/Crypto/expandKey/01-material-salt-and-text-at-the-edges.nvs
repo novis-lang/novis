@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program hands this member empty inputs, inputs a megabyte long, and
+// text that is not the kind of name anybody would choose. None of these is an
+// error, so what is under attack is the memory and the time they cost. The
+// program should reach its last line and every key should still be its own.
+
+secret bytes $material = Core\Crypto::generateKey();
+bytes $salt = Core\Bytes::fill(16, 65);
+
+// 1. Everything empty at once, which is the smallest call this member takes.
+secret bytes $fromNothing = Core\Crypto::expandKey('' as bytes, '' as bytes, '');
+secret bytes $again = Core\Crypto::expandKey('' as bytes, '' as bytes, '');
+echo '1 empty inputs give one key: ', ($fromNothing == $again ? 'yes' : 'no'), "\n";
+
+// 2. A salt of one million bytes and a name of one million characters.
+secret bytes $wideSalt = Core\Crypto::expandKey($material, Core\Bytes::fill(1000000, 7), 'a');
+secret bytes $longName = Core\Crypto::expandKey($material, $salt, Core\Str::repeat('a', 1000000));
+echo '2 both keys are their own: ', ($wideSalt != $longName ? 'yes' : 'no'), "\n";
+
+// 3. Material of one million bytes, which is far more than a key or a shared
+// secret ever is.
+secret bytes $wide = Core\Crypto::expandKey(Core\Bytes::fill(1000000, 3), $salt, 'a');
+echo '3 wide material: ', ($wide != $wideSalt ? 'yes' : 'no'), "\n";
+
+// 4. Names that are not text a person would write: zero bytes and control
+// characters. Two names that differ by one byte have to give two keys.
+secret bytes $zeroName = Core\Crypto::expandKey($material, $salt, "\u{0}\u{0}\u{7}");
+secret bytes $nearly = Core\Crypto::expandKey($material, $salt, "\u{0}\u{0}\u{7}\u{0}");
+echo '4 one byte apart, two keys: ', ($zeroName != $nearly ? 'yes' : 'no'), "\n";
+
+// 5. A hundred thousand keys from one secret, which is what a program does when
+// somebody can pick the name.
+int $made = 0;
+secret bytes $previous = $material;
+foreach (Core\Arr::range(1, 100000) as int $round) {
+    secret bytes $key = Core\Crypto::expandKey($material, $salt, 'use ' . ($round as string));
+    if ($key != $previous) {
+        $made += 1;
+    }
+    $previous = $key;
+}
+echo '5 made ', $made, ' keys, each different from the one before it', "\n";
