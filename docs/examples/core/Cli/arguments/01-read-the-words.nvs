@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the words a program was started with. Start it with
+// `nvs run 01-read-the-words.nvs report march` to see those two words.
+
+array<tainted string> $words = Core\Cli::arguments();
+echo "words: ", Core\Arr::count($words), "\n";
+
+// The words come in the order the person wrote them. This loop prints one line
+// per word, and nothing at all for a program started with no words.
+foreach ($words as tainted string $word) {
+    echo "- ", $word, "\n";
+}
