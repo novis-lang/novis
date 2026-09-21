@@ -1,0 +1,94 @@
+<?nvs
+// Attack: the name of the command to describe comes from whoever typed it.
+// This program tries a name of a million characters, a name made of terminal
+// commands, and two hundred thousand names in a row. Every name nobody
+// declared must stop with an error. The program must run to its last line.
+// hostile: timeout-ms 60000
+
+class Tool
+{
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint
+    {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint
+    {
+        return 0;
+    }
+}
+
+// 1. A name of one million characters. No command has it, so the call must
+//    stop with a `LogicError`.
+string $huge = Core\Str::repeat('a', 1000000);
+try {
+    Core\Command::help($huge);
+    echo "step 1 found a command\n";
+} catch (LogicError $none) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. A name made of the commands a terminal runs: clear the screen, rename the
+//    window, move the cursor. None of them may reach the screen.
+string $sneaky = "\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}deploy";
+try {
+    Core\Command::help($sneaky);
+    echo "step 2 found a command\n";
+} catch (LogicError $escapes) {
+    echo 'step 2 stopped with ', Core\Str::length($escapes->message), " characters\n";
+}
+
+// 3. The empty name. It is a name like any other, and no command has it.
+try {
+    Core\Command::help('');
+    echo "step 3 found a command\n";
+} catch (LogicError $empty) {
+    echo "step 3 stopped at once\n";
+}
+
+// 4. The real command name with one character added. A page that matched on a
+//    part of the name would answer here.
+try {
+    Core\Command::help('deploy ');
+    echo "step 4 found a command\n";
+} catch (LogicError $almost) {
+    echo "step 4 stopped at once\n";
+}
+
+// 5. Two hundred thousand pages for one command, one after the other. Each one
+//    is finished with before the next is made, so nothing may be kept behind.
+uint $made = 0;
+while ($made < 200000) {
+    var $page = Core\Command::help('deploy');
+    $made = $made + 1;
+}
+echo 'step 5 made ', $made, " pages\n";
+
+// 6. Two hundred thousand program pages, each one read back as a string.
+uint $at = 0;
+uint $characters = 0;
+while ($at < 200000) {
+    var $overview = Core\Command::help(null);
+    $characters = Core\Str::length($overview->text());
+    $at = $at + 1;
+}
+echo 'step 6 read ', $characters, " characters every time\n";
+
+// 7. Two hundred thousand names nobody declared, each one caught. A failure
+//    that kept the name, the message or the page behind would grow here.
+uint $tried = 0;
+uint $stopped = 0;
+while ($tried < 200000) {
+    try {
+        Core\Command::help(Core\Str::format('command%d', $tried));
+    } catch (LogicError $missing) {
+        $stopped = $stopped + 1;
+    }
+    $tried = $tried + 1;
+}
+echo 'step 7 stopped ', $stopped, " times\n";

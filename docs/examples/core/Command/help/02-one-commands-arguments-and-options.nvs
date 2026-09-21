@@ -1,0 +1,22 @@
+<?nvs
+// Shows the page for one command: what the command takes, and what each part
+// of it is for.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        // A parameter with no attribute is a positional argument. The page
+        // writes it as `<target>`.
+        string $target,
+        // `#[Core\Option]` makes a parameter an option. The page writes every
+        // spelling of it, the type, and the text from `about:`.
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+        #[Core\Option(about: "How many times to try")] uint $retries = 3,
+    ): uint {
+        return 0;
+    }
+}
+
+// `Core\Command::help("deploy")` returns that one command's page. Every word
+// on it comes from the declaration above.
+echo Core\Command::help("deploy");

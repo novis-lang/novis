@@ -1,0 +1,47 @@
+<?nvs
+// Measures rendering one command's usage page. A command-line program meets
+// this every time somebody starts it with `--help` or with no command at all.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 37
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[Core\Option(about: "Say what would happen and stop")] bool $pretend = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $names = ["deploy", "migrate", "version"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The command of each round is chosen by the round before it, so
+            // no round can be left out.
+            int $at = $total % 3;
+            var $page = Core\Command::help($names[$at]);
+            $total = $total + $at + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
