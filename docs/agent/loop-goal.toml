@@ -112,6 +112,16 @@ modules = [
   # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
   # settings, and the two members that need no connection at all.
   "crates/nvs-stdlib/src/db/open.rs",
+  # Where the name under the cursor was declared.
+  "crates/nvs-lsp/src/definition.rs",
+  # `rule:routing/matched-once-before-the-handler` 's route table, as a *running* program sees it:
+  # the rows the compiler built, and the match the door takes against them once.
+  "crates/nvs-runtime/src/routes.rs",
+  # `Core\Http\Method` — the closed set of verbs a route is declared under — `Core\Router`'s link
+  # half, which is as much of `rule:routing/routes-are-compiled-not-registered`'s router as exists
+  # today, and `Core\Router\Match`, the match `rule:routing/matched-once-before-the-handler` has
+  # the door take once and `Core\Request::route()` hand back.
+  "crates/nvs-stdlib/src/router.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
