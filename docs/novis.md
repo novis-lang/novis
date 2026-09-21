@@ -26169,6 +26169,14 @@ where the configuration is:
     nvs --config D:\srv\novis\config\nvs.toml init
     nvs --config D:\srv\novis\config\nvs.toml serve D:\srv\app\index.nvs
 
+The file after `serve` is optional when the configuration has `[[server.mount]]` blocks. With no
+file, `nvs serve` serves every file that those blocks mount:
+
+    nvs --config D:\srv\novis\config\nvs.toml serve
+
+If the configuration has no `[[server.mount]]` block, `nvs serve` needs the file. For a service,
+also set `root` in the `[server]` block to the full path of the folder that the blocks search.
+
 `nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
 it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
 file is never overwritten.

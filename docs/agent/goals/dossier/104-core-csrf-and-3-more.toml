@@ -99,6 +99,10 @@ modules = [
   "crates/nvs-stdlib/src/csrf.rs",
   "crates/nvs-stdlib/src/csv.rs",
   "crates/nvs-stdlib/src/db/registry.rs",
+  # What a statement described, per driver: `Core\Db\Column`'s three slots are filled here, and
+  # the SQLite twin a `[db.<name>]` proof program meets is `execute.rs`'s.
+  "crates/nvs-stdlib/src/db/column.rs",
+  "crates/nvs-stdlib/src/db/execute.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]

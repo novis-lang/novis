@@ -112,6 +112,10 @@ modules = [
   # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
   # settings, and the two members that need no connection at all.
   "crates/nvs-stdlib/src/db/open.rs",
+  # What a statement described, per driver: `Core\Db\Column`'s three slots are filled here, and
+  # the SQLite twin a `[db.<name>]` proof program meets is `execute.rs`'s.
+  "crates/nvs-stdlib/src/db/column.rs",
+  "crates/nvs-stdlib/src/db/execute.rs",
   # Where the name under the cursor was declared.
   "crates/nvs-lsp/src/definition.rs",
   # `rule:routing/matched-once-before-the-handler` 's route table, as a *running* program sees it:
