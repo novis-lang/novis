@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read a column that holds yes or no.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (id integer primary key, name text not null, active boolean not null)', []);
+$db->execute('insert into people (name, active) values (?, ?), (?, ?)', ['Ana', true, 'Bo', false]);
+
+// `bool` reads the named column of the row as a truth value. This prints
+// `Ana: active` and `Bo: not active`.
+foreach ($db->query('select name, active from people order by name', []) as Core\Db\Row $row) {
+    bool $active = $row->bool('active') ?? false;
+    echo $row->string('name') ?? '', ': ', $active ? 'active' : 'not active', "\n";
+}
+
+$db->close();

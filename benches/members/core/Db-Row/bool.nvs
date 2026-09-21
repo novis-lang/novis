@@ -1,0 +1,31 @@
+<?nvs
+// Measures reading a yes or no column of a row, as a program does when it
+// checks a flag on every record of a page.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table people (id integer primary key, active boolean not null, verified boolean not null)', []);
+        $db->execute('insert into people (active, verified) values (?, ?)', [true, true]);
+        array<Core\Db\Row> $rows = $db->query('select active, verified from people', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['active', 'verified'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The flags read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->bool($columns[($total % 2) as int]) ?? false) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

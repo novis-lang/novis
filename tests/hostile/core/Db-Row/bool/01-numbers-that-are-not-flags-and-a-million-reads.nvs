@@ -1,0 +1,85 @@
+<?nvs
+// Attack: columns that hold numbers no flag ever holds, names that belong to no
+// column, and a million reads of one row. Every step has to answer or throw an
+// error, and none of them may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table flags (id integer primary key, active boolean not null, n int not null, label text not null, ratio real not null)', []);
+$db->execute('insert into flags (active, n, label, ratio) values (?, ?, ?, ?)', [true, 7, 'yes', 0.5]);
+
+array<Core\Db\Row> $one = $db->query('select active, n, label, ratio from flags', [])->all();
+var $row = $one[0];
+
+// 1. A whole number column holding 7. Only 0 and 1 are flags, so this is an
+// error and not `true`.
+try {
+    $row->bool('n');
+    echo "1 the 7 was read as a flag\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. A text column and a column with a fraction. Neither is a flag.
+uint $refused = 0;
+array<string> $wrongTypes = ['label', 'ratio'];
+foreach ($wrongTypes as string $column) {
+    try {
+        $row->bool($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->bool('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->bool(Core\Str::repeat('a', 10000000));
+    echo "4 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "4 refused\n";
+}
+
+// 5. A million reads of the same column. Nothing may pile up over them.
+uint $set = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->bool('active') ?? false) {
+        $set = $set + 1;
+    }
+    $i = $i + 1;
+}
+echo '5 set: ', $set, "\n";
+
+// 6. Fifty thousand rows kept at once, and the flag of every one of them read.
+// A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select active from flags', [])->all();
+    $i = $i + 1;
+}
+$set = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->bool('active') ?? false) {
+            $set = $set + 1;
+        }
+    }
+}
+echo '6 set: ', $set, "\n";

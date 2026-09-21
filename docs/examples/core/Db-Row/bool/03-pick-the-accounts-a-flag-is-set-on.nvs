@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to build the list of accounts a newsletter goes to. The two flags
+// are whole number columns holding 0 or 1, which is how MySQL stores them.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table accounts (email text not null, newsletter int not null, verified int not null)', []);
+$db->execute(
+    'insert into accounts (email, newsletter, verified) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    ['ana@example.com', 1, 1, 'bo@example.com', 1, 0, 'cy@example.com', 0, 1]
+);
+
+// `bool` reads a whole number column holding 0 or 1 as a truth value. An
+// account is added only when both flags are set.
+array<string> $send = [];
+foreach ($db->query('select email, newsletter, verified from accounts order by email', []) as Core\Db\Row $row) {
+    if (($row->bool('newsletter') ?? false) && ($row->bool('verified') ?? false)) {
+        $send[] = $row->string('email') ?? '';
+    }
+}
+
+// This prints one address, `ana@example.com`.
+foreach ($send as string $address) {
+    echo $address, "\n";
+}
+
+$db->close();
