@@ -1,0 +1,28 @@
+<?nvs
+// Measures opening one short field, as a program does when it reads a row back.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $key = Core\Crypto::generateKey();
+        array<bytes> $rows = [
+            Core\Crypto::seal("+44 7700 900123" as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305),
+            Core\Crypto::seal("ada@example.org" as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305),
+            Core\Crypto::seal("12 Pinner Road, Harrow" as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The row of every round is chosen by the bytes opened so far, so
+            // no round can be left out.
+            int $which = ($total % 3) as int;
+            bytes $opened = Core\Crypto::open($rows[$which], $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+            $total = $total + Core\Bytes::at($opened, 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Shows how a program reads a session cookie that a browser sent back. The
+// program sealed that cookie earlier. A cookie that does not open is treated
+// as no cookie at all.
+
+secret bytes $key = Core\Crypto::generateKey();
+
+// The cookie the program handed out, as text a browser can carry.
+string $cookie = Core\Encoding::toHex(Core\Crypto::seal(
+    "user=ada;until=2026-12-31" as bytes,
+    $key,
+    Core\Crypto\Cipher::XChaCha20Poly1305
+));
+
+// A second cookie, made up by somebody who wants to be Ada.
+string $forged = Core\Encoding::toHex(Core\Bytes::fill(65, 88));
+
+// The first prints `signed in: user=ada;until=2026-12-31`, the second prints
+// `not signed in`.
+array<string> $arriving = [$cookie, $forged];
+foreach ($arriving as string $sent) {
+    try {
+        bytes $opened = Core\Crypto::open(
+            Core\Encoding::fromHex($sent),
+            $key,
+            Core\Crypto\Cipher::XChaCha20Poly1305
+        );
+        echo "signed in: ", $opened as string, "\n";
+    } catch (RuntimeError $e) {
+        echo "not signed in", "\n";
+    }
+}

@@ -1,0 +1,28 @@
+<?nvs
+// Shows what `Core\Crypto::open` does when the sealed bytes have been changed
+// on the way. It throws, and no part of the message comes back.
+
+secret bytes $key = Core\Crypto::generateKey();
+bytes $sealed = Core\Crypto::seal(
+    "pay 100 to Ada" as bytes,
+    $key,
+    Core\Crypto\Cipher::XChaCha20Poly1305
+);
+
+// Somebody replaces the last byte with an `X`.
+int $length = Core\Bytes::length($sealed) as int;
+bytes $changed = Core\Bytes::join(
+    [Core\Bytes::slice($sealed, 0, $length - 1), Core\Bytes::fill(1, 88)],
+    "" as bytes
+);
+
+// The message is now 1 byte different, and it is refused. This prints
+// `the message was changed`.
+try {
+    echo Core\Crypto::open($changed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+} catch (RuntimeError $e) {
+    echo "the message was changed", "\n";
+}
+
+// The untouched bytes still open. This prints the message.
+echo Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
