@@ -1,0 +1,24 @@
+<?nvs
+// Shows that two keys are never the same, and that the key which sealed a
+// message is the only one that opens it.
+
+secret bytes $first = Core\Crypto::generateKey();
+secret bytes $second = Core\Crypto::generateKey();
+
+// Two keys can be compared with `==` and `!=`. This prints `different`.
+echo ($first == $second ? "the same" : "different"), "\n";
+
+bytes $sealed = Core\Crypto::seal(
+    "card ending 4242" as bytes,
+    $first,
+    Core\Crypto\Cipher::Aes256Gcm
+);
+
+// The second key throws a `RuntimeError` here. Keep the key that sealed the
+// data. Without it the data stays closed.
+try {
+    Core\Crypto::open($sealed, $second, Core\Crypto\Cipher::Aes256Gcm);
+    echo "the other key opened it", "\n";
+} catch (RuntimeError $e) {
+    echo "the other key does not open it", "\n";
+}

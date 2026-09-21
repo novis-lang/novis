@@ -1,0 +1,44 @@
+<?nvs
+// Shows how a program gives every stored record its own key. Each record key is
+// sealed under one main key and stored next to the record. Only the main key
+// has to be kept safe, and a key that leaks opens one record.
+
+secret bytes $mainKey = Core\Crypto::generateKey();
+
+array<string> $records = ["Ada: 1 box of pencils", "Grace: 2 notebooks"];
+array<bytes> $sealedRecords = [];
+array<bytes> $sealedKeys = [];
+
+foreach ($records as string $record) {
+    secret bytes $recordKey = Core\Crypto::generateKey();
+    $sealedRecords[] = Core\Crypto::seal(
+        $record as bytes,
+        $recordKey,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+
+    // `Core\Secret::revealBytes` is the one way to pass a key on as data. It
+    // takes a reason in text, which stays in the code for the next reader.
+    $sealedKeys[] = Core\Crypto::seal(
+        Core\Secret::revealBytes($recordKey, "the record key is stored sealed under the main key"),
+        $mainKey,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+}
+
+// Reading a record back takes two steps. Open its key with the main key, then
+// open the record with that key. This prints both records.
+uint $i = 0;
+while ($i < 2) {
+    bytes $openedKey = Core\Crypto::open(
+        $sealedKeys[$i],
+        $mainKey,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+    echo Core\Crypto::open(
+        $sealedRecords[$i],
+        $openedKey,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    ) as string, "\n";
+    $i = $i + 1;
+}

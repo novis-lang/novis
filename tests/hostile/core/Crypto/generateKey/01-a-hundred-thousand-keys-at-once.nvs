@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program draws one hundred thousand keys, keeps every one of them,
+// and then looks for a key that came back a second time. A repeated key would
+// open somebody else's data. The last step attacks one sealed message with ten
+// thousand keys it was never sealed under.
+
+// 1. The keys are drawn into one array and nothing frees them until the program
+// ends, so this step is also the memory that batch costs.
+array<secret bytes> $keys = [];
+uint $drawn = 0;
+while ($drawn < 100000) {
+    $keys[] = Core\Crypto::generateKey();
+    $drawn = $drawn + 1;
+}
+echo '1 drew ', Core\Arr::count($keys), ' keys', "\n";
+
+// 2. Every key is compared with the first one. Only the first key itself should
+// match, so the count printed here should be 1.
+uint $sameAsFirst = 0;
+foreach ($keys as secret bytes $key) {
+    if ($key == $keys[0]) {
+        $sameAsFirst = $sameAsFirst + 1;
+    }
+}
+echo '2 keys equal to the first: ', $sameAsFirst, "\n";
+
+// 3. Every key is compared with the key drawn before it. A generator that gets
+// stuck on one value is caught here.
+uint $sameAsPrevious = 0;
+uint $i = 1;
+while ($i < 100000) {
+    if ($keys[$i] == $keys[$i - 1]) {
+        $sameAsPrevious = $sameAsPrevious + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 keys equal to the one before: ', $sameAsPrevious, "\n";
+
+// 4. A message is sealed under a key that is thrown away at once. Ten thousand
+// fresh keys are tried against it, and each error is caught here.
+bytes $sealed = Core\Crypto::seal(
+    'the vault code is 4711' as bytes,
+    Core\Crypto::generateKey(),
+    Core\Crypto\Cipher::XChaCha20Poly1305,
+);
+uint $opened = 0;
+uint $tried = 0;
+while ($tried < 10000) {
+    try {
+        Core\Crypto::open($sealed, $keys[$tried], Core\Crypto\Cipher::XChaCha20Poly1305);
+        $opened = $opened + 1;
+    } catch (Throwable $e) {
+    }
+    $tried = $tried + 1;
+}
+echo '4 keys that opened it: ', $opened, "\n";
+
+// 5. The whole batch is dropped and drawn again, to see whether the generator
+// behaves differently the second time around.
+$keys = [];
+$drawn = 0;
+while ($drawn < 100000) {
+    $keys[] = Core\Crypto::generateKey();
+    $drawn = $drawn + 1;
+}
+echo '5 drew ', Core\Arr::count($keys), ' more keys', "\n";

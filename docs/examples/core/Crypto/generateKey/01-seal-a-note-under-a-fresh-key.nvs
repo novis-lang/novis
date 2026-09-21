@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to draw a key and seal a short note with it.
+
+// `Core\Crypto::generateKey` takes no arguments and gives 32 random bytes.
+secret bytes $key = Core\Crypto::generateKey();
+
+bytes $sealed = Core\Crypto::seal(
+    "the meeting moved to Thursday" as bytes,
+    $key,
+    Core\Crypto\Cipher::XChaCha20Poly1305
+);
+
+// The same key opens the note again. This prints the note.
+echo Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
