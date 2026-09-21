@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to turn text that could control the terminal into text that is safe
+// to show. `Core\Cli::escape` replaces every control character with one visible
+// character that does nothing.
+
+// This text starts with the escape character. A terminal reads that as an order:
+// print the rest in red.
+string $colored = "\u{1B}[31mred";
+
+// This prints ␛[31mred. The escape character is now a picture of itself, and the
+// terminal shows all eight characters.
+echo Core\Cli::escape($colored), "\n";

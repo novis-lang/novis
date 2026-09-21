@@ -1,0 +1,16 @@
+<?nvs
+// Shows the everyday use: a program keeps what a person typed and shows it
+// later. `echo` already makes text safe for the terminal. `Core\Cli::escape`
+// gives you that safe text as a value, so your program can hold it and measure
+// it.
+
+// There is no terminal here, so the answer is the default. The default ends with
+// a control sequence that clears the screen.
+tainted string $typed = Core\Cli::ask("Who is the order for?", {default: "ada\u{1B}[2J"});
+
+// The result is a plain `string`, not a tainted one, and nothing in it can
+// control a terminal.
+string $safe = Core\Cli::escape($typed);
+
+echo "order for ", $safe, "\n";
+echo "the name takes ", Core\Cli::displayWidth($safe), " columns\n";

@@ -1,0 +1,40 @@
+<?nvs
+// Attack: text written to make the terminal do something nobody asked for, and
+// to make the escaping run out of room. Every step must return text that is safe
+// to print, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. A command that renames the window and a command that clears the screen.
+//    Both must come back as visible characters.
+string $paint = "\u{1B}]0;rm -rf /\u{7}\u{1B}[2J";
+echo 'step 1 ', Core\Cli::escape($paint), "\n";
+
+// 2. Two million escape characters. Each one is replaced by a wider character,
+//    so the result is larger than the text, and the program must keep going.
+string $many = Core\Str::repeat("\u{1B}", 2000000);
+echo 'step 2 ', Core\Str::length(Core\Cli::escape($many)), "\n";
+
+// 3. A file name that a terminal would show backwards. The character that
+//    reorders it must not survive.
+string $reordered = "invoice\u{202E}gpj.exe";
+echo 'step 3 ', Core\Cli::escape($reordered), "\n";
+
+// 4. Escaping the same text a hundred times over. After the first time the
+//    result must stop changing.
+string $again = Core\Cli::escape("a\rb");
+uint $round = 0;
+while ($round < 100) {
+    $again = Core\Cli::escape($again);
+    $round = $round + 1;
+}
+echo 'step 4 ', $again, "\n";
+
+// 5. A hundred thousand escapes in a row, so that anything an escape kept
+//    behind would grow.
+uint $i = 0;
+uint $characters = 0;
+while ($i < 100000) {
+    $characters = $characters + Core\Str::length(Core\Cli::escape("order\u{1B}[31m"));
+    $i = $i + 1;
+}
+echo 'step 5 characters ', $characters, "\n";

@@ -1,0 +1,9 @@
+<?nvs
+// Shows which characters `Core\Cli::escape` keeps. A tab and a newline lay text
+// out, so they pass through and still work.
+
+echo Core\Cli::escape("name\tprice\nheadphones\t49\n");
+
+// A carriage return moves the cursor back over what is already on the line, so
+// it is replaced by ␍. This prints one line: total: 49␍DONE
+echo Core\Cli::escape("total: 49\rDONE"), "\n";
