@@ -1780,6 +1780,46 @@ entry = "benches/members/core/Db-Rows/first.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/01-read-the-number-a-count-query-answered.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/02-the-two-times-the-value-is-null.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/03-build-a-summary-line-from-one-value-queries.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/value/01-one-value-read-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Schema`'s one program that reaches a database. Reading a schema out of an array needs
+# nothing granted at all, so the rest of that group's programs are not written here; this one also
+# applies what it read, which is why it holds `db.schema` for the same name the connection names.
+[[app]]
+entry = "docs/examples/core/Db-Schema/fromArray/03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

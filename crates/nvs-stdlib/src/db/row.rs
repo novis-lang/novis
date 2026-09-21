@@ -3571,4 +3571,113 @@ mod tests {
         );
         released(empty);
     }
+
+    /// **`Core\Db\Rows::value` answers the text the first row already holds
+    /// rather than a copy of it**, and takes no reference to either row.
+    ///
+    /// The pointer is what decides it, because a member that copied would
+    /// answer a text comparing equal on every line a program can write while
+    /// spending the column's whole length per call — and a `select` of one
+    /// value is what a request runs on its way to a page. The rows are counted
+    /// on both sides for the other half: this member answers a column, so a
+    /// row object is one allocation it never owes.
+    ///
+    /// The row carrying no columns is the half no `.nvst` reaches, because
+    /// every statement an engine answers describes at least one column. It is
+    /// the same `null` as the empty result below, which is what
+    /// [`ROWS_VALUE_DOC`] means by the two not being told apart.
+    // covers: Core\Db\Rows::value
+    #[test]
+    fn value_lends_the_head_columns_text_and_a_row_of_no_columns_reads_as_an_empty_result() {
+        let mut ctx = Ctx::buffered();
+        let stored = Value::str(NvsStr::new("Amélie".as_bytes()));
+        let mut north = NvsArray::new();
+        north.set(NvsStr::new(b"label"), stored);
+        north.set(NvsStr::new(b"seats"), Value::int(4));
+        let mut east = NvsArray::new();
+        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+
+        let text = stored
+            .as_str_bytes()
+            .map(<[u8]>::as_ptr)
+            .expect("the first column was built holding a text");
+        let rows = [Value::array(north), Value::array(east)];
+        let held: Vec<_> = rows
+            .iter()
+            .map(|row| row.array_ptr().expect("a row is the array of its columns"))
+            .collect();
+        let result = result_over(rows);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds both rows, so they are \
+                      live until it is released at the end"
+        )]
+        let before: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+
+        // 1. Four reads of the one value, each answering the allocation the
+        //    first row itself holds, and each of them the *first* column rather
+        //    than the second the same row carries.
+        for _ in 0..4 {
+            let answered = nvs_runtime::call(nvs_core_db_rows_value, &mut ctx, &[result])
+                .expect("a result over two rows has a first value");
+            assert_eq!(
+                answered.as_str_bytes(),
+                Some("Amélie".as_bytes()),
+                "`value` answered something other than the first column of the \
+                 first row"
+            );
+            assert_eq!(
+                answered.as_str_bytes().map(<[u8]>::as_ptr),
+                Some(text),
+                "`value` built a second copy of the text the row already holds"
+            );
+            released(answered);
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the result is this frame's and is released below, so the \
+                      rows it holds are still live"
+        )]
+        let after: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+        assert_eq!(
+            after, before,
+            "reading a column took a reference to a row, so the member built a \
+             row object it does not answer"
+        );
+        released(result);
+
+        // 2. A result that matched nothing, and a row carrying no columns at
+        //    all. Both are `null`, and the second is why the member declares
+        //    `mixed` rather than putting the absence in a `?T`.
+        let mut bare = NvsArray::new();
+        bare.append(Value::array(NvsArray::new()));
+        for rows in [NvsArray::new(), bare] {
+            let empty = crate::instance::build(
+                &ROWS,
+                [
+                    Value::array(rows),
+                    Value::null(),
+                    Value::array(NvsArray::new()),
+                ],
+            );
+            let nothing = nvs_runtime::call(nvs_core_db_rows_value, &mut ctx, &[empty])
+                .expect("an absent value is an answer rather than a failure");
+            assert_eq!(
+                nothing.tag(),
+                Some(Tag::Null),
+                "a result with no value to answer threw instead of answering \
+                 `null`, which is what a `select count(*)` would have to be \
+                 wrapped in a `try` for"
+            );
+            released(empty);
+        }
+    }
 }

@@ -1,0 +1,74 @@
+<?nvs
+// Attack: one value is read out of a result a million times. An empty result and
+// a column with no value are each asked a hundred thousand times. A value of
+// sixteen megabytes is read and held a hundred thousand times. Every step has to
+// finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+$db->execute('insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?)', [4, 'north', 2, 'east', 6, 'south']);
+
+// 1. A million reads of the first value of a three-row result. The total carries
+// every read, so none of them can be left out.
+var $three = $db->query('select seats, label from seatings order by id', []);
+uint $total = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $total = $total + ((($three->value() as ?int) ?? 0) as uint);
+    $i = $i + 1;
+}
+echo '1 total: ', $total, "\n";
+
+// 2. An empty result asked a hundred thousand times. It has to answer `null`
+// every time rather than throw.
+var $none = $db->query('select seats from seatings where seats < ?', [0]);
+uint $absent = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($none->value() == null) {
+        $absent = $absent + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 absent: ', $absent, "\n";
+
+// 3. A first column that has no value, asked a hundred thousand times. The
+// answer is the same `null` as step 2.
+$db->execute('create table gaps (id integer primary key, seats int)', []);
+$db->execute('insert into gaps (seats) values (?)', [null]);
+var $gap = $db->query('select seats from gaps', []);
+uint $nothing = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($gap->value() == null) {
+        $nothing = $nothing + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 nothing: ', $nothing, "\n";
+
+// 4. Two hundred thousand rows, and only the first value asked for. Reading one
+// value may not cost the whole result.
+$db->execute('insert into seatings (seats, label) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 200000) select x, \'row\' from counter', []);
+var $many = $db->query('select seats, label from seatings order by id', []);
+echo '4 head: ', ($many->value() as ?int) ?? 0, "\n";
+
+// 5. A value of sixteen megabytes, read and held a hundred thousand times. The
+// memory the program holds may not grow with the reads.
+$db->execute('create table pictures (id integer primary key, picture blob not null)', []);
+$db->execute('insert into pictures (picture) values (?)', [Core\Str::repeat('x', 16000000) as bytes]);
+var $heavy = $db->query('select picture from pictures', []);
+array<mixed> $held = [];
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    var $picture = $heavy->value();
+    $seen = Core\Bytes::length($picture as ?bytes ?? ('' as bytes));
+    $held[] = $picture;
+    $i = $i + 1;
+}
+echo '5 seen: ', $seen, ' held: ', Core\Arr::count($held), "\n";
+$held = [];
+
+$db->close();

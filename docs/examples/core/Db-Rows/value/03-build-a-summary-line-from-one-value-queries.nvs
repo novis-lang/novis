@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a summary line is built from queries that each answer one value. A
+// report page works this way for every figure it prints.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute(
+    'insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)',
+    ['Ada Ahmed', 1250, 'Bo Berg', 800, 'Cem Celik', 2400]
+);
+
+// Each query answers one row with one column, so each figure is one `value`
+// call. The default after `??` covers a table with no orders in it yet.
+var $orders = $db->query('select count(*) from orders', [])->value() as ?int ?? 0;
+var $cents = $db->query('select sum(cents) from orders', [])->value() as ?int ?? 0;
+var $best = $db->query('select customer from orders order by cents desc limit 1', [])->value() as ?string ?? 'nobody';
+
+// This prints `3 orders, 4450 cents, best customer: Cem Celik`.
+echo $orders, ' orders, ', $cents, ' cents, best customer: ', $best, "\n";
+
+$db->close();
