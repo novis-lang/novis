@@ -1079,6 +1079,102 @@ entry = "benches/members/core/Db-Connection/transaction.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+# `Core\Db\Plan`'s programs plan a schema against `[db.notes]`, which is the in-memory block no
+# other fixture writes to, so every one of them starts from an empty database. Planning is an
+# ordinary read and needs only `db.connect`; the one program that also *applies* its plan holds
+# `db.schema` for the same name, because issuing DDL is the separate deny-by-default grant.
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/01-see-what-a-schema-would-change.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/02-tell-that-the-database-is-up-to-date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/03-stop-a-deployment-before-a-risky-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan/steps/01-a-plan-of-thousands-of-steps-read-ten-million-times.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan/steps.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/01-read-what-each-step-can-cost.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/02-decide-whether-a-deployment-may-run-on-its-own.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/03-hold-the-risky-steps-for-a-maintenance-window.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/grade/01-grades-read-forever-and-steps-kept-after-the-plan-is-gone.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/grade.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/01-read-the-statement-a-step-is.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/02-run-one-step-yourself.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/03-write-the-plan-out-for-a-review.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/sql/01-every-statement-read-forever-and-joined-into-one-string.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/sql.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

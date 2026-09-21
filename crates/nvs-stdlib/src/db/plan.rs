@@ -140,6 +140,7 @@ mod tests {
     /// matching `Grade::Destructive` is comparing against [`GRADE`]'s own case
     /// value, so a Rust arm that drifted from the table would answer a grade
     /// no branch of a correct program takes.
+    // covers: Core\Db\Plan\Step::grade
     #[test]
     fn the_grade_slot_agrees_with_the_registered_enum() {
         for (grade, name) in [
@@ -158,6 +159,191 @@ mod tests {
                 "the slot written for {grade:?} is not `{}::{name}`",
                 GRADE.name
             );
+        }
+    }
+
+    /// `rule:core-classes/schema-plan`'s document, read where a program reads it: `steps()` answers
+    /// the array [`plan_value`] filled, in the differ's own order, and retains
+    /// it rather than building a second one.
+    ///
+    /// **Asserted on the array's identity and its refcount**, not on what it
+    /// holds: a member that copied the steps would answer an array equal to
+    /// this one on every line and still charge a request one object per step
+    /// per read, which is the cost this module's doc says a walk does not pay.
+    /// The plan is a real [`nvs_db::diff`] rather than an instance built here,
+    /// so the order asserted is the order the differ wrote and the empty one
+    /// below is real convergence.
+    // covers: Core\Db\Plan::steps
+    #[test]
+    fn steps_answers_the_plans_own_array_in_the_order_the_differ_wrote() {
+        use nvs_db::schema::{Column, Schema, Table};
+        use nvs_db::{Dialect, IntWidth, ScalarType};
+
+        let table = |name: &str| {
+            Table::new(
+                name,
+                vec![
+                    Column::new("id", ScalarType::Int(IntWidth::Big))
+                        .expect("`id` is an identifier"),
+                ],
+            )
+            .expect("one column is a table")
+        };
+        let want =
+            Schema::new(vec![table("notes"), table("tags")]).expect("two tables are a schema");
+        let have = Schema::new(Vec::new()).expect("an empty database is a schema");
+
+        let plan = nvs_db::diff(&want, &have, Dialect::Sqlite);
+        assert_eq!(
+            plan.len(),
+            2,
+            "the fixture stopped producing one step per missing table:\n{plan}"
+        );
+
+        let value = plan_value(&plan);
+        let receiver = value.obj_ptr().expect("`build` answers an object");
+        let held = crate::instance::slot(receiver, PLAN_STEPS_AT)
+            .array_ptr()
+            .expect("the plan's one slot holds its steps");
+
+        #[expect(
+            unsafe_code,
+            reason = "the plan this frame built owns a reference to the array, so \
+                      it is live for the whole test"
+        )]
+        let before = unsafe { nvs_runtime::NvsArray::refcount_of(held) };
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let answered = nvs_runtime::call(nvs_core_db_plan_steps, &mut ctx, &[value])
+            .expect("reading a filled slot cannot fail");
+        assert_eq!(
+            answered.array_ptr(),
+            Some(held),
+            "a walk was handed a copy of the steps rather than the plan's own array"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the plan is still this frame's, and the answer holds a second \
+                      reference to the same array"
+        )]
+        let held_now = unsafe { nvs_runtime::NvsArray::refcount_of(held) };
+        assert_eq!(
+            held_now,
+            before + 1,
+            "the answer outlives the call, so the member owes it a reference"
+        );
+
+        let steps = crate::arr::borrowed(held);
+        assert_eq!(
+            steps.count(),
+            plan.len(),
+            "the array is not as long as the plan it was built from"
+        );
+        for (at, step) in plan.steps().iter().enumerate() {
+            let at = i64::try_from(at).expect("the fixture's plan is two steps long");
+            let object = steps
+                .get_index(at)
+                .expect("every slot of a packed array is filled")
+                .obj_ptr()
+                .expect("a step is an object");
+            let reason = crate::instance::slot(object, STEP_REASON_AT);
+            assert_eq!(
+                reason.as_text(),
+                Some(step.reason()),
+                "step {at} is not the one the differ wrote there"
+            );
+        }
+
+        // § 6's other half: a database that already matches the schema plans
+        // nothing, and a program reads that as an empty array rather than as an
+        // absence it has to test for.
+        let converged = plan_value(&nvs_db::diff(&want, &want, Dialect::Sqlite));
+        let empty = crate::instance::slot(
+            converged.obj_ptr().expect("`build` answers an object"),
+            PLAN_STEPS_AT,
+        )
+        .array_ptr()
+        .expect("the plan's one slot holds its steps");
+        assert_eq!(
+            crate::arr::borrowed(empty).count(),
+            0,
+            "a database that matches the schema planned a step anyway"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the two plans it built and the one answer the \
+                      member handed back, and releases each exactly once"
+        )]
+        unsafe {
+            answered.release();
+            value.release();
+            converged.release();
+        }
+    }
+
+    /// The one field this module flattens: a step's SQL slot is **every**
+    /// statement the emitter wrote for it, joined by a newline.
+    ///
+    /// The fixture is a widened integer column, because on SQLite that is a
+    /// create-copy-drop-rename rebuild and therefore the one ordinary step
+    /// whose SQL is more than one statement — the case the join exists for,
+    /// and the one a fixture of a single `CREATE TABLE` cannot tell apart from
+    /// a member that answered the first statement alone.
+    // covers: Core\Db\Plan\Step::sql
+    #[test]
+    fn a_steps_sql_is_every_statement_the_emitter_wrote_joined_by_a_newline() {
+        use nvs_db::schema::{Column, Schema, Table};
+        use nvs_db::{Dialect, IntWidth, ScalarType};
+
+        let of = |width| {
+            Schema::new(vec![
+                Table::new(
+                    "notes",
+                    vec![Column::new("id", ScalarType::Int(width)).expect("`id` is an identifier")],
+                )
+                .expect("one column is a table"),
+            ])
+            .expect("one table is a schema")
+        };
+
+        let plan = nvs_db::diff(&of(IntWidth::Big), &of(IntWidth::Normal), Dialect::Sqlite);
+        let step = plan.steps().first().expect("a widened column is one step");
+        assert!(
+            step.sql().len() > 1,
+            "the fixture stopped being SQLite's rebuild, so the join is not \
+             exercised: {:?}",
+            step.sql()
+        );
+
+        let value = plan_value(&plan);
+        let steps = crate::arr::borrowed(
+            crate::instance::slot(
+                value.obj_ptr().expect("`build` answers an object"),
+                PLAN_STEPS_AT,
+            )
+            .array_ptr()
+            .expect("the plan's one slot holds its steps"),
+        );
+        let object = steps
+            .get_index(0)
+            .expect("the plan has a first step")
+            .obj_ptr()
+            .expect("a step is an object");
+        let sql = crate::instance::slot(object, STEP_SQL_AT);
+        assert_eq!(
+            sql.as_text(),
+            Some(step.sql().join("\n").as_str()),
+            "the slot is not the whole of what the emitter wrote for this step"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the plan it built and releases it exactly once"
+        )]
+        unsafe {
+            value.release();
         }
     }
 }
