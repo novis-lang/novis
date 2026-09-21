@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request makes the server hold very many keys and ask each one what
+// it is, a million times over. The server should keep answering and should
+// reach its last line.
+// hostile: timeout-ms 20000
+
+bytes $ed25519 = Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac');
+Core\Crypto\PublicKey $one = Core\Crypto\PublicKey::read(
+    $ed25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Raw,
+);
+
+// 1. One key asked a million times. A member that made something new on every
+// call would leave a million of them behind here.
+int $signing = 0;
+foreach (Core\Arr::range(1, 1000000) as int $round) {
+    if ($one->kind() == Core\Crypto\KeyKind::Ed25519) {
+        $signing += 1;
+    }
+}
+echo '1 answered ', $signing, ' times', "\n";
+
+// 2. A hundred thousand keys held at once, each asked what it is. This is what
+// a request does when it wants the server to run out of memory.
+array<Core\Crypto\PublicKey> $kept = [];
+int $curves = 0;
+foreach (Core\Arr::range(1, 100000) as int $round) {
+    Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+        $ed25519,
+        Core\Crypto\KeyKind::Ed25519,
+        Core\Crypto\KeyFormat::Raw,
+    );
+    if ($key->kind() == Core\Crypto\KeyKind::Ed25519) {
+        $curves += 1;
+    }
+    $kept[] = $key;
+}
+echo '2 held ', $curves, ' keys', "\n";
+
+// 3. The first key asked again, after all of that. A member that had taken the
+// kind out of the key would answer something else here.
+if ($one->kind() == Core\Crypto\KeyKind::Ed25519) {
+    echo '3 the first key is what it was', "\n";
+}

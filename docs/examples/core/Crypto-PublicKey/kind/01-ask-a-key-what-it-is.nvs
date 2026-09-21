@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to ask a public key what it is. A key knows its kind because you
+// named the kind when you read it.
+
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Raw
+);
+
+// `kind` returns a case of `Core\Crypto\KeyKind`, so you compare it with the
+// case you are looking for. This prints the first line.
+if ($key->kind() == Core\Crypto\KeyKind::Ed25519) {
+    echo "this key checks signatures", "\n";
+} else {
+    echo "this key is for something else", "\n";
+}

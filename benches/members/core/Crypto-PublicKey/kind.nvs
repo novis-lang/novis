@@ -1,0 +1,36 @@
+<?nvs
+// Measures asking a public key what it is. A program asks before it decides
+// whether to check a signature or to agree a secret with the key.
+// bench: iterations 1000000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Crypto\PublicKey> $keys = [
+            Core\Crypto\PublicKey::read(
+                Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+                Core\Crypto\KeyKind::Ed25519,
+                Core\Crypto\KeyFormat::Raw
+            ),
+            Core\Crypto\PublicKey::read(
+                Core\Encoding::fromHex("9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"),
+                Core\Crypto\KeyKind::X25519,
+                Core\Crypto\KeyFormat::Raw
+            ),
+        ];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The key of every round is chosen by the round before it, so no
+            // round can be left out, and both keys are asked.
+            int $which = ($total % 2) as int;
+            uint $weight = (($keys[$which]->kind() == Core\Crypto\KeyKind::X25519) ? 1 : 2) as uint;
+            $total = $total + $weight + $i;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";
