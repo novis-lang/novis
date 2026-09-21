@@ -653,6 +653,68 @@ entry = "benches/members/core/Db/connect.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+# `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
+# read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
+[[app]]
+entry = "docs/examples/core/Db-Column/name/01-print-the-headings-of-a-query.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/name/02-the-alias-becomes-the-label.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/name/03-print-a-query-you-did-not-write.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Column/name/01-labels-a-statement-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Column/name.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/01-see-what-each-column-holds.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/02-a-column-the-query-works-out.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/03-line-up-the-numbers-in-a-report.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Column/type/01-declared-types-a-schema-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Column/type.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

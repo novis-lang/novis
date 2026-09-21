@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a table is created with declared types written to break the reading
+// of them. One type name is a million letters long, and one names several
+// kinds at once. One column is asked for its kind a hundred thousand times.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+
+// 1. A declared type of a million letters. It names no kind the database knows,
+// so the case for it is `Other`.
+string $long = Core\Str::repeat('A', 1000000);
+try {
+    $db->execute('create table wide (a ' . $long . ')', []);
+    var $described = $db->query('select a from wide', [])->columns();
+    bool $other = $described[0]->type() == Core\Db\ColumnType::Other;
+    echo '1 other: ', $other ? 'yes' : 'no', "\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. A declared type naming several kinds at once, and one naming none. Each
+// has to answer with exactly one case.
+array<string> $declared = ['datetimeintcharblob', 'unsigned big int', 'nothing at all', ''];
+uint $answered = 0;
+uint $others = 0;
+uint $i = 0;
+foreach ($declared as string $written) {
+    try {
+        $db->execute('create table t' . ($i as string) . ' (a ' . $written . ')', []);
+        var $one = $db->query('select a from t' . ($i as string), [])->columns();
+        if ($one[0]->type() == Core\Db\ColumnType::Other) {
+            $others = $others + 1;
+        }
+        $answered = $answered + 1;
+    } catch (Throwable $error) {
+        $answered = $answered + 0;
+    }
+    $i = $i + 1;
+}
+echo '2 answered: ', $answered, ' of ', Core\Arr::count($declared), ', other: ', $others, "\n";
+
+// 3. Two thousand columns in one table, each with its own declared type. The
+// database has a limit on this, so the answer is a count or an error.
+string $columns = 'c0 integer';
+$i = 1;
+while ($i < 2000) {
+    $columns = $columns . ', c' . ($i as string) . ' varchar(' . ((($i % 99) + 1) as string) . ')';
+    $i = $i + 1;
+}
+try {
+    $db->execute('create table many (' . $columns . ')', []);
+    uint $counted = Core\Arr::count($db->query('select * from many', [])->columns());
+    echo '3 columns: ', $counted, "\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. One column asked for its kind a hundred thousand times. Nothing may pile
+// up over the reads.
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+var $twice = $db->query('select id, text from notes', [])->columns();
+uint $ints = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($twice[($i % 2) as int]->type() == Core\Db\ColumnType::Int) {
+        $ints = $ints + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 whole numbers: ', $ints, "\n";

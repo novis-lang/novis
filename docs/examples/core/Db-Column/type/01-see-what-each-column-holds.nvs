@@ -1,0 +1,27 @@
+<?nvs
+// Shows what kind of value each column of a query holds. `type()` returns one
+// of the `Core\Db\ColumnType` cases, and the same case comes back on every
+// database.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute(
+    'create table notes (id integer primary key, title text not null, weight real, paidAt datetime)',
+    []
+);
+
+var $rows = $db->query('select id, title, weight, paidAt from notes', []);
+
+// This prints `id Int`, `title Text`, `weight Float` and `paidAt DateTime`.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    string $kind = match ($column->type()) {
+        Core\Db\ColumnType::Int => 'Int',
+        Core\Db\ColumnType::Text => 'Text',
+        Core\Db\ColumnType::Float => 'Float',
+        Core\Db\ColumnType::DateTime => 'DateTime',
+        default => 'something else',
+    };
+    echo $column->name(), ' ', $kind, "\n";
+}
+
+$db->close();

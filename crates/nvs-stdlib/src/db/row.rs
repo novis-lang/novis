@@ -1272,6 +1272,176 @@ mod tests {
         assert_eq!(ROWS.slot(ROWS_COLUMNS_SLOT), ROWS_COLUMNS_AT);
     }
 
+    /// Drops the one reference a member handed this frame, which is what a
+    /// compiled caller owes for every value it was given.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame was \
+                      handed, and nothing else holds it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// **`Core\Db\Column::name` answers the label the server described**, which
+    /// is the alias wherever the select list wrote one — [`COLUMN_LABEL_DOC`]'s
+    /// sentence, and the half of it a type-level case cannot reach.
+    ///
+    /// Asserted against a real engine on purpose. Every other `Core\Db` case in
+    /// this crate asks what a member *declares*, and a label is not declared by
+    /// anything here: it is what SQLite wrote into its own description of a
+    /// prepared statement. A claim about it that never prepared one would be a
+    /// claim about this crate's guess at the engine.
+    ///
+    /// Two claims, because either alone looks right: the engine describes the
+    /// alias rather than the column, and the member hands that description on
+    /// unchanged. The third column is the bound on the other side — one entry
+    /// per column and never per label, so a description carrying two columns of
+    /// one name keeps both.
+    ///
+    /// The `.nvst` half runs the same statements through a program and is where
+    /// the member is reached the way a caller reaches it.
+    // covers: Core\Db\Column::name
+    #[test]
+    fn a_column_label_is_the_alias_a_real_statement_described() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        conn.query(
+            "create table notes (id integer primary key, text text not null)",
+            Vec::new(),
+        )
+        .expect("the schema is applied");
+
+        // 1. What the engine described. `id` is renamed, `text` is not, and the
+        //    third column carries a label the first column already has.
+        let described: Vec<nvs_db::SqliteColumn> = conn
+            .query("select id as reference, text, id from notes", Vec::new())
+            .expect("the statement prepares")
+            .columns()
+            .to_vec();
+        let labels: Vec<&str> = described
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect();
+        assert_eq!(
+            labels,
+            ["reference", "text", "id"],
+            "an alias is what the server describes, and two columns may share one label"
+        );
+
+        // 2. What the member answers, over a column built exactly as
+        //    `sqlite_described_columns` builds one. The other two slots are
+        //    never read here, which is the point: a label is one slot.
+        let mut ctx = Ctx::buffered();
+        for expected in labels {
+            let column = crate::instance::build(
+                &COLUMN,
+                [
+                    Value::str(NvsStr::new(expected.as_bytes())),
+                    Value::int(0),
+                    Value::bool(true),
+                ],
+            );
+            let answered = nvs_runtime::call(nvs_core_db_column_name, &mut ctx, &[column])
+                .expect("`name` reads one slot and has nothing to throw");
+            assert_eq!(
+                answered.as_text(),
+                Some(expected),
+                "`name` answered something other than the label it was described with"
+            );
+            released(answered);
+            released(column);
+        }
+    }
+
+    /// **`Core\Db\Column::type` answers what the column was *declared* as**, and
+    /// on this backend that is keyed off the schema's own type name rather than
+    /// off the storage class a cell arrived in — [`COLUMN_DECLARED_DOC`]'s
+    /// sentence, over a schema a real engine parsed.
+    ///
+    /// Asserted against a real engine for [`a_column_label_is_the_alias_a_real_statement_described`]'s
+    /// reason, and the declarations below are chosen so that a map written one
+    /// arm short prints plausibly: `datetime` is answered before `date` and
+    /// `date` before `time`, a `json` column is `Text` on a backend with no JSON
+    /// type of its own, and a column the statement works out was declared
+    /// nowhere and is `Other`.
+    ///
+    /// The second half is the member: the ordinal [`column_type_value`] wrote
+    /// into the slot is what a program matches on, and the member hands that on
+    /// without classifying anything a second time.
+    // covers: Core\Db\Column::type
+    #[test]
+    fn a_column_case_is_what_a_real_schema_declared() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        conn.query(
+            "create table notes (id integer, title text, weight real, paidAt datetime, \
+             due date, active boolean, picture blob, price decimal(10, 2), badge uuid, \
+             payload json)",
+            Vec::new(),
+        )
+        .expect("the schema is applied");
+
+        // 1. The declaration decides, over every family § 9 names that this
+        //    backend can carry.
+        let described: Vec<nvs_db::SqliteColumn> = conn
+            .query(
+                "select id, title, weight, paidAt, due, active, picture, price, badge, \
+                 payload, weight * 2 as doubled from notes",
+                Vec::new(),
+            )
+            .expect("the statement prepares")
+            .columns()
+            .to_vec();
+        let cases: Vec<&str> = described
+            .iter()
+            .map(|column| column_type_case(column.column_type()))
+            .collect();
+        assert_eq!(
+            cases,
+            [
+                "Int", "Text", "Float", "DateTime", "Date", "Bool", "Bytes", "Decimal", "Uuid",
+                "Text", "Other",
+            ],
+            "a declared type named a case this backend does not give it"
+        );
+
+        // 2. And the member answers the ordinal that case is at runtime, which
+        //    is the only thing a program compares.
+        let mut ctx = Ctx::buffered();
+        for column in &described {
+            let declared = column_type_value(column.column_type());
+            let built = crate::instance::build(
+                &COLUMN,
+                [
+                    Value::str(NvsStr::new(column.name.as_bytes())),
+                    declared,
+                    Value::bool(true),
+                ],
+            );
+            let answered = nvs_runtime::call(nvs_core_db_column_type, &mut ctx, &[built])
+                .expect("`type` reads one slot and has nothing to throw");
+            assert_eq!(
+                answered.as_int(),
+                declared.as_int(),
+                "`type` answered an ordinal other than the case the column was described with"
+            );
+            released(built);
+        }
+    }
+
     /// One [`Requested`] answer as a word, so a case below reads as the sentence
     /// `rule:core-classes/db-column-types` writes rather than as a `match` arm.
     fn answered<T: std::fmt::Debug>(requested: &Requested<T>) -> String {

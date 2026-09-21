@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a report decides how to print each column before it reads a single
+// row. Numbers go to the right of their space, and text goes to the left.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (title text not null, amount integer not null)', []);
+$db->execute('insert into notes (title, amount) values (?, ?)', ['buy milk', 3]);
+$db->execute('insert into notes (title, amount) values (?, ?)', ['call the plumber', 12]);
+
+var $rows = $db->query('select title, amount from notes order by amount', []);
+array<Core\Db\Column> $columns = $rows->columns();
+
+// This prints the title in 20 places and the amount in 5 places after it.
+foreach ($rows as Core\Db\Row $row) {
+    string $line = '';
+    foreach ($columns as Core\Db\Column $column) {
+        string $cell = $row->get($column->name()) as ?string ?? '';
+        if ($column->type() == Core\Db\ColumnType::Int) {
+            $line = $line . Core\Str::padStart($cell, 5);
+        } else {
+            $line = $line . Core\Str::padEnd($cell, 20);
+        }
+    }
+    echo $line, "|\n";
+}
+
+$db->close();

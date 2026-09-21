@@ -1,0 +1,93 @@
+--TEST--
+`Core\Db\Column::type` answers the case the column was *declared* as, over a real statement — a column with no declaration is `Other`, a backend with no JSON type describes one as `Text`, and a cell stored as something else does not move the case — `rule:core-classes/db-column-types`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Column::type
+// Run against a real engine, which is what this claim needs: the case is keyed
+// off what the *schema* declared, and a case that never prepared a statement
+// would be reading this tree's own guess rather than the description.
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table notes (
+        id integer primary key,
+        title text not null,
+        weight real,
+        paidAt datetime,
+        due date,
+        active boolean,
+        picture blob,
+        price decimal(10, 2),
+        badge uuid,
+        payload json
+    )",
+    []
+);
+
+// One word per case, so the claim below is the list and not a `match` per row.
+class Kind {
+    public static function of(Core\Db\ColumnType $declared): string {
+        return match ($declared) {
+            Core\Db\ColumnType::Int => "Int",
+            Core\Db\ColumnType::Float => "Float",
+            Core\Db\ColumnType::Decimal => "Decimal",
+            Core\Db\ColumnType::Text => "Text",
+            Core\Db\ColumnType::Bytes => "Bytes",
+            Core\Db\ColumnType::Bool => "Bool",
+            Core\Db\ColumnType::Date => "Date",
+            Core\Db\ColumnType::DateTime => "DateTime",
+            Core\Db\ColumnType::Uuid => "Uuid",
+            Core\Db\ColumnType::Other => "Other",
+            default => "unnamed",
+        };
+    }
+}
+
+// The ten declarations above, in the order the select list asks for them. The
+// last is the one worth reading twice: this backend has no JSON type, so a
+// column declared `json` describes as `Text` and is not a `Json` case.
+var $described = $db->query(
+    "select id, title, weight, paidAt, due, active, picture, price, badge, payload from notes",
+    []
+)->columns();
+foreach ($described as Core\Db\Column $column) {
+    echo $column->name(), " ", Kind::of($column->type()), "\n";
+}
+
+// A column the statement works out was declared nowhere, so it is `Other` —
+// the total case, and not the type its values happen to arrive as.
+foreach ($db->query("select weight * 2 as doubled from notes", [])->columns()
+    as Core\Db\Column $worked) {
+    echo "worked ", Kind::of($worked->type()), "\n";
+}
+
+// And the split the case is written around: the declaration answers, never the
+// cell. This column is declared `integer` and this row stores text in it,
+// which is what SQLite does with a value its affinity cannot convert.
+$db->execute("create table loose (n integer)", []);
+$db->execute("insert into loose (n) values (?)", ["abc"]);
+var $stored = $db->query("select n from loose", []);
+foreach ($stored as Core\Db\Row $row) {
+    echo "cell ", $row->get("n") as ?string ?? "<null>", "\n";
+}
+echo "declared ", Kind::of($stored->columns()[0]->type()), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+id Int
+title Text
+weight Float
+paidAt DateTime
+due Date
+active Bool
+picture Bytes
+price Decimal
+badge Uuid
+payload Text
+worked Other
+cell abc
+declared Int

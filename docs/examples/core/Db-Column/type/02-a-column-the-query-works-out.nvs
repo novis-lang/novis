@@ -1,0 +1,20 @@
+<?nvs
+// Shows the case a computed column gets. A column the query works out was
+// never declared in a table, so `type()` returns `Other`.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, price real not null)', []);
+
+var $rows = $db->query('select price, price * 2 as total from notes', []);
+
+// This prints `price is a column of the table` and `total is worked out`.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    if ($column->type() == Core\Db\ColumnType::Other) {
+        echo $column->name(), " is worked out\n";
+    } else {
+        echo $column->name(), " is a column of the table\n";
+    }
+}
+
+$db->close();

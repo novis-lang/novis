@@ -1,0 +1,4 @@
+id Int
+title Text
+weight Float
+paidAt DateTime
