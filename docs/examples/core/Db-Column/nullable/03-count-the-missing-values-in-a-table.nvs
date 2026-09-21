@@ -1,0 +1,43 @@
+<?nvs
+// Shows how to find the gaps in a table. For every column that may be empty,
+// this counts the rows that have no value in it.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute(
+    'create table notes (id integer primary key, title text not null, note text, due text)',
+    []
+);
+$db->execute('insert into notes (id, title, note, due) values (?, ?, ?, ?)', [1, 'buy milk', null, null]);
+$db->execute('insert into notes (id, title, note, due) values (?, ?, ?, ?)', [2, 'call back', 'after nine', null]);
+$db->execute('insert into notes (id, title, note, due) values (?, ?, ?, ?)', [3, 'book a table', null, '2026-01-09']);
+
+var $rows = $db->query('select id, title, note, due from notes', []);
+array<Core\Db\Column> $columns = $rows->columns();
+
+// Every key of this array is a column label, and every value is a count.
+array<uint> $missing = [];
+foreach ($columns as Core\Db\Column $start) {
+    $missing[$start->name()] = 0;
+}
+
+foreach ($rows as Core\Db\Row $row) {
+    foreach ($columns as Core\Db\Column $column) {
+        // A column that always has a value is not worth checking. This driver
+        // says every column may be empty, so every column is checked here.
+        if (!$column->nullable()) {
+            continue;
+        }
+        // `get()` gives `null` when the column has no value in this row.
+        if ($row->get($column->name()) == null) {
+            $missing[$column->name()] = $missing[$column->name()] + 1;
+        }
+    }
+}
+
+// This prints `id 0`, `title 0`, `note 2` and `due 2`.
+foreach ($columns as Core\Db\Column $each) {
+    echo $each->name(), ' ', $missing[$each->name()], "\n";
+}
+
+$db->close();

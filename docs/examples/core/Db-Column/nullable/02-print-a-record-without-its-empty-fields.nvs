@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to print one record and leave out the fields that have no value.
+// `nullable()` says which columns need that check before any row is read.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (title text not null, note text, due text)', []);
+$db->execute(
+    'insert into notes (title, note, due) values (?, ?, ?)',
+    ['buy milk', null, '2026-01-09']
+);
+
+var $rows = $db->query('select title, note, due from notes', []);
+array<Core\Db\Column> $columns = $rows->columns();
+
+// This prints `title: buy milk` and `due: 2026-01-09`. The `note` column has no
+// value in this row, so the line for it is left out.
+foreach ($rows as Core\Db\Row $row) {
+    foreach ($columns as Core\Db\Column $column) {
+        // `string()` reads the column as text and gives `null` when the column
+        // has no value. A column that may not be empty needs no such check.
+        ?string $cell = $row->string($column->name());
+        if ($column->nullable() && $cell == null) {
+            continue;
+        }
+        echo $column->name(), ': ', $cell ?? '', "\n";
+    }
+}
+
+$db->close();

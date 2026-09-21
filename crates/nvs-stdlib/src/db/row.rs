@@ -1442,6 +1442,74 @@ mod tests {
         }
     }
 
+    /// **`Core\Db\Column::nullable` answers `true` for every column a real
+    /// statement described**, whatever that column was declared — the whole of
+    /// [`COLUMN_NULLABLE_DOC`]'s sentence, and the only claim a program may
+    /// make about this member today.
+    ///
+    /// Asserted against a real engine for
+    /// [`a_column_label_is_the_alias_a_real_statement_described`]'s reason, and
+    /// over four columns a driver keying off the declaration would have to
+    /// disagree about: a primary key, a `not null` column, a column declared
+    /// nothing at all, and one the statement works out. A stepped SQLite
+    /// statement carries no nullability, so there is nothing to key off and all
+    /// four are the same answer.
+    ///
+    /// Two claims, because either alone looks right: [`sqlite_described_columns`]
+    /// is what writes the slot, and the member hands that slot on rather than
+    /// deciding anything a second time. The count is the bound beside them —
+    /// one entry per column, so a description losing a column would print an
+    /// answer for every entry it kept.
+    // covers: Core\Db\Column::nullable
+    #[test]
+    fn every_described_column_may_hold_null_whatever_it_was_declared() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        conn.query(
+            "create table notes (id integer primary key, text text not null, note text)",
+            Vec::new(),
+        )
+        .expect("the schema is applied");
+
+        // 1. The description this crate builds from what the engine described.
+        let columns: Vec<nvs_db::SqliteColumn> = conn
+            .query(
+                "select id, text, note, length(text) as size from notes",
+                Vec::new(),
+            )
+            .expect("the statement prepares")
+            .columns()
+            .to_vec();
+        let described = sqlite_described_columns(&columns);
+        assert_eq!(
+            described.count(),
+            4,
+            "one entry per column of the select list"
+        );
+
+        // 2. And the member over each of them, which is the only half a program
+        //    can see. The element is borrowed from the array, so the frame owes
+        //    nothing back here and the answer is the slot itself.
+        let mut ctx = Ctx::buffered();
+        for index in 0..4 {
+            let column = described
+                .get_index(index)
+                .expect("a column this loop is walking is one the array carries");
+            let answered = nvs_runtime::call(nvs_core_db_column_nullable, &mut ctx, &[column])
+                .expect("`nullable` reads one slot and has nothing to throw");
+            assert_eq!(
+                answered.as_bool(),
+                Some(true),
+                "a stepped statement describes no nullability, so every column may hold NULL"
+            );
+        }
+    }
+
     /// One [`Requested`] answer as a word, so a case below reads as the sentence
     /// `rule:core-classes/db-column-types` writes rather than as a `match` arm.
     fn answered<T: std::fmt::Debug>(requested: &Requested<T>) -> String {
