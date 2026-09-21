@@ -1,0 +1,23 @@
+<?nvs
+// Shows which names are not allowed. A name with a space, a dot, a quote or a
+// semicolon in it throws a `LogicError`. A name that starts with a digit
+// throws too.
+
+array<string> $names = [
+    "order items",
+    "public.orders",
+    "orders; DROP TABLE orders",
+    "2024_totals",
+];
+// This prints one "not an identifier" line for each of the four names.
+foreach ($names as string $name) {
+    try {
+        echo Core\Db::quoteIdentifier($name), "\n";
+    } catch (LogicError $error) {
+        echo "not an identifier: ", $name, "\n";
+    }
+}
+
+// A name with a schema in front of it is two names. Check each one, and write
+// the dot between them yourself.
+echo Core\Db::quoteIdentifier("public"), ".", Core\Db::quoteIdentifier("orders"), "\n";

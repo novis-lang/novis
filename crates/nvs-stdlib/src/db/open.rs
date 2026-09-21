@@ -1710,4 +1710,88 @@ mod tests {
             );
         }
     }
+
+    /// Drops the one reference this frame was handed, which is what a member's
+    /// caller owes every `Value` it built or was answered.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame owns, \
+                      and nothing else holds the text"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `Core\Db::quoteIdentifier` decides with [`nvs_db::is_bare_identifier`]
+    /// and with no second copy of the alphabet, asserted as the **agreement**
+    /// it is rather than name by name: a copy written here would answer
+    /// plausibly on every name the `.nvst` cases list, and would drift the day
+    /// `rule:core-classes/schema-is-a-value`'s own validator
+    /// moved. The count is the assertion, so one name the member decided on its
+    /// own fails this.
+    ///
+    /// Only Rust can ask this — the two functions are one file apart and
+    /// neither is reachable from a program — which is what this side of
+    /// `rule:testing/feature-proofs` is for. The accepted
+    /// name is answered byte for byte and the refused one is a throw naming the
+    /// name, the two halves a caller reads.
+    // covers: Core\Db::quoteIdentifier
+    #[test]
+    fn the_accepted_alphabet_is_the_schema_validator_and_not_a_second_copy() {
+        let mut ctx = Ctx::buffered();
+        let names = [
+            "users",
+            "created_at",
+            "_internal",
+            "Table2",
+            "a",
+            "_",
+            "x9",
+            "_9",
+            "9a",
+            "",
+            "users users",
+            "public.users",
+            "users;",
+            "`users`",
+            "\"users\"",
+            "[users]",
+            "user$id",
+            "naïve",
+            "users--",
+            "users\n",
+        ];
+
+        let mut agreed = 0_usize;
+        for name in names {
+            let subject = Value::str(NvsStr::new(name.as_bytes()));
+            let agrees = match nvs_runtime::call(nvs_core_db_quote_identifier, &mut ctx, &[subject])
+            {
+                Ok(answered) => {
+                    let unchanged = answered.as_text() == Some(name);
+                    released(answered);
+                    nvs_db::is_bare_identifier(name) && unchanged
+                }
+                Err(_) => {
+                    let message = ctx
+                        .take_pending()
+                        .expect("a refusal is a throw, and it carries a sentence");
+                    !nvs_db::is_bare_identifier(name) && message.contains(name)
+                }
+            };
+            if agrees {
+                agreed += 1;
+            }
+            released(subject);
+        }
+
+        assert_eq!(
+            agreed,
+            names.len(),
+            "every name is accepted exactly when the schema validator accepts it, answered \
+             unchanged when it is, and named in the refusal when it is not"
+        );
+    }
 }
