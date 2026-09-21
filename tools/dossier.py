@@ -2409,6 +2409,11 @@ GOAL_PLAYBOOK = [
     "Tooling > another agent",
     "Writing a test case > a rule*",
     "Writing a test case > a -p*",
+    # Every slice of a generated goal writes `.nvs` files, and these two are what a session
+    # writing one gets wrong first: a literal passed straight to a `foreach` or a `Core`
+    # argument, and a binding name reused in a second block of the same program.
+    "Writing a test case > an array literal*",
+    "Writing a test case > two foreach headers*",
     "Running things > target/release/nvs.exe is",
 ]
 

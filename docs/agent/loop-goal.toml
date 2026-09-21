@@ -119,6 +119,8 @@ playbook = [
   'Tooling > another agent',
   'Writing a test case > a rule*',
   'Writing a test case > a -p*',
+  'Writing a test case > an array literal*',
+  'Writing a test case > two foreach headers*',
   'Running things > target/release/nvs.exe is',
 ]
 
