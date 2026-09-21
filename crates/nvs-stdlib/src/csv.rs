@@ -178,6 +178,24 @@
 //! of the file; a field or a record longer than a buffer costs another pass
 //! and not another buffer. **The document is never held**, which is the whole
 //! difference from composing `Core\IO::read` with `parse`.
+//!
+//! # Known gaps
+//!
+//! 1. **`parse` pays its whole setup on every call, and its ledger row is two
+//!    orders of magnitude above `format`'s over the same table.** The cost is
+//!    fixed per call rather than per byte — parsing an empty document costs
+//!    what parsing a two-record one costs — and the only per-call work of that
+//!    size is the DFA `csv_core::ReaderBuilder::build` constructs above the
+//!    read loop. The figures are the ledger's, in `docs/perf/members.ndjson`
+//!    under `rule:testing/member-perf-ledger`, measured by
+//!    `benches/members/core/Csv/parse.nvs` and `format.nvs`. A program that
+//!    parses one upload pays it once and cannot see it; one that parses a
+//!    document per row of a report pays it per row, and `rows` — which builds
+//!    one reader for a whole file — is the member that already avoids it. The
+//!    fix is a reader cached per dialect and reset per call, which is a
+//!    decision about what a native member may hold between calls rather than an
+//!    edit to this one.
+//!    — owner: M12
 
 use std::io::Read;
 
@@ -1213,7 +1231,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use nvs_runtime::{Ctx, OutputSink, call};
 
-    use super::{NvsStr, Tag, Value, dialect_byte, distinct, write_field};
+    use super::{NvsArray, NvsStr, Tag, Value, dialect_byte, distinct, write_field};
 
     /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at, releasing every value this test built afterwards — the helper
@@ -1337,6 +1355,7 @@ mod tests {
     }
 
     /// RFC 4180 § 2.5-2.7, the three things a quoted field is for.
+    // covers: Core\Csv::parse
     #[test]
     fn a_quoted_field_holds_the_separator_a_newline_and_a_doubled_quote() {
         let rows = parse("\"a,b\",\"c\r\nd\",\"e\"\"f\"\n", false);
@@ -1350,6 +1369,7 @@ mod tests {
         assert_eq!(fields(&rows[1]), ["c", "d"]);
     }
 
+    // covers: Core\Csv::parse
     #[test]
     fn a_header_keys_every_later_row_and_is_not_one() {
         let rows = parse("name,qty\nfig,2\n", true);
@@ -1386,6 +1406,85 @@ mod tests {
         assert_eq!(
             String::from_utf8(out).expect("ascii"),
             "plain text|\"a,b\"\"a\"\"b\"\"a\nb\""
+        );
+    }
+
+    /// One record as a list of fields, keyed by position.
+    fn list(fields: &[&str]) -> Value {
+        let mut out = NvsArray::new();
+        for field in fields {
+            out.append(s(field));
+        }
+        Value::array(out)
+    }
+
+    /// A `string` answer as text.
+    fn text(value: &Value) -> String {
+        String::from_utf8(
+            value
+                .as_str_bytes()
+                .expect("`format` answers a string")
+                .to_vec(),
+        )
+        .expect("the document is text")
+    }
+
+    /// `Core\Csv::format` as a program reaches it — through the symbol the
+    /// registry row names, with the rows in slot 0, the dialect in slots 1 and
+    /// 2 and the column names in slot 3.
+    ///
+    /// The quoting rule itself is pinned above over [`write_field`], and the
+    /// round trip is pinned from Novis. What the member can get wrong is the
+    /// seam: a dialect byte read out of the other slot, a header written as a
+    /// row rather than before them, a record rendered by its keys instead of
+    /// its values, and a refusal that answers a document anyway. Neither
+    /// dialect byte here is the default, so any of those renders a document
+    /// that is visibly not this one.
+    // covers: Core\Csv::format
+    #[test]
+    fn the_member_writes_the_header_first_and_takes_every_row_by_its_values() {
+        // A record keyed by column names, as `parse({header: true})` answers
+        // one: its values are written in slot order and its keys nowhere,
+        // which is what makes a parsed document safe to write straight back.
+        let mut keyed = NvsArray::new();
+        keyed.set(NvsStr::new(b"qty"), s("2"));
+        keyed.set(NvsStr::new(b"name"), s("a'b"));
+        let mut rows = NvsArray::new();
+        rows.append(Value::array(keyed));
+        rows.append(list(&["10", "plain"]));
+
+        let document = run(
+            super::nvs_core_csv_format,
+            &[Value::array(rows), s(";"), s("'"), list(&["qty", "name"])],
+        )
+        .expect("two distinct ASCII bytes are a dialect");
+        assert_eq!(text(&document), "qty;name\n2;'a''b'\n10;plain\n");
+        released(document);
+
+        // No `header` option writes no header record, and no rows at all is
+        // the empty document rather than a bare terminator.
+        let empty = run(
+            super::nvs_core_csv_format,
+            &[
+                Value::array(NvsArray::new()),
+                s(","),
+                s("\""),
+                Value::null(),
+            ],
+        )
+        .expect("an empty table writes");
+        assert_eq!(text(&empty), "");
+        released(empty);
+
+        // The separator and the quote must name two bytes, which is the one
+        // refusal a source program reaches this member's own guard for.
+        assert!(
+            run(
+                super::nvs_core_csv_format,
+                &[Value::array(NvsArray::new()), s(";"), s(";"), Value::null(),],
+            )
+            .is_err(),
+            "one byte cannot be both the separator and the quote"
         );
     }
 

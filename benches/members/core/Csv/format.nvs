@@ -1,0 +1,27 @@
+<?nvs
+// Measures writing a small table as a CSV document, as an export does for every
+// page of rows it sends.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<string>> $plain = [["fig", "2", "3.50"], ["apple", "10", "0.40"]];
+        array<array<string>> $quoted = [["Beans, dried", "500 g", "4.10"], ["tin", "2", "9.99"]];
+        array<array<string>> $wide = [["pear", "7", "1.20"], ["plum", "3", "2.05"]];
+        array<array<array<string>>> $tables = [$plain, $quoted, $wide];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The table of every round is chosen by the document sizes so far,
+            // so the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            string $document = Core\Csv::format($tables[$which]);
+            $total = $total + Core\Bytes::length($document as bytes);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
