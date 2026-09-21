@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read one setting. `Core\Config::get` returns the value as text.
+// The result is `null` when nothing set the name, so a program can give its own
+// default with `??`.
+
+// This prints the log level from the configuration file. Nothing sets one here,
+// so it prints info.
+echo Core\Config::get("log.level") ?? "info", "\n";
