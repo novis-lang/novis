@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading the first row of a small result, which a program does for
+// every lookup by id.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null)', []);
+        $db->execute('insert into seatings (seats) values (?), (?), (?)', [4, 2, 6]);
+        var $rows = $db->query('select seats from seatings order by id', []);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $row = $rows->first();
+            // The total carries the row's own value, so the loop cannot be left
+            // out.
+            if ($row != null) {
+                $total = $total + (($row->int('seats') ?? 0) as uint);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

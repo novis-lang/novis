@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to read the single row a lookup by id found. `first` returns the
+// first row of the result.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
+$db->execute('insert into guests (name, seats) values (?, ?), (?, ?)', ['Ada Ahmed', 4, 'Bo Berg', 2]);
+
+var $rows = $db->query('select name, seats from guests where id = ?', [1]);
+var $guest = $rows->first();
+
+// This prints `Ada Ahmed has 4 seats`.
+if ($guest != null) {
+    echo $guest->string('name') ?? '', ' has ', $guest->int('seats') ?? 0, " seats\n";
+}
+
+// There is no cursor to move on, so the same call gives the same row again.
+// This prints `Ada Ahmed` a second time.
+var $same = $rows->first();
+if ($same != null) {
+    echo $same->string('name') ?? '', "\n";
+}
+
+$db->close();

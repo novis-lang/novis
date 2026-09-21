@@ -1,0 +1,84 @@
+--TEST--
+`Core\Db\Rows::first` answers the first row of the result's own order, answers the same row again because there is no cursor to move, answers `null` for a result that matched nothing, and answers an object of the class `queryAs` named — `rule:core-classes/db-statement-members`
+--FILE--
+<?nvs
+// covers: Core\Db\Rows::first
+// The same three rows in three orders, so a member answering the row the table
+// holds first, rather than the row the statement ordered first, fails on two of
+// the three lines. The repeat is counted rather than read off a line, since a
+// member with a cursor under it answers the first call plausibly.
+use Core\Db\Derive;
+
+#[Derive]
+class Seating {
+    public uint $seats;
+    public tainted string $label;
+
+    public function constructor(uint $seats, tainted string $label)
+    {
+        $this->seats = $seats;
+        $this->label = $label;
+    }
+}
+
+class Head {
+    public static function labelOf(?Core\Db\Row $row): string
+    {
+        if ($row == null) {
+            return "none";
+        }
+        return $row->string("label") ?? "";
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table seatings (id integer primary key, seats int not null, label text not null)", []);
+$db->execute(
+    "insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?)",
+    [4, "north", 2, "east", 6, "south"]
+);
+
+var $byId = $db->query("select seats, label from seatings order by id", []);
+var $bySeats = $db->query("select seats, label from seatings order by seats", []);
+var $none = $db->query("select seats, label from seatings where seats < ? order by id", [0]);
+var $hydrated = $db->queryAs<Seating>("select seats, label from seatings order by label desc", []);
+
+echo "by id: ", Head::labelOf($byId->first()), "\n";
+echo "by seats: ", Head::labelOf($bySeats->first()), "\n";
+echo "empty: ", Head::labelOf($none->first()), "\n";
+
+// There is no cursor to move, so a result asked three times answers the same
+// row three times.
+uint $same = 0;
+uint $i = 0;
+while ($i < 3) {
+    if (Head::labelOf($byId->first()) == "north") {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo "same: ", $same, " of 3\n";
+
+// A hydrated result answers an object of the class the call named, and it is
+// the head of that result's own order.
+var $head = $hydrated->first();
+if ($head != null) {
+    echo "hydrated: ", $head->label, " with ", $head->seats, "\n";
+}
+
+$db->close();
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+by id: north
+by seats: east
+empty: none
+same: 3 of 3
+hydrated: south with 6

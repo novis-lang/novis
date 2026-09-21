@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to handle a lookup that found nothing. `first` returns `null` when
+// the query matched no rows, so your program can say so.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null)', []);
+$db->execute('insert into guests (name) values (?)', ['Ada Ahmed']);
+
+// No guest has id 99, so this prints `no such guest`.
+var $missing = $db->query('select name from guests where id = ?', [99])->first();
+if ($missing == null) {
+    echo "no such guest\n";
+} else {
+    echo $missing->string('name') ?? '', "\n";
+}
+
+// Guest 1 is there, so this prints `Ada Ahmed`.
+var $found = $db->query('select name from guests where id = ?', [1])->first();
+if ($found == null) {
+    echo "no such guest\n";
+} else {
+    echo $found->string('name') ?? '', "\n";
+}
+
+$db->close();

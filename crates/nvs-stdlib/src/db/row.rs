@@ -3272,4 +3272,303 @@ mod tests {
         released(partial);
         released(key);
     }
+
+    /// **`Core\Db\Rows::columns` hands on the description the result already
+    /// holds**, and every call answers that same array.
+    ///
+    /// That is what [`ROWS_COLUMNS_DOC`] means by the columns, and it is the
+    /// half a `.nvst` cannot see: a member that copied the array, or that built
+    /// its objects again per call, would answer a description agreeing with
+    /// this one under every comparison a program can write — while costing one
+    /// object per column every time, and a page printing the headings above a
+    /// table calls this once per render.
+    ///
+    /// The pointer is asserted first, then the count on both sides of the
+    /// release, since a member that retained and never gave the references back
+    /// reads exactly like this one until the answers are dropped. A third call
+    /// after those two closes it: a member that moved the array out of the
+    /// result rather than lending it would answer nothing here and still pass
+    /// everything above.
+    // covers: Core\Db\Rows::columns
+    #[test]
+    fn columns_hand_on_the_one_description_the_result_holds() {
+        let mut ctx = Ctx::buffered();
+        let mut described = NvsArray::new();
+        for label in [b"seats".as_slice(), b"label".as_slice()] {
+            described.append(crate::instance::build(
+                &COLUMN,
+                [
+                    Value::str(NvsStr::new(label)),
+                    Value::int(0),
+                    Value::bool(true),
+                ],
+            ));
+        }
+        let columns = Value::array(described);
+        let held = columns
+            .array_ptr()
+            .expect("a description is the array of its columns");
+        let result = crate::instance::build(
+            &ROWS,
+            [Value::array(NvsArray::new()), Value::null(), columns],
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds the description, so it \
+                      is live until the result is released at the end"
+        )]
+        let before = unsafe { NvsArray::refcount_of(held) };
+
+        let first = nvs_runtime::call(nvs_core_db_rows_columns, &mut ctx, &[result])
+            .expect("`columns` reads one slot and has nothing to throw");
+        let second = nvs_runtime::call(nvs_core_db_rows_columns, &mut ctx, &[result])
+            .expect("a second call reads the same slot");
+        assert_eq!(
+            first.array_ptr(),
+            Some(held),
+            "`columns` described the statement again instead of handing on what \
+             the result holds"
+        );
+        assert_eq!(
+            second.array_ptr(),
+            Some(held),
+            "two calls answer the same description rather than two descriptions \
+             of the same statement"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the result holds the description and this frame holds both \
+                      answers, so all three references are live here"
+        )]
+        let lent = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            lent,
+            before + 2,
+            "each answer outlives its call, so the member retained once per \
+             call, and that is what makes the description cost a pointer"
+        );
+
+        released(first);
+        released(second);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result is this frame's and is released below, so the \
+                      description it holds is still live"
+        )]
+        let after = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            after, before,
+            "dropping both answers gives back exactly the two references they \
+             took"
+        );
+
+        let again = nvs_runtime::call(nvs_core_db_rows_columns, &mut ctx, &[result])
+            .expect("the description is still the result's own");
+        assert_eq!(
+            crate::arr::borrowed(again.array_ptr().expect("`columns` answers an array")).count(),
+            2,
+            "the member lends the description rather than moving it out of the \
+             result"
+        );
+        released(again);
+        released(result);
+    }
+
+    /// **`Core\Db\Rows::count` is the length of what the result already holds**,
+    /// and reading it costs the result nothing.
+    ///
+    /// That is what [`ROWS_COUNT_DOC`] means by exact, and it is the half a
+    /// `.nvst` cannot see: a member that walked the rows to count them, or that
+    /// borrowed the array to do it, answers the same number on every result a
+    /// program can build. The rows array's count is asserted on both sides of
+    /// the call, so only a member reading the length answers here.
+    ///
+    /// The rest is what a result can be asked twice: the walk runs between the
+    /// two reads, since a member that counted down as the rows were read would
+    /// pass the first one alone, and a result over no rows closes it — an empty
+    /// result is 0 rather than a refusal.
+    // covers: Core\Db\Rows::count
+    #[test]
+    fn count_is_the_length_of_the_rows_and_the_result_keeps_it() {
+        let mut ctx = Ctx::buffered();
+        let mut north = NvsArray::new();
+        north.set(NvsStr::new(b"seats"), Value::int(4));
+        let mut east = NvsArray::new();
+        east.set(NvsStr::new(b"seats"), Value::int(2));
+        let mut carried = NvsArray::new();
+        carried.append(Value::array(north));
+        carried.append(Value::array(east));
+
+        let rows = Value::array(carried);
+        let held = rows
+            .array_ptr()
+            .expect("a result holds its rows as an array");
+        let result =
+            crate::instance::build(&ROWS, [rows, Value::null(), Value::array(NvsArray::new())]);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds the rows, so they are \
+                      live until it is released below"
+        )]
+        let before = unsafe { NvsArray::refcount_of(held) };
+
+        let counted = nvs_runtime::call(nvs_core_db_rows_count, &mut ctx, &[result])
+            .expect("`count` reads a length and has nothing to throw");
+        assert_eq!(
+            counted.as_uint(),
+            Some(2),
+            "`count` answered something other than the number of rows the \
+             result holds"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the result still holds the rows here and is released below"
+        )]
+        let after = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            after, before,
+            "counting took no reference to the rows, which is what makes it a \
+             length rather than a walk"
+        );
+
+        let walked = nvs_runtime::call(nvs_core_db_rows_all, &mut ctx, &[result])
+            .expect("the rows of a result read whole");
+        released(walked);
+        let again = nvs_runtime::call(nvs_core_db_rows_count, &mut ctx, &[result])
+            .expect("a counted result counts again");
+        assert_eq!(
+            again.as_uint(),
+            Some(2),
+            "reading the rows used the count up, so a program that counted \
+             after it walked would answer one thing before and another after"
+        );
+        released(result);
+
+        let empty = crate::instance::build(
+            &ROWS,
+            [
+                Value::array(NvsArray::new()),
+                Value::null(),
+                Value::array(NvsArray::new()),
+            ],
+        );
+        let none = nvs_runtime::call(nvs_core_db_rows_count, &mut ctx, &[empty])
+            .expect("a result that matched nothing is counted like any other");
+        assert_eq!(
+            none.as_uint(),
+            Some(0),
+            "a result over no rows answers 0, which is the answer a caller \
+             branches on"
+        );
+        released(empty);
+    }
+
+    /// **`Core\Db\Rows::first` builds one row object over the row the result
+    /// already holds**, and builds it again on every call because there is no
+    /// cursor under it.
+    ///
+    /// That is what [`ROWS_FIRST_DOC`] means by the first row every time, and
+    /// it is the half a `.nvst` cannot see: the row the object reads is lent,
+    /// not copied, so a lookup by id over a row carrying a picture costs a
+    /// pointer. The second row is asserted untouched beside it, since a member
+    /// that built the whole result and answered its head reads exactly like
+    /// this one from a program.
+    ///
+    /// The counts are taken on both sides of the release, and the empty result
+    /// closes it: `null` is the answer rather than a throw, which is what makes
+    /// the member safe to write in a condition.
+    // covers: Core\Db\Rows::first
+    #[test]
+    fn first_lends_the_head_row_leaves_the_rest_alone_and_has_no_cursor() {
+        let mut ctx = Ctx::buffered();
+        let mut north = NvsArray::new();
+        north.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"north")));
+        let mut east = NvsArray::new();
+        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+
+        let rows = [Value::array(north), Value::array(east)];
+        let held: Vec<_> = rows
+            .iter()
+            .map(|row| row.array_ptr().expect("a row is the array of its columns"))
+            .collect();
+        let result = result_over(rows);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds both rows, so they are \
+                      live until it is released at the end"
+        )]
+        let before: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+
+        let head = nvs_runtime::call(nvs_core_db_rows_first, &mut ctx, &[result])
+            .expect("a result over two rows has a first one");
+        let again = nvs_runtime::call(nvs_core_db_rows_first, &mut ctx, &[result])
+            .expect("a second call answers the first row again");
+
+        #[expect(
+            unsafe_code,
+            reason = "the result holds both rows and this frame holds both \
+                      answers, so every reference counted here is live"
+        )]
+        let lent: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+        assert_eq!(
+            lent[0],
+            before[0] + 2,
+            "each call lent the head row rather than copying it, which is what \
+             makes a lookup over a wide row cost a pointer"
+        );
+        assert_eq!(
+            lent[1], before[1],
+            "the second row was touched, so the member read the whole result to \
+             answer its head"
+        );
+
+        released(head);
+        released(again);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result is this frame's and is released below, so the \
+                      rows it holds are still live"
+        )]
+        let after: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+        assert_eq!(
+            after, before,
+            "dropping both row objects gives back exactly the references they \
+             took"
+        );
+        released(result);
+
+        let empty = crate::instance::build(
+            &ROWS,
+            [
+                Value::array(NvsArray::new()),
+                Value::null(),
+                Value::array(NvsArray::new()),
+            ],
+        );
+        let none = nvs_runtime::call(nvs_core_db_rows_first, &mut ctx, &[empty])
+            .expect("an empty result is an answer rather than a failure");
+        assert_eq!(
+            none.tag_byte(),
+            Value::null().tag_byte(),
+            "a result that matched nothing answers `null`, which is what makes \
+             the member safe to write in a condition"
+        );
+        released(empty);
+    }
 }
