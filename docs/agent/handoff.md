@@ -2,41 +2,41 @@
 
 ## State
 
-Goal `core-cache-and-5-more` (14 items). Eleven are on disk and complete: the three tier members,
-the three plain store operations, the sealed half, and now both CLDR members —
-`Core\Cldr::pluralCategory` and `Core\Cldr::ordinalCategory`. Each of the eleven carries `about.md`,
-three examples with blessed `.out`, one attack, one bench with a ledger row, and a test from each
-side. `Core\Cache::shared` stays a recorded `perf` skip in `tools/data/dossier-policy.toml`.
+Goal `core-cache-and-5-more` is complete. All fourteen of its features carry their feature proofs:
+the three tier members, the three plain store operations, the sealed half, the two CLDR members, and
+now `Core\Cap::has`, `Core\Task\Channel::send` and `Core\Task\Channel::close`. Each carries
+`about.md`, three examples with blessed `.out`, one attack, one bench with a ledger row, and a test
+from each side. `Core\Cache::shared` stays a recorded `perf` skip in
+`tools/data/dossier-policy.toml`. The goal's six `dossier: <group>` checks in stage 2 are what says
+it is finished, and all six pass.
 
-The two CLDR members' Rust proofs are `// covers:` markers on the two sweeps that already pinned
-exactly their claims: `plural_category_answers_from_the_carried_cldr_data` counts that the carried
-rules reach all six categories and that Russian is answered from its own rules, and
-`an_ordinal_category_is_answered_for_every_language_with_a_published_table` sweeps the second table.
-Their `.nvst` sides were already credited by plain calls, since `rule:testing/proof-attribution`
-only makes an *instance* member need the marker.
+`Core\Cap::has` needed four new `[[app]]` blocks in `nvs.toml`: a member that reports grants has
+nothing to report on a deployment that granted nothing, so two of its examples, its attack and its
+bench each run under one grant. Its Rust proof is a new sweep in
+`crates/nvs-stdlib/tests/capability.rs` over the whole `Cap::ALL` roster. Both channel members are
+`covers:` markers on unit tests already standing in `crates/nvs-stdlib/src/channel.rs`; the two
+`.nvst` cases are new, since the type had none.
 
-Nothing is blocked. Three items are left, and the driver's acceptance check names the first of them.
+Nothing is blocked. `python tools/owners.py --closes core-cache-and-5-more` and `python
+tools/playbook.py --closes core-cache-and-5-more` both report that this goal owns nothing, and
+`python tools/verify.py --doc` is green.
 
 ## Next group
 
-**Stage 2: the dossier** — two file sets, in this order. `Core\Cap::has` is the failing acceptance
-check and is one member over one file: `crates/nvs-stdlib/src/cap.rs`,
-`docs/examples/core/Cap/has/`, `tests/hostile/core/Cap/has/`, `benches/members/core/Cap/has.nvs`.
-The two `Core\Task\Channel` members then share their own file set,
-`crates/nvs-stdlib/src/channel.rs` and the same four trees under `core/Task-Channel/<member>`, and
-they are near-twins over one bounded queue, so the understanding one of them buys is the other's as
-well. Each is one slice: description, three examples, one attack, one bench, one Rust test carrying
-its `covers:` marker. `rule:testing/feature-proofs` is what each owes.
+**The next goal's stage 1** — this goal is met, so the chain moves on and this handoff is replaced
+wholesale by the next goal's own first session. Until the driver switches, the only work left here is
+the goal-end sweep the driver runs itself.
 
-- [ ] **`Core\Cap::has`** — owes about, examples, hostile, perf, one Rust test.
-      `crates/nvs-stdlib/src/cap.rs:81`
-- [ ] **`Core\Task\Channel::send`** — owes about, examples, hostile, perf, one Rust test.
-      `crates/nvs-stdlib/src/channel.rs:121`
-- [ ] **`Core\Task\Channel::close`** — owes about, examples, hostile, perf, one Rust test.
-      `crates/nvs-stdlib/src/channel.rs:130`
+- [ ] Confirm the six stage-2 `dossier: <group>` checks still pass as a set, rather than one group at
+      a time as this session ran them. `docs/agent/loop-goal.toml:12622`
+- [ ] Re-measure nothing: the three figures this session appended are current for the binary that
+      produced them. `docs/perf/members.ndjson:1`
 
 ## Backlog
 
-- An attack over `Core\Task\Channel` needs a second task, so read `crates/nvs-stdlib/src/channel.rs`
-  before budgeting it as one slice — `docs/agent/playbook.md` holds the `-p nvs-cli` scheduler traps.
-- `Core\Cache::shared` keeps its `perf` skip; the reason is in `tools/data/dossier-policy.toml`.
+- `Core\Task\Channel::send` costs two allocations and about 99 bytes per value queued; `close` three
+  and 288 bytes per channel made and closed. Neither is declared in its bench, because neither is a
+  contract — `benches/members/README.md` § the declared counts.
+- A channel whose producer never closes it deadlocks with no diagnostic; only the reader's own
+  timeout ends it. Nothing owns that today — `crates/nvs-stdlib/src/channel.rs`'s module doc names
+  `close()` as the prevention and not a detection.

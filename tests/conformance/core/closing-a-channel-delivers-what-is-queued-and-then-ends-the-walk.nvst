@@ -1,0 +1,45 @@
+--TEST--
+`Core\Task\Channel::close` ends the reader's walk without dropping what is already queued, and closing again changes nothing — `rule:concurrency/one-scheduler`
+--FILE--
+<?nvs
+// covers: Core\Task\Channel::close
+// The bound on both sides, in one run. A close that ended the walk at once
+// would lose the five values standing in the channel; a close that only stopped
+// new sends would leave the reader waiting for a sixth that nobody sends. Only
+// one behaviour prints both lines below.
+class Tally
+{
+    public static int $seen = 0;
+    public static int $sum = 0;
+}
+
+var $chan = new Core\Task\Channel<int>(5);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 5) as int $i) {
+            $chan->send($i);
+        }
+        $chan->close();
+        // A producer that closes on every path out of itself closes twice on
+        // the path where two of them meet, so the second one has to be free
+        // rather than an error.
+        $chan->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        // Counted rather than read off one line: a walk that ended one value
+        // early still prints a plausible total on its own.
+        foreach ($chan as int $value) {
+            Tally::$seen += 1;
+            Tally::$sum += $value;
+        }
+        return 0;
+    },
+});
+
+echo 'seen=', Tally::$seen, "\n";
+echo 'sum=', Tally::$sum, "\n";
+--EXPECT--
+seen=5
+sum=15

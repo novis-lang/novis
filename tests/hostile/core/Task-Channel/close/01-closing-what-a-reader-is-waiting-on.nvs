@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a task closes channels in the ways that could leave a reader waiting
+// forever or leave something behind for every channel ever made. Every step
+// should end on its own, and the program must run to the last line.
+// hostile: timeout-ms 60000
+
+// 1. The same channel closed a hundred thousand times. Only the first close
+//    does anything, so this must run to the end.
+var $again = new Core\Task\Channel<int>(1);
+int $i = 0;
+while ($i < 100000) {
+    $again->close();
+    $i += 1;
+}
+echo 'step 1 closed one channel ', $i, " times\n";
+
+// 2. A channel closed while a reader is already waiting on it, with nothing
+//    ever sent. The reader's loop must end instead of waiting forever.
+var $empty = new Core\Task\Channel<int>(1);
+Core\Task::all({
+    read: fn(): int => {
+        int $seen = 0;
+        foreach ($empty as int $value) {
+            $seen += 1;
+        }
+        echo 'step 2 read ', $seen, " values\n";
+        return 0;
+    },
+    shut: fn(): int => {
+        $empty->close();
+        return 0;
+    },
+});
+
+// 3. A channel closed while a hundred thousand values are still queued. Every
+//    one of them must still arrive.
+var $full = new Core\Task\Channel<int>(100000);
+Core\Task::all({
+    produce: fn(): int => {
+        int $n = 0;
+        while ($n < 100000) {
+            $full->send($n);
+            $n += 1;
+        }
+        $full->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        int $seen = 0;
+        foreach ($full as int $value) {
+            $seen += 1;
+        }
+        echo 'step 3 read ', $seen, " values\n";
+        return 0;
+    },
+});
+
+// 4. A hundred thousand channels made and closed and never read. Nothing may be
+//    kept for a channel once it is gone, so this must not run out of memory.
+int $made = 0;
+while ($made < 100000) {
+    var $one = new Core\Task\Channel<int>(2);
+    $one->send($made);
+    $one->close();
+    $made += 1;
+}
+echo 'step 4 made and closed ', $made, " channels\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Shows that `close` does not throw away what is already in the channel. All
+// five values are sent and the channel is closed before the reader starts, and
+// the reader still gets every one of them.
+
+class Tally
+{
+    public static int $seen = 0;
+}
+
+var $chan = new Core\Task\Channel<int>(5);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 5) as int $i) {
+            $chan->send($i);
+        }
+        $chan->close();
+        // Closing twice changes nothing.
+        $chan->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $value) {
+            Tally::$seen += 1;
+        }
+        return 0;
+    },
+});
+
+// This prints 5.
+echo "values read after the close: ", Tally::$seen, "\n";

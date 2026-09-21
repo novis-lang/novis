@@ -1,0 +1,36 @@
+<?nvs
+// Shows the everyday use: a producer that can stop early. It closes the channel
+// on both ways out, because a reader whose channel is never closed waits for a
+// value that nobody is going to send.
+
+class Report
+{
+    public static int $rows = 0;
+}
+
+var $lines = new Core\Task\Channel<string>(2);
+
+Core\Task::all({
+    read: fn(): int => {
+        array<string> $input = ["alice,3", "bob,5", "", "carol,2"];
+        foreach ($input as string $line) {
+            if ($line == "") {
+                // The empty line ends the input. This way out closes too.
+                $lines->close();
+                return 0;
+            }
+            $lines->send($line);
+        }
+        $lines->close();
+        return 0;
+    },
+    count: fn(): int => {
+        foreach ($lines as string $line) {
+            Report::$rows += 1;
+        }
+        return 0;
+    },
+});
+
+// This prints 2, because the empty third line ended the input.
+echo "rows: ", Report::$rows, "\n";
