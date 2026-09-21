@@ -1,0 +1,36 @@
+<?nvs
+// Measures reading why a step is in a plan, as a program does for every step it
+// prints for a person to approve.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        var $schema = Core\Db\Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'notes',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        ['name' => 'title', 'type' => 'text(200)'],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+            ],
+        ]);
+        var $step = $schema->planAgainst($db)->steps()[0];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The length of the sentence decides what is added, so the loop
+            // cannot be left out.
+            $total = $total + Core\Str::length($step->reason());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

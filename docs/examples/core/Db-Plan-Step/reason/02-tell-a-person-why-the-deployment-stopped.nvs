@@ -1,0 +1,52 @@
+<?nvs
+// Shows how a deployment tells a person why it stopped. A step that is not
+// `Safe` waits for somebody to decide, and its reason is the whole message.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What the last release left in the database.
+$db->execute('create table notes (id integer primary key autoincrement, title varchar(200) not null)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'author', 'type' => 'text(80)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+        ],
+    ],
+]);
+
+uint $ran = 0;
+uint $waiting = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->grade() == Grade::Safe) {
+        $db->execute($step->sql(), []);
+        $ran = $ran + 1;
+        continue;
+    }
+    // The operator gets the sentence and never has to read the SQL.
+    echo 'this deployment needs you: ', $step->reason(), "\n";
+    $waiting = $waiting + 1;
+}
+
+echo $ran, " step ran, ", $waiting, " step waits for a person\n";
+
+$db->close();

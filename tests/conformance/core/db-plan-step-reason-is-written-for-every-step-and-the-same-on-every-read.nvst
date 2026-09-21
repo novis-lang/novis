@@ -1,0 +1,93 @@
+--TEST--
+`Core\Db\Plan\Step::reason` is one written sentence per step, it is the same on every read and when the plan is computed again, and two steps of different kinds do not share it — `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`
+--FILE--
+<?nvs
+// The sentence is the emitter's own, so nothing here matches on its words:
+// what is pinned is that every step carries one, that it is stable, and that it
+// is that step's. Asserted by counting rather than off a line, since a member
+// answering one sentence for the whole plan reads plausibly step by step.
+// covers: Core\Db\Plan\Step::reason
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect("main");
+
+// A table this schema does not name. § 7 reports it and never drops it, so the
+// plan holds a report beside a change: two steps of different kinds.
+$db->execute("create table leftovers (id integer primary key)", []);
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+var $steps = $schema->planAgainst($db)->steps();
+echo "steps ", Core\Arr::count($steps), "\n";
+
+array<string> $read = [];
+uint $written = 0;
+foreach ($steps as Step $step) {
+    string $reason = $step->reason();
+    if (Core\Str::length($reason) > 0) {
+        $written = $written + 1;
+    }
+    $read[] = $reason;
+}
+echo "written ", $written, "\n";
+
+// § 6 grades and explains each change on its own, so the report and the create
+// cannot be explained by one sentence.
+echo "distinct ", Core\Arr::count(Core\Arr::unique($read)), "\n";
+
+// A step is copied out when the plan is computed, so a second read off the same
+// object is the same sentence rather than a new one.
+uint $same = 0;
+uint $at = 0;
+foreach ($steps as Step $again) {
+    if ($again->reason() == $read[$at]) {
+        $same = $same + 1;
+    }
+    $at = $at + 1;
+}
+echo "same ", $same, "\n";
+
+// The plan computed a second time over a database nothing changed: the reason
+// comes from the change alone, so the two walks agree one step for one step.
+uint $agree = 0;
+$at = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $fresh) {
+    if ($fresh->reason() == $read[$at]) {
+        $agree = $agree + 1;
+    }
+    $at = $at + 1;
+}
+echo "agree ", $agree, "\n";
+
+// Reading a plan asks the database for nothing and changes nothing, so the
+// table the report names is still there.
+echo "leftovers ", $db->query("select id from leftovers", [])->count(), "\n";
+--FILE nvs.toml--
+# Planning is an ordinary read and the one statement below is the program's own,
+# so `db.connect` is the whole grant: nothing here applies a plan.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+steps 2
+written 2
+distinct 2
+same 2
+agree 2
+leftovers 0

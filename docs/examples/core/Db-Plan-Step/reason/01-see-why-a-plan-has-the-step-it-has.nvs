@@ -1,0 +1,30 @@
+<?nvs
+// Shows why a plan contains the step it contains. `Core\Db\Plan\Step::reason`
+// returns one sentence about that step, written for a person to read.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The database is empty, so the plan has one step: create the table. Novis
+// writes the sentence, so print it and do not test its words.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    echo $step->reason(), "\n";
+}
+
+$db->close();

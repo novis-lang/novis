@@ -1,0 +1,2 @@
+1. A nullable column with no default is a catalog write on all four: every existing row already has its value, and it is null.
+2. Every row in the table. Reported and never applied: a schema value describes what its author knows about, and this database holds a table it does not name.
