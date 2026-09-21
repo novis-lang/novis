@@ -3501,6 +3501,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   it reads as a broken shutdown in whatever the session just touched. Re-run that one test on its
   own before treating a red `test` step as a regression, and re-run `python tools/verify.py`, which
   re-runs only the step that failed. [until: gone crates/nvs-cli/src/serve.rs:sd_notify_messages]
+- **A bench whose member costs milliseconds cannot declare `calls 0`.** Every declaration is met to
+  within a hundredth per operation, and the one `Bench::run` frame is one divided by the iteration
+  count — nothing at a few hundred thousand rounds, and well past the tolerance once the count has to
+  stay tiny for the program to finish in under a second. Declare only `iterations` there;
+  `benches/members/README.md` § *What a bench declares* is the rule. [until: reviewed 2026-09-21]
 
 ## Writing a test case
 

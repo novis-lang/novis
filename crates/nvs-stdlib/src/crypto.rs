@@ -4110,6 +4110,7 @@ mod tests {
     /// `PBES2-HS256+A128KW` (`rule:security/jwe-compact-subset`), and the set is
     /// the only evidence for the 128-bit key-encryption key, which RFC 3394
     /// publishes no case for.
+    // covers: Core\Crypto::deriveKey, Core\Crypto::expandKey
     #[test]
     fn webcrypto_pbkdf2_hkdf_and_aes_kw_vectors_derive_the_same_keys() {
         let who = "Core\\Crypto::deriveKey";
@@ -4287,6 +4288,7 @@ mod tests {
     /// [`agree`] itself: `raw`, `spki` and `jwk` are three readers of one key,
     /// and a secret that comes out the same from all three is the evidence they
     /// built the same point rather than three plausible ones.
+    // covers: Core\Crypto::agree
     #[test]
     fn webcrypto_ecdh_vectors_agree_the_same_secret_from_every_key_form() {
         let alice = thirty_two(&hex(
