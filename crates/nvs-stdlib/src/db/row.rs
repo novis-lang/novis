@@ -8,6 +8,14 @@
 //! answers and not two: [ADR 0067 § 6](/docs/decisions/0067.md)
 //! names "no such column" and "a value that will not fit" as different
 //! refusals, and a `bool` that is really a `0` has to be told from a `7`.
+//!
+//! [`nvs_core_db_row_instant`] is the one member here with no reading on
+//! SQLite: its columns are the two that carry their own zone, and
+//! [`nvs_db::SqliteColumn::column_type`] folds every `TIMESTAMP` spelling into
+//! [`nvs_db::ColumnType::DateTime`], which this member refuses by class. Every
+//! proof program in this repository connects to an in-memory SQLite block, so
+//! that member's example, attack and bench are skip entries in
+//! `tools/data/dossier-policy.toml` and its tests are not.
 
 use super::*;
 
@@ -1764,6 +1772,191 @@ mod tests {
             Some(Tag::Null),
             "a NULL `BLOB` column is `null` and not an empty buffer"
         );
+        released(absent);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::decimal` and `Core\Db\Row::float` do not read each
+    /// other's columns**, which is `rule:types/decimal` at the one boundary a
+    /// database crosses: an exact number and a binary one are both numbers to
+    /// the engine, and only the declared column type tells them apart.
+    ///
+    /// Asserted as an agreement between the two readers rather than one answer
+    /// each, because a reader that spanned would look right against every value
+    /// both types can hold — which is most of the ones anybody stores. The
+    /// number below is `19.950`, which no `float` holds exactly, so a reader
+    /// widening it would hand over a price a hundredth of a cent away from the
+    /// stored one and go on printing plausibly.
+    ///
+    /// The scale is the half a `.nvst` cannot assert. `rule:types/decimal`
+    /// carries scale for rendering and leaves equality alone, so `19.950` and
+    /// `19.95` compare equal in a program and a reader that reduced the value
+    /// would pass every case one can write; here the comparison is the
+    /// [`nvs_runtime::Decimal`] itself, whose derived equality is the sign, the
+    /// mantissa and the scale together.
+    // covers: Core\Db\Row::decimal
+    #[test]
+    fn an_exact_column_and_a_float_column_do_not_read_as_each_other() {
+        let mut ctx = Ctx::buffered();
+        let stored = nvs_runtime::Decimal::parse("19.950").expect("`19.950` is an exact number");
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"amount"), Value::decimal(stored));
+        columns.set(NvsStr::new(b"rate"), Value::float(19.95));
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. The exact number, with the digits and the scale it was stored
+        //    with, and nothing allocated to carry them.
+        let name = Value::str(NvsStr::new(b"amount"));
+        let answered = nvs_runtime::call(nvs_core_db_row_decimal, &mut ctx, &[row, name])
+            .expect("a `DECIMAL` column is what `decimal` reads");
+        assert_eq!(
+            answered.as_decimal(),
+            Some(stored),
+            "`decimal` answered a number that renders differently from the stored one"
+        );
+        assert_eq!(
+            answered.obj_ptr(),
+            None,
+            "a `decimal` is a scalar, so the answer is no object and owes no release"
+        );
+        released(answered);
+        released(name);
+
+        // 2. The refusals, both directions. Neither reader is a way into the
+        //    other's column, and each names the column it was asked about.
+        for (reader, column, member) in [
+            (
+                nvs_core_db_row_decimal as unsafe extern "C" fn(_, _, _) -> i32,
+                "rate",
+                "decimal",
+            ),
+            (nvs_core_db_row_float, "amount", "float"),
+        ] {
+            let asked = Value::str(NvsStr::new(column.as_bytes()));
+            nvs_runtime::call(reader, &mut ctx, &[row, asked])
+                .expect_err("§ 6 keeps `decimal` and `float` apart in both directions");
+            let message = ctx
+                .take_pending()
+                .expect("a refusal is a throw, and it carries a sentence");
+            assert!(
+                message.contains(column) && message.contains(member),
+                "`{member}` over the `{column}` column said: {message}"
+            );
+            released(asked);
+        }
+
+        // 3. And the column with no value, which is an absence rather than the
+        //    zero a number column makes so easy to answer instead.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_decimal, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(
+            nothing.tag(),
+            Some(Tag::Null),
+            "a NULL `DECIMAL` column is `null` and not a zero"
+        );
+        released(absent);
+
+        released(row);
+    }
+
+    /// **Reading `Core\Db\Row::time` again lends the same clock reading**, so a
+    /// row read a million times holds one of them and not a million.
+    ///
+    /// That is the invariant this member's attack is written around and cannot
+    /// assert: a program watching memory sees a number that stays flat, where
+    /// the count of holders is the thing that actually has to stay flat. Here
+    /// three reads are held at once and the count is read at each end — a
+    /// member that copied would answer three addresses, and one that lent
+    /// without counting would leave the row's own reading freed under it.
+    ///
+    /// The refusal is asserted against `Core\Time\Date`, which is the neighbour
+    /// a check written as "is this one of the time classes" would let through:
+    /// both are instances, both came out of a text column, and only the class
+    /// tells them apart.
+    // covers: Core\Db\Row::time
+    #[test]
+    fn three_reads_of_one_clock_reading_lend_it_three_times_and_copy_it_none() {
+        let mut ctx = Ctx::buffered();
+        let clock =
+            crate::time::time_of_day_at(9, 30, 0, 0).expect("half past nine is a clock reading");
+        let day = crate::time::date_at(2026, 9, 3).expect("the third of September is a day");
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"opens"), clock);
+        columns.set(NvsStr::new(b"born"), day);
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        let held = clock
+            .obj_ptr()
+            .expect("a `Core\\Time\\TimeOfDay` is an object");
+        #[expect(
+            unsafe_code,
+            reason = "the reading is alive for this whole test — the row holds it — \
+                      so reading its header is reading a live object"
+        )]
+        let before = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
+
+        // 1. Three reads, all held at once. One address, and one holder more
+        //    for each answer the caller has not released yet.
+        let mut answers = Vec::new();
+        for _ in 0..3 {
+            let name = Value::str(NvsStr::new(b"opens"));
+            let answered = nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, name])
+                .expect("a `TIME` column is what `time` reads");
+            assert_eq!(
+                answered.obj_ptr(),
+                Some(held),
+                "`time` answered a different object from the one the row holds"
+            );
+            answers.push(answered);
+            released(name);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the same live object, read once three answers are outstanding"
+        )]
+        let lent = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
+        assert_eq!(
+            lent,
+            before + 3,
+            "three answers are three references the caller owes"
+        );
+        for answered in answers {
+            released(answered);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the row still holds the reading, so the object is live after every release"
+        )]
+        let given_back = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
+        assert_eq!(
+            given_back, before,
+            "releasing every answer leaves the row holding its own reading"
+        );
+
+        // 2. The neighbouring class, which is an instance and is not a clock
+        //    reading.
+        let other = Value::str(NvsStr::new(b"born"));
+        nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, other])
+            .expect_err("a `DATE` column has no `time` reading");
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence");
+        assert!(
+            message.contains("born") && message.contains("TimeOfDay"),
+            "the refusal names the column and the class it answers: {message}"
+        );
+        released(other);
+
+        // 3. And the column with no value, which is an absence rather than
+        //    midnight, the reading a member inventing one would pick.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(nothing.tag(), Some(Tag::Null));
         released(absent);
 
         released(row);

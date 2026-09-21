@@ -123,3 +123,18 @@ perf = "A name is recognized while the program compiles and reaches nothing at r
 # is a deployment's own measurement, taken where its store actually is.
 [skip."Core\\Cache::shared"]
 perf = "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
+
+# The member reads the two column types that carry their own zone, `TIMESTAMPTZ` and
+# `datetimeoffset`, and SQLite has neither: `nvs_db::SqliteColumn::column_type` folds every
+# `TIMESTAMP` spelling into `ColumnType::DateTime`, and the value built out of that is a
+# `Core\Time\DateTime` the member refuses by class. Every `.nvs` under `docs/examples/`,
+# `tests/hostile/` and `benches/members/` connects to an in-memory SQLite block, so a program
+# written here cannot reach the member at all — it would print a refusal and read as a
+# demonstration that the member does not work. The tests are not skipped: the `.nvst` half is
+# already pinned by `db-row-date-answers-a-calendar-day-and-no-other-time-column`, and a Rust test
+# builds the row itself and so reaches the answer as well as the refusals. Delete these three lines
+# the day a proof tree can run against a driver behind a container.
+[skip."Core\\Db\\Row::instant"]
+examples = "Every example program runs on SQLite, which has no zone-carrying column type, so a program here would print the member's refusal instead of its answer."
+hostile = "Every attack runs on SQLite, which has no zone-carrying column type, so the member refuses every column the attack could put in front of it."
+perf = "Every bench runs on SQLite, which has no zone-carrying column type, so a loop here would measure the refusal rather than the read."

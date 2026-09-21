@@ -6668,6 +6668,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst`: a
   `[capabilities.db]` table, then the `[db.main]` block the case connects to.
   [until: reviewed 2026-09-21]
+- **A `Core\Db\Row` reader can have no reading at all on SQLite, and every proof program is on
+  SQLite.** `instant` reads the two column types that carry their own zone, and
+  `nvs_db::SqliteColumn::column_type` folds every `TIMESTAMP` spelling into `ColumnType::DateTime`,
+  which the reader refuses by class. Run `target/debug/nvs.exe run` on a two-line program before
+  writing a reader's proofs: three examples, a bench and an attack were written here and every one
+  of them threw. [until: exists docs/examples/core/Db-Row/instant/about.md]
 
 ## Splitting a file that got too big
 
