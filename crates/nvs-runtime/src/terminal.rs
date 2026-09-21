@@ -268,7 +268,7 @@ fn color_depth(out_is_tty: bool) -> ColorDepth {
     // A Windows console has to be told it may interpret escape sequences at
     // all, and one that refuses shows them as text — which is worse than plain
     // output, so a refusal is `None` rather than `Ansi16`.
-    if !enable_virtual_terminal() {
+    if !enable_virtual_terminal(Stream::Out) {
         return ColorDepth::None;
     }
     let colorterm = setting("COLORTERM");
@@ -366,24 +366,50 @@ fn window_size() -> Option<(u32, u32)> {
     None
 }
 
-/// Turns escape-sequence interpretation on for the standard output console,
-/// answering whether colour may be written at all.
+/// Whether an escape sequence written to `stream` is interpreted, not shown as
+/// text: the stream is a terminal, and on Windows its console accepted virtual
+/// terminal processing.
+///
+/// For a caller that styles what it writes itself instead of through
+/// [`profile`], whose depth is standard output's. `nvs` renders its diagnostics
+/// to standard error, and that stream's console is one a redirected standard
+/// output never reaches. The environment variables stay the caller's to honour.
+/// Always `false` for [`Stream::In`], which nothing is written to.
+#[must_use]
+pub fn interprets_escapes(stream: Stream) -> bool {
+    let is_terminal = match stream {
+        Stream::In => false,
+        Stream::Out => std::io::stdout().is_terminal(),
+        Stream::Err => std::io::stderr().is_terminal(),
+    };
+    is_terminal && enable_virtual_terminal(stream)
+}
+
+/// Turns escape-sequence interpretation on for `stream`'s console, answering
+/// whether colour may be written to it at all.
 ///
 /// Always `true` off Windows, where a terminal interprets sequences without
 /// being asked.
 #[cfg(not(windows))]
-fn enable_virtual_terminal() -> bool {
+fn enable_virtual_terminal(_stream: Stream) -> bool {
     true
 }
 
-/// See the non-Windows arm. Reached from [`color_depth`] only once something
-/// has already asked for colour, so the mode is never changed for a program
-/// that would not have used it.
+/// See the non-Windows arm. Reached only once something has already asked for
+/// colour on `stream`, so the mode is never changed for a program that would
+/// not have used it.
 #[cfg(windows)]
-fn enable_virtual_terminal() -> bool {
+fn enable_virtual_terminal(stream: Stream) -> bool {
     use windows_sys::Win32::System::Console::{
         CONSOLE_MODE, ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle,
-        STD_OUTPUT_HANDLE, SetConsoleMode,
+        STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetConsoleMode,
+    };
+
+    let id = match stream {
+        // An input handle has no output mode to set.
+        Stream::In => return false,
+        Stream::Out => STD_OUTPUT_HANDLE,
+        Stream::Err => STD_ERROR_HANDLE,
     };
 
     #[expect(
@@ -394,7 +420,7 @@ fn enable_virtual_terminal() -> bool {
                   which is the `== 0` test."
     )]
     unsafe {
-        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+        let handle = GetStdHandle(id);
         let mut mode: CONSOLE_MODE = 0;
         if GetConsoleMode(handle, &raw mut mode) == 0 {
             return false;
@@ -1079,6 +1105,18 @@ mod tests {
         assert!(ColorDepth::None < ColorDepth::Ansi16);
         assert!(ColorDepth::Ansi16 < ColorDepth::Ansi256);
         assert!(ColorDepth::Ansi256 < ColorDepth::TrueColor);
+    }
+
+    /// A stream that is not a terminal never gets an escape sequence, whatever
+    /// its console would accept: the terminal test comes first, so a redirected
+    /// stream's console mode is never touched. Standard input is the one stream
+    /// whose answer does not depend on how the test run was started.
+    #[test]
+    fn a_stream_nothing_is_written_to_interprets_no_escapes() {
+        assert!(!interprets_escapes(Stream::In));
+        if !std::io::stderr().is_terminal() {
+            assert!(!interprets_escapes(Stream::Err));
+        }
     }
 
     /// UAX #11's two-column classes, against the count of the thing that is not

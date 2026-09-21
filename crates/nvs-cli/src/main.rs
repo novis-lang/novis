@@ -116,7 +116,6 @@
     reason = "this crate's whole job is user-facing terminal output"
 )]
 
-use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -2725,8 +2724,13 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
         return;
     }
     diags.sort_by_position();
-    let renderer = Renderer::new()
-        .with_color(std::env::var_os("NO_COLOR").is_none() && std::io::stderr().is_terminal());
+    // A Windows console shows escape sequences as text until it is told to
+    // interpret them, so the test is whether standard error will, not only
+    // whether it is a terminal.
+    let renderer = Renderer::new().with_color(
+        std::env::var_os("NO_COLOR").is_none()
+            && nvs_runtime::terminal::interprets_escapes(nvs_runtime::terminal::Stream::Err),
+    );
     let mut out = Vec::new();
     renderer
         .render_all(diags.iter(), map, &mut out)
