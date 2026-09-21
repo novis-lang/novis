@@ -5,7 +5,9 @@ sessions. An omission is an error rather than a public default — that half is
 `rule:attributes/access-payload`.
 
 **Interpretation belongs to whoever dispatches.** The declared name rides on the match the server made
-as uninterpreted data, and the application's own dispatch reads and enforces it. **The server enforces
+as uninterpreted data — `Core\Router\Match::access()` answers it, resolved, as a `string` — and the
+application's own dispatch reads and enforces it, once, above the `switch` that calls a handler, so a
+route whose arm never mentions access is still checked. **The server enforces
 CSRF and nothing else** (`rule:security/csrf-is-on-by-default`): interpreting a role would need a
 session, a user model and a role source, all three of which are deliberately outside the binary. Two
 enforcement points is how a route ends up checked twice in development and not at all in production,

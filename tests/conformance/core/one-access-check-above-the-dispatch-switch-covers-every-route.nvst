@@ -1,0 +1,57 @@
+--TEST--
+A dispatcher that reads `Core\Router\Match::access` once, above its `switch`, refuses a route whose arm never mentions access — `rule:security/access-is-checked-for-presence-not-meaning` `rule:routing/the-servers-match-dispatches-nothing`
+--FILE--
+<?nvs
+namespace App;
+
+enum Role { Admin }
+
+class Pages
+{
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "index"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+}
+
+// The server enforces nothing here, so this class is the enforcement. The one
+// check sits above the `switch`, and neither arm below repeats it: that is the
+// shape the decision riding on the match exists for. `null` is denied, so a
+// match with no decision fails closed.
+class Kernel
+{
+    public static function answer(string $path, bool $isAdmin): string
+    {
+        ?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, $path);
+        if ($match == null) {
+            return "404";
+        }
+        ?string $access = $match->access();
+        bool $allowed = $access == "Core\\Audience::Public"
+            || ($access == "App\\Role::Admin" && $isAdmin);
+        if (!$allowed) {
+            return "403";
+        }
+        var $pages = new Pages();
+        switch ($match->name()) {
+            case "Pages::index":
+                return $pages->index();
+            case "Pages::admin":
+                return $pages->admin();
+        }
+        return "404";
+    }
+}
+
+echo "visitor /pages: ", Kernel::answer("/pages", false), "\n";
+echo "visitor /admin: ", Kernel::answer("/admin", false), "\n";
+echo "admin /admin: ", Kernel::answer("/admin", true), "\n";
+echo "visitor /nowhere: ", Kernel::answer("/nowhere", false), "\n";
+--EXPECT--
+visitor /pages: index
+visitor /admin: 403
+admin /admin: admin
+visitor /nowhere: 404

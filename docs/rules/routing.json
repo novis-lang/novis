@@ -281,7 +281,8 @@
       "status": "shipped",
       "because": [
         "0077",
-        "0102"
+        "0102",
+        "0199"
       ],
       "divergesFromPhp": "no framework router's dispatch is here — no controller base class, no middleware, no return-value-to-response rule, no `HEAD`-implies-`GET` or trailing-slash normalisation; the program or its framework writes the `switch`",
       "seeAlso": [
@@ -297,7 +298,9 @@
       ],
       "guardedBy": [
         "tests/conformance/core/router-match-asks-the-table-about-a-verb-and-a-path-the-caller-chose.nvst",
-        "tests/conformance/core/a-matched-route-is-nullable-and-a-program-says-what-it-does-without-one.nvst"
+        "tests/conformance/core/a-matched-route-is-nullable-and-a-program-says-what-it-does-without-one.nvst",
+        "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst",
+        "tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst"
       ]
     },
     {
@@ -307,7 +310,8 @@
       "because": [
         "0102",
         "0077",
-        "0007"
+        "0007",
+        "0199"
       ],
       "divergesFromPhp": "there is no `$route->getCallable()`; the handler is reached by a `switch` the framework generates or the application writes",
       "seeAlso": [

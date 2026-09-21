@@ -92,7 +92,7 @@ Conventions the whole file uses:
 | [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
 | [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention |
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims |
-| [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name` and the captures its path filled, decided once at the door |
+| [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name`, the captures its path filled, its verb and its access decision, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
 | [`Core\Csv\Rows`](#core-core-csv-rows) |  |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
@@ -5996,9 +5996,12 @@ missing feature:
   `Core\Response::setStatus`. `Core\Router::methodsFor` returns the verbs a path has: an empty
   array is the `404`, and any other array is the `Allow` header of a `405`.
 - The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
-  on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced.
-- A `Core\Router\Match` has a name and the converted captures. It has nothing that can be called,
-  so a program dispatches with one `switch` on `name()`. Give every route it dispatches a `name:`.
+  on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced. The
+  entry file enforces it: `access()` on the match returns the full name of the `allow:` constant,
+  such as `Core\Audience::Public`. Check it once, before the `switch`, and treat `null` as denied.
+- A `Core\Router\Match` has a name, the converted captures, the verb and the access decision. It
+  has nothing that can be called, so a program dispatches with one `switch` on `name()`. Give
+  every route it dispatches a `name:`.
 
 `Core\Router::match` asks the same table about a verb and a path the program chooses, so this
 example runs from the command line. Under `nvs serve` the entry file reads `Core\Request::route()`
@@ -6021,6 +6024,9 @@ class App {
         var $match = Core\Router::match($method, $path);
         if ($match == null) {
             return Core\Router::methodsFor($path) == [] ? "404" : "405";
+        }
+        if ($match->access() != "Core\\Audience::Public") {
+            return "403";
         }
         var $users = new Users();
         switch ($match->name()) {
@@ -15300,16 +15306,16 @@ Every verb the route table claims `$path` under, in the order the routes were de
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
 
-Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, name, params, param
+Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, access decision, #[Core\Access], allow, authorization, dispatch, name, params, param, method, access
 
 A `Core\Router\Match` is what `Core\Request::route()` answers (`null` when nothing in the route
 table claimed this method and path); it is never constructed by hand. The server matches the
 incoming request against the compiled table **once**, before any of the program runs, and this is
 that result travelling on the request — so a handler never matches its own path a second time.
-Matching is not dispatching: nothing here calls the annotated method, and the matched route's
-handler, its declared verb and its access decision do not cross. The program calls the method
-itself, with one `switch` on `name()`; [the attributes chapter](#lang-attributes) shows that
-`switch`, and how the program sends the `404` and the `405`.
+Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that
+can be called. The program calls the method itself, with one `switch` on `name()`;
+[the attributes chapter](#lang-attributes) shows that `switch`, and how the program sends the `404`
+and the `405`.
 
 `name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
 that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
@@ -15319,6 +15325,12 @@ left off. A capture is `tainted string` where the route declared `string`, still
 and the `int`, `uint`, `decimal` or `Core\Uuid` the match already converted where it declared one of
 those, so a handler never parses a segment the router has parsed already — and a segment that would
 not convert did not match the route in the first place.
+
+`access()` is the route's `#[Core\Access(allow: …)]` as a `string`: the full name of the constant,
+such as `Core\Audience::Public` or `App\Role::Admin`. The server does not enforce it. A program
+that calls route methods checks it once, before the `switch`, so the check also covers a route
+added later. Treat `null` as access denied. `method()` is the verb the matched `#[Core\Route]`
+declares, which tells two routes on one method apart when they share a `name`.
 
 Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a
 test — there is none, and the reader refuses rather than answering `null`, because "no request
@@ -15341,6 +15353,8 @@ no request here
 | [`Core\Router\Match->name`](#core-core-router-match-name) | `name(): ?string` |
 | [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses>` |
 | [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses` |
+| [`Core\Router\Match->method`](#core-core-router-match-method) | `method(): Core\Http\Method` |
+| [`Core\Router\Match->access`](#core-core-router-match-access) | `access(): ?string` |
 
 <a id="core-core-router-match-name"></a>
 #### `Core\Router\Match->name`
@@ -15378,6 +15392,28 @@ One capture by the parameter name it binds — `params()` read at one key, and t
 | `$name` | `string` (neutral) | The capture's name as the route's path declared it, without the braces. |
 
 **Returns** `?tainted string|int|uint|decimal|Core\Uuid|Parses` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
+
+<a id="core-core-router-match-method"></a>
+#### `Core\Router\Match->method`
+
+```nvs skip
+$match->method(): Core\Http\Method
+```
+
+The verb the matched `#[Route]` declares. A method with two `#[Route]` attributes uses this to see which of the two matched.
+
+**Returns** `Core\Http\Method` — The `Core\Http\Method` case written in the route's `method:`.
+
+<a id="core-core-router-match-access"></a>
+#### `Core\Router\Match->access`
+
+```nvs skip
+$match->access(): ?string
+```
+
+The access decision of the matched route: the full name of the constant written in its `#[Access(allow: …)]`. The server does not enforce it. A program that calls route methods checks it once, before it calls any of them.
+
+**Returns** `?string` — The name with its namespace, such as `Core\Audience::Public` or `App\Role::Admin`. Not `tainted`: it is the program's own text. Every route of a compiled program has one, so treat `null` as access denied.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`

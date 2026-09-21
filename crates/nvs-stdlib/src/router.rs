@@ -508,6 +508,8 @@ pub(crate) const PARSES_NAME: &str = "Parses";
 /// [`MATCH`]'s slots, in the order [`match_value`] fills them.
 const MATCH_ROUTE_NAME: usize = 0;
 const MATCH_PARAMS: usize = 1;
+const MATCH_METHOD: usize = 2;
+const MATCH_ACCESS: usize = 3;
 
 /// `rule:routing/a-capture-narrows-to-a-closed-set`'s capture as a program reaches it, and the one place the five
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
@@ -556,13 +558,14 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// # It is built where the match crosses, and holds no route
 ///
 /// [`nvs_runtime::routes::Match`] holds an `Arc<Route>` and travels from the
-/// door on [`nvs_runtime::Inbound`]; this class holds the two answers a program
-/// asked for and nothing else, built by [`match_value`] each time
+/// door on [`nvs_runtime::Inbound`]; this class holds the four answers a
+/// dispatcher reads and nothing else, built by [`match_value`] each time
 /// `Core\Request::route()` is read. So the row stays where § 1 put it — on the
 /// request, taken once — and nothing about the compiled table is reachable
-/// through an object a program is holding. What it spends is one instance and
-/// one array of the path's own captures per *read*, which is a handful of
-/// values against a route's two or three captures and O(in-flight) either way.
+/// through an object a program is holding. What it spends is one instance, one
+/// array of the path's own captures and one `string` for the access decision
+/// per *read*, which is a handful of values against a route's two or three
+/// captures and O(in-flight) either way.
 ///
 /// # The name is the program's, the captures are the peer's
 ///
@@ -577,14 +580,23 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// [`nvs_runtime::routes`]' own gap 4: decoding belongs to [`crate::uri`] and a
 /// second decoder below it would be two launderers that agree today.
 ///
-/// # Why there is no `route()` reader here
+/// # The access decision and the verb cross, and the handler does not
 ///
-/// § 1's "matching is not dispatching" as a shape: a member answering the
-/// matched row would put the handler's `Class::method` label, its access
-/// decision and its declared verb in front of a program, which is the surface
-/// `rule:routing/matching-is-not-dispatching` refuses to
-/// grow. The name and the captures are what the three rules § 1 names actually
-/// read, and they are all that crosses.
+/// `rule:security/access-is-checked-for-presence-not-meaning` leaves the
+/// decision to whoever dispatches, and a dispatcher is a `switch` on
+/// [`MATCH_NAME_DOC`]'s name. Read off the match, the decision is checked once
+/// above that `switch` and covers every arm; read off the method's attributes
+/// it is checked once per arm, and an arm that forgets it serves an unguarded
+/// route with nothing to say so. That is a priority-1 difference, so
+/// [`MATCH_ACCESS_DOC`]'s member is here. It answers the resolved *name* and
+/// nothing structured, which is all the row carries and all the compiler
+/// promises about it. The verb crosses for the same reader: one method under
+/// two `#[Route]`s is how `Get` and `Post` share an implementation, and the
+/// name alone cannot tell the two apart.
+///
+/// The handler's `Class::method` label stays on the far side. It is the one
+/// field of the row a program could turn into a call, which is the dispatch
+/// `rule:routing/matching-is-not-dispatching` refuses.
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
     methods: &[],
@@ -616,8 +628,26 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             symbol: "nvs_core_router_match_param",
             doc: Some(&MATCH_PARAM_DOC),
         },
+        CoreMethod {
+            name: "method",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(METHOD_NAME),
+            symbol: "nvs_core_router_match_method",
+            doc: Some(&MATCH_METHOD_DOC),
+        },
+        CoreMethod {
+            name: "access",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_router_match_access",
+            doc: Some(&MATCH_ACCESS_DOC),
+        },
     ],
-    slots: &["name", "params"],
+    slots: &["name", "params", "method", "access"],
     constants: &[],
 };
 
@@ -658,6 +688,27 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The capture, on `params()`'s terms, or `null` where the matched route declares no \
           capture under that name — including an optional `{name?}` the request left off.",
+    errors: &[],
+};
+
+/// `Core\Router\Match::method`'s reference card — `rule:core-api/reference-card`.
+const MATCH_METHOD_DOC: MethodDoc = MethodDoc {
+    short: "The verb the matched `#[Route]` declares. A method with two `#[Route]` attributes \
+            uses this to see which of the two matched.",
+    params: &[],
+    ret: "The `Core\\Http\\Method` case written in the route's `method:`.",
+    errors: &[],
+};
+
+/// `Core\Router\Match::access`'s reference card — `rule:core-api/reference-card`.
+const MATCH_ACCESS_DOC: MethodDoc = MethodDoc {
+    short: "The access decision of the matched route: the full name of the constant written in \
+            its `#[Access(allow: …)]`. The server does not enforce it. A program that calls route \
+            methods checks it once, before it calls any of them.",
+    params: &[],
+    ret: "The name with its namespace, such as `Core\\Audience::Public` or `App\\Role::Admin`. \
+          Not `tainted`: it is the program's own text. Every route of a compiled program has \
+          one, so treat `null` as access denied.",
     errors: &[],
 };
 
@@ -749,6 +800,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
         "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
         "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
+        "nvs_core_router_match_method" => (nvs_core_router_match_method as *const ()).cast(),
+        "nvs_core_router_match_access" => (nvs_core_router_match_access as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1481,10 +1534,25 @@ nvs_runtime::nvs_helper! {
 /// [`capture_value`]'s throw, whose doc owns the decode this walk performs. The
 /// partly built array is released by its own `Drop` on the way out, so a
 /// refused capture costs the ones already converted and nothing else.
+///
+/// A [`Fault::fatal`] for a row whose verb is no case of [`METHOD`], which no
+/// compiled table can hold: `#[Route(method: …)]` takes a case of that enum and
+/// nothing else, so this is a table built by hand around a verb the roster does
+/// not name.
 pub(crate) fn match_value(
     ctx: &mut nvs_runtime::Ctx,
     matched: &nvs_runtime::routes::Match,
 ) -> Result<Value, Fault> {
+    let verb = matched.route().verb();
+    // Unreachable from source: `#[Route(method: …)]` is typed `Core\Http\Method`,
+    // so `E0401` refuses anything that is not a case of it and every row a
+    // compiler wrote spells one. The `#[test]` beside `crossed_slot` reaches it
+    // through a table built by hand.
+    let method = method_case(verb).ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a matched route declares `{verb}`, which is no `{METHOD_NAME}` case"
+        ))
+    })?;
     let mut params = NvsArray::new();
     for (name, capture) in matched.params() {
         let value = capture_value(ctx, name, capture)?;
@@ -1498,6 +1566,11 @@ pub(crate) fn match_value(
                 None => Value::null(),
             },
             Value::array(params),
+            Value::int(method),
+            match matched.route().access() {
+                Some(access) => Value::str(NvsStr::new(access.as_bytes())),
+                None => Value::null(),
+            },
         ],
     ))
 }
@@ -1790,6 +1863,24 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::method(): Core\Http\Method` — the verb the matched
+    /// row declares, as the case [`method_case`] read it as when the match
+    /// crossed.
+    fn nvs_core_router_match_method(_ctx, args: [1]) {
+        match_slot(args, MATCH_METHOD, "method")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::access(): ?string` —
+    /// `rule:security/access-is-checked-for-presence-not-meaning`'s decision, as
+    /// the resolved name the row carries and nothing interpreted.
+    fn nvs_core_router_match_access(_ctx, args: [1]) {
+        match_slot(args, MATCH_ACCESS, "access")
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
     /// — [`nvs_core_router_match_params`] read at one key.
     ///
@@ -1911,6 +2002,57 @@ mod tests {
         let signed =
             capture_value(&mut ctx, "n", &Param::Int(-7)).expect("a number refuses nothing");
         assert_eq!(signed.as_int(), Some(-7));
+    }
+
+    /// Slot `index` of the [`super::MATCH`] that `verb` and `access` cross as,
+    /// or the message the crossing refused with.
+    fn crossed_slot(verb: &str, access: Option<&str>, index: usize) -> Result<Value, String> {
+        let table = nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
+            verb,
+            "/pages",
+            None,
+            "Pages::index",
+            access.map(str::to_owned),
+            Vec::new(),
+        )]);
+        let matched = table
+            .match_request(verb, "/pages")
+            .expect("the one row claims its own verb and path");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        match super::match_value(&mut ctx, &matched) {
+            Ok(value) => {
+                let receiver = crate::instance::receiver(value, &super::MATCH, "test")
+                    .unwrap_or_else(|_| panic!("the crossing builds a `Core\\Router\\Match`"));
+                Ok(crate::instance::slot(receiver, index))
+            }
+            Err(nvs_runtime::Fault::Fatal(message)) => Err(message.into_owned()),
+            Err(_) => panic!("a verb outside the roster is an engine fault, not a throw"),
+        }
+    }
+
+    /// The two edges no compiled program reaches, because the compiler refuses
+    /// both declarations: a row with no access decision, and a row whose verb is
+    /// no `Core\Http\Method` case. The first crosses as `null` — which a
+    /// dispatcher reads as denied, so a table built by hand fails closed — and
+    /// the second does not cross at all.
+    #[test]
+    fn a_match_crosses_its_verb_and_its_access_decision_and_a_missing_one_is_null() {
+        let access = crossed_slot("Post", Some("App\\Role::Admin"), super::MATCH_ACCESS)
+            .expect("a roster verb crosses");
+        assert_eq!(access.as_str_bytes(), Some(&b"App\\Role::Admin"[..]));
+        let method =
+            crossed_slot("Post", None, super::MATCH_METHOD).expect("a roster verb crosses");
+        assert_eq!(method.as_int(), super::method_case("Post"));
+        let absent =
+            crossed_slot("Post", None, super::MATCH_ACCESS).expect("a roster verb crosses");
+        assert_eq!(
+            absent.tag_byte(),
+            Value::null().tag_byte(),
+            "no decision crosses as `null`"
+        );
+        let refused = crossed_slot("Brew", None, super::MATCH_METHOD)
+            .expect_err("`Brew` is no case of the roster");
+        assert!(refused.contains("`Brew`"), "{refused}");
     }
 
     thread_local! {

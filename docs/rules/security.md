@@ -1968,7 +1968,9 @@ sessions. An omission is an error rather than a public default — that half is
 [`attributes/access-payload`](attributes.md#attributes-access-payload).
 
 **Interpretation belongs to whoever dispatches.** The declared name rides on the match the server made
-as uninterpreted data, and the application's own dispatch reads and enforces it. **The server enforces
+as uninterpreted data — `Core\Router\Match::access()` answers it, resolved, as a `string` — and the
+application's own dispatch reads and enforces it, once, above the `switch` that calls a handler, so a
+route whose arm never mentions access is still checked. **The server enforces
 CSRF and nothing else** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)): interpreting a role would need a
 session, a user model and a role source, all three of which are deliberately outside the binary. Two
 enforcement points is how a route ends up checked twice in development and not at all in production,
@@ -1979,7 +1981,7 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md), [0199](../decisions/0199.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 

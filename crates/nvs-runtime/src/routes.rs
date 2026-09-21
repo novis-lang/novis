@@ -51,14 +51,14 @@
 //! That is `matchit`'s left-to-right precedence, which `rule:routing/path-grammar` names as the
 //! model, stated as a comparison rather than grown out of a trie.
 //!
-//! **The match crosses as the name and the captures, and never as the row.**
+//! **The match crosses as four answers, and never as the row.**
 //! `Core\Request::route()` answers with `nvs_stdlib::router`'s
-//! `Core\Router\Match`, built out of [`Match`] where the match crosses. The
-//! [`Route`] itself stays on this side, because a program that could read its
-//! handler label, its declared verb and its access decision is one step from the
-//! dispatch `rule:routing/matching-is-not-dispatching` refuses. The day
-//! something needs one of them is the day that refusal is re-argued, not the day
-//! this is widened.
+//! `Core\Router\Match`, built out of [`Match`] where the match crosses: the
+//! name, the captures, the declared verb and the access decision's name, which
+//! are what a dispatcher reads. The [`Route`] itself stays on this side, and so
+//! does its handler label, because a program that could read `Class::method`
+//! off a match is one step from the dispatch
+//! `rule:routing/matching-is-not-dispatching` refuses.
 //!
 //! **What it spends:** one `Arc` clone per request that carries a table, over
 //! one `String` per row's verb, path, name, handler and access decision — tens

@@ -1,5 +1,6 @@
-`Core\Router\Match` carries a declared name and the typed captures the path filled, and nothing
-invocable: no `->invoke()`, no callable, no class-and-method strings. A first-class reference to the
+`Core\Router\Match` carries a declared name, the typed captures the path filled, the declared verb and
+the access decision's name, and nothing invocable: no `->invoke()`, no callable, no class-and-method
+strings, and the handler's `Class::method` label never crosses. A first-class reference to the
 matched method would need `callable` to carry a signature, which `rule:types/grammar` defers — but
 routing is not a forcing case for that deferral, and typed `callable` would not remove the dispatch
 `switch`, for three independent reasons.

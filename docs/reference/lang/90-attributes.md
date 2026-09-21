@@ -297,9 +297,12 @@ missing feature:
   `Core\Response::setStatus`. `Core\Router::methodsFor` returns the verbs a path has: an empty
   array is the `404`, and any other array is the `Allow` header of a `405`.
 - The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
-  on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced.
-- A `Core\Router\Match` has a name and the converted captures. It has nothing that can be called,
-  so a program dispatches with one `switch` on `name()`. Give every route it dispatches a `name:`.
+  on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced. The
+  entry file enforces it: `access()` on the match returns the full name of the `allow:` constant,
+  such as `Core\Audience::Public`. Check it once, before the `switch`, and treat `null` as denied.
+- A `Core\Router\Match` has a name, the converted captures, the verb and the access decision. It
+  has nothing that can be called, so a program dispatches with one `switch` on `name()`. Give
+  every route it dispatches a `name:`.
 
 `Core\Router::match` asks the same table about a verb and a path the program chooses, so this
 example runs from the command line. Under `nvs serve` the entry file reads `Core\Request::route()`
@@ -322,6 +325,9 @@ class App {
         var $match = Core\Router::match($method, $path);
         if ($match == null) {
             return Core\Router::methodsFor($path) == [] ? "404" : "405";
+        }
+        if ($match->access() != "Core\\Audience::Public") {
+            return "403";
         }
         var $users = new Users();
         switch ($match->name()) {

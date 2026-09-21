@@ -1,0 +1,43 @@
+--TEST--
+`Core\Router\Match::method` answers the verb of the row that matched, which is what tells two `#[Route]`s on one method apart when they share a name — `rule:routing/matching-is-not-dispatching` `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+--FILE--
+<?nvs
+// One method under two `#[Route]`s is how `Get` and `Post` share an
+// implementation, and the two may share a `name` because they share a path. So
+// the name is the same for both matches, and the verb is the only answer on the
+// match that differs.
+class Contact
+{
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "Contact::form")]
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Post, name: "Contact::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): string { return "form"; }
+}
+
+?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, "/contact");
+?Core\Router\Match $sent = Core\Router::match(Core\Http\Method::Post, "/contact");
+if ($shown != null) {
+    if ($sent != null) {
+        echo "same name: ", $shown->name() == $sent->name() ? "yes" : "no", "\n";
+        echo "get: ", $shown->method() == Core\Http\Method::Get ? "yes" : "no", "\n";
+        echo "post: ", $sent->method() == Core\Http\Method::Post ? "yes" : "no", "\n";
+        echo "same verb: ", $shown->method() == $sent->method() ? "yes" : "no", "\n";
+    }
+}
+
+// The answer is the row's verb and not the caller's argument read back: every
+// verb `methodsFor` lists for the path is the verb of the match taken under it.
+uint $agree = 0;
+foreach (Core\Router::methodsFor("/contact") as Core\Http\Method $verb) {
+    ?Core\Router\Match $match = Core\Router::match($verb, "/contact");
+    if ($match?->method() == $verb) {
+        $agree = $agree + 1;
+    }
+}
+echo "agree: ", $agree as string, "\n";
+--EXPECT--
+same name: yes
+get: yes
+post: yes
+same verb: no
+agree: 2

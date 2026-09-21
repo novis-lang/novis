@@ -1,0 +1,50 @@
+--TEST--
+`Core\Router\Match::access` answers the matched route's `#[Access(allow: …)]` as the resolved name, `Core`'s own case and the application's alike, and interprets neither — `rule:security/access-is-checked-for-presence-not-meaning` `rule:routing/matching-is-not-dispatching`
+--FILE--
+<?nvs
+namespace App;
+
+enum Role { Admin, Editor }
+
+class Policy
+{
+    public const string STAFF = "staff";
+}
+
+// Three decisions spelled three ways `rule:attributes/access-payload` admits:
+// `Core`'s one case, an enum case of the application's, and a class constant.
+class Pages
+{
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "index"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+
+    #[Core\Route(path: "/staff", method: Core\Http\Method::Get, name: "Pages::staff")]
+    #[Core\Access(allow: Policy::STAFF)]
+    public function staff(): string { return "staff"; }
+}
+
+// The name is resolved against the declaring file's namespace, so a dispatcher
+// in another file compares one spelling whatever that file imports.
+array<string> $paths = ["/pages", "/admin", "/staff"];
+foreach ($paths as string $path) {
+    ?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, $path);
+    if ($match != null) {
+        echo $path, ": ", $match->access() ?? "null", "\n";
+    }
+}
+
+// The constant's *value* does not cross: `Policy::STAFF` is "staff", and what
+// the match answers is the name, because the name resolving is the whole of
+// what the compiler checked.
+?Core\Router\Match $staff = Core\Router::match(Core\Http\Method::Get, "/staff");
+echo "value crossed: ", $staff?->access() == Policy::STAFF ? "yes" : "no", "\n";
+--EXPECT--
+/pages: Core\Audience::Public
+/admin: App\Role::Admin
+/staff: App\Policy::STAFF
+value crossed: no

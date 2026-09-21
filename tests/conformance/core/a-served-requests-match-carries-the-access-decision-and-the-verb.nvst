@@ -1,0 +1,42 @@
+--TEST--
+The match a request carries answers the access decision and the verb of its route, so the program answering it can refuse before it calls anything — `rule:routing/matched-once-before-the-handler` `rule:security/access-is-checked-for-presence-not-meaning`
+--FILE--
+<?nvs
+// The other cases ask `Core\Router::match`, which is the table asked about a
+// verb and a path the caller chose. This one asks the match the *door* took,
+// the one `Core\Request::route()` answers, because that is the match a
+// dispatcher reads: the decision has to have crossed with the request, or the
+// program answering it has nothing to enforce.
+//
+// The `catch` is the child, on
+// `an-in-process-request-carries-the-compiled-route-tables-own-match.nvst`'s
+// terms: the program answering an in-process request is this same program, and
+// its own `Core\Test::request` is refused.
+enum Role { Admin }
+
+class Api
+{
+    #[Core\Route(path: "/reports", method: Core\Http\Method::Post, name: "Api::report")]
+    #[Core\Access(allow: Role::Admin, csrf: false)]
+    public function report(): string { return "reported"; }
+}
+
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Post, "/reports");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    ?Core\Router\Match $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "the table claimed nothing";
+    } else {
+        echo $matched->access() ?? "null";
+        echo $matched->method() == Core\Http\Method::Post ? " under Post" : " under another verb";
+        if ($matched->access() != "Core\\Audience::Public") {
+            Core\Response::setStatus(403);
+        }
+    }
+}
+--EXPECT--
+status 403
+body Role::Admin under Post
