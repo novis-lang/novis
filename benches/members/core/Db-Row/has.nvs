@@ -1,0 +1,33 @@
+<?nvs
+// Measures testing whether a row has a column. A program does this before it
+// reads a column whose name came in with a request.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table stock (id integer primary key, on_hand int not null)', []);
+        $db->execute('insert into stock (on_hand) values (?)', [40]);
+        array<Core\Db\Row> $rows = $db->query('select id, on_hand from stock', [])->all();
+        var $row = $rows[0];
+        array<string> $names = ['on_hand', 'price'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The answers so far choose the name asked about next, so the loop
+            // cannot be left out.
+            if ($row->has($names[($total % 2) as int])) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

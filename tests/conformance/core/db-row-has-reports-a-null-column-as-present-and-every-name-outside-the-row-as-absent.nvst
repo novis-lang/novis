@@ -1,0 +1,84 @@
+--TEST--
+`Core\Db\Row::has` reports a NULL column as present and every name outside the row as absent, which is the distinction a typed reader's `null` does not carry — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::has
+// One question asked of both sides at once: every column the query named
+// answers `true`, whatever its type and whether or not it has a value, and
+// every name outside the row answers `false`. The pair at the end is what the
+// method is for. A reader that answered `null` for an absent column would
+// print the same line for a column nobody filled in and for a misspelled name.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table readings (label text not null, celsius real not null,
+      seats int not null, taken date not null, missed int)",
+    []
+);
+$db->execute(
+    "insert into readings (label, celsius, seats, taken, missed) values (?, ?, ?, ?, ?)",
+    ["north field", 2.5, 7, "2026-03-01", null]
+);
+
+array<Row> $one = $db->query(
+    "select label, celsius, seats, taken, missed from readings",
+    []
+)->all();
+var $row = $one[0];
+
+// Every column the query named, over four type families and one column that
+// has no value in this row.
+array<string> $named = ["label", "celsius", "seats", "taken", "missed"];
+foreach ($named as string $column) {
+    if ($row->has($column)) {
+        echo "has ", $column, ": yes\n";
+    } else {
+        echo "has ", $column, ": no\n";
+    }
+}
+
+// And the names outside the row. A name with a space in front of it or behind
+// it is a different name.
+array<string> $outside = ["missing", "celsius ", " label", ""];
+foreach ($outside as string $column) {
+    if ($row->has($column)) {
+        echo "has [", $column, "]: yes\n";
+    } else {
+        echo "has [", $column, "]: no\n";
+    }
+}
+
+// The distinction the method is for, asked of a typed reader instead. The
+// column with no value answers `null`, and the name that is no column throws.
+?int $missed = $row->int("missed");
+if ($missed == null) {
+    echo "int over missed: null\n";
+}
+try {
+    $row->int("missing");
+    echo "int over missing: answered\n";
+} catch (LogicError $stopped) {
+    echo "int over missing: throws\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+has label: yes
+has celsius: yes
+has seats: yes
+has taken: yes
+has missed: yes
+has [missing]: no
+has [celsius ]: no
+has [ label]: no
+has []: no
+int over missed: null
+int over missing: throws

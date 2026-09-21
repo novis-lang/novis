@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to read the columns a request asked for. Your program did not
+// choose these names, so it tests each one before it reads that column.
+
+var $db = Core\Db::connect('notes');
+$db->execute(
+    'create table stock (item text not null, on_hand int not null, reserved int not null)',
+    []
+);
+$db->execute('insert into stock (item, on_hand, reserved) values (?, ?, ?)', ['tea', 40, 12]);
+
+// These three names came in with a request. One of them belongs to no column.
+array<string> $wanted = ['on_hand', 'price', 'reserved'];
+
+array<Core\Db\Row> $rows = $db->query('select item, on_hand, reserved from stock', [])->all();
+var $row = $rows[0];
+foreach ($wanted as string $name) {
+    if ($row->has($name)) {
+        echo $name, ': ', $row->int($name) ?? 0, "\n";
+    } else {
+        echo $name, ": there is no such column\n";
+    }
+}
+
+$db->close();
