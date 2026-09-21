@@ -1,0 +1,15 @@
+<?nvs
+// Shows what a web program does before it sends a long answer: compress the
+// body once, then send the header that names the format it used.
+
+string $body = Core\Str::repeat("<li>Order 1042 shipped to Berlin</li>\n", 80);
+bytes $frame = Core\Compress::compress($body, Core\Codec::Gzip);
+
+uint $before = Core\Bytes::length($body as bytes);
+uint $after = Core\Bytes::length($frame);
+
+// A browser needs both of these lines to read the body you send.
+echo "Content-Encoding: gzip\n";
+echo 'Content-Length: ', $after, "\n";
+
+echo 'saved ', $before - $after, ' of ', $before, " bytes\n";

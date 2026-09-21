@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to compress a text. `Core\Compress::compress` returns the
+// compressed bytes, and `Core\Bytes::length` counts how many there are.
+
+bytes $report = Core\Str::repeat("order 1042 shipped to Berlin\n", 50) as bytes;
+
+// The same line 50 times compresses very well: 1450 bytes become 69.
+bytes $frame = Core\Compress::compress($report, Core\Codec::Gzip);
+
+echo 'before: ', Core\Bytes::length($report), " bytes\n";
+echo 'after: ', Core\Bytes::length($frame), " bytes\n";
+
+// `Core\Compress::decompress` gives the original bytes back. You pass it the
+// same format you compressed with.
+bytes $back = Core\Compress::decompress($frame, Core\Codec::Gzip);
+echo 'the text came back: ', Core\Hash::equals($back, $report) ? 'yes' : 'no', "\n";
