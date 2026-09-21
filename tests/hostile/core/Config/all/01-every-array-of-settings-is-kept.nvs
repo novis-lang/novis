@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program tries to change the settings through the array it was given.
+// Then it keeps one array of settings per round until nothing is left. The
+// configuration must not move. The program must stop at its memory limit with an
+// error.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the ceiling quickly.
+Core\Config::set('memory', '32M');
+
+// 1. A value one million characters long is offered to a limit. The change is
+// not allowed, so the array must not grow.
+string $huge = Core\Str::repeat('9', 1000000);
+uint $before = Core\Arr::count(Core\Config::all());
+Core\Config::set('memory', $huge);
+echo 'entries after a refused change: ', Core\Arr::count(Core\Config::all()) - $before, "\n";
+
+// 2. The array is changed and read back. The array is a copy, so the setting
+// itself must still be 32M.
+array<string> $settings = Core\Config::all();
+$settings['limits.memory'] = '1000T';
+echo 'in force: ', Core\Config::get('limits.memory') ?? 'unset', "\n";
+
+// 3. Every array of settings is kept, so nothing can be freed. This step ends
+// the program at its memory limit.
+array<array<string>> $kept = [];
+while (true) {
+    $kept[] = Core\Config::all();
+}

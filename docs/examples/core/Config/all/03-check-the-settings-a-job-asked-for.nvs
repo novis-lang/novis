@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to check that the settings a program asked for are really in force.
+// `Core\Config::set` returns `false` when a change is not allowed, and
+// `Core\Config::all` says what is in force after every change.
+
+// A worker picks the settings for one long job.
+array<string> $wanted = [
+    "limits.memory" => "384M",
+    "limits.wall_time" => "120s",
+    "limits.max_tasks" => "8",
+];
+
+foreach ($wanted as string $name => string $value) {
+    Core\Config::set($name, $value);
+}
+
+array<string> $inForce = Core\Config::all();
+
+// This prints one line per setting. A setting the server does not allow this
+// program to change is reported as not changed.
+foreach ($wanted as string $name => string $value) {
+    if (Core\Arr::hasKey($inForce, $name) && $inForce[$name] == $value) {
+        echo $name, " is ", $value, "\n";
+    } else {
+        echo $name, " was not changed", "\n";
+    }
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Measures building the array of every setting in force. A program does this
+// when it reports the limits it runs under, or logs its own configuration.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Config::set("memory", "256M");
+        Core\Config::set("max_tasks", "16");
+        array<string> $names = ["limits.memory", "limits.max_tasks"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The setting read of every round is chosen by the round before it,
+            // so no round can be left out.
+            array<string> $settings = Core\Config::all();
+            $total = $total + Core\Str::length($settings[$names[(($total + $i) % 2) as int]]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";
