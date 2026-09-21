@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to read the rows of one query more than once.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table bookings (id integer primary key, guest text not null, seats int not null)', []);
+$db->execute('insert into bookings (guest, seats) values (?, ?), (?, ?)', ['Ada Ahmed', 4, 'Bo Berg', 2]);
+
+array<Core\Db\Row> $rows = $db->query('select guest, seats from bookings order by id', [])->all();
+
+// The first pass adds the seats together. This prints `seats: 6`.
+int $seats = 0;
+foreach ($rows as Core\Db\Row $row) {
+    $seats = $seats + ($row->int('seats') ?? 0);
+}
+echo 'seats: ', $seats, "\n";
+
+// The second pass reads the same rows again. The array holds the rows, so this
+// reads nothing from the database.
+foreach ($rows as Core\Db\Row $row) {
+    echo $row->string('guest') ?? '', "\n";
+}
+
+// A query that matches no row returns an empty array. This prints `0`.
+array<Core\Db\Row> $none = $db->query('select guest, seats from bookings where seats > ?', [100])->all();
+echo Core\Arr::count($none), "\n";
+
+$db->close();

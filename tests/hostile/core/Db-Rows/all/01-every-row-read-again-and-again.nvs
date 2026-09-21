@@ -1,0 +1,73 @@
+<?nvs
+// Attack: one result set is turned into an array of rows a million times. A
+// result of twenty thousand rows is read whole twice over. Rows are kept after
+// the result they came from is gone. Every step has to finish, and none may
+// stop the program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+$db->execute('insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?)', [4, 'four', 2, 'two', 6, 'six']);
+
+// 1. A million reads of a three-row result. Each read builds one row object
+// per row, so three million objects are built and freed here.
+var $three = $db->query('select seats, label from seatings order by id', []);
+uint $rows = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $rows = Core\Arr::count($three->all());
+    $i = $i + 1;
+}
+echo '1 rows: ', $rows, "\n";
+
+// 2. Twenty thousand rows read whole, then read whole a second time, so forty
+// thousand row objects are held at the same time.
+$db->execute('insert into seatings (seats, label) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 20000) select x, \'row\' from counter', []);
+var $many = $db->query('select seats, label from seatings order by id', []);
+array<Core\Db\Row> $first = $many->all();
+array<Core\Db\Row> $second = $many->all();
+echo '2 held: ', Core\Arr::count($first) + Core\Arr::count($second), "\n";
+
+// 3. Two thousand rows kept after the result they came from is gone. A row the
+// program still holds may not lose the values it was read with.
+array<Core\Db\Row> $kept = [];
+$i = 0;
+while ($i < 2000) {
+    array<Core\Db\Row> $fetched = $db->query('select seats, label from seatings where id = ?', [1])->all();
+    $kept[] = $fetched[0];
+    $i = $i + 1;
+}
+int $total = 0;
+foreach ($kept as Core\Db\Row $row) {
+    $total = $total + ($row->int('seats') ?? 0);
+}
+echo '3 total: ', $total, "\n";
+
+// 4. A hundred thousand reads of a result that has no row at all. Each one has
+// to give back an empty array.
+var $none = $db->query('select seats, label from seatings where seats > ?', [1000000]);
+uint $empty = 0;
+$i = 0;
+while ($i < 100000) {
+    if (Core\Arr::count($none->all()) == 0) {
+        $empty = $empty + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 empty: ', $empty, "\n";
+
+// 5. A row holding sixteen megabytes, read a hundred thousand times. The
+// memory the program holds may not grow with the reads.
+$db->execute('create table pictures (id integer primary key, picture blob not null)', []);
+$db->execute('insert into pictures (picture) values (?)', [Core\Str::repeat('x', 16000000) as bytes]);
+var $heavy = $db->query('select picture from pictures', []);
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    array<Core\Db\Row> $picture = $heavy->all();
+    $seen = Core\Bytes::length($picture[0]->bytes('picture') ?? ('' as bytes));
+    $i = $i + 1;
+}
+echo '5 seen: ', $seen, "\n";
+
+$db->close();

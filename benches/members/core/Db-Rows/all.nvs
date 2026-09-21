@@ -1,0 +1,31 @@
+<?nvs
+// Measures reading every row of a small result at once, which a program does
+// once per query before it works with the rows.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null)', []);
+        $db->execute('insert into seatings (seats) values (?), (?), (?)', [4, 2, 6]);
+        var $rows = $db->query('select seats from seatings order by id', []);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Core\Db\Row> $all = $rows->all();
+            // The row read is chosen by the total so far, so the loop cannot be
+            // left out.
+            if (($all[($total % 3) as int]->int('seats') ?? 0) > 0) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,71 @@
+--TEST--
+`Core\Db\Rows::all` answers one `Core\Db\Row` per row of the result, in the server's order, agreeing with `Core\Db\Rows::column` for every one of them, answers them again on a second call, and answers an empty array for a result with no rows — `rule:core-classes/db-statement-members`
+--FILE--
+<?nvs
+// covers: Core\Db\Rows::all
+// Three claims one line of output cannot tell apart. First, the array is the
+// whole result and nothing else: the rows are counted against `count()` and
+// against the column the statement described, rather than read off by name, so
+// an answer that dropped a row or invented one fails here while every single
+// lookup still prints plausibly. Second, the order is the statement's, which
+// is why the select asks for one the table does not hold the rows in. Third, a
+// second call answers the same rows, since there is no cursor a first call
+// moved past.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table seatings (id integer primary key, seats int not null, label text not null)",
+    []
+);
+$db->execute(
+    "insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?), (?, ?)",
+    [4, "north", 2, "east", 6, "south", 1, "west"]
+);
+
+var $rows = $db->query("select seats, label from seatings order by seats desc", []);
+
+array<Row> $all = $rows->all();
+array<mixed> $labels = $rows->column("label");
+
+int $at = 0;
+uint $ordered = 0;
+foreach ($all as Row $row) {
+    if ($row->string("label") == $labels[$at]) {
+        $ordered = $ordered + 1;
+    }
+    $at = $at + 1;
+}
+echo "rows: ", Core\Arr::count($all), "\n";
+echo "count says: ", $rows->count(), "\n";
+echo "agree with column: ", $ordered, "\n";
+
+array<Row> $again = $rows->all();
+$at = 0;
+uint $same = 0;
+foreach ($again as Row $row) {
+    if ($row->int("seats") == $all[$at]->int("seats")) {
+        $same = $same + 1;
+    }
+    $at = $at + 1;
+}
+echo "second call: ", Core\Arr::count($again), " ", $same, "\n";
+
+// A statement that matched no row answers an empty array.
+array<Row> $none = $db->query("select seats, label from seatings where seats > ?", [1000])->all();
+echo "empty: ", Core\Arr::count($none), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+rows: 4
+count says: 4
+agree with column: 4
+second call: 4 4
+empty: 0

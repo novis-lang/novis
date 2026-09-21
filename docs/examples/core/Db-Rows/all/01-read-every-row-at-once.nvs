@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read every row of a query in one step.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
+$db->execute('insert into guests (name, seats) values (?, ?), (?, ?), (?, ?)', ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6]);
+
+// `all` returns every row of the result as an array. Each entry is one
+// `Core\Db\Row`, and the entries come in the order the query asked for.
+array<Core\Db\Row> $rows = $db->query('select name, seats from guests order by id', [])->all();
+
+// This prints one line per guest, starting with `Ada Ahmed booked 4 seats`.
+foreach ($rows as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', ' booked ', $row->int('seats') ?? 0, " seats\n";
+}
+
+// The array is a normal array, so you can count it. This prints `3`.
+echo Core\Arr::count($rows), "\n";
+
+$db->close();
