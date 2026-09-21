@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a program unpacks compressed data that somebody else built. It tries
+// a small frame that unpacks to 16 mebibytes, the largest limits it can ask
+// for, and frames that are cut short. Every one must stop with an error.
+// The program must run to its last line.
+// hostile: timeout-ms 60000
+
+// The bomb: 16 mebibytes of one byte, which gzip packs into about 16 kibibytes.
+bytes $flat = Core\Bytes::repeat('A' as bytes, 16777216);
+bytes $bomb = Core\Compress::compress($flat, Core\Codec::Gzip);
+echo 'the bomb is ', Core\Bytes::length($bomb), " bytes\n";
+
+// 1. The bomb with nothing asked for. The limits a call gets when it names none
+//    must refuse it.
+try {
+    Core\Compress::decompress($bomb, Core\Codec::Gzip);
+    echo "step 1 unpacked the bomb\n";
+} catch (ParseError $bounded) {
+    echo "step 1 refused the bomb\n";
+}
+
+// 2. The bomb with the largest limits the program can write. A call may ask for
+//    less than the server allows and never for more, so this must refuse too.
+try {
+    Core\Compress::decompress($bomb, Core\Codec::Gzip, 9223372036854775807, 9223372036854775807);
+    echo "step 2 unpacked the bomb\n";
+} catch (ParseError $stillBounded) {
+    echo "step 2 refused the bomb again\n";
+}
+
+// 3. A limit of zero bytes. Zero is a limit of nothing, not a word for
+//    unlimited.
+try {
+    Core\Compress::decompress($bomb, Core\Codec::Gzip, 0, 0);
+    echo "step 3 unpacked the bomb\n";
+} catch (ParseError $zero) {
+    echo "step 3 refused a limit of zero\n";
+}
+
+// 4. Only the first 8000 bytes of the frame. A reader that answered what it had
+//    reached would return several mebibytes here.
+bytes $cut = Core\Bytes::slice($bomb, 0, 8000);
+try {
+    Core\Compress::decompress($cut, Core\Codec::Gzip, 33554432);
+    echo "step 4 read a frame that stops early\n";
+} catch (ParseError $short) {
+    echo "step 4 refused a frame that stops early\n";
+}
+
+// 5. Bytes that are no frame at all, and a frame under the wrong format.
+uint $notFrames = 0;
+array<bytes> $rubbish = [
+    '' as bytes,
+    'not compressed at all' as bytes,
+    Core\Compress::compress('hello', Core\Codec::Brotli),
+];
+foreach ($rubbish as bytes $input) {
+    try {
+        Core\Compress::decompress($input, Core\Codec::Gzip);
+    } catch (ParseError $noFrame) {
+        $notFrames = $notFrames + 1;
+    }
+}
+echo 'step 5 refused ', $notFrames, " of 3\n";
+
+// 6. Twenty thousand refusals in a row, each one caught. A refusal that kept
+//    the output it reached would fill memory here.
+bytes $small = Core\Compress::compress(Core\Bytes::repeat('B' as bytes, 65536), Core\Codec::Zlib);
+uint $tried = 0;
+uint $refused = 0;
+while ($tried < 20000) {
+    try {
+        Core\Compress::decompress($small, Core\Codec::Zlib, 1000, 1000);
+    } catch (ParseError $again) {
+        $refused = $refused + 1;
+    }
+    $tried = $tried + 1;
+}
+echo 'step 6 refused ', $refused, " times\n";

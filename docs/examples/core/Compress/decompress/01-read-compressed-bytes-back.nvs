@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read compressed bytes back. You pass the same format the data
+// was compressed with.
+
+bytes $notes = Core\Str::repeat("meeting notes for 4 March\n", 40) as bytes;
+bytes $frame = Core\Compress::compress($notes, Core\Codec::Zstd);
+bytes $back = Core\Compress::decompress($frame, Core\Codec::Zstd);
+
+echo 'compressed: ', Core\Bytes::length($frame), " bytes\n";
+echo 'read back: ', Core\Bytes::length($back), " bytes\n";
+echo 'same as before: ', Core\Hash::equals($back, $notes) ? 'yes' : 'no', "\n";
+
+// The format is not guessed. Reading the same bytes as gzip throws a
+// `ParseError`.
+try {
+    Core\Compress::decompress($frame, Core\Codec::Gzip);
+    echo "gzip read it\n";
+} catch (ParseError $wrongFormat) {
+    echo "gzip could not read it\n";
+}

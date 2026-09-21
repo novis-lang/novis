@@ -1,0 +1,25 @@
+<?nvs
+// Shows what a program does with an upload that arrived compressed. Whoever
+// sent it chose its size, so the call says how much it is willing to unpack.
+
+// In a real program these bytes are the request body.
+string $rows = Core\Str::repeat("1042,Berlin,39.90\n", 200);
+bytes $upload = Core\Compress::compress($rows, Core\Codec::Gzip);
+
+// At most one mebibyte of result, and at most 200 bytes of result for each
+// byte that was sent. Both limits are checked while the result grows.
+try {
+    bytes $csv = Core\Compress::decompress($upload, Core\Codec::Gzip, 1048576, 200);
+    echo 'accepted ', Core\Bytes::length($csv), " bytes\n";
+} catch (ParseError $refused) {
+    echo "the upload was refused\n";
+}
+
+// The same call with a limit of 5 bytes of result per byte sent. This upload
+// packs much tighter than that, so it is refused.
+try {
+    Core\Compress::decompress($upload, Core\Codec::Gzip, 1048576, 5);
+    echo "the second limit did not hold\n";
+} catch (ParseError $tooTight) {
+    echo "refused: it unpacks to more than 5 times its size\n";
+}

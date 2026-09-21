@@ -1,0 +1,19 @@
+<?nvs
+// Shows the limit every call has. `$maxBytes` is the largest result you accept,
+// and a result that would be larger throws a `ParseError`.
+
+bytes $page = Core\Str::repeat("<p>the same line again</p>\n", 400) as bytes;
+bytes $frame = Core\Compress::compress($page, Core\Codec::Gzip);
+
+// The page is 10800 bytes, so a limit of 20000 accepts it.
+bytes $whole = Core\Compress::decompress($frame, Core\Codec::Gzip, 20000);
+echo 'read ', Core\Bytes::length($whole), " bytes\n";
+
+// The same data under a limit of 1000 throws. You get nothing back, not the
+// first 1000 bytes.
+try {
+    Core\Compress::decompress($frame, Core\Codec::Gzip, 1000);
+    echo "the limit did not hold\n";
+} catch (ParseError $tooLarge) {
+    echo "1000 bytes was not enough room\n";
+}
