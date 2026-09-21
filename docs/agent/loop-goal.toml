@@ -102,6 +102,12 @@ modules = [
   # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
   # settings, and the two members that need no connection at all.
   "crates/nvs-stdlib/src/db/open.rs",
+  # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
+  # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
+  "crates/nvs-stdlib/src/db/row.rs",
+  # `rule:core-classes/db-statement-members`'s one member that does not buffer: the walk over a
+  # portal the connection is still holding open.
+  "crates/nvs-stdlib/src/db/stream.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
