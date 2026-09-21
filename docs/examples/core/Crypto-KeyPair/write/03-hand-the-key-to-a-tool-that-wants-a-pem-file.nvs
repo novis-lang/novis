@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to write a key as a PEM file, which is the form many other tools
+// read. The key comes out of your own storage first.
+
+string $stored = "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf";
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($stored),
+    Core\Crypto\KeyKind::Ed25519
+);
+
+bytes $der = Core\Secret::revealBytes(
+    $pair->write(),
+    "the key is exported to a file for the tool that needs it"
+);
+
+// A PEM file is those bytes as base64, between two marker lines.
+string $pem = "-----BEGIN PRIVATE KEY-----\n"
+    . Core\Encoding::toBase64($der)
+    . "\n-----END PRIVATE KEY-----\n";
+echo $pem;

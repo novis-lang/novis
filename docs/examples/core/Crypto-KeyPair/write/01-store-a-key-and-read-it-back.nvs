@@ -1,0 +1,23 @@
+<?nvs
+// Shows what this method gives you, and how a key survives a restart. The pair
+// is a new one, so no key from your machine is printed here.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// `write` gives the private key as `secret bytes`.
+secret bytes $key = $pair->write();
+
+// `Core\Secret::revealBytes` takes a secret and a reason, and gives you plain
+// bytes. This is the value your program stores.
+bytes $plain = Core\Secret::revealBytes(
+    $key,
+    "the key is written to the file only this server can read"
+);
+echo "the stored key is ", Core\Bytes::length($plain), " bytes", "\n";
+
+// The next start reads those bytes. It is the same pair, so it has the same
+// public half and it signs the same way.
+Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read($plain, Core\Crypto\KeyKind::Ed25519);
+bytes $before = $pair->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+bytes $after = $again->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+echo "the same key came back: ", ($before == $after ? "yes" : "no"), "\n";

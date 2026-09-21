@@ -1,0 +1,32 @@
+<?nvs
+// Measures asking a key pair for its stored form. A program does this every
+// time it saves its key.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Crypto\KeyPair> $pairs = [
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519),
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519),
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256),
+        ];
+
+        secret bytes $previous = $pairs[1]->write();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The pair of every round is chosen by the round before it, so no
+            // round can be left out.
+            int $which = ($total % 3) as int;
+            secret bytes $key = $pairs[$which]->write();
+            $total = $total + (($key != $previous ? 1 : 0) as uint);
+            $previous = $key;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
