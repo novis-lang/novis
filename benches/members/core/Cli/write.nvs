@@ -1,0 +1,25 @@
+<?nvs
+// Measures writing one short line to standard output, as a program does for
+// every row of a report it prints.
+// bench: iterations 50000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $rows = ["read", "save", "done"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The row of each round is picked by the round before it, so no
+            // round can be left out.
+            int $pick = ($total % 3) as int;
+            Core\Cli::write($rows[$pick], {newline: true});
+            $total = $total + Core\Str::length($rows[$pick]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

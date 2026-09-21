@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program writes text made to control the terminal, to reach a stream
+// nobody may write to, and to fill the output. Every step must write visible
+// characters only, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. Commands that rename the window and clear the screen. Both must come out
+//    as visible characters.
+string $paint = "\u{1B}]0;rm -rf /\u{7}\u{1B}[2J";
+Core\Cli::write('step 1 ');
+Core\Cli::write($paint, { newline: true });
+
+// 2. The same commands inside a `Core\Cli\Text`. That class carries text the
+//    terminal may show, so the commands must be replaced there too.
+Core\Cli::write('step 2 ');
+Core\Cli::write(Core\Cli\Text::plain($paint), { newline: true });
+
+// 3. Standard input is not a stream a program writes to, so this throws.
+try {
+    Core\Cli::write('nobody reads this', { stream: Core\Cli\Stream::In });
+    echo "step 3 written\n";
+} catch (Throwable $refused) {
+    echo "step 3 refused\n";
+}
+
+// 4. Half a million escape characters in one call. Each one is replaced by a
+//    wider character, so the text grows while it is written.
+string $many = Core\Str::repeat("\u{1B}", 500000);
+Core\Cli::write($many, { stream: Core\Cli\Stream::Err, newline: true });
+echo "step 4 written\n";
+
+// 5. A hundred thousand small writes, changing stream every time.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Cli::write('o');
+    Core\Cli::write('e', { stream: Core\Cli\Stream::Err });
+    $i = $i + 1;
+}
+echo "\nstep 5 written\n";

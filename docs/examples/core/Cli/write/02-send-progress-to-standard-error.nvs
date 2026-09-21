@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to keep the result apart from the progress notes. Standard output
+// carries the result. Standard error carries what the person running the
+// program should read.
+
+array<string> $files = ["orders.csv", "returns.csv"];
+
+foreach ($files as string $file) {
+    // This message goes to standard error. It shows on the screen, and it is
+    // not part of the result when you send the output to a file.
+    Core\Cli::write("reading " . $file, {stream: Core\Cli\Stream::Err, newline: true});
+}
+
+// This goes to standard output, which is the stream `Core\Cli::write` uses when
+// you name none.
+Core\Cli::write("2 files, 314 orders", {newline: true});
