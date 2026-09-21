@@ -2372,6 +2372,99 @@ mod tests {
         released(row);
     }
 
+    /// **`Core\Db\Row::toArray` lends the row its own array rather than
+    /// copying it**, and takes the reference back when the caller drops it.
+    ///
+    /// That is the member's whole cost, and it is the half a `.nvst` cannot
+    /// see: a copy compares equal to the original under every comparison a
+    /// program can write, so a member copying here would print correctly in
+    /// every case while costing one array of the row's width per call — and a
+    /// request rendering a result set as JSON calls this once per row.
+    ///
+    /// The count is asserted on both sides of the release, because a member
+    /// that retained and never gave the reference back reads exactly like this
+    /// one until the answer is dropped. The second reference is also what
+    /// makes a caller's write copy instead of reaching the row, so the two
+    /// counts are the proof under the program-level separation.
+    ///
+    /// The row is read once more at the end, since a member that moved the
+    /// slot out rather than lending it would leave the row empty and still
+    /// pass everything above.
+    // covers: Core\Db\Row::toArray
+    #[test]
+    fn to_array_lends_the_rows_own_columns_and_takes_the_reference_back() {
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        columns.set(
+            NvsStr::new(b"label"),
+            Value::str(NvsStr::new("north field".as_bytes())),
+        );
+        columns.set(NvsStr::new(b"seats"), Value::int(7));
+        columns.set(NvsStr::new(b"missed"), Value::null());
+        let stored = Value::array(columns);
+        let array = stored
+            .array_ptr()
+            .expect("a row is built over the array of its columns");
+        let row = crate::instance::build(&ROW, [stored]);
+
+        #[expect(
+            unsafe_code,
+            reason = "the row this frame built holds the array, so it is live \
+                      until the row is released at the end"
+        )]
+        let before = unsafe { NvsArray::refcount_of(array) };
+
+        let whole = nvs_runtime::call(nvs_core_db_row_to_array, &mut ctx, &[row])
+            .expect("a row answers the columns it carries");
+        assert_eq!(
+            whole.array_ptr(),
+            Some(array),
+            "`toArray` built a second copy of the columns the row already holds"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the row holds the array and this frame holds the answer, \
+                      so both references are live here"
+        )]
+        let held = unsafe { NvsArray::refcount_of(array) };
+        assert_eq!(
+            held,
+            before + 1,
+            "the answer outlives the call, so the member retained before it \
+             answered, and that second reference is what makes a caller's \
+             write separate a copy rather than reach into the row"
+        );
+
+        released(whole);
+
+        #[expect(
+            unsafe_code,
+            reason = "the row is this frame's and is released below, so its \
+                      array is still live"
+        )]
+        let after = unsafe { NvsArray::refcount_of(array) };
+        assert_eq!(
+            after, before,
+            "dropping the answer gives back exactly the one reference it took, \
+             so a request answering a result set row by row neither leaks the \
+             arrays nor frees one the row is still read from"
+        );
+
+        let label = Value::str(NvsStr::new(b"label"));
+        let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, label])
+            .expect("the row still carries the column it lent out");
+        assert_eq!(
+            answered.as_str_bytes(),
+            Some("north field".as_bytes()),
+            "the row lost a column by answering the whole of itself"
+        );
+        released(answered);
+        released(label);
+
+        released(row);
+    }
+
     /// **`Core\Db\Row::has` tells a column holding NULL from one the row does
     /// not carry**, and answers for both rather than throwing.
     ///

@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to turn the rows of a query into JSON, which is what a program
+// sends back to a browser or to another service.
+
+var $db = Core\Db::connect('notes');
+$db->execute(
+    'create table products (sku text not null, title text not null, on_hand int not null)',
+    []
+);
+$db->execute(
+    'insert into products (sku, title, on_hand) values (?, ?, ?), (?, ?, ?)',
+    ['A-1', 'Tea cup', 30, 'A-2', 'Tea pot', 4]
+);
+
+array<array<mixed>> $payload = [];
+foreach ($db->query('select sku, title, on_hand from products order by sku', []) as Core\Db\Row $row) {
+    // One call per row gives the array `Core\Json::encode` needs. Every column
+    // becomes one field of the JSON object, under the name of the column.
+    $payload[] = $row->toArray();
+}
+
+echo Core\Json::encode($payload), "\n";
+
+$db->close();

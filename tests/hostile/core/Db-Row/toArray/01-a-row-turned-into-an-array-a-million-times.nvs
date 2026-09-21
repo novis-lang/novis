@@ -1,0 +1,93 @@
+<?nvs
+// Attack: a row is turned into an array a million times. The array is written
+// to on every round. A row holding sixteen megabytes is read a hundred
+// thousand times, and fifty thousand rows are kept at once. Every step has to
+// finish, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table mixed_up (row_id integer primary key, seats int not null, label text not null, share real not null, price decimal(10,2) not null, picture blob not null, open boolean not null, missed int)', []);
+$db->execute(
+    'insert into mixed_up (seats, label, share, price, picture, open, missed) values (?, ?, ?, ?, ?, ?, ?)',
+    [7, 'seven', 7.5, 7.00 as decimal, 'GIF89a' as bytes, true, null],
+);
+
+array<Core\Db\Row> $one = $db->query('select seats, label, share, price, picture, open, missed from mixed_up', [])->all();
+var $row = $one[0];
+
+// 1. A million reads of the whole row. The reader gives out the array the row
+// itself holds, so a million reads may not leave a million arrays behind.
+uint $columns = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $columns = Core\Arr::count($row->toArray());
+    $i = $i + 1;
+}
+echo '1 columns: ', $columns, "\n";
+
+// 2. A hundred thousand rounds that write into what they were given. Each
+// write separates a copy, and a hundred thousand copies may not be kept.
+uint $written = 0;
+$i = 0;
+while ($i < 100000) {
+    array<mixed> $whole = $row->toArray();
+    $whole['seats'] = $i;
+    $whole['label'] = 'changed';
+    if ($whole['seats'] != null) {
+        $written = $written + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 written: ', $written, "\n";
+echo '2 row still: ', $row->int('seats') ?? 0, "\n";
+
+// 3. A picture of sixteen megabytes, read a hundred thousand times as part of
+// the whole row. The memory the program holds may not grow with the reads.
+$db->execute(
+    'insert into mixed_up (seats, label, share, price, picture, open, missed) values (?, ?, ?, ?, ?, ?, ?)',
+    [0, 'big', 0.0, 0.00 as decimal, Core\Str::repeat('x', 16000000) as bytes, false, null],
+);
+array<Core\Db\Row> $heavy = $db->query('select picture from mixed_up where label = ?', ['big'])->all();
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    array<mixed> $wide = $heavy[0]->toArray();
+    $seen = Core\Bytes::length($wide['picture'] as bytes);
+    $i = $i + 1;
+}
+echo '3 seen: ', $seen, "\n";
+
+// 4. Fifty thousand rows kept at once, each one also kept as an array. A row a
+// program still holds may not be freed under it.
+array<Core\Db\Row> $kept = [];
+array<array<mixed>> $arrays = [];
+$i = 0;
+while ($i < 50000) {
+    array<Core\Db\Row> $fetched = $db->query('select seats from mixed_up where row_id = ?', [1])->all();
+    $kept[] = $fetched[0];
+    $arrays[] = $fetched[0]->toArray();
+    $i = $i + 1;
+}
+int $total = 0;
+foreach ($arrays as array<mixed> $whole) {
+    $total = $total + ($whole['seats'] as ?int ?? 0);
+}
+echo '4 total: ', $total, "\n";
+
+// 5. Ten thousand arrays that outlive the rows they came from. Each array
+// must still be readable after its row is gone.
+array<array<mixed>> $outlived = [];
+$i = 0;
+while ($i < 10000) {
+    foreach ($db->query('select seats, label from mixed_up where row_id = ?', [1]) as Core\Db\Row $passing) {
+        $outlived[] = $passing->toArray();
+    }
+    $i = $i + 1;
+}
+uint $readable = 0;
+foreach ($outlived as array<mixed> $whole) {
+    if (Core\Str::length($whole['label'] as string) == 5) {
+        $readable = $readable + 1;
+    }
+}
+echo '5 readable: ', $readable, "\n";

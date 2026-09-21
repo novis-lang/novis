@@ -1,0 +1,34 @@
+<?nvs
+// Measures reading a whole row as an array, which a program does once per row
+// before it sends a result set on as JSON.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table tables (id integer primary key, seats int not null, floors int not null)', []);
+        $db->execute('insert into tables (seats, floors) values (?, ?)', [4, 2]);
+        array<Core\Db\Row> $rows = $db->query('select seats, floors from tables', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['seats', 'floors'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The entry read is chosen by what was read so far, so the loop
+            // cannot be left out.
+            array<mixed> $whole = $row->toArray();
+            if ($whole[$columns[($total % 2) as int]] != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

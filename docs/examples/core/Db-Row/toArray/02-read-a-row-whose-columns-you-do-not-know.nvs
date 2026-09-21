@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to print a row when the program does not know which columns it
+// has. A tool that shows a table works this way.
+
+var $db = Core\Db::connect('notes');
+$db->execute(
+    'create table settings (site text not null, language text not null, page_size int not null, note text)',
+    []
+);
+$db->execute(
+    'insert into settings (site, language, page_size, note) values (?, ?, ?, ?)',
+    ['example.com', 'en', 25, null]
+);
+
+array<Core\Db\Row> $rows = $db->query('select site, language, page_size, note from settings', [])->all();
+var $row = $rows[0];
+
+// The array holds the columns in the order the query asked for them. A column
+// with no value is in the array too, and its value is `null`.
+array<mixed> $whole = $row->toArray();
+foreach ($whole as string $name => mixed $value) {
+    echo $name, ': ', $value ?? '-', "\n";
+}
+
+$db->close();

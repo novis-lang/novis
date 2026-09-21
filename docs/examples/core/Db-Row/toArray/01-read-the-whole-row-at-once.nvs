@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read every column of a row in one step.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (name text not null, seats int not null)', []);
+$db->execute('insert into guests (name, seats) values (?, ?)', ['Ada Ahmed', 4]);
+
+array<Core\Db\Row> $rows = $db->query('select name, seats from guests', [])->all();
+var $row = $rows[0];
+
+// `toArray` returns the whole row as an array. The key of each entry is the
+// name of the column, and the value is what that column holds.
+array<mixed> $whole = $row->toArray();
+
+// `as` turns a value into the type this line needs. This prints
+// `Ada Ahmed booked 4 seats`.
+echo $whole['name'] as ?string ?? '', ' booked ', $whole['seats'] as ?int ?? 0, " seats\n";
+
+$db->close();

@@ -1,0 +1,85 @@
+--TEST--
+`Core\Db\Row::toArray` answers one entry per column, keyed by label and in the select list's order, carries a NULL column as a present `null`, and a write to what it answered leaves the row as it was — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::toArray
+// Three claims one program cannot tell apart from a single line of output.
+// First, the array is the whole row and nothing else: the entries are counted
+// against the select list rather than read off by name, so an array that
+// dropped a column or invented one fails here while every named lookup still
+// prints plausibly. Second, every entry is the value the universal reader
+// answers for that column, counted the same way. Third, a write to what came
+// back separates a copy, so the row keeps its own value — the one claim that
+// tells a shared array from a copied one from inside a program.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table readings (label text not null, seats int not null, share real not null,
+      price decimal(10,2) not null, missed int)",
+    []
+);
+$db->execute(
+    "insert into readings (label, seats, share, price, missed) values (?, ?, ?, ?, ?)",
+    ["north field", 7, 2.5, "7.25" as decimal, null]
+);
+
+// The select list is deliberately not the order the table declares, since the
+// row is described by the statement and never by the table.
+array<Row> $one = $db->query(
+    "select seats, label, missed, share, price from readings",
+    []
+)->all();
+var $row = $one[0];
+
+array<mixed> $whole = $row->toArray();
+
+array<string> $expected = ["seats", "label", "missed", "share", "price"];
+int $at = 0;
+uint $ordered = 0;
+uint $agreed = 0;
+foreach ($whole as string $name => mixed $value) {
+    if ($at < 5 && $name == $expected[$at]) {
+        $ordered = $ordered + 1;
+    }
+    if ($value == $row->get($name)) {
+        $agreed = $agreed + 1;
+    }
+    $at = $at + 1;
+}
+echo "columns: ", Core\Arr::count($whole), "\n";
+echo "in order: ", $ordered, "\n";
+echo "agree with get: ", $agreed, "\n";
+
+// A column with no value in this row is an entry that is present and holds
+// `null`. A name that is no column of the row is no entry at all.
+if (Core\Arr::hasKey($whole, "missed") && $whole["missed"] == null) {
+    echo "missed: present and null\n";
+}
+if (!Core\Arr::hasKey($whole, "missing")) {
+    echo "missing: absent\n";
+}
+
+// The write below separates this program's own copy. What the row carries is
+// what the statement read, and a second call answers that again.
+$whole["seats"] = 99;
+array<mixed> $again = $row->toArray();
+echo "written: ", $whole["seats"] as ?int ?? 0, "\n";
+echo "row: ", $row->int("seats") ?? 0, " ", $again["seats"] as ?int ?? 0, "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+columns: 5
+in order: 5
+agree with get: 5
+missed: present and null
+missing: absent
+written: 99
+row: 7 7
