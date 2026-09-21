@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program asks about the streams over and over, from the top level
+// and from deep inside itself. It tries to get two different answers in one
+// run. Every answer must match the first one, and the program must run to the
+// end.
+// hostile: timeout-ms 60000
+
+class Deep
+{
+    // Asks the same question at every level. An answer read from anywhere but
+    // the one resolved profile has a chance to differ here.
+    public static function ask(uint $left, bool $first): uint
+    {
+        uint $wrong = 0;
+        if (Core\Cli::isTty(Core\Cli\Stream::Out) != $first) {
+            $wrong = $wrong + 1;
+        }
+        if ($left > 0) {
+            $wrong = $wrong + Deep::ask($left - 1, $first);
+        }
+        return $wrong;
+    }
+}
+
+// 1. The first answer for each stream. Every answer below is compared with one
+//    of these three.
+bool $in = Core\Cli::isTty(Core\Cli\Stream::In);
+bool $out = Core\Cli::isTty(Core\Cli\Stream::Out);
+bool $err = Core\Cli::isTty(Core\Cli\Stream::Err);
+echo "step 1 answered\n";
+
+// 2. Three hundred thousand questions in a row. Nothing the program does may
+//    change what a stream is.
+uint $disagreements = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Cli::isTty(Core\Cli\Stream::In) != $in) {
+        $disagreements = $disagreements + 1;
+    }
+    if (Core\Cli::isTty(Core\Cli\Stream::Out) != $out) {
+        $disagreements = $disagreements + 1;
+    }
+    if (Core\Cli::isTty(Core\Cli\Stream::Err) != $err) {
+        $disagreements = $disagreements + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 2 disagreements ', $disagreements, "\n";
+
+// 3. The same question from five hundred levels down, while the program writes
+//    to the stream it is asking about.
+Core\Cli::write('step 3 ');
+echo 'disagreements ', Deep::ask(500, $out), "\n";

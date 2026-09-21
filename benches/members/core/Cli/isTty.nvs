@@ -1,0 +1,35 @@
+<?nvs
+// Measures asking whether a stream is a terminal, as a program does before it
+// decides to print colour or to draw a progress line.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $terminals = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The stream of each round is picked by the round before it, so no
+            // round can be left out.
+            uint $pick = ($terminals + $i) % 3;
+            if ($pick == 0) {
+                if (Core\Cli::isTty(Core\Cli\Stream::In)) {
+                    $terminals = $terminals + 1;
+                }
+            } elseif ($pick == 1) {
+                if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+                    $terminals = $terminals + 1;
+                }
+            } else {
+                if (Core\Cli::isTty(Core\Cli\Stream::Err)) {
+                    $terminals = $terminals + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $terminals;
+    }
+}
+
+echo Bench::run(200000), "\n";

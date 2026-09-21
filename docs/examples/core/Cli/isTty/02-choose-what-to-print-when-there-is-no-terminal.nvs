@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a program prints one way for a person and another way for a file.
+// A separator line as wide as the window is useful on screen. In a log file it
+// is noise.
+
+if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+    // There is a terminal, so draw a line across it.
+    echo Core\Str::repeat("-", Core\Cli::width()), "\n";
+    echo "working\n";
+} else {
+    // The output goes to a file or to another program. This prints one short
+    // line and nothing else.
+    echo "working\n";
+}

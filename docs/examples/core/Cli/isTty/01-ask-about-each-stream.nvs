@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to ask whether a stream is a terminal. `Core\Cli::isTty` takes one
+// of the three `Core\Cli\Stream` cases and returns `true` or `false`.
+
+// Standard input is where a person types. Standard output carries the result.
+// Standard error carries the messages about the work.
+array<string> $names = ["input", "output", "error"];
+array<bool> $terminal = [
+    Core\Cli::isTty(Core\Cli\Stream::In),
+    Core\Cli::isTty(Core\Cli\Stream::Out),
+    Core\Cli::isTty(Core\Cli\Stream::Err),
+];
+
+int $i = 0;
+while ($i < 3) {
+    // Each stream is reported on its own line. All three say "no" here, because
+    // this program runs without a terminal.
+    echo $names[$i], " ", $terminal[$i] ? "yes" : "no", "\n";
+    $i = $i + 1;
+}
