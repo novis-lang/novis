@@ -2,21 +2,18 @@
 
 ## State
 
-Goal `core-db-rows-and-1-more` is reached. All eleven of its items carry their feature proofs:
-`python tools/dossier.py --group 'Core\Db\Rows' --owed` and the same for `Core\Db\Schema` both print
-zero features owed, `--id` prints `complete.` for every member, and the two goal-end gates
-(`owners.py --closes`, `playbook.py --closes`) name nothing. Nothing is blocked.
+Goal `core-db-rows-and-1-more` is reached. All eleven features of `Core\Db\Rows` and `Core\Db\Schema`
+carry their feature proofs, and the one check holding the DONE claim — the `vscode (headless)` floor
+check — is green: 250 passing, 0 failing. Both goal-end gates (`owners.py --closes`, `playbook.py
+--closes`) name nothing and `verify.py --doc` resolves every link. Nothing is blocked.
 
-One bug the proofs found and this session fixed: `Core\Db\Schema::applySafe`'s refusal put a full
-stop after the grade's reason, which already ends with one, so every refusal read `… elsewhere..`.
-The format string in `crates/nvs-stdlib/src/db/schema.rs:673` no longer adds one, and
-`apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe` asserts the message holds no `..`.
-
-Two facts the next `Core\Db` dossier goal should not re-derive. **A void member's bench chains
-through its receiver**, the way `benches/members/core/Db-Connection/close.nvs` does: two entries of
-the same value in an array, indexed by the running total. **An apply program needs
-`schema = ["notes"]` beside `connect = ["notes"]` in `nvs.toml`**, and `[db.notes]` is `:memory:`, so
-every program creates the tables it wants to find.
+That check was a real defect, not stale work. `editors/vscode/src/shadow.ts`'s `sweep` deletes an
+earlier build's copy of the same source at once, and still expressed "at once" as
+`now - Math.max(mtimeMs, birthtimeMs) >= grace` with `grace` at `0`. A file written a moment ago can
+carry a timestamp ahead of `Date.now()`: a probe of 2000 rounds on this machine read one ahead in over
+half of them, by up to 2.3 ms. The subtraction then reads as an age below zero and the copy stays. The
+same-source branch no longer reads an age at all, and a new case sweeps with a clock a minute behind
+the file system, which fails against the old comparison with the assertion the floor check reported.
 
 ## Next group
 
@@ -25,14 +22,19 @@ file set: `crates/nvs-stdlib/src/db/transaction.rs`, each feature's proof trees,
 a program opens a transaction. One slice is one feature with all of `rule:testing/feature-proofs`.
 
 - [ ] **`Core\Db\Transaction::execute`** — owes examples, hostile, perf, tests. The card is
-      `crates/nvs-stdlib/src/db/registry.rs:659`.
+      `crates/nvs-stdlib/src/db/registry.rs:660`, and its `symbol` is the connection's: one body is
+      reached through either handle.
 - [ ] **`Core\Db\Transaction::executeMany`** — owes examples, hostile, perf, tests. The card is
-      `crates/nvs-stdlib/src/db/registry.rs:672`.
+      `crates/nvs-stdlib/src/db/registry.rs:673`.
 - [ ] **`Core\Db\Transaction::query`** — owes examples, hostile, perf, tests. The card is
-      `crates/nvs-stdlib/src/db/registry.rs:617`.
+      `crates/nvs-stdlib/src/db/registry.rs:618`.
+
+One fact from the `Core\Db\Schema` group that still applies: a program that runs statements needs its
+database named in `nvs.toml` beside `connect`, and `[db.notes]` is `:memory:`, so every program creates
+the tables it wants to find.
 
 ## Backlog
 
-- A grading reason reaches an end user through `applySafe`'s refusal and carries `§ 6` from the
-  record that graded it — `crates/nvs-db/src/ddl.rs` writes those sentences, and AGENTS.md
-  § *Text an end user reads* says no reader ever needs a section number.
+- The extension's own tests write their scratch trees under the OS temp directory
+  (`mkdtempSync(join(tmpdir(), …))`, `editors/vscode/test/client/shadow.test.ts:31`). `AGENTS.md`
+  rule 10 puts an agent's scratch under `.agent-tmp/` and says nothing about a test's; the user's call.
