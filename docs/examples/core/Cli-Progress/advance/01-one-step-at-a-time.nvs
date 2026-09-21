@@ -1,0 +1,21 @@
+<?nvs
+// Shows the simplest use: a program does its work step by step and tells the
+// bar after each one. This example does not run in a terminal, so the bar
+// draws nothing and only the report is printed.
+
+uint $steps = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+    array<string> $work = ["read the file", "check the rows", "write the report"];
+    uint $done = 0;
+
+    foreach ($work as string $step) {
+        // Your program does the step here. Then `advance` counts it. One call
+        // is one unit of work, because `by` is one when you leave it out.
+        $bar->advance();
+        $done = $done + 1;
+    }
+
+    return $done;
+});
+
+// This prints 3. The bar was full when the call ended.
+echo "finished ", $steps, " steps\n";

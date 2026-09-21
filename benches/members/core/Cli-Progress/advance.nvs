@@ -1,0 +1,26 @@
+<?nvs
+// Measures counting one step of work on an open progress bar. A tool meets this
+// once for every item it finishes while it reports its progress.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 3
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        return Core\Cli::progress($rounds, fn(Core\Cli\Progress $bar): uint => {
+            uint $total = 0;
+            uint $i = 0;
+            while ($i < $rounds) {
+                // The step of each round is the round before it, so no round
+                // can be left out.
+                uint $by = ($total % 3) + 1;
+                $bar->advance({by: $by});
+                $total = $total + $by;
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(200000), "\n";

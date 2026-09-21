@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a progress bar is given captions that try to run commands on the
+// terminal. It is also counted far past its total, and used after it closed.
+// Nothing may reach the terminal as a command, and the program must run to its
+// last line.
+// hostile: timeout-ms 60000
+
+// 1. Captions made of control characters. They clear the screen, rename the
+//    window and end the line early. All of it must arrive as text.
+Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+    $bar->advance({ label: "\u{1B}[2J\u{1B}[H" });
+    $bar->advance({ label: "\u{1B}]0;whoami\u{7}" });
+    $bar->advance({ label: "a caption\rand another\u{0}\u{8}\u{8}" });
+    return 3;
+});
+echo "step 1 painted\n";
+
+// 2. A caption of a million characters. A row wider than the terminal is cut at
+//    the edge, so the bar keeps its shape.
+Core\Cli::progress(1, fn(Core\Cli\Progress $bar): uint => {
+    $bar->advance({ by: 1, label: Core\Str::repeat('c', 1000000) });
+    return 1;
+});
+echo "step 2 painted\n";
+
+// 3. The count is pushed past the total, twice with the largest step there is.
+//    It must stop at the total instead of starting again from zero.
+Core\Cli::progress(10, fn(Core\Cli\Progress $bar): uint => {
+    $bar->advance({ by: 18446744073709551615 });
+    $bar->advance({ by: 18446744073709551615 });
+    return 2;
+});
+echo "step 3 painted\n";
+
+// 4. Half a million steps on one bar. The runtime draws on its own timer, so a
+//    program cannot make it draw faster, and nothing may be kept behind.
+uint $counted = Core\Cli::progress(500000, fn(Core\Cli\Progress $bar): uint => {
+    uint $at = 0;
+    while ($at < 500000) {
+        $bar->advance();
+        $at = $at + 1;
+    }
+    return $at;
+});
+echo 'step 4 counted ', $counted, " steps\n";
+
+// 5. A handle is used while a second bar is open inside it, then after its own
+//    bar has closed. Both must throw an error the program can catch.
+var $escaped = Core\Cli::progress(2, fn(Core\Cli\Progress $outer): Core\Cli\Progress => {
+    try {
+        Core\Cli::progress(2, fn(Core\Cli\Progress $inner): uint => {
+            $inner->advance();
+            $outer->advance();
+            return 1;
+        });
+    } catch (LogicError $e) {
+        echo "step 5 refused the outer bar\n";
+    }
+    return $outer;
+});
+try {
+    $escaped->advance();
+} catch (LogicError $e) {
+    echo "step 5 refused the closed bar\n";
+}
+echo "step 5 painted\n";
