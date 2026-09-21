@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program tries to make the terminal report more colour than it has,
+// so that it can send colour somewhere that cannot show it. The answer must
+// stay the same, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. The depth is decided one time for the whole program. This first read is
+//    what every later read must give.
+Core\Cli\ColorDepth $first = Core\Cli::colorDepth();
+echo 'step 1 no colour ', $first == Core\Cli\ColorDepth::None ? 'yes' : 'no', "\n";
+
+// 2. The program tries to set colour settings of its own. These are not
+//    settings a program may change, so the depth must not move.
+array<string> $names = ['cli.color', 'cli.colorDepth', 'terminal.color', 'colors'];
+foreach ($names as string $name) {
+    bool $set = Core\Config::set($name, 'truecolor');
+    echo 'step 2 set ', $set ? 'yes' : 'no', "\n";
+}
+echo 'step 2 same ', Core\Cli::colorDepth() == $first ? 'yes' : 'no', "\n";
+
+// 3. One million reads in a row. Every one must give the first answer, and a
+//    read must keep nothing behind.
+uint $same = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    if (Core\Cli::colorDepth() == $first) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 3 same ', $same, " times\n";

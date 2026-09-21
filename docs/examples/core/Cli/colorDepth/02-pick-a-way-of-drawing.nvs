@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to pick between two ways of drawing a chart. The four cases go up
+// from `None` to `TrueColor`. Compare them as numbers to ask whether the
+// terminal has at least the colour you want.
+
+int $depth = Core\Cli::colorDepth() as int;
+int $shaded = Core\Cli\ColorDepth::Ansi256 as int;
+
+string $chart = "bars of hash marks";
+if ($depth >= $shaded) {
+    $chart = "bars in 256 shades";
+}
+
+echo "drawing: ", $chart, "\n";
