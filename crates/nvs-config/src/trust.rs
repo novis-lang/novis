@@ -235,9 +235,13 @@ mod platform {
 
     use super::Untrusted;
 
+    /// The three groups are named by SID — `Authenticated Users`, `BUILTIN\Users` and `Everyone` in
+    /// that order — because `icacls` resolves a name in the language Windows is installed in, and
+    /// the English one maps to no account anywhere else.
     pub(super) const REMEDY: &str = "the path must be owned by this account, `BUILTIN\\Administrators` or \
          `NT AUTHORITY\\SYSTEM` and grant write to no one else: `icacls <path> /inheritance:d` \
-         then `icacls <path> /remove:g \"Authenticated Users\" \"Users\" \"Everyone\"`";
+         then `icacls <path> /remove:g *S-1-5-11 *S-1-5-32-545 *S-1-1-0` (Authenticated Users, \
+         Users and Everyone, by SID because their names are localized)";
 
     /// A SID, held in a `u32` buffer: a `SID` is `DWORD`-aligned and a `Vec<u8>` promises nothing
     /// about alignment, so every one of these is allocated as words and cast at the call.
