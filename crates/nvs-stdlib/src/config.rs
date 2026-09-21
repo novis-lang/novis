@@ -238,3 +238,254 @@ nvs_runtime::nvs_helper! {
         Ok(Value::array(out))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value, call};
+
+    use super::{
+        nvs_core_config_all, nvs_core_config_get, nvs_core_config_restore, nvs_core_config_set,
+    };
+
+    /// A context configured out of the TOML an operator would have written.
+    ///
+    /// Both halves are built from that one text, the way a boot builds them:
+    /// `get` and `all` read the table, and the `[limits.hard]` ceiling a `set`
+    /// is bounded by is read off the typed tree beside it. A fixture that
+    /// filled only one of them would answer plausibly and bound nothing.
+    fn configured(written: &str) -> Ctx {
+        let table: toml::Table = written.parse().expect("the fixture is valid TOML");
+        let config = toml::Value::Table(table.clone())
+            .try_into()
+            .expect("the fixture deserializes into the tree it is written for");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(Arc::new(nvs_config::Snapshot {
+            config,
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// One `string` argument, as a call site builds it.
+    fn text(value: &str) -> Value {
+        Value::str(NvsStr::new(value.as_bytes()))
+    }
+
+    /// What a member answered as text, or `None` where it answered `null`.
+    fn answered_text(value: Value) -> Option<String> {
+        let out = value.as_str_bytes().map(|bytes| {
+            String::from_utf8(bytes.to_vec())
+                .expect("`rule:types/bytes` guarantees a `string` is UTF-8")
+        });
+        #[expect(unsafe_code, reason = "this frame owns the reference the member built")]
+        unsafe {
+            value.release();
+        }
+        out
+    }
+
+    /// `Core\Config::get`'s answer for `name`.
+    fn get(ctx: &mut Ctx, name: &str) -> Option<String> {
+        let argument = text(name);
+        let answered = call(nvs_core_config_get, ctx, &[argument]).expect("`get` refuses nothing");
+        let out = answered_text(answered);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the argument it built, and the member \
+                      borrows rather than consumes it"
+        )]
+        unsafe {
+            argument.release();
+        }
+        out
+    }
+
+    /// `Core\Config::set`'s answer for a name and a value.
+    fn set(ctx: &mut Ctx, name: &str, value: &str) -> bool {
+        let args = [text(name), text(value)];
+        let answered =
+            call(nvs_core_config_set, ctx, &args).expect("a refusal is `false` and never a fault");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the two arguments it built, and the \
+                      member borrows rather than consumes them"
+        )]
+        unsafe {
+            args[0].release();
+            args[1].release();
+        }
+        answered.as_bool().expect("`set` answers a bool")
+    }
+
+    /// `Core\Config::restore` for one name.
+    fn restore(ctx: &mut Ctx, name: &str) {
+        let argument = text(name);
+        let answered =
+            call(nvs_core_config_restore, ctx, &[argument]).expect("`restore` refuses nothing");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the argument it built, and the answer is \
+                      the `null` a `void` member leaves behind"
+        )]
+        unsafe {
+            answered.release();
+            argument.release();
+        }
+    }
+
+    /// `Core\Config::all`'s answer, in the order the member reported it.
+    fn all(ctx: &mut Ctx) -> Vec<(String, String)> {
+        let answered = call(nvs_core_config_all, ctx, &[]).expect("`all` refuses nothing");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the array the member built, and the \
+                      handle releases it"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(answered.array_ptr().expect("`all` answers an array")) };
+        array
+            .keys()
+            .iter()
+            .map(|key| {
+                let value = array.get(key).expect("a key `all` has just reported");
+                let text = String::from_utf8(
+                    value
+                        .as_str_bytes()
+                        .expect("`all` answers one `string` per entry")
+                        .to_vec(),
+                )
+                .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
+                (
+                    String::from_utf8(key.clone()).expect("a directive name is UTF-8"),
+                    text,
+                )
+            })
+            .collect()
+    }
+
+    /// `all` and `get` are one answer set, which is the claim no single line of
+    /// either member shows: every name `all` reports answers the same from
+    /// `get`, in name order, with what this request set folded over the file.
+    ///
+    /// The two shapes that are in neither answer are asserted here too, because
+    /// a member that reported them would still look right on its own line: a
+    /// name holding a group of settings is not a value, and a name holding a
+    /// list has no spelling a `set` would take back.
+    // covers: Core\Config::all
+    #[test]
+    fn all_and_get_report_one_answer_set_in_name_order() {
+        let mut ctx = configured(
+            "[limits]\nmemory = \"256M\"\nmax_tasks = 8\n\n[debug]\nmode = [\"coverage\"]\n",
+        );
+        assert!(
+            set(&mut ctx, "log.level", "debug"),
+            "the fixture's own set was refused, so the fold below asserts nothing"
+        );
+
+        let reported = all(&mut ctx);
+        let names: Vec<&str> = reported.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(names, ["limits.max_tasks", "limits.memory", "log.level"]);
+        assert_eq!(
+            reported[0].1, "8",
+            "a number is reported the way the file spelled it"
+        );
+        assert_eq!(
+            reported[2].1, "debug",
+            "the overlay is folded over the file"
+        );
+
+        for (name, value) in &reported {
+            assert_eq!(
+                get(&mut ctx, name).as_deref(),
+                Some(value.as_str()),
+                "`get` and `all` disagree about {name}"
+            );
+        }
+        assert_eq!(get(&mut ctx, "limits").as_deref(), None);
+        assert_eq!(get(&mut ctx, "debug.mode").as_deref(), None);
+    }
+
+    /// `restore` drops this request's own change and nothing else: the value
+    /// the file gives is in force again rather than nothing, and a name the
+    /// request never set is left exactly as the file wrote it.
+    ///
+    /// Every `.nvst` case over these two runs on a host with no configuration
+    /// file, where the file's own value *is* nothing and the two outcomes
+    /// cannot be told apart. A fixture with a table under it is what this side
+    /// adds.
+    // covers: Core\Config::get, Core\Config::restore
+    #[test]
+    fn restore_drops_this_requests_change_and_leaves_the_files_value() {
+        let mut ctx = configured("[limits]\nmemory = \"256M\"\n\n[log]\nlevel = \"info\"\n");
+        assert_eq!(get(&mut ctx, "memory").as_deref(), Some("256M"));
+
+        assert!(
+            set(&mut ctx, "memory", "384M"),
+            "the fixture states no ceiling, so this set is what the rest reads"
+        );
+        assert_eq!(
+            get(&mut ctx, "limits.memory").as_deref(),
+            Some("384M"),
+            "a short limit name and its dotted spelling are one key"
+        );
+
+        restore(&mut ctx, "limits.memory");
+        assert_eq!(
+            get(&mut ctx, "memory").as_deref(),
+            Some("256M"),
+            "the file's own value is what comes back, not nothing"
+        );
+
+        restore(&mut ctx, "log.level");
+        assert_eq!(
+            get(&mut ctx, "log.level").as_deref(),
+            Some("info"),
+            "a name this request never set is left as the file wrote it"
+        );
+    }
+
+    /// The `[limits.hard]` ceiling, asserted on both sides: the value at the
+    /// ceiling is taken and the next one up is refused, with what was in force
+    /// left alone. A `set` that stopped one step early reads plausibly against
+    /// either half on its own.
+    ///
+    /// The ceiling the runtime enforces moves with the set it accepted, which
+    /// is the whole reason the member refreshes the limits after one.
+    // covers: Core\Config::set
+    #[test]
+    fn a_set_at_the_ceiling_is_taken_and_the_next_one_up_is_refused() {
+        let mut ctx =
+            configured("[limits]\nmemory = \"128M\"\n\n[limits.hard]\nmemory = \"512M\"\n");
+
+        assert!(
+            set(&mut ctx, "memory", "512M"),
+            "the value at the ceiling is the last one allowed"
+        );
+        assert_eq!(get(&mut ctx, "memory").as_deref(), Some("512M"));
+        // The figure itself is the ceiling less the limit handler's reserve,
+        // which is `Ctx::memory_limit`'s own rule and not this member's.
+        let enforced = ctx.memory_limit();
+        assert!(
+            enforced > 128 << 20,
+            "the ceiling the runtime enforces did not move with the set"
+        );
+
+        assert!(
+            !set(&mut ctx, "memory", "513M"),
+            "one step above the ceiling is the first one refused"
+        );
+        assert_eq!(
+            get(&mut ctx, "memory").as_deref(),
+            Some("512M"),
+            "a refusal leaves what was in force alone"
+        );
+        assert_eq!(
+            ctx.memory_limit(),
+            enforced,
+            "a refused set moved the ceiling the runtime enforces"
+        );
+    }
+}
