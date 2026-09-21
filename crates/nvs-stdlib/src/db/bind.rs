@@ -801,4 +801,145 @@ mod tests {
              what PostgreSQL has to say here"
         );
     }
+
+    /// `rule:core-classes/db-transactions`'s first hazard, on the member most likely to meet
+    /// it: a `$tx` its closure carried out of the `transaction()` call still
+    /// names a live connection, so a write through it would run outside every
+    /// transaction and on whatever that connection is doing now.
+    ///
+    /// **Asserted through [`statement_of`] rather than [`transaction_of`]**,
+    /// because the guard is only worth anything where it sits in the statement
+    /// path: the context here has no connection filed under the key, so
+    /// [`rendering_of`] is a `Fault::fatal` waiting one line further on, and a
+    /// thrown `LogicError` means [`handle_of`] refused first. The two receivers
+    /// share one body and one symbol — [`TRANSACTION`] says why — so this is
+    /// the only thing that tells `Core\Db\Transaction::execute` apart from the
+    /// connection's, and the message it carries is the class it was reached
+    /// through rather than the `named` constant, which is the connection's on
+    /// both paths.
+    // covers: Core\Db\Transaction::execute
+    #[test]
+    fn a_write_through_an_escaped_transaction_is_refused_before_it_reaches_a_connection() {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        // The last two slots are this class's own: the scope flag § 7 clears
+        // when the call returns, and the reason a `rollBack` would have left.
+        let escaped = |open: bool| {
+            crate::instance::build(
+                &TRANSACTION,
+                [
+                    Value::uint(0),
+                    Value::str(NvsStr::new(b"main")),
+                    Value::bool(open),
+                    Value::null(),
+                ],
+            )
+        };
+        // Only the receiver is read on either path below, the refusal landing
+        // before the statement is bound at all.
+        let args = |receiver| {
+            [
+                receiver,
+                Value::str(NvsStr::new(b"insert into t (name) values (?)")),
+                Value::null(),
+                Value::null(),
+            ]
+        };
+
+        let refused = statement_of(&mut ctx, &args(escaped(false)), "execute", EXECUTE)
+            .err()
+            .expect("a transaction whose call has returned refuses every statement");
+        match refused {
+            Fault::Thrown(ThrownClass::Logic, message) => assert!(
+                message.contains(TRANSACTION_NAME) && message.contains("execute"),
+                "§ 7's refusal names the handle the write was attempted through: {message}"
+            ),
+            other => panic!("an escaped transaction is a `LogicError`, not {other:?}"),
+        }
+
+        // And the other side of the bound: the same instance with its scope
+        // still open is past the guard, so what stops it is the missing
+        // connection rather than anything this member decided.
+        let past = statement_of(&mut ctx, &args(escaped(true)), "execute", EXECUTE)
+            .err()
+            .expect("no connection is filed under the key this fixture wrote");
+        assert!(
+            !matches!(past, Fault::Thrown(ThrownClass::Logic, _)),
+            "an open transaction reaches the connection lookup: {past:?}"
+        );
+    }
+
+    /// § 4's empty batch is where `rule:core-classes/db-transactions`'s scope guard is easiest to
+    /// lose: a member that answered `0` for a `$sets` holding nothing, before
+    /// it had read its receiver at all, would pass every other assertion in
+    /// this tree and still let a program reach a transaction its owning call
+    /// had already returned from.
+    ///
+    /// **The rule is the interface's and not one member's, so the batch path
+    /// owes what the single-statement path owes.** [`batch_of`] and
+    /// [`statement_of`] read a receiver through the one [`handle_of`], and
+    /// what this asserts is that the two **agree** — a batch that grew a
+    /// receiver reading of its own would answer plausibly here and disagree
+    /// with its neighbour.
+    // covers: Core\Db\Transaction::executeMany
+    #[test]
+    fn an_empty_batch_through_an_escaped_transaction_is_refused_as_a_statement_is() {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let escaped = || {
+            crate::instance::build(
+                &TRANSACTION,
+                [
+                    Value::uint(0),
+                    Value::str(NvsStr::new(b"main")),
+                    Value::bool(false),
+                    Value::null(),
+                ],
+            )
+        };
+        // A real empty array and not a `null`, because the whole question is
+        // what a batch with no work in it does before it reaches a connection.
+        let sets = Value::array(NvsArray::new());
+        let args = |receiver| {
+            [
+                receiver,
+                Value::str(NvsStr::new(b"insert into t (name) values (?)")),
+                sets,
+                Value::null(),
+            ]
+        };
+
+        let refusal = |fault| match fault {
+            Fault::Thrown(ThrownClass::Logic, message) => message,
+            other => panic!("§ 7 makes an escaped transaction a `LogicError`, not {other:?}"),
+        };
+        let batched = refusal(
+            batch_of(&mut ctx, &args(escaped()), "executeMany", EXECUTE_MANY)
+                .err()
+                .expect("an empty batch reads its receiver before it answers `0`"),
+        );
+        assert!(
+            batched.contains(TRANSACTION_NAME) && batched.contains("executeMany"),
+            "the refusal names the handle the batch was attempted through: {batched}"
+        );
+
+        let single = refusal(
+            statement_of(&mut ctx, &args(escaped()), "execute", EXECUTE)
+                .err()
+                .expect("the single-statement path refuses the same receiver"),
+        );
+        assert_eq!(
+            batched.replace("executeMany", "execute"),
+            single,
+            "one interface, one guard: the two paths differ in the member they name and in \
+             nothing else"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame built, and \
+                      neither path above retains its arguments"
+        )]
+        unsafe {
+            sets.release();
+        }
+    }
 }

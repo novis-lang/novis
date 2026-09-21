@@ -1921,6 +1921,70 @@ entry = "benches/members/core/Db-Schema/applyIncludingRisky.nvs"
 connect = ["notes"]
 schema = ["notes"]
 
+# `Core\Db\Transaction`'s programs write through the second handle of the one interface, so they
+# open `[db.notes]` by name and ask for nothing else: the transaction is reached through a
+# connection this grant already covers, and `rule:classes/no-traits`'s delegation gives the two
+# receivers one statement path rather than a grant of its own.
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/01-write-a-row-inside-a-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/02-give-up-on-a-write.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/03-save-an-order-with-its-lines.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/execute/01-a-write-after-the-work-is-over-and-writes-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/execute.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/01-write-many-rows-inside-a-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/02-all-of-the-batch-or-none-of-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/03-import-a-list-of-records-under-one-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/executeMany/01-sets-that-do-not-agree-and-a-batch-after-the-work-is-over.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/executeMany.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
