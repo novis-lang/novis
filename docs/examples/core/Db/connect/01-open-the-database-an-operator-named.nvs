@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to open a database by its name. `Core\Db::connect` opens the
+// `[db.notes]` block of `nvs.toml`. The address and the password stay in that
+// block, so this program never writes them.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+// This prints `1 buy milk`.
+foreach ($db->query('select id, text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ' ', $row->string('text') ?? '', "\n";
+}
+
+$db->close();

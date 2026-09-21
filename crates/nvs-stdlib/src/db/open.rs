@@ -229,9 +229,11 @@ nvs_runtime::nvs_helper! {
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a name no `[db.<name>]` block covers, or a block that
-/// cannot be read as a connection. An `IOError` for a host that does not resolve, or
-/// a connection, TLS handshake or login that failed. A `Db\DbError` for a pool whose
-/// `acquire` bound expired with no slot free.
+/// cannot be read as a connection. An `IOError` for a host that does not resolve,
+/// for a connection, TLS handshake or login that failed, and for a pool whose
+/// `acquire` bound expired with no slot free — [`crate::db::pool::wait_for_slot`]
+/// owns that last one's class, and § 8's `Db\DbError` is for a refusal the *server*
+/// made, which a ceiling on this core is not.
 pub(crate) fn open_named(
     ctx: &mut nvs_runtime::Ctx,
     name: &str,
@@ -1924,5 +1926,67 @@ mod tests {
             );
             values.release();
         }
+    }
+
+    /// `Core\Db::connect` asks its grant **before** it reads any configuration,
+    /// so a program with no grant learns nothing about which blocks a deployment
+    /// wrote — [`nvs_core_db_connect`]'s own doc, asserted as the pair it is.
+    ///
+    /// **Only Rust can ask this.** Which names a program may open is written in
+    /// `nvs.toml`, and one program runs under one deployment: separating
+    /// *refused because the grant is missing* from *refused because the block is
+    /// missing* takes two deployments asked about one name, which is two runs of
+    /// the same program and no assertion a `.nvst` case can make.
+    ///
+    /// The ungranted context holds `[db.notes]` and no `[db.absent]`, and both
+    /// names are refused by the same sentence with only the name in it moved.
+    /// Then the granted context is asked about the absent name and answers a
+    /// different sentence, so the first half is the *order* the two questions
+    /// are asked in rather than a reader nothing ever reaches.
+    // covers: Core\Db::connect
+    #[test]
+    fn an_ungranted_connect_says_the_same_thing_for_a_written_block_and_an_absent_one() {
+        const WRITTEN: &str = "[db.notes]\ndriver = \"sqlite\"\npath = \":memory:\"\n";
+
+        let refusal = |config: &str, name: &str| -> String {
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(config));
+            let args = [
+                Value::str(NvsStr::new(name.as_bytes())),
+                Value::bool(true),
+                Value::null(),
+            ];
+            let answered = nvs_runtime::call(super::nvs_core_db_connect, &mut ctx, &args);
+            released(args[0]);
+            assert!(
+                answered.is_err(),
+                "no name asked for here reaches a connection at all"
+            );
+            ctx.take_pending()
+                .expect("a refusal is a throw, and it carries a sentence")
+                .into_owned()
+        };
+
+        let written = refusal(WRITTEN, "notes");
+        let absent = refusal(WRITTEN, "absent");
+        assert_eq!(
+            written.replace("notes", "<the name>"),
+            absent.replace("absent", "<the name>"),
+            "a deployment that granted nothing answers one sentence for both \
+             names, so a refusal says nothing about which blocks it holds"
+        );
+        assert!(
+            written.contains("db.connect"),
+            "and that sentence is the grant's own: {written}"
+        );
+
+        // The same missing name on a deployment that granted it. The
+        // configuration is read this time, which is what makes the two refusals
+        // above an ordering rather than a reader nothing reaches.
+        let told = refusal("[capabilities.db]\nconnect = [\"absent\"]\n", "absent");
+        assert!(
+            told.contains("[db.absent]"),
+            "a granted program is told the block is what is missing: {told}"
+        );
     }
 }

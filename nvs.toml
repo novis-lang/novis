@@ -616,6 +616,43 @@ write = true
 [app.capabilities.db]
 open = true
 
+# `Core\Db::connect`'s proof programs, granted by *name* and asked nothing else. ADR 0067 § 3's
+# `db.connect` is permission to open an operator-written block, so none of these asks for an `fs`
+# grant even though `[db.notes]` is a SQLite database: `sqlite_settings` in
+# `crates/nvs-stdlib/src/db/open.rs` — where `fs.read` and `fs.write` are asked about a `path` — is
+# `Core\Db::open`'s reader and is never on this member's path. The hostile case holds that one name
+# and no other, which is what makes its twenty thousand refusals evidence that the grant is asked
+# per name rather than once.
+[[app]]
+entry = "docs/examples/core/Db/connect/01-open-the-database-an-operator-named.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db/connect/02-wait-only-as-long-as-a-page-can.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db/connect/03-every-function-asks-for-the-database.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db/connect/01-names-a-program-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db/connect.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -772,6 +809,16 @@ acquire = "500ms"
 # acceptance sweep — Windows, WSL, and again under valgrind — a database in the same state, which is
 # what makes four frozen lines of output a constant rather than a description of one machine.
 [db.schema]
+driver = "sqlite"
+path = ":memory:"
+
+# `Core\Db::connect`'s proof programs, and the whole reason a fifth block exists: every other
+# `[db.<name>]` here either names a server `tests/db/compose.yaml` starts, or is `[db.schema]`
+# above, whose fixture counts the tables of its own database exactly. The five programs under
+# `docs/examples/core/Db/connect/`, `tests/hostile/core/Db/connect/` and `benches/members/` each
+# create the tables they read, so they need a block nothing else writes to — and `:memory:` gives
+# every run of the acceptance sweep the same empty database with no container behind it.
+[db.notes]
 driver = "sqlite"
 path = ":memory:"
 

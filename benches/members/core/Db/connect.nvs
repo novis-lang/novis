@@ -1,0 +1,27 @@
+<?nvs
+// Measures asking for the connection a request already has, as a program does
+// when several of its functions each open the database by name.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The count so far chooses the name, so the loop cannot be left out.
+        // Both entries name one block, so every round asks for that connection.
+        array<string> $names = ['notes', 'notes'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $db = Core\Db::connect($names[($total % 2) as int]);
+            if ($db->isOpen()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
