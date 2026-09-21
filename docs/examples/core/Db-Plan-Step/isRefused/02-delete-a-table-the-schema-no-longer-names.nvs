@@ -1,0 +1,41 @@
+<?nvs
+// Shows how a program deletes a table its schema no longer names. The plan
+// never does this for you, so the program runs the statement itself.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The table this program still uses, and one it stopped using last year.
+$db->execute('create table notes (id integer primary key autoincrement, title varchar(200) not null)', []);
+$db->execute('create table notes_2024 (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if (!$step->isRefused()) {
+        continue;
+    }
+    // This program owns that table and wants it gone. Running the statement
+    // deletes every row in it.
+    $db->execute($step->sql(), []);
+    echo "deleted a table\n";
+}
+
+// The database now matches the schema, so the next plan is empty.
+echo Core\Arr::count($schema->planAgainst($db)->steps()), " steps left\n";
+
+$db->close();

@@ -1,0 +1,85 @@
+--TEST--
+`Core\Db\Plan\Step::isRefused` is `true` for exactly the steps that would delete what the schema does not name, an apply runs every other step and leaves those where they are — `rule:core-classes/schema-absence-never-destroys` and `rule:core-classes/schema-apply-capability`
+--FILE--
+<?nvs
+// Asserted by applying the plan rather than by reading the flag: a member that
+// answered `false` for a report would have the apply drop the table, and one
+// that answered `true` for a change would leave the database unconverged.
+// covers: Core\Db\Plan\Step::isRefused
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect("main");
+
+// A table this schema does not name, and one row in it that nothing may lose.
+$db->execute("create table leftovers (id integer primary key, kept text not null)", []);
+$db->execute("insert into leftovers (kept) values (?)", ["a row nobody asked to lose"]);
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+var $steps = $schema->planAgainst($db)->steps();
+echo "steps ", Core\Arr::count($steps), "\n";
+
+// Counted over the whole plan rather than read off one line: the flag is asked
+// of every step, so a member answering one way for all of them fails here.
+uint $refused = 0;
+uint $toRun = 0;
+foreach ($steps as Step $step) {
+    if ($step->isRefused()) {
+        $refused = $refused + 1;
+    } else {
+        $toRun = $toRun + 1;
+    }
+}
+echo "refused ", $refused, "\n";
+echo "to run ", $toRun, "\n";
+
+// § 9 grades what it *would* run, and a report is not that, so a plan holding
+// one is still applied.
+$schema->applySafe($db);
+echo "applied\n";
+
+// The table the schema names is there, so the step that was not refused ran.
+$db->execute("insert into notes (title) values (?)", ["a note"]);
+echo "notes ", $db->query("select id from notes", [])->count(), "\n";
+
+// The reported step is still reported, and the row it names is still there:
+// absence never destroys, whatever an apply is asked to do.
+uint $left = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $again) {
+    if ($again->isRefused()) {
+        $left = $left + 1;
+    }
+}
+echo "still refused ", $left, "\n";
+echo "leftovers ", $db->query("select id from leftovers", [])->count(), "\n";
+--FILE nvs.toml--
+# The two grants § 9 splits: `db.connect` opens the block, and `db.schema` is
+# what lets `applySafe` issue DDL. The program's own statements need the first.
+[capabilities.db]
+connect = ["main"]
+schema = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+steps 2
+refused 1
+to run 1
+applied
+notes 1
+still refused 1
+leftovers 1

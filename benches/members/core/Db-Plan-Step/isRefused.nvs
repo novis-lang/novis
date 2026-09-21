@@ -1,0 +1,54 @@
+<?nvs
+// Tests whether a step is only a report, as a deployment does for every step of
+// a plan before it runs anything.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        // A table the schema below does not name, beside a table it does: the
+        // plan is one step to run and one step reported.
+        $db->execute('create table notes_backup (id integer primary key)', []);
+        var $schema = Core\Db\Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'notes',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        ['name' => 'title', 'type' => 'text(200)'],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+            ],
+        ]);
+        var $steps = $schema->planAgainst($db)->steps();
+        var $first = $steps[0];
+        var $second = $steps[1];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which step this round reads, so no
+            // round can be reused.
+            if ($total % 2 == 0) {
+                if ($first->isRefused()) {
+                    $total = $total + 2;
+                } else {
+                    $total = $total + 1;
+                }
+            } else {
+                if ($second->isRefused()) {
+                    $total = $total + 3;
+                } else {
+                    $total = $total + 4;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
