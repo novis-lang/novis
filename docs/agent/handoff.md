@@ -2,38 +2,40 @@
 
 ## State
 
-Goal `Core\Crypto and 2 more` (15 features). Six are done and owe nothing: `Core\Crypto::agree`,
-`::deriveKey`, `::expandKey`, `::generateKey`, `::seal` and `::open` each carry `about.md`, three
-examples with blessed `.out`, one attack, one bench with a recorded figure, and a Rust test marked
-`covers:`. The nine left are the signing half and the two key classes.
+Goal `Core\Crypto and 2 more` (15 features). Nine are done and owe nothing: the six sealing and
+agreement members, plus `Core\Crypto::generateKeyPair`, `::sign` and `::verify`. Each carries
+`about.md`, three examples with blessed `.out`, one attack, one bench with a recorded figure, and a
+Rust test marked `covers:`. `python tools/dossier.py --owed --group 'Core\Crypto'` is now empty.
 
-A `secret bytes` cannot be printed or hex-encoded, and `Core\Secret::revealBytes($value, "reason")`
-is the one route from it to a plain `bytes`. That is what an example uses to store a key or to seal
-one under another key, and it is the shape `Core\Crypto::seal`'s reference card asks for.
+The six left are the two key classes, and **their proof paths spell the class with a hyphen**:
+`docs/examples/core/Crypto-KeyPair/read/`, `benches/members/core/Crypto-PublicKey/write.nvs`.
+`python tools/dossier.py --id '<feature>'` prints all four.
 
-Driving one of these members from Rust needs the cipher as its case index — `0` is
-`XChaCha20Poly1305` and `1` is `Aes256Gcm`, read by `keyed` at `crates/nvs-stdlib/src/crypto.rs:3007`
-— and the class a member threw is not on `nvs_runtime::call`'s error, so a refusal is asserted as
-the sentence `ctx.take_pending()` answers.
+Driving one of these members from Rust: the kind is a case index (`0` P256, `1` X25519, `2` Ed25519,
+`3` RsaPkcs1, `4` RsaPss — `KeyKind::from_tag` at `crates/nvs-stdlib/src/crypto.rs:1823`), a member
+answering an instance is read back with `stored_key(&[answer], 0, &KEY_PAIR, "…")` and then released
+through `Value::release` under an `#[expect(unsafe_code)]`, and the class a member threw is not on
+`nvs_runtime::call`'s error, so a refusal is asserted as the sentence `ctx.take_pending()` answers.
 
 ## Next group
 
-**Goal `Core\Crypto and 2 more`, stage: the signing half** — one file set:
-`crates/nvs-stdlib/src/crypto.rs`, `docs/examples/core/Crypto/`, `tests/hostile/core/Crypto/`,
-`benches/members/core/Crypto/`. The three belong together: a key pair, and the two members that use
-one. Each slice is `rule:testing/feature-proofs`' full set for one member.
+**Goal `Core\Crypto and 2 more`, stage: the key classes** — one file set:
+`crates/nvs-stdlib/src/crypto.rs`, `docs/examples/core/Crypto-KeyPair/`,
+`tests/hostile/core/Crypto-KeyPair/`, `benches/members/core/Crypto-KeyPair/`. The three are one
+class: the pair a program stores, and the two halves it answers. Each slice is
+`rule:testing/feature-proofs`' full set for one member.
 
-- [ ] **`Core\Crypto::generateKeyPair`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:731`
-- [ ] **`Core\Crypto::sign`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:756`
-- [ ] **`Core\Crypto::verify`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:771`
+- [ ] **`Core\Crypto\KeyPair::read`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/crypto.rs:1257`
+- [ ] **`Core\Crypto\KeyPair::write`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/crypto.rs:1274`
+- [ ] **`Core\Crypto\KeyPair::publicKey`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/crypto.rs:1283`
 
 ## Backlog
 
-- The six instance members of `Core\Crypto\KeyPair` and `Core\Crypto\PublicKey` are this goal's last
-  group, behind the signing half — `docs/agent/loop-goal.md` § *The item list*.
-- Sealing a 15-byte field costs 1077 ns/op and opening one 1053 ns/op, against 194 ns for
-  `generateKey`: `keyed` builds the cipher, a key schedule, on every call. Measured and not
-  investigated — `docs/perf/members.ndjson`.
+- `Core\Crypto\PublicKey`'s `read`, `write` and `kind` are the goal's last group —
+  `python tools/dossier.py --owed --group 'Core\Crypto\PublicKey'`.
+- `Core\Crypto::sign` costs about 72 µs per call for an Ed25519 message of 18 octets, which is what
+  `docs/perf/members.ndjson` now holds; `sign` builds a `ring::rand::SystemRandom` on every call
+  (`crates/nvs-stdlib/src/crypto.rs:2967`) whether the scheme draws randomness or not.

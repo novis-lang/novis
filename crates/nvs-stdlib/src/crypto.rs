@@ -3842,6 +3842,362 @@ mod tests {
         );
     }
 
+    /// A drawn pair is a private key of the kind the call named, a different one
+    /// every call, and the two RSA kinds are refused.
+    ///
+    /// The member is driven through [`nvs_runtime::call`], with the kind as the
+    /// case index a compiled call site passes, because what it answers is an
+    /// object rather than a value: the slots are read with [`stored_key`], which
+    /// is what every member taking a pair reads, and the DER is parsed with
+    /// [`PrivateKey::read`], so a pair nothing could use again fails here rather
+    /// than at the first signature.
+    ///
+    /// Freshness is asserted over a batch for
+    /// [`a_generated_key_is_thirty_two_fresh_octets_drawn_through_core_random`]'s
+    /// reason, and one seed reproducing the pairs while a second seed does not is
+    /// what says the scalar came through [`crate::random::draw`] rather than out
+    /// of an entropy source of this member's own.
+    ///
+    /// The refusal is read as its sentence, since the class a member threw is not
+    /// on [`nvs_runtime::call`]'s error, and it has to name the member that does
+    /// take an RSA key — a program holding one has a file to read, not a mistake
+    /// to correct.
+    // covers: Core\Crypto::generateKeyPair
+    #[test]
+    fn a_generated_pair_is_a_fresh_private_key_of_the_kind_that_was_named() {
+        let drawn = |kind: KeyKind, seed: Option<u64>| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            if let Some(state) = seed {
+                ctx.set_random_state(state);
+            }
+            (0..8)
+                .map(|_| {
+                    let pair = nvs_runtime::call(
+                        nvs_core_crypto_generate_key_pair,
+                        &mut ctx,
+                        &[Value::int(kind.tag())],
+                    )
+                    .expect("every kind but the two RSA ones is drawn here");
+                    let (held, stored) = stored_key(&[pair], 0, &KEY_PAIR, "generateKeyPair")
+                        .expect("the member fills both of the class's slots");
+                    assert_eq!(stored, kind, "the pair is of the kind the call named");
+                    let der = stored_octets(&held, &KEY_PAIR, "generateKeyPair")
+                        .expect("the `pkcs8` slot holds the DER the member wrote")
+                        .to_vec();
+                    assert!(
+                        PrivateKey::read(&der, kind).is_some(),
+                        "the pair reads back as a private key, which is what every member \
+                         taking one does with it"
+                    );
+                    #[expect(
+                        unsafe_code,
+                        reason = "the call answered this reference and nothing else holds it, \
+                                  which is `Value::release`'s whole obligation"
+                    )]
+                    unsafe {
+                        pair.release();
+                    }
+                    der
+                })
+                .collect::<Vec<_>>()
+        };
+
+        for kind in [KeyKind::P256, KeyKind::X25519, KeyKind::Ed25519] {
+            let pairs = drawn(kind, None);
+            let mut distinct = pairs.clone();
+            distinct.sort();
+            distinct.dedup();
+            assert_eq!(
+                distinct.len(),
+                pairs.len(),
+                "no pair is drawn twice, so no two programs hold one private key by accident"
+            );
+            assert_eq!(
+                drawn(kind, Some(0x000c_0ffe)),
+                drawn(kind, Some(0x000c_0ffe)),
+                "a seeded context reproduces the pairs, which is what says the scalar came \
+                 through `crate::random::draw`"
+            );
+            assert_ne!(
+                drawn(kind, Some(0x000c_0ffe)),
+                drawn(kind, Some(0x000c_0fff)),
+                "and a second seed draws different ones"
+            );
+        }
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for kind in [KeyKind::RsaPkcs1, KeyKind::RsaPss] {
+            assert!(
+                nvs_runtime::call(
+                    nvs_core_crypto_generate_key_pair,
+                    &mut ctx,
+                    &[Value::int(kind.tag())],
+                )
+                .is_err(),
+                "an RSA key is never drawn here"
+            );
+            let refusal = ctx
+                .take_pending()
+                .expect("a member that did not answer left its sentence")
+                .to_string();
+            assert!(
+                refusal.contains("Core\\Crypto\\KeyPair::read"),
+                "the refusal names the member that does take an RSA key, got {refusal:?}"
+            );
+        }
+    }
+
+    /// A signature is the pair's own scheme over the whole message, and an
+    /// X25519 pair signs nothing.
+    ///
+    /// Driven through [`nvs_runtime::call`] from a generated pair, because the
+    /// scheme is [`PrivateKey::signing`]'s answer rather than anything on the
+    /// call: what this sees and a test of [`sign`] alone cannot is that the pair
+    /// a program holds is the whole choice. Every signature is then checked
+    /// through [`nvs_core_crypto_verify`] over the same key, since a member
+    /// answering 64 plausible octets passes every length assertion ever written
+    /// over it, and one octet of the message is changed so that a signature
+    /// covering nothing in particular fails here.
+    ///
+    /// Ed25519 signing one message the same way twice while P-256 signs it
+    /// differently is the reference card's own sentence, and it is the half a
+    /// caller feels: two signatures that differ are both this key's.
+    // covers: Core\Crypto::sign
+    #[test]
+    fn a_signature_is_the_pairs_own_scheme_and_an_x25519_pair_signs_nothing() {
+        fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
+            nvs_runtime::call(
+                nvs_core_crypto_generate_key_pair,
+                ctx,
+                &[Value::int(kind.tag())],
+            )
+            .expect("every kind but the two RSA ones is drawn here")
+        }
+
+        fn signed(
+            ctx: &mut nvs_runtime::Ctx,
+            message: &[u8],
+            pair: Value,
+        ) -> Result<Vec<u8>, String> {
+            let args = [Value::bytes(NvsStr::new(message)), pair];
+            match nvs_runtime::call(nvs_core_crypto_sign, ctx, &args) {
+                Ok(answer) => Ok(answer.as_bytes().expect("the row answers `bytes`").to_vec()),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a member that did not answer left its sentence")
+                    .to_string()),
+            }
+        }
+
+        fn held(ctx: &mut nvs_runtime::Ctx, message: &[u8], signature: &[u8], key: Value) -> bool {
+            let args = [
+                Value::bytes(NvsStr::new(message)),
+                Value::bytes(NvsStr::new(signature)),
+                key,
+            ];
+            let verdict = nvs_runtime::call(nvs_core_crypto_verify, ctx, &args).is_ok();
+            if !verdict {
+                // The sentence is this test's to clear rather than to read: the
+                // refusals are `every_forgery_lands_on_one_sentence_and_an_x25519_key_verifies_nothing`'s
+                // subject, and a pending one left here is the next call's.
+                let _ = ctx.take_pending();
+            }
+            verdict
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the call answered this reference and nothing else holds it, which is \
+                      `Value::release`'s whole obligation"
+        )]
+        fn dropped(value: Value) {
+            unsafe {
+                value.release();
+            }
+        }
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let message = b"transfer 100 to account 7";
+
+        for kind in [KeyKind::Ed25519, KeyKind::P256] {
+            let pair = drew(&mut ctx, kind);
+            let first = signed(&mut ctx, message, pair).expect("both of these kinds sign");
+            let second = signed(&mut ctx, message, pair).expect("both of these kinds sign");
+            assert_eq!(
+                first.len(),
+                64,
+                "{kind:?} signs into the 64 octets JWS and WebCrypto read, never DER"
+            );
+
+            let public = nvs_runtime::call(nvs_core_crypto_key_pair_public_key, &mut ctx, &[pair])
+                .expect("every pair answers the half that is sent");
+            assert!(
+                held(&mut ctx, message, &first, public) && held(&mut ctx, message, &second, public),
+                "{kind:?} answers a signature its own public key checks out"
+            );
+            assert!(
+                !held(&mut ctx, b"transfer 100 to account 8", &first, public),
+                "{kind:?} signs these octets and no others"
+            );
+
+            if kind == KeyKind::Ed25519 {
+                assert_eq!(
+                    first, second,
+                    "Ed25519 signs one message the same way every time"
+                );
+            } else {
+                assert_ne!(
+                    first, second,
+                    "P-256 draws randomness, so two signatures over one message differ"
+                );
+            }
+            dropped(public);
+            dropped(pair);
+        }
+
+        let agreeing = drew(&mut ctx, KeyKind::X25519);
+        let refusal =
+            signed(&mut ctx, message, agreeing).expect_err("an X25519 pair signs nothing");
+        assert!(
+            refusal.contains("X25519"),
+            "the refusal names the kind the program chose, got {refusal:?}"
+        );
+        dropped(agreeing);
+    }
+
+    /// Every forged signature lands on one sentence, and an X25519 key verifies
+    /// nothing.
+    ///
+    /// The forgeries are the shapes a sender has: one octet changed at every
+    /// position, the signature cut to every shorter length, a real signature made
+    /// under another key, and this key's own signature over other octets.
+    /// Throwing is not the whole assertion — what is pinned is that all of them
+    /// land on **one** refusal, since a sentence naming which check failed tells
+    /// a forger where to try next, and that is the leak
+    /// `rule:security/verification-throws-and-compares-in-constant-time` exists
+    /// to prevent.
+    ///
+    /// The X25519 key is what keeps the two refusals apart: it is the program's
+    /// own key rather than anything that arrived, so it gets its own sentence and
+    /// not the one every forgery gets. Both are read as sentences, since the
+    /// class a member threw is not on [`nvs_runtime::call`]'s error.
+    // covers: Core\Crypto::verify
+    #[test]
+    fn every_forgery_lands_on_one_sentence_and_an_x25519_key_verifies_nothing() {
+        fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
+            nvs_runtime::call(
+                nvs_core_crypto_generate_key_pair,
+                ctx,
+                &[Value::int(kind.tag())],
+            )
+            .expect("every kind but the two RSA ones is drawn here")
+        }
+
+        fn public_of(ctx: &mut nvs_runtime::Ctx, pair: Value) -> Value {
+            nvs_runtime::call(nvs_core_crypto_key_pair_public_key, ctx, &[pair])
+                .expect("every pair answers the half that is sent")
+        }
+
+        fn signed(ctx: &mut nvs_runtime::Ctx, message: &[u8], pair: Value) -> Vec<u8> {
+            let args = [Value::bytes(NvsStr::new(message)), pair];
+            nvs_runtime::call(nvs_core_crypto_sign, ctx, &args)
+                .expect("this kind signs")
+                .as_bytes()
+                .expect("the row answers `bytes`")
+                .to_vec()
+        }
+
+        /// The sentence the check was refused with, or `None` for one that held.
+        fn refusal(
+            ctx: &mut nvs_runtime::Ctx,
+            message: &[u8],
+            signature: &[u8],
+            key: Value,
+        ) -> Option<String> {
+            let args = [
+                Value::bytes(NvsStr::new(message)),
+                Value::bytes(NvsStr::new(signature)),
+                key,
+            ];
+            nvs_runtime::call(nvs_core_crypto_verify, ctx, &args).err()?;
+            Some(
+                ctx.take_pending()
+                    .expect("a member that did not answer left its sentence")
+                    .to_string(),
+            )
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the call answered this reference and nothing else holds it, which is \
+                      `Value::release`'s whole obligation"
+        )]
+        fn dropped(value: Value) {
+            unsafe {
+                value.release();
+            }
+        }
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let message = b"transfer 100 to account 7";
+        let pair = drew(&mut ctx, KeyKind::Ed25519);
+        let key = public_of(&mut ctx, pair);
+        let signature = signed(&mut ctx, message, pair);
+        assert!(
+            refusal(&mut ctx, message, &signature, key).is_none(),
+            "the signature this key made over these octets checks out"
+        );
+
+        let mut sentences = std::collections::BTreeSet::new();
+        for at in 0..signature.len() {
+            let mut forged = signature.clone();
+            forged[at] ^= 1;
+            sentences.insert(
+                refusal(&mut ctx, message, &forged, key)
+                    .expect("a signature with an octet changed is not this key's"),
+            );
+        }
+        for length in 0..signature.len() {
+            sentences.insert(
+                refusal(&mut ctx, message, &signature[..length], key)
+                    .expect("a signature cut short is not a signature"),
+            );
+        }
+        let stranger = drew(&mut ctx, KeyKind::P256);
+        let theirs = signed(&mut ctx, message, stranger);
+        sentences.insert(
+            refusal(&mut ctx, message, &theirs, key)
+                .expect("another key's signature over these octets is not this key's"),
+        );
+        sentences.insert(
+            refusal(&mut ctx, b"transfer 100 to account 8", &signature, key)
+                .expect("this key's signature covers the octets it was made over"),
+        );
+        assert_eq!(
+            sentences.len(),
+            1,
+            "every forgery lands on one sentence, so the refusal says nothing about which \
+             check failed: {sentences:?}"
+        );
+
+        let agreeing_pair = drew(&mut ctx, KeyKind::X25519);
+        let agreeing = public_of(&mut ctx, agreeing_pair);
+        let verdict = refusal(&mut ctx, message, &signature, agreeing)
+            .expect("an X25519 key verifies nothing");
+        assert!(
+            verdict.contains("X25519"),
+            "the refusal names the kind the program chose, got {verdict:?}"
+        );
+        assert!(
+            !sentences.contains(&verdict),
+            "a key that verifies nothing is the program's own mistake and gets its own sentence"
+        );
+
+        for value in [agreeing, agreeing_pair, stranger, key, pair] {
+            dropped(value);
+        }
+    }
+
     /// `Core\Crypto::seal` answers a nonce, the body and a tag, with a fresh
     /// nonce every call, and throws on a key that is not [`KEY_LEN`] octets.
     ///
