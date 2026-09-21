@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to read the terminal's width. `Core\Cli::width` returns the number
+// of columns that fit on one line.
+
+uint $columns = Core\Cli::width();
+
+// This prints 80, because this program runs without a terminal and 80 is the
+// width it falls back to.
+echo "the screen is ", $columns, " columns wide\n";

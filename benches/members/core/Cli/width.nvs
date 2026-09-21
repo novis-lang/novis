@@ -1,0 +1,22 @@
+<?nvs
+// Measures reading the terminal's width, as a program does before it wraps a
+// paragraph or draws a line across the screen.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the width to what the round before it held, so no
+            // round can be left out.
+            $total = ($total + Core\Cli::width()) % 1000;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

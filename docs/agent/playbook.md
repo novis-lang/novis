@@ -8799,6 +8799,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `int` literals and the ternary never narrows to the `uint` on the left. Write a `uint $step = 1;`
   with an `if` above the sum instead, which is also what keeps the member's own answer in the chain
   a bench and an attack are built around. [until: reviewed 2026-09-21]
+- **A `uint` in an example does not survive `/`, and a `Core\Str` offset is an `int`.** `$room * 40 /
+  100` types as `uint|float`, and an `as uint` on it then throws at run time the moment the quotient
+  has a fraction, while `Core\Str::slice`'s `offset` and `length` are `int` and `int|null`, so a
+  width or a length held as `uint` is refused at the call. Write an example's arithmetic with `-`
+  and `%` only, and cast at the call site with `as int` rather than declaring the local `uint`.
+  [until: reviewed 2026-09-21]
 
 ## Divergences and refusals already pinned
 

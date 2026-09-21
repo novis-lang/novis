@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to read the terminal's height. `Core\Cli::height` returns the
+// number of rows the window shows at once.
+
+uint $rows = Core\Cli::height();
+
+// This prints 24, because this program runs without a terminal and 24 is the
+// height it falls back to.
+echo "the screen shows ", $rows, " rows\n";

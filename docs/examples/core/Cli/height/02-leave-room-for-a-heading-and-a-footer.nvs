@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to work out how many lines are left for the content. A heading and
+// a footer take one row each, and the rest of the screen is yours.
+
+// `Core\Cli::height` is never 0, so this subtraction needs no check.
+uint $content = Core\Cli::height() - 2;
+
+echo "== orders ==\n";
+echo "there is room for ", $content, " lines between these two\n";
+echo "== end ==\n";
