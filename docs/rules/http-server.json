@@ -66,7 +66,8 @@
         "0102",
         "0104",
         "0017",
-        "0197"
+        "0197",
+        "0200"
       ],
       "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
       "seeAlso": [
@@ -100,6 +101,25 @@
       ],
       "guardedBy": [
         "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
+      "id": "http-server/the-served-file-is-optional",
+      "title": "`nvs serve` needs no file over a written mount table, serves that table whole under the global configuration, and refuses a start that names nothing",
+      "status": "shipped",
+      "because": [
+        "0200"
+      ],
+      "seeAlso": [
+        "http-server/a-mount-table-expands-at-boot",
+        "http-server/a-mount-carries-no-policy",
+        "http-server/a-path-is-never-derived-from-a-url",
+        "config/every-matching-app-block-applies-least-specific-first"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/serve.rs",
+        "crates/nvs-cli/src/service.rs",
+        "crates/nvs-config/tests/snapshot.rs"
       ]
     },
     {

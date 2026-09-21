@@ -66,7 +66,7 @@
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of § 4, which is the same walk at boot.
-//! * `nvs serve <file>` — one worker per core, every socket `[server] listen`
+//! * `nvs serve [<file>]` — one worker per core, every socket `[server] listen`
 //!   names, every request running the entry file as its own isolate; see
 //!   [`serve`].
 //! * `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s
@@ -345,21 +345,28 @@ enum Command {
     /// no `[[schedule]]` spawns no ticker and one that writes no `[queue]`
     /// starts no worker, so each costs a read at boot and no task at all.
     ///
-    /// The development server and the proxied origin are the same command. The
-    /// file is compiled before the socket is bound, and every request runs it
-    /// in an isolate that shares nothing with any other request.
+    /// The development server and the proxied origin are the same command.
+    /// Every file it serves is compiled before the socket is bound, and every
+    /// request runs one of them in an isolate that shares nothing with any
+    /// other request.
+    ///
+    /// `nvs serve app.nvs` serves that one file. `nvs serve` with no file
+    /// serves every file that the `[[server.mount]]` blocks in the
+    /// configuration mount.
     // `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is why
     // the first paragraph names three subsystems: what an operator reads off
     // `--help` is the mental model they form of the process, and one naming the
     // accept loop alone is what sends them looking for a second thing to
     // install. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
-    // `rule:security/isolate-shares-nothing`. § 4's mount table is the slice
-    // that replaces the argument with a set of entry points, and `serve`'s
-    // module doc owns why one path on the command line is already § 2's rule
-    // rather than an exception to it.
+    // `rule:security/isolate-shares-nothing`. § 4's mount table is the set of
+    // entry points, and `serve`'s module doc owns why the argument is
+    // optional and why one path on the command line is § 2's rule rather than
+    // an exception to it.
     Serve {
-        /// The file every request runs.
-        file: PathBuf,
+        /// The file every request runs. It is optional when the configuration
+        /// has `[[server.mount]]` blocks: the server then serves every file
+        /// that those blocks mount.
+        file: Option<PathBuf>,
         /// The address to listen on, as `host:port` — the last word over
         /// `[server] listen`.
         // `rule:http-server/the-server-block-is-boot-class`.
@@ -1085,11 +1092,21 @@ const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
         --depends-on postgresql.service
         -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
 
+  A configuration file with `[[server.mount]]` blocks, and no entry file:
+
+    nvs service install sites
+        -- serve --config /srv/www/nvs.toml
+
   Everything before `--` is an option of the installer. Everything after `--` is
   the `nvs` command that the service runs. It must be `serve` or `run`.
 
-  Write every path in full. Name the entry file, and name the configuration
-  file with `--config`. Paths inside the configuration file must be full too.
+  Write every path in full. Name the configuration file with `--config`. Paths
+  inside the configuration file must be full too.
+
+  The entry file is optional for `serve`. With no entry file, the service serves
+  every file that the `[[server.mount]]` blocks in the configuration file mount.
+  A configuration file with `[[server.mount]]` blocks must set `root` in its
+  `[server]` block. Write the full path of the folder that the blocks search.
 
   A service has no terminal, so it needs a log file. Set this in the
   configuration file:
@@ -1185,7 +1202,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     );
     match cli.command {
         Some(Command::Serve { file, listen, port }) => {
-            serve::run(&file, listen.as_deref(), port, &cli.config, init)
+            serve::run(file.as_deref(), listen.as_deref(), port, &cli.config, init)
         }
         Some(Command::Run {
             file,
@@ -1351,7 +1368,7 @@ fn main() -> ExitCode {
             init,
         ),
         Command::Serve { file, listen, port } => {
-            serve::run(&file, listen.as_deref(), port, &cli.config, init)
+            serve::run(file.as_deref(), listen.as_deref(), port, &cli.config, init)
         }
         Command::Test {
             paths,
@@ -2843,13 +2860,16 @@ mod tests {
 
     /// A stored argv this binary would answer with a usage error is refused at
     /// install, because a service manager starts it with no console to write
-    /// that error to. `serve` with no entry file is the reported case.
+    /// that error to. `serve` with no entry file is a command line this binary
+    /// takes, and whether it has anything to serve is the installer's question
+    /// of the configuration.
     #[test]
     fn an_argv_this_binary_would_not_run_is_named_as_unaccepted() {
         let argv = |line: &str| words(line);
-        let why = unaccepted(&argv("serve --config /srv/shop/nvs.toml")).expect("no entry file");
+        let why = unaccepted(&argv("run --config /srv/shop/nvs.toml")).expect("no entry file");
         assert!(why.contains("<FILE>"), "{why}");
         assert!(!why.contains("Usage"), "{why}");
+        assert_eq!(unaccepted(&argv("serve --config /srv/shop/nvs.toml")), None);
         assert_eq!(
             unaccepted(&argv("serve --help")).as_deref(),
             Some("it prints help and exits")
@@ -2874,7 +2894,11 @@ mod tests {
             .filter(|block| block.trim_start().starts_with("nvs service install "))
             .map(|block| block.split_whitespace().collect::<Vec<_>>().join(" "))
             .collect();
-        assert_eq!(lines.len(), 2, "one for each platform");
+        assert_eq!(
+            lines.len(),
+            3,
+            "one for each platform, and one that names no entry file"
+        );
         for line in &lines {
             let cli =
                 Cli::try_parse_from(words(line)).unwrap_or_else(|error| panic!("{line}: {error}"));
@@ -2884,7 +2908,7 @@ mod tests {
             else {
                 panic!("{line} is not `nvs service install`")
             };
-            assert_eq!(args.name, "shop");
+            assert!(["shop", "sites"].contains(&args.name.as_str()), "{line}");
             assert_eq!(args.argv[0], "serve");
             assert_eq!(unaccepted(&args.argv), None, "{line}");
         }

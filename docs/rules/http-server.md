@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*7 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -59,7 +59,7 @@ The accept loop backs off on descriptor exhaustion and logs once per window rath
 
 ```toml
 [server]
-root = "/www"                             # every mount path must resolve inside this
+root = "/www"                             # required; every mount path must resolve inside this
 
 [[server.mount]]
 scan   = "*/public/index.nvs"             # a glob under root; * captures one segment
@@ -71,11 +71,11 @@ prefix = "/admin"
 entry  = "Backoffice/public/index.nvs"    # an explicit mount overrides a scanned one
 ```
 
-A mount matches on `prefix`, on `host`, or on both, and names **either** `entry` (one literal file) **or** `scan` (a glob); both or neither is a boot error. A scan expands against the disk **at boot** into ordinary mounts, and again on `nvs ctl reload` — in development also under hot reload's revalidation. `*` matches exactly one segment; a capture must match `[A-Za-z0-9._-]+`, may not begin with a dot, and is refused if it names a reserved Windows device. `{n}` expands to the nth capture exactly as the disk spells it, and `{n:lower}` to the same capture in ASCII lower case — so a directory named `Blog` for the namespace it holds is served at `/blog` by `prefix = "/{1:lower}"`, while `Core\Request::mount()` still returns `Blog`. `lower` is the only transform. Any other brace in `prefix`, `host` or `origin` is a boot error and an `nvs config check` error: a reference past the last `*`, braces around anything that is not `n` or `n:lower`, and a brace that pairs with nothing. A host is held in ASCII lower case, which is how a request's `Host` is compared, so two hosts that differ only in case are one key. Every resolved path is checked to lie inside `[server] root`, once, at boot. An explicit mount overrides a scanned one at the same key; two explicit mounts at one key is a boot error. With no block written there is one implicit mount, `{ prefix = "/", entry = "public/index.nvs" }`.
+A mount matches on `prefix`, on `host`, or on both, and names **either** `entry` (one literal file) **or** `scan` (a glob); both or neither is a boot error. A scan expands against the disk **at boot** into ordinary mounts, and again on `nvs ctl reload` — in development also under hot reload's revalidation. `*` matches exactly one segment; a capture must match `[A-Za-z0-9._-]+`, may not begin with a dot, and is refused if it names a reserved Windows device. `{n}` expands to the nth capture exactly as the disk spells it, and `{n:lower}` to the same capture in ASCII lower case — so a directory named `Blog` for the namespace it holds is served at `/blog` by `prefix = "/{1:lower}"`, while `Core\Request::mount()` still returns `Blog`. `lower` is the only transform. Any other brace in `prefix`, `host` or `origin` is a boot error and an `nvs config check` error: a reference past the last `*`, braces around anything that is not `n` or `n:lower`, and a brace that pairs with nothing. A host is held in ASCII lower case, which is how a request's `Host` is compared, so two hosts that differ only in case are one key. **`[server] root` is always written.** A server is told which directory it serves out of, and a mount only maps a URL onto a file under it; a mount table with no root is a boot error and an `nvs config check` error, because a root that defaulted to the directory the process was started in would make the executable set a property of the shell. A relative root resolves against the file it is written in. Every resolved path is checked to lie inside `[server] root`, once, at boot. An explicit mount overrides a scanned one at the same key; two explicit mounts at one key is a boot error. With no block written there is one implicit mount, `{ prefix = "/", entry = "public/index.nvs" }`.
 
 The matched prefix is stripped: `Core\Request::path()` is the remainder, `Core\Request::mount()` answers what was removed and the `tainted` captures ([`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount)), and `Core\Router::url` prepends the prefix ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)). A module is therefore relocatable — the same compiled route table serves at `/ModuleA` or at `/` with no recompile. `origin` is per mount, `System`-class and reloadable, with the `[[app]]` block's `origin` as the fallback ([`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot)).
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0102](../decisions/0102.md), [0104](../decisions/0104.md), [0017](../decisions/0017.md), [0197](../decisions/0197.md).</sub>
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0102](../decisions/0102.md), [0104](../decisions/0104.md), [0017](../decisions/0017.md), [0197](../decisions/0197.md), [0200](../decisions/0200.md).</sub>
 
 <a id="http-server-a-mount-carries-no-policy"></a>
 
@@ -98,6 +98,31 @@ mode = "production"
 The two usually cover the same tree, and that is the intended shape. An application's identity is its entry file path, not its mount, so `nvs run` on the command line has one too and per-app configuration is reachable with no server at all. A mixed-application host — production by default, each application selecting its own mode — is expressed here, not in a mount key ([`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode)).
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path). Decided in [0097](../decisions/0097.md), [0104](../decisions/0104.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md).</sub>
+
+<a id="http-server-the-served-file-is-optional"></a>
+
+## `nvs serve` needs no file over a written mount table, serves that table whole under the global configuration, and refuses a start that names nothing
+
+`rule:http-server/the-served-file-is-optional`
+
+`nvs serve` takes its entry file as an optional argument over a configuration that writes `[[server.mount]]`, and a start that names none serves that mount table whole ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+
+| Start | The table | `[[app]]` blocks folded |
+|---|---|---|
+| `nvs serve`, mounts written | the written mounts | none — the global configuration |
+| `nvs serve <file>`, mounts written | the written mounts, and `<file>` must be one of their entries | those that match `<file>` |
+| `nvs serve <file>`, no mount written | `<file>` at `/`, its own directory as the mount root | those that match `<file>` |
+| `nvs serve`, no mount written | refused | — |
+
+**Nothing runs that neither the command line nor the configuration named.** A start that names no file over a tree that writes no mount is refused, with a line naming `nvs serve <file>` and `[[server.mount]]`; the implicit `public/index.nvs` mount is never reached from `nvs serve`. A `scan` that matched no file is refused the same way, as a table with nothing to answer with. A host of many modules therefore names none of them to start, and removing one module does not stop it starting.
+
+A named file never overrides a written table. One that is not among the mounted entries is refused before a socket exists, because a command told to serve a file and then answering with a different application is the outcome neither reading wants.
+
+**One snapshot serves the process, and the named file is what selects its `[[app]]` blocks** ([`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first)). With no file no block is folded, and every mount runs under the global configuration; with one, every mount runs under that file's blocks. A reload resolves the same way the boot did.
+
+`nvs service install` stores `serve` with no file only where the configuration the argv names writes a mount table that mounts at least one entry on disk, and refuses it otherwise (`E0630`): a server with nothing to serve exits at once, which a service manager reports as a crash loop. A table with no `[server] root` never gets that far, since the configuration does not resolve ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0200](../decisions/0200.md).</sub>
 
 <a id="http-server-a-unix-socket-listener"></a>
 

@@ -190,6 +190,23 @@ fn a_mount_globs_is_expanded_against_disk_at_boot() {
     assert!(mounts.iter().all(|one| fs.exists(&one.entry)));
 }
 
+/// A mount table with no `[server] root` written is refused by the disk-free half, so `nvs config
+/// check` and every boot say so: the root is where every mounted file is found, and it is never
+/// the directory the process happened to start in.
+#[test]
+fn a_mount_table_with_no_root_written_is_refused() {
+    let text = "[[server.mount]]\nscan = \"*/public/index.nvs\"\nprefix = \"/{1}\"\n";
+    let err = checked(text);
+    assert_eq!(err.code, Some(code::E_BAD_MOUNT));
+    assert!(err.message.contains("`[server] root`"), "{}", err.message);
+
+    // The disk half says the same to a caller that only has it, and to a tree that writes no
+    // mount at all: the implicit mount is under the root too.
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/public/index.nvs"]);
+    assert!(refusal(&fs, text).message.contains("`[server] root`"));
+    assert!(refusal(&fs, "").message.contains("`[server] root`"));
+}
+
 /// § 3's other spelling of the same glob: a capture in `host` rather than in `prefix`, which is
 /// what makes a module relocatable without the route table naming a host.
 #[test]
@@ -358,20 +375,20 @@ fn a_captured_segment_that_does_not_spell_itself_is_refused() {
 fn a_block_that_names_no_mount_is_refused_without_asking_the_disk() {
     for text in [
         // Both sources, and neither.
-        "[server]\n\n[[server.mount]]\nprefix = \"/\"\nscan = \"*/index.nvs\"\nentry = \"a.nvs\"\n",
-        "[server]\n\n[[server.mount]]\nprefix = \"/\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nprefix = \"/\"\nscan = \"*/index.nvs\"\nentry = \"a.nvs\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nprefix = \"/\"\n",
         // Nothing to match on.
-        "[server]\n\n[[server.mount]]\nentry = \"a.nvs\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nentry = \"a.nvs\"\n",
         // A prefix a request path can never begin with.
-        "[server]\n\n[[server.mount]]\nprefix = \"admin\"\nentry = \"a.nvs\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nprefix = \"admin\"\nentry = \"a.nvs\"\n",
         // A reference past the last `*`, and one counting from zero.
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{2}\"\n",
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{0}\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{2}\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{0}\"\n",
         // A capture in an `origin` is numbered by the same `*`s as one in a prefix.
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{1}\"\n\
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{1}\"\n\
          origin = \"https://{2}.example.com\"\n",
         // A literal `entry` captures nothing at all, so any reference in it is out of range.
-        "[server]\n\n[[server.mount]]\nprefix = \"/{1}\"\nentry = \"a.nvs\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nprefix = \"/{1}\"\nentry = \"a.nvs\"\n",
     ] {
         let refused = checked(text);
         assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {text:?}");
@@ -407,14 +424,16 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
             format!("prefix = \"/{{1}}\"\nhost = \"{written}.dev\"\n"),
             format!("prefix = \"/{{1}}\"\norigin = \"https://{written}.dev\"\n"),
         ] {
-            let text = format!("[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\n{block}");
+            let text = format!(
+                "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\n{block}"
+            );
             let refused = checked(&text);
             assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {text:?}");
         }
     }
     // The refusal names what was written, so the operator is not left to find the brace.
     let refused = checked(
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{1:upper}.web\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{1:upper}.web\"\n",
     );
     assert!(
         refused.message.contains("`{1:upper}`"),
@@ -423,7 +442,7 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
     );
     // A reference past the last `*` is still that refusal with a transform on it.
     let refused = checked(
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{2:lower}.web\"\n",
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{2:lower}.web\"\n",
     );
     assert!(refused.message.contains("`{2}`"), "{}", refused.message);
 }

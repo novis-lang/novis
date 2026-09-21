@@ -751,7 +751,7 @@ mod tests {
         let process = Process::new(
             Arc::clone(&current),
             vec![root.clone()],
-            entry,
+            Some(entry),
             Arc::new(Compiler::default()),
             Arc::new(Admission::new(&Ceiling::of(&capacity))),
             Draining::detached(),

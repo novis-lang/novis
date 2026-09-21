@@ -409,7 +409,8 @@
 # ----------------------------------------------------------------------------------------------
 
 #[server]
-# The root every mount path must resolve inside, and what this instance accepts on. `listen` is one
+# The root every mount path must resolve inside, and what this instance accepts on. `root` must be
+# written when a `[[server.mount]]` is: the server does not start without it. `listen` is one
 # flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
 # and Windows listens on TCP loopback.
 #root = "/srv/app"

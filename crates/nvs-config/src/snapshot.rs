@@ -2,7 +2,8 @@
 //!
 //! A [`Snapshot`] is one entry file's whole answer — the global tree with that file's `[[app]]`
 //! blocks folded over it (`rule:config/every-matching-app-block-applies-least-specific-first`) — built once at boot or reload and never mutated
-//! afterwards. [`Current`] holds the published one; a request clones the [`Arc`] when it starts and
+//! afterwards. [`Snapshot::host`] is the one that is for no file: the global tree alone, which is
+//! what a server started over its mount table with no file named reads. [`Current`] holds the published one; a request clones the [`Arc`] when it starts and
 //! reads that clone for its whole life, so a reload landing mid-request is invisible to it and no
 //! request ever sees half of one tree and half of another. `Core\Config::set` writes a per-request
 //! overlay *over* this value and never into it (`rule:config/ini-set-is-core-config-set`).
@@ -73,8 +74,9 @@ pub struct Snapshot {
     /// written somewhere this overwrites — `retype`'s own doc § *The seam every `resolve()` pass is
     /// measured against* is the rule, and the sound answers to it.
     pub table: toml::Table,
-    /// The entry file this snapshot is for, canonical.
-    pub entry: PathBuf,
+    /// The entry file this snapshot is for, canonical — or `None` for [`Snapshot::host`]'s, which
+    /// is for no file and folded no `[[app]]` block.
+    pub entry: Option<PathBuf>,
     /// This snapshot's number: unique in this process, never reused, and 0 for one no boot built.
     ///
     /// A generation needs an identity that a store outliving it can hold, and its address is not
@@ -136,6 +138,36 @@ impl Snapshot {
         let entry = files.canonical(entry).map_err(|err| {
             crate::resolve::unreadable(entry, &err, "it is the entry file being configured")
         })?;
+        Self::folded(resolved, Some(entry), files)
+    }
+
+    /// Builds the snapshot of the host itself: the global tree with **no `[[app]]` block folded**,
+    /// because no entry file was named for one to match.
+    ///
+    /// This is what a server started over its mount table alone reads its process-wide keys from —
+    /// `[server]`, `[http.client.tls]`, the admission arithmetic — and what it hands every request.
+    /// [`mode`](Snapshot::mode), [`origin`](Snapshot::origin) and [`blocks`](Snapshot::blocks) are
+    /// empty in it for the same reason.
+    ///
+    /// # Errors
+    ///
+    /// `E0601` if the tree does not deserialize, which the resolve that produced it already makes
+    /// unreachable in practice.
+    pub fn host(resolved: &Resolved, files: &dyn Files) -> Result<Arc<Self>, Diagnostic> {
+        Self::folded(resolved, None, files)
+    }
+
+    /// [`build`](Snapshot::build) and [`host`](Snapshot::host), past the point where they differ:
+    /// `entry` is canonical already, and `None` matches no block.
+    fn folded(
+        resolved: &Resolved,
+        entry: Option<PathBuf>,
+        files: &dyn Files,
+    ) -> Result<Arc<Self>, Diagnostic> {
+        let matching = match &entry {
+            Some(entry) => app::matching(&resolved.config.app, entry, files)?,
+            None => Vec::new(),
+        };
         let mut snapshot = Self {
             config: Config::default(),
             table: resolved.table.clone(),
@@ -157,7 +189,7 @@ impl Snapshot {
         // report.
         snapshot.table.remove("app");
         snapshot.origins.retain(|key, _| !governs("app", key));
-        for index in app::matching(&resolved.config.app, &snapshot.entry, files)? {
+        for index in matching {
             let block = &resolved.config.app[index];
             if let Some(key) = app::key_of(block) {
                 snapshot.blocks.push(key.to_path_buf());

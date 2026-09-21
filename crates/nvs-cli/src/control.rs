@@ -64,8 +64,9 @@ pub(crate) struct Process {
     /// resolved rather than whatever the working directory now holds.
     roots: Vec<PathBuf>,
     /// The entry file the command named, which is what selects the `[[app]]`
-    /// blocks the snapshot folds.
-    entry: PathBuf,
+    /// blocks the snapshot folds — or `None` where it named none and the
+    /// snapshot folds no block.
+    entry: Option<PathBuf>,
     /// The fleet's one unit cache, for the count a reload reports and the
     /// re-key it owes.
     compiler: Arc<Compiler>,
@@ -90,7 +91,7 @@ impl Process {
     pub(crate) fn new(
         current: Arc<Current>,
         roots: Vec<PathBuf>,
-        entry: PathBuf,
+        entry: Option<PathBuf>,
         compiler: Arc<Compiler>,
         admission: Arc<Admission>,
         draining: Draining,
@@ -118,9 +119,9 @@ impl Process {
     /// makes the `READY=1` its caller sends next true.
     fn published(&self) -> Result<Report, String> {
         let mut sources = SourceMap::new();
-        let next = crate::config::boot_snapshot(
+        let (next, _) = crate::config::boot_origins(
             &self.roots,
-            &self.entry,
+            self.entry.as_deref(),
             &mut sources,
             crate::config::Init::Never,
         )

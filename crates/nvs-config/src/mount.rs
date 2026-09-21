@@ -89,13 +89,17 @@ const UNREACHABLE: &str = "`rule:http-server/a-mount-table-expands-at-boot` read
 ///
 /// # Errors
 ///
-/// `E0621` for a block naming both `entry` and `scan` or neither, for one matching on neither
-/// `prefix` nor `host`, for a prefix that does not begin with `/`, for a `{n}` naming a capture the
-/// block's glob cannot produce, and for a brace that is not a capture reference at all.
+/// `E0621` for a mount table with no `[server] root` written, for a block naming both `entry` and
+/// `scan` or neither, for one matching on neither `prefix` nor `host`, for a prefix that does not
+/// begin with `/`, for a `{n}` naming a capture the block's glob cannot produce, and for a brace
+/// that is not a capture reference at all.
 pub fn check(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let Some(server) = config.server.as_ref() else {
         return Ok(());
     };
+    if !server.mount.is_empty() && server.root.is_none() {
+        return Err(no_root(origins.get("server.mount.0.prefix")));
+    }
     for (index, block) in server.mount.iter().enumerate() {
         shape(index, block, origins)?;
     }
@@ -344,9 +348,12 @@ pub fn expand(
 
 /// `[server] root`, canonical — the one directory every mount path must resolve inside.
 ///
-/// An unwritten `root` is the directory the configuration was written in, which is
+/// **The root is always written.** A server is told which directory it serves out of, as every web
+/// server is, and a mount only maps a URL onto a file under it: a root that defaulted to wherever
+/// the process was started would make the executable set a property of the shell. One that is
+/// relative resolves against the file it was written in, which is
 /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`'s rule for every
-/// relative path in the tree rather than a default chosen here.
+/// relative path in the tree.
 fn root_of(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
@@ -356,11 +363,13 @@ fn root_of(
         .get("server.root")
         .and_then(|origin| origin.path.parent())
         .unwrap_or(Path::new("."));
-    let written = config
+    let Some(written) = config
         .server
         .as_ref()
         .and_then(|server| server.root.as_deref())
-        .unwrap_or(".");
+    else {
+        return Err(no_root(None));
+    };
     let root = crate::resolve::absolute(beside, Path::new(written));
     files.canonical(&root).map_err(|why| {
         refuse(
@@ -376,6 +385,17 @@ fn root_of(
             origins.get("server.root"),
         )
     })
+}
+
+/// The refusal for a mount table with no `[server] root` to be under.
+fn no_root(written_in: Option<&Origin>) -> Diagnostic {
+    refuse(
+        "`[server] root` is not written".to_string(),
+        "`rule:http-server/a-mount-table-expands-at-boot` finds every mounted file under `[server] root`, and an unwritten one \
+         would be whatever directory the server happened to be started in",
+        "write `root` in the `[server]` block: the directory the mounted modules live under",
+        written_in,
+    )
 }
 
 /// One `scan` glob, walked segment by segment from `root`.

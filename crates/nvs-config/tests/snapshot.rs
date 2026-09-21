@@ -177,6 +177,21 @@ fn an_entry_no_block_matches_gets_the_global_configuration() {
     assert_eq!(snapshot.origin, None);
 }
 
+/// [`Snapshot::host`] is for no entry file, so no block matches it whatever the tree writes: it is
+/// the global configuration, and it names no entry.
+#[test]
+fn the_hosts_snapshot_folds_no_block_and_names_no_entry() {
+    let fs = shop();
+    let snapshot = Snapshot::host(&tree_of(&fs), &fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    assert_eq!(snapshot.entry, None);
+    assert!(snapshot.blocks.is_empty());
+    assert_eq!(limits(&snapshot).memory, text("128M"));
+    assert_eq!(limits(&snapshot).wall_time, text("30s"));
+    assert_eq!(snapshot.mode, None);
+    assert_eq!(snapshot.origin, None);
+}
+
 /// § 2's worked example, both halves at once: `/srv/www/shop/bin/import.nvs` gets a memory of
 /// `512M` from the `/srv/www/shop` block and a `wall_time` of `600s` from its own, while
 /// inheriting everything neither states.

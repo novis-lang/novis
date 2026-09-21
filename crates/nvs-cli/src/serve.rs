@@ -12,7 +12,7 @@
 //! split: this crate has the front end, so turning a path into a program is
 //! here, and the loop and the ticker are there.
 //!
-//! # Decision: the configuration's mounts are the table, and a bare file is a table of one
+//! # Decision: the configuration's mounts are the table, a bare file is a table of one, and a written table needs no file
 //!
 //! `rule:http-server/a-path-is-never-derived-from-a-url`
 //! is the server's governing rule — a request *selects* an entry point from
@@ -20,16 +20,29 @@
 //! mount table is that set. A tree that writes `[[server.mount]]` gets **the
 //! whole of it**: [`nvs_config::mount::expand`] walked § 3's globs against the
 //! disk, and this command binds a socket over the table that produced. A tree
-//! that writes none is served through [`one_mount`], the file named on the
-//! command line at `/` with its own directory as the mount root — not `expand`'s
-//! implicit mount, which names a default entry nobody here was told to serve.
+//! that writes none, started with a `<file>`, is served through [`one_mount`]:
+//! that file at `/` with its own directory as the mount root — not `expand`'s
+//! implicit mount, which names a default entry this command was not told to
+//! serve.
+//!
+//! **`<file>` is optional over a tree that writes `[[server.mount]]`, and a
+//! start with none serves that table whole.** A deployment of many modules
+//! therefore names none of them to start, and does not stop starting when the
+//! one it named is removed. A start that names no file over a tree that writes
+//! no mount is refused, and so is a table of nothing — a `scan` that matched no
+//! file: `expand`'s implicit mount is never reached from here, so nothing runs
+//! that neither the command line nor the configuration named
+//! (`rule:http-server/the-served-file-is-optional`, [ADR 0200]).
 //!
 //! **The argument does not override the table; it has to be in it.** A `<file>`
 //! that is not one of the mounted entries is refused before the socket exists,
 //! because a command told to serve a file and then serving a different
 //! application is the one outcome neither reading wants. What the argument
-//! always decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
-//! `[[app]]` blocks that match it, and there is no second spelling for that.
+//! decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
+//! `[[app]]` blocks that match it, and with no argument no block is layered —
+//! the process reads [`nvs_config::Snapshot::host`], the global tree alone.
+//!
+//! [ADR 0200]: ../../../docs/decisions/0200.md
 //!
 //! **Every mounted entry is compiled before the socket is bound**, which is what
 //! § 2 buys — a program that does not compile is a start that fails rather than
@@ -140,7 +153,7 @@ use nvs_server::{
 use crate::script::Compiler;
 use crate::service::{Notify, State};
 
-/// `nvs serve <file>` — resolve the tree, build § 4's mount table, compile every
+/// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
 /// stopped.
 ///
@@ -149,7 +162,7 @@ use crate::service::{Notify, State};
 /// bound, and the socket exists only once there is something for it to answer
 /// with.
 pub(crate) fn run(
-    path: &Path,
+    path: Option<&Path>,
     listen: Option<&str>,
     port: Option<u16>,
     config: &[PathBuf],
@@ -351,28 +364,17 @@ pub(crate) fn run(
     }
 
     // § 4's table. A tree that writes `[[server.mount]]` is served through the
-    // whole of it — `expand` has already walked § 3's globs against the disk —
-    // and one that writes none is the file named on the command line, at `/`,
-    // with the directory it sits in as the mount root. The module doc's
-    // § *Decision* owns which of the two a run gets and why the argument still
+    // whole of it — `expand` walks § 3's globs against the disk — whether or
+    // not a file was named. A named file over a tree that writes none is that
+    // file, at `/`, with the directory it sits in as the mount root. The module
+    // doc's § *Decision* owns which of these a run gets and why the argument
     // has the last word over neither.
-    let deployed = snapshot
-        .config
-        .server
-        .as_ref()
-        .is_some_and(|server| !server.mount.is_empty());
-    let mut mounts = if deployed {
-        match nvs_config::mount::expand(&snapshot.config, &origins, &crate::config::LocalFiles) {
-            Ok(mounts) => mounts,
-            Err(diagnostic) => return report(diagnostic, &sources),
-        }
-    } else {
-        match one_mount(path) {
-            Ok(mount) => vec![mount],
-            Err(refusal) => {
-                eprintln!("error: {refusal}");
-                return ExitCode::FAILURE;
-            }
+    let mut mounts = match table_for(path, &snapshot, &origins) {
+        Ok(mounts) => mounts,
+        Err(NoTable::Reported(diagnostic)) => return report(*diagnostic, &sources),
+        Err(NoTable::Said(refusal)) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
         }
     };
     // `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback,
@@ -380,18 +382,15 @@ pub(crate) fn run(
     // check and the door alike — has one field to read and cannot disagree
     // about which of the two keys applied.
     fall_back_to(&mut mounts, snapshot.origin.as_deref());
-    // A file this table cannot reach is a request nobody could make: the command
-    // was told to serve it, so a table that does not mount it is a refusal
-    // rather than a server quietly answering with somebody else's application.
-    if deployed && !mounts.iter().any(|mount| mount.entry == snapshot.entry) {
-        eprintln!(
-            "error: `{}` is not one of the {} entries `[[server.mount]]` mounts; serve one of \
-             those, or remove the blocks to serve this file alone",
-            path.display(),
-            mounts.len()
-        );
-        return ExitCode::FAILURE;
-    }
+    // What the boot's last lines say is being served: the file as it was typed,
+    // or the size of the table where none was.
+    let answering_with = path.map_or_else(
+        || match mounts.len() {
+            1 => format!("{}", mounts[0].entry.display()),
+            several => format!("{several} mounted entries"),
+        },
+        |path| path.display().to_string(),
+    );
     // This thread's table, for the enumeration below alone. Every worker builds
     // its own from the same mounts, because a `Table` is an `Rc` graph and
     // belongs to the thread that reads it.
@@ -479,7 +478,7 @@ pub(crate) fn run(
         let host = crate::control::Process::new(
             Arc::clone(&current),
             config.to_vec(),
-            path.to_path_buf(),
+            path.map(Path::to_path_buf),
             Arc::clone(&compiler),
             Arc::clone(&admission),
             nvs_server::Draining::process(),
@@ -569,7 +568,7 @@ pub(crate) fn run(
     if let Some(endpoint) = &series {
         println!("series pushed to {endpoint}");
     }
-    listening(&bound, path, &told);
+    listening(&bound, &answering_with, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on
     // every socket bound above, so a connection is accepted by whichever core
@@ -1771,6 +1770,71 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
     })
 }
 
+/// Why [`table_for`] produced no table: a diagnostic with a line of the
+/// configuration to point at, or a sentence about the command line.
+enum NoTable {
+    Reported(Box<nvs_diagnostics::Diagnostic>),
+    Said(String),
+}
+
+/// § 4's table for this start, which the module doc's § *Decision* owns the
+/// reasons of: a named file over a tree that writes no `[[server.mount]]` is
+/// [`one_mount`], and a tree that writes some is
+/// [`nvs_config::mount::expand`]'s whole table.
+///
+/// Three starts are refused here. One that names no file over a tree that
+/// writes no mount was told nothing to serve. A table of nothing has no answer
+/// to give, and only a `scan` that matched no file produces one, since every
+/// other row names a file `expand` found on disk. A named file the table does
+/// not mount is a request nobody could make: the command was told to serve it,
+/// so serving the table without it would be answering with somebody else's
+/// application.
+fn table_for(
+    path: Option<&Path>,
+    snapshot: &nvs_config::Snapshot,
+    origins: &std::collections::BTreeMap<String, nvs_config::resolve::Origin>,
+) -> Result<Vec<Mounted>, NoTable> {
+    let deployed = snapshot
+        .config
+        .server
+        .as_ref()
+        .is_some_and(|server| !server.mount.is_empty());
+    if !deployed {
+        let Some(path) = path else {
+            return Err(NoTable::Said(
+                "no file was named and the configuration writes no `[[server.mount]]`; name the \
+                 file to serve, as `nvs serve <file>`, or write a `[[server.mount]]` block"
+                    .to_owned(),
+            ));
+        };
+        return one_mount(path)
+            .map(|mount| vec![mount])
+            .map_err(NoTable::Said);
+    }
+    let mounts = nvs_config::mount::expand(&snapshot.config, origins, &crate::config::LocalFiles)
+        .map_err(|diagnostic| NoTable::Reported(Box::new(diagnostic)))?;
+    if mounts.is_empty() {
+        return Err(NoTable::Said(
+            "the configuration mounts nothing: no `[[server.mount]]` `scan` matched a file; deploy \
+             a module the scan finds, or name the file to serve"
+                .to_owned(),
+        ));
+    }
+    if let Some(path) = path
+        && !mounts
+            .iter()
+            .any(|mount| Some(&mount.entry) == snapshot.entry.as_ref())
+    {
+        return Err(NoTable::Said(format!(
+            "`{}` is not one of the {} entries `[[server.mount]]` mounts; serve one of those, \
+             name no file to serve them all, or remove the blocks to serve this file alone",
+            path.display(),
+            mounts.len()
+        )));
+    }
+    Ok(mounts)
+}
+
 /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback: a row
 /// that wrote no `origin` of its own takes `[app] origin`, and a row that wrote
 /// one keeps it.
@@ -1957,8 +2021,9 @@ fn addresses(
 /// The boot's last words: one line per socket for whoever is reading the
 /// terminal, then `READY=1` for whatever started this process.
 ///
-/// The path is printed as it was written rather than the canonical one the
-/// table holds, because an operator reads these against the command they typed.
+/// A named file is printed as it was written rather than the canonical one the
+/// table holds, because an operator reads these against the command they typed;
+/// a start that named none prints its one entry, or how many it mounted.
 /// Each socket names *itself* ([`Socket::named`]) rather than what was asked
 /// for, so an entry written with port `0` prints the port the platform chose.
 ///
@@ -1967,9 +2032,9 @@ fn addresses(
 /// every mounted entry was compiled before any of them was. A `Type=notify`
 /// unit whose process says it any earlier is one `systemctl start` returns from
 /// while the port still refuses (`crate::service`).
-fn listening(bound: &[Socket], path: &Path, told: &Notify) {
+fn listening(bound: &[Socket], answering_with: &str, told: &Notify) {
     for listener in bound {
-        println!("listening on {} — {}", listener.named(), path.display());
+        println!("listening on {} — {answering_with}", listener.named());
     }
     told.state(State::Ready);
 }
@@ -2437,10 +2502,10 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 #[cfg(test)]
 mod tests {
     use super::{
-        Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, Notify, Output, OutputSink,
-        Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, bind_sockets,
-        compiled_under, exporter_not_built, fall_back_to, handles_for, listening, one_mount,
-        scrape_socket, sweep_orphans, trace_collector, workers_for,
+        Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output,
+        OutputSink, Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all,
+        bind_sockets, compiled_under, exporter_not_built, fall_back_to, handles_for, listening,
+        one_mount, scrape_socket, sweep_orphans, table_for, trace_collector, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -3827,6 +3892,111 @@ mod tests {
     /// each be reading the other's report.
     static ONE_STOP_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// A directory of this case's own holding `files`, and what [`table_for`]
+    /// answers for a start over its `nvs.toml` that names `named` — or no file,
+    /// for `None`. `{root}` in `toml` is the directory, written as a TOML literal
+    /// string because a Windows path is backslashes.
+    fn table_over(
+        case: &str,
+        toml: &str,
+        files: &[&str],
+        named: Option<&str>,
+    ) -> Result<Vec<Mounted>, NoTable> {
+        let beside = std::env::current_exe().expect("the test binary knows its own path");
+        let dir = beside
+            .parent()
+            .expect("a test binary sits in a directory")
+            .join(format!("nvs-serve-{}-{case}", std::process::id()));
+        drop(std::fs::remove_dir_all(&dir));
+        for file in files {
+            let path = dir.join(file);
+            std::fs::create_dir_all(path.parent().expect("a file in the case's directory"))
+                .expect("a scratch directory of this case's own");
+            std::fs::write(&path, "fn main(): void {}\n").expect("an entry of this case's own");
+        }
+        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
+        let root = dir.join("nvs.toml");
+        std::fs::write(
+            &root,
+            toml.replace("{root}", &format!("'{}'", dir.display())),
+        )
+        .expect("a tree of this case's own");
+        let named = named.map(|file| dir.join(file));
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        let (snapshot, origins) = crate::config::boot_origins(
+            std::slice::from_ref(&root),
+            named.as_deref(),
+            &mut sources,
+            crate::config::Init::Never,
+        )
+        .expect("the tree this case wrote resolves");
+        table_for(named.as_deref(), &snapshot, &origins)
+    }
+
+    /// A start that names no file serves the configuration's table whole, and a
+    /// named file still has to be in it. This is the deployment a `scan` mounts
+    /// many modules for: none of them is named to start it.
+    #[test]
+    fn a_start_with_no_file_serves_every_mount_the_configuration_writes() {
+        let toml = "[server]\nroot = {root}\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+                    prefix = \"/{1:lower}\"\n";
+        let files = [
+            "Blog/public/index.nvs",
+            "Shop/public/index.nvs",
+            "loose.nvs",
+        ];
+
+        let Ok(mounts) = table_over("scan-no-file", toml, &files, None) else {
+            panic!("a start that named no file had no table over two scanned modules")
+        };
+        let prefixes: Vec<&str> = mounts.iter().map(|mount| mount.prefix.as_str()).collect();
+        assert_eq!(prefixes, ["/blog", "/shop"]);
+
+        let Ok(mounts) = table_over(
+            "scan-one-named",
+            toml,
+            &files,
+            Some("Shop/public/index.nvs"),
+        ) else {
+            panic!("a named file the scan mounts was refused")
+        };
+        assert_eq!(
+            mounts.len(),
+            2,
+            "naming one entry still serves the whole table"
+        );
+
+        let Err(NoTable::Said(refusal)) = table_over("scan-loose", toml, &files, Some("loose.nvs"))
+        else {
+            panic!("a named file the table does not mount was served")
+        };
+        assert!(refusal.contains("is not one of the 2 entries"), "{refusal}");
+    }
+
+    /// With no file named and no block written the start is refused, even over
+    /// a disk that holds the implicit mount's `public/index.nvs`: nothing runs
+    /// that neither the command line nor the configuration named. A `scan` that
+    /// matched nothing is refused as a table of nothing.
+    #[test]
+    fn a_start_with_no_file_and_no_mounts_is_refused() {
+        let toml = "[server]\nroot = {root}\n";
+
+        let Err(NoTable::Said(refusal)) =
+            table_over("no-mounts", toml, &["public/index.nvs"], None)
+        else {
+            panic!("a start that named nothing was given a table")
+        };
+        assert!(refusal.contains("nvs serve <file>"), "{refusal}");
+        assert!(refusal.contains("[[server.mount]]"), "{refusal}");
+
+        let scan = "[server]\nroot = {root}\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+                    prefix = \"/{1}\"\n";
+        let Err(NoTable::Said(refusal)) = table_over("scan-empty", scan, &[], None) else {
+            panic!("a scan that matched nothing produced a table")
+        };
+        assert!(refusal.contains("mounts nothing"), "{refusal}");
+    }
+
     /// A tree of this case's own on disk, and the [`crate::control::Process`]
     /// serving it — the reload driven below is the real one, which re-resolves
     /// these files exactly as the boot that wrote them would.
@@ -3860,7 +4030,7 @@ mod tests {
         crate::control::Process::new(
             Arc::clone(&current),
             vec![root],
-            entry,
+            Some(entry),
             Arc::new(Compiler::default()),
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
                 &capacity,
@@ -3895,7 +4065,7 @@ mod tests {
 
         let listener =
             std::net::TcpListener::bind(a_free_address()).expect("the loopback refused a listener");
-        listening(&[Socket::Tcp(listener)], Path::new("app.nvs"), &told);
+        listening(&[Socket::Tcp(listener)], "app.nvs", &told);
 
         let process = a_server_over("sd-notify", &told);
         nvs_server::control::Controlled::reload(&process)

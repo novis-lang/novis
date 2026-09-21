@@ -207,6 +207,10 @@ pub(crate) struct Host {
     /// Derived rather than asked for, so an uninstall names the same directory
     /// the install granted.
     pub(crate) cache_directory: Option<PathBuf>,
+    /// Whether the config the argv names writes `[[server.mount]]` and the
+    /// table mounts at least one entry that is on disk, which is what `serve`
+    /// with no file named answers with.
+    pub(crate) config_mounts_an_entry: bool,
 }
 
 /// A checked request: every § 2 refusal has already been made against it.
@@ -313,6 +317,19 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         .with_help(
             "run the same words as a command first, and store them once they start a server"
                 .to_owned(),
+        ));
+    }
+
+    if subcommand == "serve"
+        && entry_file(request.argv).is_none()
+        && !host.config_mounts_an_entry
+        && !values_of(request.argv, "--config").is_empty()
+    {
+        return Err(not_allowed(
+            "the stored argv names no file, and the configuration it names mounts nothing",
+            "`nvs serve` with no file answers with the configuration's `[[server.mount]]` blocks; \
+             with none written, or none of their entries on disk, it exits at once, which a \
+             service manager reports as a crash loop forever",
         ));
     }
 
@@ -3375,16 +3392,28 @@ fn describe_host(
         &nvs_config::resolve::roots(&roots, &cwd, &files),
         sources,
         &files,
-    )
-    .map(|resolved| resolved.table);
+    );
     // An argv naming no `--config` is `E0631`'s to refuse, and what resolved in
     // its place is this shell's tree, whose faults are not the service's.
-    let table = match resolved {
+    let resolved = match resolved {
         Err(diagnostic) if unresolved == Unresolved::Refuses && !named.is_empty() => {
             return Err(diagnostic);
         }
-        resolved => resolved.unwrap_or_default(),
+        resolved => resolved.ok(),
     };
+    // The table `serve` builds when the argv names no file, asked of the same
+    // tree. Why it would be refused is `serve`'s to report; here it is only
+    // whether there is one.
+    let writes_mounts = resolved
+        .as_ref()
+        .and_then(|resolved| resolved.config.server.as_ref())
+        .is_some_and(|server| !server.mount.is_empty());
+    let config_mounts_an_entry = writes_mounts
+        && resolved.as_ref().is_some_and(|resolved| {
+            nvs_config::mount::expand(&resolved.config, &resolved.origins, &files)
+                .is_ok_and(|mounts| !mounts.is_empty())
+        });
+    let table = resolved.map(|resolved| resolved.table).unwrap_or_default();
 
     let target = table
         .get("log")
@@ -3426,6 +3455,7 @@ fn describe_host(
             .and_then(|target| target.strip_prefix("file:"))
             .map(PathBuf::from),
         cache_directory,
+        config_mounts_an_entry,
     })
 }
 
@@ -3487,6 +3517,7 @@ mod tests {
             privileged_port: false,
             log_file: None,
             cache_directory: None,
+            config_mounts_an_entry: true,
         }
     }
 
@@ -3722,6 +3753,34 @@ mod tests {
         asked.unaccepted = Some("anything");
         let refusal = plan(&asked, &host()).expect_err("allowlist first");
         assert!(refusal.message.contains("`nvs ast`"), "{}", refusal.message);
+    }
+
+    /// `serve` with no file is an argv this binary runs only where the named
+    /// configuration mounts an entry, so that is what the installer asks: with
+    /// one it is stored as written, and with none it is `E0630` for the row's
+    /// own reason.
+    #[test]
+    fn a_serve_argv_with_no_file_is_stored_only_over_a_configuration_that_mounts_an_entry() {
+        let bare = vec![
+            "serve".to_owned(),
+            "--config".to_owned(),
+            absolute("nvs.toml"),
+        ];
+        let stored = plan(&request(&bare), &host()).expect("the configuration mounts an entry");
+        assert_eq!(stored.argv, bare);
+
+        let mut nothing_mounted = host();
+        nothing_mounted.config_mounts_an_entry = false;
+        let refusal = plan(&request(&bare), &nothing_mounted).expect_err("nothing to serve");
+        assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+        assert!(
+            refusal.message.contains("mounts nothing"),
+            "{}",
+            refusal.message
+        );
+
+        // A named file is `serve`'s own table of one, and asks nothing of the mounts.
+        assert!(plan(&request(&argv()), &nothing_mounted).is_ok());
     }
 
     /// `rule:packaging/a-bundle-may-not-install-itself`.

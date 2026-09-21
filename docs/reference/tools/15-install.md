@@ -29,6 +29,25 @@ where the configuration is:
     nvs --config D:\srv\novis\config\nvs.toml init
     nvs --config D:\srv\novis\config\nvs.toml serve D:\srv\app\index.nvs
 
+The file after `serve` is optional when the configuration has `[[server.mount]]` blocks. With no
+file, `nvs serve` serves every file that those blocks mount:
+
+    nvs --config D:\srv\novis\config\nvs.toml serve
+
+If the configuration has no `[[server.mount]]` block, `nvs serve` needs the file.
+
+A configuration with `[[server.mount]]` blocks must set `root` in the `[server]` block. Every
+mounted file is found under that folder. Without `root`, the server does not start:
+
+```toml
+[server]
+root = "D:/srv/www"
+
+[[server.mount]]
+scan = "*/public/index.nvs"
+prefix = "/{1:lower}"
+```
+
 `nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
 it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
 file is never overwritten.

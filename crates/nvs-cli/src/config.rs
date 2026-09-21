@@ -343,7 +343,7 @@ pub(crate) fn boot_snapshot(
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<Arc<nvs_config::Snapshot>, Diagnostic> {
-    boot_origins(config, entry, sources, init).map(|(snapshot, _)| snapshot)
+    boot_origins(config, Some(entry), sources, init).map(|(snapshot, _)| snapshot)
 }
 
 /// [`boot_snapshot`], keeping the map of **where each key was written**.
@@ -353,9 +353,13 @@ pub(crate) fn boot_snapshot(
 /// `nvs_config::mount::expand`, which resolves a relative `[server] root`
 /// against the file that wrote it — needs this beside it. Callers that only
 /// read values take [`boot_snapshot`] and never see it.
+///
+/// `entry` is `None` for `nvs serve` started with no file named, and the
+/// snapshot is then [`nvs_config::Snapshot::host`]'s: the global tree with no
+/// `[[app]]` block folded.
 pub(crate) fn boot_origins(
     config: &[PathBuf],
-    entry: &Path,
+    entry: Option<&Path>,
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<
@@ -462,7 +466,7 @@ fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
 fn boot_in(
     cwd: &Path,
     config: &[PathBuf],
-    entry: &Path,
+    entry: Option<&Path>,
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<
@@ -495,7 +499,10 @@ fn boot_in(
         roots = nvs_config::resolve::roots(config, cwd, &files);
     }
     let resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
-    let snapshot = nvs_config::Snapshot::build(&resolved, entry, &files)?;
+    let snapshot = match entry {
+        Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &files)?,
+        None => nvs_config::Snapshot::host(&resolved, &files)?,
+    };
     Ok((snapshot, resolved.origins))
 }
 
@@ -760,7 +767,7 @@ mod tests {
         .expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Never)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Never)
             .expect("the tree names a readable bundle and a mode that allows a key log");
         let policy = policy_of(&snapshot);
 
@@ -802,7 +809,7 @@ mod tests {
         .expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Never)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Never)
             .expect("a tree that is one capability block resolves");
 
         assert_eq!(
@@ -833,7 +840,7 @@ mod tests {
         assert!(!written.exists(), "the directory starts with no tree");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
             .expect("the file this call writes is a file it can read");
 
         assert!(
@@ -863,7 +870,8 @@ mod tests {
         let entry = entry(&dir);
 
         let mut sources = SourceMap::new();
-        boot_in(&dir, &[], &entry, &mut sources, Init::Write).expect("a tree it wrote itself");
+        boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
+            .expect("a tree it wrote itself");
 
         let written = fs::read(dir.join("nvs.toml")).expect("the write happened");
         assert_eq!(
@@ -885,7 +893,7 @@ mod tests {
         fs::write(&existing, hand_written).expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
             .expect("a comment-only file is a tree that resolves");
 
         assert_eq!(
@@ -918,7 +926,7 @@ mod tests {
         open_to_the_world(&dir);
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
             .expect("a directory that may not be written into is still one to run in");
 
         assert!(
@@ -946,7 +954,7 @@ mod tests {
         refuse_new_files(&dir);
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
             .expect("a directory that will not take the file is still one to run in");
 
         assert!(
@@ -1029,7 +1037,7 @@ mod tests {
         let absent = dir.join("absent.toml");
 
         let mut sources = SourceMap::new();
-        boot_in(&dir, &[absent], &entry, &mut sources, Init::Write)
+        boot_in(&dir, &[absent], Some(&entry), &mut sources, Init::Write)
             .expect_err("a `--config` naming a file that does not exist is a hard refusal");
 
         assert!(
