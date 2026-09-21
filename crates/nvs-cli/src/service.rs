@@ -26,9 +26,12 @@
 //! `nvs_diagnostics::code` owns the reasoning.
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
-//! value in the argv, the entry file `serve`/`run` names, and the installer's
-//! own `--log-file` — and nothing else, because a rule that refused any word
-//! that *looked* like a path would refuse a `--listen` and an `rule:tooling/terminal-output-is-a-sink`
+//! value in the argv, the entry file `serve`/`run` names, the installer's own
+//! `--log-file`, and the two paths of the named configuration that § 4 grants
+//! on and the server opens as written — the file of a `[log] target` and
+//! `[opcache] file_cache_dir` — and nothing else, because a rule that refused
+//! any word that *looked* like a path would refuse a `--listen` and an
+//! `rule:tooling/terminal-output-is-a-sink`
 //! program argument that happen to contain a separator. `Path::is_absolute` is
 //! the test, so it answers for **the host the installer is running on**: a
 //! Unix-shaped `/etc/nvs/nvs.toml` is not absolute on Windows, and refusing it
@@ -322,7 +325,7 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
     // The first one only. An operator fixing a path re-runs this, and a list
     // of every relative word in an argv reads as a worse failure than the one
     // that is actually being reported.
-    if let Some((option, written)) = relative_paths(request).into_iter().next() {
+    if let Some((option, written)) = relative_paths(request, host).into_iter().next() {
         return Err(Diagnostic::error(
             code::E_SERVICE_PATH_NOT_ABSOLUTE,
             format!("`{option}` is relative: `{written}`"),
@@ -373,7 +376,12 @@ fn not_allowed(message: &str, note: &str) -> Diagnostic {
 
 /// Every relative path in the request, as the option that carried it and the
 /// word itself, in the order an operator would fix them.
-fn relative_paths<'a>(request: &'a Request<'_>) -> Vec<(&'a str, String)> {
+///
+/// The named configuration's two paths follow the request's own. The server
+/// opens `[log] target` and `[opcache] file_cache_dir` as written, so under a
+/// service a relative one is resolved against the service manager's starting
+/// directory, and § 4's grant on it would be made against this shell's.
+fn relative_paths<'a>(request: &'a Request<'_>, host: &Host) -> Vec<(&'a str, String)> {
     let mut out = Vec::new();
     for option in PATH_OPTIONS {
         for written in values_of(request.argv, option) {
@@ -391,6 +399,16 @@ fn relative_paths<'a>(request: &'a Request<'_>) -> Vec<(&'a str, String)> {
         && !log.is_absolute()
     {
         out.push(("--log-file", log.display().to_string()));
+    }
+    for (key, written) in [
+        ("[log] target", &host.log_file),
+        ("[opcache] file_cache_dir", &host.cache_directory),
+    ] {
+        if let Some(written) = written
+            && !written.is_absolute()
+        {
+            out.push((key, written.display().to_string()));
+        }
     }
     out
 }
@@ -1863,8 +1881,9 @@ pub(crate) mod registration {
     ///
     /// # Errors
     ///
-    /// The manager's failure at the first action it refuses, so a verb stops
-    /// where it stopped rather than carrying on past it.
+    /// The manager's failure at the first action it refuses, carrying that
+    /// action's own line, so a verb stops where it stopped rather than carrying
+    /// on past it and says where that was.
     pub(crate) fn perform(
         actions: &[Action],
         site: &Site<'_>,
@@ -1882,7 +1901,14 @@ pub(crate) mod registration {
             match site.manager.apply(action) {
                 Ok(Some(answer)) => answers.push(answer),
                 Ok(None) => {}
-                Err(error) => return Err(Refused::Manager(error)),
+                // The platform's own text names no step and no object, and in
+                // an operator's locale "access denied" is the whole of it.
+                Err(error) => {
+                    return Err(Refused::Manager(std::io::Error::new(
+                        error.kind(),
+                        format!("could not {}: {error}", describe(action)),
+                    )));
+                }
             }
         }
         Ok(answers)
@@ -2090,9 +2116,9 @@ pub(crate) mod registration {
         use std::time::Duration;
 
         use windows_sys::Win32::Foundation::{
-            ERROR_FILE_NOT_FOUND, ERROR_SERVICE_ALREADY_RUNNING, ERROR_SERVICE_DOES_NOT_EXIST,
-            ERROR_SERVICE_MARKED_FOR_DELETE, ERROR_SERVICE_NOT_ACTIVE, ERROR_SUCCESS, LocalFree,
-            WIN32_ERROR,
+            ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_SERVICE_ALREADY_RUNNING,
+            ERROR_SERVICE_DOES_NOT_EXIST, ERROR_SERVICE_MARKED_FOR_DELETE,
+            ERROR_SERVICE_NOT_ACTIVE, ERROR_SUCCESS, LocalFree, WIN32_ERROR,
         };
         use windows_sys::Win32::Security::Authorization::{
             ACCESS_MODE, EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW,
@@ -2466,8 +2492,13 @@ pub(crate) mod registration {
 
         /// § 4's failure actions and the period after which the SCM forgets
         /// earlier failures.
+        ///
+        /// The handle carries `SERVICE_START` beside `SERVICE_CHANGE_CONFIG`
+        /// because `ChangeServiceConfig2W` requires it of any handle that sets
+        /// an `SC_ACTION_RESTART`, and answers `ERROR_ACCESS_DENIED` to an
+        /// administrator without it.
         fn failure(name: &str, restart: Restart, reset: Duration) -> std::io::Result<()> {
-            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG)?;
+            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG | SERVICE_START)?;
             let mut actions: Vec<SC_ACTION> = Vec::new();
             match restart {
                 Restart::OnFailure => {
@@ -2525,7 +2556,15 @@ pub(crate) mod registration {
         /// Inheritance follows the object rather than the flag, because a
         /// grant on a log directory buys nothing if the file rotation creates
         /// in it does not carry the same entry.
+        ///
+        /// A directory the service writes in is created when it is not there.
+        /// The service's own account holds nothing on the parent, so a log
+        /// directory left for the first record to create is one that record
+        /// cannot create.
         fn grant(account: &str, path: &Path, write: bool) -> std::io::Result<()> {
+            if write && !path.exists() {
+                std::fs::create_dir_all(path)?;
+            }
             let rights = if write {
                 FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE
             } else {
@@ -2540,8 +2579,22 @@ pub(crate) mod registration {
         /// rather than subtracting the rights the install added, which is what
         /// "no granted ACL" means when an install was interrupted part way
         /// through its own list.
+        ///
+        /// An object that is not there holds no entry, so it is already
+        /// revoked: a log directory nothing ever created must not be what
+        /// keeps a service installed.
         fn revoke(account: &str, path: &Path) -> std::io::Result<()> {
-            entry(account, path, REVOKE_ACCESS, 0)
+            match entry(account, path, REVOKE_ACCESS, 0) {
+                Err(error)
+                    if matches!(
+                        code(&error),
+                        Some(ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND)
+                    ) =>
+                {
+                    Ok(())
+                }
+                other => other,
+            }
         }
 
         /// One explicit entry, merged into the object's own DACL and written
@@ -3354,6 +3407,33 @@ mod tests {
             code::E_SERVICE_PATH_NOT_ABSOLUTE
         );
 
+        // And in the two paths the named configuration carries, which the
+        // server opens as written and § 4 grants on. An absolute `--log-file`
+        // beside a relative `[log] target` changes nothing: the target is still
+        // what the service opens.
+        let absolute_log = PathBuf::from(absolute("log/web.log"));
+        for (key, written) in [
+            ("[log] target", "../../logs/novis.log"),
+            ("[opcache] file_cache_dir", "cache"),
+        ] {
+            let mut configured = host();
+            if key == "[log] target" {
+                configured.log_file = Some(PathBuf::from(written));
+            } else {
+                configured.cache_directory = Some(PathBuf::from(written));
+            }
+            let mut asked = request(&good);
+            asked.log_file = Some(&absolute_log);
+            let refusal = plan(&asked, &configured).expect_err(key);
+            assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
+            assert!(refusal.message.contains(key), "{}", refusal.message);
+            assert!(refusal.message.contains(written), "{}", refusal.message);
+        }
+        let mut configured = host();
+        configured.log_file = Some(absolute_log.clone());
+        configured.cache_directory = Some(PathBuf::from(absolute("cache")));
+        assert!(plan(&request(&good), &configured).is_ok());
+
         // An argv with no `--config` at all is the same code: the fallback to
         // `./nvs.toml` is a relative path the operator never wrote.
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
@@ -4142,6 +4222,56 @@ mod tests {
                 );
             }
         }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// A manager that refuses § 4's failure actions the way the SCM refuses
+    /// them to a handle opened without `SERVICE_START`, and applies the rest.
+    #[derive(Debug, Default)]
+    struct RefusesFailureActions {
+        applied: registration::Recording,
+    }
+
+    impl registration::Manager for RefusesFailureActions {
+        fn apply(&self, action: &registration::Action) -> std::io::Result<Option<String>> {
+            if matches!(action, registration::Action::Failure { .. }) {
+                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+            }
+            self.applied.apply(action)
+        }
+    }
+
+    /// The platform's own text for a refused step is "access denied" and
+    /// nothing else, so the error carries the line `--dry-run` prints for the
+    /// step it stopped on, and nothing after that step is applied.
+    #[test]
+    fn a_step_the_manager_refuses_is_named_in_the_error() {
+        let root = unit_root("named-step");
+        let manager = RefusesFailureActions::default();
+        let site = registration::Site {
+            platform: registration::Platform::Windows,
+            unit_root: &root,
+            manager: &manager,
+        };
+        let argv = argv();
+        let refused = registration::install(
+            &request(&argv),
+            &host(),
+            &registration(),
+            &site,
+            false,
+            &mut std::io::sink(),
+        )
+        .expect_err("the failure actions are refused");
+        let registration::Refused::Manager(error) = refused else {
+            panic!("§ 2 refused an argv that survives it")
+        };
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+        let text = error.to_string();
+        assert!(text.contains("could not set `web` to restart"), "{text}");
+
+        // Registered and asked for `PRESHUTDOWN`, and stopped there.
+        assert_eq!(manager.applied.applied().len(), 2);
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 

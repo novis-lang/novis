@@ -1690,7 +1690,7 @@ removes it. So the default is refusal, and the allowlist is closed:
 |---|---|
 | A subcommand other than `serve` or `run` | everything else exits at once — a crash loop, forever — or needs a terminal |
 | `--fault-inject`, on any subcommand | a hook that must never be reachable from a served request, now with a privileged account |
-| Any relative path, in the argv or an installer option | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code |
+| Any relative path, in the argv, an installer option, or the named configuration's `[log] target` file and `[opcache] file_cache_dir` | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code, and for the configuration's two a log or a cache in a directory nobody chose, under a grant made against the installing shell's |
 | An argv with no `--config` | it would fall back to `./nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), making the configuration a property of the starting directory; a service names it absolutely |
 | Neither `--log-file` nor a `[log]` file or syslog destination | a service has no console handle, so stderr goes nowhere and a refused compile leaves no trace; `stderr` is not a destination |
 | An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
@@ -1741,7 +1741,10 @@ nothing may depend on them, and `nvs service run` ignores them.
 The default identity is `NT SERVICE\<name>` — a virtual account the SCM creates and owns, with a
 per-service SID, no password to rotate or leak, and no interactive logon. Install grants that SID read
 on the config, read/write on the cache and log directories, and nothing further; the account can read
-its configuration and write its cache and log, and cannot write its own binary.
+its configuration and write its cache and log, and cannot write its own binary. A cache or log directory
+that is not there is created by the install, because the account holds nothing on the parent and so
+could never create it itself. An uninstall revokes the same entries, and reads a path that is no longer
+there as already revoked.
 
 `--account` takes a domain identity for a deployment that needs one, with the password prompted rather
 than taken from the command line ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). `LocalSystem` is never the
