@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens to a string that carries terminal commands. A file name
+// from outside your program may contain them, and after `plain` they are
+// symbols on the screen instead of commands the terminal runs.
+
+// `\u{1B}` is the escape character. In a terminal, `\u{1B}[2J` clears the
+// screen and `\u{1B}[31m` turns the text red.
+string $fromOutside = "report\u{1B}[2J\u{1B}[31m.csv";
+
+// This prints "report␛[2J␛[31m.csv". The screen is not cleared and the text
+// does not turn red.
+echo Core\Cli\Text::plain($fromOutside), "\n";
+
+// A tab and a newline are not commands, so they are left as they are.
+echo Core\Cli\Text::plain("first\tsecond\nthird"), "\n";

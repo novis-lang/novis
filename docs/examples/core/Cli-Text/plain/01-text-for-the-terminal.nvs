@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make terminal text out of a string and print it.
+
+string $name = "orders.csv";
+var $line = Core\Cli\Text::plain(Core\Str::format("reading %s", $name));
+
+// A `Core\Cli\Text` is printed with `echo`, like a string.
+echo $line, "\n";
+
+// `text()` gives the string back, without any styling. This prints
+// "reading orders.csv".
+echo $line->text(), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Measures making terminal text out of a short label. A tool meets this once
+// for every value it prints that came from outside the program.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 5
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $labels = ["order", "customer", "shipping address"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The label of each round is chosen by the round before it, so no
+            // round can be left out.
+            int $at = $total % 3;
+            var $text = Core\Cli\Text::plain($labels[$at]);
+            $total = $total + $at + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

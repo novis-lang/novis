@@ -1,0 +1,39 @@
+<?nvs
+// Attack: strings full of terminal commands are turned into terminal text, by
+// the million and a million characters at a time. Nothing may reach the
+// terminal as a command, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+// 1. A million escape characters in one string. Every one of them must arrive
+//    on screen as a symbol.
+var $loud = Core\Cli\Text::plain(Core\Str::repeat("\u{1B}", 1000000));
+echo 'step 1 made ', Core\Str::length($loud->text()), " characters\n";
+
+// 2. The commands a terminal really runs: clear the screen, rename the window,
+//    move the cursor, and end the line early.
+echo Core\Cli\Text::plain("\u{1B}[2J\u{1B}[H\u{1B}]0;whoami\u{7}\r\u{0}\u{8}"), "\n";
+echo "step 2 printed\n";
+
+// 3. Characters that make text read backwards. A line that is never closed
+//    again would turn the rest of the screen around.
+echo Core\Cli\Text::plain("total \u{202E}1 orde\u{202D}r"), "\n";
+echo "step 3 printed\n";
+
+// 4. Half a million pieces of terminal text, one at a time. Each one is
+//    finished with before the next is made, so nothing may be kept behind.
+uint $made = 0;
+while ($made < 500000) {
+    var $one = Core\Cli\Text::plain('a short label');
+    $made = $made + 1;
+}
+echo 'step 4 made ', $made, " pieces\n";
+
+// 5. Ten thousand pieces joined into one. Joining must not cost more each time
+//    than the piece it adds.
+var $joined = Core\Cli\Text::plain('start');
+uint $at = 0;
+while ($at < 10000) {
+    $joined = $joined + Core\Cli\Text::plain('x');
+    $at = $at + 1;
+}
+echo 'step 5 joined ', Core\Str::length($joined->text()), " characters\n";
