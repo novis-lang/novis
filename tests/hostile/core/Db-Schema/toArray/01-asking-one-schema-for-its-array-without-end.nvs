@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a schema of ten thousand tables is asked for its array a hundred
+// thousand times, and every answer is kept. Then the program writes into an
+// answer and asks again, to see whether the schema itself changed. Every step
+// has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+use Core\Db\Schema;
+
+// 1. One schema of ten thousand tables. The array form is built once, when the
+// schema is read.
+array<mixed> $tables = [];
+uint $i = 0;
+while ($i < 10000) {
+    $tables[] = [
+        'name' => Core\Str::format('t%d', $i),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $i = $i + 1;
+}
+var $schema = Schema::fromArray(['tables' => $tables]);
+array<mixed> $first = $schema->toArray();
+echo '1 tables: ', Core\Arr::count($first['tables'] as array<mixed>), "\n";
+
+// 2. A hundred thousand answers, all kept at once. A method that built a new
+// array each time would need a hundred thousand copies of a large schema.
+array<array<mixed>> $kept = [];
+$i = 0;
+while ($i < 100000) {
+    $kept[] = $schema->toArray();
+    $i = $i + 1;
+}
+echo '2 kept: ', Core\Arr::count($kept), "\n";
+$kept = [];
+
+// 3. The program writes into an answer and empties it. The schema must not
+// change, so the next answer still has ten thousand tables in it.
+array<mixed> $mine = $schema->toArray();
+$mine['tables'] = [];
+$mine['stolen'] = 'yes';
+array<mixed> $again = $schema->toArray();
+echo '3 tables: ', Core\Arr::count($again['tables'] as array<mixed>), "\n";
+
+// 4. A million answers that are all dropped again. A reference that is taken
+// and never given back shows up here as memory that keeps growing.
+uint $seen = 0;
+$i = 0;
+while ($i < 1000000) {
+    array<mixed> $form = $schema->toArray();
+    $seen = $seen + Core\Arr::count($form);
+    $i = $i + 1;
+}
+echo '4 seen: ', $seen, "\n";

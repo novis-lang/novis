@@ -1,0 +1,66 @@
+--TEST--
+`Core\Db\Schema::toArray` answers one canonical array for every spelling of a schema, reads back into the same schema, and changes nothing when a program writes into the array it was handed, pinning `rule:core-classes/schema-is-a-value`
+--FILE--
+<?nvs
+// covers: Core\Db\Schema::toArray
+
+use Core\Db\Schema;
+
+// `rule:core-classes/schema-is-a-value`: the array form is canonical, so the
+// tables come in name order and every key a spelling left out is written down.
+var $short = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'guests',
+            'columns' => [['name' => 'email', 'type' => 'text(320)']],
+            'primary_key' => ['email'],
+        ],
+    ],
+]);
+string $canonical = Core\Json::encode($short->toArray());
+echo $canonical, "\n";
+
+// The same two tables, in the other order, with the keys in another order and
+// every optional key written down. One schema has one array form, so this
+// answers the array above.
+var $long = Schema::fromArray([
+    'tables' => [
+        [
+            'primary_key' => ['email'],
+            'columns' => [['type' => 'text(320)', 'name' => 'email', 'null' => false, 'identity' => false]],
+            'unique' => [],
+            'name' => 'guests',
+            'indexes' => [],
+        ],
+        [
+            'indexes' => [],
+            'name' => 'notes',
+            'unique' => [],
+            'columns' => [['identity' => true, 'null' => false, 'type' => 'int64', 'name' => 'id']],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+echo 'other spelling: ', Core\Json::encode($long->toArray()) == $canonical ? 'same' : 'different', "\n";
+
+// The array is the schema's own, so a program that writes into it must get a
+// copy. The schema answers the same array afterwards.
+array<mixed> $mine = $short->toArray();
+$mine['tables'] = [];
+$mine['stolen'] = 'yes';
+echo 'after a program wrote into it: ', Core\Json::encode($short->toArray()) == $canonical ? 'same' : 'different', "\n";
+
+// What `toArray` writes is what `Core\Db\Schema::fromArray` reads, so a schema
+// goes out to an array and back without changing.
+var $again = Schema::fromArray($short->toArray());
+echo 'read back from its own array: ', Core\Json::encode($again->toArray()) == $canonical ? 'same' : 'different', "\n";
+--EXPECT--
+{"tables":[{"name":"guests","columns":[{"name":"email","type":"text(320)","null":false,"identity":false}],"primary_key":["email"],"unique":[],"indexes":[]},{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true}],"primary_key":["id"],"unique":[],"indexes":[]}]}
+other spelling: same
+after a program wrote into it: same
+read back from its own array: same

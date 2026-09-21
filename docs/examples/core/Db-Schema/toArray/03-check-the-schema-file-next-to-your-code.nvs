@@ -1,0 +1,36 @@
+<?nvs
+// Shows how a release step checks that the schema file stored next to a
+// program still matches the tables the program needs. The check compares the
+// two array forms, and prints the new one when they differ.
+
+use Core\Db\Schema;
+
+// The tables the program needs today.
+var $needed = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'written_at', 'type' => 'instant'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// What the file holds. `nvs schema dump` writes this text.
+string $stored = '{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","identity":true},{"name":"title","type":"text(200)"}],"primary_key":["id"]}]}';
+var $onFile = Schema::fromArray(Core\Json::decode($stored) as array<mixed>);
+
+string $wanted = Core\Json::encode($needed->toArray());
+
+// The file is missing the `written_at` column, so this prints
+// `the schema file is out of date` and then the text to save.
+if ($wanted == Core\Json::encode($onFile->toArray())) {
+    echo "the schema file is up to date\n";
+} else {
+    echo "the schema file is out of date\n";
+    echo $wanted, "\n";
+}

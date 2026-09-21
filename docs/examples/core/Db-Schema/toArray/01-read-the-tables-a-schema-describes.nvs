@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to read what a schema says. `toArray` returns the schema as an
+// array, so a program can walk the tables and columns it describes.
+
+use Core\Db\Schema;
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'body', 'type' => 'text', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'guests',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'email', 'type' => 'text(320)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+array<mixed> $form = $schema->toArray();
+array<mixed> $tables = $form['tables'] as array<mixed>;
+
+// The tables come in name order, so `guests` is printed first. This prints
+// `guests: 2 columns` and then `notes: 3 columns`.
+foreach ($tables as mixed $entry) {
+    array<mixed> $table = $entry as array<mixed>;
+    array<mixed> $columns = $table['columns'] as array<mixed>;
+    echo $table['name'], ': ', Core\Arr::count($columns), " columns\n";
+}

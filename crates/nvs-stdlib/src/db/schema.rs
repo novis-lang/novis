@@ -778,6 +778,7 @@ mod tests {
     /// `applySafe` on the *same* context, the same receiver and the same
     /// connection stops at the grant, so the difference between the two
     /// messages is § 9's split and nothing about the fixture.
+    // covers: Core\Db\Schema::planAgainst
     #[test]
     fn plan_against_needs_only_the_db_connect_a_program_already_holds() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -1012,5 +1013,81 @@ mod tests {
             "the refusal does not name the member that was called: {message}"
         );
         released(deep);
+    }
+
+    /// **`Core\Db\Schema::toArray` hands on the array the value already holds**,
+    /// and retains it once per call.
+    ///
+    /// The module doc's decision says the slot *is* the schema, so asking twice
+    /// has to answer one array rather than two that compare equal. Only the
+    /// address says which of those happened: a member that rebuilt the array per
+    /// call would print the same JSON, cost a walk of the whole schema every
+    /// time a program looked at it, and still pass every case written from
+    /// Novis.
+    ///
+    /// The reference count is the other half, and it is what a compiled caller
+    /// rests on: each answer is a reference of its own, so releasing one must
+    /// leave the schema's own untouched. A member that handed the slot on
+    /// without retaining it would free the schema's array under it the first
+    /// time a caller let an answer go.
+    // covers: Core\Db\Schema::toArray
+    #[test]
+    fn to_array_hands_on_the_one_array_the_schema_holds_and_retains_it_per_call() {
+        let mut ctx = Ctx::buffered();
+        let written = smallest();
+        let schema = nvs_runtime::call(nvs_core_db_schema_from_array, &mut ctx, &[written])
+            .expect("one table with one column is a schema every backend takes");
+        released(written);
+
+        let first = nvs_runtime::call(nvs_core_db_schema_to_array, &mut ctx, &[schema])
+            .expect("a schema value answers its own array");
+        let held = first
+            .array_ptr()
+            .expect("the canonical form is an array, whatever the schema says");
+
+        #[expect(
+            unsafe_code,
+            reason = "the schema and the answer are both this frame's, and both \
+                      are released at the end"
+        )]
+        let after_one = unsafe { NvsArray::refcount_of(held) };
+
+        let second = nvs_runtime::call(nvs_core_db_schema_to_array, &mut ctx, &[schema])
+            .expect("a schema value answers its own array as often as it is asked");
+        assert_eq!(
+            second.array_ptr(),
+            Some(held),
+            "the second call built a second array, so reading a schema costs a \
+             walk of it every time"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "both answers are still held by this frame, which releases \
+                      them below"
+        )]
+        let after_two = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            after_two,
+            after_one + 1,
+            "the second call handed on the array without retaining it, so the \
+             first caller to let its answer go would free the schema's own"
+        );
+
+        released(second);
+
+        #[expect(
+            unsafe_code,
+            reason = "the first answer and the schema are this frame's until the \
+                      two releases below"
+        )]
+        let after_release = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            after_release, after_one,
+            "releasing one answer took more than that answer's own reference"
+        );
+
+        released(first);
+        released(schema);
     }
 }

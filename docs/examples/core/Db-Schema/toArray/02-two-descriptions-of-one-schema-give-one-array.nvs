@@ -1,0 +1,47 @@
+<?nvs
+// Shows that one schema always has one array form. The two descriptions below
+// are written differently and describe the same table.
+
+use Core\Db\Schema;
+
+var $short = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The same table, with the keys in another order and every optional key
+// written down.
+var $long = Schema::fromArray([
+    'tables' => [
+        [
+            'primary_key' => ['id'],
+            'columns' => [
+                ['type' => 'int64', 'name' => 'id', 'null' => false, 'identity' => true],
+                ['type' => 'text(200)', 'name' => 'title', 'null' => false, 'identity' => false],
+            ],
+            'unique' => [],
+            'name' => 'notes',
+            'indexes' => [],
+        ],
+    ],
+]);
+
+string $first = Core\Json::encode($short->toArray());
+string $second = Core\Json::encode($long->toArray());
+
+// Both arrays are the same, so this prints `the two descriptions agree`.
+if ($first == $second) {
+    echo "the two descriptions agree\n";
+} else {
+    echo "the two descriptions differ\n";
+}
+
+echo $first, "\n";

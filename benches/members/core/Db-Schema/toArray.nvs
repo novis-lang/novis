@@ -1,0 +1,35 @@
+<?nvs
+// Measures asking a schema for its array form. A program does this before it
+// writes a schema to a file or compares it with another one.
+// bench: iterations 200000
+// bench: allocations 0
+
+use Core\Db\Schema;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $schema = Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'notes',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        ['name' => 'title', 'type' => 'text(200)', 'null' => true],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+            ],
+        ]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The count goes into the total the method returns, so no round can
+            // be left out.
+            $total = $total + Core\Arr::count($schema->toArray());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
