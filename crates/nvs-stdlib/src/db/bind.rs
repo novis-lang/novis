@@ -1079,4 +1079,47 @@ mod tests {
              there"
         );
     }
+
+    /// `rule:classes/no-traits`'s delegation is *one symbol* per shared member, and `stream` is
+    /// where a second body would be felt first: the walk parks a portal on the
+    /// connection, so § 4's connection-busy `LogicError` is thrown by the
+    /// connection's own member and names it — `Core\Db\Connection::execute`,
+    /// even where the program wrote `$tx->execute(…)`. A forwarding body of the
+    /// transaction's own would give that one rule two messages and two places to
+    /// decide it.
+    ///
+    /// **Asserted as agreement over every shared member rather than for
+    /// `stream` alone**, because one row is what drifts: a member both classes
+    /// declare resolves to one helper or the rules underneath it are stated
+    /// twice, and a row that grew a symbol of its own fails here rather than at
+    /// the call site that meets the second message.
+    // covers: Core\Db\Transaction::stream
+    #[test]
+    fn every_member_both_db_handles_declare_resolves_to_the_connections_own_symbol() {
+        let paired: Vec<(&str, &str, &str)> = TRANSACTION
+            .instance
+            .iter()
+            .filter_map(|member| {
+                CONNECTION
+                    .instance
+                    .iter()
+                    .find(|twin| twin.name == member.name)
+                    .map(|twin| (member.name, member.symbol, twin.symbol))
+            })
+            .collect();
+        assert!(
+            paired.iter().any(|(name, ..)| *name == "stream"),
+            "the two receivers share the member this case is about: {paired:?}"
+        );
+
+        let apart: Vec<&str> = paired
+            .iter()
+            .filter(|(_, mine, theirs)| mine != theirs)
+            .map(|(name, ..)| *name)
+            .collect();
+        assert!(
+            apart.is_empty(),
+            "a shared member resolving to a body of its own states § 4's rules twice: {apart:?}"
+        );
+    }
 }

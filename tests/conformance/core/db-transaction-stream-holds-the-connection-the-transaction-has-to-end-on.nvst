@@ -1,0 +1,70 @@
+--TEST--
+`stream` on a `Core\Db\Transaction` walks that transaction's uncommitted rows one at a time and holds the connection until the last of them, so a statement while rows remain is a `LogicError` and a walk left early refuses the transaction's own end — `rule:classes/no-traits`, `rule:core-classes/db-streaming` and `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::stream
+use Core\Db;
+use Core\Db\Row;
+use Core\Db\Transaction;
+
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 4's
+// constant-memory walk is the transaction's too. What only this receiver can be
+// asked is what the walk holds: the very connection the `COMMIT` goes out on.
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+$db->execute("insert into t (name) values (?), (?)", ["ada", "grace"]);
+
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name) values (?)", ["katherine"]);
+    uint $walked = 0;
+    uint $held = 0;
+    foreach ($tx->stream("select id, name from t order by id", []) as Row $row) {
+        $walked = $walked + 1;
+        // § 4's connection-busy rule, which is where this member parts from its
+        // buffered sibling: a second statement through the same transaction is
+        // refused rather than queued behind the rows.
+        try {
+            $tx->query("select id from t", []);
+        } catch (LogicError $busy) {
+            $held = $held + 1;
+        }
+    }
+    // Both counts, because a member reading through a second connection would
+    // walk the committed two and refuse nothing, and look plausible on either
+    // line on its own.
+    echo "walked ", $walked, " refused ", $held, "\n";
+
+    // The other side of the same bound: the last row freed the connection, so
+    // the transaction runs a statement again.
+    echo "after the walk ", $tx->query("select id from t", [])->count(), "\n";
+});
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+
+// § 7's end is a statement like any other, so a walk that still holds the
+// connection is refused *there* rather than anywhere inside the closure.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        foreach ($tx->stream("select id from t order by id", []) as Row $row) {
+            break;
+        }
+        echo "the closure returned\n";
+    });
+    echo "the transaction ended\n";
+} catch (LogicError $busy) {
+    echo "the end was refused\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+walked 3 refused 3
+after the walk 3
+kept 3
+the closure returned
+the end was refused
