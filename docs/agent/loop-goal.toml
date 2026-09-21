@@ -103,6 +103,8 @@ modules = [
   # `Core\Db\Schema` — `rule:core-classes/schema-is-a-value`'s canonical array form, as a value a
   # program holds.
   "crates/nvs-stdlib/src/db/schema.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/shadow.ts",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
