@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to pick the right wording for a count in English.
+
+array<int> $counts = [0, 1, 2];
+foreach ($counts as int $count) {
+    // `Core\Cldr::pluralCategory` returns the form English uses for this
+    // count. English uses `One` for 1 and `Other` for every other number.
+    if (Core\Cldr::pluralCategory($count, "en") == Core\Cldr\PluralCategory::One) {
+        echo "You have ", $count, " new message.\n";
+    } else {
+        echo "You have ", $count, " new messages.\n";
+    }
+}

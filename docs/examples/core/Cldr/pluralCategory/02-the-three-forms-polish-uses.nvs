@@ -1,0 +1,22 @@
+<?nvs
+// Shows a language that has more than two forms. Polish has three words for
+// "file", and the count decides which one you need.
+
+class Polish {
+    public static function files(int $count): string {
+        return match (Core\Cldr::pluralCategory($count, "pl")) {
+            Core\Cldr\PluralCategory::One => "plik",
+            Core\Cldr\PluralCategory::Few => "pliki",
+            Core\Cldr\PluralCategory::Many => "plików",
+            // Polish has one more form, for counts that show a fraction.
+            default => "pliku",
+        };
+    }
+}
+
+// This prints 1 plik, 2 pliki, 5 plików and 22 pliki. A test for `== 1` gets
+// the last three wrong.
+array<int> $counts = [1, 2, 5, 22];
+foreach ($counts as int $count) {
+    echo $count, " ", Polish::files($count), "\n";
+}

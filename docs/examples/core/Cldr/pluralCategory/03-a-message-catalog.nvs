@@ -1,0 +1,41 @@
+<?nvs
+// Shows how a message catalog picks its line for a count. A translated
+// application does this for every message that names a number.
+
+class Catalog {
+    // The six form names. A catalog keys its lines on these.
+    public static function form(int $count, string $locale): string {
+        return match (Core\Cldr::pluralCategory($count, $locale)) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+
+    public static function line(array<string> $lines, int $count, string $locale): string {
+        string $key = Catalog::form($count, $locale);
+        // A catalog does not always write a line for every form. Every
+        // language has `other`, so use that line when the form is missing.
+        if (!Core\Arr::hasKey($lines, $key)) {
+            $key = "other";
+        }
+        return Core\Str::replace($lines[$key], "{n}", $count as string);
+    }
+}
+
+// Russian has three forms for "file".
+array<string> $russian = [
+    "one" => "{n} файл",
+    "few" => "{n} файла",
+    "many" => "{n} файлов",
+    "other" => "{n} файла",
+];
+
+// 21 takes the same form as 1 in Russian, so the last line is "21 файл".
+array<int> $counts = [1, 2, 5, 21];
+foreach ($counts as int $count) {
+    echo Catalog::line($russian, $count, "ru"), "\n";
+}
