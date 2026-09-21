@@ -1,0 +1,40 @@
+<?nvs
+// Shows the everyday use: a tool builds one style for each kind of line it
+// prints and uses them all program long. This example does not run in a
+// terminal, so the colours are dropped and only the text is printed.
+
+class Report {
+    // A style is a value, so the styles a program uses can live in one place.
+    // Each method here gives back the style for one kind of line.
+    public static function ok(): Core\Cli\Style {
+        return Core\Cli\Style::of({color: Core\Cli\Color::GREEN});
+    }
+
+    public static function warning(): Core\Cli\Style {
+        return Core\Cli\Style::of({color: Core\Cli\Color::YELLOW});
+    }
+
+    public static function error(): Core\Cli\Style {
+        return Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+    }
+}
+
+array<string> $files = ["invoices.csv", "orders.csv", "returns.csv"];
+array<string> $states = ["ok", "warning", "error"];
+uint $at = 0;
+
+foreach ($files as string $file) {
+    // The kind of the line chooses the style. The text is the same shape
+    // either way, which is what keeps the output readable.
+    string $state = $states[$at as int];
+    var $style = Report::ok();
+    if ($state == "warning") {
+        $style = Report::warning();
+    }
+    if ($state == "error") {
+        $style = Report::error();
+    }
+
+    echo Core\Cli\Text::styled(Core\Str::format("%s  %s", $state, $file), $style), "\n";
+    $at = $at + 1;
+}

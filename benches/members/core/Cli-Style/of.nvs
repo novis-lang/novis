@@ -1,0 +1,29 @@
+<?nvs
+// Measures building a style value. A tool meets this once for every kind of
+// line it colours, and again for every line when it builds the style inline.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Cli\Color> $inks = [
+            Core\Cli\Color::RED,
+            Core\Cli\Color::GREEN,
+            Core\Cli\Color::BLUE,
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The colour of each round is chosen by the round before it, so no
+            // round can be left out.
+            int $at = $total % 3;
+            var $style = Core\Cli\Style::of({color: $inks[$at], bold: true, underline: true});
+            $total = $total + $at + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

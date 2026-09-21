@@ -1,0 +1,60 @@
+<?nvs
+// Attack: styles are built by the million, kept by the hundred thousand, and
+// given text that tries to run commands on the terminal. Nothing may reach the
+// terminal as a command. Memory must not grow with the number of styles built,
+// and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+// 1. Two million styles, one at a time. Each one is finished with before the
+//    next is built, so nothing may be kept behind.
+uint $built = 0;
+while ($built < 2000000) {
+    var $style = Core\Cli\Style::of({ color: Core\Cli\Color::RED, bold: true });
+    $built = $built + 1;
+}
+echo 'step 1 built ', $built, " styles\n";
+
+// 2. A hundred thousand different styles, all held at the same time. Every one
+//    has its own colour, so none of them can be shared.
+array<Core\Cli\Style> $kept = [];
+uint $at = 0;
+while ($at < 100000) {
+    $kept[] = Core\Cli\Style::of({
+        color: Core\Cli\Color::rgb($at % 256, ($at * 7) % 256, 0),
+        background: Core\Cli\Color::index($at % 256),
+        bold: true,
+        dim: true,
+        italic: true,
+        underline: true,
+        strikethrough: true,
+    });
+    $at = $at + 1;
+}
+echo 'step 2 kept ', Core\Arr::count($kept), " styles\n";
+
+// 3. Text made of control characters wearing a style. It clears the screen,
+//    renames the window and writes an escape sequence of its own.
+var $loud = Core\Cli\Style::of({ color: Core\Cli\Color::BRIGHT_RED, underline: true });
+echo Core\Cli\Text::styled("\u{1B}[2J\u{1B}[H", $loud);
+echo Core\Cli\Text::styled("\u{1B}]0;whoami\u{7}", $loud);
+echo Core\Cli\Text::styled("<red>\u{1B}[31m</red>\u{0}\u{8}", $loud), "\n";
+echo "step 3 printed\n";
+
+// 4. A styled text of a million characters. The style is written once around
+//    the text and must not grow with it.
+echo Core\Cli\Text::styled(Core\Str::repeat('t', 1000000), $loud), "\n";
+echo "step 4 printed\n";
+
+// 5. Colours one past each end of their ranges. Both must throw an error the
+//    program can catch, and the style must not be built from them.
+try {
+    Core\Cli\Style::of({ color: Core\Cli\Color::index(256) });
+} catch (RuntimeError $e) {
+    echo "step 5 refused the palette entry\n";
+}
+try {
+    Core\Cli\Style::of({ background: Core\Cli\Color::rgb(256, 0, 0) });
+} catch (RuntimeError $e) {
+    echo "step 5 refused the colour\n";
+}
+echo "step 5 printed\n";
