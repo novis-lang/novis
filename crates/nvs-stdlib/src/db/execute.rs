@@ -1630,6 +1630,77 @@ mod tests {
         );
     }
 
+    /// The rewritten text of one set, as [`batch_of`] reads it before comparing
+    /// it with the first set's — a statement binding one `inList` of `ids`.
+    ///
+    /// The set is released here, so the caller owes nothing: what it is handed
+    /// back is the text alone, which is the whole of what the agreement is
+    /// decided on.
+    fn batched_sql(dialect: nvs_db::Dialect, encode: Encoder, ids: &[i64]) -> String {
+        let mut list = NvsArray::new();
+        for id in ids {
+            list.append(Value::int(*id));
+        }
+        let mut set = NvsArray::new();
+        set.append(crate::instance::build(&IN_LIST, [Value::array(list)]));
+        let set = Value::array(set);
+        let sql = Value::str(NvsStr::new(b"select id from notes where id in (?)"));
+        let statement = statement_in(
+            dialect,
+            encode,
+            0,
+            Value::null(),
+            &[Value::null(), sql, set],
+            "executeMany",
+        )
+        .expect("a set binding one `inList` rewrites");
+        released(set);
+        statement.sql
+    }
+
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s batch agreement, asserted at
+    /// the seam [`batch_of`] decides it on: every set of one `executeMany`
+    /// rewrites to the same statement text, or the sets are two statements and
+    /// the batch is refused.
+    ///
+    /// **The comparison is on the rewritten text and not on a count of
+    /// `$params`**, which is the whole of the rule. `rule:core-classes/db-parameters`'s `inList`
+    /// expands to one marker per element, so the two sets below each hold one
+    /// argument and bind a different number of values — a batch comparing
+    /// lengths would accept the pair and send the second set against the first
+    /// set's statement.
+    ///
+    /// [`batch_of`] itself is one layer above what this crate can reach: it
+    /// reads the driver off a filed connection, and no `nvs_db::Connection` can
+    /// be built in a `-p nvs-stdlib` test at all, which the playbook's own
+    /// bullet owns. [`rendering_for`] is that read's pure half, so what runs
+    /// below is the rewrite the member performs, set by set.
+    // covers: Core\Db\Connection::executeMany
+    #[test]
+    fn a_batch_is_one_statement_only_where_every_set_rewrites_the_same_way() {
+        let (dialect, encode) = rendering_for(nvs_db::Driver::Sqlite);
+
+        let two = batched_sql(dialect, encode, &[1, 2]);
+        let other_two = batched_sql(dialect, encode, &[7, 8]);
+        let three = batched_sql(dialect, encode, &[1, 2, 3]);
+
+        // 1. Two sets of the same width are one statement, whatever they bind:
+        //    the values differ and the text the batch agreed on does not.
+        assert_eq!(
+            two, other_two,
+            "two sets of the same width rewrote to different statements, so a batch of them \
+             would be refused for binding the values it was given"
+        );
+
+        // 2. And one element wider is a different statement, which is what the
+        //    member throws a `LogicError` for rather than sending.
+        assert_ne!(
+            two, three,
+            "a wider `inList` rewrote to the same statement, so a batch would send a set \
+             against a text with a marker too few"
+        );
+    }
+
     /// One row of [`one_sqlite_cell_reads_as_five_things_under_five_declarations`]'s
     /// sweep: a declared type, a cell every row of the sweep shares the storage
     /// class of, and the question the answer has to say yes to.

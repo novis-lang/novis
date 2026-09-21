@@ -1,0 +1,28 @@
+<?nvs
+// Measures one batch of four rows, as a program does when it writes a group of
+// records with a single call.
+// bench: iterations 5000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The count so far is written into the first set. The count grows
+            // by what the batch reports, so the loop cannot be left out.
+            array<array<mixed>> $sets = [
+                [$total as int],
+                [1],
+                [2],
+                [3],
+            ];
+            $total = $total + $db->executeMany('insert into notes (n) values (?)', $sets);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

@@ -840,6 +840,66 @@ entry = "benches/members/core/Db-Connection/execute.nvs"
 connect = ["notes"]
 
 [[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/01-write-many-rows-with-one-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/02-give-each-row-its-own-new-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/03-import-a-list-of-records.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/executeMany/01-sets-that-do-not-agree-and-a-batch-too-big-to-hold.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/executeMany.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/01-ask-whether-the-connection-is-still-open.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/02-the-one-question-a-closed-connection-answers.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/03-write-the-last-row-only-if-the-database-is-there.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/isOpen/01-asked-a-million-times-and-through-a-flood-of-connections.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/isOpen.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
 entry = "docs/examples/core/Db-Connection/query/01-read-the-rows-one-at-a-time.nvs"
 
 [app.capabilities.db]

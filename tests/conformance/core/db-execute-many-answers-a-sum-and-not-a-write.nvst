@@ -1,0 +1,29 @@
+--TEST--
+`executeMany` answers the sum of what its runs wrote rather than a `Core\Db\Write`, so a batch offers no `lastId` to read off it — `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Connection::executeMany
+// `rule:core-classes/db-statement-members` gives the batch a sum and no second return. A `Write`
+// answers `lastId` and `changed` off one execution, and a batch has no one
+// execution for either to belong to: what `Core\Db\Connection::executeMany`
+// reports is what all of its runs changed added together, and the key a single
+// `insert` made is only readable where a single `insert` ran.
+var $db = Core\Db::connect("main");
+array<array<mixed>> $sets = [];
+$sets[] = ["ada"];
+$sets[] = ["bo"];
+
+// The accepted reading: one whole number for the whole batch.
+uint $written = $db->executeMany("insert into accounts (owner) values (?)", $sets);
+
+// And the boundary, which is `execute`'s own answer asked of a batch. A member
+// that answered a `Write` here would have to pick one run to describe.
+var $batch = $db->executeMany("insert into accounts (owner) values (?)", $sets);
+?uint $lastId = $batch->lastId();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0477]: `uint` names no class, so it has no method `lastId`
+   --> case.nvs:19:17
+%A
+error: aborting due to 2 errors

@@ -1,0 +1,30 @@
+--TEST--
+`executeMany` takes an array of sets and not `execute`'s flat `$params`, so a batch of one statement cannot be written as a batch of one run's values — `rule:core-classes/db-parameters` and `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Connection::executeMany
+// `rule:core-classes/db-parameters` binds values beside the statement, and the batch says how many
+// times to do it: the second argument holds one inner array per run, each of
+// them exactly the `$params` `Core\Db\Connection::execute` takes. The two
+// shapes are one level of nesting apart, and the flat one is what a caller
+// writes when they mean `execute` — so it is refused here rather than read as
+// a single run whose values are the sets.
+var $db = Core\Db::connect("main");
+
+// The accepted shape: two runs of one value each.
+array<array<mixed>> $sets = [];
+$sets[] = ["ada"];
+$sets[] = ["bo"];
+uint $written = $db->executeMany("insert into accounts (owner) values (?)", $sets);
+
+// And the refused one, which is the same two values written the way `execute`
+// takes them.
+array<mixed> $flat = ["ada", "bo"];
+uint $wrong = $db->executeMany("insert into accounts (owner) values (?)", $flat);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<array<mixed>>`, found `array<mixed>`
+   --> case.nvs:20:75
+%A
+error: aborting due to 1 error

@@ -1,0 +1,23 @@
+<?nvs
+// Shows a batch that changes rows. Each set gives one row its own new value,
+// and the result adds up what all of the runs changed.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table prices (sku text primary key, cents int not null)', []);
+$db->execute('insert into prices (sku, cents) values (?, ?)', ['apple', 100]);
+$db->execute('insert into prices (sku, cents) values (?, ?)', ['bread', 250]);
+$db->execute('insert into prices (sku, cents) values (?, ?)', ['cocoa', 480]);
+
+// The first value of each set is the new price and the second is the row.
+array<array<mixed>> $changes = [
+    [120, 'apple'],
+    [260, 'bread'],
+];
+
+uint $changed = $db->executeMany('update prices set cents = ? where sku = ?', $changes);
+
+// This prints `2 prices changed`. The third row was in no set, so it is
+// unchanged.
+echo $changed, " prices changed\n";
+
+$db->close();
