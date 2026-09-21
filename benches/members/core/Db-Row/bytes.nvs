@@ -1,0 +1,30 @@
+<?nvs
+// Measures reading a picture out of a row, as a program does when it sends one
+// stored file after another.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table pictures (id integer primary key, small blob not null, large blob not null)', []);
+        $db->execute('insert into pictures (small, large) values (?, ?)', ['GIF89' as bytes, 'GIF89a-wide' as bytes]);
+        array<Core\Db\Row> $rows = $db->query('select small, large from pictures', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['small', 'large'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The octets read so far choose the column read next, so the loop
+            // cannot be left out.
+            bytes $body = $row->bytes($columns[($total % 2) as int]) ?? '' as bytes;
+            $total = $total + Core\Bytes::length($body);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

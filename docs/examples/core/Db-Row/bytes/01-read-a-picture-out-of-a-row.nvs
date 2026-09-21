@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read binary data, such as a picture, out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table pictures (name text not null, body blob not null)', []);
+$db->execute('insert into pictures (name, body) values (?, ?), (?, ?)', ['logo', 'GIF89a' as bytes, 'banner', 'GIF89a-wide' as bytes]);
+
+// `bytes` reads the named column as octets, and `Core\Bytes::length` counts
+// them. This prints `banner: 11` and `logo: 6`.
+foreach ($db->query('select name, body from pictures order by name', []) as Core\Db\Row $row) {
+    bytes $body = $row->bytes('body') ?? '' as bytes;
+    echo $row->string('name') ?? '', ': ', Core\Bytes::length($body), "\n";
+}
+
+$db->close();

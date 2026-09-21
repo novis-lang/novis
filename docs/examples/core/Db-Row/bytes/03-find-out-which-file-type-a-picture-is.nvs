@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to name the file type of a stored picture. A program does this
+// before it sends the file, because the type is not kept in the table.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table uploads (name text not null, body blob not null)', []);
+
+// Every file type starts with a few fixed bytes. `Core\Encoding::fromHex`
+// writes those bytes, because most of them are not text.
+bytes $png = Core\Encoding::fromHex('89504e470d0a1a0a');
+bytes $gif = 'GIF89a' as bytes;
+$db->execute('insert into uploads (name, body) values (?, ?), (?, ?), (?, ?)', ['a', $png, 'b', $gif, 'c', 'hello' as bytes]);
+
+// `bytes` reads the column as octets, and `Core\Bytes::startsWith` tests the
+// first of them. This prints `a: png`, `b: gif` and `c: unknown`.
+foreach ($db->query('select name, body from uploads order by name', []) as Core\Db\Row $row) {
+    bytes $body = $row->bytes('body') ?? '' as bytes;
+    string $type = 'unknown';
+    if (Core\Bytes::startsWith($body, $png)) {
+        $type = 'png';
+    }
+    if (Core\Bytes::startsWith($body, $gif)) {
+        $type = 'gif';
+    }
+    echo $row->string('name') ?? '', ': ', $type, "\n";
+}
+
+$db->close();
