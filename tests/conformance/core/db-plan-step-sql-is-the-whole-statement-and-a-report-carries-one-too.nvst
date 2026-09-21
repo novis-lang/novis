@@ -1,0 +1,72 @@
+--TEST--
+`Core\Db\Plan\Step::sql` is the complete statement, so running a step's own SQL converges the database, and a reported step carries the drop no apply will run — `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`
+--FILE--
+<?nvs
+// The statement is asserted by running it rather than by reading it: SQL that
+// was shortened, unterminated or written for another dialect would be refused
+// by the database here, and the plan after it would not be empty of changes.
+// covers: Core\Db\Plan\Step::sql
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect("main");
+
+// A table this schema does not name. § 7 reports it and never drops it.
+$db->execute("create table leftovers (id integer primary key)", []);
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+var $steps = $schema->planAgainst($db)->steps();
+echo "steps ", Core\Arr::count($steps), "\n";
+
+foreach ($steps as Step $step) {
+    if ($step->isRefused()) {
+        // § 8 holds for a refused step exactly as it does for one an apply
+        // runs: the report carries the whole statement it will never run.
+        if (Core\Str::contains($step->sql(), 'DROP TABLE "leftovers"')) {
+            echo "report carries the drop\n";
+        } else {
+            echo "report says something else\n";
+        }
+    } else {
+        $db->execute($step->sql(), []);
+        echo "ran a step\n";
+    }
+}
+
+// The table the plan asked for is there, so the statement was complete.
+$db->execute("insert into notes (title) values (?)", ["a note"]);
+echo "rows ", $db->query("select id from notes", [])->count(), "\n";
+
+// One step is left, and it is the report: absence never destroys, so reading
+// the drop and not running it changes nothing.
+echo "left ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+echo "leftovers ", $db->query("select id from leftovers", [])->count(), "\n";
+--FILE nvs.toml--
+# Planning is an ordinary read and the statements below are run by the program
+# itself, so `db.connect` is the whole grant: nothing here calls an `apply`.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+steps 2
+ran a step
+report carries the drop
+rows 1
+left 1
+leftovers 0

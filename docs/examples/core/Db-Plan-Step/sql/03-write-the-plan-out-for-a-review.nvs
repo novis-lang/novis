@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a release writes its plan out for a person to review. Each step
+// becomes the reason it is there and then the statement itself.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// A table an earlier version of this program left behind.
+$db->execute('create table notes_backup (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The steps the plan will never run carry their SQL too, so a review sees all
+// of it.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    echo '-- ', $step->reason(), "\n";
+    echo $step->sql(), "\n";
+}
+
+$db->close();

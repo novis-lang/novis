@@ -1,0 +1,6 @@
+-- A new table holds no rows: nothing to lose, nothing to validate, nothing to block.
+CREATE TABLE "notes" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT
+);
+-- Every row in the table. Reported and never applied: a schema value describes what its author knows about, and this database holds a table it does not name.
+DROP TABLE "notes_backup";

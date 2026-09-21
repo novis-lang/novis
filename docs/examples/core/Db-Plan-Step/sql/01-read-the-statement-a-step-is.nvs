@@ -1,0 +1,30 @@
+<?nvs
+// Shows the SQL one step of a plan is. `Core\Db\Plan\Step::sql` gives you the
+// whole statement, written for the database the plan was computed against.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The table is missing, so the plan has one step: the statement that creates
+// it. Nothing is changed by reading this.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    echo $step->sql(), "\n";
+}
+
+$db->close();
