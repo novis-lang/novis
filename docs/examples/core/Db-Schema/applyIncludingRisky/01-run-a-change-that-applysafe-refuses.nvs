@@ -1,0 +1,41 @@
+<?nvs
+// Shows the change `applySafe` will not make. `applyIncludingRisky` runs the
+// same plan, and the name at the call site is what says so.
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+
+// A shorter column. SQLite makes that change by copying the whole table, so
+// the step can lose data.
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(50)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// This prints `applySafe refused`.
+try {
+    $schema->applySafe($db);
+    echo "applySafe ran it\n";
+} catch (LogicError $error) {
+    echo "applySafe refused\n";
+}
+
+$schema->applyIncludingRisky($db);
+
+// The database matches the schema now, so nothing is left. This prints
+// `steps left: 0`.
+echo 'steps left: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+$db->close();

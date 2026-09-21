@@ -1,0 +1,43 @@
+<?nvs
+// Shows what happens to a table the schema says nothing about. It is reported
+// in the plan and never dropped, and this method does not drop it either.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// A table another program owns, in the same database.
+$db->execute('create table sessions (id integer not null)', []);
+$db->execute('insert into sessions (id) values (7)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+$schema->applyIncludingRisky($db);
+
+// The row is still there. This prints `sessions rows: 1`.
+echo 'sessions rows: ', $db->query('select id from sessions', [])->count(), "\n";
+
+// The plan still carries the report, so you can see the difference and decide
+// what to do about it yourself. This prints `reported: 1`.
+uint $reported = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        $reported = $reported + 1;
+    }
+}
+echo 'reported: ', $reported, "\n";
+
+$db->close();

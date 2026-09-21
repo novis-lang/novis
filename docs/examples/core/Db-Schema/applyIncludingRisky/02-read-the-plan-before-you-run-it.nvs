@@ -1,0 +1,48 @@
+<?nvs
+// Shows the steps a deployment takes before it accepts a risky change: plan
+// first, print what each step will do, then run the plan.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+$db->execute("insert into notes (title) values ('a note')", []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(50)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// `isRefused()` is `true` for a step no apply ever runs. The rest are the
+// steps this call is about to make. This prints `to run: 1`.
+uint $toRun = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused() == false) {
+        $toRun = $toRun + 1;
+        if ($step->grade() == Grade::Safe) {
+            echo "step is safe\n";
+        } else {
+            echo "step needs applyIncludingRisky\n";
+        }
+    }
+}
+echo 'to run: ', $toRun, "\n";
+
+$schema->applyIncludingRisky($db);
+
+// The row was copied into the new table. This prints `rows: 1`.
+echo 'rows: ', $db->query('select id from notes', [])->count(), "\n";
+
+$db->close();
