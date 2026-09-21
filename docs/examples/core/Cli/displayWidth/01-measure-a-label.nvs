@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to measure how much room a text needs at the terminal.
+// `Core\Cli::displayWidth` counts columns, and some characters take two of them.
+
+array<string> $labels = ["Order", "注文", "🎧"];
+
+// This prints 5, then 4, then 2.
+foreach ($labels as string $label) {
+    echo Core\Cli::displayWidth($label), "\n";
+}

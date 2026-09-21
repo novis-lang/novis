@@ -1,0 +1,24 @@
+<?nvs
+// Shows the everyday use: a table whose columns line up at the terminal. Each
+// name is padded to the width of the widest one, measured in columns.
+
+array<string> $names = ["Headphones", "注文", "Café blend"];
+array<uint> $prices = [49, 120, 12];
+
+uint $widest = 0;
+foreach ($names as string $name) {
+    uint $width = Core\Cli::displayWidth($name);
+    if ($width > $widest) {
+        $widest = $width;
+    }
+}
+
+int $row = 0;
+while ($row < 3) {
+    string $label = $names[$row];
+    // The padding is the room the name does not use. "注文" is 2 characters and
+    // 4 columns, so counting characters would pad that row two columns too far.
+    string $padding = Core\Str::repeat(" ", $widest - Core\Cli::displayWidth($label));
+    echo $label, $padding, "   ", $prices[$row], "\n";
+    $row = $row + 1;
+}

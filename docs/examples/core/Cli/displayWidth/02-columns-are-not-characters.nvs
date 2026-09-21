@@ -1,0 +1,14 @@
+<?nvs
+// Shows the difference between characters and columns. `Core\Str::length`
+// counts characters. `Core\Cli::displayWidth` counts the columns a terminal
+// gives them. The two numbers are not always the same.
+
+string $japanese = "注文";
+echo "注文 is ", Core\Str::length($japanese), " characters and ";
+echo Core\Cli::displayWidth($japanese), " columns\n";
+
+// A tab moves to the next column that is a multiple of eight. The letter "a",
+// a tab and the letter "b" take 9 columns together.
+string $tabbed = "a\tb";
+echo "a<tab>b is ", Core\Str::length($tabbed), " characters and ";
+echo Core\Cli::displayWidth($tabbed), " columns\n";
