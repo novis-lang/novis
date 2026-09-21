@@ -16,6 +16,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use lsp_types::Uri;
+use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::{Analysed, CheckScope, Documents, analyse, uri_of};
 
 /// A scratch directory that cleans up after itself.
@@ -60,15 +61,15 @@ impl Drop for TempDir {
 }
 
 /// The program's entry point: the only file that may declare `autoload`.
-const BOOT: &str = "<?nvs\nautoload 'Cstp' from '../../Cstp/src';\n\
-                    autoload 'CMB' from '../src';\n\nuse CMB\\Index;\n\nnew Index();\n";
+const BOOT: &str = "<?nvs\nautoload 'Framework' from '../../Framework/src';\n\
+                    autoload 'Blog' from '../src';\n\nuse Blog\\Index;\n\nnew Index();\n";
 
 /// A class the program autoloads, naming a framework class it autoloads too.
-const INDEX: &str = "<?nvs\nnamespace CMB;\n\nuse Cstp\\Kernel;\n\nclass Index {\n    \
+const INDEX: &str = "<?nvs\nnamespace Blog;\n\nuse Framework\\Kernel;\n\nclass Index {\n    \
                      public function constructor() {\n        new Kernel();\n    }\n}\n";
 
 /// The framework class, under a root outside the workspace.
-const KERNEL: &str = "<?nvs\nnamespace Cstp;\n\nclass Kernel {\n    \
+const KERNEL: &str = "<?nvs\nnamespace Framework;\n\nclass Kernel {\n    \
                       public function constructor() {}\n}\n";
 
 /// The application as a developer has it on disk, and the workspace root an
@@ -77,7 +78,7 @@ fn application(name: &str) -> (TempDir, PathBuf) {
     let dir = TempDir::new(name);
     dir.write("app/public/index.nvs", BOOT);
     dir.write("app/src/Index.nvs", INDEX);
-    dir.write("Cstp/src/Kernel.nvs", KERNEL);
+    dir.write("Framework/src/Kernel.nvs", KERNEL);
     let root = dir.at("app");
     (dir, root)
 }
@@ -142,6 +143,31 @@ fn an_autoloaded_file_borrows_the_map_of_the_program_that_autoloads_it() {
     assert!(read.contains(&"public/index.nvs".to_owned()), "{read:?}");
 }
 
+/// What the borrowed map is for, from the cursor's side: a jump from the
+/// `use` line of the class file lands in the framework file the map found.
+#[test]
+fn a_use_line_in_an_autoloaded_file_jumps_to_the_file_it_imports() {
+    let (dir, root) = application("jump");
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    dir.open(&mut documents, "app/src/Index.nvs", INDEX);
+
+    let analysed = analyse(&documents, &dir.uri("app/src/Index.nvs")).expect("it is open");
+    let on_kernel = INDEX.find("Kernel;").expect("the import is written") + 3;
+    let offset = u32::try_from(on_kernel).expect("a test document is short");
+    let declared = nvs_lsp::definition::at(&analysed, offset, PositionEncoding::Utf8)
+        .expect("the import resolved through the borrowed map");
+    assert!(
+        declared.path.ends_with("Framework/src/Kernel.nvs"),
+        "{}",
+        declared.path.display(),
+    );
+    assert_eq!(
+        (declared.range.start.line, declared.range.start.character),
+        (3, 6)
+    );
+}
+
 /// The entry point lends and never borrows: it is analysed exactly as
 /// `nvs check` analyses it, survey or no survey.
 #[test]
@@ -192,7 +218,7 @@ fn editing_the_declaring_file_reaches_the_documents_that_borrowed_from_it() {
     documents.record_graph(&uri, before.files());
 
     // The framework's declaration goes, in the buffer and not on disk.
-    let edited = BOOT.replace("autoload 'Cstp' from '../../Cstp/src';\n", "");
+    let edited = BOOT.replace("autoload 'Framework' from '../../Framework/src';\n", "");
     let boot = dir.at("app/public/index.nvs");
     assert!(documents.change(&dir.uri("app/public/index.nvs"), 2, edited));
     documents.resurvey(&boot);

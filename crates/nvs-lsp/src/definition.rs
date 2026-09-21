@@ -59,6 +59,12 @@
 //! them under one name is refused where the second is written
 //! (`rule:types/type-alias`).
 //!
+//! **A `use` line names a type too.** An import is a statement and no
+//! expression, so nothing above reaches it, and what it resolved to is already
+//! `nvs_hir::Import`'s: [`import_at`] answers the target of the import whose
+//! path the cursor is on. One that resolved to nothing answers nothing, and
+//! already carries its diagnostic.
+//!
 //! **The whole graph, not the entry alone.** The cursor is always in the open
 //! document ([`crate::selection`]'s reasoning), but what it names may be
 //! declared in a required file — so the span answered here carries its own
@@ -509,9 +515,10 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// asks about the enum. `Cart::LIMIT` is not this case and still answers the
 /// constant wherever the cursor is: its entry names the class that *declares*
 /// the constant, which need not be the one the source wrote.
-/// A name no recorded expression covers is answered last and from the
-/// hierarchy graph instead ([`clause_at`]), which is the `extends` and
-/// `implements` clauses and nothing else.
+/// A name no recorded expression covers is answered last, by the three places
+/// a name is written outside an expression: an `extends` or `implements`
+/// clause off the hierarchy graph ([`clause_at`]), an `Owner::Name` in type
+/// position ([`type_member_at`]), and a `use` line ([`import_at`]).
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
     let path = analysed.index.at(offset);
     let nodes = path.nodes();
@@ -540,6 +547,26 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         })
         .or_else(|| clause_at(analysed, offset))
         .or_else(|| type_member_at(analysed, offset))
+        .or_else(|| import_at(analysed, offset))
+}
+
+/// The type a `use` line of the entry document imports at `offset`, and the
+/// span the source wrote its path at.
+///
+/// Read off `nvs_hir::Module::imports`, which holds what each import resolved
+/// to, so nothing is resolved again here. The whole path is the name: a cursor
+/// anywhere in `App\Models\User` answers `User`, because a namespace segment
+/// has no declaration to open. An import that resolved to nothing is passed
+/// over, and one naming a `Core` class answers a target [`site`] finds no file
+/// for.
+pub(crate) fn import_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    analysed
+        .module
+        .imports
+        .iter()
+        .filter(|import| import.span.file == analysed.entry && import.resolved)
+        .find(|import| covers(import.span, offset))
+        .map(|import| (Target::Type(&import.target), import.span))
 }
 
 /// The supertype an `extends` or `implements` clause of the entry document
@@ -973,6 +1000,23 @@ mod tests {
     #[test]
     fn definition_on_the_type_after_is_answers_the_interface_it_tests_against() {
         assert_eq!(jump(TESTED, "is Sha"), "1:10");
+    }
+
+    /// A namespaced class and the three imports a `use` line can be: one that
+    /// resolved to a declaration, one that resolved to nothing, and one naming
+    /// a `Core` class, which has no Novis declaration to open.
+    const IMPORTS: &str = "<?nvs\nnamespace App;\n\nuse App\\User;\nuse App\\Missing;\n\
+                           use Core\\Str;\n\nclass User {}\n";
+
+    /// A `use` line is a written name like a clause's, so a cursor anywhere in
+    /// its path opens the declaration it imports — and an import with nothing
+    /// to open answers nothing.
+    #[test]
+    fn definition_on_a_use_line_is_the_declaration_it_imports() {
+        assert_eq!(jump(IMPORTS, "use App\\Us"), "7:6");
+        assert_eq!(jump(IMPORTS, "use Ap"), "7:6");
+        assert_eq!(jump(IMPORTS, "use App\\Miss"), "none");
+        assert_eq!(jump(IMPORTS, "use Core\\St"), "none");
     }
 
     /// `Owner::Name` in type position lands on the member, and the owner half
