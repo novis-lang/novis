@@ -3545,6 +3545,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   cannot read …` for whatever example you were actually running. Write the `.nvs` files first and
   the `[[app]]` blocks after them, and let the grants ride in the commit that adds the last program
   they name. [until: reviewed 2026-09-21]
+- **`python tools/dossier.py --bless` rebuilds `target/release/nvs.exe` before it runs anything,
+  whenever a build input is newer than that binary, and a `#[test]` added to a crate is one.** A
+  session that blesses one member's examples, then writes its Rust proof, then blesses the next
+  member's pays that four-minute build twice, and the call prints nothing at all while it waits.
+  Write every Rust edit of the group first, then bless every example of the group in one call — the
+  same ordering `--record-perf` wants, since it rebuilds on the same condition.
+  [until: reviewed 2026-09-21]
 
 ## Writing a test case
 

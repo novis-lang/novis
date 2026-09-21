@@ -2,42 +2,39 @@
 
 ## State
 
-Goal `core-db-connection-and-2-more` (milestone `dossier`), 13 features. Eleven are complete: the
-eight before this session, plus `Core\Db\Plan::steps`, `Core\Db\Plan\Step::grade` and
-`Core\Db\Plan\Step::sql` in it. Two are left, both on `Core\Db\Plan\Step`. `python tools/dossier.py
---id '<feature>'` prints what one owes and where each proof goes.
+Goal `core-db-connection-and-2-more` (milestone `dossier`) is met: its three groups —
+`Core\Db\Connection`, `Core\Db\Plan` and `Core\Db\Plan\Step` — owe nothing, and every example and
+attack under them passes. `Core\Db\Plan\Step::reason` and `Core\Db\Plan\Step::isRefused` landed this
+session, each with a description, three examples, an attack, a bench, a `.nvst` case and a Rust
+`#[test]`. One hostile file under `Core\Db\Connection::query` stays marked `known-gap` and is
+recorded in `crates/nvs-stdlib/src/db/mod.rs`. `python tools/owners.py --closes` and `python
+tools/playbook.py --closes` name no gap for this goal.
 
-Every proof program of this group opens `[db.notes]`, the SQLite `:memory:` block at the foot of
-`nvs.toml` that no other fixture writes to, and each one needs its own `[[app]]` entry granting
-`connect = ["notes"]` — the entries sit in one run, ordered by member name. An entry naming a file
-that is not on disk is `E0605` and fails *every* program in the tree, so write the file first. A
-program that applies a plan also holds `schema = ["notes"]`; planning itself is an ordinary read.
-
-Nothing is blocked. One finding is recorded rather than fixed: `Core\Db\Queryable` is not a type a
-program can write, so no function can take a connection and a transaction alike —
+Nothing is blocked. One finding stays recorded rather than fixed: `Core\Db\Queryable` is not a type
+a program can write, so no function can take a connection and a transaction alike —
 `crates/nvs-stdlib/src/db/mod.rs` `# Known gaps` item 2.
 
 ## Next group
 
-One slice is one feature with all its feature proofs. These two share a file set:
-`crates/nvs-stdlib/src/db/plan.rs`, `nvs.toml`, the `core/Db-Plan-Step/` directories in the three
-proof trees, and `tests/conformance/core/`. `rule:testing/feature-proofs` is what they owe. The two
-members read a slot each, as the three landed this session do, so the fixtures are the same: a
-schema value planned against an empty `[db.notes]`, with one table created by hand when the plan
-needs a report in it.
+The chain's next goal is `core-db-row`, and `goal-switch.py` installs that goal's own generated
+handoff over this file. If the switch has not happened, these are its first three slices — one file
+set: `crates/nvs-stdlib/src/db/row.rs`, `nvs.toml`, the `core/Db-Row/` directories in the three
+proof trees, and `tests/conformance/core/`. `rule:testing/feature-proofs` is what they owe, and one
+slice is one feature with all of them.
 
-- [ ] **`Core\Db\Plan\Step::reason`** — owes about, examples, hostile, perf, tests. The reason is
-      the emitter's own sentence, so an example prints it and never matches on its words; a blessed
-      `.out` holding one is what pins it. `crates/nvs-stdlib/src/db/plan.rs:99`
-- [ ] **`Core\Db\Plan\Step::isRefused`** — owes about, examples, hostile, perf, tests. A refused
-      step is the report a plan carries and never runs, so the example that does want the drop runs
-      the step's own `sql()` through `Core\Db\Connection::execute`.
-      `crates/nvs-stdlib/src/db/plan.rs:127`
+- [ ] **`Core\Db\Row::bool`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1401`
+- [ ] **`Core\Db\Row::bytes`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1365`
+- [ ] **`Core\Db\Row::date`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1428`
 
 ## Backlog
 
-- The two slices above are the goal's last features; `docs/agent/loop-goal.md` names the three
-  gates a `DONE` claim owes after them.
-- `Core\Db\Queryable` has no writable spelling — `crates/nvs-stdlib/src/db/mod.rs` `# Known gaps`.
-- No `Locking` step is reachable on SQLite, so the grade's middle case is pinned by the registry's
-  roster alone — `crates/nvs-stdlib/src/db/registry.rs:1912`.
+- `Core\Db\Queryable` is unwritable in a program — `crates/nvs-stdlib/src/db/mod.rs` `# Known gaps`
+  item 2, and the only finding this goal recorded rather than fixed.
+- A `Core` member whose value is computed in another crate needs that crate's producing file in
+  `[context] modules`: the sentences `reason` returns are written at
+  `crates/nvs-db/src/ddl.rs:1004`, which this goal's manifest did not name, so the pack could not
+  show what an example would print. The generated goals get their manifest from
+  `python tools/dossier.py --emit-goals`, so that is where the pattern belongs.
