@@ -35,12 +35,13 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
 short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
 spelled as a subcommand.
 
-**Not in this build:** `nvs fmt`, `nvs convert` and `nvs ctl` are unrecognized subcommands. There is
-no formatter, no PHP converter and no control socket in this binary.
+**Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
+this binary.
 
-**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs service`,
-`nvs lsp`, `nvs lsp-test` and `nvs doc` are in the binary and answer `--help`, but their sections
-here are unwritten. `nvs --help` lists every subcommand this build carries.
+**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs ctl`,
+`nvs service`, `nvs fmt` and `nvs doc` are in the binary and answer `--help`, but their sections
+here are unwritten. `nvs lsp` and `nvs lsp-test` are in [the editor chapter](#tools-editor).
+`nvs --help` lists every subcommand this build carries.
 
 # Files, extensions and tags
 

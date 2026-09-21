@@ -5984,9 +5984,68 @@ echo Core\Router::urlAbsolute("Users::show", ["id" => 7]), "\n";
 https://example.test/users/7
 ```
 
-**There is no server in this build.** The route table is built and checked while compiling, and
-links are built from it; nothing dispatches a request to a route, and `nvs serve` is not a
-command. A route method is an ordinary method that may also be called directly.
+**The server matches a request. It never calls a route method.** `nvs serve` matches every
+request against the route table once, before the program runs. `Core\Request::route()` returns
+that match, or `null` when no route has this verb and path. The server then runs the mount's entry
+file for every request, matched or not. This is how the router is designed, and it is not a
+missing feature:
+
+- The server does not call the method that carries the `#[Core\Route]`, and it does not use that
+  method's return value. The entry file reads the match and calls the method.
+- The server sends no `404` and no `405` of its own. The entry file sets them with
+  `Core\Response::setStatus`. `Core\Router::methodsFor` returns the verbs a path has: an empty
+  array is the `404`, and any other array is the `Allow` header of a `405`.
+- The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
+  on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced.
+- A `Core\Router\Match` has a name and the converted captures. It has nothing that can be called,
+  so a program dispatches with one `switch` on `name()`. Give every route it dispatches a `name:`.
+
+`Core\Router::match` asks the same table about a verb and a path the program chooses, so this
+example runs from the command line. Under `nvs serve` the entry file reads `Core\Request::route()`
+in its place.
+
+```nvs
+<?nvs
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "user " . $id; }
+
+    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "created"; }
+}
+
+class App {
+    public static function answer(Core\Http\Method $method, string $path): string {
+        var $match = Core\Router::match($method, $path);
+        if ($match == null) {
+            return Core\Router::methodsFor($path) == [] ? "404" : "405";
+        }
+        var $users = new Users();
+        switch ($match->name()) {
+            case "Users::show":
+                return $users->show($match->param("id") as uint);
+            case "Users::create":
+                return $users->create();
+        }
+        return "404";
+    }
+}
+
+echo App::answer(Core\Http\Method::Get, "/users/7"), "\n";
+echo App::answer(Core\Http\Method::Post, "/users"), "\n";
+echo App::answer(Core\Http\Method::Delete, "/users"), "\n";
+echo App::answer(Core\Http\Method::Get, "/nothing"), "\n";
+```
+```output
+user 7
+created
+405
+404
+```
+
+A route method is an ordinary method that may also be called directly.
 
 The `#[Route]` payload:
 
@@ -15248,7 +15307,9 @@ table claimed this method and path); it is never constructed by hand. The server
 incoming request against the compiled table **once**, before any of the program runs, and this is
 that result travelling on the request — so a handler never matches its own path a second time.
 Matching is not dispatching: nothing here calls the annotated method, and the matched route's
-handler, its declared verb and its access decision do not cross.
+handler, its declared verb and its access decision do not cross. The program calls the method
+itself, with one `switch` on `name()`; [the attributes chapter](#lang-attributes) shows that
+`switch`, and how the program sends the `404` and the `405`.
 
 `name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
 that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
@@ -25685,12 +25746,13 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
 short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
 spelled as a subcommand.
 
-**Not in this build:** `nvs fmt`, `nvs convert` and `nvs ctl` are unrecognized subcommands. There is
-no formatter, no PHP converter and no control socket in this binary.
+**Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
+this binary.
 
-**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs service`,
-`nvs lsp`, `nvs lsp-test` and `nvs doc` are in the binary and answer `--help`, but their sections
-here are unwritten. `nvs --help` lists every subcommand this build carries.
+**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs ctl`,
+`nvs service`, `nvs fmt` and `nvs doc` are in the binary and answer `--help`, but their sections
+here are unwritten. `nvs lsp` and `nvs lsp-test` are in [the editor chapter](#tools-editor).
+`nvs --help` lists every subcommand this build carries.
 
 ### Files, extensions and tags
 

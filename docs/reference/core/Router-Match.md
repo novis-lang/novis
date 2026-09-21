@@ -8,7 +8,9 @@ table claimed this method and path); it is never constructed by hand. The server
 incoming request against the compiled table **once**, before any of the program runs, and this is
 that result travelling on the request — so a handler never matches its own path a second time.
 Matching is not dispatching: nothing here calls the annotated method, and the matched route's
-handler, its declared verb and its access decision do not cross.
+handler, its declared verb and its access decision do not cross. The program calls the method
+itself, with one `switch` on `name()`; [the attributes chapter](#lang-attributes) shows that
+`switch`, and how the program sends the `404` and the `405`.
 
 `name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
 that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
