@@ -212,8 +212,11 @@ impl Declined {
                 format!("`{file}` was not written: its directory could not be examined: {why}")
             }
             Self::Untrusted(why) => format!(
-                "`{file}` was not written: {}; the ownership check covers the directory the file \
-                 goes into and the directory that contains it; {}, then `nvs init`",
+                "`{file}` was not written: {}\n  \
+                 note: the ownership check covers the directory the file goes into and the \
+                 directory that contains it\n  \
+                 help: {}\n  \
+                 help: then run `nvs init` again",
                 why.message(),
                 nvs_config::trust::REMEDY,
             ),

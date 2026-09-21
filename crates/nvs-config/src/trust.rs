@@ -235,13 +235,17 @@ mod platform {
 
     use super::Untrusted;
 
-    /// The three groups are named by SID — `Authenticated Users`, `BUILTIN\Users` and `Everyone` in
-    /// that order — because `icacls` resolves a name in the language Windows is installed in, and
-    /// the English one maps to no account anywhere else.
-    pub(super) const REMEDY: &str = "the path must be owned by this account, `BUILTIN\\Administrators` or \
-         `NT AUTHORITY\\SYSTEM` and grant write to no one else: `icacls <path> /inheritance:d` \
-         then `icacls <path> /remove:g *S-1-5-11 *S-1-5-32-545 *S-1-1-0` (Authenticated Users, \
-         Users and Everyone, by SID because their names are localized)";
+    /// It removes the one group the breach named, by the SID the breach printed: `icacls` resolves
+    /// a name in the language Windows is installed in, so the English one maps to no account
+    /// anywhere else. `/remove:g` takes every right that group was granted, read included, which
+    /// is why the grant that gives reading back is the last thing this says — a directory holding
+    /// the binary has to stay runnable by the accounts that were only ever refused *write*.
+    pub(super) const REMEDY: &str = "only write access is checked, never read or execute. The path must be owned by \
+         this account, `BUILTIN\\Administrators` or `NT AUTHORITY\\SYSTEM`, and no group of \
+         ordinary accounts may write to it. Run `icacls <path> /inheritance:d`, then \
+         `icacls <path> /remove:g <SID>` with the `*S-…` named above. That removes every right \
+         the group had; where ordinary accounts should still read or run what is there, follow \
+         it with `icacls <path> /grant *S-1-5-32-545:(OI)(CI)RX`";
 
     /// A SID, held in a `u32` buffer: a `SID` is `DWORD`-aligned and a `Vec<u8>` promises nothing
     /// about alignment, so every one of these is allocated as words and cast at the call.
@@ -258,13 +262,19 @@ mod platform {
         | WRITE_OWNER;
 
     /// The Windows spelling of "the group and the world" — the principals § 6 refuses write to,
-    /// with the name a refusal prints.
-    const UNTRUSTED: &[(WELL_KNOWN_SID_TYPE, &str)] = &[
-        (WinWorldSid, "Everyone"),
-        (WinAuthenticatedUserSid, "NT AUTHORITY\\Authenticated Users"),
-        (WinBuiltinUsersSid, "BUILTIN\\Users"),
-        (WinBuiltinGuestsSid, "BUILTIN\\Guests"),
-        (WinAnonymousSid, "NT AUTHORITY\\ANONYMOUS LOGON"),
+    /// with the name a refusal prints and the SID it prints beside it. The name is the English one
+    /// on every host, so it identifies the group to a reader; the SID is what [`REMEDY`]'s
+    /// `icacls` takes, because that command resolves a name in the installed language.
+    const UNTRUSTED: &[(WELL_KNOWN_SID_TYPE, &str, &str)] = &[
+        (WinWorldSid, "Everyone", "*S-1-1-0"),
+        (
+            WinAuthenticatedUserSid,
+            "NT AUTHORITY\\Authenticated Users",
+            "*S-1-5-11",
+        ),
+        (WinBuiltinUsersSid, "BUILTIN\\Users", "*S-1-5-32-545"),
+        (WinBuiltinGuestsSid, "BUILTIN\\Guests", "*S-1-5-32-546"),
+        (WinAnonymousSid, "NT AUTHORITY\\ANONYMOUS LOGON", "*S-1-5-7"),
     ];
 
     /// `fs::canonicalize` returns a verbatim `\\?\` path, and the rest of the tree — a diagnostic,
@@ -361,11 +371,11 @@ mod platform {
         if dacl.is_null() {
             return Some("has a null DACL, which grants every account every right".to_string());
         }
-        for (kind, name) in UNTRUSTED {
+        for (kind, name, sid) in UNTRUSTED {
             let rights = effective_rights(dacl, &well_known(*kind).ok()?).ok()?;
             if rights & FILE_READ_DATA != 0 {
                 return Some(format!(
-                    "grants read access to `{name}` (rights {rights:#010x})"
+                    "grants read access to `{name}` (`{sid}`, rights {rights:#010x})"
                 ));
             }
         }
@@ -396,11 +406,11 @@ mod platform {
                 "has a null DACL, which grants every account every right".to_string(),
             ));
         }
-        for (kind, name) in UNTRUSTED {
+        for (kind, name, sid) in UNTRUSTED {
             let rights = effective_rights(dacl, &well_known(*kind)?)?;
             if rights & WRITE_RIGHTS != 0 {
                 return Err(Untrusted::Breach(format!(
-                    "grants write access to `{name}` (rights {rights:#010x})"
+                    "grants write access to `{name}` (`{sid}`, rights {rights:#010x})"
                 )));
             }
         }
