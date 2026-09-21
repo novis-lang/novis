@@ -3699,6 +3699,186 @@ mod tests {
         }
     }
 
+    /// What `Core\Cli::secret` promises about the line, and what its row
+    /// promises about a run nobody is watching. The answer is the line exactly
+    /// as it was typed: nothing is trimmed, nothing is mapped onto a closed set,
+    /// and an empty line is still an answer. A member reading a password the way
+    /// [`nvs_core_cli_confirm`] reads a yes would look right on `hunter2` and
+    /// quietly change a password that is spaces at either end. The bytes are
+    /// read here rather than in a case, because a case can only see them through
+    /// `Core\Secret::reveal`, which is a second member in the path.
+    ///
+    /// The row is asserted beside the call for the other half of the promise:
+    /// the return type carries both qualifiers, and `secret` is the one prompt
+    /// with no options bag, so there is nowhere for a `default` to be written.
+    // covers: Core\Cli::secret
+    #[test]
+    fn a_secret_is_the_line_as_typed_and_its_row_leaves_no_default_to_proceed_on() {
+        let row = CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "secret")
+            .expect("§ 4's fifth prompt is a row on this class");
+        assert!(
+            matches!(row.return_ty, CoreTy::SecretTaintedStr),
+            "a password answered as anything else can be echoed, logged and serialized"
+        );
+        assert!(
+            !row.params
+                .iter()
+                .any(|param| matches!(param, CoreTy::Options(_))),
+            "`secret` grew an options bag, which is where a `default` would go — and a \
+             password nobody typed is not a password"
+        );
+
+        let question = Value::str(NvsStr::new(b"password?"));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut answers = Vec::new();
+
+        for typed in ["  pass word  ", "y", "", "\u{1b}[2J", "pässwörd"] {
+            ctx.script_answers([typed.to_owned()]);
+            let answer = nvs_runtime::call(nvs_core_cli_secret, &mut ctx, &[question])
+                .expect("secret answered");
+            assert_eq!(
+                answer.as_text(),
+                Some(typed),
+                "the line was trimmed, neutralized or otherwise changed on the way back"
+            );
+            answers.push(answer);
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "every answer is a fresh string this frame owns, and the \
+                      question is a value this test built"
+        )]
+        unsafe {
+            for answer in answers {
+                answer.release();
+            }
+            question.release();
+        }
+    }
+
+    /// `rule:tooling/the-terminal-is-restored-on-every-exit-path` over the
+    /// structure that discharges it. A region's end is [`Open`]'s `Drop` rather
+    /// than a statement after the call, so the paths that never reach a
+    /// statement — a throw out of `$body`, an internal panic — end it too. No
+    /// program can see this: a case watches a stale handle refuse to paint,
+    /// which is [`innermost`]'s answer rather than the stack's shape, so the
+    /// stack itself is read here.
+    ///
+    /// The guard truncates rather than pops, and the last assertion is what
+    /// that buys: an inner region whose own guard was skipped is closed by the
+    /// outer one, so the stack can never keep a region nobody can reach.
+    // covers: Core\Cli::live
+    #[test]
+    fn a_live_region_ends_with_its_scope_and_takes_every_inner_one_with_it() {
+        let depth_now = || REGIONS.with(|regions| regions.borrow().len());
+        assert_eq!(
+            depth_now(),
+            0,
+            "this thread began with a region already open"
+        );
+
+        {
+            let outer = Open::region();
+            assert_eq!(depth_now(), 1);
+            assert!(
+                innermost(outer.depth),
+                "the one open region is not the one allowed to paint"
+            );
+
+            let inner = Open::region();
+            assert_eq!(depth_now(), 2);
+            assert!(innermost(inner.depth));
+            assert!(
+                !innermost(outer.depth),
+                "the outer handle paints while an inner region is open, which is \
+                 two regions' rows interleaved on one cursor"
+            );
+
+            // The path a panic takes through an inner call: its guard never
+            // runs at all.
+            std::mem::forget(inner);
+            assert_eq!(depth_now(), 2, "a guard that never ran closed a region");
+        }
+
+        assert_eq!(
+            depth_now(),
+            0,
+            "the outer region's end left an inner one on the stack that nothing can reach"
+        );
+    }
+
+    /// `Core\Cli\Progress`'s counter saturates instead of starting again, and a
+    /// caption nobody gave is the caption that was there. Neither is observable
+    /// from a program: the count is a slot nothing reads back, and the bar it
+    /// scales is on a terminal a case does not have. A `done` that wrapped
+    /// would draw a finished import as one that had barely begun, which is the
+    /// single worst thing a progress bar can say.
+    // covers: Core\Cli::progress
+    #[test]
+    fn a_progress_bar_saturates_and_keeps_the_caption_nobody_replaced() {
+        let open = Open::region();
+        let handle = crate::instance::build(
+            &PROGRESS,
+            [
+                Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
+                Value::uint(4),
+                Value::uint(0),
+                Value::str(NvsStr::new(b"fetching")),
+            ],
+        );
+        let receiver =
+            crate::instance::receiver(handle, &PROGRESS, "advance").expect("a handle this built");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let counted = |receiver| crate::instance::slot(receiver, PROGRESS_DONE).as_uint();
+        let said = |receiver| {
+            crate::instance::slot(receiver, PROGRESS_LABEL)
+                .as_text()
+                .map(str::to_owned)
+        };
+
+        for _ in 0..2 {
+            nvs_runtime::call(
+                nvs_core_cli_progress_advance,
+                &mut ctx,
+                &[handle, Value::uint(u64::MAX), Value::null()],
+            )
+            .expect("advance counted");
+        }
+        assert_eq!(
+            counted(receiver),
+            Some(u64::MAX),
+            "the count started again from zero, so a bar past its total reads as empty"
+        );
+        assert_eq!(
+            said(receiver),
+            Some("fetching".to_owned()),
+            "a step that named no caption cleared the one already beside the bar"
+        );
+
+        let given = Value::str(NvsStr::new(b"building"));
+        nvs_runtime::call(
+            nvs_core_cli_progress_advance,
+            &mut ctx,
+            &[handle, Value::uint(1), given],
+        )
+        .expect("advance counted");
+        assert_eq!(said(receiver), Some("building".to_owned()));
+
+        #[expect(
+            unsafe_code,
+            reason = "the handle and the caption are values this test built, and \
+                      the call took its own reference to each argument"
+        )]
+        unsafe {
+            given.release();
+            handle.release();
+        }
+    }
+
     /// What `Core\Cli::displayWidth` counts, and the arm no program can reach.
     /// A column is not a character and not a byte: a Japanese character takes
     /// two, a combining mark takes none, and a tab takes as many as the next
@@ -4117,6 +4297,7 @@ mod tests {
     /// through one must leave nothing open. A region left on that stack is a
     /// depth a stale handle would still resolve against, which is the failure
     /// `Core\Cli\Live::set`'s refusal is written for.
+    // covers: Core\Cli::live
     #[test]
     fn a_live_region_is_scoped_and_restores_the_terminal_on_a_panic() {
         use std::io::Write;
