@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check a signature with a public key somebody sent you. The key
+// is an Ed25519 key, sent as the 32 octets that `Raw` stands for.
+
+bytes $sent = Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac");
+
+// `read` takes the octets, the kind of key they hold, and the encoding they
+// arrived in. Octets that are not a key of that kind are refused here.
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    $sent,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Raw
+);
+
+bytes $message = "order 1042 shipped" as bytes;
+bytes $signature = Core\Encoding::fromHex("4f616bc7d091dd65ef7dd0ca37d36665e6196302848f7f5e3e59c62ed068c5c687a46dbf89b4f82cca4781cb9053f0aa8e3bbfcfd6a807bf18eeda2bf9707504");
+
+// `verify` returns nothing. It throws an error when the signature does not
+// belong to this message and this key.
+Core\Crypto::verify($message, $signature, $key);
+echo "the signature belongs to this key", "\n";

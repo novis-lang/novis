@@ -1,0 +1,43 @@
+<?nvs
+// Measures reading one public key off the wire, as a server does for every
+// client that connects and every signed token it checks.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $sent = [
+            Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+            Core\Encoding::fromHex("302a300506032b656e0321007d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331"),
+            Core\Encoding::fromHex("3059301306072a8648ce3d020106082a8648ce3d0301070342000468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89"),
+        ];
+        array<Core\Crypto\KeyKind> $kinds = [
+            Core\Crypto\KeyKind::Ed25519,
+            Core\Crypto\KeyKind::X25519,
+            Core\Crypto\KeyKind::P256,
+        ];
+        array<Core\Crypto\KeyFormat> $formats = [
+            Core\Crypto\KeyFormat::Raw,
+            Core\Crypto\KeyFormat::Spki,
+            Core\Crypto\KeyFormat::Spki,
+        ];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The key of every round is chosen by the round before it, so no
+            // round can be left out.
+            int $which = ($total % 3) as int;
+            Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+                $sent[$which],
+                $kinds[$which],
+                $formats[$which]
+            );
+            $total = $total + ((($key->kind() == $kinds[$which]) ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";
