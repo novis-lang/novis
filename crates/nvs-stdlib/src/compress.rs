@@ -1899,4 +1899,237 @@ mod tests {
             "every case reads its own stream and refuses one past the bound"
         );
     }
+
+    /// `$compressor->add` on the half a frame alone cannot show: a chunk is
+    /// **retained** rather than copied, and every one of them is released when
+    /// the stream closes.
+    ///
+    /// One buffer is fed to one stream a thousand times. A member copying its
+    /// argument leaves that buffer's count where it found it; one that leaked
+    /// a reference leaves it raised after `finish` answered. The frame beside
+    /// those two counts is [`nvs_core_compress_compress`]'s over the thousand
+    /// copies joined, so a stream that dropped or reordered a chunk fails here
+    /// as well.
+    // covers: Core\Compress\Compressor::add
+    #[test]
+    fn a_chunk_is_retained_once_per_add_and_released_when_the_stream_closes() {
+        const FED: usize = 1_000;
+        let mut ctx = Ctx::buffered();
+        // [`CODEC`]'s first case, read from the roster rather than named twice,
+        // as the ordinal a compiled call site passes.
+        let case = Value::int(0);
+        let codec = EVERY[0];
+
+        let piece = b"order 1042 shipped to Berlin\n".as_slice();
+        let chunk = Value::bytes(NvsStr::new(piece));
+        let buffer = chunk
+            .buffer_ptr()
+            .expect("a `bytes` value carries a buffer");
+        let stream = nvs_runtime::call(nvs_core_compress_compressor, &mut ctx, &[case])
+            .expect("a stream opens");
+        for _ in 0..FED {
+            nvs_runtime::call(nvs_core_compress_compressor_add, &mut ctx, &[stream, chunk])
+                .expect("an open stream takes a chunk");
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the reference `chunk` was built with, so \
+                      the buffer is live across every read below"
+        )]
+        let while_open = unsafe { NvsStr::refcount_of(buffer) };
+        let frame = nvs_runtime::call(nvs_core_compress_compressor_finish, &mut ctx, &[stream])
+            .expect("finishes");
+        #[expect(
+            unsafe_code,
+            reason = "the frame's own reference outlives `finish`, which released \
+                      only what the stream was holding"
+        )]
+        let after_close = unsafe { NvsStr::refcount_of(buffer) };
+
+        assert_eq!(
+            frame.as_bytes(),
+            Some(&compress_to(codec, &piece.repeat(FED)).expect("compresses")[..]),
+            "the frame is the one `compress` writes over every chunk, in order"
+        );
+        assert_eq!(
+            while_open,
+            FED + 1,
+            "every `add` retains the caller's buffer rather than copying it"
+        );
+        assert_eq!(after_close, 1, "`finish` releases every chunk it joined");
+
+        release(vec![stream, chunk, frame]);
+    }
+
+    /// `$compressor->finish` on the two halves the frame comparison beside it
+    /// cannot show: what a stream nobody fed answers, and the closing that
+    /// makes a stream a one-shot.
+    ///
+    /// Every case finishes a stream given nothing, which must be the frame
+    /// [`nvs_core_compress_compress`] writes for no octets rather than an
+    /// empty `bytes`, and is then asked for a second frame and handed one more
+    /// chunk. Both are refused, and the refusal is read back through
+    /// [`Ctx::take_pending`] so a `Fault::fatal` in its place fails here — a
+    /// program catches the one and cannot catch the other.
+    // covers: Core\Compress\Compressor::finish
+    #[test]
+    fn an_empty_stream_answers_a_whole_frame_and_then_closes_for_good() {
+        let mut ctx = Ctx::buffered();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let stream = nvs_runtime::call(nvs_core_compress_compressor, &mut ctx, &[case])
+                .expect("a stream opens");
+
+            let frame = nvs_runtime::call(nvs_core_compress_compressor_finish, &mut ctx, &[stream])
+                .expect("an open stream finishes");
+            let whole = frame.as_bytes() == Some(&compress_to(codec, b"").expect("compresses")[..]);
+
+            let twice = nvs_runtime::call(nvs_core_compress_compressor_finish, &mut ctx, &[stream])
+                .is_err();
+            let said = ctx.take_pending().is_some_and(|why| {
+                why.contains(r"Core\Compress\Compressor::finish(): this stream is finished")
+            });
+
+            let chunk = Value::bytes(NvsStr::new(b"after the end".as_slice()));
+            let later =
+                nvs_runtime::call(nvs_core_compress_compressor_add, &mut ctx, &[stream, chunk])
+                    .is_err();
+            let _ = ctx.take_pending();
+
+            if whole && twice && said && later {
+                agreed += 1;
+            }
+
+            release(vec![stream, chunk, frame]);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case answers a whole frame for no octets and then closes for good"
+        );
+    }
+
+    /// `$decompressor->add` on the half its opening's test does not ask: the
+    /// member never looks inside the piece it is handed.
+    ///
+    /// Every case opens a stream with **no room at all** and feeds it
+    /// sixty-four pieces of octets no codec can read. All sixty-four must
+    /// answer, because nothing is decoded and nothing is measured until
+    /// `finish`; a member reading its piece, or charging the bound as it went,
+    /// would refuse somewhere in that loop instead.
+    // covers: Core\Compress\Decompressor::add
+    #[test]
+    fn a_piece_is_taken_unread_and_the_refusal_waits_for_finish() {
+        let mut ctx = Ctx::buffered();
+        let junk = Value::bytes(NvsStr::new(b"not a frame in any format".as_slice()));
+
+        let mut agreed = 0_usize;
+        for ordinal in 0..EVERY.len() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let stream = nvs_runtime::call(
+                nvs_core_compress_decompressor,
+                &mut ctx,
+                &[case, Value::uint(0), Value::uint(0)],
+            )
+            .expect("a stream opens");
+
+            let took = (0..64).all(|_| {
+                nvs_runtime::call(
+                    nvs_core_compress_decompressor_add,
+                    &mut ctx,
+                    &[stream, junk],
+                )
+                .is_ok()
+            });
+            let refused =
+                nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[stream])
+                    .is_err();
+            let _ = ctx.take_pending();
+
+            if took && refused {
+                agreed += 1;
+            }
+
+            release(vec![stream]);
+        }
+        release(vec![junk]);
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case takes a piece unread and refuses only at `finish`"
+        );
+    }
+
+    /// `$decompressor->finish` on the half a successful read cannot show: a
+    /// refusal closes the stream exactly as an answer does.
+    ///
+    /// Every case is given a frame its stream has no room for, so the first
+    /// `finish` throws the bound's refusal. The second `finish` and the `add`
+    /// after it then meet the *finished stream's* own message rather than the
+    /// bound's again, which is what says the refusing path ran [`close`] —
+    /// a stream left open by a refusal would answer the bound here twice.
+    // covers: Core\Compress\Decompressor::finish
+    #[test]
+    fn a_refused_finish_closes_the_stream_exactly_as_an_answer_does() {
+        let mut ctx = Ctx::buffered();
+        let payload = "the quick brown fox jumps over the lazy dog\n"
+            .repeat(16)
+            .into_bytes();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let frame = Value::bytes(NvsStr::new(
+                &compress_to(codec, &payload).expect("compresses"),
+            ));
+            let stream = nvs_runtime::call(
+                nvs_core_compress_decompressor,
+                &mut ctx,
+                &[case, Value::uint(8), Value::uint(DEFAULT_MAX_RATIO)],
+            )
+            .expect("a stream opens");
+            nvs_runtime::call(
+                nvs_core_compress_decompressor_add,
+                &mut ctx,
+                &[stream, frame],
+            )
+            .expect("an open stream takes a piece");
+
+            let refused =
+                nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[stream])
+                    .is_err();
+            let bound = ctx
+                .take_pending()
+                .is_some_and(|why| why.contains("rule:core-classes/decompression-bound"));
+
+            let twice =
+                nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[stream])
+                    .is_err();
+            let closed = ctx.take_pending().is_some_and(|why| {
+                why.contains(r"Core\Compress\Decompressor::finish(): this stream is finished")
+            });
+
+            let later = nvs_runtime::call(
+                nvs_core_compress_decompressor_add,
+                &mut ctx,
+                &[stream, frame],
+            )
+            .is_err();
+            let _ = ctx.take_pending();
+
+            if refused && bound && twice && closed && later {
+                agreed += 1;
+            }
+
+            release(vec![stream, frame]);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "a refusal closes the stream, so the call after it meets a finished one"
+        );
+    }
 }
