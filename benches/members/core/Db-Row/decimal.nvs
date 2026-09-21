@@ -1,0 +1,35 @@
+<?nvs
+// Measures reading an exact number out of a row. A program does this when it
+// adds up the lines of an order or prints a price list.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table order_lines (id integer primary key, amount decimal(10,2) not null, tax decimal(10,2) not null)', []);
+        decimal $amount = 19.95;
+        decimal $tax = 3.79;
+        $db->execute('insert into order_lines (amount, tax) values (?, ?)', [$amount, $tax]);
+        array<Core\Db\Row> $rows = $db->query('select amount, tax from order_lines', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['amount', 'tax'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The numbers read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->decimal($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

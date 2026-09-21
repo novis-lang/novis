@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to add up the lines of an order. Every line is read as a `decimal`,
+// so the total keeps every cent of every line.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table order_lines (item text not null, amount decimal(10,2) not null)', []);
+decimal $tea = 4.25;
+decimal $pot = 19.95;
+decimal $caddy = 31.05;
+$db->execute(
+    'insert into order_lines (item, amount) values (?, ?), (?, ?), (?, ?)',
+    ['tea', $tea, 'teapot', $pot, 'caddy', $caddy]
+);
+
+decimal $total = 0.00;
+foreach ($db->query('select amount from order_lines', []) as Core\Db\Row $row) {
+    ?decimal $amount = $row->decimal('amount');
+    if ($amount != null) {
+        $total = $total + $amount;
+    }
+}
+
+// This prints `total: 55.25`.
+echo 'total: ', $total, "\n";
+
+$db->close();

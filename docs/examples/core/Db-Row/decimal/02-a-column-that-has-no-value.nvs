@@ -1,0 +1,21 @@
+<?nvs
+// Shows what you get when the number column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table products (name text not null, price decimal(10,2))', []);
+decimal $pot = 19.95;
+$db->execute('insert into products (name, price) values (?, ?), (?, ?)', ['sample', null, 'teapot', $pot]);
+
+// `decimal` returns `null` for a column with no value, so your program says what
+// to print instead. This prints `sample: no price` and the price of the other row.
+foreach ($db->query('select name, price from products order by name', []) as Core\Db\Row $row) {
+    ?decimal $price = $row->decimal('price');
+    echo $row->string('name') ?? '', ': ';
+    if ($price != null) {
+        echo $price, "\n";
+    } else {
+        echo "no price\n";
+    }
+}
+
+$db->close();
