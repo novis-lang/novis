@@ -6737,6 +6737,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   alter in place, so the diff grades it `Destructive` and a proof written to show one `Safe` step
   prints a create-copy-drop-rename in front of it. Write `varchar(200)`, and read the SQL of step one
   out of `planAgainst` once before blessing anything. [until: reviewed 2026-09-22]
+- **An example that echoes `$error->message` can publish an internal citation, and blessing it
+  freezes that into the website.** `Core\Db\Schema::applySafe`'s refusal quotes the grade's reason,
+  which carries a `§ 6` from the record that graded it, so the blessed `.out` would have shipped an
+  ADR section number to a reader who has never seen this repository. Read a blessed output before
+  keeping it, and where a message is not written for a stranger, print a fixed sentence and show the
+  fact from the value instead — the plan's `grade()` here. [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

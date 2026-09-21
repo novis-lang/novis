@@ -2,49 +2,37 @@
 
 ## State
 
-Goal `core-db-rows-and-1-more` — the generated dossier goal over `Core\Db\Rows` and `Core\Db\Schema` —
-has 9 of its 11 items landed. All six `Core\Db\Rows` members carry their feature proofs, and so do
-`Core\Db\Schema::fromArray`, `::toArray` and `::planAgainst`; `python tools/dossier.py --id '<feature>'`
-prints `complete.` for every one of them. Nothing is blocked. What is left is `applySafe` and
-`applyIncludingRisky`.
+Goal `core-db-rows-and-1-more` is reached. All eleven of its items carry their feature proofs:
+`python tools/dossier.py --group 'Core\Db\Rows' --owed` and the same for `Core\Db\Schema` both print
+zero features owed, `--id` prints `complete.` for every member, and the two goal-end gates
+(`owners.py --closes`, `playbook.py --closes`) name nothing. Nothing is blocked.
 
-Three things the next session should not re-derive. **A test proof is often a `covers:` marker on a case
-that already exists**: `planAgainst` owed two and wrote none, because
-`tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst` and the Rust
-`plan_against_needs_only_the_db_connect_a_program_already_holds` already pinned it and only needed
-attributing. The two members left have the same neighbours —
-`db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst`,
-`db-schema-reports-a-table-it-does-not-declare-and-never-drops-it.nvst`, and the Rust
-`applying_without_the_db_schema_capability_throws_naming_it` and
-`apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe` — so read those four before writing a case.
+One bug the proofs found and this session fixed: `Core\Db\Schema::applySafe`'s refusal put a full
+stop after the grade's reason, which already ends with one, so every refusal read `… elsewhere..`.
+The format string in `crates/nvs-stdlib/src/db/schema.rs:673` no longer adds one, and
+`apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe` asserts the message holds no `..`.
 
-**`nvs.toml`'s `Core\Db\Schema` block now carries planAgainst's five programs**, each with
-`connect = ["notes"]`, which is the whole of what planning needs. A program that *applies* holds
-`schema = ["notes"]` beside it, as `fromArray`'s third example does. `[db.notes]` is `:memory:`, so
+Two facts the next `Core\Db` dossier goal should not re-derive. **A void member's bench chains
+through its receiver**, the way `benches/members/core/Db-Connection/close.nvs` does: two entries of
+the same value in an array, indexed by the running total. **An apply program needs
+`schema = ["notes"]` beside `connect = ["notes"]` in `nvs.toml`**, and `[db.notes]` is `:memory:`, so
 every program creates the tables it wants to find.
-
-**A plan against a table a proof wrote by hand is not empty unless the types match**, and the playbook
-bullet under *Writing a test case* is that trap in full.
 
 ## Next group
 
-**One file set for both:** `crates/nvs-stdlib/src/db/schema.rs` (`mod tests`, for a `covers:` marker),
-`tests/conformance/core/db-schema-apply-*.nvst` (the same), `nvs.toml` where a program applies a schema,
-and each feature's own proof trees. One slice is one feature with all of `rule:testing/feature-proofs`.
+**Goal `core-db-transaction-and-1-more`, whose own handoff the switch installs over this one** — one
+file set: `crates/nvs-stdlib/src/db/transaction.rs`, each feature's proof trees, and `nvs.toml` where
+a program opens a transaction. One slice is one feature with all of `rule:testing/feature-proofs`.
 
-- [ ] **`Core\Db\Schema::applySafe`** — owes examples, hostile, perf, tests. The member is
-      `crates/nvs-stdlib/src/db/schema.rs:710` and the card `crates/nvs-stdlib/src/db/registry.rs:1636`;
-      the claims worth pinning are that the whole plan is refused when one step it would run is not
-      `Safe`, that the refusal names that step and the entry point which would run it, and that
-      `db.schema` is asked for by name.
-- [ ] **`Core\Db\Schema::applyIncludingRisky`** — owes examples, hostile, perf, tests. The member is
-      `crates/nvs-stdlib/src/db/schema.rs:726` and the card `crates/nvs-stdlib/src/db/registry.rs:1645`;
-      the claim worth pinning is that it runs the steps `applySafe` refuses and still runs no reported
-      drop, so a table the schema does not declare survives it.
+- [ ] **`Core\Db\Transaction::execute`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:659`.
+- [ ] **`Core\Db\Transaction::executeMany`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:672`.
+- [ ] **`Core\Db\Transaction::query`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:617`.
 
 ## Backlog
 
-- Members other than `Core\Db\Schema::fromArray` that turn a Novis array into a Rust tree have not been
-  probed for the unbounded recursion `DEPTH_LIMIT` fixed — `crates/nvs-stdlib/src/db/schema.rs:34`.
-- `Core\Db\Plan::steps` and the four `Core\Db\Plan\Step` readers are attributed by no `covers:` marker
-  either, though `tests/conformance/core/db-plan-*.nvst` pins all of them.
+- A grading reason reaches an end user through `applySafe`'s refusal and carries `§ 6` from the
+  record that graded it — `crates/nvs-db/src/ddl.rs` writes those sentences, and AGENTS.md
+  § *Text an end user reads* says no reader ever needs a section number.
