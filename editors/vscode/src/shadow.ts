@@ -287,12 +287,19 @@ export async function sweep(dir: string, source: string, keep: string, now: numb
     }
     const grace = name.endsWith(".part") ? PARTIAL_GRACE_MS : name.startsWith(family(source)) ? 0 : FOREIGN_GRACE_MS;
     try {
-      const found = await stat(path);
-      // A copy keeps its source's modification time on Windows and takes a new one elsewhere, and
-      // its creation time is the reverse, so the later of the two is when the copy was made.
-      if (now - Math.max(found.mtimeMs, found.birthtimeMs) >= grace) {
-        await rm(path);
+      // An earlier build of this source is kept for no time at all, so its age is never read: a
+      // clock and a file system are two instruments, and a file written a moment ago can carry a
+      // timestamp a millisecond or two ahead of `Date.now()`, which would read as an age below
+      // zero and leave the copy where it is.
+      if (grace > 0) {
+        const found = await stat(path);
+        // A copy keeps its source's modification time on Windows and takes a new one elsewhere, and
+        // its creation time is the reverse, so the later of the two is when the copy was made.
+        if (now - Math.max(found.mtimeMs, found.birthtimeMs) < grace) {
+          continue;
+        }
       }
+      await rm(path);
     } catch {
       // Running in another window, or gone already.
     }

@@ -183,6 +183,18 @@ describe("what a sweep of the storage deletes", () => {
     assert.equal(existsSync(current.path), true);
   });
 
+  it("is every earlier build however far behind the file system the clock reads", async () => {
+    const old = await shadow(source, storage);
+    build(source, SECOND, 2_000_000);
+    const current = await shadow(source, storage);
+    // A copy written a moment ago can carry a timestamp ahead of the clock, which reads as an age
+    // below zero. An earlier build of this source is kept for no time at all, so that is not a
+    // reason to leave it; a minute of skew here is far more than any machine shows.
+    await sweep(storage, source, current.path, Date.now() - 60_000);
+    assert.equal(existsSync(old.path), false);
+    assert.equal(existsSync(current.path), true);
+  });
+
   it("is not another source's copy until that copy is old", async () => {
     const other = join(root, `other-${EXE}`);
     build(other, SECOND, 1_000_000);
