@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a calendar day out of a row. A program does this when it
+// shows a list of tasks with the day each one is due.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table tasks (id integer primary key, due date not null, started date not null)', []);
+        $db->execute('insert into tasks (due, started) values (?, ?)', ['2026-02-01', '2026-01-19']);
+        array<Core\Db\Row> $rows = $db->query('select due, started from tasks', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['due', 'started'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The days read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->date($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

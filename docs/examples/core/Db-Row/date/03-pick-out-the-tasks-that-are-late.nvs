@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to find the tasks whose day has passed. The day compared with is
+// written out here, so this program prints the same lines every time.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (title text not null, due date not null)', []);
+$db->execute(
+    'insert into tasks (title, due) values (?, ?), (?, ?), (?, ?)',
+    ['call Ana', '2026-01-19', 'pay the rent', '2026-02-01', 'book the train', '2026-03-08']
+);
+
+var $today = Core\Time\Date::at(2026, 2, 1);
+
+// `compareTo` returns a number below zero when the day is before the other
+// day. This prints `call Ana is late`, and nothing for the two later tasks.
+foreach ($db->query('select title, due from tasks order by due', []) as Core\Db\Row $row) {
+    ?Core\Time\Date $due = $row->date('due');
+    if ($due != null) {
+        if ($due->compareTo($today) < 0) {
+            echo $row->string('title') ?? '', " is late\n";
+        }
+    }
+}
+
+$db->close();

@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a day column holding something that is not a day, and a column of
+// another type. Then names that belong to no column, and a million reads of one
+// row. Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (id integer primary key, due date not null, n int not null, title text not null)', []);
+$db->execute('insert into tasks (due, n, title) values (?, ?, ?)', ['2026-02-01', 7, 'pay the rent']);
+
+array<Core\Db\Row> $one = $db->query('select due, n, title from tasks', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type. A day is not a number and not a text, so both of
+// these throw an error.
+uint $refused = 0;
+array<string> $others = ['n', 'title'];
+foreach ($others as string $column) {
+    try {
+        $row->date($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->date('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->date(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A day column holding `the third`, which is no day at all. Reading the row
+// throws, and the connection has to work after that.
+$db->execute('insert into tasks (due, n, title) values (?, ?, ?)', ['the third', 1, 'broken']);
+try {
+    $db->query('select due from tasks order by id', []);
+    echo "4 the text was read as a day\n";
+} catch (Throwable $error) {
+    echo "4 refused\n";
+}
+echo '5 still there: ', $db->query('select due from tasks where id = ?', [1])->count(), "\n";
+
+// 6. A million reads of the same day. The day is not built again for each
+// read, so nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->date('due') != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo '6 read: ', $read, "\n";
+
+// 7. Fifty thousand rows kept at once, and the day of every one of them read.
+// A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select due from tasks where id = ?', [1])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->date('due') != null) {
+            $read = $read + 1;
+        }
+    }
+}
+echo '7 read: ', $read, "\n";
