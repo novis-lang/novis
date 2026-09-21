@@ -1,0 +1,2 @@
+the database is behind by 1 step(s):
+  ALTER TABLE "notes" ADD COLUMN "written_at" TIMESTAMPTZ;

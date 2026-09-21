@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to read what each step of a plan risks before anything runs. A
+// `Safe` step cannot lose data. Every step also carries a sentence saying why
+// it has the grade it has.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The table an earlier release created.
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'body', 'type' => 'text', 'null' => true],
+                ['name' => 'author', 'type' => 'text(80)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The schema adds two columns. A column that is allowed to have no value is
+// safe to add, and a column that must have one is not.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->grade() == Grade::Safe) {
+        echo 'safe: ', $step->reason(), "\n";
+    } else {
+        echo 'not safe: ', $step->reason(), "\n";
+    }
+}
+
+$db->close();

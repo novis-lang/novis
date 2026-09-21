@@ -1,0 +1,38 @@
+<?nvs
+// Measures planning one schema against a database that already matches it. A
+// program does this at start-up to check that its tables are there.
+// bench: iterations 2000
+
+use Core\Db;
+use Core\Db\Schema;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Db::connect('notes');
+        $db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+        var $schema = Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'notes',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        ['name' => 'title', 'type' => 'text(200)'],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+            ],
+        ]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The step count goes into the total the method returns, so no
+            // round can be left out.
+            $total = $total + Core\Arr::count($schema->planAgainst($db)->steps());
+            $i = $i + 1;
+        }
+        $db->close();
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

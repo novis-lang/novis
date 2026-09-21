@@ -1,0 +1,2 @@
+safe: A nullable column with no default is a catalog write on all four: every existing row already has its value, and it is null.
+not safe: A NOT NULL column with no default has no value for the rows that are already there, so it fails outright on a table that is not empty. SQLite cannot express this alter, so it is a create-copy-drop-rename rebuild, which copies every row — destructive unconditionally, whatever the change would have cost elsewhere.

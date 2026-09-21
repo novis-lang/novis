@@ -1810,15 +1810,46 @@ entry = "benches/members/core/Db-Rows/value.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
-# `Core\Db\Schema`'s one program that reaches a database. Reading a schema out of an array needs
-# nothing granted at all, so the rest of that group's programs are not written here; this one also
-# applies what it read, which is why it holds `db.schema` for the same name the connection names.
+# `Core\Db\Schema`'s programs that reach a database. Reading a schema out of an array and writing one
+# back need nothing granted at all, so that group's other programs are not written here. ADR 0145 § 9's
+# split is what the grants below are: `db.connect` is the whole of what `planAgainst` needs, and the one
+# program that also applies what it planned holds `db.schema` for the same name its connection names.
 [[app]]
 entry = "docs/examples/core/Db-Schema/fromArray/03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/01-see-what-a-schema-would-change.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/02-read-the-grade-of-every-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/03-check-at-start-up-that-the-database-is-up-to-date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/planAgainst/01-planning-the-same-database-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/planAgainst.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
 
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is

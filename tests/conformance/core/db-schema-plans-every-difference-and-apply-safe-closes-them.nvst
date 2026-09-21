@@ -6,6 +6,7 @@
 // database, for the reason the sibling `db-a-sqlite-block-…` case gives:
 // SQLite needs no server, so `:memory:` makes § 4's introspection, § 6's
 // grades and § 9's apply really happen rather than being asserted off a value.
+// covers: Core\Db\Schema::planAgainst
 use Core\Db;
 use Core\Db\Schema;
 use Core\Db\Plan\Grade;

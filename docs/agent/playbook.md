@@ -6731,6 +6731,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `target/debug/nvs.exe run` first, and bound the member the way
   `crates/nvs-stdlib/src/db/schema.rs`'s `DEPTH_LIMIT` does.
   [until: gone crates/nvs-stdlib/src/db/schema.rs:DEPTH_LIMIT]
+- **A `Core\Db\Schema` proof that writes its own `create table` has to spell each column type the way
+  the dialect emitter writes it, or the plan opens with a whole-table rebuild.** A column declared
+  `title text not null` against a schema saying `text(200)` is a *type change*, which SQLite cannot
+  alter in place, so the diff grades it `Destructive` and a proof written to show one `Safe` step
+  prints a create-copy-drop-rename in front of it. Write `varchar(200)`, and read the SQL of step one
+  out of `planAgainst` once before blessing anything. [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 
