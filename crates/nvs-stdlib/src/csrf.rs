@@ -354,4 +354,148 @@ mod tests {
              that one is another session"
         );
     }
+
+    /// Drops the one reference this frame owns, exactly as a member's caller
+    /// would.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one the case took, and every \
+                      other one is accounted for where it was taken"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `Core\Csrf::issue` as a program reaches it — through the symbol the
+    /// registry row names rather than through [`Key`]. The session is read from
+    /// slot 0 and the key from slot 1, the token it answers is `true` to this
+    /// class's own `verify` for that session and `false` for another, and two
+    /// calls for one session answer two different texts.
+    ///
+    /// The construction is pinned one crate below, in [`nvs_runtime::csrf`].
+    /// What a member can get wrong is the seam — a slot read in the other
+    /// order, a token whose reference the caller cannot hold, a refusal that
+    /// leaves nothing pending — so both halves are driven the way a compiled
+    /// call site drives them.
+    // covers: Core\Csrf::issue
+    #[test]
+    fn the_member_issues_a_token_its_own_verify_accepts_and_never_repeats() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let key = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN]));
+        let session = Value::str(NvsStr::new(b"sid-ada"));
+        let other = Value::str(NvsStr::new(b"sid-grace"));
+
+        let first = nvs_runtime::call(nvs_core_csrf_issue, &mut ctx, &[session, key])
+            .expect("a short identifier seals");
+        let second = nvs_runtime::call(nvs_core_csrf_issue, &mut ctx, &[session, key])
+            .expect("a short identifier seals");
+        assert_ne!(
+            first.as_text(),
+            second.as_text(),
+            "each token is sealed under its own nonce, so a caller who compares two of \
+             them with `==` gets `false` from a pair that both verify"
+        );
+
+        for token in [first, second] {
+            let verdict = |ctx: &mut nvs_runtime::Ctx, against: Value| {
+                nvs_runtime::call(nvs_core_csrf_verify, ctx, &[token, against, key])
+                    .expect("a verdict answers")
+                    .as_bool()
+            };
+            assert_eq!(verdict(&mut ctx, session), Some(true));
+            assert_eq!(
+                verdict(&mut ctx, other),
+                Some(false),
+                "the binding is what the entry is, and a forgery is an answer rather \
+                 than a throw"
+            );
+            released(token);
+        }
+
+        // A `bytes` that was never a key is a program bug, and the only thing
+        // this member throws for.
+        let short = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN - 1]));
+        nvs_runtime::call(nvs_core_csrf_issue, &mut ctx, &[session, short])
+            .expect_err("a `bytes` of 31 octets is not a key");
+        assert!(
+            ctx.take_pending().is_some(),
+            "the refusal is a throw a program can catch, carrying `Core\\Crypto`'s own \
+             sentence about a key's length"
+        );
+
+        released(short);
+        released(other);
+        released(session);
+        released(key);
+    }
+
+    /// `Core\Csrf::verify` answers **one** thing for every way of not being
+    /// this session's token, counted over the whole table rather than read off
+    /// a row: a member that told a decode failure apart from a failed tag would
+    /// answer plausibly line by line and still be a forger's oracle. The rows
+    /// are the halves a forgery can get wrong — the alphabet, the length, the
+    /// key and the binding — and the real token beside them is what makes the
+    /// count mean something, since a member answering `false` to everything
+    /// passes the first half alone.
+    ///
+    /// A `$key` that was never a key is the one throw, and it is a program bug
+    /// rather than a verdict, so a CSRF check needs no `try` around it.
+    // covers: Core\Csrf::verify
+    #[test]
+    fn every_way_of_not_being_this_sessions_token_is_one_answer() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let key = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN]));
+        let retired = Value::bytes(NvsStr::new(&[3_u8; KEY_LEN]));
+        let session = Value::str(NvsStr::new(b"sid-ada"));
+        let elsewhere = Value::str(NvsStr::new(b"sid-grace"));
+
+        let issued = |ctx: &mut nvs_runtime::Ctx, session: Value, key: Value| {
+            nvs_runtime::call(nvs_core_csrf_issue, ctx, &[session, key])
+                .expect("a short identifier seals")
+        };
+        let mine = issued(&mut ctx, session, key);
+        let text = mine.as_text().expect("a token is a `string`").to_owned();
+
+        let forgeries = [
+            Value::str(NvsStr::new(b"")),
+            Value::str(NvsStr::new(b"not a token at all !!")),
+            Value::str(NvsStr::new(&text.as_bytes()[..text.len() - 1])),
+            Value::str(NvsStr::new(format!("{text}A").as_bytes())),
+            issued(&mut ctx, elsewhere, key),
+            issued(&mut ctx, session, retired),
+        ];
+
+        let verdict = |ctx: &mut nvs_runtime::Ctx, token: Value| {
+            nvs_runtime::call(nvs_core_csrf_verify, ctx, &[token, session, key])
+                .expect("a verdict answers")
+                .as_bool()
+        };
+        let mut refused = 0_usize;
+        for forgery in forgeries {
+            if verdict(&mut ctx, forgery) == Some(false) {
+                refused += 1;
+            }
+            released(forgery);
+        }
+        assert_eq!(refused, forgeries.len());
+        assert_eq!(
+            verdict(&mut ctx, mine),
+            Some(true),
+            "the token this key issued for this session is the one thing that is accepted"
+        );
+
+        let short = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN - 1]));
+        nvs_runtime::call(nvs_core_csrf_verify, &mut ctx, &[mine, session, short])
+            .expect_err("a `bytes` of 31 octets is not a key");
+        assert!(ctx.take_pending().is_some());
+
+        released(short);
+        released(mine);
+        released(elsewhere);
+        released(session);
+        released(retired);
+        released(key);
+    }
 }
