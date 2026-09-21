@@ -23,6 +23,7 @@ usually one file:
 | `nvs build --compile <file>` | write a single-file executable holding the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
 | `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the one path `--config` names — see [Installing on a host](#tools-install) |
 | `nvs config check [files]` | resolve the configuration tree and report what it holds |
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs info` | build, host and third-party licensing information |
@@ -377,8 +378,16 @@ at all once an error is reported. The two are refused together.
 
 # The compile cache
 
-`nvs.toml` accepts a `[cache] dir` directive naming the directory of the on-disk artifact cache,
-where a compiled unit is stored under a name derived from the hash of its source and of the build
-environment — so an entry is never stale and never needs clearing. In this build `nvs run` does not
-read or write that directory: every unit is compiled fresh on each run, and the directive is
-accepted, reported by `nvs config dump`, and read by nothing else.
+A compiled unit is stored on disk under a name derived from the hash of its source and of the build
+environment — so an entry is never stale and never needs clearing. `nvs run` and `nvs serve` both
+read and write it.
+
+`[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
+off. With no directory named it is `novis\opcache` under `%LOCALAPPDATA%` on Windows, and
+`novis/opcache` under `$XDG_CACHE_HOME` or `~/.cache` elsewhere. `[cache] dir` is not a key: it is
+refused with `E0601`.
+
+The directory must be owned by the account running `nvs` and writable by no other ordinary account,
+and so must the directory containing it. A named directory that fails prints one `warning:` line
+and the program is compiled again on every start; [Installing on a host](#tools-install) has the
+permissions that pass.

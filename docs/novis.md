@@ -220,10 +220,11 @@ Conventions the whole file uses:
 ### Part C — The toolchain
 
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
-- C.2 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
-- C.3 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
-- C.4 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
-- C.5 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.2 [Installing on a host: folders and permissions](#tools-install) — where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
+- C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
+- C.4 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
+- C.5 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
+- C.6 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
 
@@ -25672,6 +25673,7 @@ usually one file:
 | `nvs build --compile <file>` | write a single-file executable holding the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
 | `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the one path `--config` names — see [Installing on a host](#tools-install) |
 | `nvs config check [files]` | resolve the configuration tree and report what it holds |
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs info` | build, host and third-party licensing information |
@@ -26026,14 +26028,190 @@ at all once an error is reported. The two are refused together.
 
 ### The compile cache
 
-`nvs.toml` accepts a `[cache] dir` directive naming the directory of the on-disk artifact cache,
-where a compiled unit is stored under a name derived from the hash of its source and of the build
-environment — so an entry is never stale and never needs clearing. In this build `nvs run` does not
-read or write that directory: every unit is compiled fresh on each run, and the directive is
-accepted, reported by `nvs config dump`, and read by nothing else.
+A compiled unit is stored on disk under a name derived from the hash of its source and of the build
+environment — so an entry is never stale and never needs clearing. `nvs run` and `nvs serve` both
+read and write it.
+
+`[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
+off. With no directory named it is `novis\opcache` under `%LOCALAPPDATA%` on Windows, and
+`novis/opcache` under `$XDG_CACHE_HOME` or `~/.cache` elsewhere. `[cache] dir` is not a key: it is
+refused with `E0601`.
+
+The directory must be owned by the account running `nvs` and writable by no other ordinary account,
+and so must the directory containing it. A named directory that fails prints one `warning:` line
+and the program is compiled again on every start; [Installing on a host](#tools-install) has the
+permissions that pass.
+
+<a id="tools-install"></a>
+## C.2 Installing on a host: folders and permissions
+
+Keywords: install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator
+
+### The layout
+
+A host needs four folders. They can have any names and be anywhere.
+
+| Folder | Contains | Who writes to it | Who reads it |
+|---|---|---|---|
+| binary | `nvs` (`nvs.exe` on Windows) | administrators | everyone, so that every account can run `nvs` |
+| config | `nvs.toml`, included files, secret files | administrators | the account that runs `nvs`, and nobody else if the files are private |
+| cache | compiled programs | the account that runs `nvs` | not important |
+| logs | log files | the account that runs `nvs` | your choice |
+
+The simplest layout puts `config`, `cache` and `logs` inside the binary folder:
+
+    D:\srv\novis\nvs.exe            /opt/novis/nvs
+    D:\srv\novis\config\nvs.toml    /opt/novis/config/nvs.toml
+    D:\srv\novis\cache\             /opt/novis/cache/
+    D:\srv\novis\logs\              /opt/novis/logs/
+
+Put the binary folder on the `PATH`. Then `nvs` runs from any directory, and `--config` tells it
+where the configuration is:
+
+    nvs --config D:\srv\novis\config\nvs.toml init
+    nvs --config D:\srv\novis\config\nvs.toml serve D:\srv\app\index.nvs
+
+`nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
+it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
+file is never overwritten.
+
+Two keys in that file point at the other two folders. Write paths with `/`, on Windows too:
+
+```toml
+[opcache]
+file_cache_dir = "D:/srv/novis/cache"
+
+[log]
+target = "file:D:/srv/novis/logs/nvs.log"
+```
+
+### What Novis checks
+
+Novis checks **who owns a folder and who can write to it**. It never checks who can read or run
+something. You decide that yourself.
+
+A configuration file can allow a program to read files, open network connections and start other
+programs. An account that can change the file can allow itself all of that. The same is true for
+the compile cache, because Novis runs the compiled programs it finds there.
+
+A file or folder passes the check when both of these are true:
+
+| | Windows | Linux and macOS |
+|---|---|---|
+| The owner is | the account that runs `nvs`, `Administrators` or `SYSTEM` | the account that runs `nvs`, or `root` |
+| Nobody else can write | none of `Everyone`, `Authenticated Users`, `Users`, `Guests` and `ANONYMOUS LOGON` can write, delete, or change the permissions or the owner | the mode has no write bit for the group or for others |
+
+An entry for one named account, for example your own, never fails the check. Only the groups in
+the table do.
+
+This is what each command checks:
+
+| Command | Checks | If the check fails |
+|---|---|---|
+| `nvs serve`, `nvs ctl reload` | every configuration file, and the folder that contains it | the server does not start, or the reload is refused, with `E0607` |
+| `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
+| every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
+
+`nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
+
+The check on the cache folder and in `nvs init` also looks at the folder one level up. If
+`D:\srv\novis\config` has the correct permissions and `D:\srv\novis` does not, the message names
+`D:\srv\novis`. That is the folder to change.
+
+The log folder is not checked.
+
+### Windows
+
+On every drive except the system drive, Windows gives the group `Authenticated Users` the right to
+change every new folder. That means every account on the computer can replace `nvs.exe` and edit
+`nvs.toml`. Novis refuses such a folder.
+
+Use the SID of a group in `icacls`, not its name. Windows translates group names: a German Windows
+calls `Authenticated Users` "Authentifizierte Benutzer", and `icacls` does not find the English
+name there. A SID starts with `*` and is the same on every Windows.
+
+| Group | SID |
+|---|---|
+| `Authenticated Users` | `*S-1-5-11` |
+| `Users` | `*S-1-5-32-545` |
+| `Everyone` | `*S-1-1-0` |
+| `Administrators` | `*S-1-5-32-544` |
+
+Run these commands in a Command Prompt that was started with **Run as administrator**. In
+PowerShell, put quotes around an argument that contains parentheses: `"svc-novis:(OI)(CI)RX"`.
+
+1. Create the folders.
+
+       mkdir D:\srv\novis\config D:\srv\novis\cache D:\srv\novis\logs
+
+2. Protect the binary folder. The first command stops the folder from taking permissions from
+   `D:\`. The second removes the right to change it. `Users` keeps the right to read and run, so
+   every account can still run `nvs`. `config`, `cache` and `logs` take the same permissions.
+
+       icacls D:\srv\novis /inheritance:d
+       icacls D:\srv\novis /remove:g *S-1-5-11
+
+3. Make the configuration private. After this, only administrators and the accounts you add can
+   read it.
+
+       icacls D:\srv\novis\config /inheritance:d
+       icacls D:\srv\novis\config /remove:g *S-1-5-32-545
+
+4. Give the account that runs `nvs` its rights: read in `config`, change in `cache` and `logs`.
+   Replace `svc-novis` with the account name.
+
+       icacls D:\srv\novis\config /grant svc-novis:(OI)(CI)RX
+       icacls D:\srv\novis\cache /grant svc-novis:(OI)(CI)M
+       icacls D:\srv\novis\logs /grant svc-novis:(OI)(CI)M
+
+5. Check the result. `icacls D:\srv\novis` must not show `Authenticated Users` or `Everyone`, and
+   `Users` must show `(RX)` only. `dir /q D:\srv` shows the owner of each folder.
+
+`icacls <folder> /remove:g <SID>` removes every right of that group, also the right to read. To
+give reading and running back to all accounts, run
+`icacls <folder> /grant *S-1-5-32-545:(OI)(CI)RX`.
+
+Two things about accounts:
+
+- An administrator account has administrator rights only in a prompt started with **Run as
+  administrator**. In a normal prompt it is an ordinary account. If `nvs init` reports
+  `Access is denied` (`os error 5`) in a normal prompt, either use an administrator prompt or give
+  your own account the right by name, as in step 4.
+- A folder that you created is owned by your account. That passes while you run `nvs` yourself.
+  When `nvs serve` runs as a service under another account, the owner must be that account,
+  `Administrators` or `SYSTEM`.
+
+### Linux and macOS
+
+Here the check reads the owner and the mode. Replace `novis` with the account that runs `nvs`.
+
+    sudo install -d -o root  -g root  -m 0755 /opt/novis
+    sudo install    -o root  -g root  -m 0755 nvs /opt/novis/nvs
+    sudo install -d -o root  -g novis -m 0750 /opt/novis/config
+    sudo install -d -o novis -g novis -m 0755 /opt/novis/cache
+    sudo install -d -o novis -g novis -m 0755 /opt/novis/logs
+
+`/opt/novis/config` is owned by `root`. The group `novis` can read it and cannot write to it, and
+other accounts cannot open it. Give `nvs.toml` the mode `0640` and the same owner and group.
+
+A mode with a write bit for the group or for others fails the check: `0775`, `0777`, `0664`. Fix
+it with `chmod go-w <path>`.
+
+### When something is refused
+
+Every message names a path. **Change the permissions of that path**, also when it is not the
+folder you were working in.
+
+| Message | Meaning | What to do |
+|---|---|---|
+| `... grants write access to ...` (Windows), `... is group-writable` or `... is world-writable` (Linux) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
+| `... is owned by ..., which is neither this account nor ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator |
+| `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
+| `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
+| `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |
 
 <a id="tools-config"></a>
-## C.2 Configuration: nvs.toml, limits and capabilities
+## C.3 Configuration: nvs.toml, limits and capabilities
 
 Keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 
@@ -26433,6 +26611,9 @@ build neither `nvs run` nor `nvs config check` applies it: `nvs run` executes a 
 person chose, from a working directory they chose, and an offline audit on another machine cannot
 answer the question the check asks.
 
+[Installing on a host](#tools-install) lists the permissions that pass, the commands that set them
+on Windows and on Linux, and what each refusal message means.
+
 ### Secrets from files
 
 A directive that holds a secret has a `_file` sibling: the file's **whole content** is the value,
@@ -26614,7 +26795,7 @@ overrode, and `--toml` prints the resolved tree as one document. Both are descri
 subcommands in the `nvs` command chapter.
 
 <a id="tools-php-differences"></a>
-## C.3 Coming from PHP: every difference, and what to write instead
+## C.4 Coming from PHP: every difference, and what to write instead
 
 Keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
 
@@ -26935,7 +27116,7 @@ E0211
 ```
 
 <a id="tools-editor"></a>
-## C.4 The editor: nvs lsp, nvs lsp-test and the VS Code extension
+## C.5 The editor: nvs lsp, nvs lsp-test and the VS Code extension
 
 Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
 
@@ -27307,7 +27488,7 @@ written against it keeps working when the surface behind it lands, and until the
 analysed as it arrives.
 
 <a id="tools-agents"></a>
-## C.5 Coding agents: nvs agent, and what nvs agent init installs
+## C.6 Coding agents: nvs agent, and what nvs agent init installs
 
 Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 

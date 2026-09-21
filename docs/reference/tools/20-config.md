@@ -402,6 +402,9 @@ build neither `nvs run` nor `nvs config check` applies it: `nvs run` executes a 
 person chose, from a working directory they chose, and an offline audit on another machine cannot
 answer the question the check asks.
 
+[Installing on a host](#tools-install) lists the permissions that pass, the commands that set them
+on Windows and on Linux, and what each refusal message means.
+
 # Secrets from files
 
 A directive that holds a secret has a `_file` sibling: the file's **whole content** is the value,
