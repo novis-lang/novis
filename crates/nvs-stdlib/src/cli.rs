@@ -1188,12 +1188,14 @@ nvs_runtime::nvs_helper! {
     /// two rosters of the same three streams, disagreeing the first time one
     /// gains a case.
     ///
-    /// **What it spends:** one rendering of the value per call, held as one
-    /// buffer, because the newline is appended to the bytes rather than
-    /// written after them. A
+    /// **What it spends:** one allocation for a `string`, the newline included
+    /// — the substitution borrows when there is nothing to replace, and the
+    /// buffer is sized for the byte that ends the line before it is filled. A
     /// second write to reach the same stream would be a second trip through the
     /// sink for one byte, and this member is bounded by the terminal it writes
-    /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: priority 3 over 5).
+    /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: priority 3 over 5). A
+    /// `Core\Cli\Text` costs its runs' own rendering on top of that, and one
+    /// more allocation when a newline grows the buffer that rendering sized.
     fn nvs_core_cli_write(ctx, args: [3]) {
         let stream = stream_of(&args[1], "write")?;
         if matches!(stream, Stream::In) {
@@ -1207,6 +1209,7 @@ nvs_runtime::nvs_helper! {
                  question about all three",
             ));
         }
+        let newline = args[2].as_bool() == Some(true);
         let mut bytes = match args[0].tag() {
             Some(Tag::Object) => {
                 let receiver = crate::instance::receiver(args[0], &TEXT, "write")?;
@@ -1230,10 +1233,18 @@ nvs_runtime::nvs_helper! {
                         args[0].tag_byte()
                     ))
                 })?;
-                nvs_render::text::substitute(text).into_owned().into_bytes()
+                // One allocation for the whole write: the substitution borrows
+                // when there is nothing to replace, and the buffer is sized
+                // for the newline before it is filled. An `into_owned`
+                // followed by a `push` allocates a second time, because a
+                // `String` built from a borrow has no room left in it.
+                let rendered = nvs_render::text::substitute(text);
+                let mut bytes = Vec::with_capacity(rendered.len() + usize::from(newline));
+                bytes.extend_from_slice(rendered.as_bytes());
+                bytes
             }
         };
-        if args[2].as_bool() == Some(true) {
+        if newline {
             bytes.push(b'\n');
         }
         match stream {
@@ -3653,6 +3664,146 @@ mod tests {
             reordered,
             "the replacement glyph was replaced again"
         );
+    }
+
+    /// `Core\Cli::write`'s two streams are two channels, asserted on both sides:
+    /// the line written to standard output is absent from the diagnostic buffer
+    /// and the note written to standard error is absent from the output one.
+    /// No `.nvst` case can see that half, since `--EXPECT--` reads standard
+    /// output alone. The `newline` option rides along byte for byte, and the
+    /// last assertion drives the body's own refusal, which `E0401` keeps a case
+    /// from ever reaching, since the row's parameter is a [`CoreTy::Union`] of a
+    /// `string` and the carrier.
+    // covers: Core\Cli::write
+    #[test]
+    fn write_sends_each_stream_to_its_own_channel_and_names_itself_on_a_value_no_source_can_pass() {
+        // A `Core\Cli\Stream` case arrives as its ordinal, which is what
+        // compiled code writes for the option's `Const::EnumCase` default.
+        const OUT: i64 = 1;
+        const ERR: i64 = 2;
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+
+        let result = Value::str(NvsStr::new(b"the result"));
+        let note = Value::str(NvsStr::new(b"the progress note"));
+        nvs_runtime::call(
+            nvs_core_cli_write,
+            &mut ctx,
+            &[result, Value::int(OUT), Value::bool(true)],
+        )
+        .expect("write wrote the result");
+        nvs_runtime::call(
+            nvs_core_cli_write,
+            &mut ctx,
+            &[note, Value::int(ERR), Value::bool(false)],
+        )
+        .expect("write wrote the note");
+
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"the result\n"[..]),
+            "standard output holds something other than the one line written to it"
+        );
+        assert_eq!(
+            ctx.take_buffered_diagnostic().as_deref(),
+            Some(&b"the progress note"[..]),
+            "the diagnostic channel holds something other than the note it was given"
+        );
+
+        nvs_runtime::call(
+            nvs_core_cli_write,
+            &mut ctx,
+            &[Value::uint(7), Value::int(OUT), Value::bool(false)],
+        )
+        .expect_err("a number was written as if it were text");
+        let refusal = ctx
+            .take_pending()
+            .expect("the refusal says nothing at all")
+            .into_owned();
+        assert!(
+            refusal.starts_with("Core\\Cli::write expected a `string` or a `Core\\Cli\\Text`"),
+            "the message does not say which member was handed what: {refusal}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "both texts are values this test built, and the member \
+                      answers `null`, which owns nothing"
+        )]
+        unsafe {
+            result.release();
+            note.release();
+        }
+    }
+
+    /// `Core\Cli::isTty` answers the profile's own answer for each of the three
+    /// streams, and answers it again unchanged — the half a body asking the
+    /// operating system per call would fail while still looking right on one
+    /// line. The last assertion drives [`stream_of`]'s refusal, which `E0401`
+    /// keeps a `.nvst` case from ever reaching, since the row's parameter is a
+    /// [`CoreTy::Enum`].
+    // covers: Core\Cli::isTty
+    #[test]
+    fn is_tty_answers_per_stream_and_names_itself_on_a_case_no_source_can_pass() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for (ordinal, stream) in [(0_i64, Stream::In), (1, Stream::Out), (2, Stream::Err)] {
+            let want = nvs_runtime::terminal::profile().is_tty(stream);
+            for _ in 0..2 {
+                let answer =
+                    nvs_runtime::call(nvs_core_cli_is_tty, &mut ctx, &[Value::int(ordinal)])
+                        .expect("isTty answered");
+                assert_eq!(
+                    answer.as_bool(),
+                    Some(want),
+                    "{stream:?} was reported as something other than the profile's own answer"
+                );
+            }
+        }
+
+        nvs_runtime::call(nvs_core_cli_is_tty, &mut ctx, &[Value::int(3)])
+            .expect_err("a fourth stream was asked about");
+        let refusal = ctx
+            .take_pending()
+            .expect("the refusal says nothing at all")
+            .into_owned();
+        assert!(
+            refusal.starts_with("Core\\Cli::isTty expected a `Core\\Cli\\Stream` case"),
+            "the message does not say which member was handed what: {refusal}"
+        );
+    }
+
+    /// `Core\Cli::width` and `Core\Cli::height` answer the profile's own two
+    /// figures, and answer them again unchanged. The two are asserted together
+    /// because one resolution carries both, so a body reading the terminal per
+    /// member could answer a width from one size and a height from another and
+    /// still look right on either line alone. Neither is `0`, which is what
+    /// lets a caller subtract a margin without checking first.
+    // covers: Core\Cli::width, Core\Cli::height
+    #[test]
+    fn width_and_height_answer_the_profiles_own_figures_every_time() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let profile = nvs_runtime::terminal::profile();
+        for _ in 0..2 {
+            let width =
+                nvs_runtime::call(nvs_core_cli_width, &mut ctx, &[]).expect("width answered");
+            let height =
+                nvs_runtime::call(nvs_core_cli_height, &mut ctx, &[]).expect("height answered");
+            assert_eq!(
+                width.as_uint(),
+                Some(u64::from(profile.width())),
+                "the columns answered are not the profile's own"
+            );
+            assert_eq!(
+                height.as_uint(),
+                Some(u64::from(profile.height())),
+                "the rows answered are not the profile's own"
+            );
+            assert!(
+                width.as_uint() != Some(0) && height.as_uint() != Some(0),
+                "a margin subtracted from this would wrap around"
+            );
+        }
     }
 
     /// One red, bold `Cli\Style`, built the way a program builds one.
