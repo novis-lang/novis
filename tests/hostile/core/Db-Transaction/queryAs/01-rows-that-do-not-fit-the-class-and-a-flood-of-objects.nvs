@@ -1,0 +1,90 @@
+<?nvs
+// Attack: a transaction is kept after its work returned, and used to read
+// objects. Then one transaction is asked for thousands of rows that do not fit
+// the class, and for a flood of objects it may not hold. Every failure should
+// be an error the program can catch. Nothing here may crash.
+// hostile: timeout-ms 120000
+use Core\Db\Derive;
+
+#[Derive]
+class Note
+{
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// 1. The transaction is carried out of the work that owned it. Reading through
+// it would read outside every transaction, so it must be refused.
+var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+try {
+    $escaped->queryAs<Note>('select id, text from notes', []);
+    echo "1 the late read went through\n";
+} catch (Throwable $late) {
+    echo "1 the late read was refused\n";
+}
+
+// 2. Ten thousand reads whose `id` column holds a word, inside one
+// transaction. The property is a number, so every row is refused, and ten
+// thousand errors may not fill the memory.
+uint $refused = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    uint $failed = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $tx->queryAs<Note>('select ? as id, text from notes', ['nine'])->all();
+        } catch (Throwable $error) {
+            $failed = $failed + 1;
+        }
+        $i = $i + 1;
+    }
+    return $failed;
+});
+echo '2 refused: ', $refused, "\n";
+
+// 3. Ten thousand reads that leave out a column the class needs. Every one of
+// them is refused as well, and the transaction around them still ends.
+$refused = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    uint $failed = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $tx->queryAs<Note>('select id from notes', [])->all();
+        } catch (Throwable $error) {
+            $failed = $failed + 1;
+        }
+        $i = $i + 1;
+    }
+    return $failed;
+});
+echo '3 refused: ', $refused, "\n";
+
+// 4. One read that builds half a million objects while the transaction is
+// open. The program must not crash, and the transaction must still end.
+try {
+    uint $built = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        uint $sum = 0;
+        foreach ($tx->queryAs<Note>('with recursive many(id, text) as (select 1, \'note\' union all select id + 1, \'note\' from many where id < 500000) select id, text from many', []) as Note $note) {
+            $sum = $sum + $note->id;
+        }
+        return $sum;
+    });
+    echo "4 half a million objects were built\n";
+} catch (Throwable $error) {
+    echo "4 the flood of objects was stopped\n";
+}
+
+// 5. The connection after all of that. An ordinary read still works, so no
+// transaction was left open.
+echo '5 still usable: ', $db->query('select id from notes', [])->count(), " rows\n";
+
+$db->close();

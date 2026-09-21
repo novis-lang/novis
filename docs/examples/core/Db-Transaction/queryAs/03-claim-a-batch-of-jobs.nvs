@@ -1,0 +1,42 @@
+<?nvs
+// Shows work a program really does: one transaction picks the jobs that are
+// still open, marks each of them taken, and hands them on as objects. Reading
+// and marking are saved together, so no second worker can take the same job.
+use Core\Db\Derive;
+
+#[Derive]
+class Job {
+    public uint $id;
+    public tainted string $task;
+
+    public function constructor(uint $id, tainted string $task)
+    {
+        $this->id = $id;
+        $this->task = $task;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table jobs (id integer primary key, task text not null, taken int not null)', []);
+$db->execute('insert into jobs (task, taken) values (?, 0), (?, 0), (?, 0)', ['resize image', 'send mail', 'build report']);
+
+// The work returns the jobs it claimed, so the rest of the program runs them
+// after the transaction is saved.
+var $claimed = $db->transaction(fn (Core\Db\Transaction $tx): array<Job> => {
+    array<Job> $batch = [];
+    foreach ($tx->queryAs<Job>('select id, task from jobs where taken = 0 order by id limit 2', []) as Job $job) {
+        $tx->execute('update jobs set taken = 1 where id = ?', [$job->id]);
+        $batch[] = $job;
+    }
+    return $batch;
+});
+
+// This prints the two jobs that were claimed.
+foreach ($claimed as Job $job) {
+    echo 'running ', $job->id, ': ', $job->task, "\n";
+}
+
+// This prints `1 job left`.
+echo $db->query('select id from jobs where taken = 0', [])->count(), " job left\n";
+
+$db->close();

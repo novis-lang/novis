@@ -1,0 +1,75 @@
+--TEST--
+`queryAs` on a `Core\Db\Transaction` answers a `Core\Db\Rows` at the class the call site wrote, built from the rows that transaction has written and not committed — `rule:classes/no-traits`, `rule:core-classes/db-statement-members` and `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::queryAs
+use Core\Db;
+use Core\Db\Derive;
+use Core\Db\RolledBack;
+use Core\Db\Rows;
+use Core\Db\Transaction;
+
+#[Derive]
+class Note {
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+class Report {
+    // The parameter is what asserts the *static* answer: a member handing back
+    // `Rows<Row>` through this receiver would not compile here at all, which is
+    // the half no echoed value can show.
+    public static function of(Rows<Note> $rows): string
+    {
+        return $rows->count() . " " . ($rows->first()?->text ?? "nothing");
+    }
+}
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, text text not null)", []);
+$db->execute("insert into t (text) values (?)", ["committed"]);
+
+// `rule:classes/no-traits`'s delegation is keyed by the declaring class, so the class written
+// at the call site reaches the member through this receiver exactly as it does
+// through a connection's — and what only this receiver can be asked is that
+// the objects are built from work nothing has committed.
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (text) values (?)", ["uncommitted"]);
+    echo "inside ", Report::of($tx->queryAs<Note>("select id, text from t order by id", [])), "\n";
+});
+echo "kept ", Report::of($db->queryAs<Note>("select id, text from t order by id", [])), "\n";
+
+// § 7: the rows those objects were built from belong to the transaction, so a
+// rollback takes the second one back out and the class the next read answers
+// at is unchanged.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (text) values (?)", ["gone"]);
+        echo "before the rollback ", Report::of($tx->queryAs<Note>("select id, text from t order by id desc", [])), "\n";
+        $tx->rollBack("keep nothing");
+    });
+} catch (RolledBack $gone) {
+    echo "gave up: ", $gone->reason, "\n";
+}
+echo "after ", Report::of($db->queryAs<Note>("select id, text from t order by id desc", [])), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+inside 2 committed
+kept 2 committed
+before the rollback 3 gone
+gave up: keep nothing
+after 2 uncommitted
