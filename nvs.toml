@@ -1510,6 +1510,96 @@ entry = "benches/members/core/Db-Row/uint.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Row/float/01-read-a-measurement-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/float/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/float/03-pick-the-stops-inside-a-map-area.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/float/01-the-widest-doubles-a-column-holds-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/float.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/01-test-a-column-before-you-read-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/02-one-function-for-rows-of-two-tables.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/03-read-only-the-columns-a-request-asked-for.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/has/01-names-no-table-would-use-and-a-million-tests.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/has.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/01-read-a-column-without-naming-its-type.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/03-copy-rows-into-another-table.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/get/01-every-column-type-read-as-one-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/get.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

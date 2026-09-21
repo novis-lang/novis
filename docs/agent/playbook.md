@@ -3571,6 +3571,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the runner not knowing that section. Run a case that carries a config with `target/debug/nvs.exe
   test <case.nvst>` — it runs one file and prints `1 passed` — and keep `try.py` for the cases whose
   only section is `--FILE--`. [until: reviewed 2026-09-21]
+- **An `[[app]]` grant in `nvs.toml` naming a file that is not on disk yet makes *every other*
+  program fail with `E0605`.** The block is keyed on that path and a key naming nothing matches
+  nothing, so the resolver refuses the whole configuration rather than the one entry, and a
+  `--bless` of three examples then reports three failures whose message names a file you have not
+  written. Write all five of a member's programs first and add its grants after, or add each grant
+  in the same edit as the file it names. [until: reviewed 2026-09-21]
 
 ## Writing a test case
 
@@ -6693,6 +6699,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   refusal, so the `catch`'s own line lands behind it and `--EXPECT--` never matches, while the
   member is doing exactly what it should. Do the read on its own line, then echo what came back.
   [until: reviewed 2026-09-21]
+- **SQLite's declared-type map has no bare `float`, and `date` is not a conversion target at all.**
+  `nvs_db::catalog::sqlite_scalar` reads `real`, `double precision` and `double` into the float
+  family and nothing else, and `rule:types/conversion` has no `date` row, so `float not null` in a
+  `create table` and `"2026-03-01" as date` in a parameter list both fail in a case whose `int` and
+  `decimal` columns read fine. Read `crates/nvs-db/src/catalog.rs:598` for the driver's own
+  spellings before declaring a table, and pass a day as the text the driver parses.
+  [until: gone crates/nvs-db/src/catalog.rs:sqlite_scalar]
 
 ## Splitting a file that got too big
 

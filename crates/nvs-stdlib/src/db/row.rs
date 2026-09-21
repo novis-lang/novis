@@ -2283,6 +2283,220 @@ mod tests {
         released(row);
     }
 
+    /// **`Core\Db\Row::get` answers the column's value with its own tag, and
+    /// lends the row's allocation rather than copying it.**
+    ///
+    /// The tag is what the program's `as` then reads, so this member narrowing
+    /// anything — widening every number to `float`, rendering everything as
+    /// text — would be invisible on a line that only prints the result and
+    /// would lose the exactness of a `DECIMAL` column on one that does not.
+    /// Each family is stored here and read back for the tag it went in with.
+    ///
+    /// The lending is the half a `.nvst` cannot see: a copy compares equal to
+    /// the original under every comparison a program can write, and this
+    /// member is the one path the typed readers all narrow, so a copy here
+    /// would be one allocation per column read anywhere.
+    // covers: Core\Db\Row::get
+    #[test]
+    fn get_answers_the_columns_own_tag_and_lends_the_rows_allocation() {
+        let mut ctx = Ctx::buffered();
+        let text = Value::str(NvsStr::new("north field".as_bytes()));
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"label"), text);
+        columns.set(NvsStr::new(b"seats"), Value::int(7));
+        columns.set(NvsStr::new(b"folders"), Value::uint(7));
+        columns.set(NvsStr::new(b"share"), Value::float(2.5));
+        columns.set(
+            NvsStr::new(b"price"),
+            Value::decimal(Decimal::parse("7.25").expect("`7.25` is an exact number")),
+        );
+        columns.set(NvsStr::new(b"open"), Value::bool(true));
+        columns.set(NvsStr::new(b"missed"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. Every family, answered under the tag it was stored with. Nothing
+        //    here is converted on the way out.
+        for (column, tag) in [
+            (b"label".as_slice(), Tag::Str),
+            (b"seats".as_slice(), Tag::Int),
+            (b"folders".as_slice(), Tag::Uint),
+            (b"share".as_slice(), Tag::Float),
+            (b"price".as_slice(), Tag::Decimal),
+            (b"open".as_slice(), Tag::Bool),
+            (b"missed".as_slice(), Tag::Null),
+        ] {
+            let name = Value::str(NvsStr::new(column));
+            let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, name])
+                .expect("every column the row carries is one this member answers");
+            assert_eq!(
+                answered.tag(),
+                Some(tag),
+                "`get` answered `{}` under a tag the column was not stored with",
+                String::from_utf8_lossy(column)
+            );
+            released(answered);
+            released(name);
+        }
+
+        // 2. The text column again, which is the row's own allocation rather
+        //    than a second copy of it.
+        let held = text
+            .as_str_bytes()
+            .map(<[u8]>::as_ptr)
+            .expect("the column was built holding a text");
+        let label = Value::str(NvsStr::new(b"label"));
+        let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, label])
+            .expect("a `TEXT` column is one this member answers");
+        assert_eq!(
+            answered.as_str_bytes().map(<[u8]>::as_ptr),
+            Some(held),
+            "`get` built a second copy of the text the row already holds"
+        );
+        released(answered);
+        released(label);
+
+        // 3. And the name that is no column, which is the one refusal this
+        //    member has — `Core\Db\Row::has` answers `false` for it instead.
+        let missing = Value::str(NvsStr::new(b"missing"));
+        nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, missing])
+            .expect_err("a name the row does not carry is refused rather than answered");
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence");
+        assert!(
+            message.contains("missing"),
+            "the refusal names the column it was asked about: {message}"
+        );
+        released(missing);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::has` tells a column holding NULL from one the row does
+    /// not carry**, and answers for both rather than throwing.
+    ///
+    /// That distinction is the member's whole reason to exist, and down here
+    /// it is one the row's own storage has to keep: a column with no value is
+    /// a key whose value is `Value::null()`, and an absent column is no key at
+    /// all. A lookup treating a null value as a missing key answers `false`
+    /// for both and passes every case whose columns all have values.
+    ///
+    /// The other half is that no answer leaves anything behind. This member
+    /// declares no error, so a caller has no reason to look for a pending
+    /// throw after one, and a refusal parked in the context would surface
+    /// later as some other member's.
+    // covers: Core\Db\Row::has
+    #[test]
+    fn has_tells_a_null_column_from_one_the_row_does_not_carry() {
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"on_hand"), Value::int(40));
+        columns.set(NvsStr::new(b"missed"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        for (column, present) in [
+            (b"on_hand".as_slice(), true),
+            (b"missed".as_slice(), true),
+            (b"price".as_slice(), false),
+            (b"on_hand ".as_slice(), false),
+            (b"".as_slice(), false),
+        ] {
+            let name = Value::str(NvsStr::new(column));
+            let answered = nvs_runtime::call(nvs_core_db_row_has, &mut ctx, &[row, name])
+                .expect("`has` answers every name it is given and throws for none");
+            assert_eq!(
+                answered.as_bool(),
+                Some(present),
+                "`has` over `{}` answered the wrong way",
+                String::from_utf8_lossy(column)
+            );
+            assert_eq!(
+                answered.obj_ptr(),
+                None,
+                "a `bool` is a scalar, so the answer is no object and owes no release"
+            );
+            assert!(
+                ctx.take_pending().is_none(),
+                "`has` parked a throw its caller has no reason to look for"
+            );
+            released(name);
+        }
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::float` answers the bits the column holds**, so a value
+    /// that survives a round trip through the reader is the stored one and not
+    /// something that merely renders the same.
+    ///
+    /// `-0.0` is where that is decided, and it is the half a `.nvst` cannot
+    /// assert: it compares equal to `0.0` under every comparison a program can
+    /// write, and it prints as `0`, so a reader that dropped the sign passes
+    /// every case one can author. The sign is what `1.0 / value` is read off
+    /// later, so losing it turns an infinity's direction around. The three
+    /// beside it are the values a rounding reader would move — a fraction with
+    /// no exact binary form, the widest double, and the smallest one above
+    /// zero, which carries a single bit of mantissa.
+    ///
+    /// The whole-number columns are the same claim from the other side. A
+    /// `BIGINT` holding `7` renders exactly as this reader's own `7.0` would,
+    /// and `rule:core-classes/db-column-types` gives it `->int` and no reading
+    /// here.
+    // covers: Core\Db\Row::float
+    #[test]
+    fn float_answers_the_stored_bits_and_never_a_value_that_renders_the_same() {
+        /// The four values a floating-point column is read at. The last is
+        /// `f64`'s smallest positive value, written as the one mantissa bit it
+        /// is so that no literal rounds it on the way in.
+        const STORED: [(&[u8], f64); 4] = [
+            (b"unsigned_zero", -0.0),
+            (b"tenth", 0.1),
+            (b"widest", f64::MAX),
+            (b"least", f64::from_bits(1)),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        for (label, held) in STORED {
+            columns.set(NvsStr::new(label), Value::float(held));
+        }
+        columns.set(NvsStr::new(b"seats"), Value::int(7));
+        columns.set(NvsStr::new(b"folders"), Value::uint(7));
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. Each value, answered as the bits the column holds rather than as
+        //    a number that prints the same.
+        for (label, held) in STORED {
+            let name = Value::str(NvsStr::new(label));
+            let answered = nvs_runtime::call(nvs_core_db_row_float, &mut ctx, &[row, name])
+                .expect("a floating-point column is what `float` reads");
+            assert_eq!(
+                answered.as_float().map(f64::to_bits),
+                Some(held.to_bits()),
+                "`float` answered a value whose bits are not the column's own"
+            );
+            released(name);
+        }
+
+        // 2. And the two whole-number columns, which hold a round seven and
+        //    have a reader each that is not this one.
+        for column in [b"seats".as_slice(), b"folders".as_slice()] {
+            let asked = Value::str(NvsStr::new(column));
+            nvs_runtime::call(nvs_core_db_row_float, &mut ctx, &[row, asked])
+                .expect_err("an integer column is no floating-point one, however round it reads");
+            let message = ctx
+                .take_pending()
+                .expect("a refusal is a throw, and it carries a sentence");
+            assert!(
+                message.contains(str::from_utf8(column).expect("the label is text")),
+                "the refusal names the column it was asked about: {message}"
+            );
+            released(asked);
+        }
+
+        released(row);
+    }
+
     /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
     /// as `uint` and throws for `int`.**
     ///
