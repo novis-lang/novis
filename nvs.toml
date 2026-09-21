@@ -745,6 +745,100 @@ entry = "benches/members/core/Db-Column/nullable.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+# `Core\Db\Connection`'s proof programs, granted by name like the two groups above: a member of a
+# connection needs a connection, and `[db.notes]` is the block no other fixture writes to. The
+# hostile case opens and releases that one name tens of thousands of times, so the grant it holds
+# is the same single name every other program here holds.
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/01-give-the-connection-back-when-the-work-is-done.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/02-a-second-close-does-nothing.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/03-free-the-connection-before-the-slow-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/close/01-closed-again-and-again-and-used-after.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/close.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/01-see-which-database-you-are-connected-to.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/02-write-the-statement-the-database-understands.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/03-stop-on-a-database-the-program-does-not-support.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/driver/01-asked-a-million-times-and-after-a-close.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/driver.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/01-write-a-row-and-see-what-happened.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/02-change-many-rows-with-one-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/03-name-the-values-of-a-long-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/execute/01-values-that-try-to-become-the-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/execute.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

@@ -2,6 +2,7 @@
 A statement binds by position from a list-keyed array and by name from a string-keyed one, and a `:name` written twice reads one value the call site supplied once — `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::execute
 // SQLite needs no server, so this case really prepares, binds and steps rather
 // than checking a signature — db-a-sqlite-block-opens-a-file-and-runs-
 // statements-over-it.nvst is where that is argued. This one asks only about

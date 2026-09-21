@@ -3544,6 +3544,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   touched. Expect the extra rows and name them in the commit rather than reverting them — they
   are honest measurements from the same machine and the ledger is append-only.
   [until: reviewed 2026-09-21]
+- **An `[[app]]` block in the root `nvs.toml` whose `entry` names a file that is not on disk breaks
+  every program in the tree, not only that one.** The whole configuration is resolved before
+  anything runs, so a grant written for a proof program that does not exist yet answers `E0605:
+  cannot read …` for whatever example you were actually running. Write the `.nvs` files first and
+  the `[[app]]` blocks after them, and let the grants ride in the commit that adds the last program
+  they name. [until: reviewed 2026-09-21]
 
 ## Writing a test case
 
@@ -6619,6 +6625,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `.nvs` or `.nvst` file in the corpus writes a key type at all. Grep the corpus for the spelling
   before reaching for a second type argument; a spelling nothing uses is usually one nothing
   parses. [until: reviewed 2026-09-21]
+- **A literal query whose `?` count does not match its values is a compile error, so a hostile case
+  cannot catch it.** The compiler binds a literal statement with the request's own rewriter and
+  raises `E0770` there, so the mismatch never reaches run time, and a hostile case holding one is a
+  compile diagnostic — which `rule:testing/hostile-case-contract` counts as a failure. Build the
+  statement while the program runs — `'insert into t (a) values (?' . Core\Str::repeat(', ?', 2) .
+  ')'` — whenever the refusal itself is the attack. [until: reviewed 2026-09-21]
+
+- **A `covers:` marker added to a case that expects a diagnostic moves the line number that case
+  pins.** An `--EXPECTF-ERROR--` block reproduces the diagnostic's own `--> case.nvs:NN:CC`
+  header, so one comment line at the top of `--FILE--` turns a green case red, and the failure
+  reads as the member having changed. Add the marker and the `NN` in the same edit, or put the
+  marker under the line the diagnostic names. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

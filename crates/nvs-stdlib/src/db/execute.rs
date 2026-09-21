@@ -1468,6 +1468,7 @@ mod tests {
     /// this needs neither a scheduler nor a reactor — `nvs_host::net`'s
     /// `a_read_off_a_core_is_bounded_by_the_same_deadline` is the same shape one
     /// crate down.
+    // covers: Core\Db\Connection::execute
     #[test]
     fn a_statement_timeout_reaches_the_socket_and_throws_on_expiry() {
         // 1. § 18's option becomes the instant the statement must answer by.

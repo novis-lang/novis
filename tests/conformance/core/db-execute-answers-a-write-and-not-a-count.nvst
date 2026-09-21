@@ -2,6 +2,7 @@
 `execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::execute
 // `PDO::exec` answers an `int` and `lastInsertId` reads a second number off the
 // connection afterwards, so "how many rows" and "what key" are two unrelated
 // readings a caller has to sequence correctly. `rule:core-classes/db-statement-members` answers both from
@@ -25,6 +26,6 @@ uint $rows = $db->execute("delete from accounts", []);
 
 --EXPECTF-ERROR--
 error[E0401]: expected `uint`, found `Core\Db\Write`
-   --> case.nvs:20:14
+   --> case.nvs:21:14
 %A
 error: aborting due to 1 error

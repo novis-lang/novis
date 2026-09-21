@@ -1,0 +1,13 @@
+<?nvs
+// Shows the two things a write tells you: how many rows changed, and the id
+// the database gave the new row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+var $written = $db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// This prints `1 row written, id 1`.
+echo $written->affected(), ' row written, id ', $written->lastId() ?? 0, "\n";
+
+$db->close();

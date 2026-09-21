@@ -1,0 +1,17 @@
+<?nvs
+// Shows the values named instead of counted. A `:name` in the statement takes
+// its value from the key of the same name. A long statement is easier to read
+// this way, and the order of the keys does not matter.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (id integer primary key, name text not null, city text not null, age int not null)', []);
+
+var $written = $db->execute(
+    'insert into people (name, city, age) values (:name, :city, :age)',
+    ['city' => 'Bremen', 'name' => 'Ada', 'age' => 36],
+);
+
+// This prints `1 person written`.
+echo $written->affected(), " person written\n";
+
+$db->close();
