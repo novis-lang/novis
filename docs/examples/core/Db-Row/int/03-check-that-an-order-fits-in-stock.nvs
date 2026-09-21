@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to work with two numbers out of the same row. This prints what can
+// be sent today and what has to wait.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table lines (item text not null, ordered int not null, in_stock int not null)', []);
+$db->execute(
+    'insert into lines (item, ordered, in_stock) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    ['tea', 12, 40, 'cups', 30, 30, 'spoons', 8, 3]
+);
+
+foreach ($db->query('select item, ordered, in_stock from lines order by item', []) as Core\Db\Row $row) {
+    int $ordered = $row->int('ordered') ?? 0;
+    int $stock = $row->int('in_stock') ?? 0;
+    if ($ordered <= $stock) {
+        echo $row->string('item') ?? '', ': all ', $ordered, " can be sent\n";
+    } else {
+        // Both numbers are whole, so this subtraction is exact.
+        echo $row->string('item') ?? '', ': ', $ordered - $stock, " have to wait\n";
+    }
+}
+
+$db->close();

@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a whole-number reader is pointed at columns that hold text, a
+// fractional number and octets, then at names that belong to no column. Then
+// the widest numbers a `BIGINT` column holds, and a million reads of one row.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table counts (row_id integer primary key, seats int not null, label text not null, share real not null, picture blob not null)', []);
+$db->execute(
+    'insert into counts (seats, label, share, picture) values (?, ?, ?, ?)',
+    [7, '7', 7.0, 'GIF89a' as bytes],
+);
+
+array<Core\Db\Row> $one = $db->query('select seats, label, share, picture from counts', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type, each holding something that looks like the
+// number 7. None of them is a whole number, so all three throw an error.
+uint $refused = 0;
+array<string> $others = ['label', 'share', 'picture'];
+foreach ($others as string $column) {
+    try {
+        $row->int($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->int('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->int(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. The widest numbers such a column holds, read back. Both come back as they
+// were stored, so nothing is rounded on the way.
+$db->execute(
+    'insert into counts (seats, label, share, picture) values (?, ?, ?, ?)',
+    [9223372036854775807, 'the largest', 0.0, '' as bytes],
+);
+$db->execute(
+    'insert into counts (seats, label, share, picture) values (?, ?, ?, ?)',
+    // The smallest number is one below what a literal may write, so it is
+    // written as a subtraction.
+    [-9223372036854775807 - 1, 'the smallest', 0.0, '' as bytes],
+);
+foreach ($db->query('select seats, label from counts where row_id > ? order by row_id', [1]) as Core\Db\Row $wide) {
+    echo '4 ', $wide->string('label') ?? '', ': ', $wide->int('seats') ?? 0, "\n";
+}
+
+// 5. One more than the largest number. The addition itself throws, so a count
+// read out of a table cannot be grown past what the type holds.
+array<Core\Db\Row> $largest = $db->query('select seats from counts where label = ?', ['the largest'])->all();
+try {
+    int $grown = ($largest[0]->int('seats') ?? 0) + 1;
+    echo '5 grown to ', $grown, "\n";
+} catch (Throwable $error) {
+    echo "5 refused\n";
+}
+
+// 6. A million reads of the same number. Nothing may pile up over them.
+int $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    $read = $row->int('seats') ?? 0;
+    $i = $i + 1;
+}
+echo '6 read: ', $read, "\n";
+
+// 7. Fifty thousand rows kept at once, and the number of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select seats from counts where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+int $total = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $total = $total + ($held->int('seats') ?? 0);
+    }
+}
+echo '7 total: ', $total, "\n";

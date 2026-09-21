@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a whole number out of a row. A program does this for every
+// count, quantity and identifier it reads off a table.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table tables (id integer primary key, seats int not null, floors int not null)', []);
+        $db->execute('insert into tables (seats, floors) values (?, ?)', [4, 2]);
+        array<Core\Db\Row> $rows = $db->query('select seats, floors from tables', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['seats', 'floors'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The numbers read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->int($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";
