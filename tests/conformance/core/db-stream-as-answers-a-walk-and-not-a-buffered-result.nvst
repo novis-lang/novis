@@ -8,6 +8,7 @@
 // answer's *class* is the walk's and its *type argument* is the call site's,
 // and a program that confuses the first axis for the second is refused here
 // rather than at the row that would not arrive.
+// covers: Core\Db\Connection::streamAs
 use Core\Db\Derive;
 use Core\Db\Transaction;
 

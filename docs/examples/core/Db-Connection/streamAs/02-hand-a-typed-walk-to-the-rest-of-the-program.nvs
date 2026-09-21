@@ -1,0 +1,38 @@
+<?nvs
+// Shows one method that opens the walk, and a caller that reads objects from
+// it without writing any SQL.
+use Core\Db\Derive;
+
+#[Derive]
+class Order {
+    public uint $id;
+    public tainted string $customer;
+    public int $cents;
+
+    public function constructor(uint $id, tainted string $customer, int $cents)
+    {
+        $this->id = $id;
+        $this->customer = $customer;
+        $this->cents = $cents;
+    }
+}
+
+class Orders {
+    // `Core\Db\Stream<Order>` is a walk over `Order` objects. The caller reads
+    // it like any other loop and never sees a column name.
+    public static function large(Core\Db\Connection $db, int $cents): Core\Db\Stream<Order>
+    {
+        return $db->streamAs<Order>('select id, customer, cents from orders where cents >= ? order by id', [$cents]);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)', ['Ana', 1200, 'Bo', 450, 'Cy', 4500]);
+
+// This prints the two orders of 1000 cents or more.
+foreach (Orders::large($db, 1000) as Order $order) {
+    echo $order->customer, ': ', $order->cents, "\n";
+}
+
+$db->close();

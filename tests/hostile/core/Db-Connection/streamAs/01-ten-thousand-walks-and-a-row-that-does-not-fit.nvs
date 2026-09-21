@@ -1,0 +1,55 @@
+<?nvs
+// Attack: ten thousand walks that build objects, then one walk over a hundred
+// thousand rows, then a row whose value does not fit the class. The memory
+// must stay flat and nothing here may crash.
+// hostile: timeout-ms 60000
+use Core\Db\Derive;
+
+#[Derive]
+class Note
+{
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// 1. Ten thousand walks, each read to its last row. Thirty thousand objects
+// are built, and only one of them is held at a time.
+uint $built = 0;
+uint $i = 0;
+while ($i < 10000) {
+    foreach ($db->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
+        $built = $built + $note->id;
+    }
+    $i = $i + 1;
+}
+echo '1 ids summed: ', $built, "\n";
+
+// 2. One walk over a hundred thousand rows, read to the end. The objects are
+// freed as the walk goes, so the program stays inside its memory limit.
+uint $seen = 0;
+foreach ($db->streamAs<Note>('with recursive many(id, text) as (select 1, \'note\' union all select id + 1, \'note\' from many where id < 100000) select id, text from many', []) as Note $note) {
+    $seen = $seen + 1;
+}
+echo '2 objects built: ', $seen, "\n";
+
+// 3. A walk whose `id` column holds a word. The property is a number, so the
+// row is refused and the program catches it.
+try {
+    foreach ($db->streamAs<Note>('select ? as id, text from notes', ['nine']) as Note $note) {
+        echo "3 the row that does not fit was built\n";
+    }
+    echo "3 the walk gave no row\n";
+} catch (Throwable $error) {
+    echo "3 the row that does not fit was refused\n";
+}
+echo '4 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

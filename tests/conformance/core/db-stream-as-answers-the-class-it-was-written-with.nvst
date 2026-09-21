@@ -12,6 +12,7 @@
 // SQLite is the backend a case can reach: a `:memory:` block needs no server.
 // The four drivers with a wire assert the walk itself from
 // `crates/nvs-stdlib/tests/db_stream.rs`.
+// covers: Core\Db\Connection::streamAs
 use Core\Db\Derive;
 use Core\Db\Transaction;
 

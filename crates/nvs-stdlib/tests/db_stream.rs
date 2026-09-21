@@ -702,6 +702,7 @@ fn server_version_answers_what_the_connection_kept() {
 /// asked for, without the `WRITTEN_CLASS_MEMBERS` row it is never *emitted*,
 /// and without the generic declaration the answer cannot be written down in
 /// source at all.
+// covers: Core\Db\Connection::streamAs
 #[test]
 fn stream_as_answers_rows_at_the_class_it_was_written_with() {
     use nvs_stdlib::registry::{self, CoreTy};
