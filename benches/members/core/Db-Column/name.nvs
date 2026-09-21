@@ -1,0 +1,31 @@
+<?nvs
+// Measures reading the label of a column, as a page does when it prints the
+// headings of a table it built from a query.
+// bench: iterations 300000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, text text not null)', []);
+        array<Core\Db\Column> $described =
+            $db->query('select id, text from notes', [])->columns();
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The count so far chooses the column, so the loop cannot be left
+            // out. Both columns are described, so every round reads a label.
+            string $label = $described[($total % 2) as int]->name();
+            if ($label == 'id') {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

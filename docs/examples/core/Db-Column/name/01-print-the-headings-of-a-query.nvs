@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read the headings of a query. `columns()` describes what the
+// statement returns, and `name()` gives the label of one column.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+var $rows = $db->query('select id, text from notes order by id', []);
+
+// This prints `id` and then `text`, one label per line.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    echo $column->name(), "\n";
+}
+
+$db->close();

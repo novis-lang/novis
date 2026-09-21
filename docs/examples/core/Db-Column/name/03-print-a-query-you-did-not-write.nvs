@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to print the result of a query your code did not write, such as a
+// report an operator saved. The labels are the heading line, and each label
+// reads its own column out of every row.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, title text not null)', []);
+$db->execute('insert into notes (title) values (?)', ['buy milk']);
+$db->execute('insert into notes (title) values (?)', ['call the plumber']);
+
+var $rows = $db->query('select id, title from notes order by id', []);
+array<Core\Db\Column> $columns = $rows->columns();
+
+string $heading = '';
+foreach ($columns as Core\Db\Column $column) {
+    $heading = $heading . $column->name() . ';';
+}
+echo $heading, "\n";
+
+// This prints `1;buy milk;` and `2;call the plumber;`.
+foreach ($rows as Core\Db\Row $row) {
+    string $line = '';
+    foreach ($columns as Core\Db\Column $cell) {
+        ?string $text = $row->get($cell->name()) as ?string;
+        $line = $line . ($text ?? '') . ';';
+    }
+    echo $line, "\n";
+}
+
+$db->close();

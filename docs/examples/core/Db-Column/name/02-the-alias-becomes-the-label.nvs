@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `as` in a query does to the label. The database describes the
+// alias, so `name()` returns the alias and not the column in the table.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// The table calls these columns `id` and `text`.
+var $rows = $db->query('select id as reference, text as body from notes', []);
+
+// This prints `reference` and then `body`. The table is empty, and the labels
+// are still there: a description belongs to the query.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    echo $column->name(), "\n";
+}
+
+$db->close();
