@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a request asks for the place form of numbers and language tags that
+// no rule can classify. Each step should either answer a form or stop with an
+// error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. A language neither table carries. There is no form to answer, so this
+//    must stop with an error.
+try {
+    Core\Cldr::ordinalCategory(1, 'zz');
+    echo "step 1 answered for a language with no rules\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A tag with no letters in it. There is no language to read, so this must
+//    stop with an error.
+try {
+    Core\Cldr::ordinalCategory(1, '7-7');
+    echo "step 2 answered for a tag with no language\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A tag whose region part is one million characters. Only the language part
+//    is read, so this must answer the form English uses for 1st.
+string $long = 'en-' . Core\Str::repeat('x', 1000000);
+echo 'step 3 answered ',
+    Core\Cldr::ordinalCategory(1, $long) == Core\Cldr\PluralCategory::One ? 'one' : 'another form',
+    "\n";
+
+// 4. A place that is not a finite number. It shows no digits to read, so this
+//    must stop with an error.
+float $vast = 1.0e300;
+try {
+    Core\Cldr::ordinalCategory($vast * $vast, 'en');
+    echo "step 4 answered for a place that is not finite\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A place with more digits than the rules are read over. This must stop
+//    with an error and must not answer a form the caller would branch on.
+try {
+    Core\Cldr::ordinalCategory(1.0e39, 'en');
+    echo "step 5 answered for a place of forty digits\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. The largest whole number, and a negative one. Both must answer: English
+//    reads the last two digits, and a number is read without its sign.
+int $top = 9223372036854775807;
+echo 'step 6 answered ',
+    Core\Cldr::ordinalCategory($top, 'en') == Core\Cldr\PluralCategory::Other ? 'other' : 'another form',
+    "\n";
+echo 'step 6 answered ',
+    Core\Cldr::ordinalCategory(-1, 'en') == Core\Cldr\PluralCategory::One ? 'one' : 'another form',
+    "\n";
+
+// 7. A place that shows a fraction. The rules are written over whole numbers,
+//    so this must answer `Other` rather than the form 1 takes.
+decimal $fraction = 1.5;
+echo 'step 7 answered ',
+    Core\Cldr::ordinalCategory($fraction, 'en') == Core\Cldr\PluralCategory::Other ? 'other' : 'another form',
+    "\n";
+
+// 8. Two hundred thousand calls over many languages. Each call must cost the
+//    room of one answer, so the program must still answer afterwards.
+array<string> $locales = ['en', 'it', 'cy', 'de', 'ja', 'fr', 'ru', 'pl', 'cs', 'lt'];
+uint $i = 0;
+uint $total = 0;
+while ($i < 200000) {
+    int $pick = ($total % 10) as int;
+    var $form = Core\Cldr::ordinalCategory($i as int, $locales[$pick]);
+    // The language of each call is chosen by the answer before it, so no call
+    // can be left out.
+    uint $step = 1;
+    if ($form == Core\Cldr\PluralCategory::Other) {
+        $step = 3;
+    }
+    $total = $total + $step;
+    $i = $i + 1;
+}
+echo 'step 8 then answered ',
+    Core\Cldr::ordinalCategory(2, 'en') == Core\Cldr\PluralCategory::Two ? 'two' : 'another form',
+    "\n";

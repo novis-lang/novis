@@ -1,0 +1,33 @@
+<?nvs
+// Shows a results list written in two languages. A template does this when the
+// same page is shown to readers who do not share a language.
+
+class Place {
+    public static function write(int $number, string $locale, array<string> $suffixes): string {
+        string $form = match (Core\Cldr::ordinalCategory($number, $locale)) {
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            default => "other",
+        };
+        // A language that marks no place has only the `other` suffix, so that
+        // is the one to use when the form is missing.
+        if (!Core\Arr::hasKey($suffixes, $form)) {
+            $form = "other";
+        }
+        return ($number as string) . $suffixes[$form];
+    }
+}
+
+// English writes a different suffix for three of the forms. German writes a
+// full stop after every place.
+array<string> $english = ["one" => "st", "two" => "nd", "few" => "rd", "other" => "th"];
+array<string> $german = ["other" => "."];
+
+array<string> $finishers = ["Ada", "Grace", "Alan", "Edsger"];
+int $place = 1;
+foreach ($finishers as string $name) {
+    echo $name, ": ", Place::write($place, "en", $english),
+        " / ", Place::write($place, "de", $german), "\n";
+    $place = $place + 1;
+}

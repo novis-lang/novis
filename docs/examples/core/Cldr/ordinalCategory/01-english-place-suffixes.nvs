@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to write the English suffix for a place: 1st, 2nd, 3rd, 4th.
+
+class Place {
+    public static function of(int $number): string {
+        // `Core\Cldr::ordinalCategory` returns the form English uses for this
+        // place. Each of the three marked forms has its own suffix.
+        string $suffix = match (Core\Cldr::ordinalCategory($number, "en")) {
+            Core\Cldr\PluralCategory::One => "st",
+            Core\Cldr\PluralCategory::Two => "nd",
+            Core\Cldr\PluralCategory::Few => "rd",
+            default => "th",
+        };
+        return ($number as string) . $suffix;
+    }
+}
+
+// This prints 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st and 22nd. The rules
+// know that 11, 12 and 13 take "th" even though 1, 2 and 3 do not.
+array<int> $places = [1, 2, 3, 4, 11, 12, 13, 21, 22];
+foreach ($places as int $number) {
+    echo Place::of($number), "\n";
+}

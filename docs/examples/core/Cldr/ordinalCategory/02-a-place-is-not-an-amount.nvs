@@ -1,0 +1,26 @@
+<?nvs
+// Shows that a number as a place is not the same as a number as an amount.
+// The two members answer differently for the same number.
+
+class Form {
+    public static function name(Core\Cldr\PluralCategory $form): string {
+        return match ($form) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+}
+
+// In English, 3 books is `other` and 3rd place is `few`. A page that keys its
+// places on the amount form writes "3th".
+array<int> $numbers = [1, 2, 3, 4];
+foreach ($numbers as int $number) {
+    echo $number,
+        " amount=", Form::name(Core\Cldr::pluralCategory($number, "en")),
+        " place=", Form::name(Core\Cldr::ordinalCategory($number, "en")),
+        "\n";
+}
