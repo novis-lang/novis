@@ -1,0 +1,32 @@
+<?nvs
+// Shows what happens when the array is not a schema. `fromArray` throws a
+// `LogicError` naming the rule that was broken, and the message is what you show
+// the person who wrote the array.
+
+use Core\Db\Schema;
+
+// A table needs at least one column.
+try {
+    Schema::fromArray(['tables' => [['name' => 'notes', 'columns' => []]]]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `int65` is not a column type. The types are a closed list, so a typo is caught
+// here and not by the database.
+try {
+    Schema::fromArray([
+        'tables' => [
+            ['name' => 'notes', 'columns' => [['name' => 'id', 'type' => 'int65']]],
+        ],
+    ]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `tables` holds a list of tables. Here it holds a text.
+try {
+    Schema::fromArray(['tables' => 'notes']);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

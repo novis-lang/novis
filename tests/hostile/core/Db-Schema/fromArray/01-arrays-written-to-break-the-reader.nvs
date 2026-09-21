@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a schema array of ten thousand tables is read. Then one table of ten
+// thousand columns, and an array nested twenty thousand levels deep. Then a
+// thousand arrays that each break a rule, and a table name of two million
+// characters. Every step has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+use Core\Db\Schema;
+
+// 1. Ten thousand tables in one array. Every table is checked, so the work grows
+// with the input and nothing about it may be skipped.
+array<mixed> $tables = [];
+uint $i = 0;
+while ($i < 10000) {
+    $tables[] = [
+        'name' => Core\Str::format('t%d', $i),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $i = $i + 1;
+}
+var $many = Schema::fromArray(['tables' => $tables]);
+echo '1 tables: ', Core\Arr::count($tables), "\n";
+
+// 2. One table with ten thousand columns. A name is compared against every name
+// before it, so this is where a reader that compares them all pairwise stops.
+array<mixed> $columns = [];
+$i = 0;
+while ($i < 10000) {
+    $columns[] = ['name' => Core\Str::format('c%d', $i), 'type' => 'int64'];
+    $i = $i + 1;
+}
+var $wide = Schema::fromArray([
+    'tables' => [['name' => 'wide', 'columns' => $columns]],
+]);
+echo '2 columns: ', Core\Arr::count($columns), "\n";
+
+// 3. An array nested twenty thousand levels deep. Reading it may not follow the
+// nesting all the way down, so this is refused instead.
+array<mixed> $deep = ['tables' => []];
+$i = 0;
+while ($i < 20000) {
+    $deep = ['tables' => $deep];
+    $i = $i + 1;
+}
+try {
+    Schema::fromArray($deep);
+    echo "3 read\n";
+} catch (LogicError $e) {
+    echo "3 refused\n";
+}
+$deep = [];
+
+// 4. A thousand arrays that each break a rule. Every one of them throws, and the
+// program that catches them all is still standing.
+uint $refused = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        Schema::fromArray([
+            'tables' => [
+                ['name' => Core\Str::format('t%d', $i), 'columns' => []],
+            ],
+        ]);
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 refused: ', $refused, "\n";
+
+// 5. A table name of two million characters. It is either read or refused, and
+// either way the name is held once rather than copied per check.
+try {
+    var $long = Schema::fromArray([
+        'tables' => [
+            [
+                'name' => Core\Str::repeat('n', 2000000),
+                'columns' => [['name' => 'id', 'type' => 'int64']],
+            ],
+        ],
+    ]);
+    echo "5 read\n";
+} catch (LogicError $e) {
+    echo "5 refused\n";
+}

@@ -31,6 +31,18 @@
 
 use super::*;
 
+/// How many arrays deep a schema array may nest before it is refused.
+///
+/// The form's own deepest nesting is six arrays — the root map, the `tables`
+/// list, a table, its `columns` list, a column, and that column's one-key
+/// `default` — so no schema anybody can write comes near this, and the margin
+/// costs nothing. [`node_of`] and [`array_node`] call each other once per level,
+/// and without a bound an array a program built in a loop spends the whole
+/// stack: the process then ends with no diagnostic at all, which is the one
+/// ending a refusal exists to replace. The names a refusal is reported at grow
+/// with the depth too, so this caps what they can cost.
+const DEPTH_LIMIT: usize = 16;
+
 /// One Novis value as a node of the canonical form.
 ///
 /// The vocabulary's own leaves and nothing else: a `decimal`, a `bytes`, an
@@ -40,7 +52,7 @@ use super::*;
 /// looks like an omission and is not — § 2's decimal default is *digits*, so
 /// that a value written into a schema file and one written in source are the
 /// same value.
-fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
+fn node_of(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node, Fault> {
     use nvs_db::schema::Node;
 
     let refused = |holds: &str| {
@@ -65,7 +77,7 @@ fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
             .as_text()
             .map(|text| Node::Text(text.to_owned()))
             .ok_or_else(|| refused("a string that is not UTF-8")),
-        Some(Tag::Array) => array_node(value, at),
+        Some(Tag::Array) => array_node(value, at, depth),
         Some(Tag::Decimal) => Err(refused(
             "a `decimal`, where § 2's exact default is written as its digits in a string",
         )),
@@ -83,9 +95,18 @@ fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
 /// One `NvsArray` is both of Novis's shapes (`rule:types/arrays`), so the two are told apart exactly as [`crate::json`]'s decode tells
 /// them apart — by asking for the positions. `["tables" => …]` has a count of
 /// one and no index 0, and `[["name" => …]]` has both.
-fn array_node(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
+fn array_node(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node, Fault> {
     use nvs_db::schema::Node;
 
+    if depth >= DEPTH_LIMIT {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Db\\Schema::fromArray(): {at} nests more than {DEPTH_LIMIT} arrays deep. A \
+                 schema array nests six at the most, so nothing this deep describes a schema"
+            ),
+        ));
+    }
     let Some(ptr) = value.array_ptr() else {
         return Err(Fault::fatal(format!(
             "Core\\Db\\Schema::fromArray() found tag {} behind {:?} at {at}",
@@ -103,7 +124,7 @@ fn array_node(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
                 .ok()
                 .and_then(|position| source.get_index(position))
                 .expect("every position is there, which is what `positioned` just asked");
-            items.push(node_of(element, &format!("{at}[{index}]"))?);
+            items.push(node_of(element, &format!("{at}[{index}]"), depth + 1)?);
         }
         return Ok(Node::List(items));
     }
@@ -122,7 +143,7 @@ fn array_node(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
             .value_at(slot)
             .expect("next_slot only names live entries");
         let key = String::from_utf8_lossy(&key).into_owned();
-        let node = node_of(element, &format!("{at}[\"{key}\"]"))?;
+        let node = node_of(element, &format!("{at}[\"{key}\"]"), depth + 1)?;
         pairs.push((key, node));
     }
     Ok(Node::Map(pairs))
@@ -183,7 +204,7 @@ nvs_runtime::nvs_helper! {
     /// them — so a file cannot say anything a program could not have built, and
     /// this member has no rule of its own to disagree with them about.
     fn nvs_core_db_schema_from_array(_ctx, args: [1]) {
-        let node = node_of(args[0], "the array")?;
+        let node = node_of(args[0], "the array", 0)?;
         let schema = nvs_db::schema::Schema::from_array(&node)
             .map_err(|why| refused("fromArray", &why))?;
         Ok(crate::instance::build(&SCHEMA, [value_of(&schema.to_array())]))
@@ -226,6 +247,7 @@ fn schema_of(receiver: Value, member: &str) -> Result<nvs_db::schema::Schema, Fa
             SCHEMA_ARRAY_AT,
         ),
         "the schema",
+        0,
     )?;
     nvs_db::schema::Schema::from_array(&node).map_err(|why| refused(member, &why))
 }
@@ -877,5 +899,118 @@ mod tests {
             unsafe_step(&nvs_db::diff(&want, &want, Dialect::Sqlite)).is_none(),
             "`applySafe` refused a plan with nothing in it"
         );
+    }
+
+    /// Drops the one reference a member handed this frame, which is what a
+    /// compiled caller owes for every value it was given.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame was \
+                      handed, and nothing else holds it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The smallest schema in its array form: one table, one column, and every
+    /// optional key left out.
+    fn smallest() -> Value {
+        let mut column = NvsArray::new();
+        column.set(NvsStr::new(b"name"), Value::str(NvsStr::new(b"id")));
+        column.set(NvsStr::new(b"type"), Value::str(NvsStr::new(b"int64")));
+        let mut columns = NvsArray::new();
+        columns.append(Value::array(column));
+        let mut table = NvsArray::new();
+        table.set(NvsStr::new(b"name"), Value::str(NvsStr::new(b"notes")));
+        table.set(NvsStr::new(b"columns"), Value::array(columns));
+        let mut tables = NvsArray::new();
+        tables.append(Value::array(table));
+        let mut root = NvsArray::new();
+        root.set(NvsStr::new(b"tables"), Value::array(tables));
+        Value::array(root)
+    }
+
+    /// **`Core\Db\Schema::fromArray` keeps none of the array it was given**, and
+    /// an array nested past [`DEPTH_LIMIT`] is refused rather than followed.
+    ///
+    /// The first half is the module doc's decision from the other side: the slot
+    /// holds what [`nvs_db::schema::Schema::to_array`] emits, so the caller's
+    /// array is read and let go. The reference count is the only place that is
+    /// visible — a member that retained the input instead would answer an array
+    /// comparing equal on every line a program can write, while a program
+    /// writing to its own array afterwards would be editing the schema.
+    ///
+    /// The second half is the case [`DEPTH_LIMIT`] exists for, and one that
+    /// could not be written at all before it: [`node_of`] and [`array_node`]
+    /// descend once per level, so nesting like the two thousand below spent the
+    /// whole stack and ended the process with no diagnostic. It is refused now,
+    /// and the refusal names the nesting rather than the first schema rule the
+    /// array happens to break.
+    // covers: Core\Db\Schema::fromArray
+    #[test]
+    fn from_array_keeps_none_of_the_array_it_read_and_refuses_nesting_it_will_not_follow() {
+        let mut ctx = Ctx::buffered();
+        let written = smallest();
+        let held = written
+            .array_ptr()
+            .expect("the array form was built as an array");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the array and holds it until the release \
+                      at the end"
+        )]
+        let before = unsafe { NvsArray::refcount_of(held) };
+
+        let schema = nvs_runtime::call(nvs_core_db_schema_from_array, &mut ctx, &[written])
+            .expect("one table with one column is a schema every backend takes");
+
+        #[expect(
+            unsafe_code,
+            reason = "the array is still this frame's, and the schema built from \
+                      it is released below as well"
+        )]
+        let after = unsafe { NvsArray::refcount_of(held) };
+        assert_eq!(
+            after, before,
+            "`fromArray` took a reference to the array it read, so a program \
+             writing to its own array afterwards would be editing the schema"
+        );
+
+        let answered = nvs_runtime::call(nvs_core_db_schema_to_array, &mut ctx, &[schema])
+            .expect("a schema value answers its own array");
+        assert_ne!(
+            answered.array_ptr(),
+            Some(held),
+            "the schema holds the array it was given rather than the normalized \
+             one, so two spellings of one schema would not compare equal"
+        );
+        released(answered);
+        released(schema);
+        released(written);
+
+        // Two thousand arrays, one inside the next. The reader stops at
+        // `DEPTH_LIMIT` and says so, rather than following the nesting down.
+        let mut deep = Value::array(NvsArray::new());
+        for _ in 0..2000 {
+            let mut wrap = NvsArray::new();
+            wrap.set(NvsStr::new(b"tables"), deep);
+            deep = Value::array(wrap);
+        }
+        let refused = node_of(deep, "the array", 0)
+            .expect_err("an array nested two thousand deep is not a schema");
+        let message = said(&refused);
+        assert!(
+            message.contains("nests more than"),
+            "the refusal does not say that the nesting is what it refused: \
+             {message}"
+        );
+        assert!(
+            message.contains("fromArray"),
+            "the refusal does not name the member that was called: {message}"
+        );
+        released(deep);
     }
 }

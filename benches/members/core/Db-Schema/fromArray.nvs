@@ -1,0 +1,34 @@
+<?nvs
+// Measures reading a one-table schema out of its array, which a program does
+// once at start-up before it plans against a database.
+// bench: iterations 20000
+
+use Core\Db\Schema;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ['notes', 'guests', 'orders'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name comes from the round before, so no round can be left out.
+            var $schema = Schema::fromArray([
+                'tables' => [
+                    [
+                        'name' => $names[$total % 3],
+                        'columns' => [
+                            ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                            ['name' => 'title', 'type' => 'text(200)', 'null' => true],
+                        ],
+                        'primary_key' => ['id'],
+                    ],
+                ],
+            ]);
+            $total = $total + Core\Arr::count($schema->toArray());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

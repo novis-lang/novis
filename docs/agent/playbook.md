@@ -6724,6 +6724,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   so each is an `E0401` against a declared `uint` that names the member's call rather than the
   operator. Write the fallback as `(0 as uint)`, and divide with `Core\Math::intDiv` over values
   converted once with `as int`. [until: reviewed 2026-09-21]
+- **An array a program nests in a loop can end the process inside the `Core` member that reads it,
+  with no diagnostic at all.** A member converting an array into a Rust tree recurses once per level,
+  so twenty thousand wraps printed `has overflowed its stack` under debug and release alike — not the
+  parser's clean refusal, which only covers a deep *literal*. Probe an attack's nesting step with
+  `target/debug/nvs.exe run` first, and bound the member the way
+  `crates/nvs-stdlib/src/db/schema.rs`'s `DEPTH_LIMIT` does.
+  [until: gone crates/nvs-stdlib/src/db/schema.rs:DEPTH_LIMIT]
 
 ## Splitting a file that got too big
 

@@ -1,0 +1,129 @@
+--TEST--
+`Core\Db\Schema::fromArray` answers one normalized array for every spelling of one schema, names the rule it refuses an array for, and bounds how deep an array may nest on both sides of the bound — `rule:core-classes/schema-is-a-value`
+--FILE--
+<?nvs
+// covers: Core\Db\Schema::fromArray
+// Two spellings of one schema are compared as their whole arrays, so a reader
+// that normalized the table order but not the absent keys agrees on neither line
+// and still reads plausibly on its own. The refusals are counted as well as
+// printed, because a reader that threw the first rule's sentence for all four
+// prints four right lines. The nesting bound is asserted on both sides: the array
+// one level inside it is refused for what it says, and the array one level past
+// it is refused for how deep it is.
+use Core\Db\Schema;
+
+// The optional keys written out, tables in the order this program thought of
+// them.
+var $written = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64', 'null' => false, 'identity' => false],
+                ['name' => 'tag', 'type' => 'text(40)', 'null' => false, 'identity' => false],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+            'unique' => [],
+            'indexes' => [],
+        ],
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'null' => false, 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)', 'null' => true, 'identity' => false],
+            ],
+            'primary_key' => ['id'],
+            'unique' => [],
+            'indexes' => [],
+        ],
+    ],
+]);
+
+// The same schema with every key it may leave out left out, and the tables the
+// other way round.
+var $spare = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+        ],
+    ],
+]);
+
+uint $agree = 0;
+if (Core\Json::encode($written->toArray()) == Core\Json::encode($spare->toArray())) {
+    $agree = 1;
+}
+echo "agree: ", $agree, " of 1\n";
+echo Core\Json::encode($spare->toArray()), "\n";
+
+// Four arrays, four rules, four sentences. Each one names what is wrong with the
+// array rather than what the database said.
+array<array<mixed>> $wrong = [
+    ['tables' => [['name' => 'notes', 'columns' => []]]],
+    ['tables' => [['name' => 'notes', 'columns' => [['name' => 'id', 'type' => 'int65']]]]],
+    ['tables' => 'notes'],
+    [
+        'tables' => [
+            ['name' => 'notes', 'columns' => [['name' => 'id', 'type' => 'int64']]],
+            ['name' => 'notes', 'columns' => [['name' => 'id', 'type' => 'int64']]],
+        ],
+    ],
+];
+
+uint $refused = 0;
+foreach ($wrong as array<mixed> $array) {
+    try {
+        Schema::fromArray($array);
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+        echo $e->message, "\n";
+    }
+}
+echo "refused: ", $refused, " of 4\n";
+
+// The deepest array the reader will follow holds sixteen arrays. Fourteen wraps
+// around a two-array value is the last one inside that bound, and it is refused
+// for what it says: `tables` holds a map where the form wants a list. One more
+// wrap is refused for its nesting alone, and the program is still running to
+// print it.
+array<mixed> $inside = ['tables' => []];
+uint $i = 0;
+while ($i < 14) {
+    $inside = ['tables' => $inside];
+    $i = $i + 1;
+}
+array<mixed> $past = ['tables' => $inside];
+
+try {
+    Schema::fromArray($inside);
+} catch (LogicError $e) {
+    echo "inside the bound: ", $e->message, "\n";
+}
+try {
+    Schema::fromArray($past);
+} catch (LogicError $e) {
+    echo "past the bound: refused for its nesting\n";
+}
+--EXPECT--
+agree: 1 of 1
+{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true},{"name":"title","type":"text(200)","null":true,"identity":false}],"primary_key":["id"],"unique":[],"indexes":[]},{"name":"tags","columns":[{"name":"note_id","type":"int64","null":false,"identity":false},{"name":"tag","type":"text(40)","null":false,"identity":false}],"primary_key":["note_id","tag"],"unique":[],"indexes":[]}]}
+Core\Db\Schema::fromArray(): table `notes` declares no columns
+Core\Db\Schema::fromArray(): `int65` is not one of the column types the vocabulary contains
+Core\Db\Schema::fromArray(): the array form's `tables` wants a list
+Core\Db\Schema::fromArray(): `notes` is declared twice as a table
+refused: 4 of 4
+inside the bound: Core\Db\Schema::fromArray(): the array form's `tables` wants a list
+past the bound: refused for its nesting
