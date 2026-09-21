@@ -1611,8 +1611,15 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
 /// none.
 ///
 /// [`None`] is `opcache.file_cache = false`, a build that cannot identify itself, a host with no
-/// cache root to default to, and a directory § 5 refuses. None of them is reported: a run without a
-/// cache is a run that compiles, which is the fallback every miss in this module already takes.
+/// cache root to default to, and a directory § 5 refuses. A run without a cache is a run that
+/// compiles, which is the fallback every miss in this module already takes, so none of them stops
+/// anything.
+///
+/// **One of them is reported: a `file_cache_dir` somebody wrote and § 5 refused.** The default
+/// directory is nobody's decision and its refusal is nobody's to act on, but an operator who named
+/// a directory asked for a cache there, and a server that silently compiles every unit on every
+/// start is that answer withheld. It is one `warning:` line per process however many callers
+/// resolve a cache, and never a refusal to start.
 ///
 /// The build question is asked here rather than beside the default directory, because it is the one
 /// case `rule:config/the-extension-set-is-in-every-unit-key`'s key does not separate and a
@@ -1625,15 +1632,45 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
     if !nvs_config::cache::build_is_identified() {
         return None;
     }
-    let dir = match opcache.and_then(|opcache| opcache.file_cache_dir.as_deref()) {
+    let written = opcache.and_then(|opcache| opcache.file_cache_dir.as_deref());
+    let dir = match written {
         Some(written) => PathBuf::from(written),
         None => default_dir()?,
     };
-    Some(
-        Cache::new(dir, env_hash(config))
-            .ok()?
-            .with_eviction(eviction_of(opcache)),
-    )
+    match Cache::new(dir, env_hash(config)) {
+        Ok(cache) => Some(cache.with_eviction(eviction_of(opcache))),
+        Err(why) => {
+            if let Some(written) = written {
+                static REPORTED: std::sync::Once = std::sync::Once::new();
+                REPORTED.call_once(|| eprintln!("{}", refused_dir_warning(written, &why)));
+            }
+            None
+        }
+    }
+}
+
+/// The line [`from_config`] prints for a written `file_cache_dir` § 5 refused.
+///
+/// It says what the run does instead, because "not used" alone reads as harmless and the cost is
+/// a compile of every unit on every start. A breach carries the remedy; a directory that could
+/// not be examined carries only what the reader said, since the remedy answers a DACL or a mode
+/// that was read.
+fn refused_dir_warning(written: &str, why: &Untrusted) -> String {
+    let head = format!(
+        "warning: `[opcache] file_cache_dir = \"{written}\"` is not used, so every program is \
+         compiled again on each start: {}",
+        why.message()
+    );
+    match why {
+        Untrusted::Breach(_) => format!(
+            "{head}\n  \
+             note: the ownership check covers the cache directory and the directory that \
+             contains it\n  \
+             help: {}",
+            trust::REMEDY
+        ),
+        Untrusted::Unreadable(_) => head,
+    }
 }
 
 /// § 7's "a fixed system location", read as *this account's* rather than the host's, and one
@@ -1879,6 +1916,16 @@ mod tests {
             Cache::new(dir.join("shard"), env()).is_err(),
             "a directory that does not exist yet takes the answer of the ancestor that would hold \
              it, which is the only place that promise can be kept",
+        );
+
+        let warning = refused_dir_warning("artifacts", &why);
+        assert!(
+            warning.starts_with("warning:") && warning.contains("file_cache_dir"),
+            "a written directory that is refused is said so, naming the key: {warning}",
+        );
+        assert!(
+            warning.contains("compiled again") && warning.contains("help:"),
+            "with what the run does instead and what to do about it: {warning}",
         );
 
         drop(fs::remove_dir_all(&root));
