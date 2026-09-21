@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program creates a token for a form, and checks the token when
+// the form comes back. The token belongs to one session.
+
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+
+// The page is rendered with this token in a hidden field. The token is
+// different on every call, so its length is printed here. This prints 79.
+string $token = Core\Csrf::issue($session, $key);
+echo Core\Str::length($token), "\n";
+
+// The form comes back and carries the token. This prints `yes`.
+echo (Core\Csrf::verify($token, $session, $key) ? "yes" : "no"), "\n";
+
+// The same token is not accepted for another session. This prints `no`.
+echo (Core\Csrf::verify($token, "sid-grace", $key) ? "yes" : "no"), "\n";

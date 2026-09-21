@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to tie a token to one action as well as to one session. Write the
+// name of the action into the value you create the token against.
+
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+
+array<string> $forms = ["change-email", "transfer-money", "delete-account"];
+array<string> $tokens = [];
+
+// Every form on the page gets its own token.
+foreach ($forms as string $form) {
+    $tokens[$form] = Core\Csrf::issue($session . "|" . $form, $key);
+}
+
+// The request says which form it comes from, and the program checks the token
+// against that form. This prints `yes`.
+string $sent = $tokens["transfer-money"];
+echo (Core\Csrf::verify($sent, $session . "|transfer-money", $key) ? "yes" : "no"), "\n";
+
+// The same token is not accepted for the form that deletes the account. An
+// attacker who reads one token cannot use it there. This prints `no`.
+echo (Core\Csrf::verify($sent, $session . "|delete-account", $key) ? "yes" : "no"), "\n";

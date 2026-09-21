@@ -1,0 +1,24 @@
+<?nvs
+// Measures creating one token, as a program does every time it renders a form.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $key = Core\Crypto::generateKey();
+        array<string> $sessions = ["sid-ada", "sid-grace-hopper", "sid-4711"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The session of every round is chosen by the token lengths so far,
+            // so the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            string $token = Core\Csrf::issue($sessions[$which], $key);
+            $total = $total + Core\Str::length($token);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
