@@ -1,0 +1,31 @@
+<?nvs
+// Measures reading the description of a small result, which a program does to
+// print the headings above a table.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+        $db->execute('insert into seatings (seats, label) values (?, ?), (?, ?)', [4, 'north', 2, 'east']);
+        var $rows = $db->query('select seats, label from seatings order by id', []);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Core\Db\Column> $described = $rows->columns();
+            // The column read is chosen by the total so far, so the loop cannot
+            // be left out.
+            if ($described[($total % 2) as int]->nullable()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
