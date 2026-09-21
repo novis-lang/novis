@@ -1,0 +1,28 @@
+<?nvs
+// Measures checking whether a capability is granted, which a program does on
+// every request that has an optional feature to switch on.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["fs.read", "fs.write", "net.connect"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name of each round is chosen by the round before it, so no
+            // round can be left out.
+            int $pick = ($total % 3) as int;
+            uint $step = 1;
+            if (Core\Cap::has($names[$pick])) {
+                $step = 2;
+            }
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

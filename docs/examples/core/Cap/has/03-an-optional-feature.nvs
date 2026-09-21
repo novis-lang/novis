@@ -1,0 +1,19 @@
+<?nvs
+// Shows the everyday use: a feature the program can work without. It writes an
+// audit file where it is allowed to, and prints the lines where it is not. This
+// deployment did not grant writing files.
+
+class Audit {
+    public static function record(string $line): void {
+        // The program takes the other route when the answer is `false`, instead
+        // of stopping with an error.
+        if (Core\Cap::has("fs.write")) {
+            Core\IO::append("var/audit.log", $line . "\n");
+            return;
+        }
+        echo "audit: ", $line, "\n";
+    }
+}
+
+Audit::record("order 1042 paid");
+Audit::record("order 1042 shipped");

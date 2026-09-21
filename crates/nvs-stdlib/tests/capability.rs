@@ -10,6 +10,11 @@
 //! because it is the same question one layer up: a door that asks about the path it was handed is
 //! no protection if the path the caller wrote names somewhere else entirely.
 //!
+//! One claim here is not a door's at all. `Core\Cap::has` is the one member that *reports* a grant
+//! instead of meeting one (`rule:security/optional-capability-degrades`), and it is swept over the
+//! whole roster from this side because that roster is a Rust table: a Novis case can only name the
+//! rows one literal at a time, and a written name outside them never reaches run time.
+//!
 //! The path cases split deliberately. The `..` half runs against the **real** filesystem, because a
 //! canonicalizer that resolves `..` textually rather than by asking the OS is exactly the bug the rule
 //! exists to prevent and a fake would hide it. The symlink half runs against a fake canonicalizer, for
@@ -835,4 +840,57 @@ fn ctx_reading_and_writing(roots: &[&str]) -> nvs_runtime::Ctx {
         ..nvs_config::Snapshot::default()
     }));
     ctx
+}
+
+/// `Core\Cap::has($capability)` as the member itself rather than as a re-derivation of it, driven
+/// the way a program drives it — [`within`] above takes the same route for the same reason.
+fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
+    let args = [nvs_runtime::Value::str(nvs_runtime::NvsStr::new(
+        capability.as_bytes(),
+    ))];
+    nvs_runtime::call(nvs_stdlib::cap::nvs_core_cap_has, ctx, &args)
+        .expect("the query reports and never throws, whatever it is handed")
+        .as_bool()
+        .expect("`Core\\Cap::has` answers a `bool`")
+}
+
+/// The query answers `true` for exactly the names the grant table holds, counted over the whole
+/// roster rather than read off one line: a member reporting the *block* rather than the key, or
+/// falling back to a default, agrees with one line here and with no arrangement of all of them.
+///
+/// The second half is the arm no `.nvst` case can reach. A **written** name outside the roster is
+/// `E0616` before the program runs, so what arrives at run time is a computed one, and a program
+/// branching on it is deciding whether it may proceed — where a throw is the wrong shape and `true`
+/// the wrong answer. The third is the agreement between those two halves: every name the compiler
+/// admits is a name this member knows, so neither gate is wider than the other.
+// covers: Core\Cap::has
+#[test]
+fn a_capability_query_answers_true_for_exactly_the_granted_names() {
+    let mut ctx = ctx_reading(&["."]);
+    let granted: Vec<&str> = Cap::ALL
+        .iter()
+        .filter(|cap| has(&mut ctx, cap.name()))
+        .map(|cap| cap.name())
+        .collect();
+    assert_eq!(
+        granted,
+        ["fs.read"],
+        "one grant is written, so one of the {} roster names may answer `true`",
+        Cap::ALL.len()
+    );
+
+    for name in ["", "fs.delete", "network.connect", "FS.READ", "fs.read "] {
+        assert!(
+            !has(&mut ctx, name),
+            "`{name}` is not a capability, so nothing holds it"
+        );
+    }
+
+    for cap in Cap::ALL {
+        assert!(
+            nvs_stdlib::cap::is_capability(cap.name()),
+            "`{}` is granted in a configuration file, so a program may name it",
+            cap.name()
+        );
+    }
 }

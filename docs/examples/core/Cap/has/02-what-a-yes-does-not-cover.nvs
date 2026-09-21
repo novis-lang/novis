@@ -1,0 +1,19 @@
+<?nvs
+// Shows what a `true` covers. This program may read files in one directory.
+// The capability is granted, and the exact file is checked again when the
+// program opens it.
+
+string $dir = "docs/examples/core/Cap/has/data";
+
+// The deployment granted `fs.read`, so this prints yes.
+echo "read files: ", Core\Cap::has("fs.read") ? "yes" : "no", "\n";
+
+// A file inside the granted directory opens.
+echo Core\Str::trim(Core\IO::read($dir . "/hours.txt")), "\n";
+
+// A file outside that directory is refused, even though the answer above was yes.
+try {
+    Core\IO::read("nvs.toml");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

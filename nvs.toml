@@ -344,6 +344,46 @@ read = true
 [app.capabilities.script]
 spawn = false
 
+# `Core\Cap::has`'s own page needs a deployment that granted one thing and not
+# another, because a member reporting grants has nothing to report where nothing
+# was granted. Its first example prints `yes` for `fs.read` and `no` for two
+# names nobody wrote. `read = true` rather than a list of roots: the example
+# opens no file, and the member reports the grant and never a path, so roots
+# would only be entries nothing compares.
+[[app]]
+entry = "docs/examples/core/Cap/has/01-what-this-program-may-do.nvs"
+
+[app.capabilities.fs]
+read = true
+
+# The second example is the pair that member cannot make on its own — the grant
+# is one directory wide, the answer is still `yes`, and a file outside it is
+# refused when the program opens it — so here the grant *is* a list, and the
+# example's own data directory is the only entry in it.
+[[app]]
+entry = "docs/examples/core/Cap/has/02-what-a-yes-does-not-cover.nvs"
+
+[app.capabilities.fs]
+read = ["docs/examples/core/Cap/has/data"]
+
+# The attack written against the same member spends most of its steps on names
+# that merely resemble a granted one, and there is nothing to resemble until one
+# name really is granted.
+[[app]]
+entry = "tests/hostile/core/Cap/has/01-names-that-try-to-win-a-yes.nvs"
+
+[app.capabilities.fs]
+read = true
+
+# The bench for the same member, granted for the reason the block above is: the
+# figure worth recording is the one a granted capability costs, which is the
+# longer of the two paths through the member.
+[[app]]
+entry = "benches/members/core/Cap/has.nvs"
+
+[app.capabilities.fs]
+read = true
+
 # The third block of that kind and the first written for an *attack* rather than
 # for an example: `tests/hostile/config/debug-keep_temporary/` exists to make
 # `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to

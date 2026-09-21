@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a program checks what it is allowed to do. This deployment granted
+// it reading files, and nothing else.
+
+// `Core\Cap::has` returns `true` when the capability is granted. This prints yes.
+echo "read files:  ", Core\Cap::has("fs.read") ? "yes" : "no", "\n";
+
+// A capability nobody granted returns `false`. This prints no.
+echo "write files: ", Core\Cap::has("fs.write") ? "yes" : "no", "\n";
+
+// The names are the ones the deployment writes in `nvs.toml`. This prints no.
+echo "send mail:   ", Core\Cap::has("mail.send") ? "yes" : "no", "\n";

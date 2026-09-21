@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request tries to get a yes out of the capability check for something
+// the deployment never granted. Every step below should answer no, and the
+// program must keep running to the end.
+// hostile: timeout-ms 60000
+
+// 1. The program gives itself the right to write files and then checks. Only the
+//    person who runs the server may grant a capability, so both lines say no.
+bool $gaveItself = Core\Config::set('capabilities.fs.write', 'true');
+echo 'step 1 gave itself ', $gaveItself ? 'yes' : 'no', "\n";
+echo 'step 1 has it ', Core\Cap::has('fs.write') ? 'yes' : 'no', "\n";
+
+// 2. Names that look like the granted one. Each of them is a different name, so
+//    every one must answer no.
+array<string> $lookalikes = [
+    'FS.READ',
+    'fs.read ',
+    ' fs.read',
+    'fs..read',
+    'fs.read.write',
+    'fs/read',
+    'fs.reаd',
+];
+foreach ($lookalikes as string $name) {
+    echo 'step 2 ', Core\Cap::has($name) ? 'yes' : 'no', "\n";
+}
+
+// 3. A name of twenty-one million characters. No capability has that name, so
+//    this must answer no, and the runtime must not come apart reading it.
+string $huge = Core\Str::repeat('fs.read', 3000000);
+echo 'step 3 ', Core\Cap::has($huge) ? 'yes' : 'no', "\n";
+
+// 4. One million checks in a row, so that anything the check kept behind it
+//    would grow. The program must still be running after them.
+uint $yes = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    int $pick = ($i % 7) as int;
+    if (Core\Cap::has($lookalikes[$pick])) {
+        $yes = $yes + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 4 counted ', $yes, " yes\n";
