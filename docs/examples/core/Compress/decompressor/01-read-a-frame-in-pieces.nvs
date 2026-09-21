@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read compressed data that arrives in pieces. You add each piece,
+// then call `finish` once to get the original bytes.
+
+bytes $frame = Core\Compress::compress(Core\Str::repeat("one row of the export\n", 40), Core\Codec::Gzip);
+int $size = Core\Bytes::length($frame) as int;
+
+var $stream = Core\Compress::decompressor(Core\Codec::Gzip);
+$stream->add(Core\Bytes::slice($frame, 0, 20));
+$stream->add(Core\Bytes::slice($frame, 20, $size - 20));
+
+// `finish` returns `tainted bytes`. The data came from somewhere else, and
+// unpacking it does not make it safe to trust.
+tainted bytes $rows = $stream->finish();
+echo 'read ', Core\Bytes::length($rows), " bytes\n";
+
+// The split is not part of the data. The first piece ends in the middle of the
+// frame's header, and one call over the whole frame reads the same 880 bytes.
+bytes $atOnce = Core\Compress::decompress($frame, Core\Codec::Gzip);
+echo 'one call reads ', Core\Bytes::length($atOnce), " bytes\n";

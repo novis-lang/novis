@@ -1,0 +1,26 @@
+<?nvs
+// Shows what a program does with a compressed download: it adds each part as it
+// arrives, and says up front how much it is willing to unpack.
+
+// In a real program each of these is a part that just arrived over the network.
+bytes $whole = Core\Compress::compress(Core\Str::repeat("1042,Berlin,39.90\n", 300), Core\Codec::Gzip);
+int $size = Core\Bytes::length($whole) as int;
+array<bytes> $parts = [
+    Core\Bytes::slice($whole, 0, 30),
+    Core\Bytes::slice($whole, 30, 30),
+    Core\Bytes::slice($whole, 60, $size - 60),
+];
+
+// At most one mebibyte of result, and at most 200 bytes of result for each byte
+// that arrives. Both are fixed now and cannot be raised later.
+var $download = Core\Compress::decompressor(Core\Codec::Gzip, 1048576, 200);
+foreach ($parts as bytes $part) {
+    $download->add($part);
+}
+
+try {
+    tainted bytes $csv = $download->finish();
+    echo 'accepted ', Core\Bytes::length($csv), " bytes\n";
+} catch (ParseError $refused) {
+    echo "the download was refused\n";
+}

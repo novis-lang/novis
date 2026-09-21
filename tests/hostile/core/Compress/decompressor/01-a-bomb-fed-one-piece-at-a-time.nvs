@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program unpacks a stream somebody else built. It feeds a bomb in
+// small pieces, asks for the largest limits it can write, and adds pieces that
+// are no frame. Every one must stop with an error, and the program must run to
+// its last line.
+// hostile: timeout-ms 60000
+
+// The bomb: 16 mebibytes of one byte, which gzip packs into about 16 kibibytes.
+bytes $bomb = Core\Compress::compress(Core\Bytes::repeat('A' as bytes, 16777216), Core\Codec::Gzip);
+int $size = Core\Bytes::length($bomb) as int;
+echo 'the bomb is ', $size, " bytes\n";
+
+// 1. The bomb fed one kibibyte at a time, into a stream opened with nothing
+//    asked for. A stream that gave each piece the whole limit would unpack it.
+var $drip = Core\Compress::decompressor(Core\Codec::Gzip);
+int $at = 0;
+while ($at < $size) {
+    $drip->add(Core\Bytes::slice($bomb, $at, 1024));
+    $at = $at + 1024;
+}
+try {
+    $drip->finish();
+    echo "step 1 unpacked the bomb\n";
+} catch (ParseError $bounded) {
+    echo "step 1 refused the bomb\n";
+}
+
+// 2. The same bomb into a stream opened with the largest limits the program can
+//    write. A stream may ask for less than the server allows and never more.
+var $greedy = Core\Compress::decompressor(Core\Codec::Gzip, 9223372036854775807, 9223372036854775807);
+$greedy->add($bomb);
+try {
+    $greedy->finish();
+    echo "step 2 unpacked the bomb\n";
+} catch (ParseError $stillBounded) {
+    echo "step 2 refused the bomb again\n";
+}
+
+// 3. A stream used again after it ended. Both members must stop with a
+//    `RuntimeError`.
+uint $stopped = 0;
+try {
+    $greedy->add($bomb);
+} catch (RuntimeError $closed) {
+    $stopped = $stopped + 1;
+}
+try {
+    $greedy->finish();
+} catch (RuntimeError $twice) {
+    $stopped = $stopped + 1;
+}
+echo 'step 3 stopped ', $stopped, " of 2\n";
+
+// 4. Pieces that are no frame at all, and a frame under the wrong format.
+var $rubbish = Core\Compress::decompressor(Core\Codec::Gzip);
+$rubbish->add('not compressed at all' as bytes);
+$rubbish->add(Core\Compress::compress('hello', Core\Codec::Brotli));
+try {
+    $rubbish->finish();
+    echo "step 4 read a stream that is no frame\n";
+} catch (ParseError $noFrame) {
+    echo "step 4 refused a stream that is no frame\n";
+}
+
+// 5. Twenty thousand streams, each one opened, fed a bomb and refused. A
+//    refusal that kept the output it had reached would fill memory here.
+bytes $small = Core\Compress::compress(Core\Bytes::repeat('B' as bytes, 65536), Core\Codec::Zlib);
+uint $tried = 0;
+uint $refused = 0;
+while ($tried < 20000) {
+    var $one = Core\Compress::decompressor(Core\Codec::Zlib, 1000, 1000);
+    $one->add($small);
+    try {
+        $one->finish();
+    } catch (ParseError $again) {
+        $refused = $refused + 1;
+    }
+    $tried = $tried + 1;
+}
+echo 'step 5 refused ', $refused, " times\n";

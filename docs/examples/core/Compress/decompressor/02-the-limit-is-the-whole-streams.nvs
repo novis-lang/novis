@@ -1,0 +1,26 @@
+<?nvs
+// Shows the limit a stream is opened with. `finish` measures everything you
+// added against it, so adding the data in more pieces does not buy more room.
+
+bytes $frame = Core\Compress::compress(Core\Str::repeat("<p>the same line</p>\n", 500), Core\Codec::Zlib);
+int $size = Core\Bytes::length($frame) as int;
+
+// The result is 10500 bytes, and this stream accepts 20000.
+var $roomy = Core\Compress::decompressor(Core\Codec::Zlib, 20000);
+$roomy->add($frame);
+echo 'read ', Core\Bytes::length($roomy->finish()), " bytes\n";
+
+// The same frame, added one byte at a time, into a stream that accepts 1000.
+var $tight = Core\Compress::decompressor(Core\Codec::Zlib, 1000);
+int $at = 0;
+while ($at < $size) {
+    $tight->add(Core\Bytes::slice($frame, $at, 1));
+    $at = $at + 1;
+}
+
+try {
+    $tight->finish();
+    echo "the limit did not hold\n";
+} catch (ParseError $tooLarge) {
+    echo "1000 bytes was not enough room, however many pieces it arrived in\n";
+}

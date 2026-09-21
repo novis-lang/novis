@@ -1,0 +1,32 @@
+<?nvs
+// Measures opening a decompression stream, adding a frame in two pieces and
+// finishing it. A program meets this every time it reads one compressed record
+// that arrived in parts.
+// bench: iterations 150000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $frames = [
+            Core\Compress::compress('{"id":1042,"city":"Berlin","state":"shipped"}', Core\Codec::Zstd),
+            Core\Compress::compress('{"id":1043,"city":"Lisbon","state":"packed"}', Core\Codec::Zstd),
+            Core\Compress::compress('{"id":1044,"city":"Oslo","state":"paid"}', Core\Codec::Zstd),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The frame of each round is chosen by the round before it, so no
+            // round can be left out.
+            bytes $frame = $frames[($total % 3) as int];
+            int $size = Core\Bytes::length($frame) as int;
+            var $stream = Core\Compress::decompressor(Core\Codec::Zstd);
+            $stream->add(Core\Bytes::slice($frame, 0, 8));
+            $stream->add(Core\Bytes::slice($frame, 8, $size - 8));
+            $total = $total + Core\Bytes::length($stream->finish());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(150000), "\n";
