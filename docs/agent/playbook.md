@@ -3526,6 +3526,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   count — nothing at a few hundred thousand rounds, and well past the tolerance once the count has to
   stay tiny for the program to finish in under a second. Declare only `iterations` there;
   `benches/members/README.md` § *What a bench declares* is the rule. [until: reviewed 2026-09-21]
+- **An `[[app]]` block in `nvs.toml` keyed on a file that is not on disk yet refuses every program
+  in the tree, naming the absent file.** Writing the five blocks a feature's proofs need before the
+  attack and the bench existed made all three examples fail with `E0605` naming
+  `tests/hostile/core/Db/open/01-settings-a-request-chose.nvs`, which reads as a broken example
+  rather than as a file nobody has written. Write every `.nvs` a block names first, or add one
+  block at a time as each program lands. [until: reviewed 2026-09-21]
 
 ## Writing a test case
 
