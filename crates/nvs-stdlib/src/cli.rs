@@ -3327,6 +3327,148 @@ mod tests {
         assert!(nvs_runtime::is_carrier(NAME));
     }
 
+    /// The text of every element of an `array<string>`.
+    fn words_of(array: Value) -> Vec<String> {
+        crate::str::Elements::of(array.array_ptr().expect("the words are an array"))
+            .map(|word| word.as_text().expect("a word is a string").to_owned())
+            .collect()
+    }
+
+    /// `rule:security/capability-check-at-the-door` keeps `argv` out of this
+    /// crate, so the words this member answers are the ones a launcher wrote
+    /// with `Ctx::set_command_line` and nothing else — a context given none
+    /// answers an empty array rather than the process's own vector. The third
+    /// assertion is the one a shared table would fail: each call copies, so a
+    /// program that changes what it read cannot change what the next call
+    /// reads.
+    // covers: Core\Cli::arguments
+    #[test]
+    fn arguments_answer_the_words_the_launcher_wrote() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let none =
+            nvs_runtime::call(nvs_core_cli_arguments, &mut ctx, &[]).expect("arguments answered");
+        assert!(
+            words_of(none).is_empty(),
+            "a context given no command line answered something"
+        );
+
+        ctx.set_command_line(vec![
+            "greet".to_owned(),
+            "ada lovelace".to_owned(),
+            "--dry-run".to_owned(),
+        ]);
+        let given =
+            nvs_runtime::call(nvs_core_cli_arguments, &mut ctx, &[]).expect("arguments answered");
+        assert_eq!(
+            words_of(given),
+            ["greet", "ada lovelace", "--dry-run"],
+            "the words are the launcher's own, in its order and one element each"
+        );
+
+        let again =
+            nvs_runtime::call(nvs_core_cli_arguments, &mut ctx, &[]).expect("arguments answered");
+        assert_ne!(
+            given.array_ptr(),
+            again.array_ptr(),
+            "two calls handed out one array between them"
+        );
+
+        #[expect(unsafe_code, reason = "each call's array is this test's to release")]
+        unsafe {
+            none.release();
+            given.release();
+            again.release();
+        }
+    }
+
+    /// The member answers the *process profile's* own depth, as the ordinal
+    /// [`COLOR_DEPTH`] declares for that case — and answers it again unchanged,
+    /// which is the half a body reading the environment per call would fail
+    /// while still looking right on one line.
+    // covers: Core\Cli::colorDepth
+    #[test]
+    fn color_depth_answers_the_profiles_own_case_every_time() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let want = depth_ordinal(nvs_runtime::terminal::profile().color_depth());
+        let first = nvs_runtime::call(nvs_core_cli_color_depth, &mut ctx, &[])
+            .expect("colorDepth answered");
+        assert_eq!(
+            first.as_int(),
+            Some(want),
+            "the member and the profile disagree about this process"
+        );
+        assert!(
+            COLOR_DEPTH
+                .cases
+                .iter()
+                .any(|(_, declared)| *declared == want),
+            "the answer is not one of the four cases a program can compare against"
+        );
+
+        let again = nvs_runtime::call(nvs_core_cli_color_depth, &mut ctx, &[])
+            .expect("colorDepth answered");
+        assert_eq!(
+            again.as_int(),
+            first.as_int(),
+            "a second call reported a different terminal"
+        );
+    }
+
+    /// `rule:tooling/a-prompt-is-a-core-member`'s *"it never blocks waiting for
+    /// an answer nobody can give"*, over the arm every prompt reaches it
+    /// through. [`unanswered`] is driven rather than the member, because a
+    /// process running this test may well have a terminal, and the assertion is
+    /// about what a prompt does when it has none.
+    // covers: Core\Cli::ask
+    #[test]
+    fn a_prompt_with_nobody_to_ask_answers_its_default_or_throws() {
+        let fallback = Value::str(NvsStr::new(b"ada"));
+        let answered = unanswered(&Answer::Ended, "ask", fallback).expect("a default is an answer");
+        assert_eq!(
+            answered.as_text(),
+            Some("ada"),
+            "the default the call named is not what came back"
+        );
+
+        match unanswered(&Answer::Ended, "ask", Value::null()) {
+            Err(Fault::Thrown(class, message)) => {
+                assert!(
+                    matches!(class, nvs_runtime::ThrownClass::CliNotInteractive),
+                    "a silence is caught by `Core\\Cli\\NotInteractive` and nothing else"
+                );
+                assert!(
+                    message.contains("there is no controlling terminal"),
+                    "the message does not say which silence this was: {message}"
+                );
+            }
+            other => panic!("a prompt with no default and no terminal answered {other:?}"),
+        }
+
+        // The deadline's silence is the same class and a different clause, so a
+        // program catches one exception and an operator reads which happened.
+        match unanswered(&Answer::TimedOut, "ask", Value::null()) {
+            Err(Fault::Thrown(class, message)) => {
+                assert!(matches!(class, nvs_runtime::ThrownClass::CliNotInteractive));
+                assert!(
+                    message.contains("nothing typed within"),
+                    "a deadline and an absent terminal froze as one message: {message}"
+                );
+            }
+            other => panic!("a prompt nobody answered in time answered {other:?}"),
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "`handed_back` took a reference of its own, so this test \
+                      owes one release for the value it built and one for the \
+                      answer"
+        )]
+        unsafe {
+            answered.release();
+            fallback.release();
+        }
+    }
+
     /// One red, bold `Cli\Style`, built the way a program builds one.
     fn warning(ctx: &mut nvs_runtime::Ctx) -> Value {
         let red = nvs_runtime::call(nvs_core_cli_color_index, ctx, &[Value::uint(1)])
