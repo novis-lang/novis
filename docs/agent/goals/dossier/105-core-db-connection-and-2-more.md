@@ -26,22 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Db\Connection::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:399`
-2. **`Core\Db\Connection::driver`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:408`
-3. **`Core\Db\Connection::execute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:302`
-4. **`Core\Db\Connection::executeMany`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:319`
-5. **`Core\Db\Connection::isOpen`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:435`
-6. **`Core\Db\Connection::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:257`
-7. **`Core\Db\Connection::queryAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:281`
-8. **`Core\Db\Connection::serverVersion`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:421`
-9. **`Core\Db\Connection::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:346`
-10. **`Core\Db\Connection::streamAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:376`
-11. **`Core\Db\Connection::transaction`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:568`
-12. **`Core\Db\Plan::steps`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1782`
-13. **`Core\Db\Plan\Step::grade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1816`
-14. **`Core\Db\Plan\Step::isRefused`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1843`
-15. **`Core\Db\Plan\Step::reason`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1825`
-16. **`Core\Db\Plan\Step::sql`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1834`
+1. **`Core\Db\Connection::executeMany`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:319`
+2. **`Core\Db\Connection::isOpen`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:435`
+3. **`Core\Db\Connection::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:257`
+4. **`Core\Db\Connection::queryAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:281`
+5. **`Core\Db\Connection::serverVersion`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:421`
+6. **`Core\Db\Connection::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:346`
+7. **`Core\Db\Connection::streamAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:376`
+8. **`Core\Db\Connection::transaction`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:568`
+9. **`Core\Db\Plan::steps`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1782`
+10. **`Core\Db\Plan\Step::grade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1816`
+11. **`Core\Db\Plan\Step::isRefused`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1843`
+12. **`Core\Db\Plan\Step::reason`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1825`
+13. **`Core\Db\Plan\Step::sql`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/db/registry.rs:1834`
 
 ## Running this goal wide
 
@@ -52,7 +49,7 @@ is the one shape that earns it: the examples, the attack and the bench are attri
 from the feature's own id, so two workers cannot name the same file; nothing here is a
 design decision; and `dossier.py --verify --group` judges the result mechanically.
 
-    python tools/dossier.py --partition --only 'Core\Db\Connection::close' 'Core\Db\Connection::driver' 'Core\Db\Connection::execute' 'Core\Db\Connection::executeMany' 'Core\Db\Connection::isOpen' 'Core\Db\Connection::query' 'Core\Db\Connection::queryAs' 'Core\Db\Connection::serverVersion' 'Core\Db\Connection::stream' 'Core\Db\Connection::streamAs' 'Core\Db\Connection::transaction' 'Core\Db\Plan::steps' 'Core\Db\Plan\Step::grade' 'Core\Db\Plan\Step::isRefused' 'Core\Db\Plan\Step::reason' 'Core\Db\Plan\Step::sql'
+    python tools/dossier.py --partition --only 'Core\Db\Connection::executeMany' 'Core\Db\Connection::isOpen' 'Core\Db\Connection::query' 'Core\Db\Connection::queryAs' 'Core\Db\Connection::serverVersion' 'Core\Db\Connection::stream' 'Core\Db\Connection::streamAs' 'Core\Db\Connection::transaction' 'Core\Db\Plan::steps' 'Core\Db\Plan\Step::grade' 'Core\Db\Plan\Step::isRefused' 'Core\Db\Plan\Step::reason' 'Core\Db\Plan\Step::sql'
 
 writes one brief per worker under `.loop/dossier-fanout/` and **refuses** if any two would
 write the same path. Hand each worker its brief *path* — it reads it in its own window, so

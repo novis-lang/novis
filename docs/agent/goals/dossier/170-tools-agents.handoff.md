@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`tools:agents/a-worked-session`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:102`
+- [ ] **`tools:agents/a-worked-session`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:114`
 - [ ] **`tools:agents/nvs-agent`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:10`
-- [ ] **`tools:agents/nvs-agent-init`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:61`
+- [ ] **`tools:agents/nvs-agent-init`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:73`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

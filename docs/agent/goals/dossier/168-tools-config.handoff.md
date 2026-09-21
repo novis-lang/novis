@@ -14,7 +14,7 @@ file order, so neighbours share an implementing file and the second and third co
 fraction of the first:
 
 - [ ] **`tools:config/app-per-application-blocks`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:292`
-- [ ] **`tools:config/auditing-a-tree`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:532`
+- [ ] **`tools:config/auditing-a-tree`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:535`
 - [ ] **`tools:config/capabilities`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:184`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.

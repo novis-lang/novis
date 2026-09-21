@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`tools:cli/files-extensions-and-tags`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:45`
-2. **`tools:cli/nvs-api-diff`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:280`
-3. **`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:356`
-4. **`tools:cli/nvs-build-compile`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:249`
-5. **`tools:cli/nvs-build-openapi`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:270`
-6. **`tools:cli/nvs-check`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:116`
-7. **`tools:cli/nvs-config-check-and-nvs-config-dump`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:294`
-8. **`tools:cli/nvs-info`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:323`
-9. **`tools:cli/nvs-meta-json`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:334`
-10. **`tools:cli/nvs-run`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:66`
-11. **`tools:cli/nvs-test`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:160`
+1. **`tools:cli/files-extensions-and-tags`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:47`
+2. **`tools:cli/nvs-api-diff`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:282`
+3. **`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:358`
+4. **`tools:cli/nvs-build-compile`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:251`
+5. **`tools:cli/nvs-build-openapi`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:272`
+6. **`tools:cli/nvs-check`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:118`
+7. **`tools:cli/nvs-config-check-and-nvs-config-dump`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:296`
+8. **`tools:cli/nvs-info`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:325`
+9. **`tools:cli/nvs-meta-json`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:336`
+10. **`tools:cli/nvs-run`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:68`
+11. **`tools:cli/nvs-test`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:162`
 12. **`tools:cli/one-binary`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:9`
-13. **`tools:cli/the-compile-cache`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:379`
+13. **`tools:cli/the-compile-cache`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:381`
 
 ## Running this goal wide
 

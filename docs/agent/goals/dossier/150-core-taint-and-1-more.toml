@@ -34,12 +34,14 @@ playbook = [
   'Tooling > another agent',
   'Writing a test case > a rule*',
   'Writing a test case > a -p*',
+  'Writing a test case > an array literal*',
+  'Writing a test case > two foreach headers*',
   'Running things > target/release/nvs.exe is',
 ]
 
 plan = ["Open now", "Blocking"]
 
-# The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
+# The environment tables of `docs/agent/goals/172-limit-handler-reach.toml`, the goal this one was
 # appended behind: a generated goal runs that goal's whole acceptance list as its
 # floor, so it needs the same containers and the same WSL target. Regenerated,
 # never hand-edited.

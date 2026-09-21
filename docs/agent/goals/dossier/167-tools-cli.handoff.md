@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`tools:cli/files-extensions-and-tags`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:45`
-- [ ] **`tools:cli/nvs-api-diff`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:280`
-- [ ] **`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:356`
+- [ ] **`tools:cli/files-extensions-and-tags`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:47`
+- [ ] **`tools:cli/nvs-api-diff`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:282`
+- [ ] **`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:358`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

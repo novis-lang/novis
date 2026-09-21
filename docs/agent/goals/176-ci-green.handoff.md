@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 175 — CI is green on `main` — has just started; nothing of it has landed yet.** The last
+**Goal 176 — CI is green on `main` — has just started; nothing of it has landed yet.** The last
 generated goal's whole list is this goal's Stage 1 floor.
 
 This was goal `gap-zero`'s stage 4, moved to the end of the chain by the user on 2026-09-18 because

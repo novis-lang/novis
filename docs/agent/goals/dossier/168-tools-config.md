@@ -27,14 +27,14 @@ edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
 1. **`tools:config/app-per-application-blocks`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:292`
-2. **`tools:config/auditing-a-tree`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:532`
+2. **`tools:config/auditing-a-tree`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:535`
 3. **`tools:config/capabilities`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:184`
 4. **`tools:config/include-a-tree-of-files`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:355`
 5. **`tools:config/limits-and-limits-hard`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:109`
 6. **`tools:config/mode`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:169`
 7. **`tools:config/network-grants-the-addresses-and-endpoints-they-reach`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:258`
-8. **`tools:config/reading-and-changing-it-from-a-program-core-config`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:469`
-9. **`tools:config/secrets-from-files`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:406`
+8. **`tools:config/reading-and-changing-it-from-a-program-core-config`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:472`
+9. **`tools:config/secrets-from-files`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:409`
 10. **`tools:config/the-blocks-the-binary-accepts`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:43`
 11. **`tools:config/the-file-and-where-it-is-read-from`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:9`
 12. **`tools:config/trust`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:396`
