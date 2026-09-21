@@ -1,0 +1,15 @@
+<?nvs
+// Shows the `labels` option. The choices are numbers, and `labels` gives each one
+// the line the person reads. There is no terminal here, so the answer is the
+// default.
+
+array<int> $days = [1, 7, 30];
+
+int $keep = Core\Cli::select("How long should a backup be kept?", $days, {
+    labels: fn(int $day): string => Core\Str::format("%d day(s)", $day),
+    default: 7,
+});
+
+// The result is the number itself, so you can calculate with it. The default here
+// is 7, so this prints 168.
+echo $keep * 24, "\n";

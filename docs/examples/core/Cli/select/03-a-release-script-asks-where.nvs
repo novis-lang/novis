@@ -1,0 +1,17 @@
+<?nvs
+// Shows the everyday use: a release script asks which environment to deploy to,
+// and the name that comes back reads the settings for it. There is no terminal
+// here, so the answer is the default.
+
+array<string> $hosts = [
+    "staging" => "staging.example.com",
+    "canary" => "canary.example.com",
+    "production" => "www.example.com",
+];
+
+string $target = Core\Cli::select("Deploy where?", Core\Arr::keys($hosts), {default: "staging"});
+
+// The choices are the keys of the list above, so the name that comes back reads
+// the host out of it. This prints "staging" and "staging.example.com".
+echo "environment: ", $target, "\n";
+echo "host: ", $hosts[$target], "\n";

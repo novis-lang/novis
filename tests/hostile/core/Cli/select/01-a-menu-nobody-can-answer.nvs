@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program offers menus where nobody can answer. It tries to make the
+// prompt wait. It tries to run a function that must not run, and to build a list
+// of choices that fills the machine. Every step must end at once, and the program
+// must run to the end.
+// hostile: timeout-ms 60000
+
+class Menu
+{
+    // A label nobody asked for. There is no terminal here, so no menu is written
+    // and this must never run.
+    public static function never(string $choice): string
+    {
+        throw new LogicError('a menu was built where nothing can be read');
+    }
+}
+
+array<string> $choices = ['keep', 'archive', 'delete'];
+
+// 1. A list with no choices in it is a mistake in the program. The call must stop
+//    with a `LogicError`, with or without a terminal.
+array<string> $nothing = [];
+try {
+    Core\Cli::select('what should happen?', $nothing, { default: 'keep' });
+    echo "step 1 chose something\n";
+} catch (LogicError $empty) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. A menu with no default must stop with an error instead of waiting for an
+//    answer nobody can give.
+try {
+    Core\Cli::select('what should happen?', $choices);
+    echo "step 2 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 2 stopped at once\n";
+}
+
+// 3. The `labels` function throws. It must not be called, and the default must
+//    come back.
+string $picked = Core\Cli::select('what should happen?', $choices, {
+    labels: fn(string $choice): string => Menu::never($choice),
+    default: 'keep',
+});
+echo 'step 3 chose ', $picked, "\n";
+
+// 4. A question made of control characters. They must not reach the terminal as
+//    commands, and the default must come back unchanged.
+string $sneaky = "\u{1B}]0;rm -rf /\u{7}what should happen?";
+echo 'step 4 chose ', Core\Cli::select($sneaky, $choices, { default: 'archive' }), "\n";
+
+// 5. Two hundred thousand choices, each one a text of its own. The program must
+//    keep going.
+array<string> $many = [];
+uint $at = 0;
+while ($at < 200000) {
+    $many[] = Core\Str::format('choice %d', $at);
+    $at = $at + 1;
+}
+echo 'step 5 chose ', Core\Cli::select('which one?', $many, { default: 'choice 0' }), "\n";
+
+// 6. One hundred thousand menus in a row, so that anything a call keeps behind
+//    would grow.
+uint $i = 0;
+string $last = '';
+while ($i < 100000) {
+    $last = Core\Cli::select('what should happen?', $choices, { default: 'delete' });
+    $i = $i + 1;
+}
+echo 'step 6 chose ', $last, " every time\n";
