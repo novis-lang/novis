@@ -1,0 +1,25 @@
+<?nvs
+// Measures asking a connection for its driver, as a program does before it
+// picks the statement one database writes differently.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The answer decides what is added, so the loop cannot be left out.
+            if ($db->driver() == Core\Db\Driver::Sqlite) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

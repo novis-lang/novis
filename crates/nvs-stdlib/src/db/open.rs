@@ -1465,6 +1465,44 @@ mod tests {
     /// **`isOpen` is called through the ABI**, because it is the one member
     /// whose whole job is to still answer here, and calling the body directly
     /// would not prove the registered symbol reaches it.
+    /// Every backend answers the `Core\Db\Driver` case of its own name, at the
+    /// ordinal the registry declares for it: [`driver_value`] looks that
+    /// ordinal up in [`DRIVER`] rather than writing it out, and this is what
+    /// holds the two rosters together.
+    ///
+    /// **The member itself cannot be called here.** It reads the driver off an
+    /// `nvs_db::Connection`, which this crate's tests cannot build, so what is
+    /// asserted is the whole of the value it hands back.
+    // covers: Core\Db\Connection::driver
+    #[test]
+    fn driver_answers_the_registered_case_for_every_backend() {
+        for (driver, case) in [
+            (nvs_db::Driver::MySql, "MySql"),
+            (nvs_db::Driver::MariaDb, "MariaDb"),
+            (nvs_db::Driver::Postgres, "Postgres"),
+            (nvs_db::Driver::Sqlite, "Sqlite"),
+            (nvs_db::Driver::SqlServer, "SqlServer"),
+        ] {
+            let (_, ordinal) = DRIVER
+                .cases
+                .iter()
+                .find(|(name, _)| *name == case)
+                .expect("`DRIVER` registers a case for every backend");
+            assert_eq!(
+                driver_value(driver).as_int(),
+                Some(*ordinal),
+                "`driver()` answers the registered case for {case}"
+            );
+        }
+        assert_eq!(
+            DRIVER.cases.len(),
+            5,
+            "a sixth backend owes a case here, which `driver_value`'s exhaustive \
+             `match` is what asks for"
+        );
+    }
+
+    // covers: Core\Db\Connection::close
     #[test]
     fn close_releases_the_connection_and_a_later_member_refuses() {
         /// The same stand-in [`a_named_connection_is_memoized_for_the_request`]

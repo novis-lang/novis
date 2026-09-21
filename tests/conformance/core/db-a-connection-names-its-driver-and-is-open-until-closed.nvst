@@ -3,6 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Driver
+// covers: Core\Db\Connection::driver
 // SQLite needs no server, so this is a connection that really opened — which
 // is what makes `driver()` a fact read off the thing that was opened rather
 // than off the configuration key. `db-a-sqlite-block-opens-a-file-and-runs-
