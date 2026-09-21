@@ -503,6 +503,74 @@ entry = "benches/members/core/Csv/rows.nvs"
 read = true
 write = true
 
+# `Core\Db::open`'s five proof programs are the first in this repository to open a
+# database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
+# at `:memory:`, which is what keeps them container-free and their output the same on
+# Windows, under WSL and under valgrind — the reason `[db.schema]` below is that database
+# too. A file under `Core\IO::temporaryDir()` was the other candidate and is measurably
+# worse here: a pooled connection is returned to its pool rather than closed, so the file
+# is still open when the process sweeps its own owned root, and every run of the sweep
+# leaves a directory behind with a warning naming it.
+#
+# Three grants each, and all three written `true`. `sqlite_settings` in
+# `crates/nvs-stdlib/src/db/open.rs` asks `db.open`, `fs.read` and `fs.write` about the
+# `path` as a `Scope::Path`, which canonicalizes an entry before it compares — and
+# `:memory:` is a path no filesystem has, so no list entry can match it and `true` is the
+# only spelling that grants these programs anything. The two filesystem grants are asked
+# of a database with no file on purpose: the alternative is a capability check that knows
+# which path strings SQLite reads as memory, and a check that gets that grammar wrong
+# opens a real file with no grant at all. `db.schema` is not among the three — it gates
+# `Core\Db\Schema` and never a `CREATE TABLE` issued through `execute`.
+[[app]]
+entry = "docs/examples/core/Db/open/01-open-a-database-the-program-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/open/02-the-same-settings-give-the-same-connection.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/open/03-a-database-for-one-report.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "tests/hostile/core/Db/open/01-settings-a-request-chose.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "benches/members/core/Db/open.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

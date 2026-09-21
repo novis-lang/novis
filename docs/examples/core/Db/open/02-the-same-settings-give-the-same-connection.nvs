@@ -1,0 +1,27 @@
+<?nvs
+// Shows what the `shared` option does. Two calls with the same settings give you
+// the same connection. `shared: false` gives you a new one every time.
+
+var $first = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$first->execute('create table notes (text text not null)', []);
+$first->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// The settings are the same, so this is the connection that is already open. The
+// table is there, and this prints `rows on the same connection: 1`.
+var $again = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+foreach ($again->query('select count(*) as n from notes', []) as Core\Db\Row $row) {
+    echo 'rows on the same connection: ', $row->int('n') ?? 0, "\n";
+}
+
+// `shared: false` opens a second connection. A `:memory:` database belongs to one
+// connection, so the second one starts empty and the table is not in it.
+var $separate = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' }, { shared: false });
+try {
+    $separate->query('select count(*) as n from notes', []);
+    echo "the second connection sees the table\n";
+} catch (Core\Db\DbError $error) {
+    echo "the second connection has its own empty database\n";
+}
+
+$separate->close();
+$first->close();

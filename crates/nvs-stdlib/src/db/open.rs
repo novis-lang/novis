@@ -1794,4 +1794,58 @@ mod tests {
              unchanged when it is, and named in the refusal when it is not"
         );
     }
+
+    /// § 3's three grants are asked **before** [`sqlite_settings`] looks at the
+    /// path at all, and `db.open` is the first of the three.
+    ///
+    /// **Only Rust can ask this.** A program is answered by the first refusal
+    /// and by nothing after it, so a `.nvst` case cannot separate *asked in this
+    /// order* from *asked at all*, nor *asked before the file was opened* from
+    /// *asked after a failed open was swallowed*. The context here grants
+    /// nothing and the `path` names a directory that is not there: a refusal
+    /// naming `db.open` is the evidence, because an `Io` throw would mean the
+    /// open ran first and had handed an ungranted program the answer to *is
+    /// this file there* — the oracle `rule:security/capability-check-at-the-door`
+    /// exists to close.
+    ///
+    /// This is also why the five programs proving this member are granted
+    /// `true` rather than a list of paths. The check is a
+    /// [`nvs_config::capability::Scope::Path`], which canonicalizes an entry
+    /// before it compares, and `:memory:` is a path no filesystem has.
+    // covers: Core\Db::open
+    #[test]
+    fn a_sqlite_open_asks_db_open_before_it_reads_the_path() {
+        let mut ctx = Ctx::buffered();
+        let absent = "no-such-directory-here/notes.sqlite";
+        let mut args = [Value::null(); 12];
+        args[PATH_ARG] = Value::str(NvsStr::new(absent.as_bytes()));
+        args[OPEN_SHARED_ARG] = Value::bool(true);
+
+        let refused = sqlite_settings(&mut ctx, &args, nvs_db::Driver::Sqlite)
+            .expect_err("a context that grants nothing grants this nothing either");
+        released(args[PATH_ARG]);
+
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a denial is catchable and is never a fatal: {refused:?}")
+        };
+        assert_eq!(
+            class,
+            ThrownClass::Runtime,
+            "an operator's no to an ability a program set out to use is a \
+             `RuntimeError`, so a program may degrade instead of ending"
+        );
+        assert!(
+            message.contains("db.open"),
+            "the first grant asked is the one that gates the settings themselves: {message}"
+        );
+        assert!(
+            !message.contains("fs.read") && !message.contains("fs.write"),
+            "the two filesystem grants are asked after it, so neither can be the \
+             refusal a program without `db.open` sees: {message}"
+        );
+        assert!(
+            message.contains(absent),
+            "a scoped refusal names the argument that fell outside the grant: {message}"
+        );
+    }
 }

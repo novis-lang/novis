@@ -1,0 +1,31 @@
+<?nvs
+// Measures asking for a connection the program describes itself, as a request
+// handler does once for every request it serves.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 4
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The count so far chooses the path, so the loop cannot be left out.
+        // Both entries name one database, so every round gets one connection.
+        array<string> $paths = [':memory:', ':memory:'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $db = Core\Db::open({
+                driver: Core\Db\Driver::Sqlite,
+                path: $paths[($total % 2) as int],
+            });
+            if ($db->isOpen()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

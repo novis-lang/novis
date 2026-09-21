@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program opens databases with settings a visitor chose. It asks for
+// twenty thousand connections that cannot be made. It opens the same database a
+// hundred thousand times. It gives paths that no file can have. Every attempt
+// has to open or throw an error, and none of them may stop the program.
+// hostile: timeout-ms 60000
+
+// 1. Twenty thousand different paths, none of which can be opened. Each one is
+// a different connection, so a refusal may not leave anything behind.
+uint $opened = 0;
+uint $refused = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        var $db = Core\Db::open({
+            driver: Core\Db\Driver::Sqlite,
+            path: 'no-such-directory-here/notes-' . ($i as string) . '.sqlite',
+        });
+        $db->close();
+        $opened = $opened + 1;
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 opened: ', $opened, ', refused: ', $refused, "\n";
+
+// 2. The same settings a hundred thousand times. They are the same connection
+// every time, so nothing here may pile up either.
+uint $again = 0;
+$i = 0;
+while ($i < 100000) {
+    var $same = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+    $again = $again + 1;
+    $i = $i + 1;
+}
+echo '2 opened the same connection ', $again, " times\n";
+
+// 3. Paths that no file can have: a name of a hundred thousand letters, and a
+// name that is only spaces. Each one must throw an error.
+array<string> $bad = [
+    Core\Str::repeat('a', 100000),
+    '   ',
+];
+uint $threw = 0;
+foreach ($bad as string $path) {
+    try {
+        Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: $path });
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '3 paths refused: ', $threw, ' of ', Core\Arr::count($bad), "\n";
+
+// 4. Ten thousand rows written on the connection step 2 kept open, so a database
+// asked for this many times still answers.
+var $last = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$last->execute('create table notes (n integer not null)', []);
+$i = 0;
+while ($i < 10000) {
+    $last->execute('insert into notes (n) values (?)', [$i as int]);
+    $i = $i + 1;
+}
+foreach ($last->query('select count(*) as n from notes', []) as Core\Db\Row $row) {
+    echo '4 rows written: ', $row->int('n') ?? 0, "\n";
+}
