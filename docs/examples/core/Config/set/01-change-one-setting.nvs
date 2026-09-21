@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to change one setting for this request. `Core\Config::set` returns
+// `true` when the change was made.
+
+// A limit can be written with its short name, `memory`. The value is written
+// the way a configuration file writes it.
+if (Core\Config::set("memory", "384M")) {
+    // This prints: this request may use 384M.
+    echo "this request may use ", Core\Config::get("memory") ?? "the default", "\n";
+}

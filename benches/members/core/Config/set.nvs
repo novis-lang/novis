@@ -1,0 +1,24 @@
+<?nvs
+// Measures changing one setting. A program does this at the start of a job that
+// needs a different limit than the rest of the request.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $values = ["96M", "256M"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The value of every round is chosen by the round before it, so no
+            // round can be left out.
+            string $value = $values[(($total + $i) % 2) as int];
+            Core\Config::set("memory", $value);
+            $total = $total + Core\Str::length($value);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

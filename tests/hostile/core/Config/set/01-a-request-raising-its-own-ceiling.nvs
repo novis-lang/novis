@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a request tries to give itself more memory than the server allows,
+// and then takes all its memory away. Every attempt above the ceiling should be
+// refused. The last step should stop the program with an error.
+// hostile: ends-early
+
+// 1. A memory limit far above any machine. The server keeps a ceiling, so this
+// must be refused.
+echo '999999T: ', Core\Config::set('memory', '999999T') ? 'changed' : 'refused', "\n";
+
+// 2. A name one million characters long, and a value one million characters
+// long.
+echo 'long name: ', Core\Config::set(Core\Str::repeat('a', 1000000), '1') ? 'changed' : 'refused', "\n";
+echo 'long value: ', Core\Config::set('memory', Core\Str::repeat('9', 1000000)) ? 'changed' : 'refused', "\n";
+
+// 3. A setting only the person who runs the server may set.
+echo "the server's own: ", Core\Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'changed' : 'refused', "\n";
+
+// 4. Nothing above moved the limit, so it is still what it was.
+echo 'memory: ', Core\Config::get('memory') ?? 'not set', "\n";
+
+// 5. The request takes its own memory away: one byte for everything it does
+// next. This step ends the program at its memory limit.
+Core\Config::set('memory', '1');
+echo Core\Str::repeat('x', 1000), "\n";
