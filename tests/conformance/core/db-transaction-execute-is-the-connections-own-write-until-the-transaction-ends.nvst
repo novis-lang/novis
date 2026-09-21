@@ -1,0 +1,56 @@
+--TEST--
+`execute` on a `Core\Db\Transaction` answers the same `Core\Db\Write` the connection's own does and its row is readable on that handle at once, and the write belongs to the transaction until it ends — `rule:classes/no-traits`, `rule:core-classes/db-statement-members` and `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::execute
+use Core\Db;
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 18's three
+// readings of a `Write` are the transaction's too — and asserting them here is
+// what a fifth forwarding body would have to keep answering the same way.
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+$db->transaction(fn (Transaction $tx): void => {
+    var $write = $tx->execute("insert into t (name) values (?)", ["ada"]);
+    uint $affected = $write->affected();
+    ?uint $lastId = $write->lastId();
+    echo "wrote ", $affected, " id ", $lastId ?? 0, "\n";
+
+    // And the row is the open transaction's own: a read through the same
+    // handle sees it before any `COMMIT` has gone out.
+    echo "inside ", $tx->query("select id from t", [])->count(), "\n";
+});
+
+// § 7: what the write did belongs to the transaction rather than to the
+// statement, so a rollback takes the second row back out and leaves the first
+// where the earlier commit kept it. Both counts are asserted, because a member
+// that committed each write on its own would print the same first line and
+// fail here.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name) values (?)", ["grace"]);
+        echo "before the rollback ", $tx->query("select id from t", [])->count(), "\n";
+        $tx->rollBack("keep nothing");
+    });
+} catch (RolledBack $gone) {
+    echo "gave up: ", $gone->reason, "\n";
+}
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+wrote 1 id 1
+inside 1
+before the rollback 2
+gave up: keep nothing
+kept 1

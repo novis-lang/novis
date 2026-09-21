@@ -1,0 +1,25 @@
+<?nvs
+// Measures one write inside a transaction, as a program does when it saves the
+// rows of one import.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n integer not null)', []);
+        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+            uint $total = 0;
+            uint $i = 0;
+            while ($i < $rounds) {
+                // The count so far is the value written, and the count grows by
+                // what the write reports, so the loop cannot be left out.
+                var $written = $tx->execute('insert into notes (n) values (?)', [$total as int]);
+                $total = $total + $written->affected();
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(20000), "\n";

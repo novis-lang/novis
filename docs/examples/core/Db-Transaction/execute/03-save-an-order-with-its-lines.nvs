@@ -1,0 +1,28 @@
+<?nvs
+// Shows an order saved together with the lines that belong to it. The second
+// write needs the id of the first row. A line without its order would be
+// wrong, so every write runs inside one transaction.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null)', []);
+$db->execute('create table lines (id integer primary key, orderId integer not null, item text not null)', []);
+
+array<string> $items = ['a red bicycle', 'a bell', 'a lamp'];
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    var $order = $tx->execute('insert into orders (customer) values (?)', ['Ada']);
+    // `lastId` gives the id the database made for the new order.
+    var $orderId = $order->lastId() ?? 0;
+    foreach ($items as string $item) {
+        $tx->execute('insert into lines (orderId, item) values (?, ?)', [$orderId, $item]);
+    }
+});
+
+// Order and lines were saved together. This prints `order 1 has 3 lines`.
+foreach ($db->query('select id from orders', []) as Core\Db\Row $order) {
+    echo 'order ', $order->int('id') ?? 0, ' has ',
+        $db->query('select id from lines where orderId = ?', [$order->int('id') ?? 0])->count(),
+        " lines\n";
+}
+
+$db->close();

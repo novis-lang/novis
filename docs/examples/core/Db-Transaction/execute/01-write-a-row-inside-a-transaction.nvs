@@ -1,0 +1,17 @@
+<?nvs
+// Shows a write inside a transaction. The method returns a `Core\Db\Write`,
+// which says how many rows changed and what id the new row was given.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    var $written = $tx->execute('insert into notes (text) values (?)', ['buy milk']);
+    // This prints `1 row written, id 1`.
+    echo $written->affected(), ' row written, id ', $written->lastId() ?? 0, "\n";
+});
+
+// The transaction is over, so the row is saved. This prints `1 note`.
+echo $db->query('select id from notes', [])->count(), " note\n";
+
+$db->close();
