@@ -1,0 +1,16 @@
+<?nvs
+// Shows colouring a value your program did not write itself. Every control
+// character in it is replaced by a symbol you can see. The only escape
+// sequence in the result is the one the style puts there.
+
+var $chosen = Core\Cli\Style::of({color: Core\Cli\Color::MAGENTA});
+
+// A file name a user typed. `\u{1B}` is the escape character. In a terminal it
+// begins a command that clears the screen.
+string $file = "may\u{1B}[2J.csv";
+
+var $line = Core\Cli\Text::plain("reading ") + Core\Cli\Text::styled($file, $chosen);
+
+// The escape character prints as the symbol `␛`, so this prints
+// "reading may␛[2J.csv".
+echo $line, "\n";

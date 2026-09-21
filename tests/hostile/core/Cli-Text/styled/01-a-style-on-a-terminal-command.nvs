@@ -1,0 +1,47 @@
+<?nvs
+// Attack: styles are put on text that is full of terminal commands, by the
+// million and a million characters at a time. Nothing may reach the terminal
+// as a command, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+var $red = Core\Cli\Style::of({ color: Core\Cli\Color::RED });
+
+// 1. A million escape characters wearing a style. Every one of them must
+//    arrive on screen as a symbol.
+var $loud = Core\Cli\Text::styled(Core\Str::repeat("\u{1B}", 1000000), $red);
+echo 'step 1 made ', Core\Str::length($loud->text()), " characters\n";
+
+// 2. The commands a terminal really runs, wearing a style: clear the screen,
+//    rename the window, move the cursor, and end the line early.
+echo Core\Cli\Text::styled("\u{1B}[2J\u{1B}[H\u{1B}]0;whoami\u{7}\r\u{0}\u{8}", $red), "\n";
+echo "step 2 printed\n";
+
+// 3. One style used by three hundred thousand pieces of text, one at a time.
+//    The style must still work after the last piece is gone.
+uint $made = 0;
+while ($made < 300000) {
+    var $one = Core\Cli\Text::styled('a short label', $red);
+    $made = $made + 1;
+}
+echo 'step 3 made ', $made, ' pieces, and the style still prints ',
+    Core\Cli\Text::styled('this', $red)->text(), "\n";
+
+// 4. A new style for every piece, sixty thousand times. Nothing may be kept
+//    behind.
+uint $built = 0;
+while ($built < 60000) {
+    var $own = Core\Cli\Style::of({ color: Core\Cli\Color::index($built % 256), bold: true });
+    var $piece = Core\Cli\Text::styled('row', $own);
+    $built = $built + 1;
+}
+echo 'step 4 built ', $built, " styles\n";
+
+// 5. Ten thousand styled pieces joined into one. Joining must not cost more
+//    each time than the piece it adds.
+var $joined = Core\Cli\Text::styled('start', $red);
+uint $at = 0;
+while ($at < 10000) {
+    $joined = $joined + Core\Cli\Text::styled('x', $red);
+    $at = $at + 1;
+}
+echo 'step 5 joined ', Core\Str::length($joined->text()), " characters\n";

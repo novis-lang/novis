@@ -1,0 +1,28 @@
+<?nvs
+// Measures putting a style on a short label. A tool meets this once for every
+// line it colours, such as the state at the front of a row.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 8
+
+class Bench {
+    public static function run(uint $rounds): int {
+        // The style is built once, as a program builds it once and uses it for
+        // every line of one kind.
+        var $style = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+        array<string> $labels = ["ok", "failed", "skipped"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The label of each round is chosen by the round before it, so no
+            // round can be left out.
+            int $at = $total % 3;
+            var $text = Core\Cli\Text::styled($labels[$at], $style);
+            $total = $total + $at + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

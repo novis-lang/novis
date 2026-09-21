@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to put a style on a piece of text and print it. This example does
+// not run in a terminal, so the styling is dropped and only the text prints.
+
+var $heading = Core\Cli\Style::of({color: Core\Cli\Color::CYAN, bold: true});
+var $line = Core\Cli\Text::styled("Report for May", $heading);
+
+// A `Core\Cli\Text` is printed with `echo`, like a string. In a terminal this
+// line is cyan and bold.
+echo $line, "\n";
+
+// The styling is not part of the text. `text()` gives the string back, so this
+// prints "Report for May".
+echo $line->text(), "\n";
