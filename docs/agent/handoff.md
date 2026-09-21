@@ -2,41 +2,44 @@
 
 ## State
 
-Goal `core-db-connection-and-2-more` (milestone `dossier`), 13 features. Six are complete:
-`Core\Db\Connection::query`, `executeMany` and `isOpen` before this session, and `queryAs`, `stream`
-and `streamAs` in it. Seven are left — `serverVersion`, `transaction` and the `Core\Db\Plan`
-members. `python tools/dossier.py --id '<feature>'` prints what one owes and where each proof goes.
+Goal `core-db-connection-and-2-more` (milestone `dossier`), 13 features. Eight are complete: the six
+before this session, plus `Core\Db\Connection::serverVersion` and `Core\Db\Connection::transaction`
+in it. Five are left, all of them `Core\Db\Plan` and `Core\Db\Plan\Step`. `python tools/dossier.py
+--id '<feature>'` prints what one owes and where each proof goes.
 
 Every proof program of this group opens `[db.notes]`, the SQLite `:memory:` block at the foot of
 `nvs.toml` that no other fixture writes to, and each one needs its own `[[app]]` entry granting
-`connect = ["notes"]` — the entries sit in one run, ordered by member name.
+`connect = ["notes"]` — the entries sit in one run, ordered by member name. An entry naming a file
+that is not on disk is `E0605` and fails *every* program in the tree, so write the file first.
 
-Nothing is blocked. One proof found a documented price rather than a bug: a `stream` walk the
-program leaves early keeps the connection until the request ends, so `stream`'s second example
-bounds its result with `limit` and the playbook carries the trap.
+Nothing is blocked. One finding is recorded rather than fixed: `Core\Db\Queryable` is not a type a
+program can write, so no function can take a connection and a transaction alike —
+`crates/nvs-stdlib/src/db/mod.rs` `# Known gaps` item 2.
 
 ## Next group
 
-One slice is one feature with all its feature proofs. These two share a file set with the three
-that landed here: `crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/open.rs`,
-`crates/nvs-stdlib/src/db/transaction.rs`, `nvs.toml`, and the `core/Db-Connection/` directory in
-each of the three proof trees. `rule:testing/feature-proofs` is what they owe, and both already have
-`.nvst` cases that need only a `covers:` marker.
+One slice is one feature with all its feature proofs. These three share a file set:
+`crates/nvs-stdlib/src/db/plan.rs`, `crates/nvs-stdlib/src/db/registry.rs`, `nvs.toml`, and the
+`core/Db-Plan/` and `core/Db-Plan-Step/` directories in each of the three proof trees.
+`rule:testing/feature-proofs` is what they owe. A plan is read from a real statement, so the
+programs need a table before they can explain anything.
 
-- [ ] **`Core\Db\Connection::serverVersion`** — owes about, examples, hostile, perf, tests. An
-      example must not print the version itself: the string is the engine's own and would pin a
-      SQLite release in a blessed `.out`.
-      `crates/nvs-stdlib/src/db/registry.rs:421`
-- [ ] **`Core\Db\Connection::transaction`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:568`
+- [ ] **`Core\Db\Plan::steps`** — owes about, examples, hostile, perf, tests. Take it first: it is
+      what produces the `Core\Db\Plan\Step` objects the four members after it read.
+      `crates/nvs-stdlib/src/db/plan.rs:81`
+- [ ] **`Core\Db\Plan\Step::grade`** — owes about, examples, hostile, perf, tests. The grade is an
+      enum case, so an example compares it with `==` rather than printing a name.
+      `crates/nvs-stdlib/src/db/plan.rs:90`
+- [ ] **`Core\Db\Plan\Step::sql`** — owes about, examples, hostile, perf, tests. An example must not
+      print the engine's own plan text, which would pin a SQLite release in a blessed `.out`.
+      `crates/nvs-stdlib/src/db/plan.rs:113`
 
 ## Backlog
 
-- The five `Core\Db\Plan` members close this goal after the two above — `python tools/dossier.py
-  --group 'Core\Db\Plan'`.
-- `[context] modules` did not name `crates/nvs-stdlib/src/db/stream.rs` or `db/row.rs`, where two of
-  this session's members live; this session's commits touch both, so the driver's sweep picks them
-  up — `docs/agent/loop-goal.toml`.
-- If `Core\Db\Stream` ever frees its connection when it is dropped, `stream`'s second example, its
-  `about.md` and the playbook bullet all say something that stopped being true —
-  `docs/examples/core/Db-Connection/stream/about.md`.
+- `Core\Db\Plan\Step::reason` (`crates/nvs-stdlib/src/db/plan.rs:99`) and
+  `Core\Db\Plan\Step::isRefused` (`:127`) close the goal after the group above.
+- The `Core\Db\Queryable` gap is tagged `— owner: M10` because that is what the sibling item in the
+  same `# Known gaps` block uses; no milestone's plan actually covers it, and whether a goal should
+  carry it is the user's call — `docs/plan/m10.md`.
+- Two landed benches miss the counts they declare — `lang:types/void-never-self-static` declares
+  `allocations 2` and does 1.000. Seen in a whole-roster `--record-perf`; `benches/members/lang/types/`.

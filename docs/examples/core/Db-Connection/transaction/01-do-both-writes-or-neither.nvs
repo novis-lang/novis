@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to move money between two accounts. Both rows change together,
+// because both writes run inside one transaction.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table accounts (id integer primary key, owner text not null, balance integer not null)', []);
+$db->execute('insert into accounts (owner, balance) values (?, ?), (?, ?)', ['Ada', 100, 'Ben', 20]);
+
+// Your function runs inside a transaction. When it returns, both writes are
+// saved together. When it throws an error, neither of them is saved.
+uint $moved = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    $tx->execute('update accounts set balance = balance - ? where owner = ?', [30, 'Ada']);
+    $tx->execute('update accounts set balance = balance + ? where owner = ?', [30, 'Ben']);
+    return 30;
+});
+
+// `transaction` returns what your function returned. This prints `moved 30`,
+// then `Ada 70` and `Ben 50`.
+echo 'moved ', $moved, "\n";
+foreach ($db->query('select owner, balance from accounts order by id', [])->all() as Core\Db\Row $row) {
+    echo $row->string('owner') ?? '', ' ', $row->int('balance') ?? 0, "\n";
+}
+
+$db->close();

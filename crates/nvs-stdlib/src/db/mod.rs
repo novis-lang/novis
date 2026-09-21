@@ -305,6 +305,26 @@
 //!    `tests/hostile/core/Db-Connection/query/01-values-that-do-not-match-and-more-rows-than-fit.nvs`
 //!    step 6 is the attack, and it is marked `known-gap` for this entry.
 //!    — owner: M10
+//!
+//! 2. **`Core\Db\Queryable` is not a type a program can write, so a function
+//!    cannot take a connection and a transaction alike.**
+//!    `rule:core-classes/db-transactions` declares the interface and rests the
+//!    forwarding on it — the type system is to express "this runs inside a
+//!    transaction" and "this does not care" — but `nvs meta --json` lists six
+//!    interfaces and this is not one of them. A parameter written
+//!    `Core\Db\Queryable` therefore names nothing: `E0405` refuses
+//!    `transaction` on it and `E0401` refuses `Core\Db\Connection` and
+//!    `Core\Db\Transaction` alike as arguments to it. The rows are already
+//!    shared, since `TRANSACTION_ROW` and the three statement rows are carried
+//!    by both classes under one symbol each, so what is missing is the
+//!    interface itself and a checker that accepts a `Core` class where a
+//!    `Core` interface is written — which the six that exist never needed,
+//!    because what implements those is a program's own class. Until it lands,
+//!    a helper that writes inside a caller's transaction declares
+//!    `Core\Db\Transaction` and the call site nests instead, which is what
+//!    `docs/examples/core/Db-Connection/transaction/03-keep-the-import-when-one-row-is-bad.nvs`
+//!    shows.
+//!    — owner: M10
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 

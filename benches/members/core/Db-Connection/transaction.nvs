@@ -1,0 +1,26 @@
+<?nvs
+// Measures one transaction around one write, as a program does for every order
+// it saves.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table totals (id integer primary key, n integer not null)', []);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The number written is last round's total, so the loop cannot be
+            // left out.
+            $total = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+                $tx->execute('insert into totals (n) values (?)', [$total as int]);
+                return $total + 1;
+            });
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

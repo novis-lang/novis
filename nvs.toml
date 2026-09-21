@@ -960,6 +960,36 @@ entry = "benches/members/core/Db-Connection/queryAs.nvs"
 connect = ["notes"]
 
 [[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/01-read-the-version-the-database-reported.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/02-see-what-the-database-can-do.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/03-record-the-version-a-change-was-made-on.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/serverVersion/01-a-million-reads-and-a-hundred-thousand-kept.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/serverVersion.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
 entry = "docs/examples/core/Db-Connection/stream/01-read-a-large-table-one-row-at-a-time.nvs"
 
 [app.capabilities.db]
@@ -1015,6 +1045,36 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/streamAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/01-do-both-writes-or-neither.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/02-give-up-on-the-work.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/03-keep-the-import-when-one-row-is-bad.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/transaction/01-nested-until-the-stack-runs-out-and-abandoned-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/transaction.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]

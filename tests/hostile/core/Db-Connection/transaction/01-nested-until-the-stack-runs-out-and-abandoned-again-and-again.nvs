@@ -1,0 +1,86 @@
+<?nvs
+// Attack: transactions are nested until the program runs out of call stack.
+// Ten thousand more are opened one after another. A hundred thousand give up,
+// and one rollback is caught inside the work that caused it. Every transaction
+// must end, and nothing may crash.
+// hostile: timeout-ms 120000
+
+class Nest
+{
+    // Each call opens one more transaction inside the last one.
+    public static function deeper(Core\Db\Transaction $tx, uint $left): uint
+    {
+        if ($left == 0) {
+            return 0;
+        }
+        return $tx->transaction(fn (Core\Db\Transaction $inner): uint =>
+            Nest::deeper($inner, $left - 1) + 1);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table rows (id integer primary key, n integer not null)', []);
+
+// 1. A hundred thousand transactions inside one another, which is deeper than
+// the call stack goes. The program must be stopped with an error it can catch.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+        Nest::deeper($tx, 100000) + 1);
+    echo "1 nested all the way\n";
+} catch (Throwable $stopped) {
+    echo '1 stopped: ', $stopped->message, "\n";
+}
+
+// 2. The connection after that. Every transaction the step above opened was
+// closed again, so an ordinary write still works here.
+$db->execute('insert into rows (n) values (?)', [0]);
+echo '2 still usable: ', $db->query('select id from rows', [])->count(), "\n";
+
+// 3. Ten thousand transactions one after another, each with a write in it.
+// A transaction left open would stop the next one.
+uint $i = 0;
+while ($i < 10000) {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        $tx->execute('insert into rows (n) values (?)', [$i as int]);
+    });
+    $i = $i + 1;
+}
+echo '3 written: ', $db->query('select id from rows', [])->count(), "\n";
+
+// 4. A hundred thousand transactions that give up. Every one throws, and the
+// errors may not fill the memory.
+uint $abandoned = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $db->transaction(fn (Core\Db\Transaction $tx): void => {
+            $tx->execute('insert into rows (n) values (?)', [-1]);
+            $tx->rollBack('never keep this');
+        });
+    } catch (Core\Db\RolledBack $gone) {
+        $abandoned = $abandoned + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 abandoned: ', $abandoned, "\n";
+
+// 5. The rollback is caught inside the work itself. The transaction is still
+// abandoned, and the error still reaches the code that started it.
+uint $reached = 0;
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        try {
+            $tx->rollBack('caught on the way out');
+        } catch (Throwable $swallowed) {
+            // Catching it here changes nothing about the transaction.
+        }
+    });
+} catch (Core\Db\RolledBack $gone) {
+    $reached = $reached + 1;
+}
+echo '5 reached the caller: ', $reached, "\n";
+
+// 6. Nothing step 4 wrote was kept, so this is still the count step 3 printed.
+echo '6 kept: ', $db->query('select id from rows', [])->count(), "\n";
+
+$db->close();

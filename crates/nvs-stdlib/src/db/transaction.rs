@@ -1089,6 +1089,7 @@ mod tests {
     /// **Both sides of the bound**, since a loop that always retried would
     /// pass the first half — § 7's default is 0, and at 0 the same conflict
     /// reaches the caller with the closure run once.
+    // covers: Core\Db\Connection::transaction
     #[test]
     fn retries_recover_an_induced_deadlock() {
         let block = Value::str(NvsStr::new(b"main"));
