@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to write your public key out so you can send it to somebody else.
+// `Spki` is the form a certificate and a `.pem` public key carry.
+
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
+    Core\Crypto\KeyKind::Ed25519
+);
+
+// `publicKey` gives you the half you may send. `write` turns it into octets in
+// the encoding you name.
+bytes $sent = $pair->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+
+// This prints the same line on every run, because the file holds one key.
+echo Core\Encoding::toHex($sent), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows a server that hands out its public key in whichever encoding the
+// client asked for. One key has one spelling per encoding, so every client
+// gets the same key.
+
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
+    Core\Crypto\KeyKind::Ed25519
+);
+Core\Crypto\PublicKey $key = $pair->publicKey();
+
+// What each client asked for, as the names the browsers use.
+array<string> $asked = ["raw", "spki", "jwk"];
+foreach ($asked as string $name) {
+    Core\Crypto\KeyFormat $format = Core\Crypto\KeyFormat::Jwk;
+    if ($name == "raw") {
+        $format = Core\Crypto\KeyFormat::Raw;
+    }
+    if ($name == "spki") {
+        $format = Core\Crypto\KeyFormat::Spki;
+    }
+
+    // The same key, written three ways. This prints 32, 44 and 79 octets.
+    echo $name, ": ", Core\Bytes::length($key->write($format)), " octets", "\n";
+}

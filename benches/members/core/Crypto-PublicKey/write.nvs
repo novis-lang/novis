@@ -1,0 +1,32 @@
+<?nvs
+// Measures writing one public key out, as a server does every time a client
+// asks for the key it should use.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+            Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+            Core\Crypto\KeyKind::Ed25519,
+            Core\Crypto\KeyFormat::Raw
+        );
+        array<Core\Crypto\KeyFormat> $formats = [
+            Core\Crypto\KeyFormat::Raw,
+            Core\Crypto\KeyFormat::Spki,
+            Core\Crypto\KeyFormat::Jwk,
+        ];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The encoding of every round is chosen by the round before it, so
+            // no round can be left out.
+            int $which = ($total % 3) as int;
+            $total = $total + Core\Bytes::length($key->write($formats[$which]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

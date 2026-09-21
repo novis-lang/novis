@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a client asks the server to write its public key over and over, in
+// every encoding and in one the key does not have. The server should keep
+// answering, should throw an error it can catch for the encoding that does not
+// exist, and should reach its last line.
+// hostile: timeout-ms 20000
+
+bytes $rsaSpki = Core\Encoding::fromHex('30820122300d06092a864886f70d01010105000382010f003082010a0282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e0330203010001');
+Core\Crypto\PublicKey $rsa = Core\Crypto\PublicKey::read(
+    $rsaSpki,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyFormat::Spki,
+);
+Core\Crypto\PublicKey $ed25519 = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Raw,
+);
+
+// 1. A hundred thousand requests for the encoding an RSA key does not have.
+// Every one of them is an error the server gets everything back from.
+int $refusals = 0;
+foreach (Core\Arr::range(1, 100000) as int $round) {
+    try {
+        $rsa->write(Core\Crypto\KeyFormat::Raw);
+    } catch (Throwable $e) {
+        $refusals += 1;
+    }
+}
+echo '1 refused ', $refusals, ' times', "\n";
+
+// 2. Two hundred thousand documents written and let go one at a time. A server
+// that kept each one would run out of memory here.
+int $written = 0;
+foreach (Core\Arr::range(1, 200000) as int $round) {
+    $written += Core\Bytes::length($ed25519->write(Core\Crypto\KeyFormat::Jwk)) as int;
+}
+echo '2 wrote ', $written, ' octets', "\n";
+
+// 3. Fifty thousand of the widest documents kept at once, which is what a
+// request does when it wants the server to run out of memory.
+array<bytes> $kept = [];
+foreach (Core\Arr::range(1, 50000) as int $round) {
+    $kept[] = $rsa->write(Core\Crypto\KeyFormat::Jwk);
+}
+echo '3 kept ', Core\Arr::count($kept), ' documents', "\n";
+
+// 4. The key written in every encoding it has, after all of that. A member
+// that had moved the key out of the object would answer nothing here.
+echo '4 still ', Core\Bytes::length($ed25519->write(Core\Crypto\KeyFormat::Spki)), ' octets', "\n";

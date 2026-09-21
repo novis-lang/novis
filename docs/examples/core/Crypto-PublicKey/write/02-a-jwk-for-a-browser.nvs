@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to write a public key as a JWK, which is the form a browser reads.
+// A JWK is a small JSON document.
+
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Raw
+);
+
+// The document holds the members the standard requires, sorted by name, and
+// nothing else. A key read from a longer JWK writes this same short one.
+echo $key->write(Core\Crypto\KeyFormat::Jwk) as string, "\n";
