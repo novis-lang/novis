@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program feeds the check every forged token it can build. It tries
+// text that is not a token, tokens cut short, every one-character change of a
+// real token, and a token of sixteen megabytes. None of them may be accepted,
+// and none of them may stop the program.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+string $session = 'sid-ada';
+string $token = Core\Csrf::issue($session, $key);
+
+// 1. Keys that are not 32 bytes. This is the one thing the check throws for,
+// and every error is caught here, so the steps below still run.
+array<uint> $widths = [0, 1, 16, 31, 33, 64];
+foreach ($widths as uint $width) {
+    try {
+        Core\Csrf::verify($token, $session, Core\Bytes::fill($width, 65));
+        echo '1 a key of ', $width, ' bytes was accepted', "\n";
+    } catch (Throwable $e) {
+        echo '1 a key of ', $width, ' bytes was refused', "\n";
+    }
+}
+
+// 2. Text that is not this session's token: empty, spaces, characters outside
+// the alphabet, and the token with one character taken off or added.
+array<string> $forged = [
+    '',
+    '    ',
+    'not a token at all',
+    '====',
+    Core\Str::slice($token, 0, -1),
+    $token . 'A',
+    $token . $token,
+    Core\Str::repeat('A', 100000),
+];
+uint $accepted = 0;
+foreach ($forged as string $candidate) {
+    if (Core\Csrf::verify($candidate, $session, $key)) {
+        $accepted = $accepted + 1;
+    }
+}
+echo '2 forged tokens accepted: ', $accepted, ' of ', Core\Arr::count($forged), "\n";
+
+// 3. Every one-character change of a real token. A change that leaves the
+// token as it was is not counted.
+int $length = Core\Str::length($token) as int;
+array<string> $replacements = ['-', '_', 'A'];
+uint $changedAccepted = 0;
+uint $tried = 0;
+int $at = 0;
+while ($at < $length) {
+    foreach ($replacements as string $replacement) {
+        string $changed = Core\Str::replaceRange($token, $at, 1, $replacement);
+        if ($changed != $token) {
+            $tried = $tried + 1;
+            if (Core\Csrf::verify($changed, $session, $key)) {
+                $changedAccepted = $changedAccepted + 1;
+            }
+        }
+    }
+    $at = $at + 1;
+}
+echo '3 changed tokens accepted: ', $changedAccepted, ' of ', $tried, "\n";
+
+// 4. A token of sixteen megabytes, which the check has to read before it can
+// refuse it.
+string $huge = Core\Str::repeat('A', 16000000);
+echo '4 sixteen megabytes accepted: ',
+    (Core\Csrf::verify($huge, $session, $key) ? 'yes' : 'no'), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows the answer for five tokens that do not belong to this session. Every
+// one of them is `false`, and none of them throws an error.
+
+secret bytes $key = Core\Crypto::generateKey();
+secret bytes $olderKey = Core\Crypto::generateKey();
+string $token = Core\Csrf::issue("sid-ada", $key);
+
+array<string> $wrong = [
+    "",
+    "not a token at all",
+    Core\Str::replaceRange($token, -1, 1, "!"),
+    Core\Csrf::issue("sid-grace", $key),
+    Core\Csrf::issue("sid-ada", $olderKey),
+];
+
+// This prints `false` five times.
+foreach ($wrong as string $candidate) {
+    echo (Core\Csrf::verify($candidate, "sid-ada", $key) ? "true" : "false"), "\n";
+}
+
+// The token the page was rendered with is the only one accepted. This prints
+// `true`.
+echo (Core\Csrf::verify($token, "sid-ada", $key) ? "true" : "false"), "\n";

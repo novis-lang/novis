@@ -1,0 +1,31 @@
+<?nvs
+// Measures checking one token, as a program does on every request that changes
+// something.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $key = Core\Crypto::generateKey();
+        array<string> $sessions = ["sid-ada", "sid-grace-hopper", "sid-4711"];
+        array<string> $tokens = [
+            Core\Csrf::issue($sessions[0], $key),
+            Core\Csrf::issue($sessions[1], $key),
+            Core\Csrf::issue($sessions[2], $key),
+        ];
+        uint $accepted = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The token of every round is chosen by the checks that passed so
+            // far, so the loop cannot be left out.
+            int $which = ($accepted % 3) as int;
+            if (Core\Csrf::verify($tokens[$which], $sessions[$which], $key)) {
+                $accepted = $accepted + 1;
+            }
+            $i = $i + 1;
+        }
+        return $accepted;
+    }
+}
+
+echo Bench::run(100000), "\n";
