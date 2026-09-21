@@ -2566,6 +2566,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   misspelled target rather than a misplaced flag. Put `--context` and `--window` first —
   `peek.py --context 14 A B C` — and read that refusal's list as where the flag sits.
   [until: reviewed 2026-09-21]
+- **`python tools/dossier.py --record-perf --group 'Core\Cli'` does not reach `Core\Cli\Color` or
+  `Core\Cli\Live`.** A group is matched as the class name itself, not as a prefix, so a goal whose
+  features live in nested classes leaves those benches reading `perf stale` after what looks like a
+  whole-group run. Record each class with its own `--group`, and read the `N features` line the run
+  prints against the number of features the goal owes. [until: reviewed 2026-09-21]
 
 ## Running things
 
@@ -6487,6 +6492,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   before writing one: adding the marker to the test that exists is usually the whole edit, and a
   second test earns its place only by pinning something the first does not.
   [until: reviewed 2026-09-21]
+- **Dividing a `uint` makes the value `mixed`, so a chained bench input that uses `/` does not
+  compile at all.** `/` on two `uint`s is `uint|float` and a `%` over that is `mixed`, which every
+  `uint` parameter refuses with `E0401` — and it lands exactly where `benches/members/README.md`
+  tells you to chain iteration N's input to N−1's result. Chain with `*` and `%` only
+  (`($total * 7) % 256`), and cast where a member wants the other width
+  (`Core\Arr::slice($files, $done as int)`). [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

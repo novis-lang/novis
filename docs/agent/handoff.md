@@ -2,50 +2,44 @@
 
 ## State
 
-Goal `core-cli-and-2-more`, 15 of its 18 features carry their feature proofs. This session landed
-`Core\Cli::secret`, `Core\Cli::live` and `Core\Cli::progress`, each with `about.md`, three examples
-with blessed `.out` files, one attack, one bench and a Rust test marked `covers:`. `python
-tools/verify.py` is green whole at this tree.
+Goal `core-cli-and-2-more` is met. All 18 of its features carry their feature proofs, and its three
+acceptance checks — `dossier: Core\Cli`, `Core\Cli\Color`, `Core\Cli\Live` — each report `nothing
+owed` with no failing example and no failing attack. This session landed `Core\Cli\Color::index`,
+`Core\Cli\Color::rgb` and `Core\Cli\Live::set`, each with `about.md`, three examples with blessed
+`.out` files, one attack, one bench and a Rust test marked `covers:`.
 
-Three features are left, and **their trees are not under `core/Cli/`**: `Core\Cli\Color::index` and
-`Core\Cli\Color::rgb` live at `core/Cli-Color/<member>`, `Core\Cli\Live::set` at `core/Cli-Live/set`.
+The perf ledger is current for the whole group: fifteen `Core\Cli*` features were re-measured after
+the last slice landed, so nothing there reads `perf stale`. `python tools/verify.py` is green whole
+(14 of 14) and `python tools/verify.py --doc` resolves every link.
 
-Every `Core\Cli` feature reads `perf stale` from `python tools/dossier.py --id`, because the ledger
-keys on the implementing file's text (`rule:testing/member-perf-ledger`) and every session of this
-goal moves `crates/nvs-stdlib/src/cli.rs`. One `python tools/dossier.py --record-perf --group
-'Core\Cli'` after the last three land clears all of them, and it is the only thing between this goal
-and its gate.
-
-Three facts this group cost time to establish. **A closure with statements is `fn(...) => { ... }`**;
-`function (...) { }` is `E0222`. **A `secret tainted string` reaches almost nothing**: `Core\Str::length`
-refuses it, `Core\Secret::reveal($value, $reason)` answers a `tainted string`,
-`Core\Password::hash`/`verify` take it as it is, and `==` compares two of them. **A live region of a
-million `Core\Cli\Text` rows reaches the memory ceiling**, so that step goes last under
-`// hostile: ends-early`.
+Two facts this group cost time to establish. **A `Core\Cli\Color` is compared by identity**, so two
+`index(1)` calls are never `==`, which is what lets a bench chain on the value it just built.
+**`Core\Cli\Live::set` copies every row into a new frame before the region finds out it has no
+terminal**, which is 9 allocations for a one-row frame — the bench declares that figure, and the
+backlog holds the question.
 
 ## Next group
 
-**Stage: the goal's item list, in file order** — one file set: `crates/nvs-stdlib/src/cli.rs` for
-the registry row, the body and the Rust test, plus `docs/examples/core/Cli-Color/<member>/`,
-`docs/examples/core/Cli-Live/set/` and the matching `tests/hostile/` and `benches/members/` paths.
-One slice is one feature with all its feature proofs — `rule:testing/feature-proofs`.
+**Stage: the next chain entry, goal `core-cli-progress-and-6-more`** — one file set:
+`crates/nvs-stdlib/src/cli.rs` for the registry row, the reference card and the Rust test, plus
+`docs/examples/core/Cli-Progress/`, `docs/examples/core/Cli-Style/`, `docs/examples/core/Cli-Text/`
+and the matching `tests/hostile/` and `benches/members/` paths. One slice is one feature with all
+its feature proofs — `rule:testing/feature-proofs`.
 
-- [ ] **`Core\Cli\Color::index`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/cli.rs:2369`. A colour by its number in the 256-colour table, so an
-      example is deterministic with no terminal at all.
-- [ ] **`Core\Cli\Color::rgb`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/cli.rs:2378`. The sibling of the row above; the attack belongs on the
-      boundaries of a channel.
-- [ ] **`Core\Cli\Live::set`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/cli.rs:782`. It already has one conformance case and owes a second,
-      and `tests/hostile/core/Cli/live/01-a-region-that-will-not-give-the-terminal-back.nvs` is
-      where its refusals are already attacked, so the new attack goes at the rows themselves.
+- [ ] **`Core\Cli\Progress::advance`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/cli.rs:891`. The counter saturates rather than starting again, which is
+      the boundary an attack is written around.
+- [ ] **`Core\Cli\Style::of`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/cli.rs:2598`. Seven independent slots, all optional, so `of({})` is the
+      identity a program passes where a style is required.
+- [ ] **`Core\Cli\Text::plain`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/cli.rs:1941`. The carrier every other row is made of: it substitutes
+      the control bytes, which is what a hostile case should try to get past it.
 
 ## Backlog
 
-- `python tools/dossier.py --record-perf --group 'Core\Cli'` once the three above land — the goal's
-  gate is `perf stale` on all 18 and nothing else (`rule:testing/member-perf-ledger`).
-- `Core\Cli\Progress::advance` owes every proof and is not in this goal's item list; check where
-  `python tools/dossier.py --emit-goals --dry-run` places it before reading that as a gap.
-- `docs/examples/core/Cli/secret/03-log-in-at-the-terminal.nvs` hashes a password at run time, which
-  is the one example in this group whose cost is argon2's; it measured well under a second.
+- `Core\Cli\Live::set` builds the whole frame and clones every row before `Region::set` returns
+  early on a run with no terminal — 9 allocations per call that render nothing. An optimisation,
+  not a bug: `crates/nvs-stdlib/src/cli.rs`, `nvs_core_cli_live_set`.
+- `Core\Cli::multiSelect`, `select` and `write` were not re-measured by this session's group run;
+  they were already current, and `python tools/dossier.py --verify --group 'Core\Cli'` agrees.
