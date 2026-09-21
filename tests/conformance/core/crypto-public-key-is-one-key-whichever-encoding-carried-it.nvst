@@ -2,6 +2,7 @@
 Core\Crypto\PublicKey::read accepts what a browser exports and answers one key however it arrived: keys read from Raw, Spki and Jwk agree on every encoding ->write answers and on ->kind, and one RSA document read under two schemes is two kinds over one key — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
+// covers: Core\Crypto\PublicKey::kind
 // Agreement rather than a row of answers: what is asserted is that the readers
 // *agree*, by counting how many distinct spellings three reads of one key
 // produce. A reader that grew its own handling of one encoding still prints a

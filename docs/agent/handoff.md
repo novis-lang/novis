@@ -2,52 +2,35 @@
 
 ## State
 
-Goal `Core\Crypto and 2 more` (15 features). Twelve are done and owe nothing: the six sealing and
-agreement members, `Core\Crypto::generateKeyPair`, `::sign`, `::verify`, and all three members of
-`Core\Crypto\KeyPair`. Each carries `about.md`, three examples with blessed `.out`, one attack, one
-bench with a recorded figure, and a Rust test marked `covers:`.
+Goal `core-crypto-and-2-more` is met. All 15 features of `Core\Crypto`, `Core\Crypto\KeyPair` and
+`Core\Crypto\PublicKey` carry their feature proofs: `python tools/dossier.py --gate` is green for
+each of the three groups, and `--verify` runs their examples and attacks with nothing failed.
 
-The three left are `Core\Crypto\PublicKey`'s members, and **their proof paths spell the class with a
-hyphen**: `docs/examples/core/Crypto-PublicKey/read/`, `benches/members/core/Crypto-PublicKey/kind.nvs`.
-`python tools/dossier.py --id '<feature>'` prints all of them.
+The three `Core\Crypto\PublicKey` members landed this session, each with `about.md`, three examples
+with blessed `.out`, one attack, one bench with a recorded figure, and a Rust test marked `covers:`.
+`Core\Crypto\PublicKey::kind` also needed its `covers:` marker on a `.nvst` case, since an instance
+member is never credited by a plain call the way a static one is
+(`docs/agent/conventions.md` § *Feature proofs*).
 
-What the three take, from `nvs meta --json`: `read(bytes $encoded, Core\Crypto\KeyKind $kind,
-Core\Crypto\KeyFormat $format)`, `write(Core\Crypto\KeyFormat $format): bytes`, `kind():
-Core\Crypto\KeyKind`. A public key is a peer's, so its refusals are verdicts rather than bugs —
-unlike `KeyPair::read`, whose every refusal is a `LogicError`.
-
-**Key material for a `.nvs` proof is already written down**, so none of it has to be derived again:
-`tests/conformance/core/crypto-key-pair-reads-every-kind-and-derives-the-half-webcrypto-exported.nvst`
-holds all five kinds as hex, PKCS#8 beside SPKI, and
-`crypto-key-pair-refuses-a-file-that-is-not-a-pkcs8-of-that-kind.nvst` holds the files that are
-refused. The Ed25519 pair of that set writes the public half
-`fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac` in `Raw`.
-
-Driving one of these members from Rust: the kind is a case index (`KeyKind::from_tag`), the frozen
-set is `webcrypto::node("/jws/keys/ec-1")` with `/pkcs8`, `/spki` and `/pem` under it and
-`/ecdh/vectors/1/a` for X25519, a member answering an instance is read back with `stored_key(&[answer],
-0, &PUBLIC_KEY, "…")` plus `stored_octets` and then released under an `#[expect(unsafe_code)]`, and the
-class a member threw is not on `nvs_runtime::call`'s error, so a refusal is asserted as the sentence
-`ctx.take_pending()` answers.
+Figures appended to `docs/perf/members.ndjson`: `read` 341.0 ns/op and 3 allocations, `write`
+95.7 ns/op and 3, `kind` 26.9 ns/op and none, which is what its bench declares.
 
 ## Next group
 
-**Goal `Core\Crypto and 2 more`, stage: the public key class** — one file set:
-`crates/nvs-stdlib/src/crypto.rs`, `docs/examples/core/Crypto-PublicKey/`,
-`tests/hostile/core/Crypto-PublicKey/`, `benches/members/core/Crypto-PublicKey/`. The three are one
-class: the half that arrives, the half that is sent, and what it says it is. Each slice is
-`rule:testing/feature-proofs`' full set for one member.
+**Goal `core-csrf-and-3-more`, stage: the CSRF pair** — one file set: `crates/nvs-stdlib/src/csrf.rs`,
+`docs/examples/core/Csrf/`, `tests/hostile/core/Csrf/`, `benches/members/core/Csrf/`. Each slice is
+`rule:testing/feature-proofs`' whole set for one member, and the two members are one mechanism: the
+token that is issued and the same token checked.
 
-- [ ] **`Core\Crypto\PublicKey::read`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:1111`
-- [ ] **`Core\Crypto\PublicKey::write`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:1130`
-- [ ] **`Core\Crypto\PublicKey::kind`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/crypto.rs:1139`
+- [ ] **`Core\Csrf::issue`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/csrf.rs:113`
+- [ ] **`Core\Csrf::verify`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/csrf.rs:126`
+- [ ] **`Core\Csv::format`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/csv.rs:211`
 
 ## Backlog
-
-- `Core\Crypto\KeyPair::publicKey` measures 76 µs per call, because the half is worked out from the
-  private key every time; `KEY_PAIR`'s own doc already prices the cache it declined.
-- `Core\Secret::revealBytes` accepts an empty reason, which the attack on `KeyPair::write` step 4
-  shows; nothing decided says it must not, so this is a question rather than a gap.
+- The generated dossier goals run in the order `docs/agent/goals/dossier/` numbers them; nothing
+  else schedules them.
+- A key's proofs draw their material from `tests/conformance/core/crypto-*.nvst` and
+  `crates/nvs-stdlib/tests/vectors/webcrypto.json`, so nothing has to be derived again.

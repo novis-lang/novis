@@ -2590,6 +2590,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   before it measures anything. Record a whole group's figures in one call, after the Rust side of
   the group is final, and re-record only where the shipped half of the implementing file moved.
   [until: reviewed 2026-09-21]
+- **`python tools/dossier.py --bless` and `--record-perf` rebuild the release binary, so either one
+  takes minutes rather than a second once a crate has been edited.** Both run the programs through
+  `target/release/nvs.exe`, and cargo relinks the workspace as soon as its source has moved, with no
+  output at all until the build is done — a call that returned instantly earlier in the same session
+  reads as a hang. Bless the examples before touching Rust, or start the call in the background and
+  write the next proof while it builds. [until: reviewed 2026-09-21]
 
 ## Running things
 
@@ -6548,6 +6554,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   plausibly and refuses nothing. Parse the TOML once and deserialize the same table into `config`
   (`crates/nvs-stdlib/src/config.rs`'s `configured`); `Ctx::memory_limit` is then the ceiling less
   `limits.fatal_reserve_memory`, so assert that it moved. [until: reviewed 2026-09-21]
+- **A bench that picks its input with `$total % N` asks for one input forever when every round adds
+  the same amount to `$total`.** The chain is still real — the round depends on the one before it —
+  but the index never moves, so a bench claiming to measure two keys measures the first one a
+  million times and says nothing about the other. Vary the increment by what the round answered, or
+  add `$i` to it, and read the printed total before recording a figure: a total that is exactly
+  `rounds * <one weight>` is the tell. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

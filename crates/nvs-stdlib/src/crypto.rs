@@ -5748,6 +5748,279 @@ mod tests {
         keys
     }
 
+    /// The case index a call site writes for a [`KeyFormat`], taken from the
+    /// registry's own enum rather than from a digit at each call.
+    fn format_tag(format: KeyFormat) -> i64 {
+        KEY_FORMAT
+            .cases
+            .iter()
+            .map(|(_, case)| *case)
+            .find(|case| KeyFormat::from_tag(*case) == Some(format))
+            .expect("every encoding the codec reads is a case of the registry's enum")
+    }
+
+    /// A public key off the wire lands in the class's two slots as the set's own
+    /// `SubjectPublicKeyInfo` and the kind the call named, whichever of the
+    /// three encodings carried it.
+    ///
+    /// Driven through [`nvs_runtime::call`], one layer above
+    /// [`webcrypto_jws_keys_read_in_every_form_and_write_their_minimal_jwk_and_thumbprint`],
+    /// which asks the codec the same question. What this adds is the *slot*: a
+    /// `.nvst` case sees only what `write` answers, so a member that kept the
+    /// octets it was handed and re-encoded them inside every later member passes
+    /// there and fails here. A JWK is read in the browser's own spelling, `ext`
+    /// and `key_ops` included, which is the one a slot holding the arriving
+    /// octets would carry into every member that reads it.
+    ///
+    /// The stored octets are parsed back with [`PublicKey::read`], since a slot
+    /// holding the right encoding under the wrong kind answers every comparison
+    /// here and fails at the first signature.
+    // covers: Core\Crypto\PublicKey::read
+    #[test]
+    fn a_public_key_reads_into_the_canonical_spki_and_the_named_kind() {
+        let slots = |octets: &[u8], kind: KeyKind, format: KeyFormat| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let key = nvs_runtime::call(
+                nvs_core_crypto_public_key_read,
+                &mut ctx,
+                &[
+                    Value::bytes(NvsStr::new(octets)),
+                    Value::int(kind.tag()),
+                    Value::int(format_tag(format)),
+                ],
+            )
+            .expect("the set's own export of a key reads");
+            let (held, stored) = stored_key(&[key], 0, &PUBLIC_KEY, "read")
+                .expect("the member fills both of the class's slots");
+            let spki = stored_octets(&held, &PUBLIC_KEY, "read")
+                .expect("the `spki` slot holds the encoding the member wrote")
+                .to_vec();
+            assert!(
+                PublicKey::read(&spki, stored, KeyFormat::Spki).is_ok(),
+                "the slots read back as a public key, which is what every member taking one does \
+                 with them"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it, which is \
+                          `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                key.release();
+            }
+            (spki, stored)
+        };
+
+        let roster = public_keys();
+        let mut encodings = 0;
+        for (key, kind) in &roster {
+            let (key, kind) = (*key, *kind);
+            let spki = webcrypto::octets(key, "/spki");
+            let minimal = webcrypto::text(key, "/jwkMinimal");
+            let mut arrivals = vec![
+                (spki.clone(), KeyFormat::Spki),
+                (
+                    webcrypto::text(key, "/jwk").as_bytes().to_vec(),
+                    KeyFormat::Jwk,
+                ),
+            ];
+            if key.pointer("/raw").is_some() {
+                arrivals.push((webcrypto::octets(key, "/raw"), KeyFormat::Raw));
+            }
+
+            for (octets, format) in arrivals {
+                assert_eq!(
+                    slots(&octets, kind, format),
+                    (spki.clone(), kind),
+                    "{minimal} read from {format:?} holds the set's own SPKI under the kind the \
+                     call named"
+                );
+                encodings += 1;
+            }
+        }
+
+        let with_raw = roster
+            .iter()
+            .filter(|(key, _)| key.pointer("/raw").is_some())
+            .count();
+        assert_eq!(
+            encodings,
+            2 * roster.len() + with_raw,
+            "every key of the set arrives in each encoding it was exported in, counted so that a \
+             roster that stopped being read still fails"
+        );
+    }
+
+    /// A key answers its own kind as the case index the registry's enum names,
+    /// however the key was reached and however often it is asked.
+    ///
+    /// Driven through [`nvs_runtime::call`], because the claim is about the
+    /// *representation*: what crosses is the integer a `Crypto\KeyKind` case is,
+    /// which is what makes the member a slot read and what the ledger's
+    /// `allocations 0` records. A `.nvst` case compares the answer against a
+    /// case and sees the same thing whatever the member built to answer with.
+    ///
+    /// Both members that fill the slot are asked — the read of a key a peer
+    /// sent, and the derivation from a pair — since a kind that is right on one
+    /// route and wrong on the other still looks right wherever a program uses
+    /// one route.
+    // covers: Core\Crypto\PublicKey::kind
+    #[test]
+    fn a_key_answers_its_kind_as_the_registrys_own_case_however_it_was_reached() {
+        let asked = |ctx: &mut nvs_runtime::Ctx, key: Value| {
+            let answered = nvs_runtime::call(nvs_core_crypto_public_key_kind, ctx, &[key])
+                .expect("a key that read knows what it is")
+                .as_int()
+                .expect("a `Crypto\\KeyKind` crosses as the integer its case is");
+            assert!(
+                KEY_KIND.cases.iter().any(|(_, case)| *case == answered),
+                "the answer is a case of the registry's own enum, rather than any integer"
+            );
+            answered
+        };
+
+        for (node, kind) in public_keys() {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let sent = nvs_runtime::call(
+                nvs_core_crypto_public_key_read,
+                &mut ctx,
+                &[
+                    Value::bytes(NvsStr::new(&webcrypto::octets(node, "/spki"))),
+                    Value::int(kind.tag()),
+                    Value::int(format_tag(KeyFormat::Spki)),
+                ],
+            )
+            .expect("the set writes every public key as SPKI");
+            // Asked twice, since a member taking the kind out of its slot
+            // answers the first call and leaves an object no later member can
+            // use.
+            for turn in 1..=2 {
+                assert_eq!(
+                    asked(&mut ctx, sent),
+                    kind.tag(),
+                    "turn {turn}: the kind the read was given"
+                );
+            }
+
+            let pair = nvs_runtime::call(
+                nvs_core_crypto_key_pair_read,
+                &mut ctx,
+                &[
+                    Value::bytes(NvsStr::new(&webcrypto::octets(node, "/pkcs8"))),
+                    Value::int(kind.tag()),
+                ],
+            )
+            .expect("the set writes every private key as PKCS#8");
+            let derived = nvs_runtime::call(nvs_core_crypto_key_pair_public_key, &mut ctx, &[pair])
+                .expect("a pair that read has a public half");
+            assert_eq!(
+                asked(&mut ctx, derived),
+                kind.tag(),
+                "a derived half is of the pair's own kind"
+            );
+
+            #[expect(
+                unsafe_code,
+                reason = "each call answered one of these references and nothing else holds them, \
+                          which is `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                derived.release();
+                pair.release();
+                sent.release();
+            }
+        }
+    }
+
+    /// A key writes the set's own octets in every encoding it has, and writes
+    /// them out of the key rather than out of the slot it was read into.
+    ///
+    /// Driven through [`nvs_runtime::call`] over a key
+    /// [`nvs_core_crypto_public_key_read`] built, because the claim is about the
+    /// *slot*: [`PUBLIC_KEY`]'s doc prices a write in the arriving encoding as a
+    /// copy, and a `.nvst` case sees equal octets whether the member copied them
+    /// or handed out the slot's own buffer. Each encoding is written twice,
+    /// since a member moving the value out of the slot answers the right octets
+    /// once and leaves an object no later member can use.
+    // covers: Core\Crypto\PublicKey::write
+    #[test]
+    fn a_key_writes_a_copy_of_every_encoding_and_keeps_its_slot() {
+        for (node, kind) in public_keys() {
+            let spki = webcrypto::octets(node, "/spki");
+            let minimal = webcrypto::text(node, "/jwkMinimal");
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let key = nvs_runtime::call(
+                nvs_core_crypto_public_key_read,
+                &mut ctx,
+                &[
+                    Value::bytes(NvsStr::new(&spki)),
+                    Value::int(kind.tag()),
+                    Value::int(format_tag(KeyFormat::Spki)),
+                ],
+            )
+            .expect("the set writes every public key as SPKI");
+            let (held, _) = stored_key(&[key], 0, &PUBLIC_KEY, "write")
+                .expect("`read` fills both of the class's slots");
+            let slot = stored_octets(&held, &PUBLIC_KEY, "write")
+                .expect("the `spki` slot holds the encoding the member wrote")
+                .as_ptr();
+
+            let mut wanted = vec![
+                (KeyFormat::Spki, spki.clone()),
+                (KeyFormat::Jwk, minimal.as_bytes().to_vec()),
+            ];
+            if node.pointer("/raw").is_some() {
+                wanted.push((KeyFormat::Raw, webcrypto::octets(node, "/raw")));
+            }
+
+            for turn in 1..=2 {
+                for (format, want) in &wanted {
+                    let written = nvs_runtime::call(
+                        nvs_core_crypto_public_key_write,
+                        &mut ctx,
+                        &[key, Value::int(format_tag(*format))],
+                    )
+                    .expect("a key writes every encoding it has, whenever it is asked");
+                    let octets = written.as_bytes().expect("`write` answers a `bytes`");
+                    assert_eq!(
+                        octets,
+                        want.as_slice(),
+                        "turn {turn}: {minimal} written as {format:?}"
+                    );
+                    assert_ne!(
+                        octets.as_ptr(),
+                        slot,
+                        "turn {turn}: a copy, which is what the class's doc spends those octets on"
+                    );
+                    #[expect(
+                        unsafe_code,
+                        reason = "the call answered this reference and nothing else holds it, \
+                                  which is `Value::release`'s whole obligation"
+                    )]
+                    unsafe {
+                        written.release();
+                    }
+                }
+            }
+
+            assert_eq!(
+                stored_octets(&held, &PUBLIC_KEY, "write")
+                    .expect("the `spki` slot is still filled")
+                    .as_ptr(),
+                slot,
+                "{minimal}: a write leaves the object's own octets where they were"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it, which is \
+                          `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                key.release();
+            }
+        }
+    }
+
     /// Every encoding a public key of the frozen set is exported in, read and
     /// written back, against WebCrypto's own octets rather than against this
     /// codec's — `raw`, `spki` and `jwk`, which are the forms a public key has.
