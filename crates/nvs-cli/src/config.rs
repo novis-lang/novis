@@ -171,7 +171,7 @@ pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Optio
 /// cache's discipline ([`crate::cache`] § 4), for its reason: a run that refused to start because it
 /// could not write a file nobody asked for would be a regression against every deployment that works
 /// today. What the reason buys is that the question can be *asked*: [`init`] renders it as the one
-/// line [`Self::note`] gives, because there an operator asked for the file and a silent failure
+/// line [`Self::note_about`] gives, because there an operator asked for the file and a silent failure
 /// would be the whole answer withheld. A run keeps it to itself until there is a boot line to carry
 /// it (`rule:config/the-resolved-root-is-announced-and-stored`).
 #[derive(Debug)]
@@ -194,21 +194,33 @@ impl Declined {
     /// ever amounts to from outside the process.
     ///
     /// A breach carries the remedy and the explicit door with it, because that is the only one of
-    /// these an operator is expected to act on: the other two describe a machine's state rather than
-    /// a decision anybody made.
-    pub(crate) fn note(&self) -> String {
-        let file = nvs_config::resolve::LOCAL_FILE;
+    /// these an operator is expected to act on: the others describe a machine's state rather than
+    /// a decision anybody made. It also says that two directories were examined, because
+    /// `nvs_config::trust::check` covers the directory the file goes into **and the one containing
+    /// it**, and a breach naming the parent otherwise reads as the file having been aimed at the
+    /// wrong place.
+    ///
+    /// A directory that could not be examined at all gets neither: the remedy is an answer to a
+    /// DACL or a mode that was read, and what stopped this one is whatever the reader said.
+    ///
+    /// `target` is the file that was to be written, named in full so that a note about a
+    /// `--config` path and one about the working directory's `nvs.toml` read the same way.
+    pub(crate) fn note_about(&self, target: &Path) -> String {
+        let file = target.display();
         match self {
+            Self::Untrusted(nvs_config::trust::Untrusted::Unreadable(why)) => {
+                format!("`{file}` was not written: its directory could not be examined: {why}")
+            }
             Self::Untrusted(why) => format!(
-                "no `{file}` was written: {}; {}, then `nvs init`",
+                "`{file}` was not written: {}; the ownership check covers the directory the file \
+                 goes into and the directory that contains it; {}, then `nvs init`",
                 why.message(),
                 nvs_config::trust::REMEDY,
             ),
-            Self::Exists => format!(
-                "no `{file}` was written: this directory already holds one, and it is never \
-                 overwritten"
-            ),
-            Self::Unwritable(why) => format!("no `{file}` was written: {why}"),
+            Self::Exists => {
+                format!("`{file}` was not written: it already exists, and it is never overwritten")
+            }
+            Self::Unwritable(why) => format!("`{file}` was not written: {why}"),
         }
     }
 }
@@ -222,8 +234,23 @@ impl Declined {
 /// surface that check exists to close, so refusing is the fail-closed direction and costs an
 /// operator one explicit write.
 fn write_default_file(dir: &Path) -> Result<PathBuf, Declined> {
+    write_default_at(&dir.join(nvs_config::resolve::LOCAL_FILE))
+}
+
+/// [`write_default_file`] at a stated path, which is what `nvs init --config <path>` names.
+///
+/// The ownership check is the same one and falls on the directory `target` will be created in. That
+/// directory has to exist: creating it here would create it with whatever the directory above it
+/// lets every child inherit, which is the state the check refuses.
+fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
+    let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
+        return Err(Declined::Unwritable(format!(
+            "`{}` does not name a file",
+            target.display()
+        )));
+    };
     let dir = nvs_config::trust::check(dir).map_err(Declined::Untrusted)?;
-    let path = dir.join(nvs_config::resolve::LOCAL_FILE);
+    let path = dir.join(name);
     // `create_new` is the whole of never overwriting: the file is created by this call or it is not,
     // with no window between asking whether one exists and writing it, so a second `nvs` in the same
     // directory loses the race rather than landing on top of the winner.
@@ -255,10 +282,15 @@ fn write_default_file(dir: &Path) -> Result<PathBuf, Declined> {
 ///
 /// It is not a project command and is not in [`crate::initializes`]: it resolves no tree and runs
 /// nothing, so there is no step 3 to reach. It is instead where every refusal of the implicit write
-/// points, and the directory it writes into is this process's own working directory, which is the
-/// one directory `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2
-/// will look in next.
-pub(crate) fn init() -> ExitCode {
+/// points.
+///
+/// **Where it writes is `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+/// read backwards**: the file the next run will find. With no `--config` that is step 2's
+/// `nvs.toml` in this process's own working directory. With one it is that path, resolved against
+/// the working directory as step 1 resolves it, so `nvs init --config <path>` and
+/// `nvs serve --config <path>` name the same file. More than one is refused: the flag is
+/// repeatable because a tree may have several roots, and a template is one file.
+pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
     let cwd = match working_directory() {
         Ok(cwd) => cwd,
         Err(diagnostic) => {
@@ -268,13 +300,24 @@ pub(crate) fn init() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match write_default_file(&cwd) {
+    let target = match config {
+        [] => cwd.join(nvs_config::resolve::LOCAL_FILE),
+        [named] => cwd.join(named),
+        several => {
+            eprintln!(
+                "error: `nvs init` writes one file, and {} `--config` paths were given",
+                several.len()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    match write_default_at(&target) {
         Ok(written) => {
             println!("wrote `{}`", written.display());
             ExitCode::SUCCESS
         }
         Err(declined) => {
-            eprintln!("error: {}", declined.note());
+            eprintln!("error: {}", declined.note_about(&target));
             ExitCode::FAILURE
         }
     }
@@ -931,10 +974,16 @@ mod tests {
             matches!(breach, Declined::Untrusted(_)),
             "the ownership check answered first: {breach:?}"
         );
+        let breach_note = breach.note_about(&untrusted.join("nvs.toml"));
         assert!(
-            breach.note().contains("nvs init"),
-            "and it points at the one explicit door: {}",
-            breach.note()
+            breach_note.contains("nvs init"),
+            "and it points at the one explicit door: {breach_note}"
+        );
+        assert!(
+            breach_note.contains("the directory that contains it"),
+            "and says the check reaches one directory further up than the file's own, so a breach \
+             naming the parent is not read as the file having gone to the wrong place: \
+             {breach_note}"
         );
 
         let refusing = scratch("reason-unwritable");
@@ -954,7 +1003,11 @@ mod tests {
             "a file that is already there is its own reason: {already:?}"
         );
 
-        for note in [breach.note(), refused.note(), already.note()] {
+        for note in [
+            breach_note,
+            refused.note_about(&refusing.join("nvs.toml")),
+            already.note_about(&occupied.join("nvs.toml")),
+        ] {
             assert!(
                 note.contains("nvs.toml"),
                 "every note names the file that is missing: {note}"

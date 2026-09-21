@@ -84,3 +84,54 @@ fn nvs_init_writes_the_same_file_and_refuses_to_overwrite_one() {
         "the file the first run wrote is untouched"
     );
 }
+
+/// `--config` names where the file goes, exactly as it names where `nvs serve` reads it from: a
+/// binary on the `PATH` run from anywhere writes into the directory an operator set aside for
+/// configuration, and leaves the directory it was run in alone.
+///
+/// Two paths are a refusal that writes neither, because the flag is repeatable for a tree with
+/// several roots and a template is one file.
+#[test]
+fn nvs_init_writes_to_the_one_path_config_names() {
+    let elsewhere = scratch("named-cwd");
+    let dir = scratch("named-target");
+    let named = dir.join("server.toml");
+
+    let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--config")
+        .arg(&named)
+        .arg("init")
+        .current_dir(&elsewhere)
+        .output()
+        .expect("the binary under test runs");
+    assert!(
+        run.status.success(),
+        "a named path in a directory this process created takes the file: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(
+        std::fs::read(&named).expect("the named file is on disk"),
+        nvs_config::default_file().as_bytes(),
+        "what it wrote there is the shipped default file"
+    );
+    assert!(
+        !elsewhere.join("nvs.toml").exists(),
+        "and the working directory was left as it was found"
+    );
+
+    let second = dir.join("second.toml");
+    let both = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--config")
+        .arg(&second)
+        .arg("--config")
+        .arg(dir.join("third.toml"))
+        .arg("init")
+        .current_dir(&elsewhere)
+        .output()
+        .expect("the binary under test runs");
+    assert!(
+        !both.status.success() && !second.exists(),
+        "two named paths are refused and neither is written: {}",
+        String::from_utf8_lossy(&both.stderr)
+    );
+}

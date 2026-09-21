@@ -477,7 +477,12 @@ enum Command {
         #[command(subcommand)]
         command: ApiCommand,
     },
-    /// Write the shipped default `nvs.toml` into the working directory.
+    /// Write the shipped default `nvs.toml` into the working directory, or
+    /// to the one path `--config` names.
+    ///
+    /// The directory the file goes into must already exist. It and the
+    /// directory containing it must both pass the ownership check, because
+    /// this is a file `nvs serve` will read as configuration.
     ///
     /// The explicit door to the file a project command writes for itself when
     /// it finds none, and where every refusal of that implicit write points: a
@@ -1306,7 +1311,7 @@ fn main() -> ExitCode {
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
-        Command::Init => config::init(),
+        Command::Init => config::init(&cli.config),
         Command::Config {
             command: ConfigCommand::Check { files },
         } => config::check(&cli.config, &files),
