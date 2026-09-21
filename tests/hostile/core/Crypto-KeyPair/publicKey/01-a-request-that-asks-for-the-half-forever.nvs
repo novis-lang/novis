@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a request makes the server work out a public half over and over. It
+// uses the kind that costs the most, and a new key every time, so that nothing
+// can be remembered. Every step should work or throw an error the program can
+// catch. The program should reach its last line.
+// hostile: timeout-ms 20000
+
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex('302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf'),
+    Core\Crypto\KeyKind::Ed25519,
+);
+
+// 1. One hundred thousand public halves of one pair, all kept at once.
+array<Core\Crypto\PublicKey> $halves = [];
+int $held = 0;
+foreach (Core\Arr::range(1, 100000) as int $round) {
+    $halves[] = $pair->publicKey();
+    $held += 1;
+}
+echo '1 kept ', $held, ' halves', "\n";
+
+// 2. Every one of them written out and joined into one buffer.
+array<bytes> $written = [];
+foreach ($halves as Core\Crypto\PublicKey $half) {
+    $written[] = $half->write(Core\Crypto\KeyFormat::Spki);
+}
+echo '2 joined ', Core\Bytes::length(Core\Bytes::join($written, '' as bytes)), ' bytes', "\n";
+
+// 3. Twenty thousand halves of a P-256 pair. This kind has to multiply a point
+// for every one of them, so it is the one that costs the most work.
+Core\Crypto\KeyPair $curve = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex('3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a'),
+    Core\Crypto\KeyKind::P256,
+);
+int $long = 0;
+foreach (Core\Arr::range(1, 20000) as int $round) {
+    if (Core\Bytes::length($curve->publicKey()->write(Core\Crypto\KeyFormat::Raw)) == 65) {
+        $long += 1;
+    }
+}
+echo '3 worked out ', $long, ' halves of one P-256 key', "\n";
+
+// 4. Ten thousand halves, each of a key the server has never seen before. A
+// server that remembered a key would grow with every request here.
+int $fresh = 0;
+foreach (Core\Arr::range(1, 10000) as int $round) {
+    if (Core\Bytes::length(
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)
+            ->publicKey()
+            ->write(Core\Crypto\KeyFormat::Raw),
+    ) == 32) {
+        $fresh += 1;
+    }
+}
+echo '4 worked out ', $fresh, ' halves of new keys', "\n";

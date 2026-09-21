@@ -1,0 +1,28 @@
+<?nvs
+// Shows the way a service publishes its key. The server signs every webhook it
+// sends, and the partner checks it with the public half from your documentation.
+
+Core\Crypto\KeyPair $server = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
+    Core\Crypto\KeyKind::Ed25519
+);
+
+// What goes in your documentation: the public half as one line of base64.
+string $published = Core\Encoding::toBase64(
+    $server->publicKey()->write(Core\Crypto\KeyFormat::Spki)
+);
+echo "public key: ", $published, "\n";
+
+// The server sends this body, and this signature in a header.
+bytes $body = '{"event":"order.shipped","id":1042}' as bytes;
+string $header = Core\Encoding::toBase64(Core\Crypto::sign($body, $server));
+
+// The partner has only the published line. It reads the key from that line and
+// checks the signature. `verify` throws an error when the check does not hold.
+Core\Crypto\PublicKey $ours = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromBase64($published),
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Spki
+);
+Core\Crypto::verify($body, Core\Encoding::fromBase64($header), $ours);
+echo "the partner accepted the webhook", "\n";
