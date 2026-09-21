@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "crates/nvs-stdlib/src/db/registry.rs",
+  # From the values a program holds to the statement a driver runs, and from a server's failure
+  # back to a class the program can catch.
+  "crates/nvs-stdlib/src/db/bind.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
