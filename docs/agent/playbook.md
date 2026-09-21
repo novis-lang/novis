@@ -3590,6 +3590,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `--bless` of three examples then reports three failures whose message names a file you have not
   written. Write all five of a member's programs first and add its grants after, or add each grant
   in the same edit as the file it names. [until: reviewed 2026-09-21]
+- **`python tools/try.py` cannot run a `.nvst` case that carries a `--FILE nvs.toml--` section.**
+  It inlines the `--FILE--` block into one scratch `.nvs` program and leaves every later section
+  standing in it as source, so a case that needs a `[db.<name>]` block reports `E0105` and `E0319`
+  on the section header rather than anything about the case. Run that case with
+  `./target/debug/nvs.exe test <path>.nvst`, which is what `verify.py`'s conformance step drives.
+  [until: reviewed 2026-09-22]
+
+- **An `[[app]]` block in the root `nvs.toml` naming a file that is not on disk refuses every
+  program, not only that one.** The configuration is read whole before anything runs and a key
+  matching nothing is `E0605`, so a proof's capability grant written ahead of the proof itself
+  breaks every other example in the tree meanwhile. Write the `.nvs` file first, or put a member's
+  grants and its programs in one edit. [until: reviewed 2026-09-22]
 
 ## Writing a test case
 
