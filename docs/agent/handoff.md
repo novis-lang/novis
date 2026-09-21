@@ -2,46 +2,44 @@
 
 ## State
 
-Goal `core-cli-progress-and-6-more`: eight of its sixteen features are done — `Core\Cli\Progress::advance`,
-`Core\Cli\Style::of`, all three of `Core\Cli\Text` and all three of `Core\Command` each carry an
-`about.md`, three examples with blessed `.out` files, one attack, one bench with a judged declaration,
-and a Rust `#[test]` with its `covers:` marker. `python tools/dossier.py --group 'Core\Command'` shows
-every column filled.
+Goal `core-cli-progress-and-6-more`: twelve of its sixteen features are done. `Core\Compress`'s four
+members — `compress`, `decompress`, `compressor` and `decompressor` — each carry an `about.md`, three
+examples with blessed `.out` files, one attack, one bench with a recorded figure, and a Rust `#[test]`
+with its `covers:` marker. `python tools/dossier.py --group 'Core\Compress'` shows every column filled.
 
-`Core\Command::completions`'s attack found two shell-injection paths in the scripts it writes, and both
-are fixed in this group rather than recorded (`rule:testing/a-failing-proof-is-fixed-or-recorded`): a
-command name's colon ended a `zsh` `_describe` entry early, and `bash` expands every word of a
-`compgen -W` list, so a name spelled `run$(id)` was a command the user's own shell ran on Tab. One
-`.nvst` case pins each.
+No proof found a bug. The first measurement did surface one thing worth a look: `Core\Compress::compress`
+costs 130 allocations and 280 KB per call on a 45-byte record, against 23 and 9 KB for `decompress`,
+which is a compression context built per call rather than per stream. It is in `## Backlog`.
 
-Nothing is blocked. The remaining eight items are `Core\Compress`'s four members and its two stream
-classes, all in `compress.rs`.
+Nothing is blocked. The four remaining features are the two stream classes' members, all in
+`compress.rs`, and `python tools/dossier.py --group 'Core\Compress\Compressor'` names what each owes.
 
 ## Next group
 
-**`Core\Compress`'s four members** — one file set, none of it opened yet:
+**The two stream classes' four members** — one file set, the same one the landed four used:
 `crates/nvs-stdlib/src/compress.rs`, `docs/examples/core/Compress/`, `tests/hostile/core/Compress/`,
-`benches/members/core/Compress/`. All four are `rule:testing/feature-proofs`, and `Core\Command`'s
-three landed features are the model for what each proof looks like. The four share one fixture: a
-program that compresses a buffer under a named codec and reads it back.
+`benches/members/core/Compress/`. All four are `rule:testing/feature-proofs`, and the four landed
+members are the model for what each proof looks like. Both classes' members are **instance** members,
+so `rule:testing/proof-attribution` gives a `covers:` marker as the only thing attributing a test —
+a `.nvst` case that calls one is not credited by the call the way a `Core\Compress::` member is.
 
-- [ ] **`Core\Compress::compress`** — owes about, examples, hostile, tests.
-      `crates/nvs-stdlib/src/compress.rs:197`. It is the whole-buffer half every other member is
-      compared against, so its examples are what the other three build on.
-- [ ] **`Core\Compress::decompress`** — owes about, examples, hostile, tests.
-      `crates/nvs-stdlib/src/compress.rs:206`. Its attack's subject is
-      `rule:core-classes/decompression-bound`: the bound on what a stream may expand to cannot be
-      switched off, so a compression bomb is what the file should try.
-- [ ] **`Core\Compress::compressor`** — owes about, examples, hostile, tests.
-      `crates/nvs-stdlib/src/compress.rs:223`. The streaming half, which answers a
-      `Core\Compress\Compressor` rather than a buffer.
-- [ ] **`Core\Compress::decompressor`** — owes about, examples, hostile, tests.
-      `crates/nvs-stdlib/src/compress.rs:232`.
+- [ ] **`Core\Compress\Compressor::add`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/compress.rs:1284`. Its subject is what a chunk costs: `add_chunk`
+      retains the argument rather than copying it, so feeding one buffer a thousand times is one
+      buffer, which the compressor attack already shows.
+- [ ] **`Core\Compress\Compressor::finish`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/compress.rs:1293`. It is where the whole concatenation is materialised,
+      and where a stream fed more than the request may hold meets the memory limit.
+- [ ] **`Core\Compress\Decompressor::add`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/compress.rs:1303`. It takes `bytes` and no `string`, unlike the
+      compressing half's `add`.
+- [ ] **`Core\Compress\Decompressor::finish`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/compress.rs:1316`. The bound is measured here, once over every piece,
+      which `rule:core-classes/decompression-bound` is the home of.
 
 ## Backlog
 
-- `Core\Compress`'s two stream classes are the rest of this goal's roster, after the four members above.
-- `fish` re-expands the argument of `complete -a`, and whether a command name reaches that expansion is
-  **not checked** — `crates/nvs-stdlib/src/command.rs` § *What a completion script completes*.
-- A bench for `Core\Command::run` measures the usage-error path only, because nothing gives a bench
-  program a command line — `benches/members/README.md` names no directive for one.
+- `Core\Compress::compress` allocates 130 times and 280 KB per call on a 45-byte record
+  (`docs/perf/members.ndjson`); a context held per stream rather than per call is the shape to price.
+- `Core\Compress\Compressor::finish` joins every chunk into one buffer, so a stream costs the total
+  fed rather than a flat window — `crates/nvs-stdlib/src/compress.rs`'s module doc prices it already.

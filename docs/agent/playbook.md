@@ -6510,6 +6510,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   tells you to chain iteration N's input to N−1's result. Chain with `*` and `%` only
   (`($total * 7) % 256`), and cast where a member wants the other width
   (`Core\Arr::slice($files, $done as int)`). [until: reviewed 2026-09-21]
+- **A proof over a `Core\Compress` stream cannot compare its result with `Core\Hash::equals`,
+  because `finish` answers `tainted bytes`.** The decompressing stream's `finish` is tainted
+  unconditionally (`rule:security/tainted-sources`), so an example checking a stream against
+  `Core\Compress::decompress` fails to compile at the *comparison*, and the diagnostic names the
+  argument rather than the stream. Declare the result `tainted bytes` and compare the two lengths,
+  or compare frames the compressing half produced, whose `finish` is plain `bytes`.
+  [until: reviewed 2026-09-21]
+
+- **A `Core\Compress` fixture of one repeated byte is a decompression bomb by the class's own
+  measure, so the *honest* half of a bound test is refused too.** Every codec here takes a buffer of
+  one byte past `DEFAULT_MAX_RATIO`'s 1000:1 — 16 MiB of `A` comes back at 1027:1 — so a payload
+  written to be easy to build fails the roomy call as well as the tight one, and reads as the member
+  ignoring its defaults. Build the payload out of English text repeated, the way the `.nvst` cases in
+  `tests/conformance/core/compress-*` already do. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

@@ -1649,4 +1649,254 @@ mod tests {
             }
         );
     }
+
+    /// Releases the references a case made for a call, which the callee
+    /// borrows rather than takes.
+    fn release(values: Vec<Value>) {
+        #[expect(
+            unsafe_code,
+            reason = "every one of these is a reference this frame made, and \
+                      no callee took one"
+        )]
+        unsafe {
+            for value in values {
+                value.release();
+            }
+        }
+    }
+
+    /// The member itself, driven the way compiled code drives it: the octets
+    /// and the [`CODEC`] ordinal arrive in argument slots, and the frame that
+    /// comes back is one `decompress` reads.
+    ///
+    /// Each row asks twice, once with `bytes` and once with the same octets as
+    /// a `string`, because [`DATA`]'s union is only honest if both answer the
+    /// same frame. The ordinal is the loop's index rather than a decoded case,
+    /// so a row that decoded to a different codec would fail the round trip
+    /// that follows it — which is the ABI [`case_of`] is written around.
+    // covers: Core\Compress::compress
+    #[test]
+    fn the_member_writes_one_frame_for_bytes_and_for_the_same_text() {
+        let mut ctx = Ctx::buffered();
+        let text = "the quick brown fox jumps over the lazy dog\n".repeat(64);
+        let payload = text.as_bytes();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let octets = Value::bytes(NvsStr::new(payload));
+            let as_text = Value::str(NvsStr::new(payload));
+
+            let from_octets =
+                nvs_runtime::call(nvs_core_compress_compress, &mut ctx, &[octets, case])
+                    .expect("a frame answers");
+            let from_text =
+                nvs_runtime::call(nvs_core_compress_compress, &mut ctx, &[as_text, case])
+                    .expect("a frame answers");
+
+            let frame = from_octets
+                .as_bytes()
+                .expect("the member answers `bytes`")
+                .to_vec();
+            let both_spellings = from_text.as_bytes() == Some(&frame[..]);
+            let smaller = frame.len() < payload.len();
+            let round_tripped =
+                decompress_within(codec, &frame, ROOMY, MEMBER).is_ok_and(|back| back == payload);
+            if both_spellings && smaller && round_tripped {
+                agreed += 1;
+            }
+
+            release(vec![octets, as_text, from_octets, from_text]);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case writes one frame for both spellings of `$data`"
+        );
+    }
+
+    /// The member itself, on both sides of the bound it cannot be asked to
+    /// drop.
+    ///
+    /// Every case is swept twice: an honest frame under the defaults the
+    /// registry row carries, which answers the octets that went in, and the
+    /// same frame with the two asks at `1`, which refuses. The second half is
+    /// what makes the first one mean anything — a member that ignored its two
+    /// arguments would pass the round trip alone.
+    // covers: Core\Compress::decompress
+    #[test]
+    fn the_member_answers_an_honest_frame_and_refuses_one_past_the_ask() {
+        let mut ctx = Ctx::buffered();
+        // English text rather than one repeated byte: a buffer of one byte
+        // compresses past `DEFAULT_MAX_RATIO` under every case here, so the
+        // roomy half would be refused for the reason the tight half is.
+        let payload = "the quick brown fox jumps over the lazy dog\n"
+            .repeat(64)
+            .into_bytes();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let frame = Value::bytes(NvsStr::new(
+                &compress_to(codec, &payload).expect("compresses"),
+            ));
+            let roomy = [
+                frame,
+                case,
+                Value::uint(DEFAULT_MAX_BYTES),
+                Value::uint(DEFAULT_MAX_RATIO),
+            ];
+            let tight = [frame, case, Value::uint(1), Value::uint(1)];
+
+            let whole = nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &roomy)
+                .expect("an honest frame answers");
+            let answered = whole.as_bytes() == Some(&payload[..]);
+
+            let refused =
+                nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &tight).is_err();
+            let caught = ctx.take_pending().is_some_and(|why| {
+                why.contains("rule:core-classes/decompression-bound") && why.contains(NAME)
+            });
+            if answered && refused && caught {
+                agreed += 1;
+            }
+
+            release(vec![frame, whole]);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case reads its own frame and refuses one past the ask"
+        );
+    }
+
+    /// `Core\Compress::compressor` driven the way compiled code drives it: the
+    /// ordinal arrives in an argument slot, and what comes back is a stream
+    /// `add` and `finish` accept.
+    ///
+    /// Each case opens **two** streams and feeds them different chunks,
+    /// because the one thing an opening can get wrong that a single stream
+    /// would not show is handing out shared state. Each frame is compared
+    /// against [`nvs_core_compress_compress`]'s over that stream's own chunks,
+    /// so a stream carrying the other's octets fails here.
+    // covers: Core\Compress::compressor
+    #[test]
+    fn the_member_opens_a_stream_of_its_own_for_every_case() {
+        let mut ctx = Ctx::buffered();
+        let left = b"the quick brown fox ".as_slice();
+        let right = b"jumps over the lazy dog\n".as_slice();
+        let joined = [left, right].concat();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let first = nvs_runtime::call(nvs_core_compress_compressor, &mut ctx, &[case])
+                .expect("a stream opens");
+            let second = nvs_runtime::call(nvs_core_compress_compressor, &mut ctx, &[case])
+                .expect("a second stream opens");
+
+            let head = Value::bytes(NvsStr::new(left));
+            let tail = Value::bytes(NvsStr::new(right));
+            let mut fed = |stream: Value, chunk: Value| {
+                nvs_runtime::call(nvs_core_compress_compressor_add, &mut ctx, &[stream, chunk])
+                    .expect("an open stream takes a chunk");
+            };
+            fed(first, head);
+            fed(first, tail);
+            fed(second, tail);
+
+            let whole = nvs_runtime::call(nvs_core_compress_compressor_finish, &mut ctx, &[first])
+                .expect("finishes");
+            let alone = nvs_runtime::call(nvs_core_compress_compressor_finish, &mut ctx, &[second])
+                .expect("finishes");
+
+            let over_both =
+                whole.as_bytes() == Some(&compress_to(codec, &joined).expect("compresses")[..]);
+            let over_its_own =
+                alone.as_bytes() == Some(&compress_to(codec, right).expect("compresses")[..]);
+            if over_both && over_its_own {
+                agreed += 1;
+            }
+
+            release(vec![first, second, head, tail, whole, alone]);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case opens a stream holding its own chunks"
+        );
+    }
+
+    /// `Core\Compress::decompressor` driven the way compiled code drives it,
+    /// with the half of its contract no single `add` can show: the bound is
+    /// the *stream's*, measured once over everything it was fed.
+    ///
+    /// Each case feeds one frame of 64 KiB of one byte in 256-octet pieces
+    /// into a stream opened at a ratio of `1`, so a stream charging the bound
+    /// per `add` would give the same frame sixty-odd separate allowances and
+    /// answer. The honest half beside it is a second stream under the
+    /// registry row's own defaults, which answers the octets that went in.
+    // covers: Core\Compress::decompressor
+    #[test]
+    fn the_stream_measures_one_bound_over_every_piece_it_was_fed() {
+        let mut ctx = Ctx::buffered();
+        let payload = "the quick brown fox jumps over the lazy dog\n"
+            .repeat(64)
+            .into_bytes();
+
+        let mut agreed = 0_usize;
+        for (ordinal, codec) in EVERY.into_iter().enumerate() {
+            let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
+            let frame = compress_to(codec, &payload).expect("compresses");
+
+            let roomy = [
+                case,
+                Value::uint(DEFAULT_MAX_BYTES),
+                Value::uint(DEFAULT_MAX_RATIO),
+            ];
+            let whole = nvs_runtime::call(nvs_core_compress_decompressor, &mut ctx, &roomy)
+                .expect("a stream opens");
+            let tight = [case, Value::uint(u64::MAX), Value::uint(1)];
+            let drip = nvs_runtime::call(nvs_core_compress_decompressor, &mut ctx, &tight)
+                .expect("a second stream opens");
+
+            let mut chunks = Vec::new();
+            for piece in frame.chunks(256) {
+                let chunk = Value::bytes(NvsStr::new(piece));
+                for stream in [whole, drip] {
+                    nvs_runtime::call(
+                        nvs_core_compress_decompressor_add,
+                        &mut ctx,
+                        &[stream, chunk],
+                    )
+                    .expect("an open stream takes a piece");
+                }
+                chunks.push(chunk);
+            }
+
+            let read = nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[whole])
+                .expect("an honest stream answers");
+            let answered = read.as_bytes() == Some(&payload[..]);
+
+            let refused =
+                nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[drip])
+                    .is_err();
+            let caught = ctx
+                .take_pending()
+                .is_some_and(|why| why.contains("rule:core-classes/decompression-bound"));
+            if answered && refused && caught {
+                agreed += 1;
+            }
+
+            chunks.push(whole);
+            chunks.push(drip);
+            chunks.push(read);
+            release(chunks);
+        }
+        assert_eq!(
+            agreed,
+            EVERY.len(),
+            "every case reads its own stream and refuses one past the bound"
+        );
+    }
 }
