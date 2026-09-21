@@ -621,6 +621,7 @@ mod tests {
         assert!(refused.is_err(), "a zero capacity is refused");
     }
 
+    // covers: Core\Task\Channel::send
     #[test]
     fn values_come_back_in_the_order_they_were_sent() {
         let chan = channel(4);
@@ -642,6 +643,7 @@ mod tests {
         assert_eq!(seen, vec![1, 2, 3]);
     }
 
+    // covers: Core\Task\Channel::close
     #[test]
     fn a_closed_and_drained_channel_ends_the_walk_rather_than_waiting() {
         let chan = channel(2);
@@ -653,6 +655,7 @@ mod tests {
         );
     }
 
+    // covers: Core\Task\Channel::send
     #[test]
     fn a_send_with_no_scheduler_under_it_is_named_rather_than_blocking_the_core() {
         let chan = channel(1);

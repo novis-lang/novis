@@ -1,0 +1,37 @@
+<?nvs
+// Shows what a full channel does to the sender. This one holds a single value,
+// and there are four to hand across, so the sender has to wait for the reader
+// to take one out before it can put the next one in.
+
+class Meter
+{
+    public static int $taken = 0;
+    public static int $waits = 0;
+}
+
+var $chan = new Core\Task\Channel<int>(1);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 4) as int $i) {
+            // A send that let the reader take a value out in the middle of it
+            // is a send that waited.
+            int $before = Meter::$taken;
+            $chan->send($i);
+            if (Meter::$taken > $before) {
+                Meter::$waits += 1;
+            }
+        }
+        $chan->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $value) {
+            Meter::$taken += 1;
+        }
+        return 0;
+    },
+});
+
+echo "values taken: ", Meter::$taken, "\n";
+echo "sends that waited: ", Meter::$waits, "\n";

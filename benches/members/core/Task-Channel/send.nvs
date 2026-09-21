@@ -1,0 +1,25 @@
+<?nvs
+// Measures putting one value into a channel, which a program does once for
+// every item it hands to another task.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        // Room for every value, so that no round waits for a reader and the
+        // figure is the send alone.
+        var $chan = new Core\Task\Channel<int>(400000);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round sends what the round before it counted, so no round
+            // can be left out.
+            $chan->send($total);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $chan->close();
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

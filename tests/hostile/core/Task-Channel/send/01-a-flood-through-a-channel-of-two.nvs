@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a task sends far more than the channel can hold, and then sends into a
+// channel that is already closed. The memory the program uses must stay at the
+// size of the channel, and the last step must stop the program cleanly.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. Two hundred thousand values through a channel that holds two. Only two may
+//    ever be queued, so this must run to the end.
+var $many = new Core\Task\Channel<int>(2);
+Core\Task::all({
+    produce: fn(): int => {
+        int $i = 0;
+        while ($i < 200000) {
+            $many->send($i);
+            $i += 1;
+        }
+        $many->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        int $seen = 0;
+        foreach ($many as int $value) {
+            $seen += 1;
+        }
+        echo 'step 1 took ', $seen, "\n";
+        return 0;
+    },
+});
+
+// 2. A channel that says it holds four billion values. Nothing has been sent
+//    yet, so building it must cost almost nothing.
+var $wide = new Core\Task\Channel<int>(4294967295);
+$wide->send(1);
+$wide->close();
+echo "step 2 built a very wide channel\n";
+
+// 3. Two hundred texts of one million characters each, through a channel that
+//    holds two. Only two of them exist at a time, so this must not run out of
+//    memory.
+var $big = new Core\Task\Channel<string>(2);
+Core\Task::all({
+    produce: fn(): int => {
+        int $i = 0;
+        while ($i < 200) {
+            $big->send(Core\Str::repeat('x', 1000000));
+            $i += 1;
+        }
+        $big->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        uint $chars = 0;
+        foreach ($big as string $text) {
+            $chars += Core\Str::length($text);
+        }
+        echo 'step 3 took ', $chars, " characters\n";
+        return 0;
+    },
+});
+
+// 4. A send into a channel that is already closed. This must stop the program,
+//    so nothing after it runs.
+var $shut = new Core\Task\Channel<int>(1);
+$shut->close();
+$shut->send(1);
+echo "step 4 sent into a closed channel\n";
