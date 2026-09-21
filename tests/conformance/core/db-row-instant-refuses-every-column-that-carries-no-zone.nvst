@@ -1,0 +1,70 @@
+--TEST--
+`Core\Db\Row::instant` refuses every column that carries no zone of its own, down to one an engine let a program declare `timestamptz`, and it still reads a NULL column as an absence — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::instant
+// SQLite holds no zone-carrying column type: `rule:core-classes/db-column-types`'s SQLite half
+// folds every `TIMESTAMP` spelling into a zone-*less* reading, so `at` below is
+// declared with this member's own type name and is still a `Core\Time\DateTime`.
+// That is the column worth pinning — a reader deciding on the declaration
+// rather than on the value would answer it, and the moment it answered would be
+// a moment nobody wrote down a zone for.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table pings (at timestamptz not null, seen datetime not null, born date not null, opens time not null, label text not null, missed timestamptz)",
+    []
+);
+$db->execute(
+    "insert into pings (at, seen, born, opens, label, missed) values (?, ?, ?, ?, ?, ?)",
+    ["2026-09-03 14:05:00", "2026-09-03 14:05:00", "2026-09-03", "09:30:00", "2026-09-03T14:05:00Z", null]
+);
+
+array<Row> $one = $db->query("select at, seen, born, opens, label, missed from pings", [])->all();
+var $row = $one[0];
+
+// One question asked of every column the table has, so a member answering one
+// of them fails here while still looking right on its own line. The last is the
+// text that *is* an RFC 3339 rendering: the reading a member parsing the cell
+// would find, in a column declared to hold text.
+array<string> $columns = ["at", "seen", "born", "opens", "label"];
+foreach ($columns as string $column) {
+    try {
+        $row->instant($column);
+        echo "instant over ", $column, ": answered\n";
+    } catch (LogicError $stopped) {
+        echo "instant over ", $column, ": refused\n";
+    }
+}
+
+// A NULL column is an absence and not a refusal, which is the one answer this
+// member has on an engine like this one — `rule:core-classes/db-column-types`, spec § 18.
+?Core\Time\Instant $missed = $row->instant("missed");
+if ($missed == null) {
+    echo "instant over missed: null\n";
+}
+
+// And the row is a readable row: the neighbour that shares its column answers,
+// so every refusal above is this member's class check and not a broken read.
+?Core\Time\Date $born = $row->date("born");
+if ($born != null) {
+    echo "date over born: ", $born->format("yyyy-MM-dd"), "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+instant over at: refused
+instant over seen: refused
+instant over born: refused
+instant over opens: refused
+instant over label: refused
+instant over missed: null
+date over born: 2026-09-03

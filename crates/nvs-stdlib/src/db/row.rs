@@ -1962,6 +1962,156 @@ mod tests {
         released(row);
     }
 
+    /// **`Core\Db\Row::instant` answers the moment a row holds**, and refuses
+    /// the zone-*less* reading that is the only thing a column like that one's
+    /// carries on the engine every proof program here runs against.
+    ///
+    /// This is the one place the answer is reached at all. SQLite folds every
+    /// `TIMESTAMP` spelling into `ColumnType::DateTime`, so this member's
+    /// example, attack and bench are skip entries in
+    /// `tools/data/dossier-policy.toml` and the `.nvst` case beside them can
+    /// pin the refusals and nothing else. A row built here holds whatever it is
+    /// given, so the `TIMESTAMPTZ` column the member is written for is one
+    /// [`NvsArray::set`] away.
+    ///
+    /// `Core\Time\DateTime` is the refusal worth asserting: it is an instance,
+    /// it came out of a column spelled almost like this one's, and only the
+    /// class tells the two apart. The answer is read back through its own
+    /// rendering, so a member handing over the right class carrying some other
+    /// moment fails here rather than passing on the class check alone.
+    // covers: Core\Db\Row::instant
+    #[test]
+    fn instant_answers_the_moment_a_row_holds_and_refuses_a_zoneless_reading() {
+        let mut ctx = Ctx::buffered();
+        let moment = crate::time::instant_from_iso("2026-09-03T14:05:00Z")
+            .expect("an RFC 3339 rendering is a moment");
+        let zoneless = crate::time::datetime_of_text("2026-09-03 14:05:00", 0)
+            .expect("a `datetime` cell is a reading with no zone");
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"at"), moment);
+        columns.set(NvsStr::new(b"seen"), zoneless);
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. The answer: the row's own object, carrying the moment it was
+        //    built with.
+        let held = moment
+            .obj_ptr()
+            .expect("a `Core\\Time\\Instant` is an object");
+        let name = Value::str(NvsStr::new(b"at"));
+        let answered = nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, name])
+            .expect("a `TIMESTAMPTZ` column is what `instant` reads");
+        assert_eq!(
+            answered.obj_ptr(),
+            Some(held),
+            "`instant` answered a different object from the one the row holds"
+        );
+        assert_eq!(
+            crate::time::instant_iso(answered).as_deref(),
+            Some("2026-09-03T14:05:00Z"),
+            "the moment answered is the moment the row holds"
+        );
+        released(answered);
+        released(name);
+
+        // 2. The neighbouring class, which is an instance and carries no zone.
+        let other = Value::str(NvsStr::new(b"seen"));
+        nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, other])
+            .expect_err("a reading with no zone is not a moment");
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence");
+        assert!(
+            message.contains("seen") && message.contains("Instant"),
+            "the refusal names the column and the class it answers: {message}"
+        );
+        released(other);
+
+        // 3. And the column with no value, which is an absence rather than the
+        //    epoch, the moment a member inventing one would pick.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(nothing.tag(), Some(Tag::Null));
+        released(absent);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::uuid` answers an id and refuses every other class a
+    /// column can hold**, which is the whole of what this member does past the
+    /// lookup itself.
+    ///
+    /// One question asked of the four `Core`-owned classes a column is read as
+    /// — an id, a moment, a calendar day and a clock reading — so a member
+    /// checking "is this an instance" rather than "is this an id" fails here
+    /// while answering plausibly row by row. No program reaches this shape: an
+    /// engine hands a row the classes its own column types fold to, and no
+    /// engine folds to all four in one table, where a row built here holds
+    /// whatever it is given.
+    ///
+    /// The answer is asserted to be the row's own object, so a member building
+    /// a second id out of the first fails rather than passing on the class
+    /// check alone.
+    // covers: Core\Db\Row::uuid
+    #[test]
+    fn uuid_answers_an_id_and_refuses_the_other_three_classes_a_column_holds() {
+        let mut ctx = Ctx::buffered();
+        let id = crate::uuid::of_text("3f2504e0-4f89-41d3-9a0c-0305e82c3301")
+            .expect("a canonical rendering is an id");
+        let moment = crate::time::instant_from_iso("2026-09-03T14:05:00Z")
+            .expect("an RFC 3339 rendering is a moment");
+        let day = crate::time::date_at(2026, 9, 3).expect("the third of September is a day");
+        let clock =
+            crate::time::time_of_day_at(9, 30, 0, 0).expect("half past nine is a clock reading");
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"id"), id);
+        columns.set(NvsStr::new(b"at"), moment);
+        columns.set(NvsStr::new(b"born"), day);
+        columns.set(NvsStr::new(b"opens"), clock);
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. The one column of the four that is an id, answered as the object
+        //    the row itself holds.
+        let name = Value::str(NvsStr::new(b"id"));
+        let answered = nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, name])
+            .expect("a `UUID` column is what `uuid` reads");
+        assert_eq!(
+            answered.obj_ptr(),
+            id.obj_ptr(),
+            "`uuid` answered an id the row does not hold"
+        );
+        released(answered);
+        released(name);
+
+        // 2. The other three, each an instance and none of them an id.
+        for column in [b"at".as_slice(), b"born".as_slice(), b"opens".as_slice()] {
+            let label = core::str::from_utf8(column).expect("these column names are ASCII");
+            let other = Value::str(NvsStr::new(column));
+            nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, other])
+                .expect_err("a reading of another class is not an id");
+            let message = ctx
+                .take_pending()
+                .expect("a refusal is a throw, and it carries a sentence");
+            assert!(
+                message.contains(label) && message.contains("Uuid"),
+                "the refusal names the column and the class it answers: {message}"
+            );
+            released(other);
+        }
+
+        // 3. And the column with no value, which is an absence rather than the
+        //    nil id, the value a member inventing one would pick.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(nothing.tag(), Some(Tag::Null));
+        released(absent);
+
+        released(row);
+    }
+
     /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
     /// as `uint` and throws for `int`.**
     ///
