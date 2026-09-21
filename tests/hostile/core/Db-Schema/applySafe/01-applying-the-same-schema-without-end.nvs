@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a schema of two hundred tables is applied to an empty database, and
+// then applied two hundred more times with nothing left to do. A change that
+// is not safe is then refused two hundred times. Every step has to finish, and
+// none may stop the program.
+// hostile: timeout-ms 20000
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// 1. Two hundred tables the database has none of. One call runs all of them,
+// because creating a table is safe.
+array<mixed> $tables = [];
+uint $i = 0;
+while ($i < 200) {
+    $tables[] = [
+        'name' => Core\Str::format('t%d', $i),
+        'columns' => [
+            ['name' => 'id', 'type' => 'int64', 'identity' => true],
+            ['name' => 'title', 'type' => 'text(200)'],
+        ],
+        'primary_key' => ['id'],
+    ];
+    $i = $i + 1;
+}
+var $schema = Schema::fromArray(['tables' => $tables]);
+$schema->applySafe($db);
+echo '1 left: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+// 2. The same schema two hundred more times. Each call reads the database
+// again and finds nothing to do, and none of that may pile up.
+$i = 0;
+while ($i < 200) {
+    $schema->applySafe($db);
+    $i = $i + 1;
+}
+echo '2 left: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+// 3. A shorter column on the first table. SQLite copies the table to make that
+// change, so the step is destructive and the whole plan is refused every time.
+var $narrow = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 't0',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(50)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+uint $refused = 0;
+$i = 0;
+while ($i < 200) {
+    try {
+        $narrow->applySafe($db);
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A table with a row in it that the schema says nothing about. It is
+// reported and never dropped, so the row is still there after the call.
+$db->execute('create table legacy (id integer not null)', []);
+$db->execute('insert into legacy (id) values (1)', []);
+$schema->applySafe($db);
+echo '4 rows: ', $db->query('select id from legacy', [])->count(), "\n";
+
+$db->close();

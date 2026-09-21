@@ -2,6 +2,8 @@
 A table the schema value does not declare is reported with the SQL that would drop it, and neither `applySafe` nor `applyIncludingRisky` ever runs that step — `rule:core-classes/schema-absence-never-destroys`
 --FILE--
 <?nvs
+// covers: Core\Db\Schema::applySafe
+// covers: Core\Db\Schema::applyIncludingRisky
 // § 7's rule is that absence never destroys, because a database an application
 // shares with a queue, a reporting view and whatever an operator put there is
 // the ordinary case rather than the exception. So the difference is *shown*,

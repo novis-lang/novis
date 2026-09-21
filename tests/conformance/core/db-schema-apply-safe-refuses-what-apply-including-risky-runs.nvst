@@ -3,6 +3,8 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Plan\Grade
+// covers: Core\Db\Schema::applySafe
+// covers: Core\Db\Schema::applyIncludingRisky
 // § 9 names the two entry points for what they risk, at the call site, rather
 // than giving one member a `{risky: true}` option: the claim is then visible to
 // a reviewer reading the call and greppable across a repository.

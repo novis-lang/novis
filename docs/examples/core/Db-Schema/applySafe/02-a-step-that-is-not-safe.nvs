@@ -1,0 +1,51 @@
+<?nvs
+// Shows what happens when one step of the plan is not safe. `applySafe` runs
+// no part of the plan and throws a `LogicError`. The plan says why.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The table as it is today. `title` holds up to 200 characters.
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+
+// The schema asks for a shorter column. SQLite makes that change by copying
+// the whole table, so the step can lose data.
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(50)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The message of the error names the step and tells you that
+// `applyIncludingRisky` runs the same plan.
+try {
+    $schema->applySafe($db);
+    echo "the plan ran\n";
+} catch (LogicError $error) {
+    echo "applySafe refused the plan\n";
+}
+
+// Every step carries the grade that decided this. This prints
+// `the step is destructive`.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->grade() == Grade::Destructive) {
+        echo "the step is destructive\n";
+    }
+}
+
+// The database was not touched, so the change is still waiting. This prints
+// `steps left: 1`.
+echo 'steps left: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+$db->close();

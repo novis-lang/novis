@@ -671,8 +671,11 @@ pub(super) fn unsafe_step(plan: &nvs_db::Plan) -> Option<Fault> {
     Some(Fault::thrown_as(
         ThrownClass::Logic,
         format!(
+            // The reason is prose an operator reads and ends with its own full
+            // stop, which `ddl`'s sweep over every dialect holds it to, so this
+            // sentence adds none of its own.
             "{APPLY_SAFE}: the plan holds a step that is not `Safe`, and this entry point runs \
-             none of it — `{}` is {} because {}. `applyIncludingRisky` runs the same plan and \
+             none of it — `{}` is {} because {} `applyIncludingRisky` runs the same plan and \
              says so where it is written",
             step.change(),
             step.grade(),
@@ -814,6 +817,8 @@ mod tests {
     /// difference between them is which plans they will run, not which grant
     /// they need — and a check written into one body only would pass a case
     /// that asked one of them.
+    // covers: Core\Db\Schema::applySafe
+    // covers: Core\Db\Schema::applyIncludingRisky
     #[test]
     fn applying_without_the_db_schema_capability_throws_naming_it() {
         let args = [empty_schema(), connection("reports")];
@@ -853,6 +858,7 @@ mod tests {
     /// that **runs** rather than one of § 7's reports, which is the distinction
     /// [`nvs_db::Plan::first_refused`] exists for and the one a rule reading
     /// every step's grade would get wrong.
+    // covers: Core\Db\Schema::applySafe
     #[test]
     fn apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe() {
         use nvs_db::schema::{Column, Schema, Table};
@@ -891,6 +897,12 @@ mod tests {
         assert!(
             message.contains("applyIncludingRisky"),
             "the refusal does not name the entry point that would run it: {message}"
+        );
+        // The grade's reason is a sentence of its own and ends with a full
+        // stop, so the refusal that quotes it must not add a second one.
+        assert!(
+            !message.contains(".."),
+            "the refusal doubles a full stop where it quotes the reason: {message}"
         );
 
         // The other half of the same rule, and the reason it is `first_refused`

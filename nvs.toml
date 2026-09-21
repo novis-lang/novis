@@ -1851,6 +1851,76 @@ entry = "benches/members/core/Db-Schema/planAgainst.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/01-create-the-tables-a-new-database-needs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/02-a-step-that-is-not-safe.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/03-add-a-column-to-a-table-that-has-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applySafe.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/01-run-a-change-that-applysafe-refuses.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/02-read-the-plan-before-you-run-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/03-a-table-you-never-declared-is-kept.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/applyIncludingRisky/01-rebuilding-one-table-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applyIncludingRisky.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
