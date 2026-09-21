@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a server keeps one key pair when it restarts. The pair is drawn
+// once, stored as text, and read back the next time the program starts.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// `write` gives the private key as bytes. `Core\Secret::revealBytes` takes a
+// secret and a reason, and gives you plain bytes your program can store.
+bytes $stored = Core\Secret::revealBytes(
+    $pair->write(),
+    "the server key is written to disk and read back at the next start"
+);
+string $onDisk = Core\Encoding::toHex($stored);
+
+// This is what the next start does. You name the kind, because the stored bytes
+// do not say which kind you expect.
+Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($onDisk),
+    Core\Crypto\KeyKind::P256
+);
+
+// It is the same pair, so it has the same public key. Clients that already know
+// this server can still check its signatures.
+bytes $before = $pair->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $after = $again->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+echo "the same key came back: ", ($before == $after ? "yes" : "no"), "\n";

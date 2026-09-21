@@ -1,0 +1,24 @@
+<?nvs
+// Shows the three kinds of key pair you can draw. The kind is the only thing
+// you choose, and it decides what the pair can do.
+
+// `P256` agrees a shared secret with another program, and signs.
+Core\Crypto\KeyPair $p256 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+// `X25519` only agrees a shared secret.
+Core\Crypto\KeyPair $x25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+// `Ed25519` only signs.
+Core\Crypto\KeyPair $ed25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// Each kind has one size, so the public key of a kind is always the same
+// length. This prints 91, 44 and 44.
+array<Core\Crypto\KeyPair> $pairs = [$p256, $x25519, $ed25519];
+foreach ($pairs as Core\Crypto\KeyPair $pair) {
+    echo Core\Bytes::length($pair->publicKey()->write(Core\Crypto\KeyFormat::Spki)), "\n";
+}
+
+// The two keys that agree must be of the same kind. Here both sides are
+// `X25519`, and they reach one secret.
+Core\Crypto\KeyPair $peer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+secret bytes $mine = Core\Crypto::agree($x25519, $peer->publicKey());
+secret bytes $theirs = Core\Crypto::agree($peer, $x25519->publicKey());
+echo "one secret from two X25519 pairs: ", ($mine == $theirs ? "yes" : "no"), "\n";

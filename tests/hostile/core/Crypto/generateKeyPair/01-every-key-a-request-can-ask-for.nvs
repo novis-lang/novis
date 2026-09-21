@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a request asks for the keys this member does not draw, and then for
+// as many keys as it can get. Every kind that is not drawn should throw an
+// error the program can catch, and the program should reach its last line.
+
+// 1. An RSA key. This member never draws one, so it should be refused.
+try {
+    Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::RsaPkcs1);
+    echo '1 drew an RSA key', "\n";
+} catch (Throwable $e) {
+    echo '1 refused', "\n";
+}
+
+// 2. The other RSA kind, which is the same key type under another name.
+try {
+    Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::RsaPss);
+    echo '2 drew an RSA key', "\n";
+} catch (Throwable $e) {
+    echo '2 refused', "\n";
+}
+
+// 3. A drawn pair written out and read back as a different kind. The bytes are
+// a real private key, so the kind is the only thing that is wrong.
+Core\Crypto\KeyPair $drawn = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+bytes $written = Core\Secret::revealBytes($drawn->write(), 'the attack stores a key and reads it back');
+array<Core\Crypto\KeyKind> $wrong = [
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::RsaPkcs1,
+];
+foreach ($wrong as Core\Crypto\KeyKind $kind) {
+    try {
+        Core\Crypto\KeyPair::read($written, $kind);
+        echo '3 read an X25519 key as another kind', "\n";
+    } catch (Throwable $e) {
+        echo '3 refused', "\n";
+    }
+}
+
+// 4. The written key with one byte cut off the end, which is what a half-copied
+// key file looks like.
+try {
+    Core\Crypto\KeyPair::read(
+        Core\Bytes::slice($written, 0, (Core\Bytes::length($written) - 1) as int),
+        Core\Crypto\KeyKind::X25519,
+    );
+    echo '4 read a key out of a cut-off file', "\n";
+} catch (Throwable $e) {
+    echo '4 refused', "\n";
+}
+
+// 5. Two hundred thousand filler bytes read as a private key, to see whether a
+// length is checked before the bytes are.
+try {
+    Core\Crypto\KeyPair::read(Core\Bytes::fill(200000, 3), Core\Crypto\KeyKind::P256);
+    echo '5 read a key out of filler bytes', "\n";
+} catch (Throwable $e) {
+    echo '5 refused', "\n";
+}
+
+// 6. Two thousand P-256 pairs. This kind draws a number and draws again when
+// the number is not a key, so it is the one that costs the most work.
+int $drew = 0;
+foreach (Core\Arr::range(1, 2000) as int $round) {
+    if (Core\Bytes::length(
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\KeyFormat::Raw),
+    ) == 65) {
+        $drew += 1;
+    }
+}
+echo '6 drew ', $drew, ' P-256 pairs', "\n";
+
+// 7. Fifty thousand pairs drawn and kept, which is what a request does when it
+// wants the server to run out of memory.
+array<Core\Crypto\KeyPair> $kept = [];
+int $held = 0;
+foreach (Core\Arr::range(1, 50000) as int $round) {
+    $kept[] = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+    $held += 1;
+}
+echo '7 kept ', $held, ' pairs', "\n";

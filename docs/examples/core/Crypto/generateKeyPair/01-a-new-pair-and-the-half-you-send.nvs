@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to draw a key pair and how to get the half you send. The private
+// half stays in your program. The public half is safe to publish.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// `publicKey` gives you the half you send. `write` turns it into bytes, in one
+// of the three formats other languages read.
+bytes $raw = $pair->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+bytes $spki = $pair->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+
+// This prints `raw: 32 bytes` and `spki: 44 bytes`.
+echo "raw: ", Core\Bytes::length($raw), " bytes", "\n";
+echo "spki: ", Core\Bytes::length($spki), " bytes", "\n";
+
+// Every call draws a new pair, so a second pair has a different public key.
+Core\Crypto\KeyPair $other = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $otherRaw = $other->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+echo "the second pair is a different one: ", ($raw != $otherRaw ? "yes" : "no"), "\n";
