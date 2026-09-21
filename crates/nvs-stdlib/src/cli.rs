@@ -3879,6 +3879,105 @@ mod tests {
         }
     }
 
+    /// The row `Core\Cli\Progress::advance` hands the region: it scales to the
+    /// total, stops at a full bar rather than drawing past its end, and carries
+    /// a caption the terminal reads as text. No `.nvst` case reaches any of the
+    /// three, because a case has no terminal to paint on — what a program can
+    /// see of this member is the refusal, which
+    /// `tests/conformance/core/a-progress-handle-is-dead-once-its-bar-has-closed.nvst`
+    /// pins.
+    // covers: Core\Cli\Progress::advance
+    #[test]
+    fn advance_paints_a_bar_that_stops_at_full_and_a_caption_nothing_can_run() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        /// A screen a test can read back.
+        struct Screen(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for Screen {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("this screen is never poisoned")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let screen = Arc::new(Mutex::new(Vec::new()));
+        let open = Open::region();
+        REGIONS.with(|regions| {
+            regions.borrow_mut()[open.depth] =
+                nvs_runtime::terminal::Region::painting_on(Box::new(Screen(Arc::clone(&screen))));
+        });
+        let handle = crate::instance::build(
+            &PROGRESS,
+            [
+                Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
+                Value::uint(4),
+                Value::uint(0),
+                Value::str(NvsStr::new(b"")),
+            ],
+        );
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        // One unit of four. This frame lands at once, and every frame after it
+        // is coalesced into the last — which is why the clamp is asserted from
+        // the one the region owes at its close.
+        nvs_runtime::call(
+            nvs_core_cli_progress_advance,
+            &mut ctx,
+            &[handle, Value::uint(1), Value::null()],
+        )
+        .expect("the innermost region painted");
+
+        // Three units past the total, with a caption that would clear the
+        // screen if it arrived as a command.
+        let caption = Value::str(NvsStr::new("\u{1B}[2Jimported".as_bytes()));
+        nvs_runtime::call(
+            nvs_core_cli_progress_advance,
+            &mut ctx,
+            &[handle, Value::uint(7), caption],
+        )
+        .expect("the innermost region painted");
+        drop(open);
+
+        let written = String::from_utf8(screen.lock().expect("the screen").clone())
+            .expect("a region writes what it was handed, and that was text");
+        assert!(
+            written.contains("[######------------------]  25%"),
+            "one unit of four did not draw a quarter of the cells, and this run wrote {written:?}"
+        );
+        assert!(
+            written.contains("[########################] 100%"),
+            "a count past the total drew something other than a full bar, so a loop that \
+             miscounted reports work it never did: {written:?}"
+        );
+        assert!(
+            written.contains('\u{241B}') && written.contains("imported"),
+            "the caption is not on screen as the text it was"
+        );
+        assert!(
+            !written.contains("\u{1B}[2J"),
+            "a caption cleared the screen, so it reached the terminal as a command"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the handle and the caption are values this test built, and \
+                      the call took its own reference to each argument"
+        )]
+        unsafe {
+            caption.release();
+            handle.release();
+        }
+    }
+
     /// What `Core\Cli::displayWidth` counts, and the arm no program can reach.
     /// A column is not a character and not a byte: a Japanese character takes
     /// two, a combining mark takes none, and a tab takes as many as the next
@@ -4598,6 +4697,51 @@ mod tests {
         }
     }
 
+    /// `Core\Cli\Text::plain` substitutes its argument once and writes that one
+    /// answer into both of a carrier's slots, as a run nothing styles.
+    ///
+    /// The second half is the one no `.nvst` case reaches. A case's output is
+    /// captured, so it runs at [`ColorDepth::None`], where a run carrying a
+    /// style and a run carrying none render alike — and a `plain` that had
+    /// quietly given its run a style would pass every case in the suite. Asked
+    /// for the terminal with every colour there is, the run still comes back
+    /// bare, and the substituted escape is still substituted.
+    // covers: Core\Cli\Text::plain
+    #[test]
+    fn plain_substitutes_into_both_slots_and_makes_a_run_no_terminal_colours() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let body = Value::str(NvsStr::new("cost \u{1B}[31m9\u{7}".as_bytes()));
+        let text = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[body])
+            .expect("Text::plain answered");
+        let carrier = text.obj_ptr().expect("a `Text` is an object");
+        let want = "cost \u{241B}[31m9\u{2407}";
+
+        assert_eq!(
+            crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT).as_text(),
+            Some(want),
+            "the rendering standard output takes is not the substituted text"
+        );
+        let runs = crate::instance::slot(carrier, TEXT_RUNS);
+        for depth in [
+            ColorDepth::None,
+            ColorDepth::Ansi16,
+            ColorDepth::Ansi256,
+            ColorDepth::TrueColor,
+        ] {
+            assert_eq!(
+                rendered_at(runs, depth).expect("a `Text` renders at every depth"),
+                want,
+                "a terminal at {depth:?} was sent something other than the text itself"
+            );
+        }
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            body.release();
+            text.release();
+        }
+    }
+
     /// `rule:tooling/terminal-output-is-a-sink`: terminal output substitutes a control sequence
     /// **visibly**, and it does so at the sink rather than at any caller's
     /// discretion.
@@ -4970,6 +5114,103 @@ mod tests {
             red.release();
             style.release();
         }
+    }
+
+    /// Which slot each of `Core\Cli\Style::of`'s seven options lands in, read
+    /// off the value itself.
+    ///
+    /// `tests/conformance/core/cli-a-styles-seven-slots-are-independent.nvst`
+    /// asks the half a program can see — that the seven are seven — by
+    /// comparing whole renderings, and says in its own words that the flag word
+    /// is this file's business. This is that half: each attribute alone is the
+    /// one bit [`ATTRIBUTES`] pairs it with, so an option written into a
+    /// neighbour's bit fails here while both still render as their own style.
+    // covers: Core\Cli\Style::of
+    #[test]
+    fn style_of_writes_each_option_into_the_slot_and_the_bit_that_is_its_own() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let attributes = |bold, dim, italic, underline, strikethrough| {
+            [
+                Value::null(),
+                Value::null(),
+                Value::bool(bold),
+                Value::bool(dim),
+                Value::bool(italic),
+                Value::bool(underline),
+                Value::bool(strikethrough),
+            ]
+        };
+        let built = |ctx: &mut nvs_runtime::Ctx, args: [Value; 7]| {
+            nvs_runtime::call(nvs_core_cli_style_of, ctx, &args).expect("Style::of succeeded")
+        };
+        let read = |style: Value, slot| {
+            crate::instance::slot(style.obj_ptr().expect("a `Style` is an object"), slot)
+        };
+        let spend = |style: Value| {
+            #[expect(unsafe_code, reason = "this frame built the style it releases")]
+            unsafe {
+                style.release();
+            }
+        };
+
+        // Nothing asked for: no colour in either slot, and no attribute set.
+        let empty = built(&mut ctx, attributes(false, false, false, false, false));
+        assert_eq!(read(empty, STYLE_FLAGS).as_int(), Some(0));
+        assert!(
+            read(empty, STYLE_COLOR).obj_ptr().is_none()
+                && read(empty, STYLE_BACKGROUND).obj_ptr().is_none(),
+            "a style nobody gave a colour carries one anyway"
+        );
+        spend(empty);
+
+        // Each attribute alone, against the bit `sgr` reads it back out of.
+        for (at, (bit, _)) in ATTRIBUTES.into_iter().enumerate() {
+            let mut asked = attributes(false, false, false, false, false);
+            asked[at + 2] = Value::bool(true);
+            let style = built(&mut ctx, asked);
+            assert_eq!(
+                read(style, STYLE_FLAGS).as_int(),
+                Some(bit),
+                "option {} landed on another attribute's bit",
+                STYLE_OPTIONS[at + 2].name
+            );
+            spend(style);
+        }
+
+        // All five at once are all five bits, which no single-attribute line
+        // above can tell from a bag that keeps only the last one it read.
+        let every = built(&mut ctx, attributes(true, true, true, true, true));
+        assert_eq!(
+            read(every, STYLE_FLAGS).as_int(),
+            Some(ATTRIBUTES.iter().fold(0, |bits, (bit, _)| bits | bit)),
+            "five attributes asked for together are not the five bits asked for alone"
+        );
+        spend(every);
+
+        // The two colours are two slots. A style given a foreground has no
+        // background, which is the pair most easily written into one place.
+        let ink = nvs_runtime::call(nvs_core_cli_color_index, &mut ctx, &[Value::uint(160)])
+            .expect("Color::index succeeded");
+        let mut foreground = attributes(false, false, false, false, false);
+        foreground[0] = ink;
+        let front = built(&mut ctx, foreground);
+        assert!(
+            read(front, STYLE_COLOR).obj_ptr().is_some()
+                && read(front, STYLE_BACKGROUND).obj_ptr().is_none(),
+            "a foreground colour reached the background slot"
+        );
+        spend(front);
+
+        let mut background = attributes(false, false, false, false, false);
+        background[1] = ink;
+        let behind = built(&mut ctx, background);
+        assert!(
+            read(behind, STYLE_BACKGROUND).obj_ptr().is_some()
+                && read(behind, STYLE_COLOR).obj_ptr().is_none(),
+            "a background colour reached the foreground slot"
+        );
+        spend(behind);
+        spend(ink);
     }
 
     /// `Core\Cli\Color::index` is the palette's constructor, asserted as the
