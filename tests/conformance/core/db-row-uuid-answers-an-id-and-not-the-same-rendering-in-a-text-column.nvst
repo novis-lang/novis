@@ -1,0 +1,70 @@
+--TEST--
+`Core\Db\Row::uuid` answers the id a `uuid` column holds, and refuses a text column holding that very same rendering, so the column's declared type is what makes a value an id — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::uuid
+// The text column is what makes this rule worth pinning. It holds the same
+// thirty-six characters the id column holds, so a reader parsing the cell would
+// answer it on every row, and what it answered would be an id nobody declared.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table orders (id uuid not null, written text not null, seats int not null, missed uuid)",
+    []
+);
+$db->execute(
+    "insert into orders (id, written, seats, missed) values (?, ?, ?, ?)",
+    ["3f2504e0-4f89-41d3-9a0c-0305e82c3301", "3f2504e0-4f89-41d3-9a0c-0305e82c3301", 2, null]
+);
+
+array<Row> $one = $db->query("select id, written, seats, missed from orders", [])->all();
+var $row = $one[0];
+
+// The id itself, which is an instance and not the text it renders as.
+?Core\Uuid $id = $row->uuid("id");
+if ($id != null) {
+    echo "id ", $id->toString(), "\n";
+}
+
+// And the two refusals: the same rendering in a column that declares it text,
+// then a column of another type.
+array<string> $others = ["written", "seats"];
+foreach ($others as string $column) {
+    try {
+        $row->uuid($column);
+        echo "uuid over ", $column, ": answered\n";
+    } catch (LogicError $stopped) {
+        echo "uuid over ", $column, ": refused\n";
+    }
+}
+
+// The bound on its other side: the id column has no text reading either, so the
+// two columns disagree in both directions rather than one.
+try {
+    $row->string("id");
+    echo "string over id: answered\n";
+} catch (LogicError $stopped) {
+    echo "string over id: refused\n";
+}
+
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+?Core\Uuid $missed = $row->uuid("missed");
+if ($missed == null) {
+    echo "uuid over missed: null\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+id 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+uuid over written: refused
+uuid over seats: refused
+string over id: refused
+uuid over missed: null

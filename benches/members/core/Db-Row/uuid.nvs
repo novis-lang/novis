@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading an id out of a row. A program does this when it lists orders
+// and needs the id of each one to build a link to it.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table orders (row_id integer primary key, id uuid not null, customer uuid not null)', []);
+        $db->execute('insert into orders (id, customer) values (?, ?)', ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', '9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f']);
+        array<Core\Db\Row> $rows = $db->query('select id, customer from orders', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['id', 'customer'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The ids read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->uuid($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

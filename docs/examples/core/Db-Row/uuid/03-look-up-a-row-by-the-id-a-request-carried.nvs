@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to look up rows by an id that arrived as text, and how to read the
+// id of every row that was found.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id uuid not null, customer uuid not null, label text not null)', []);
+$db->execute(
+    'insert into orders (id, customer, label) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    [
+        '3f2504e0-4f89-41d3-9a0c-0305e82c3301', '9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f', 'one tea',
+        'b8c1a0de-2f7a-4d3b-8a91-6f1f2c7d4455', '9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f', 'two coffees',
+        'c4d5e6f7-1a2b-4c3d-9e8f-7a6b5c4d3e2f', '11112222-3333-4444-8555-666677778888', 'a sandwich'
+    ]
+);
+
+// `Core\Uuid::tryParse` returns `null` when the text is not an id. Checking it
+// here means the query below only ever sees an id.
+string $asked = '9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f';
+?Core\Uuid $customer = Core\Uuid::tryParse($asked);
+
+if ($customer == null) {
+    echo "that is not an id\n";
+} else {
+    // This prints the two orders of that customer, and not the sandwich.
+    foreach ($db->query('select id, label from orders where customer = ? order by label', [$customer->toString()]) as Core\Db\Row $row) {
+        ?Core\Uuid $id = $row->uuid('id');
+        if ($id != null) {
+            echo $row->string('label') ?? '', ' is order ', $id->toString(), "\n";
+        }
+    }
+}
+
+$db->close();

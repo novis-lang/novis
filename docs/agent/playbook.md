@@ -3558,6 +3558,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs run` with `E0605` about that path rather than about the program asked for. Write the grant
   and the file in one edit, copying the `Db-Row` group in `nvs.toml`: one block per example, per
   attack and per bench. [until: reviewed 2026-09-21]
+- **An `[[app]]` block in `nvs.toml` naming a file that is not on disk yet stops *every* program,
+  not only that one.** The whole table is resolved before anything runs, so `nvs run` over an
+  example that does exist answers `E0605: cannot read …/02-a-column-that-has-no-value.nvs` about a
+  sibling, which reads as the program you ran being broken. Write all five of a member's proof
+  programs first and add their five grants after, or add each grant beside the file it names.
+  [until: reviewed 2026-09-21]
+
+- **`tools/try.py` does not split a `--FILE nvs.toml--` section, so a `.nvst` case carrying its own
+  configuration compiles that TOML as Novis.** What comes back is a dozen `E0105`/`E0319`
+  diagnostics pointing at `[capabilities.db]`, which reads as the case being wrong rather than as
+  the runner not knowing that section. Run a case that carries a config with `target/debug/nvs.exe
+  test <case.nvst>` — it runs one file and prints `1 passed` — and keep `try.py` for the cases whose
+  only section is `--FILE--`. [until: reviewed 2026-09-21]
 
 ## Writing a test case
 
@@ -6668,12 +6681,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst`: a
   `[capabilities.db]` table, then the `[db.main]` block the case connects to.
   [until: reviewed 2026-09-21]
-- **A `Core\Db\Row` reader can have no reading at all on SQLite, and every proof program is on
-  SQLite.** `instant` reads the two column types that carry their own zone, and
-  `nvs_db::SqliteColumn::column_type` folds every `TIMESTAMP` spelling into `ColumnType::DateTime`,
-  which the reader refuses by class. Run `target/debug/nvs.exe run` on a two-line program before
-  writing a reader's proofs: three examples, a bench and an attack were written here and every one
-  of them threw. [until: exists docs/examples/core/Db-Row/instant/about.md]
 
 ## Splitting a file that got too big
 
