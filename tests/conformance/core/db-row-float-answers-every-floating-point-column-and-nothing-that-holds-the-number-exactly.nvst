@@ -1,0 +1,73 @@
+--TEST--
+`Core\Db\Row::float` answers every floating-point column a table declares and refuses every column beside them that holds the same reading in an exact or whole type — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::float
+// One question asked of both sides at once: the three floating-point widths
+// agree in answering, and the four columns beside them agree in refusing. Each
+// of those four holds the closest its own type can to the same reading. The
+// price column is the one this whole type map exists for: it holds an exact
+// number, and a reader converting it to binary answers `2.5` here and loses a
+// hundredth of every price that has one.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table readings (narrow real not null, wide double precision not null,
+      widest double not null, written text not null, seats int not null,
+      price decimal(10,2) not null, picture blob not null, missed real)",
+    []
+);
+$db->execute(
+    "insert into readings (narrow, wide, widest, written, seats, price, picture, missed)
+     values (?, ?, ?, ?, ?, ?, ?, ?)",
+    [2.5, 2.5, 2.5, "2.5", 2, 2.50 as decimal, "2.5" as bytes, null]
+);
+
+array<Row> $one = $db->query(
+    "select narrow, wide, widest, written, seats, price, picture, missed from readings",
+    []
+)->all();
+var $row = $one[0];
+
+// The floating-point widths are three declared types and one reader.
+array<string> $binary = ["narrow", "wide", "widest"];
+foreach ($binary as string $column) {
+    echo "float over ", $column, ": ", $row->float($column) ?? 0.0, "\n";
+}
+
+// And the columns that hold the same reading in another type. Each has a
+// reader of its own, and none of them is this one.
+array<string> $others = ["written", "seats", "price", "picture"];
+foreach ($others as string $column) {
+    try {
+        $row->float($column);
+        echo "float over ", $column, ": answered\n";
+    } catch (LogicError $stopped) {
+        echo "float over ", $column, ": refused\n";
+    }
+}
+
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+?float $missed = $row->float("missed");
+if ($missed == null) {
+    echo "float over missed: null\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+float over narrow: 2.5
+float over wide: 2.5
+float over widest: 2.5
+float over written: refused
+float over seats: refused
+float over price: refused
+float over picture: refused
+float over missed: null

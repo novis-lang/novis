@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a floating-point number out of a row. A program does this
+// for every measurement, rate and coordinate it reads off a table.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table readings (id integer primary key, celsius real not null, humidity real not null)', []);
+        $db->execute('insert into readings (celsius, humidity) values (?, ?)', [21.5, 0.62]);
+        array<Core\Db\Row> $rows = $db->query('select celsius, humidity from readings', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['celsius', 'humidity'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The numbers read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->float($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

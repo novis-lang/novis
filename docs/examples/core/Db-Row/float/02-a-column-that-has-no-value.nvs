@@ -1,0 +1,22 @@
+<?nvs
+// Shows what you get when the column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table readings (station text not null, celsius real)', []);
+$db->execute(
+    'insert into readings (station, celsius) values (?, ?), (?, ?)',
+    ['north field', 21.5, 'south field', null]
+);
+
+// The result is `null` when the column has no value in this row. The type you
+// get back is `?float`, so you test it for `null` before you use it.
+foreach ($db->query('select station, celsius from readings order by station', []) as Core\Db\Row $row) {
+    ?float $celsius = $row->float('celsius');
+    if ($celsius == null) {
+        echo $row->string('station') ?? '', ': the station sent no reading', "\n";
+    } else {
+        echo $row->string('station') ?? '', ': ', $celsius, " degrees\n";
+    }
+}
+
+$db->close();
