@@ -1,0 +1,44 @@
+<?nvs
+// Measures writing the completion script for one shell, over a table of two
+// commands. A program meets this when somebody sets their shell up for it.
+// bench: iterations 50000
+// bench: calls 0
+// bench: allocations 53
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Cli\Shell> $shells = [
+            Core\Cli\Shell::Bash,
+            Core\Cli\Shell::Zsh,
+            Core\Cli\Shell::Fish,
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The shell of each round is chosen by the round before it, so no
+            // round can be left out.
+            int $at = $total % 3;
+            var $script = Core\Command::completions($shells[$at]);
+            $total = $total + $at + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

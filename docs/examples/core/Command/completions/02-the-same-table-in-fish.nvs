@@ -1,0 +1,22 @@
+<?nvs
+// Shows the same command table written for another shell. Each shell gets a
+// script in its own syntax, so the one you get is one you can read and edit.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+// `fish` takes one `complete` line per command and per option spelling. The
+// text after `-d` is what `about:` said.
+echo Core\Command::completions(Core\Cli\Shell::Fish);

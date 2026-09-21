@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to write the completion script for one shell and print it.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+// Both commands and both spellings of the option are in the script below, and
+// none of them is written here. They come from the declarations above.
+echo Core\Command::completions(Core\Cli\Shell::Bash);

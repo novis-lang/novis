@@ -1,0 +1,23 @@
+<?nvs
+// Shows the everyday use: your program has a `completions` command, so somebody
+// runs `tool completions fish > ~/.config/fish/completions/tool.fish` once and
+// gets command names and options from then on.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(string $target): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "completions", about: "Write the completion script for a shell")]
+    public static function completions(Core\Cli\Shell $shell): uint {
+        // The word after `completions` becomes the case of `Core\Cli\Shell`
+        // it names. A word that names no case is a usage error.
+        echo Core\Command::completions($shell);
+        return 0;
+    }
+}
+
+// This is what `tool completions fish` prints. The `completions` command is in
+// the script too, because it is a command like any other.
+Tool::completions(Core\Cli\Shell::Fish);

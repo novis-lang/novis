@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a command table full of shell syntax is turned into a script for
+// every shell. Quotes, `$(...)`, backticks, semicolons, colons and newlines
+// must all stay text inside the script. Nothing in the table may become
+// something a shell runs, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+class Tool
+{
+    // Every piece of shell syntax that ends a word, a quote or a line, inside
+    // one command's name and description.
+    #[Core\Command(
+        name: "de'ploy; rm -rf /",
+        about: "it's $(whoami) `id` ; echo no | tee /tmp/x && true",
+    )]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "a'b\"c ] $(id) `pwd`")] bool $dryRun = false,
+    ): uint
+    {
+        return 0;
+    }
+
+    // A colon ends the command word of a `zsh` entry, and a newline ends a line
+    // of every script written here.
+    #[Core\Command(name: "db:migrate\nrm -rf /", about: "Apply pending migrations")]
+    public static function migrate(): uint
+    {
+        return 0;
+    }
+
+    // A name and an option spelling that each try to run a command. `bash`
+    // expands every word of a completion list.
+    #[Core\Command(name: "list$(id)", about: "A name that tries to run")]
+    public static function list(
+        #[Core\Option(long: "all`pwd`", about: "An option that tries to run")] bool $all = false,
+    ): uint
+    {
+        return 0;
+    }
+
+    // One ordinary command, so a generator that stopped at the first strange
+    // name is still asked for a second entry after it.
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint
+    {
+        return 0;
+    }
+}
+
+// 1. The `bash` script. It must be written, and every name above must be
+//    inside it as text.
+string $bash = Core\Command::completions(Core\Cli\Shell::Bash);
+echo 'step 1 wrote ', Core\Str::length($bash), " characters\n";
+
+// 2. The `zsh` script, whose command list ends each entry at a colon.
+string $zsh = Core\Command::completions(Core\Cli\Shell::Zsh);
+echo 'step 2 wrote ', Core\Str::length($zsh), " characters\n";
+
+// 3. The `fish` script, which is one line per command and per option spelling.
+string $fish = Core\Command::completions(Core\Cli\Shell::Fish);
+echo 'step 3 wrote ', Core\Str::length($fish), " characters\n";
+
+// 4. The PowerShell script, whose quoting is not the one the other three use.
+string $pwsh = Core\Command::completions(Core\Cli\Shell::Pwsh);
+echo 'step 4 wrote ', Core\Str::length($pwsh), " characters\n";
+
+// 5. Fifty thousand scripts in a row. Each one is finished with before the next
+//    is written, so nothing may be kept behind.
+uint $written = 0;
+while ($written < 50000) {
+    string $one = Core\Command::completions(Core\Cli\Shell::Bash);
+    $written = $written + 1;
+}
+echo 'step 5 wrote ', $written, " scripts\n";
+
+// 6. The four scripts are written again at the end. A generator that had kept
+//    anything from the rounds above would give a different length here.
+echo 'step 6 wrote ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Bash)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Zsh)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Fish)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Pwsh)), "\n";
