@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a count that is never negative out of a row. A program does
+// this for every file size, page count and version number it reads off a table.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table uploads (id integer primary key, size bigint not null, parts bigint not null)', []);
+        $db->execute('insert into uploads (size, parts) values (?, ?)', [18432, 3]);
+        array<Core\Db\Row> $rows = $db->query('select size, parts from uploads', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['size', 'parts'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The numbers read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->uint($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

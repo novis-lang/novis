@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a column that never holds a negative number.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table uploads (name text not null, size bigint not null)', []);
+$db->execute(
+    'insert into uploads (name, size) values (?, ?), (?, ?)',
+    ['logo.png', 18432, 'report.pdf', 1048576]
+);
+
+// `uint` reads the named column as a whole number that is never negative.
+// This prints one line for each file.
+foreach ($db->query('select name, size from uploads order by name', []) as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', ': ', $row->uint('size') ?? 0, " bytes\n";
+}
+
+$db->close();

@@ -1,0 +1,62 @@
+--TEST--
+`Core\Db\Row::uint` answers zero and refuses the number below it, and the column it refuses still reads as `int`, so the floor belongs to the reader and not to the column — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::uint
+// The bound is asserted on both sides, one row apart: `0` is the last number
+// this reader answers and `-1` is the first one it refuses. A reader stopping
+// one number early prints plausibly against either half on its own.
+//
+// The same column is then read as `int`, which answers it. That is what makes
+// the refusal a statement about the reader: the column is a whole number, and
+// `-1` has no reading that is never negative.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table counts (none bigint not null, below bigint not null, most bigint not null, missed bigint)",
+    []
+);
+$db->execute(
+    "insert into counts (none, below, most, missed) values (?, ?, ?, ?)",
+    [0, -1, 9223372036854775807, null]
+);
+
+array<Row> $one = $db->query("select none, below, most, missed from counts", [])->all();
+var $row = $one[0];
+
+// The two ends this reader answers, and the one number past the floor.
+array<string> $asked = ["none", "most", "below"];
+foreach ($asked as string $column) {
+    try {
+        // The read comes first, so a refusal prints no half line before it.
+        ?uint $answered = $row->uint($column);
+        echo "uint over ", $column, ": ", $answered ?? 0, "\n";
+    } catch (LogicError $stopped) {
+        echo "uint over ", $column, ": refused\n";
+    }
+}
+
+// The twin reader over the very same column, which answers it.
+echo "int over below: ", $row->int("below") ?? 0, "\n";
+
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+?uint $missed = $row->uint("missed");
+if ($missed == null) {
+    echo "uint over missed: null\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+uint over none: 0
+uint over most: 9223372036854775807
+uint over below: refused
+int over below: -1
+uint over missed: null

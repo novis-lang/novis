@@ -1,0 +1,104 @@
+<?nvs
+// Attack: a reader that never answers a negative number is pointed at a
+// column holding one. Then at other types, at names that belong to no column,
+// at the widest number a column holds, and at a million reads.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table counts (row_id integer primary key, size bigint not null, owed bigint not null, label text not null, share real not null)', []);
+$db->execute(
+    'insert into counts (size, owed, label, share) values (?, ?, ?, ?)',
+    [18432, -1, '18432', 18432.0],
+);
+
+array<Core\Db\Row> $one = $db->query('select size, owed, label, share from counts', [])->all();
+var $row = $one[0];
+uint $zero = 0;
+
+// 1. The column holding minus one. It is a whole number, and it is not one
+// this reader answers, so the read throws an error.
+try {
+    $row->uint('owed');
+    echo "1 the negative number was read\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. Columns of another type, both holding the same number in another form.
+uint $refused = 0;
+array<string> $others = ['label', 'share'];
+foreach ($others as string $column) {
+    try {
+        $row->uint($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->uint('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->uint(Core\Str::repeat('a', 10000000));
+    echo "4 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "4 refused\n";
+}
+
+// 5. Zero and the largest number this column holds, which are the two ends of
+// what the reader answers. Both come back as they were stored.
+$db->execute('insert into counts (size, owed, label, share) values (?, ?, ?, ?)', [0, 0, 'none', 0.0]);
+$db->execute('insert into counts (size, owed, label, share) values (?, ?, ?, ?)', [9223372036854775807, 0, 'most', 0.0]);
+foreach ($db->query('select size, label from counts where row_id > ? order by row_id', [1]) as Core\Db\Row $end) {
+    echo '5 ', $end->string('label') ?? '', ': ', $end->uint('size') ?? 0, "\n";
+}
+
+// 6. One below zero. The subtraction itself throws, so a count read out of a
+// table cannot be taken below what the type holds.
+array<Core\Db\Row> $none = $db->query('select size from counts where label = ?', ['none'])->all();
+try {
+    uint $under = ($none[0]->uint('size') ?? $zero) - 1;
+    echo '6 taken to ', $under, "\n";
+} catch (Throwable $error) {
+    echo "6 refused\n";
+}
+
+// 7. A million reads of the same number. Nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    $read = $row->uint('size') ?? $zero;
+    $i = $i + 1;
+}
+echo '7 read: ', $read, "\n";
+
+// 8. Fifty thousand rows kept at once, and the number of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select size from counts where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+uint $total = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $total = $total + ($held->uint('size') ?? $zero);
+    }
+}
+echo '8 total: ', $total, "\n";
