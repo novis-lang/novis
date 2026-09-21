@@ -6718,6 +6718,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   unbounded, while hoisting the statement above the loop and calling `all()` a million times on the
   one result took 4.3s. Build the result set once above the loop, then attack the member that reads
   it. [until: reviewed 2026-09-21]
+- **A member that answers a `uint` needs its arithmetic and its `??` fallback written as `uint` too,
+  and both misses read as the member being wrong.** `$rows->count() / $perPage` is `uint|float`
+  because `/` widens, and `$row->uint("n") ?? 0` is `uint|int` because the literal `0` is an `int`,
+  so each is an `E0401` against a declared `uint` that names the member's call rather than the
+  operator. Write the fallback as `(0 as uint)`, and divide with `Core\Math::intDiv` over values
+  converted once with `as int`. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

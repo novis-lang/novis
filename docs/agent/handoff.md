@@ -3,40 +3,45 @@
 ## State
 
 Goal `core-db-rows-and-1-more` — the generated dossier goal over `Core\Db\Rows` and `Core\Db\Schema`
-— has 2 of its 11 items landed: `Core\Db\Rows::all` and `Core\Db\Rows::column` each carry their
-feature proofs, and `python tools/dossier.py --id '<feature>'` prints `complete.` for both. Nothing
-is blocked.
+— has 5 of its 11 items landed: `Core\Db\Rows::all`, `::column`, `::columns`, `::count` and `::first`
+each carry their feature proofs, and `python tools/dossier.py --id '<feature>'` prints `complete.` for
+every one of them. Nothing is blocked. One item of the `Rows` half is left, `::value`; the other five
+are all of `Core\Db\Schema`.
 
-Two things the next session should not re-derive. `result_over` at the tail of
-`crates/nvs-stdlib/src/db/row.rs`'s `mod tests` builds a `Core\Db\Rows` over two rows with no class
-to hydrate into and no described columns, which is what makes the remaining `Rows` members testable
-from Rust at all — the playbook's bullet about no `nvs_db::Connection` being buildable there still
-holds, and this goes under it. And a perf record is keyed on the implementing file's text with its
-trailing `mod tests` cut off (`benches/members/README.md` § *When a figure is re-measured*), so
-appending a Rust case to `row.rs` does not stale a figure already taken.
+Three things the next session should not re-derive. `result_over` at the tail of
+`crates/nvs-stdlib/src/db/row.rs`'s `mod tests` builds a `Core\Db\Rows` over exactly two rows with no
+class and no described columns; a result with a described column set, or with no rows at all, is
+`crate::instance::build(&ROWS, [rows, Value::null(), columns])` written out, which is what the three
+Rust cases landing here needed. A conformance case that reaches a real database carries its own
+`--FILE nvs.toml--` holding `[capabilities.db] connect = ["main"]` and a `[db.main]` sqlite `:memory:`
+block, or it refuses at `Core\Db::connect`. And a perf record is keyed on the implementing file's text
+with its trailing `mod tests` cut off (`benches/members/README.md` § *When a figure is re-measured*),
+so appending a Rust case to `row.rs` does not stale a figure already taken.
 
 ## Next group
 
-**One file set:** `crates/nvs-stdlib/src/db/registry.rs` (the reference card), `crates/nvs-stdlib/src/db/row.rs`
-(the member and the `mod tests` tail), `nvs.toml` (one `[[app]]` per runnable proof), and each
-feature's own proof trees. One slice is one feature with all of `rule:testing/feature-proofs`.
+**One file set for all three:** `crates/nvs-stdlib/src/db/registry.rs` (the reference card),
+`nvs.toml` (one `[[app]]` per runnable proof) and each feature's own proof trees. The member itself
+moves out of `row.rs` and into `schema.rs` after the first item, which is where the `Rows` half of the
+goal ends. One slice is one feature with all of `rule:testing/feature-proofs`.
 
-- [ ] **`Core\Db\Rows::columns`** — owes examples, hostile, perf, tests. The card is
-      `crates/nvs-stdlib/src/db/registry.rs:1268` and the member `crates/nvs-stdlib/src/db/row.rs:949`;
-      it is a reader over one slot, so the Rust claim is the second reference rather than a copy.
-- [ ] **`Core\Db\Rows::count`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:1259`, member at `crates/nvs-stdlib/src/db/row.rs:929`.
-- [ ] **`Core\Db\Rows::first`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:1226`, member at `crates/nvs-stdlib/src/db/row.rs:843`.
-- [ ] **`Core\Db\Rows::value`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:1236`, member at `crates/nvs-stdlib/src/db/row.rs:867`.
+- [ ] **`Core\Db\Rows::value`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:1236` and the member `crates/nvs-stdlib/src/db/row.rs:867`;
+      its doc comment is the claim worth pinning, that an empty result and a NULL column are both
+      `null` and are deliberately not told apart, so `count()` is what a caller asks instead.
+- [ ] **`Core\Db\Schema::fromArray`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:1608` and the member
+      `crates/nvs-stdlib/src/db/schema.rs:185`; it reads the canonical array form, so the attack is a
+      malformed one.
+- [ ] **`Core\Db\Schema::toArray`** — owes examples, hostile, perf, tests. The card is
+      `crates/nvs-stdlib/src/db/registry.rs:1618` and the member
+      `crates/nvs-stdlib/src/db/schema.rs:200`; written with `fromArray` because the round trip is one
+      claim and both halves share the fixture.
 
 ## Backlog
 
-- `Core\Db\Schema`'s five members are items 7 to 11 of this goal and a different file set —
-  `docs/agent/loop-goal.md` § *The item list*.
-- `Core\Db\Rows::column`'s refusal copies the whole column name into its message
-  (`crates/nvs-stdlib/src/db/row.rs:614`), so a million-character name makes a million-character
-  message. Bounded by what the caller already held, and the attack survives it.
-- `docs/perf/members.md` is rendered from the ledger by `python tools/dossier.py --perf-report`, and
-  no session in this goal has run it yet.
+- `Core\Db\Schema::planAgainst`, `::applySafe` and `::applyIncludingRisky` close this goal —
+  `docs/agent/loop-goal.md`.
+- `benches/members/core/Db-Rows/columns.nvs` and `first.nvs` declare only `// bench: calls 0`, as
+  their landed siblings do; the measured 0 allocations for `columns` and 1 for `first` are in
+  `docs/perf/members.ndjson` and could be declared when either is next re-measured.
