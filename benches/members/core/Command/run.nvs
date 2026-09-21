@@ -1,0 +1,39 @@
+<?nvs
+// Measures one dispatch of a command line that names no command. The words are
+// matched against the table, the usage page goes to standard error, and the
+// status is 2. Every command-line program meets this when somebody starts it
+// with nothing to do.
+// bench: iterations 20000
+// bench: calls 0
+// bench: allocations 17
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds its own status into the total, so no round's
+            // call can be left out.
+            $total = $total + Core\Command::run();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

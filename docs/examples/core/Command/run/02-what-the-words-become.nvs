@@ -1,0 +1,27 @@
+<?nvs
+// Shows what the words on the command line become inside a command. Start it
+// with `nvs run 02-what-the-words-become.nvs deploy prod -n --retries 5` to see
+// all three values arrive.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        // A parameter with no attribute takes the next word after the command.
+        string $target,
+        // A flag is `true` when it is written and `false` when it is not.
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+        // `5` arrives here as the number 5, because this parameter says `uint`.
+        // A word that is not a number is a usage error.
+        #[Core\Option(about: "How many times to try")] uint $retries = 3,
+    ): uint {
+        echo "target ", $target, "\n";
+        echo "dry run ", $dryRun ? "yes" : "no", "\n";
+        echo "retries ", $retries, "\n";
+        return 0;
+    }
+}
+
+// Started with no words, this writes the usage page to standard error and
+// returns 2, so nothing above runs.
+uint $status = Core\Command::run();
+echo "status ", $status, "\n";

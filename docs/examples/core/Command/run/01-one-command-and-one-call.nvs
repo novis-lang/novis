@@ -1,0 +1,20 @@
+<?nvs
+// Shows the smallest command-line program: one command, and one call that runs
+// it. Start it with `nvs run 01-one-command-and-one-call.nvs greet World` to
+// see the command run.
+
+class Tool {
+    #[Core\Command(name: "greet", about: "Say hello to somebody")]
+    public static function greet(string $name): uint {
+        echo "hello ", $name, "\n";
+        return 0;
+    }
+}
+
+// `Core\Command::run` reads the words the program was started with and calls
+// the command the first word names.
+uint $status = Core\Command::run();
+
+// With no words, `run` writes the usage page to standard error and returns 2.
+// A real program gives this number to `exit`.
+echo "status ", $status, "\n";

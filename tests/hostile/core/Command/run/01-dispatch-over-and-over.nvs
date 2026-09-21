@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program dispatches its own command line again and again. The table
+// makes every usage page as large as it can be. Every call must give the same
+// status. Nothing may be kept behind, and the program must run to its end.
+// hostile: timeout-ms 60000
+
+class Tool
+{
+    // A command name of two hundred characters, so every page written below is
+    // a large one.
+    #[Core\Command(
+        name: "deploy-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        about: "Push the current build to one of the very many places this program knows about",
+    )]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "a", about: "Print what would happen")] bool $one = false,
+        #[Core\Option(short: "b", about: "Print what would happen")] bool $two = false,
+        #[Core\Option(short: "c", about: "Print what would happen")] bool $three = false,
+        #[Core\Option(short: "d", about: "Print what would happen")] bool $four = false,
+        #[Core\Option(short: "e", about: "How many times to try")] uint $five = 1,
+        #[Core\Option(short: "f", about: "How many times to try")] uint $six = 2,
+        #[Core\Option(short: "g", about: "How many times to try")] uint $seven = 3,
+        #[Core\Option(short: "h", about: "How many times to try")] uint $eight = 4,
+    ): uint
+    {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint
+    {
+        return 0;
+    }
+}
+
+// 1. One dispatch. This program was started with no command, so the usage page
+//    goes to standard error and the status is 2.
+uint $first = Core\Command::run();
+echo 'step 1 gave ', $first, "\n";
+
+// 2. Twenty thousand dispatches, with every status added into one total. A
+//    round that answered anything else changes the number printed below.
+uint $rounds = 0;
+uint $total = 0;
+while ($rounds < 20000) {
+    $total = $total + Core\Command::run();
+    $rounds = $rounds + 1;
+}
+echo 'step 2 totalled ', $total, ' over ', $rounds, " dispatches\n";
+
+// 3. The table is read again after all of that. It must still hold both
+//    commands, and the page must still be the full one.
+var $page = Core\Command::help(null);
+echo 'step 3 read ', Core\Str::length($page->text()), " characters\n";

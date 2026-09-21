@@ -1,0 +1,31 @@
+<?nvs
+// Shows the everyday use: a tool with several commands, where the status says
+// what happened. Start it with `nvs run 03-a-tool-with-several-commands.nvs
+// rollback` to see a command that ends with 3.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(string $target): uint {
+        echo "deployed to ", $target, "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: "rollback", about: "Undo the last deploy")]
+    public static function rollback(): uint {
+        echo "there is nothing to undo\n";
+        // Your own number. `Core\Command::run` returns it unchanged, so a
+        // script that started this program can test it.
+        return 3;
+    }
+
+    // A handler declared `void` always gives the status 0.
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): void {
+        echo "1.4.0\n";
+    }
+}
+
+// The status of a command line naming no command is 2, and the page listing
+// all three commands goes to standard error.
+uint $status = Core\Command::run();
+echo "status ", $status, "\n";
