@@ -283,6 +283,174 @@ mod tests {
         }
     }
 
+    /// The report flag is [`nvs_db::Step::is_report`] for every step, so the
+    /// two names are one decision made in the crate that computes the plan.
+    ///
+    /// A member reading the slot cannot be wrong on its own; what this holds
+    /// together is the *mapping*, since a fourth slot filled from the wrong
+    /// field would answer plausibly for a plan whose steps happen to agree.
+    /// The fixture is a created table beside a dropped one, which disagree.
+    // covers: Core\Db\Plan\Step::isRefused
+    #[test]
+    fn the_report_flag_is_what_the_differ_said_about_that_step() {
+        use nvs_db::schema::{Column, Schema, Table};
+        use nvs_db::{Dialect, IntWidth, ScalarType};
+
+        let table = |name: &str| {
+            Table::new(
+                name,
+                vec![
+                    Column::new("id", ScalarType::Int(IntWidth::Big))
+                        .expect("`id` is an identifier"),
+                ],
+            )
+            .expect("one column is a table")
+        };
+        let want = Schema::new(vec![table("notes")]).expect("one table is a schema");
+        let have = Schema::new(vec![table("leftovers")]).expect("one table is a schema");
+
+        let plan = nvs_db::diff(&want, &have, Dialect::Sqlite);
+        let reports = plan.steps().iter().filter(|step| step.is_report()).count();
+        assert_eq!(
+            (plan.len(), reports),
+            (2, 1),
+            "the fixture stopped being one change beside one report:\n{plan}"
+        );
+
+        let value = plan_value(&plan);
+        let steps = crate::arr::borrowed(
+            crate::instance::slot(
+                value.obj_ptr().expect("`build` answers an object"),
+                PLAN_STEPS_AT,
+            )
+            .array_ptr()
+            .expect("the plan's one slot holds its steps"),
+        );
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for (at, step) in plan.steps().iter().enumerate() {
+            let index = i64::try_from(at).expect("the fixture's plan is two steps long");
+            let object = steps
+                .get_index(index)
+                .expect("every slot of a packed array is filled");
+            let read = nvs_runtime::call(nvs_core_db_plan_step_is_refused, &mut ctx, &[object])
+                .expect("reading a filled slot cannot fail");
+            assert_eq!(
+                read.as_bool(),
+                Some(step.is_report()),
+                "the flag on step {at} is not what the differ said about it, \
+                 which is {}",
+                step.is_report()
+            );
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the plan it built and releases it exactly once; \
+                      a `bool` answer holds no reference"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// Every step's reason slot is the sentence the emitter wrote for **that**
+    /// change, and a read hands that string over rather than writing it again.
+    ///
+    /// The fixture is a created table beside a dropped one, because those are
+    /// the two sentences a member reading one slot for the whole plan would
+    /// answer identically — a fixture of one step cannot tell the two apart.
+    /// The identity of the text is asserted as well as its bytes: a program
+    /// printing a plan reads this member once per step, and
+    /// `benches/members/core/Db-Plan-Step/reason.nvs` declares no allocation
+    /// for a read.
+    // covers: Core\Db\Plan\Step::reason
+    #[test]
+    fn a_steps_reason_is_the_sentence_the_emitter_wrote_for_that_change() {
+        use nvs_db::schema::{Column, Schema, Table};
+        use nvs_db::{Dialect, IntWidth, ScalarType};
+
+        let table = |name: &str| {
+            Table::new(
+                name,
+                vec![
+                    Column::new("id", ScalarType::Int(IntWidth::Big))
+                        .expect("`id` is an identifier"),
+                ],
+            )
+            .expect("one column is a table")
+        };
+        let want = Schema::new(vec![table("notes")]).expect("one table is a schema");
+        let have = Schema::new(vec![table("leftovers")]).expect("one table is a schema");
+
+        let plan = nvs_db::diff(&want, &have, Dialect::Sqlite);
+        assert_eq!(
+            plan.len(),
+            2,
+            "the fixture stopped being a created table beside a reported drop:\n{plan}"
+        );
+        assert_ne!(
+            plan.steps()[0].reason(),
+            plan.steps()[1].reason(),
+            "the fixture's two steps share a sentence, so a member answering one \
+             of them for every step would pass this"
+        );
+
+        let value = plan_value(&plan);
+        let steps = crate::arr::borrowed(
+            crate::instance::slot(
+                value.obj_ptr().expect("`build` answers an object"),
+                PLAN_STEPS_AT,
+            )
+            .array_ptr()
+            .expect("the plan's one slot holds its steps"),
+        );
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut answers = Vec::new();
+        for (at, step) in plan.steps().iter().enumerate() {
+            let index = i64::try_from(at).expect("the fixture's plan is two steps long");
+            let object = steps
+                .get_index(index)
+                .expect("every slot of a packed array is filled");
+            let slot = crate::instance::slot(
+                object.obj_ptr().expect("a step is an object"),
+                STEP_REASON_AT,
+            );
+            assert!(
+                !step.reason().is_empty(),
+                "the emitter wrote no reason for step {at}"
+            );
+            assert_eq!(
+                slot.as_text(),
+                Some(step.reason()),
+                "step {at} carries a sentence the emitter wrote for another change"
+            );
+
+            let read = nvs_runtime::call(nvs_core_db_plan_step_reason, &mut ctx, &[object])
+                .expect("reading a filled slot cannot fail");
+            assert_eq!(
+                read.as_text().map(str::as_ptr),
+                slot.as_text().map(str::as_ptr),
+                "step {at}'s reason was written again for the reader rather than \
+                 handed over"
+            );
+            answers.push(read);
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the plan it built and one reference per answer \
+                      the member handed back, and releases each exactly once"
+        )]
+        unsafe {
+            for read in answers {
+                read.release();
+            }
+            value.release();
+        }
+    }
+
     /// The one field this module flattens: a step's SQL slot is **every**
     /// statement the emitter wrote for it, joined by a newline.
     ///

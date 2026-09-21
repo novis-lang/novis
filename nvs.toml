@@ -1146,6 +1146,67 @@ entry = "benches/members/core/Db-Plan-Step/grade.nvs"
 connect = ["notes"]
 
 [[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/01-see-which-steps-a-plan-will-not-run.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/02-delete-a-table-the-schema-no-longer-names.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/03-warn-an-operator-about-what-a-release-left-behind.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/isRefused/01-thousands-of-reports-and-one-flag-read-forever.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/isRefused.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/01-see-why-a-plan-has-the-step-it-has.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/02-tell-a-person-why-the-deployment-stopped.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/03-write-the-release-notes-for-an-approval.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/reason/01-every-reason-read-forever-and-joined-into-one-string.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/reason.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
 entry = "docs/examples/core/Db-Plan-Step/sql/01-read-the-statement-a-step-is.nvs"
 
 [app.capabilities.db]
