@@ -3469,6 +3469,192 @@ mod tests {
         }
     }
 
+    /// The half of `Core\Cli::confirm` that is its own: a closed answer set, so
+    /// a line that is neither yes nor no is asked again rather than read as
+    /// `false`, and an empty line takes the `default` the `[Y/n]` promised. A
+    /// member reading the first character, or one taking anything unrecognised
+    /// for a no, still looks right on `y` and `n` and fails here.
+    ///
+    /// The scripted queue is what makes the member itself drivable — it is read
+    /// ahead of any terminal — so the assertion does not depend on whether the
+    /// process running this test has one. Every call's queue ends on an answer
+    /// the member accepts, since a drained queue is what sends a prompt to the
+    /// terminal.
+    // covers: Core\Cli::confirm
+    #[test]
+    fn confirm_reads_only_yes_and_no_and_asks_again_for_anything_else() {
+        let question = Value::str(NvsStr::new(b"delete it?"));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        ctx.script_answers(["maybe".to_owned(), "  YES  ".to_owned()]);
+        let yes = nvs_runtime::call(nvs_core_cli_confirm, &mut ctx, &[question, Value::null()])
+            .expect("confirm answered");
+        assert_eq!(
+            yes.as_bool(),
+            Some(true),
+            "`maybe` was read as an answer, or `YES` was not"
+        );
+        assert!(
+            !ctx.has_scripted_answer(),
+            "the refused line was left in the queue for the next prompt to find"
+        );
+
+        ctx.script_answers(["n".to_owned()]);
+        let no = nvs_runtime::call(
+            nvs_core_cli_confirm,
+            &mut ctx,
+            &[question, Value::bool(true)],
+        )
+        .expect("confirm answered");
+        assert_eq!(
+            no.as_bool(),
+            Some(false),
+            "a person who said no was given the default instead"
+        );
+
+        // The empty line is the `Enter` key, and the question promised it the
+        // default — the one answer that is read off the options rather than off
+        // what was typed.
+        for default in [true, false] {
+            ctx.script_answers([String::new()]);
+            let taken = nvs_runtime::call(
+                nvs_core_cli_confirm,
+                &mut ctx,
+                &[question, Value::bool(default)],
+            )
+            .expect("confirm answered");
+            assert_eq!(
+                taken.as_bool(),
+                Some(default),
+                "`Enter` did not take the `{default}` the question showed"
+            );
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the question is a value this test built, and every answer \
+                      above is an unboxed `bool` owing nothing"
+        )]
+        unsafe {
+            question.release();
+        }
+    }
+
+    /// What `Core\Cli::displayWidth` counts, and the arm no program can reach.
+    /// A column is not a character and not a byte: a Japanese character takes
+    /// two, a combining mark takes none, and a tab takes as many as the next
+    /// stop is away. The last assertion drives the body's own refusal, which
+    /// `E0401` keeps a `.nvst` case from ever reaching, since the row's
+    /// parameter is `CoreTy::Text`.
+    // covers: Core\Cli::displayWidth
+    #[test]
+    fn display_width_counts_columns_and_names_itself_on_a_value_no_source_can_pass() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for (text, columns) in [("order", 5_u64), ("注文", 4), ("e\u{301}", 1), ("a\tb", 9)] {
+            let value = Value::str(NvsStr::new(text.as_bytes()));
+            let width = nvs_runtime::call(nvs_core_cli_display_width, &mut ctx, &[value])
+                .expect("displayWidth answered");
+            assert_eq!(
+                width.as_uint(),
+                Some(columns),
+                "`{text}` was measured as something other than columns"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the text is a value this test built, and the count that \
+                          came back is an unboxed `uint` owing nothing"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+
+        nvs_runtime::call(nvs_core_cli_display_width, &mut ctx, &[Value::uint(7)])
+            .expect_err("a number was measured as if it were text");
+        let refusal = ctx
+            .take_pending()
+            .expect("the refusal says nothing at all")
+            .into_owned();
+        assert!(
+            refusal.starts_with("Core\\Cli::displayWidth expected a `string`"),
+            "the message does not say which member was handed what: {refusal}"
+        );
+    }
+
+    /// `Core\Cli::escape` through the member, for one text.
+    fn escaped(ctx: &mut nvs_runtime::Ctx, text: &str) -> String {
+        let value = Value::str(NvsStr::new(text.as_bytes()));
+        let answer =
+            nvs_runtime::call(nvs_core_cli_escape, ctx, &[value]).expect("escape answered");
+        let owned = answer
+            .as_text()
+            .expect("escape answers a `string`")
+            .to_owned();
+        #[expect(
+            unsafe_code,
+            reason = "the text is a value this helper built and the answer is a \
+                      fresh one it owns, so both go with the copy it hands back"
+        )]
+        unsafe {
+            value.release();
+            answer.release();
+        }
+        owned
+    }
+
+    /// What `Core\Cli::escape` answers is inert, and stays inert when it is
+    /// escaped again. The sweep is every C0 byte plus `DEL`, a C1 code point and
+    /// a bidirectional control nothing closes: the two that lay text out come
+    /// back untouched, and nothing else comes back as something a terminal acts
+    /// on. The second escaping is the half a table replacing a control byte with
+    /// another control byte would fail while still looking right on `ESC`.
+    // covers: Core\Cli::escape
+    #[test]
+    fn escape_leaves_nothing_a_terminal_acts_on_and_repeats_without_changing_it() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        for byte in 0..=0x1F_u8 {
+            let text =
+                String::from_utf8(vec![b'a', byte, b'b']).expect("a C0 byte is one code point");
+            let once = escaped(&mut ctx, &text);
+            if byte == b'\n' || byte == b'\t' {
+                assert_eq!(once, text, "the two that lay text out did not pass through");
+                continue;
+            }
+            assert!(
+                !once.chars().any(char::is_control),
+                "byte {byte:#04x} came back as something a terminal still acts on"
+            );
+            assert_eq!(
+                escaped(&mut ctx, &once),
+                once,
+                "escaping byte {byte:#04x} twice is not the same as escaping it once"
+            );
+        }
+
+        for text in ["a\u{7F}b", "a\u{85}b"] {
+            let once = escaped(&mut ctx, text);
+            assert!(
+                !once.chars().any(char::is_control),
+                "`{text}` came back as something a terminal still acts on"
+            );
+            assert_eq!(escaped(&mut ctx, &once), once, "`{text}` is not idempotent");
+        }
+
+        // A bidirectional control with nothing to close it reorders every line
+        // after it, which is how a name is made to read as another one.
+        let reordered = escaped(&mut ctx, "invoice\u{202E}gpj.exe");
+        assert!(
+            !reordered.contains('\u{202E}'),
+            "an unterminated bidirectional control survived: {reordered}"
+        );
+        assert_eq!(
+            escaped(&mut ctx, &reordered),
+            reordered,
+            "the replacement glyph was replaced again"
+        );
+    }
+
     /// One red, bold `Cli\Style`, built the way a program builds one.
     fn warning(ctx: &mut nvs_runtime::Ctx) -> Value {
         let red = nvs_runtime::call(nvs_core_cli_color_index, ctx, &[Value::uint(1)])

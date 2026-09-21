@@ -2560,6 +2560,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   in `cache.rs` put `Core\Cache::local`'s just-recorded figure back into `OWED` the moment the next
   slice marked its own test. Do every Rust edit of a group first, then `--record-perf --only …`
   once at the end. [until: reviewed 2026-09-21]
+- **`python tools/peek.py` takes its options before its targets, and a flag written between two
+  targets makes it refuse every target after it.** `peek.py A.rs:@sym --context 12 B.rs:@sym
+  C.rs:230-248` answers `unrecognized arguments` and lists the trailing two, which reads as a
+  misspelled target rather than a misplaced flag. Put `--context` and `--window` first —
+  `peek.py --context 14 A B C` — and read that refusal's list as where the flag sits.
+  [until: reviewed 2026-09-21]
 
 ## Running things
 
@@ -3472,6 +3478,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ns/op where the member's own work is 6.5 at 130.4. Chain through locals a ternary picks
   between — `($total % 2) == 0 ? $short : $long` — and re-measure with `--force`, which appends a
   second ledger row rather than replacing the first. [until: reviewed 2026-09-21]
+- **`serve::tests::sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping` fails under
+  load with one `STOPPING=1` too many, and passes alone.** It asserts the exact list a `Type=notify`
+  unit is owed (`crates/nvs-cli/src/serve.rs:3913`), so a fifth message from a binary running beside
+  it reads as a broken shutdown in whatever the session just touched. Re-run that one test on its
+  own before treating a red `test` step as a regression, and re-run `python tools/verify.py`, which
+  re-runs only the step that failed. [until: gone crates/nvs-cli/src/serve.rs:sd_notify_messages]
 
 ## Writing a test case
 
