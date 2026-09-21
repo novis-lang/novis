@@ -1,12 +1,14 @@
 //! Captures the handful of facts `nvs info` reports that only exist at build
 //! time — the target triple, the profile, the compiler, the commit and its
-//! date, and the code generator's version.
+//! date, and the code generator's version — and, for a Windows target, links
+//! the icon and the version information that say the same things to Explorer.
 //!
-//! Everything here is passed through `cargo:rustc-env`, so `src/info.rs`
-//! reads them with `env!` and holds no build logic of its own. Nothing in
-//! this file may fail the build: a fact that cannot be determined becomes
-//! the string `unknown`, because a source tarball with no `.git` is a
-//! perfectly ordinary way to build Novis and is not an error.
+//! The facts are passed through `cargo:rustc-env`, so `src/info.rs` reads them
+//! with `env!` and holds no build logic of its own. Nothing in this file may
+//! fail the build: a fact that cannot be determined becomes the string
+//! `unknown`, because a source tarball with no `.git` is a perfectly ordinary
+//! way to build Novis and is not an error, and a resource that cannot be
+//! written is a warning and a binary without one.
 //!
 //! No build timestamp is recorded. A build date would make two builds of the
 //! same commit differ, and `nvs info` is the wrong place to spend a
@@ -18,6 +20,9 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[path = "build/winres.rs"]
+mod winres;
 
 fn main() {
     let manifest = PathBuf::from(env("CARGO_MANIFEST_DIR"));
@@ -31,7 +36,8 @@ fn main() {
     emit("NVS_HOST", &env("HOST"));
     emit("NVS_PROFILE", &env("PROFILE"));
     emit("NVS_RUSTC", &rustc_version());
-    emit("NVS_COMMIT", &commit(&workspace));
+    let commit = commit(&workspace);
+    emit("NVS_COMMIT", &commit);
     emit("NVS_COMMIT_DATE", &commit_date(&workspace));
     emit(
         "NVS_CRANELIFT",
@@ -54,6 +60,126 @@ fn main() {
     );
     println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT");
     println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT_DATE");
+
+    windows_resource(&manifest, &workspace, &commit);
+}
+
+/// Links `nvs.exe`'s icon and version information, on a Windows target whose
+/// linker takes a `.res` file as an input.
+///
+/// That is the MSVC linker, which is every Windows target a release is built
+/// for; a GNU one links the binary without the resource. The debug profile
+/// gets its own icon and says so in its description, so the two builds are
+/// told apart in a folder and in Task Manager. Every string is a fact this
+/// tree already states somewhere — the manifests, `LICENSE`, the commit — and
+/// `rule:packaging/the-windows-binary-says-what-it-is` owns which goes where.
+fn windows_resource(manifest: &Path, workspace: &Path, commit: &str) {
+    if env("CARGO_CFG_TARGET_OS") != "windows" || env("CARGO_CFG_TARGET_ENV") != "msvc" {
+        return;
+    }
+    let debug = env("PROFILE") == "debug";
+    let icon = manifest
+        .join("assets")
+        .join(if debug { "nvs-debug.ico" } else { "nvs.ico" });
+    println!("cargo:rerun-if-changed={}", icon.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        workspace.join("Cargo.toml").display()
+    );
+
+    let version = env("CARGO_PKG_VERSION");
+    // The commit rides as semver build metadata, so the version a user reads
+    // in a file's properties names the source the way `nvs info` does.
+    let product_version = if commit == unknown() {
+        version.clone()
+    } else {
+        format!("{version}+{commit}")
+    };
+    let copyright = format!(
+        "{}. Released under the {} license.",
+        copyright(workspace),
+        env("CARGO_PKG_LICENSE")
+    );
+    let comments = format!(
+        "{} {}",
+        workspace_description(workspace),
+        env("CARGO_PKG_HOMEPAGE")
+    );
+    // Task Manager and the firewall prompt show this one as the program's name.
+    let description = if debug {
+        "Novis (debug build)"
+    } else {
+        "Novis"
+    };
+    let info = winres::VersionInfo {
+        version: [
+            env("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or(0),
+            env("CARGO_PKG_VERSION_MINOR").parse().unwrap_or(0),
+            env("CARGO_PKG_VERSION_PATCH").parse().unwrap_or(0),
+        ],
+        debug,
+        prerelease: !env("CARGO_PKG_VERSION_PRE").is_empty(),
+        strings: &[
+            ("CompanyName", &env("CARGO_PKG_AUTHORS").replace(':', ", ")),
+            ("FileDescription", description),
+            ("FileVersion", &version),
+            ("InternalName", "nvs"),
+            ("LegalCopyright", &copyright),
+            ("OriginalFilename", "nvs.exe"),
+            ("ProductName", "Novis"),
+            ("ProductVersion", &product_version),
+            ("Comments", comments.trim()),
+        ],
+    };
+
+    let written = std::fs::read(&icon)
+        .ok()
+        .and_then(|ico| winres::resource(&ico, &info))
+        .and_then(|res| {
+            let path = PathBuf::from(env("OUT_DIR")).join("nvs.res");
+            std::fs::write(&path, res).ok().map(|()| path)
+        });
+    match written {
+        Some(path) => println!("cargo:rustc-link-arg-bins={}", path.display()),
+        None => println!(
+            "cargo:warning=nvs.exe is linked without its icon and version information: {} could not be compiled into a resource",
+            icon.display()
+        ),
+    }
+}
+
+/// `LICENSE`'s copyright line, with its `(c)` as the sign it stands for.
+fn copyright(workspace: &Path) -> String {
+    std::fs::read_to_string(workspace.join("LICENSE"))
+        .ok()
+        .and_then(|license| {
+            license
+                .lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("Copyright"))
+                .map(|line| line.replace("(c)", "\u{a9}"))
+        })
+        .unwrap_or_default()
+}
+
+/// The `description` under `[workspace.package]` in the root manifest, which
+/// describes Novis where this package's own describes one crate of it.
+///
+/// Read by hand for the reason [`locked_version`] gives.
+fn workspace_description(workspace: &Path) -> String {
+    let Ok(manifest) = std::fs::read_to_string(workspace.join("Cargo.toml")) else {
+        return String::new();
+    };
+    let mut in_table = false;
+    for line in manifest.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_table = line == "[workspace.package]";
+        } else if in_table && let Some(value) = line.strip_prefix("description = ") {
+            return value.trim_matches('"').to_owned();
+        }
+    }
+    String::new()
 }
 
 fn env(key: &str) -> String {

@@ -7,6 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+# `build.rs` writes it into `nvs.exe`'s version information.
+homepage.workspace = true
 
 [[bin]]
 name = "nvs"

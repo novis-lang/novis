@@ -336,6 +336,21 @@
       ]
     },
     {
+      "id": "packaging/the-windows-binary-says-what-it-is",
+      "title": "`nvs.exe` carries the logo as its icon and the manifest's facts as its version information, and a debug build carries its own icon",
+      "status": "shipped",
+      "because": [
+        "0196"
+      ],
+      "seeAlso": [
+        "packaging/a-build-records-no-timestamp",
+        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/tests/windows_resource.rs"
+      ]
+    },
+    {
       "id": "packaging/the-third-party-notice-is-generated-never-written-by-hand",
       "title": "The third-party notice is generated from the dependency graph, fails closed, and is never written by hand",
       "status": "shipped",
