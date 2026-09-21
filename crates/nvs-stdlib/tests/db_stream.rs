@@ -658,6 +658,7 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
 /// **The connection is idle throughout**, which is the other half of § 2: a
 /// member that answered by asking would leave a statement's worth of state
 /// behind it, and one that answers from memory cannot.
+// covers: Core\Db\Connection::serverVersion
 #[test]
 fn server_version_answers_what_the_connection_kept() {
     let Some(mut conn) = leg() else {

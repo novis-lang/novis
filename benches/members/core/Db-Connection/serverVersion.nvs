@@ -1,0 +1,23 @@
+<?nvs
+// Measures reading the version of the database a connection is talking to, as
+// a program does before it uses something older databases do not have.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The length of the version decides what is added, so the loop
+            // cannot be left out.
+            $total = $total + Core\Str::length($db->serverVersion());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

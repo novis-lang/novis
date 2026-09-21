@@ -1,0 +1,19 @@
+<?nvs
+// Shows a program that changes the schema and writes down which database
+// version it ran on. Later you can see where every change was made.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table changes (id integer primary key, name text not null, server text not null)', []);
+
+// The version goes into the row beside the name of the change.
+$db->execute('insert into changes (name, server) values (?, ?)', ['add the notes table', $db->serverVersion()]);
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+var $made = $db->query('select name from changes order by id', []);
+
+// This prints `add the notes table`. The version is stored in the same row.
+foreach ($made->all() as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', "\n";
+}
+
+$db->close();

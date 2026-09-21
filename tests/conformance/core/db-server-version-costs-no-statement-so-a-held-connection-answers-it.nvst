@@ -2,6 +2,7 @@
 Spec § 18's `serverVersion()` is a field read and not a statement, and the proof is where a statement is refused: it answers between two rows of a `stream`, on the connection that walk is holding — `rule:core-classes/db-streaming` and `rule:core-classes/db-connection-busy-state` and ADR 0187 § 2
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::serverVersion
 // The busy rule is what makes this observable at all. § 4 holds the connection
 // for as long as rows remain, so anything that needs a round trip is refused
 // between two steps of the walk — and this member is not refused, which is the

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read the main version number out of the text. A program tests
+// it before it uses something that older databases do not have.
+
+var $db = Core\Db::connect('notes');
+
+// The version begins with the main number and then a dot. `Core\Str::before`
+// gives the text in front of the first dot.
+string $main = Core\Str::before($db->serverVersion(), '.') ?? '0';
+
+// `as ?int` converts that text to a whole number. If that is not possible, the
+// result is `null`, and `?? 0` turns it into `0`.
+int $number = $main as ?int ?? 0;
+
+// SQLite has been at version 3 for many years. This prints `the database is
+// new enough`.
+if ($number >= 3) {
+    echo "the database is new enough\n";
+} else {
+    echo "this program needs a newer database\n";
+}
+
+$db->close();

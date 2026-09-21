@@ -2,6 +2,7 @@
 Spec § 18's `serverVersion()` answers what this connection's handshake already delivered: a version that is there, kept on the connection rather than derived, and the same string on every call — `rule:core-classes/db-one-api` and ADR 0187 § 2
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::serverVersion
 // SQLite is the backend a case can reach, and it is also the one with no
 // server: its answer is the version of the library this binary is linked
 // against, where the four wire drivers answer what their own handshake sent.
