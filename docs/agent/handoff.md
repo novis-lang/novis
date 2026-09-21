@@ -2,51 +2,65 @@
 
 ## State
 
-Goal `core-csrf-and-3-more`, items 1 to 5 of 12 are done: `Core\Csrf::issue`, `Core\Csrf::verify`,
-`Core\Csv::format`, `Core\Csv::parse` and now `Core\Csv::rows` each carry every feature proof
-`rule:testing/feature-proofs` names, so `Core\Csv` is complete. `python tools/dossier.py --id
-'Core\Csv::rows'` prints `complete.`
+Goal `core-csrf-and-3-more`, items 1 to 5 and item 9 of 12 are done. `Core\Csrf::issue`,
+`Core\Csrf::verify`, `Core\Csv::format`, `Core\Csv::parse`, `Core\Csv::rows` and now
+`Core\Db::quoteIdentifier` each carry every feature proof `rule:testing/feature-proofs` names.
+`python tools/dossier.py --id 'Core\Db::quoteIdentifier'` prints `complete.`
 
-`Core\Csv::rows`'s five proof programs are the first under `docs/examples/`, `tests/hostile/` and
-`benches/members/` that open a file. Each writes its document into `Core\IO::temporaryDir()`'s
-answer and reads it back, and each needs its own `[[app]]` block in the repository's `nvs.toml`
-granting `fs.read` and `fs.write` — the comment above those five blocks is the home of why the grant
-is `true` rather than a path. The two Rust tests the member already had now carry its `covers:`
-marker; nothing else about them changed.
+`Core\Db::quoteIdentifier`'s proofs need no connection and no grant in `nvs.toml`: it checks a name
+against the bare-identifier grammar and returns a string. The attack found no bug — sixteen names
+carrying SQL, a legal name of eight million letters, the same name with a quote on the end, and four
+hundred thousand checks in a row all return a name or throw, and the runtime is still standing. The
+bench measures 36.2 ns, 6 statements, 0 calls, 1 allocation and 38.5 bytes per check, and the
+declared `calls 0` and `allocations 1` both held. The Rust test asserts what no `.nvst` can reach:
+the member's alphabet **is** `nvs_db::is_bare_identifier`, over a sweep of twenty names, so a second
+copy of the grammar cannot drift from the schema validator's.
 
-The attack found no bug: a quoted field of eight megabytes that never ends, two hundred thousand
-records, a record of two hundred thousand fields, a handle closed under the walk and a line break
-asked for as the separator all give a record or an error, and the runtime is still standing. The
-bench measures 53,493 ns, 6 calls, 24 allocations and 9,919 bytes for one walk of a two-record file,
-which is opening, reading and closing it together; the declared `// bench: calls 6` held exactly.
+**The six items left all need a live connection, and none of the tree's examples has ever opened
+one.** That decision is the next group's first job, not a block: the examples README says an example
+needing a database is the wrong example, and for `Core\Db` there is no version that needs neither, so
+a SQLite file under `Core\IO::temporaryDir()` is the answer to write down. What is already known is
+in the first item below.
 
-The seven `Core\Db` items are untouched. Nothing is blocked. `crates/nvs-cli/src/service.rs` and two
-files under `docs/rules/packaging/` were modified in the working tree by somebody else while this
-session ran, and are not staged by it.
+`docs/novis.md` and three files under `docs/reference/` were modified in the working tree by somebody
+else while this session ran, and are not staged by it.
 
 ## Next group
 
 **Stage: one slice is one feature with all its proofs** — one file set:
-`crates/nvs-stdlib/src/db/registry.rs`, `docs/examples/core/Db/<member>/`,
+`crates/nvs-stdlib/src/db/open.rs`, `docs/examples/core/Db/<member>/`,
 `tests/hostile/core/Db/<member>/`, `benches/members/core/Db/<member>.nvs` and `nvs.toml`.
-`python tools/dossier.py --id '<feature>'` prints the path of each proof, `--comments <paths>`
-counts the three bounds before the wrap does, and `--bless` and `--record-perf` each rebuild
-`target/release/nvs.exe` first, which is three minutes the first time.
+`python tools/dossier.py --id '<feature>'` prints the path of each proof, and `--comments <paths>`
+counts the three bounds before the wrap does.
 
-- [ ] **`Core\Db::quoteIdentifier`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:192` Take this one first: it checks a name against the
-      bare-identifier grammar and answers a string, so no proof of it opens a connection and none of
-      its programs needs a block in `nvs.toml`.
+- [ ] **`Core\Db::open`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/open.rs:712` Take this one first: its proofs are what settle how
+      every later `Core\Db` program gets a connection, and the rest then copy it. Probed and
+      compiling already: `Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: $file })` against a
+      file under `Core\IO::temporaryDir()`, then `$db->execute(sql, [])` and
+      `foreach ($db->query(sql, []) as Core\Db\Row $row)`. It needs three grants in one `[[app]]`
+      block per program: `fs` read and write for the temporary directory, `db.open`, and `db.schema`
+      for the `CREATE TABLE`. `db.open`'s scope is the *path*
+      (`crates/nvs-stdlib/src/db/open.rs:910`), which no checkout can write down for a host
+      temporary directory, so the grant is `true` the way the `Core\Csv::rows` blocks in `nvs.toml`
+      are, and the comment above them is the home of that reason.
 - [ ] **`Core\Db::inList`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:183` What a proof of it costs is not settled: the member
-      marks a run of bound values, so an example that shows the expansion may have to run a
-      statement. Read `tests/conformance/core/db-in-list-marks-a-run-of-bound-values.nvst` first,
-      and if a connection is needed, `[db.<name>]` over SQLite is the cheap one — the playbook's
-      `queue_sqlite.rs` bullet is the Rust half of the same choice.
+      `crates/nvs-stdlib/src/db/open.rs:1092` The marker expands one `?` into `(?, ?, ?)` at bind
+      time, so nothing it does is observable without a statement: its examples are the one above
+      plus a list. The attack is the one that matters — an empty list, a list of a hundred thousand
+      values, and a nested marker.
+- [ ] **`Core\Db::connect`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/open.rs:172` Its grant is a block name rather than a path, the way
+      the `examples/db.nvs` block in `nvs.toml` is, so it needs a `[db.<name>]` block of its own
+      beside the examples, pointing at a SQLite file.
 
 ## Backlog
 
-- The five remaining `Core\Db` items of this goal, after the two above — `python tools/dossier.py
-  --group` lists them with what each owes.
-- `Core\Csv::parse` spends about 11 µs per call before it reads a byte, fixed per call rather than
-  per byte — `crates/nvs-stdlib/src/csv.rs`'s first `# Known gaps` item, owner M12.
+- `Core\Db\Column::name`, `::nullable` and `::type` (items 10 to 12) owe every proof, and read a
+  column off a result set, so they follow the connection pattern the group above settles.
+- Two benches declare a count they no longer meet and so record nothing:
+  `benches/members/lang/types/void-never-self-static.nvs` declares `allocations 2` and does 1. A
+  `--record-perf --force` run names both; `benches/members/README.md` § *What a bench declares* is
+  the owner.
+- `docs/examples/README.md` § *What an example is* says an example needing a database is the wrong
+  example. Once the group above lands, that line owes the `Core\Db` carve-out in one sentence.
