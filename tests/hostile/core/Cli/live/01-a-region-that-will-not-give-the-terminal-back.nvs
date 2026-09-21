@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program keeps a live region open after its call has ended. It paints
+// over a region it no longer owns, and fills one with a million rows. Every step
+// must end at once. The last one must stop at the memory limit instead of taking
+// the whole machine.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The body throws. The region must close on the way out, and the error must
+//    reach the program that made the call.
+try {
+    Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+        $screen->set([Core\Cli\Text::plain('half a line')]);
+        throw new LogicError('the body gave up');
+    });
+    echo "step 1 came back\n";
+} catch (LogicError $gaveUp) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. The handle is carried out of the call that made it. Its region has closed,
+//    so painting with it must stop with an error.
+Core\Cli\Live $escaped = Core\Cli::live(fn(Core\Cli\Live $screen): Core\Cli\Live => $screen);
+try {
+    $escaped->set([Core\Cli\Text::plain('painting a closed region')]);
+    echo "step 2 painted\n";
+} catch (LogicError $closed) {
+    echo "step 2 stopped at once\n";
+}
+
+// 3. The outer handle paints while an inner region is open. Two regions on one
+//    cursor would interleave their rows, so this must stop with an error.
+bool $refused = Core\Cli::live(fn(Core\Cli\Live $outer): bool => {
+    return Core\Cli::live(fn(Core\Cli\Live $inner): bool => {
+        try {
+            $outer->set([Core\Cli\Text::plain('the outer region')]);
+            return false;
+        } catch (LogicError $innerIsOpen) {
+            return true;
+        }
+    });
+});
+echo 'step 3 stopped at once: ', $refused ? 'yes' : 'no', "\n";
+
+// 4. A row of a million characters, and a row of control characters. Neither may
+//    reach the terminal as a command.
+Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    $screen->set([
+        Core\Cli\Text::plain(Core\Str::repeat('w', 1000000)),
+        Core\Cli\Text::plain("\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}"),
+    ]);
+    return 0;
+});
+echo "step 4 painted\n";
+
+// 5. One hundred thousand regions in a row, so that anything a region kept
+//    behind would grow.
+uint $i = 0;
+uint $total = 0;
+while ($i < 100000) {
+    $total = $total + Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+        $screen->set([Core\Cli\Text::plain('one more')]);
+        return 1;
+    });
+    $i = $i + 1;
+}
+echo 'step 5 opened ', $total, " regions\n";
+
+// 6. A region of one million rows. This is more memory than the program is
+//    allowed, so it must stop at the limit. This step ends the program.
+Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    array<Core\Cli\Text> $many = [];
+    uint $at = 0;
+    while ($at < 1000000) {
+        $many[] = Core\Cli\Text::plain('row');
+        $at = $at + 1;
+    }
+    $screen->set($many);
+    return $at;
+});
+echo "step 6 painted a million rows\n";

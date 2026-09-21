@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to keep one line on the screen up to date. In a terminal you see a
+// single line that counts up. This example does not run in a terminal, so the
+// region draws nothing and only the report at the end is printed.
+
+uint $checked = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    uint $at = 0;
+    while ($at < 3) {
+        $at = $at + 1;
+        // `set` replaces what the region shows. It does not add a line.
+        $screen->set([Core\Cli\Text::plain(Core\Str::format("checking file %d of 3", $at))]);
+    }
+    return $at;
+});
+
+// The region is closed by now, so this is written under it. This prints 3.
+echo "checked ", $checked, " files\n";

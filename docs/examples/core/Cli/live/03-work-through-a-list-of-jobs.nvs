@@ -1,0 +1,24 @@
+<?nvs
+// Shows the everyday use: a script works through a list of jobs and keeps the
+// screen showing where it is. The region closes when `Core\Cli::live` returns, so
+// the report is written under it and stays on the screen.
+
+array<string> $failed = Core\Cli::live(fn(Core\Cli\Live $screen): array<string> => {
+    array<string> $jobs = ["orders", "invoices", "reports"];
+    array<string> $bad = [];
+    uint $at = 0;
+    foreach ($jobs as string $job) {
+        $at = $at + 1;
+        $screen->set([
+            Core\Cli\Text::plain(Core\Str::format("job %d of 3: %s", $at, $job)),
+        ]);
+        if ($job == "invoices") {
+            $bad[] = $job;
+        }
+    }
+    return $bad;
+});
+
+// This prints 2 and then "invoices".
+echo "finished ", 3 - Core\Arr::count($failed), " of 3 jobs\n";
+echo "failed: ", Core\Str::join($failed, ", "), "\n";
