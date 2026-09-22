@@ -1,0 +1,47 @@
+<?nvs
+// Shows the work a program really does here: a nightly pass over an invoice
+// table that is larger than memory, which writes a reminder for the overdue
+// ones. Reading and writing are one transaction.
+use Core\Db\Derive;
+
+#[Derive]
+class Invoice {
+    public uint $id;
+    public tainted string $customer;
+    public int $daysLate;
+
+    public function constructor(uint $id, tainted string $customer, int $daysLate)
+    {
+        $this->id = $id;
+        $this->customer = $customer;
+        $this->daysLate = $daysLate;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table invoices (id integer primary key, customer text not null, daysLate int not null, paid int not null)', []);
+$db->execute('create table reminders (id integer primary key, invoice int not null, customer text not null)', []);
+$db->execute('insert into invoices (customer, daysLate, paid) values (?, ?, 0), (?, ?, 0), (?, ?, 0), (?, ?, 1)', ['Ana', 12, 'Bo', 0, 'Cy', 40, 'Dee', 90]);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    // A second statement while rows remain is a `LogicError`, so this loop only
+    // reads. It keeps the objects it needs and nothing else.
+    array<Invoice> $late = [];
+    foreach ($tx->streamAs<Invoice>('select id, customer, daysLate from invoices where paid = 0 order by id', []) as Invoice $invoice) {
+        if ($invoice->daysLate > 7) {
+            $late[] = $invoice;
+        }
+    }
+
+    // The walk read its last row, so the connection is free again. Both writes
+    // run on the same transaction and are saved together.
+    foreach ($late as Invoice $invoice) {
+        $tx->execute('insert into reminders (invoice, customer) values (?, ?)', [$invoice->id, $invoice->customer]);
+        echo 'reminding ', $invoice->customer, ' after ', $invoice->daysLate, " days\n";
+    }
+});
+
+// This prints `2 reminders`.
+echo $db->query('select id from reminders', [])->count(), " reminders\n";
+
+$db->close();

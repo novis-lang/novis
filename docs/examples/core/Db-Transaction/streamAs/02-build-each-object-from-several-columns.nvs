@@ -1,0 +1,42 @@
+<?nvs
+// Shows a class that fills itself from a row. Write a `fromRow` method, and
+// `streamAs` calls it once for each row it reads.
+
+class Line {
+    public string $what;
+    public int $cents;
+
+    public function constructor(string $what, int $cents)
+    {
+        $this->what = $what;
+        $this->cents = $cents;
+    }
+
+    // `fromRow` gets one row and returns the object. This one joins two
+    // columns into the text, which a property named after a column cannot do.
+    public static function fromRow(Core\Db\Row $row): static
+    {
+        string $item = $row->string('item') ?? 'unknown';
+        int $count = $row->int('count') ?? 0;
+        int $cents = $row->int('cents') ?? 0;
+        return new static($count . ' x ' . $item, $count * $cents);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table lines (id integer primary key, item text not null, count int not null, cents int not null)', []);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $tx->execute('insert into lines (item, count, cents) values (?, ?, ?), (?, ?, ?)', ['Coffee', 2, 450, 'Tea', 3, 220]);
+
+    // One `Line` is built per row, with the text and the sum the method made.
+    // This prints `2 x Coffee: 900` and `3 x Tea: 660`, then the total.
+    int $total = 0;
+    foreach ($tx->streamAs<Line>('select item, count, cents from lines order by id', []) as Line $line) {
+        echo $line->what, ': ', $line->cents, "\n";
+        $total = $total + $line->cents;
+    }
+    echo 'total: ', $total, "\n";
+});
+
+$db->close();

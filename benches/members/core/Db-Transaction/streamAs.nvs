@@ -1,0 +1,44 @@
+<?nvs
+// Measures one `select` inside a transaction that builds one object per row.
+// A report does this when it reads a table before it writes a summary.
+// bench: iterations 10000
+use Core\Db\Derive;
+
+#[Derive]
+class Note {
+    public uint $id;
+    public int $n;
+
+    public function constructor(uint $id, int $n)
+    {
+        $this->id = $id;
+        $this->n = $n;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        while ($written < 10) {
+            $db->execute('insert into notes (n) values (?)', [$written as int]);
+            $written = $written + 1;
+        }
+        return $db->transaction(fn (Core\Db\Transaction $tx): int => {
+            int $total = 0;
+            uint $i = 0;
+            while ($i < $rounds) {
+                // The objects built so far choose the value bound below, and each
+                // one adds its own number. The loop cannot be left out.
+                foreach ($tx->streamAs<Note>('select id, n from notes where n >= ? order by n', [$total % 10]) as Note $note) {
+                    $total = $total + $note->n;
+                }
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(10000), "\n";

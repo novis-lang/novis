@@ -1,0 +1,120 @@
+--TEST--
+`streamAs` on a `Core\Db\Transaction` builds one object per row as the walk reaches it, from whichever of the two hydration routes the written class declares, and holds the connection exactly as `stream` does — so a statement while rows remain is a `LogicError`, and a class that throws while it is being built stops the walk and gives the transaction up — `rule:classes/no-traits`, `rule:core-classes/db-streaming` and `rule:core-classes/derive-attribute`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::streamAs
+use Core\Db;
+use Core\Db\Derive;
+use Core\Db\Row;
+use Core\Db\Transaction;
+
+// `rule:core-classes/derive-attribute`'s two routes over one statement. `#[Derive]` takes the
+// column of each property's own name; `fromRow` reads the row itself, which is
+// the only route that can put two columns into one property.
+#[Derive]
+class Note {
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+class Label {
+    public string $shown;
+
+    public function constructor(string $shown)
+    {
+        $this->shown = $shown;
+    }
+
+    public static function fromRow(Row $row): static
+    {
+        return new static(($row->int('id') ?? 0) . '/' . ($row->string('text') ?? ''));
+    }
+}
+
+// A class that throws rather than returning an object, so the failure is the
+// hydration's own and not the statement's.
+class Angry {
+    public function constructor()
+    {
+    }
+
+    public static function fromRow(Row $row): static
+    {
+        throw new LogicError('this class refuses to be built');
+    }
+}
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, text text not null)", []);
+$db->execute("insert into t (text) values (?), (?)", ["ada", "grace"]);
+
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (text) values (?)", ["katherine"]);
+
+    // Both routes are asked the same statement over the transaction's own
+    // uncommitted rows, and the counts are printed rather than the objects,
+    // because a route reading through a second connection would see the
+    // committed two and still print a plausible line.
+    uint $derived = 0;
+    uint $held = 0;
+    foreach ($tx->streamAs<Note>("select id, text from t order by id", []) as Note $note) {
+        $derived = $derived + 1;
+        // § 4's connection-busy rule, which the written class does not change: a
+        // second statement through the same transaction is refused rather than
+        // queued behind the rows.
+        try {
+            $tx->queryAs<Note>("select id, text from t", []);
+        } catch (LogicError $busy) {
+            $held = $held + 1;
+        }
+    }
+    echo "derived ", $derived, " refused ", $held, "\n";
+
+    array<string> $shown = [];
+    foreach ($tx->streamAs<Label>("select id, text from t order by id", []) as Label $label) {
+        $shown[] = $label->shown;
+    }
+    echo "written ", Core\Str::join($shown, " "), "\n";
+
+    // The last object freed the connection, so the transaction runs a statement
+    // again.
+    echo "after the walk ", $tx->query("select id from t", [])->count(), "\n";
+});
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+
+// § 7: the hydration runs inside the walk, so a class that throws ends the walk
+// with its own error and the transaction gives up. The walk is never finished,
+// so it still holds the connection — which is why this is the last statement in
+// the file.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        foreach ($tx->streamAs<Angry>("select id, text from t order by id", []) as Angry $angry) {
+            echo "an object was built\n";
+        }
+        echo "the walk finished\n";
+    });
+    echo "the transaction ended\n";
+} catch (LogicError $angry) {
+    echo "the walk was stopped\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+derived 3 refused 3
+written 1/ada 2/grace 3/katherine
+after the walk 3
+kept 3
+the walk was stopped
