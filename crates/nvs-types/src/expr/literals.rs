@@ -206,6 +206,21 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 /// the two meet, and [`negated_literal_result`] puts the sign back on. Without
 /// the pair, `-1` would be a type nothing but an `as` could ever produce,
 /// while `1` was satisfied by writing it.
+///
+/// A `decimal` target passes straight through for the same reason one step
+/// further out. `rule:types/numeric-literal-placement` places the digit run,
+/// and the sign is a node above it, so without this arm `-19.99` at a
+/// `decimal` reached [`check_float_literal`] with no expectation at all and
+/// came out `float` — leaving a negative `decimal` constant writable only as
+/// `-19.99 as decimal` while the positive one needed nothing. `uint` and the
+/// literal types are deliberately not here: a negated value that the target
+/// cannot hold is the refusal those targets exist for.
+///
+/// It is [`wants_decimal`]'s exact test and not [`placed_literal`]'s walk over
+/// a union, so `-e` is placed exactly where `e` is. A union carrying both a
+/// `decimal` and a `float` arm already takes the `float` one for a fractional
+/// literal, and reaching past that here would have made `Core\Math::abs(-0.0)`
+/// a `decimal` while `abs(0.0)` stayed a `float`.
 pub(crate) fn negated_literal_expectation(
     op: UnaryOp,
     expected: Option<TypeId>,
@@ -213,6 +228,9 @@ pub(crate) fn negated_literal_expectation(
 ) -> Option<TypeId> {
     if op != UnaryOp::Neg {
         return None;
+    }
+    if expected.is_some_and(|id| matches!(interner.get(id), Ty::Decimal)) {
+        return expected;
     }
     let placed = placed_literal(
         expected,

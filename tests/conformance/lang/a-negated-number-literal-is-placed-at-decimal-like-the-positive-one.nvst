@@ -1,0 +1,37 @@
+--TEST--
+`rule:types/numeric-literal-placement`: a `decimal` target places a negated number literal the way it places the bare one, and `-e` is placed exactly where `e` is and no further
+--FILE--
+<?nvs
+// The sign is a node above the digit run, so without the placement passing
+// through it a negative `decimal` constant was writable only as
+// `-19.99 as decimal` while the positive one needed nothing.
+decimal $owed = -19.99;
+decimal $paid = 19.99;
+echo $owed, " ", $owed + $paid, "\n";
+
+// An integer literal at a `decimal` carries the sign the same way, and keeps
+// the scale the digits were written with.
+decimal $five = -5;
+decimal $cent = -0.01;
+echo $five, " ", $cent, "\n";
+
+// Not the declaration alone: an array literal's element type places its
+// entries, and so does `as`.
+array<decimal> $ledger = [2, -1, -0.50];
+foreach ($ledger as decimal $entry) {
+    echo $entry, " ";
+}
+echo "\n";
+echo -0.25 as decimal, "\n";
+
+// The placement reaches no further than the bare literal's. A `uint` has no
+// negative value, so `-1` there is still `int` meeting `uint`; and a union
+// carrying a `float` arm beside a `decimal` one takes `float` for a fractional
+// literal, with the sign and without it.
+echo Core\Math::abs(-0.0), " ", Core\Math::abs(0.0), " ", 3 as uint, "\n";
+--EXPECT--
+-19.99 0.00
+-5 -0.01
+2 -1 -0.50
+-0.25
+0 0 3
