@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program feeds one stream a very large number of pieces, and feeds a finished stream.
+// The late piece should throw an error. The program must stop at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. One text of 1 MB is fed 200 times. That is 200 MB of data under a 64 MB limit.
+// The stream keeps the one text only once, so the digest is computed.
+string $mb = Core\Str::repeat('x', 1000000);
+Core\Hash\Stream $same = Core\Hash::stream(Core\Digest::Sha256);
+uint $i = 0;
+while ($i < 200) {
+    $same->update($mb);
+    $i = $i + 1;
+}
+echo 'same text: ', Core\Bytes::length($same->finish()), " bytes\n";
+
+// 2. One million empty pieces. They add nothing, and the digest is the digest of no data.
+Core\Hash\Stream $empty = Core\Hash::stream(Core\Digest::Sha256);
+$i = 0;
+while ($i < 1000000) {
+    $empty->update('');
+    $i = $i + 1;
+}
+bytes $none = Core\Hash::of('', Core\Digest::Sha256);
+echo 'empty pieces: ', Core\Hash::equals($empty->finish(), $none) ? 'same' : 'different', "\n";
+
+// 3. A piece fed after `finish`. This throws a `RuntimeError`.
+try {
+    $same->update('late');
+    echo "late piece: accepted\n";
+} catch (RuntimeError $e) {
+    echo "late piece: refused\n";
+}
+
+// 4. A new piece every time, and the stream is never finished. The stream keeps every
+// piece, so this step ends the program at its memory limit.
+Core\Hash\Stream $growing = Core\Hash::stream(Core\Digest::Sha256);
+uint $n = 0;
+while (true) {
+    $growing->update(Core\Str::repeat('g', 1000) . $n);
+    $n = $n + 1;
+}

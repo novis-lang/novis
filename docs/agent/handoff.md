@@ -2,36 +2,33 @@
 
 ## State
 
-Goal `core-env-and-4-more`, 8 of its 16 features taken. `Core\Env::all`, `get` and `mode`,
-`Core\Fatal::onLimit` and `onUncaughtThrow`, and `Core\Hash::of`, `hmac` and `equals` each carry
-`about.md`, three examples with blessed `.out` files, an attack, a bench declaring its counts and a
-Rust `// covers:` test. The only proof they still owe is the perf figure. `python tools/dossier.py
---record-perf` writes it against a release build, and this goal records all of them in one commit
-at its end.
+Goal `core-env-and-4-more`, 11 of its 16 features taken. `Core\Env::all`, `get` and `mode`,
+`Core\Fatal::onLimit` and `onUncaughtThrow`, `Core\Hash::of`, `hmac`, `equals` and `stream`, and
+`Core\Hash\Stream::update` and `finish` each carry `about.md`, three examples with blessed `.out`
+files, an attack, a bench and a Rust `// covers:` test. The only proof they still owe is the perf
+figure. `python tools/dossier.py --record-perf` writes it against a release build, and this goal
+records all of them in one commit at its end.
 
-`Core\Hash::of` and `hmac` now hold a digest inline (`crates/nvs-stdlib/src/hash.rs`'s `Octets`)
-and allocate once per call; their benches declare `allocations 1`. `Core\Hash\Stream::finish`
-still builds a `Vec` of the concatenated chunks, which the module doc's § *`Hash\Stream`
-accumulates* owns.
+`Core\Hash\Stream::finish` now feeds each retained chunk to the running hasher where it lies
+(`crates/nvs-stdlib/src/hash.rs`'s `Running`), so a stream fed one buffer many times is held once;
+`tests/conformance/core/hash-stream-finish-holds-no-copy-of-what-it-was-fed.nvst` pins it.
 
 Goal `limit-handler-reach`'s stage 3 still owns the `cpu_time` narrowed by `Core\Config::set`
 that is accepted and never enforced.
 
 ## Next group
 
-**`Core\Hash\Stream`'s three members** — one file set: `crates/nvs-stdlib/src/hash.rs`, plus the
-proof trees under `core/Hash/stream`, `core/Hash/Stream/update` and `core/Hash/Stream/finish`
-(`python tools/dossier.py --id` prints each path). `rule:testing/feature-proofs` owns what each
-owes. The examples should agree with `Core\Hash::of` over the same input, so the reader can check
-them. `update` after `finish` throws, and the attack should try it. The attack should also feed
-many chunks, because the stream keeps every chunk until `finish`.
+**`Core\Heap`'s five members** — one file set: `crates/nvs-stdlib/src/heap.rs`, plus the proof
+trees under `core/Heap/<member>` (`python tools/dossier.py --id` prints each path).
+`rule:testing/feature-proofs` owns what each owes. `push`, `pop` and `peek` share one set of
+examples well; `count` and `isEmpty` are small enough to take in the same session.
 
-- [ ] **`Core\Hash::stream`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:337`
-- [ ] **`Core\Hash\Stream::update`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:451`
-- [ ] **`Core\Hash\Stream::finish`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:460`
+- [ ] **`Core\Heap::push`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:109`
+- [ ] **`Core\Heap::pop`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:127`
+- [ ] **`Core\Heap::peek`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:118`
+- [ ] **`Core\Heap::count`** and **`isEmpty`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:136`
 
 ## Backlog
-- After `Hash\Stream`: `Core\Heap`'s five members, `crates/nvs-stdlib/src/heap.rs`. That is the goal's last group.
-- At the goal's end: `python tools/dossier.py --record-perf` for all 16 features, in one commit.
-- `python tools/dossier.py --bless` took over two minutes on nine files, most likely a release build.
-  Start it in the background.
+
+- The perf figure for every feature this goal took — `python tools/dossier.py --record-perf`, once, at the goal's end.
+- `Core\Hash\Stream` still holds every chunk until `finish` — `crates/nvs-stdlib/src/hash.rs`'s module doc § *`Hash\Stream` accumulates*.

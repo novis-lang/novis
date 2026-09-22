@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `update` takes both a `string` and `bytes`, and that an empty piece changes nothing.
+
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+$stream->update("price:");
+// A `string` is read as its UTF-8 bytes, so text and `bytes` can be mixed.
+$stream->update("20" as bytes);
+// An empty piece adds nothing to the digest.
+$stream->update("");
+$stream->update(" EUR");
+
+// The digest is the same as the digest of "price:20 EUR". This prints `true`.
+bytes $whole = Core\Hash::of("price:20 EUR", Core\Digest::Sha256);
+echo Core\Hash::equals($stream->finish(), $whole) ? "true" : "false", "\n";

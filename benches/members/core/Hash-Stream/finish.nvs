@@ -1,0 +1,22 @@
+<?nvs
+// Measures finishing a SHA-256 stream fed one short piece, as a program does at the end of each upload.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $pieces = ["user:1042", "cart:77", "page:/shop/shoes"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+            // The piece fed in each round is chosen by the round before it, so no round can be left out.
+            $stream->update($pieces[($total % 3) as int]);
+            $total = $total + Core\Bytes::at($stream->finish(), 0) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

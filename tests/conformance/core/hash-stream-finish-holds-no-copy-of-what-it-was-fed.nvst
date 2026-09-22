@@ -1,0 +1,17 @@
+--TEST--
+A stream fed one buffer forty times finishes under a memory limit smaller than the forty copies, because `finish` digests each chunk where it lies — `Core\Hash\Stream`'s module doc
+--FILE--
+<?nvs
+// covers: Core\Hash\Stream::finish
+// 40 MB are fed, and the request may hold 16 MB. The one buffer is held once.
+Core\Config::set('memory', '16M');
+string $mb = Core\Str::repeat('x', 1000000);
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+uint $i = 0;
+while ($i < 40) {
+    $stream->update($mb);
+    $i = $i + 1;
+}
+echo Core\Encoding::toHex($stream->finish()), "\n";
+--EXPECT--
+dd1546574cfd04fdf6cf1101e4e4fdbd0cc27b68052769c31c6c6ee8e672c79f

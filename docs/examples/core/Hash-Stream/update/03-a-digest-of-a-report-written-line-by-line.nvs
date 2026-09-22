@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to compute a checksum of a report while you write it, one line at a time.
+
+class Report {
+    // Prints each order as one line, and returns the SHA-256 digest of all lines as hex digits.
+    public static function write(array<string> $orders): string {
+        Core\Hash\Stream $checksum = Core\Hash::stream(Core\Digest::Sha256);
+        foreach ($orders as string $order) {
+            string $line = "order " . $order . "\n";
+            echo $line;
+            // Each line goes into the checksum right after it is printed.
+            $checksum->update($line);
+        }
+        return Core\Encoding::toHex($checksum->finish());
+    }
+}
+
+array<string> $orders = ["1042", "1043", "1044"];
+string $checksum = Report::write($orders);
+// The receiver computes the same checksum and knows that no line is missing.
+echo "checksum: ", $checksum, "\n";

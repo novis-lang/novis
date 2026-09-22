@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program finishes a stream twice, and finishes streams with many pieces in them.
+// The second `finish` should throw an error. Every digest should be correct.
+
+// 1. A second `finish` on the same stream. This throws a `RuntimeError`.
+Core\Hash\Stream $once = Core\Hash::stream(Core\Digest::Sha3_512);
+$once->update('abc');
+bytes $first = $once->finish();
+try {
+    $once->finish();
+    echo "second finish: accepted\n";
+} catch (RuntimeError $e) {
+    echo "second finish: refused\n";
+}
+echo 'first digest: ', Core\Hash::equals($first, Core\Hash::of('abc', Core\Digest::Sha3_512)) ? 'kept' : 'changed', "\n";
+
+// 2. A stream with one hundred thousand one-letter pieces gives the same digest as the whole text.
+Core\Hash\Stream $letters = Core\Hash::stream(Core\Digest::Blake3);
+uint $i = 0;
+while ($i < 100000) {
+    $letters->update('a');
+    $i = $i + 1;
+}
+bytes $whole = Core\Hash::of(Core\Str::repeat('a', 100000), Core\Digest::Blake3);
+echo 'letters: ', Core\Hash::equals($letters->finish(), $whole) ? 'same' : 'different', "\n";
+
+// 3. Ten thousand streams, each fed and finished. Every stream frees its pieces at `finish`,
+// so memory use must stay flat.
+string $piece = Core\Str::repeat('f', 10000);
+bytes $chain = Core\Hash::of('start', Core\Digest::Sha256);
+$i = 0;
+while ($i < 10000) {
+    Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+    $stream->update($chain);
+    $stream->update($piece);
+    $chain = $stream->finish();
+    $i = $i + 1;
+}
+echo 'chain: ', Core\Bytes::length($chain), " bytes\n";

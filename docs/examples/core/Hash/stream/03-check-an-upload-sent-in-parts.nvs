@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to check a file that a client uploads in several parts.
+
+class Upload {
+    // Returns `true` when the parts, joined in order, have the SHA-256 digest `$sentHex`.
+    public static function isComplete(array<string> $parts, string $sentHex): bool {
+        Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+        foreach ($parts as string $part) {
+            $stream->update($part);
+        }
+        return Core\Hash::equals($stream->finish(), Core\Encoding::fromHex($sentHex));
+    }
+}
+
+// Before the upload, the client sends the digest of the whole file.
+string $sentHex = Core\Encoding::toHex(Core\Hash::of("name,city\nAnna,Graz\nLeo,Linz\n", Core\Digest::Sha256));
+
+// All three parts arrived. This prints `complete`.
+array<string> $parts = ["name,city\n", "Anna,Graz\n", "Leo,Linz\n"];
+echo Upload::isComplete($parts, $sentHex) ? "complete" : "damaged", "\n";
+
+// The last part is missing. This prints `damaged`.
+array<string> $partial = ["name,city\n", "Anna,Graz\n"];
+echo Upload::isComplete($partial, $sentHex) ? "complete" : "damaged", "\n";

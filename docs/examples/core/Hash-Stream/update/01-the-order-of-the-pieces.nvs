@@ -1,0 +1,23 @@
+<?nvs
+// Shows that `update` adds each piece after the pieces before it.
+
+class Pieces {
+    // Returns the SHA-256 digest of the pieces, fed in the order given, as hex digits.
+    public static function digest(array<string> $pieces): string {
+        Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+        foreach ($pieces as string $piece) {
+            $stream->update($piece);
+        }
+        return Core\Encoding::toHex($stream->finish());
+    }
+}
+
+array<string> $inOrder = ["ab", "cd"];
+array<string> $swapped = ["cd", "ab"];
+
+// "ab" and then "cd" is the text "abcd". This prints `true`.
+string $whole = Core\Encoding::toHex(Core\Hash::of("abcd", Core\Digest::Sha256));
+echo Pieces::digest($inOrder) == $whole ? "true" : "false", "\n";
+
+// The same pieces in another order are the text "cdab". This prints `false`.
+echo Pieces::digest($swapped) == $whole ? "true" : "false", "\n";

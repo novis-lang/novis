@@ -690,35 +690,133 @@ impl std::ops::Deref for Octets {
 /// Total: there is no input any of these fifteen refuses, and none of them has
 /// a size limit short of the address space.
 fn digest_of(kind: DigestKind, data: &[u8]) -> Octets {
-    match kind {
-        // Big-endian, so that `toHex` of the result reads the way PHP's
-        // `hash("crc32b", …)` prints it — see this module's own docs.
-        DigestKind::Crc32 => {
-            let mut hasher = crc32fast::Hasher::new();
-            hasher.update(data);
-            Octets::of(&hasher.finalize().to_be_bytes())
+    let mut running = Running::new(kind);
+    running.update(data);
+    running.finish()
+}
+
+/// One of [`DIGEST`]'s fifteen algorithms part-way through its input — the one
+/// table from a [`DigestKind`] to the crate that computes it.
+///
+/// [`digest_of`] feeds it once, and [`nvs_core_hash_stream_finish`] feeds it
+/// each retained chunk in turn, so a stream's `finish` holds no copy of what it
+/// was fed: the footprint of a stream is its chunks, never its chunks twice.
+/// The state lives on the Rust stack for the length of one call and nowhere
+/// else, which is why this is not the native object a `Hash\Stream` slot would
+/// need — this module's own docs say why that is out of reach.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "one lives on the stack for one call and is never stored or moved \
+              in bulk, and boxing BLAKE3's arm would cost `of` an allocation"
+)]
+enum Running {
+    /// CRC-32/ISO-HDLC.
+    Crc32(crc32fast::Hasher),
+    /// MD5.
+    Md5(md5::Md5),
+    /// SHA-1.
+    Sha1(sha1::Sha1),
+    /// SHA-256.
+    Sha256(sha2::Sha256),
+    /// SHA-384.
+    Sha384(sha2::Sha384),
+    /// SHA-512.
+    Sha512(sha2::Sha512),
+    /// SHA-224.
+    Sha224(sha2::Sha224),
+    /// SHA-512/224.
+    Sha512_224(sha2::Sha512_224),
+    /// SHA-512/256.
+    Sha512_256(sha2::Sha512_256),
+    /// SHA3-224.
+    Sha3_224(sha3::Sha3_224),
+    /// SHA3-256.
+    Sha3_256(sha3::Sha3_256),
+    /// SHA3-384.
+    Sha3_384(sha3::Sha3_384),
+    /// SHA3-512.
+    Sha3_512(sha3::Sha3_512),
+    /// CRC-32C, as the running checksum `crc32c_append` extends.
+    Crc32c(u32),
+    /// BLAKE3, whose hasher is some two kilobytes of chunk stack. Held inline,
+    /// so that `Core\Hash::of` stays at one allocation per call.
+    Blake3(blake3::Hasher),
+}
+
+impl Running {
+    /// A fresh state for `kind`, fed nothing yet.
+    fn new(kind: DigestKind) -> Self {
+        match kind {
+            DigestKind::Crc32 => Self::Crc32(crc32fast::Hasher::new()),
+            DigestKind::Md5 => Self::Md5(md5::Md5::new()),
+            DigestKind::Sha1 => Self::Sha1(sha1::Sha1::new()),
+            DigestKind::Sha256 => Self::Sha256(sha2::Sha256::new()),
+            DigestKind::Sha384 => Self::Sha384(sha2::Sha384::new()),
+            DigestKind::Sha512 => Self::Sha512(sha2::Sha512::new()),
+            DigestKind::Sha224 => Self::Sha224(sha2::Sha224::new()),
+            DigestKind::Sha512_224 => Self::Sha512_224(sha2::Sha512_224::new()),
+            DigestKind::Sha512_256 => Self::Sha512_256(sha2::Sha512_256::new()),
+            DigestKind::Sha3_224 => Self::Sha3_224(sha3::Sha3_224::new()),
+            DigestKind::Sha3_256 => Self::Sha3_256(sha3::Sha3_256::new()),
+            DigestKind::Sha3_384 => Self::Sha3_384(sha3::Sha3_384::new()),
+            DigestKind::Sha3_512 => Self::Sha3_512(sha3::Sha3_512::new()),
+            DigestKind::Crc32c => Self::Crc32c(0),
+            DigestKind::Blake3 => Self::Blake3(blake3::Hasher::new()),
         }
-        DigestKind::Md5 => Octets::of(&md5::Md5::digest(data)),
-        DigestKind::Sha1 => Octets::of(&sha1::Sha1::digest(data)),
-        DigestKind::Sha256 => Octets::of(&sha2::Sha256::digest(data)),
-        DigestKind::Sha384 => Octets::of(&sha2::Sha384::digest(data)),
-        DigestKind::Sha512 => Octets::of(&sha2::Sha512::digest(data)),
-        DigestKind::Sha224 => Octets::of(&sha2::Sha224::digest(data)),
-        DigestKind::Sha512_224 => Octets::of(&sha2::Sha512_224::digest(data)),
-        DigestKind::Sha512_256 => Octets::of(&sha2::Sha512_256::digest(data)),
-        DigestKind::Sha3_224 => Octets::of(&sha3::Sha3_224::digest(data)),
-        DigestKind::Sha3_256 => Octets::of(&sha3::Sha3_256::digest(data)),
-        DigestKind::Sha3_384 => Octets::of(&sha3::Sha3_384::digest(data)),
-        DigestKind::Sha3_512 => Octets::of(&sha3::Sha3_512::digest(data)),
-        // Big-endian for `Crc32`'s reason, and the same four octets wide, so
-        // the two checksums differ in polynomial and in nothing else a program
-        // can see.
-        DigestKind::Crc32c => Octets::of(&crc32c::crc32c(data).to_be_bytes()),
-        // Not through `digest 0.10`: BLAKE3 implements those traits only under
-        // its `traits-preview` feature, and the free function is the whole API
-        // this needs. Its extendable output is taken at the default 32 octets,
-        // which is what every other implementation calls "the" BLAKE3 hash.
-        DigestKind::Blake3 => Octets::of(blake3::hash(data).as_bytes()),
+    }
+
+    /// Feeds `data` after everything fed before it.
+    fn update(&mut self, data: &[u8]) {
+        match self {
+            Self::Crc32(hasher) => hasher.update(data),
+            Self::Md5(hasher) => hasher.update(data),
+            Self::Sha1(hasher) => hasher.update(data),
+            Self::Sha256(hasher) => hasher.update(data),
+            Self::Sha384(hasher) => hasher.update(data),
+            Self::Sha512(hasher) => hasher.update(data),
+            Self::Sha224(hasher) => hasher.update(data),
+            Self::Sha512_224(hasher) => hasher.update(data),
+            Self::Sha512_256(hasher) => hasher.update(data),
+            Self::Sha3_224(hasher) => hasher.update(data),
+            Self::Sha3_256(hasher) => hasher.update(data),
+            Self::Sha3_384(hasher) => hasher.update(data),
+            Self::Sha3_512(hasher) => hasher.update(data),
+            Self::Crc32c(crc) => *crc = crc32c::crc32c_append(*crc, data),
+            Self::Blake3(hasher) => {
+                hasher.update(data);
+            }
+        }
+    }
+
+    /// The digest of everything fed, as its own octets.
+    fn finish(self) -> Octets {
+        match self {
+            // Big-endian, so that `toHex` of the result reads the way PHP's
+            // `hash("crc32b", …)` prints it — see this module's own docs.
+            Self::Crc32(hasher) => Octets::of(&hasher.finalize().to_be_bytes()),
+            Self::Md5(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha1(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha256(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha384(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha512(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha224(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha512_224(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha512_256(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha3_224(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha3_256(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha3_384(hasher) => Octets::of(&hasher.finalize()),
+            Self::Sha3_512(hasher) => Octets::of(&hasher.finalize()),
+            // Big-endian for `Crc32`'s reason, and the same four octets wide,
+            // so the two checksums differ in polynomial and in nothing else a
+            // program can see.
+            Self::Crc32c(crc) => Octets::of(&crc.to_be_bytes()),
+            // Not through `digest 0.10`: BLAKE3 implements those traits only
+            // under its `traits-preview` feature, and its own hasher is the
+            // whole API this needs. Its extendable output is taken at the
+            // default 32 octets, which is what every other implementation calls
+            // "the" BLAKE3 hash.
+            Self::Blake3(hasher) => Octets::of(hasher.finalize().as_bytes()),
+        }
     }
 }
 
@@ -987,7 +1085,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_hash_stream_finish(_ctx, args: [1]) {
         let (receiver, kind) = open_stream(args[0], "finish")?;
 
-        let mut data: Vec<u8> = Vec::new();
+        // Each chunk is fed where it lies, so `finish` copies nothing and the
+        // same buffer handed to `update` many times is still held once.
+        let mut running = Running::new(kind);
         {
             let chunks = crate::identity_store::borrow(receiver, CHUNKS_SLOT, &STREAM, "finish")?;
             let mut from = 0_usize;
@@ -1010,12 +1110,12 @@ nvs_runtime::nvs_helper! {
                             held.tag_byte()
                         ))
                     })?;
-                data.extend_from_slice(octets);
+                running.update(octets);
                 from = slot + 1;
             }
         }
 
-        let out = digest_of(kind, &data);
+        let out = running.finish();
         crate::instance::set_slot(receiver, OPEN_SLOT, Value::bool(false));
         crate::identity_store::replace(receiver, CHUNKS_SLOT);
         Ok(Value::bytes(NvsStr::new(&out)))
@@ -1257,5 +1357,141 @@ mod tests {
             }
         }
         assert_eq!(agreed, table.len());
+    }
+
+    /// Gives back the one reference this test built for each of `values`.
+    fn released(values: impl IntoIterator<Item = Value>) {
+        for value in values {
+            #[expect(
+                unsafe_code,
+                reason = "every caller built the value itself and hands over its \
+                          only reference; the members it was passed to borrowed it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// A stream opened under `ordinal` — the integer a `Core\Digest` case
+    /// arrives as.
+    fn opened(ctx: &mut nvs_runtime::Ctx, ordinal: i64) -> Value {
+        nvs_runtime::call(nvs_core_hash_stream, ctx, &[Value::int(ordinal)])
+            .expect("every `Core\\Digest` case opens a stream")
+    }
+
+    /// The digest `finish` answers for `stream`, as octets.
+    fn finished(ctx: &mut nvs_runtime::Ctx, stream: Value) -> Vec<u8> {
+        let digest = nvs_runtime::call(nvs_core_hash_stream_finish, ctx, &[stream])
+            .expect("an open stream finishes");
+        let octets = digest
+            .as_bytes()
+            .expect("`finish` answers `bytes`")
+            .to_vec();
+        released([digest]);
+        octets
+    }
+
+    /// Every one of the fifteen cases opens a stream, and one fed nothing
+    /// finishes as that algorithm's digest of the empty input — so the stream
+    /// and `of` share one algorithm table, and none of them needs a first chunk.
+    // covers: Core\Hash::stream
+    #[test]
+    fn every_digest_opens_a_stream_that_finishes_as_the_empty_digest() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut opened_count = 0_usize;
+        for ordinal in 0..=14 {
+            let kind = kind_of(Some(ordinal)).expect("0..=14 are the fifteen cases");
+            let stream = opened(&mut ctx, ordinal);
+            assert_eq!(
+                finished(&mut ctx, stream),
+                &*digest_of(kind, b""),
+                "{kind:?}"
+            );
+            released([stream]);
+            opened_count += 1;
+        }
+        assert_eq!(opened_count, 15);
+        assert!(
+            nvs_runtime::call(nvs_core_hash_stream, &mut ctx, &[Value::int(15)]).is_err(),
+            "an ordinal that is no case is refused when the stream opens"
+        );
+    }
+
+    /// However the input is cut — one chunk, one octet at a time, empty chunks
+    /// between, the same buffer twice — the stream answers what `of` answers
+    /// over the whole, under every algorithm.
+    // covers: Core\Hash\Stream::update
+    #[test]
+    fn updates_agree_with_one_digest_over_the_concatenation() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let text: &[u8] = b"The quick brown fox jumps over the lazy dog";
+        let cuts: [&[&[u8]]; 4] = [
+            &[text],
+            &[&text[..4], b"", &text[4..20], b"", &text[20..]],
+            &[&text[..1], &text[1..2], &text[2..3], &text[3..]],
+            &[&text[..0], text],
+        ];
+        for ordinal in 0..=14 {
+            let kind = kind_of(Some(ordinal)).expect("0..=14 are the fifteen cases");
+            for chunks in cuts {
+                let stream = opened(&mut ctx, ordinal);
+                for chunk in chunks {
+                    let data = Value::bytes(NvsStr::new(chunk));
+                    nvs_runtime::call(nvs_core_hash_stream_update, &mut ctx, &[stream, data])
+                        .expect("an open stream takes any `bytes`");
+                    released([data]);
+                }
+                assert_eq!(
+                    finished(&mut ctx, stream),
+                    &*digest_of(kind, text),
+                    "{kind:?}"
+                );
+                released([stream]);
+            }
+
+            // One buffer fed twice is the text twice, held once.
+            let stream = opened(&mut ctx, ordinal);
+            let data = Value::bytes(NvsStr::new(text));
+            for _ in 0..2 {
+                nvs_runtime::call(nvs_core_hash_stream_update, &mut ctx, &[stream, data])
+                    .expect("an open stream takes any `bytes`");
+            }
+            released([data]);
+            let twice = [text, text].concat();
+            assert_eq!(
+                finished(&mut ctx, stream),
+                &*digest_of(kind, &twice),
+                "{kind:?}"
+            );
+            released([stream]);
+        }
+    }
+
+    /// `finish` closes the stream: a second `finish` and a later `update` both
+    /// throw, and neither changes the digest the first `finish` answered.
+    // covers: Core\Hash\Stream::finish
+    #[test]
+    fn finish_closes_the_stream_and_what_follows_it_throws() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let stream = opened(&mut ctx, 3);
+        let data = Value::bytes(NvsStr::new(b"abc"));
+        nvs_runtime::call(nvs_core_hash_stream_update, &mut ctx, &[stream, data])
+            .expect("an open stream takes any `bytes`");
+        assert_eq!(
+            finished(&mut ctx, stream),
+            &*digest_of(DigestKind::Sha256, b"abc")
+        );
+
+        assert!(nvs_runtime::call(nvs_core_hash_stream_finish, &mut ctx, &[stream]).is_err());
+        let again = ctx.take_pending().expect("a second `finish` throws");
+        assert!(again.contains("this stream is finished"), "{again}");
+
+        assert!(nvs_runtime::call(nvs_core_hash_stream_update, &mut ctx, &[stream, data]).is_err());
+        let late = ctx
+            .take_pending()
+            .expect("an `update` after `finish` throws");
+        assert!(late.contains("this stream is finished"), "{late}");
+        released([data, stream]);
     }
 }

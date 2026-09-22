@@ -1,0 +1,20 @@
+<?nvs
+// Measures feeding a short line to an open stream, as a program does when it hashes a report line by line.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["order 1042\n", "order 1043\n", "shipped to Graz\n"];
+        Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+        uint $i = 0;
+        while ($i < $rounds) {
+            $stream->update($lines[($i % 3) as int]);
+            $i = $i + 1;
+        }
+        // The digest depends on every line fed, so no round can be left out.
+        return Core\Bytes::at($stream->finish(), 0) + $i;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `finish` returns: the digest as `bytes`.
+
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha512);
+$stream->update("hello");
+bytes $digest = $stream->finish();
+
+// A SHA-512 digest has 64 bytes. This prints 64.
+echo Core\Bytes::length($digest), "\n";
+// `Core\Encoding::toHex` turns the bytes into text you can print or store.
+echo Core\Encoding::toHex($digest), "\n";
