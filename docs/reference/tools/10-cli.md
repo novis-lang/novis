@@ -42,9 +42,9 @@ this binary.
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
 
-**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt` and `nvs doc` are in
-the binary and answer `--help`, but their sections here are unwritten. `nvs --help` lists every
-subcommand this build carries.
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt`, `nvs doc` and
+`nvs stubs` are in the binary and answer `--help`, but their sections here are unwritten.
+`nvs --help` lists every subcommand this build carries.
 
 # Files, extensions and tags
 

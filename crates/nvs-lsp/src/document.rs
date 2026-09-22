@@ -59,6 +59,8 @@ use nvs_hir::{AutoloadMap, Loaded, Module, resolve_program, resolve_program_borr
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
+use crate::stubs::Stubs;
+
 /// One open buffer: what the editor holds, which is not what is on disk.
 #[derive(Debug, Clone)]
 pub struct Document {
@@ -113,6 +115,10 @@ pub struct Documents {
     /// a deterministic choice. One resolved map per such program, held for the
     /// session.
     lenders: Vec<Lender>,
+    /// Where the `Core` stub tree is written, for a jump to a name no source
+    /// file declares (`crate::stubs`); `None` is a server nobody told and no
+    /// cache directory to fall back to, whose `Core` jumps open nothing.
+    stubs: Option<Stubs>,
 }
 
 /// One program that declares `autoload`, as the files it autoloads or requires
@@ -205,6 +211,18 @@ impl Documents {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Names the stub tree every analysis out of this store answers `Core`
+    /// jumps from.
+    pub fn set_stubs(&mut self, stubs: Option<Stubs>) {
+        self.stubs = stubs;
+    }
+
+    /// The stub tree, if one was named.
+    #[must_use]
+    pub fn stubs(&self) -> Option<&Stubs> {
+        self.stubs.as_ref()
     }
 
     /// `textDocument/didOpen`.
@@ -509,6 +527,8 @@ pub struct Analysed {
     /// `phase=all` is one that wants exactly what the gate would have held
     /// back.
     pub diags: Diagnostics,
+    /// The stub tree a `Core` name is answered from, as the store named it.
+    pub stubs: Option<Stubs>,
 }
 
 impl Analysed {
@@ -694,6 +714,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         exprs,
         interner,
         diags,
+        stubs: documents.stubs.clone(),
     })
 }
 

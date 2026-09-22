@@ -52,6 +52,10 @@ use nvs_diagnostics::{BytePos, PositionEncoding};
 
 use crate::actions;
 use crate::case::{Case, MAIN_PATH, Request};
+
+/// Where a case's stub tree is written, under the case's own directory, and
+/// so how a jump into it is spelled: `stubs/Core/Str.nvs`.
+const STUBS_PATH: &str = "stubs";
 use crate::coverage::{self, Matrix};
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
@@ -62,6 +66,7 @@ use crate::links;
 use crate::render::{Link, Place, Response};
 use crate::selection;
 use crate::semantic;
+use crate::stubs::{self, Stubs};
 use crate::symbols;
 
 /// The units a case's columns are counted in — see the module doc.
@@ -372,6 +377,9 @@ impl Materialised {
 
 impl Drop for Materialised {
     fn drop(&mut self) {
+        // A case that jumped to a `Core` name wrote the stub tree here, and
+        // every file of it read-only.
+        stubs::unlock(&self.dir);
         let _ = fs::remove_dir_all(&self.dir);
     }
 }
@@ -385,6 +393,10 @@ fn store(case: &Case) -> Result<(Materialised, Documents, Uri), String> {
     let files = Materialised::write(case)
         .map_err(|error| format!("the case's files could not be written: {error}"))?;
     let mut documents = Documents::new();
+    // The case's own stub tree, under its directory, so a jump to a `Core`
+    // name is spelled `stubs/Core/Str.nvs` the way a `--FILE lib/user.nvs--`
+    // is spelled — and written only by a case that makes such a jump.
+    documents.set_stubs(Some(Stubs::at(files.dir.join(STUBS_PATH))));
     let entry = open(&mut documents, &files.dir.join(MAIN_PATH), &case.document)?;
     for aux in &case.aux {
         open(&mut documents, &files.dir.join(&aux.path), &aux.body)?;

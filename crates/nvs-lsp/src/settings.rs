@@ -80,6 +80,12 @@ pub struct Settings {
     /// guessing a root from an open file's parent would index whatever happened
     /// to be beside it.
     pub root: Option<PathBuf>,
+    /// `nvs.stubs.dir`: where the `Core` stub tree is written
+    /// (`crate::stubs`). `None` is a client that named none, which takes
+    /// [`crate::stubs::Stubs::default_dir`] — the VS Code extension names a
+    /// directory of its own storage, per server version, and a bare `nvs lsp`
+    /// names nothing.
+    pub stubs: Option<PathBuf>,
 }
 
 /// What a client does with a completion item beyond inserting its text.
@@ -170,6 +176,7 @@ impl Default for Settings {
             debounce: Duration::from_millis(150),
             client: Client::default(),
             root: None,
+            stubs: None,
         }
     }
 }
@@ -199,6 +206,10 @@ impl Settings {
                 .unwrap_or(defaults.debounce),
             client: Client::from_initialize(params),
             root: root_of(params),
+            stubs: at(options, &["stubs", "dir"])
+                .and_then(Value::as_str)
+                .filter(|dir| !dir.trim().is_empty())
+                .map(PathBuf::from),
         }
     }
 }

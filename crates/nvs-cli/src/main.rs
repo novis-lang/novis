@@ -725,6 +725,19 @@ enum Command {
         #[command(subcommand)]
         command: AgentCommand,
     },
+    /// Write one declaration file per `Core` class, enum and attribute.
+    ///
+    /// An editor opens these files when you jump to a `Core` name. Each file
+    /// has the real signatures and the reference cards, and empty bodies. The
+    /// language server writes the same files by itself; this command writes
+    /// them for any other reader.
+    // `rule:ide/the-stub-tree-is-where-core-is-declared`; the generator is
+    // `nvs_lsp::stubs`, and this is its second caller.
+    Stubs {
+        /// The directory the files are written to, created if it is absent.
+        #[arg(long, default_value = "stubs")]
+        out: PathBuf,
+    },
 }
 
 /// `nvs agent`'s own verbs — the read half of
@@ -1569,6 +1582,18 @@ fn main() -> ExitCode {
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
+        Command::Stubs { out } => match nvs_lsp::stubs::write_to(&out) {
+            Ok(written) => {
+                for path in written {
+                    println!("{}", path.display());
+                }
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                eprintln!("error: could not write {}: {err}", out.display());
+                ExitCode::FAILURE
+            }
+        },
         Command::Agent { command } => match command {
             AgentCommand::Primer => agent::primer(),
             AgentCommand::Index => agent::index(),

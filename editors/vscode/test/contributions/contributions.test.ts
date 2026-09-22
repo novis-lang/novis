@@ -92,6 +92,7 @@ const SETTINGS = [
   "nvs.secrets.redact",
   "nvs.taint.mark",
   "nvs.completion.phpNames",
+  "nvs.stubs.dir",
 ];
 
 const COMMANDS = [
@@ -379,6 +380,7 @@ describe("the frozen identifiers", () => {
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
     assert.equal(properties["nvs.completion.phpNames"].default, "all");
     assert.deepEqual(properties["nvs.completion.phpNames"].enum, ["all", "resolved", "off"]);
+    assert.equal(properties["nvs.stubs.dir"].default, "");
   });
 });
 

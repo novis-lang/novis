@@ -1,0 +1,12 @@
+--TEST--
+an import names a type, and a `Core` type is declared in its generated stub, so a cursor in `use Core\Http\Method;` opens that stub on the enum's line, `rule:ide/the-stub-tree-is-where-core-is-declared`
+--FILE--
+<?nvs
+use Core\Http\Met<|>hod;
+
+var $verb = Method::Get;
+echo $verb;
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Http/Method.nvs:8:6

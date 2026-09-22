@@ -47,6 +47,7 @@ import * as imports from "./imports";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import { Stamp, Watch, stamp } from "./shadow";
+import { stubsDirectory, withStubs } from "./stubs";
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
@@ -232,7 +233,7 @@ async function start(context: ExtensionContext): Promise<void> {
   }
   let starting: LanguageClient;
   try {
-    starting = await launch(found.command);
+    starting = await launch(context, found.command);
   } catch (failure) {
     if (copied === undefined) {
       await retire(previous);
@@ -242,7 +243,7 @@ async function start(context: ExtensionContext): Promise<void> {
     held = `its copy did not start (${reason(failure)})`;
     copied = undefined;
     try {
-      starting = await launch(binary());
+      starting = await launch(context, binary());
     } catch (again) {
       await retire(previous);
       report("not running", `${shown} lsp did not start: ${reason(again)}`, LanguageStatusSeverity.Error);
@@ -274,7 +275,7 @@ async function start(context: ExtensionContext): Promise<void> {
 
 // One client over `command`, started. It throws what `LanguageClient.start` throws, which is how a
 // binary that cannot be spawned at all is told from one that answered.
-async function launch(command: string): Promise<LanguageClient> {
+async function launch(context: ExtensionContext, command: string): Promise<LanguageClient> {
   const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
   // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
@@ -289,6 +290,11 @@ async function launch(command: string): Promise<LanguageClient> {
   // because a `WorkspaceConfiguration` is a proxy with methods on it and this crosses a JSON-RPC
   // boundary, which wants a value.
   //
+  // One key is filled in on the way: `nvs.stubs.dir`, where the server writes the `Core` stub tree
+  // a jump opens. A user who named none gets a directory of this extension's own storage, per
+  // server version, which is `stubs.ts`'s reasoning; the server takes whatever arrives and falls
+  // back to a cache directory only for a client that sent nothing at all.
+  //
   // The one middleware is an ordering and not a rewrite: nothing here changes a request, an answer
   // or a notification. `redactions.opened` asks what a document conceals, and it is called from
   // behind the `didOpen` it belongs to because the server answers nothing for a document it has not
@@ -297,7 +303,10 @@ async function launch(command: string): Promise<LanguageClient> {
   const options: LanguageClientOptions = {
     documentSelector: SELECTOR,
     outputChannel: channel,
-    initializationOptions: workspace.getConfiguration().get<object>("nvs"),
+    initializationOptions: withStubs(
+      workspace.getConfiguration().get<object>("nvs"),
+      stubsDirectory(context.globalStorageUri.fsPath, version(context)),
+    ),
     middleware: {
       didOpen: async (document, next) => {
         await next(document);

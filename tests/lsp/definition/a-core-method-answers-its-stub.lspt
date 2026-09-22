@@ -1,0 +1,10 @@
+--TEST--
+a `Core` member has no declaration in any source file, so a jump to one opens the generated stub for its class, on the line the member is declared with its real signature, `rule:ide/the-stub-tree-is-where-core-is-declared`
+--FILE--
+<?nvs
+var $count = Core\Str::len<|>gth("héllo");
+echo $count;
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Str.nvs:16:28

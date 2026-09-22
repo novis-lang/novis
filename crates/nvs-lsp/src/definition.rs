@@ -73,7 +73,7 @@
 
 use std::path::PathBuf;
 
-use lsp_types::Range;
+use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
@@ -107,14 +107,46 @@ pub struct Declared {
 #[must_use]
 pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> Option<Declared> {
     let (target, _) = named_at(analysed, offset)?;
-    let declared = site(analysed, &target)?;
-    let file = analysed.map.file(declared.span.file);
-    Some(Declared {
-        path: file.path()?.to_path_buf(),
-        range: range_at(file, declared.span, encoding),
-    })
+    declared(analysed, &target, encoding)
 }
 
+/// Where `target` is declared: the declaration the graph holds, or the stub
+/// the `Core` tree holds for a name no source file declares.
+///
+/// The stub is asked second and only for a name the walk found nothing for,
+/// so a program's own class is never answered with a stub — and a `Core`
+/// name is exactly one no symbol table holds, which is what
+/// `rule:ide/the-stub-tree-is-where-core-is-declared` makes the tree for.
+fn declared(
+    analysed: &Analysed,
+    target: &Target<'_>,
+    encoding: PositionEncoding,
+) -> Option<Declared> {
+    if let Some(declared) = site(analysed, target) {
+        let file = analysed.map.file(declared.span.file);
+        return Some(Declared {
+            path: file.path()?.to_path_buf(),
+            range: range_at(file, declared.span, encoding),
+        });
+    }
+    let (class, member) = match target {
+        Target::Type(class) => (*class, None),
+        Target::Method(call) => (&call.class, Some(call.method.as_str())),
+        Target::Constant { class, name } => (*class, Some(*name)),
+        Target::Property { .. } | Target::TypeAlias { .. } => return None,
+    };
+    let (path, line) = analysed
+        .stubs
+        .as_ref()?
+        .locate(&class.to_string(), member)?;
+    Some(Declared {
+        path,
+        range: Range::new(
+            Position::new(line.line, line.character),
+            Position::new(line.line, line.character + line.length),
+        ),
+    })
+}
 
 /// Where the **type** of the expression at `offset` is declared.
 ///
@@ -141,12 +173,7 @@ pub fn type_at(
         .nodes()
         .iter()
         .find_map(|node| instance_of(analysed, analysed.exprs.lookup(node.span)?))?;
-    let declared = site(analysed, &Target::Type(&class))?;
-    let file = analysed.map.file(declared.span.file);
-    Some(Declared {
-        path: file.path()?.to_path_buf(),
-        range: range_at(file, declared.span, encoding),
-    })
+    declared(analysed, &Target::Type(&class), encoding)
 }
 
 /// The class one recorded expression is an instance of, by name.

@@ -181,6 +181,12 @@
           ],
           "default": "all",
           "description": "Which PHP built-ins are offered beside a half-written name."
+        },
+        "nvs.stubs.dir": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "The directory the server writes the Core declaration files to. Go to Definition on a Core name opens one of them. Empty means a directory inside this extension's own storage, one per server version."
         }
       }
     },

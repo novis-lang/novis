@@ -257,14 +257,15 @@ as nothing.
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.completion.phpNames` | `"all"` | which PHP built-ins are offered beside a half-written name — `all`, `resolved` for only the ones whose `Core` member exists, or `off`. Whatever the value, an item inserts a member only where the registry holds it |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
+| `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`
 and `nvs.template.format` are the client's own and take effect on the next redraw, request or save,
-and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable` and
-`nvs.completion.phpNames` are the server's: the client hands it the whole `nvs` section once, in
+and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable`,
+`nvs.completion.phpNames` and `nvs.stubs.dir` are the server's: the client hands it the whole `nvs` section once, in
 `initialize`, so a change to one of those reaches it when it next starts — **Novis: Restart Language
 Server**. There is no `didChangeConfiguration` exchange, because two of them decide what the server
 *built* rather than how it answers the next request.

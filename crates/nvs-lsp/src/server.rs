@@ -90,6 +90,7 @@ use crate::regions;
 use crate::selection;
 use crate::semantic;
 use crate::settings::Settings;
+use crate::stubs::Stubs;
 use crate::symbols;
 
 /// What a failure on the wire is reported as.
@@ -160,6 +161,15 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // offered at all, and `debounce` is how long an edit waits before it is
     // analysed.
     let settings = Settings::from_initialize(&params);
+    // Where a jump to a `Core` name lands: the directory the client named, or
+    // this account's cache. Named now and written at the first such jump.
+    documents.set_stubs(
+        settings
+            .stubs
+            .clone()
+            .or_else(Stubs::default_dir)
+            .map(Stubs::at),
+    );
 
     // Before the index, which analyses every file under the root: a file some
     // program autoloads resolves its names through that program's map, and the
@@ -1597,8 +1607,18 @@ fn publish(
         // Rebuilt from the walk that has just run, which is what makes the
         // *next* edit to a file this document requires reach this document.
         documents.record_graph(&uri, analysed.files());
-        let mut diagnostics = for_document(&analysed, Phases::Gated, encoding);
-        if let Some(path) = path_of(&uri) {
+        // A stub is generated, read-only and never the reader's to fix: its
+        // bodies are empty and do not type-check, so it is published with
+        // nothing rather than with every refusal an empty body earns.
+        let stub = path_of(&uri)
+            .zip(documents.stubs())
+            .is_some_and(|(path, stubs)| stubs.holds(&path));
+        let mut diagnostics = if stub {
+            Vec::new()
+        } else {
+            for_document(&analysed, Phases::Gated, encoding)
+        };
+        if let Some(path) = path_of(&uri).filter(|_| !stub) {
             diagnostics.extend(dimming(
                 &index.unused_private(&path),
                 scope,
