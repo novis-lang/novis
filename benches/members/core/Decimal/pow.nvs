@@ -1,0 +1,28 @@
+<?nvs
+// Measures one exact power of a growth factor over eight years, which a
+// savings or a price projection takes for every row it shows.
+// bench: iterations 400000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<decimal> $factors = [1.05, 1.10, 1.02, 1.25];
+        decimal $threshold = 1.6;
+        uint $pick = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the factor raised this round is the one the last
+            // round's answer chose.
+            decimal $grown = Core\Decimal::pow($factors[$pick], 8);
+            if ($grown > $threshold) {
+                $pick = ($pick + 1) % 4;
+            } else {
+                $pick = ($pick + 3) % 4;
+            }
+            $i = $i + 1;
+        }
+        return $pick;
+    }
+}
+
+echo Bench::run(400000), "\n";
