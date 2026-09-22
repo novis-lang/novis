@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read bytes as text. The same bytes give different text under
+// different encodings, so you name the one the bytes are written in.
+
+// The two bytes that spell "é" in UTF-8.
+bytes $accented = Core\Encoding::fromHex("c3a9");
+
+// Read as UTF-8 they are one character. This prints é.
+echo Core\Encoding::decodeText($accented, Core\Charset::Utf8), "\n";
+
+// ISO-8859-1 gives every single byte its own character, so the same two bytes
+// are two characters there. This prints Ã©.
+echo Core\Encoding::decodeText($accented, Core\Charset::Latin1), "\n";
+
+// One byte can also be a character. In windows-1252 the byte 0x80 is the euro
+// sign. This prints €.
+bytes $high = Core\Encoding::fromHex("80");
+echo Core\Encoding::decodeText($high, Core\Charset::Windows1252), "\n";

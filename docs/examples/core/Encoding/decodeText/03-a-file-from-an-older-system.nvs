@@ -1,0 +1,19 @@
+<?nvs
+// Shows the everyday use: an older system exports its data in windows-1252,
+// and your program keeps text as UTF-8.
+
+// One line of that export, as it arrives from the file.
+bytes $line = Core\Encoding::fromHex("4dfc6c6c65723b4772f6df65");
+
+// Read the bytes as the encoding the old system wrote. This prints
+// Müller;Größe.
+string $text = Core\Encoding::decodeText($line, Core\Charset::Windows1252);
+echo $text, "\n";
+
+// It is now a normal string, so every `Core\Str` method works on it. This
+// prints 12, the number of characters a person would count.
+echo Core\Str::length($text), "\n";
+
+// Write it back out as UTF-8 for a file, a response or a database column.
+// This prints 4dc3bc6c6c65723b4772c3b6c39f65.
+echo Core\Encoding::toHex(Core\Encoding::encodeText($text, Core\Charset::Utf8)), "\n";

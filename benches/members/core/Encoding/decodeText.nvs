@@ -1,0 +1,27 @@
+<?nvs
+// Measures reading one short field of bytes as text, which a program does for
+// every field of a file written in an older encoding.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $fields = [
+            Core\Encoding::fromHex("4dfc6c6c6572"),
+            Core\Encoding::fromHex("4772f6df65"),
+            Core\Encoding::fromHex("507265697320696e2080"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the field read holds the count the round before gave.
+            $total = $total + Core\Str::length(
+                Core\Encoding::decodeText($fields[$total % 3], Core\Charset::Windows1252),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
