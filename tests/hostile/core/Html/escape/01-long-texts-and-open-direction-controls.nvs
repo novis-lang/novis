@@ -1,0 +1,35 @@
+<?nvs
+// Attack: very long texts, control characters and thousands of direction controls are escaped.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. One million `&` characters. Each one becomes `&amp;`, so the result is five times longer.
+string $amps = Core\Str::repeat('&', 1000000);
+string $escaped = Core\Html::toSource(Core\Html::escape($amps), 'measuring the escaped text');
+echo 'step 1: ', Core\Str::length($escaped), "\n";
+
+// 2. One hundred thousand direction controls that are never closed. Each one is replaced with `�`.
+string $open = Core\Str::repeat("\u{202E}", 100000);
+string $replaced = Core\Html::toSource(Core\Html::escape($open), 'measuring the escaped text');
+echo 'step 2: ', Core\Str::length($replaced), "\n";
+
+// 3. Ten thousand controls opened and then ten thousand closed. This is deeper than a browser allows.
+string $deep = Core\Str::repeat("\u{202B}", 10000) . 'x' . Core\Str::repeat("\u{202C}", 10000);
+string $nested = Core\Html::toSource(Core\Html::escape($deep), 'measuring the escaped text');
+echo 'step 3: ', Core\Str::length($nested), "\n";
+
+// 4. A NUL character, a terminal color code and a closing control with no opening one.
+string $mixed = "a\u{0000}b\u{001B}[31mred\u{202C}<&>";
+echo 'step 4: ', Core\Str::length(Core\Html::toSource(Core\Html::escape($mixed), 'measuring the escaped text')), "\n";
+
+// 5. Escaped texts are kept in a list and never freed. This step ends the program at its memory limit.
+array<Core\Html\Markup> $kept = [];
+string $chunk = Core\Str::repeat('<&>', 10000);
+int $n = 0;
+while (true) {
+    $kept[] = Core\Html::escape($chunk . Core\Str::format('%d', $n));
+    $n = $n + 1;
+}

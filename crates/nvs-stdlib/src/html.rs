@@ -1720,6 +1720,7 @@ mod tests {
     /// boundary compiled code reaches it at: the parts land in the order the
     /// list holds them, and the separator lands between each pair and nowhere
     /// else — not before the first part and not after the last.
+    // covers: Core\Html::join
     #[test]
     fn html_join_writes_every_part_in_order_with_its_separator_between() {
         let mut list = NvsArray::new();
@@ -1824,6 +1825,40 @@ mod tests {
             joined.release();
             separator.release();
             parts.release();
+        }
+    }
+
+    /// `Core\Html::escape` end to end through the boundary compiled code
+    /// reaches it at: the five characters and an unterminated directional
+    /// control are rewritten in one pass, and a text with nothing to rewrite
+    /// comes back in a carrier holding exactly its own bytes.
+    // covers: Core\Html::escape
+    #[test]
+    fn html_escape_writes_five_references_and_replaces_an_open_control() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let text = Value::str(NvsStr::new("<a title='x'>\"&\"</a>\u{202E}!".as_bytes()));
+        let escaped = call(super::nvs_core_html_escape, &mut ctx, &[text])
+            .expect("escaping text never fails");
+        assert_eq!(
+            carried(escaped),
+            "&lt;a title=&#39;x&#39;&gt;&quot;&amp;&quot;&lt;/a&gt;\u{FFFD}!"
+        );
+
+        let plain = Value::str(NvsStr::new(b"Ada Lovelace"));
+        let unchanged = call(super::nvs_core_html_escape, &mut ctx, &[plain])
+            .expect("escaping text never fails");
+        assert_eq!(carried(unchanged), "Ada Lovelace");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            unchanged.release();
+            plain.release();
+            escaped.release();
+            text.release();
         }
     }
 

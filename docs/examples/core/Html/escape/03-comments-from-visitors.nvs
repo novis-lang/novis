@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to build an HTML list from comments that visitors wrote.
+
+array<string> $comments = ["Great post!", "<script>alert(1)</script>", "Fish & chips"];
+
+// Each comment is read as `tainted`, which means it came from outside the program.
+// A tainted text can only go into a page after `Core\Html::escape`.
+array<Core\Html\Markup> $items = [];
+foreach ($comments as tainted string $comment) {
+    $items[] = ("<li>" as Core\Html\Markup) + Core\Html::escape($comment) + ("</li>" as Core\Html\Markup);
+}
+
+// `Core\Html::join` puts the items together. The script tag is printed as text.
+echo ("<ul>\n" as Core\Html\Markup) + Core\Html::join($items, "\n" as Core\Html\Markup) + ("\n</ul>" as Core\Html\Markup), "\n";

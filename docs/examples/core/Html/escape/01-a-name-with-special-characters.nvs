@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to write a text into an HTML page, so that it shows as text and not as tags.
+
+string $name = "Tom & Jerry <admin>";
+// `Core\Html::escape` writes `&`, `<` and `>` as character references.
+// This prints `Tom &amp; Jerry &lt;admin&gt;`.
+echo Core\Html::escape($name), "\n";
+
+// A text with none of the five characters stays the same.
+echo Core\Html::escape("Ada Lovelace"), "\n";

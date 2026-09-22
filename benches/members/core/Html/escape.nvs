@@ -1,0 +1,22 @@
+<?nvs
+// Measures escaping a short name, as a page does before it shows a name that a visitor typed.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["Tom & Jerry", "Ada Lovelace", "<b>Grace</b>"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name escaped in each round is chosen by the round before, so no round can be left out.
+            $total = $total + Core\Str::length(
+                Core\Html::toSource(Core\Html::escape($names[($total % 3) as int]), "measuring the escaped name"),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

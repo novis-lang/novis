@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to put a text inside an HTML attribute, where a quote would end the value too early.
+
+string $title = "Say \"hello\" and it's done";
+
+// Both quotes are escaped: `"` becomes `&quot;` and `'` becomes `&#39;`.
+// `as Core\Html\Markup` turns the tag parts into `Markup`. They are HTML that you wrote, so they are not escaped.
+var $link = ("<a title=\"" as Core\Html\Markup)
+    + Core\Html::escape($title)
+    + ("\">Help</a>" as Core\Html\Markup);
+echo $link, "\n";
