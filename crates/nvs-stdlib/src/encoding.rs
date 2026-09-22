@@ -999,9 +999,15 @@ fn why_not_base32(error: &data_encoding::DecodeError) -> String {
             "the `=` padding at offset {at} is not what a base32 group takes — write it in full \
              or leave it off entirely"
         ),
+        // `at` is where the short group *starts*, not where the text ends:
+        // `data_encoding` reports the first symbol of the block it could not
+        // fill, and for the padded engine that block begins at a multiple of
+        // eight however long the text is. A sentence saying the text ends
+        // there is false of every input whose truncated group is not its
+        // first, which is most of them.
         data_encoding::DecodeKind::Length => format!(
-            "it ends at offset {at} part-way through a group, and a base32 group is 8 symbols — \
-             this one is truncated"
+            "the group starting at offset {at} has fewer than the 8 symbols a base32 group \
+             takes, so the text is truncated"
         ),
     }
 }
@@ -1478,6 +1484,240 @@ mod tests {
         }
         assert!(decode_exact(charset("Utf8"), &[0xff]).is_err());
         assert!(decode_exact(charset("Utf8"), "ok".as_bytes()).is_ok());
+    }
+
+    /// `fromBase32` reached the way a program reaches it: the three things a
+    /// reader may change about the text without changing the octets, and the
+    /// four it may not.
+    ///
+    /// The refusals are counted rather than read off one line, because what
+    /// matters here is that **one value has one spelling** — a decoder that
+    /// accepted a second `MZXW7` for `MZXW6`'s octets would let one secret be
+    /// held twice under two names, and it would still look right on every row
+    /// that decodes. The truncation offset is asserted against the group start
+    /// rather than the text length, which is what that message reports.
+    // covers: Core\Encoding::fromBase32
+    #[test]
+    fn one_value_has_one_base32_spelling() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answered = nvs_runtime::call(nvs_core_encoding_from_base32, ctx, &[subject]);
+            let octets = answered.as_ref().ok().map(|value| {
+                let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
+                #[expect(
+                    unsafe_code,
+                    reason = "the answer's one reference is this closure's, \
+                              and its octets are copied out before it goes"
+                )]
+                unsafe {
+                    value.release();
+                }
+                owned
+            });
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the one reference it built, and \
+                          the member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            octets
+        };
+
+        // Case and canonical padding are the reader's to change, and the empty
+        // string is the empty buffer.
+        for text in ["MZXW6", "mzxw6", "MzXw6", "MZXW6==="] {
+            assert_eq!(
+                read(&mut ctx, text).as_deref(),
+                Some(b"foo".as_slice()),
+                "{text}"
+            );
+        }
+        assert_eq!(read(&mut ctx, "").as_deref(), Some(b"".as_slice()));
+
+        // A second spelling of the same octets, a symbol outside the alphabet,
+        // padding that is not a group's worth, and a short final group.
+        for text in ["MZXW7", "MZXW0YTB", "MZXW6=", "MZXW6YT8"] {
+            assert!(read(&mut ctx, text).is_none(), "{text}");
+            assert!(ctx.take_pending().is_some(), "{text} refused uncatchably");
+        }
+
+        // The truncation message names where the short group *starts*. The
+        // text below is 17 symbols, its first two groups are whole, and the
+        // third begins at 16 — a message reporting the length would say 17.
+        assert!(read(&mut ctx, "MZXW6YTBMZXW6YTBM").is_none());
+        let message = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            message.contains("group starting at offset 16"),
+            "the truncation offset is the group start, not the length: {message}"
+        );
+    }
+
+    /// `encodeText` reached the way a program reaches it, for the reason
+    /// [`decoding_answers_the_text_and_names_the_offset_it_stopped_at`] gives.
+    /// The refusal names the character as well as the offset, and both halves
+    /// are asserted: a message quoting the wrong character sends a caller to
+    /// fix a field that was never the problem, and the offset is counted in
+    /// the *text*, so a character past a multi-byte one is the trap.
+    // covers: Core\Encoding::encodeText
+    #[test]
+    fn encoding_answers_the_octets_and_names_the_character_it_cannot_spell() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let case = |name: &str| {
+            let index = CHARSET
+                .cases
+                .iter()
+                .position(|(case, _)| *case == name)
+                .expect("a declared case");
+            Value::int(i64::try_from(index).expect("a case index fits an `i64`"))
+        };
+
+        for (text, charset, octets) in [
+            ("", "Utf8", &b""[..]),
+            ("nvs", "Ascii", b"nvs".as_slice()),
+            ("\u{e9}", "Utf8", &[0xc3, 0xa9][..]),
+            ("\u{e9}", "Latin1", &[0xe9][..]),
+            ("a", "Utf16Be", &[0x00, 0x61][..]),
+            ("\u{20ac}", "Windows1252", &[0x80][..]),
+        ] {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answered = nvs_runtime::call(
+                nvs_core_encoding_encode_text,
+                &mut ctx,
+                &[subject, case(charset)],
+            )
+            .expect("a text the charset spells encodes");
+            assert_eq!(answered.as_bytes(), Some(octets), "{charset} over {text:?}");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+        }
+
+        // The euro sign after a two-byte character: its offset is 2, which is
+        // where it starts in the UTF-8 the `string` holds.
+        for (text, charset, offset, character) in [
+            ("\u{20ac}", "Latin1", 0_usize, '\u{20ac}'),
+            ("\u{e9}\u{20ac}", "Latin1", 2, '\u{20ac}'),
+            ("ok\u{1f600}", "Ascii", 2, '\u{1f600}'),
+        ] {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let refused = nvs_runtime::call(
+                nvs_core_encoding_encode_text,
+                &mut ctx,
+                &[subject, case(charset)],
+            );
+            assert!(refused.is_err(), "{charset} over {text:?}");
+            let message = ctx.take_pending().expect("a catchable refusal");
+            assert!(
+                message.contains(&format!("at offset {offset} ")),
+                "{charset} over {text:?} said {message}"
+            );
+            assert!(
+                message.contains(&format!("'{character}'")),
+                "{charset} over {text:?} said {message}"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built, and the \
+                          member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+        }
+    }
+
+    /// `decodeText` reached the way a program reaches it rather than through
+    /// [`decode_exact`] alone, so the argument walk, the answer's tag and the
+    /// refusal's shape are pinned together. The message is asserted to carry
+    /// the offset it stopped at, because a member reporting `0` for every
+    /// input passes any test that only checks it threw, and that offset is
+    /// what tells a caller which field of its input was corrupt.
+    // covers: Core\Encoding::decodeText
+    #[test]
+    fn decoding_answers_the_text_and_names_the_offset_it_stopped_at() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        // A case's position in `CHARSET` is the integer a program passes, per
+        // `charset_of` — the same roster identity `CHARSET` documents.
+        let case = |name: &str| {
+            let index = CHARSET
+                .cases
+                .iter()
+                .position(|(case, _)| *case == name)
+                .expect("a declared case");
+            Value::int(i64::try_from(index).expect("a case index fits an `i64`"))
+        };
+
+        // The empty buffer answers the empty string, and each of the five
+        // schemes this module decodes itself answers its own table's text.
+        for (octets, charset, text) in [
+            (&b""[..], "Utf8", ""),
+            (b"nvs".as_slice(), "Ascii", "nvs"),
+            (&[0xc3, 0xa9][..], "Utf8", "\u{e9}"),
+            (&[0xe9][..], "Latin1", "\u{e9}"),
+            (&[0x61, 0x00][..], "Utf16Le", "a"),
+            (&[0x80][..], "Windows1252", "\u{20ac}"),
+        ] {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(
+                nvs_core_encoding_decode_text,
+                &mut ctx,
+                &[subject, case(charset)],
+            )
+            .expect("a buffer the charset reads decodes");
+            assert_eq!(answered.as_text(), Some(text), "{charset} over {octets:?}");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+        }
+
+        // The refusal, at three different offsets so the number is read off
+        // the input rather than off a constant. A lone `0xff` is UTF-8 at no
+        // position; the second is valid for two characters and then not; the
+        // third counts UTF-16 in the units it consumed.
+        for (octets, charset, offset) in [
+            (&[0xff][..], "Utf8", 0_usize),
+            (&[0x61, 0xc3, 0xa9, 0xff][..], "Utf8", 3),
+            (&[0x61, 0x00, 0x3d, 0xd8][..], "Utf16Le", 2),
+        ] {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let refused = nvs_runtime::call(
+                nvs_core_encoding_decode_text,
+                &mut ctx,
+                &[subject, case(charset)],
+            );
+            assert!(refused.is_err(), "{charset} over {octets:?}");
+            let message = ctx.take_pending().expect("a catchable refusal");
+            assert!(
+                message.contains(&format!("at offset {offset} ")),
+                "{charset} over {octets:?} said {message}"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built, and the \
+                          member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+        }
     }
 
     #[test]

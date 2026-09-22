@@ -114,8 +114,8 @@ Core\Encoding::fromBase64Url(): "YWJjZ" is not URL-safe base64 — it measures 5
 Core\Encoding::fromBase32(): "MZXW YTB" is not base32 — the byte at offset 4 is not one of `A`-`Z` or `2`-`7` — the digits `0`, `1` and `8` are not in this alphabet, and a space grouping a secret for a reader is a byte like any other
 Core\Encoding::fromBase32(): "MZXW6YT" is not base32 — the symbol at offset 6 carries bits no octet reads, so it is one of several spellings of the same value and not the canonical one (RFC 4648 § 3.5)
 Core\Encoding::fromBase32(): "MZXW6YTB========" is not base32 — the `=` padding at offset 8 is not what a base32 group takes — write it in full or leave it off entirely
-Core\Encoding::fromBase32(): "MZXW6YTBMQ=====" is not base32 — it ends at offset 8 part-way through a group, and a base32 group is 8 symbols — this one is truncated
-Core\Encoding::fromBase32(): "MZXW 6YTB" is not base32 — it ends at offset 8 part-way through a group, and a base32 group is 8 symbols — this one is truncated
+Core\Encoding::fromBase32(): "MZXW6YTBMQ=====" is not base32 — the group starting at offset 8 has fewer than the 8 symbols a base32 group takes, so the text is truncated
+Core\Encoding::fromBase32(): "MZXW 6YTB" is not base32 — the group starting at offset 8 has fewer than the 8 symbols a base32 group takes, so the text is truncated
 Core\Encoding::fromHex(): "abc" is not hexadecimal — it has an odd number of digits, and an octet takes two
 Core\Encoding::fromHex(): "ab:cd" is not hexadecimal — it has an odd number of digits, and an octet takes two
 Core\Encoding::fromHex(): "0xff" is not hexadecimal — only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between the pairs
