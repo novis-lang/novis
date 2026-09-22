@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to print how far a copy has come, as a percentage. The extra
+// digits are dropped, so the line never says 100 before the copy is finished.
+
+array<decimal> $copied = [3, 274, 1023];
+decimal $chunks = 1024;
+
+foreach ($copied as decimal $done) {
+    decimal $percent = $done * 100 / $chunks;
+    // This prints 0.2%, then 26.7%, then 99.9%.
+    echo Core\Decimal::truncate($percent, 1), "%\n";
+}

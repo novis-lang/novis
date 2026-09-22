@@ -1364,7 +1364,7 @@ mod tests {
     /// `rule:types/conversion`'s four named cuts: each answers a `decimal` at
     /// exactly the scale it was asked for, the three directions part where a
     /// value is negative, and `round` is `divRound` against `1`.
-    // covers: Core\Decimal::ceil, Core\Decimal::floor
+    // covers: Core\Decimal::ceil, Core\Decimal::floor, Core\Decimal::truncate, Core\Decimal::round
     #[test]
     fn decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked() {
         let mut ctx = Ctx::buffered();

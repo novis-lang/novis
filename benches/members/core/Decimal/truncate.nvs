@@ -1,0 +1,21 @@
+<?nvs
+// Measures one `Core\Decimal::truncate` of a running total down to cents,
+// which a program does before it prints a value in a column of fixed width.
+// bench: iterations 1000000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): decimal {
+        array<decimal> $amounts = [96.7837, 65.7075, 3.2242, 12.0009];
+        decimal $carried = 0.00;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value cut holds the last round's answer.
+            $carried = Core\Decimal::truncate($carried + $amounts[$i % 4], 2);
+            $i = $i + 1;
+        }
+        return $carried;
+    }
+}
+
+echo Bench::run(1000000), "\n";

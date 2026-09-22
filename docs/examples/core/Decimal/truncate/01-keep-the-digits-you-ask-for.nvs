@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to cut a number to fewer digits. `Core\Decimal::truncate` drops
+// the digits it does not keep, and never changes the ones it keeps.
+
+decimal $reading = 12.3999;
+
+// Two digits are kept and the rest are dropped. This prints 12.39.
+echo Core\Decimal::truncate($reading, 2), "\n";
+
+// Without a second argument the answer is a whole number. This prints 12.
+echo Core\Decimal::truncate($reading), "\n";
+
+// The answer always has the number of digits you asked for. Asking for more
+// digits than the value has adds zeros, so this prints 12.399900.
+echo Core\Decimal::truncate($reading, 6), "\n";
