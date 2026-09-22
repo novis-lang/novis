@@ -1012,7 +1012,7 @@ where
     // body's.
     let beat_due: crate::bounds::NextBeat = Rc::new(Cell::new(None));
     let beat_due = &beat_due;
-    let io = ConnectionIo::new(stream, waits);
+    let io = ConnectionIo::new(stream, waits).ending_at_drain(draining);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
     let phase = io.phase();
@@ -8406,6 +8406,72 @@ mod tests {
         assert!(
             closed,
             "an idle kept-alive connection was still open a header wait later: {seen}"
+        );
+    }
+
+    /// `ConnectionIo::ending_at_drain`: a drain closes a connection that is
+    /// idle between requests at the drain period's end, not when its
+    /// keep-alive wait ends. That wait is far longer here than the case is
+    /// allowed to take, so a drain that only waited it out fails by the clock
+    /// rather than passing slowly.
+    ///
+    /// The drain is the accept loop's own: `keep_serving` breaks after the one
+    /// connection, and the loop's tail begins the drain before that connection
+    /// has even been answered — so the case also holds that a request already
+    /// moving is served to its end and only the idle wait after it is bounded.
+    #[test]
+    fn an_idle_kept_alive_connection_is_closed_when_the_drain_begins() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /one HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the write failed");
+            let began = Instant::now();
+            let mut seen = String::new();
+            let closed = socket.read_to_string(&mut seen).is_ok();
+            (closed, seen, began.elapsed())
+        });
+
+        let waits = Waits {
+            header: Duration::from_secs(30),
+            keepalive: Duration::from_secs(30),
+            drain: Duration::from_millis(100),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, seen, took) = client.join().expect("the client thread panicked");
+        assert!(
+            seen.contains("hello /one"),
+            "the request in flight when the drain began was not answered: {seen}"
+        );
+        assert!(
+            closed && took < Duration::from_secs(5),
+            "the drain waited out the keep-alive wait on an idle connection: closed after {took:?}"
         );
     }
 

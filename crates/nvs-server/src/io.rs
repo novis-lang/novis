@@ -100,6 +100,9 @@ use std::time::{Duration, Instant};
 use hyper::rt::{Read, ReadBufCursor, Write};
 use nvs_config::Waits;
 use nvs_host::NvsConnection;
+use nvs_runtime::DrainWake;
+
+use crate::Draining;
 
 /// The scratch buffer one read borrows from the coroutine's stack.
 ///
@@ -128,6 +131,12 @@ pub enum Phase {
     Write,
     /// Idle between one response and the next request's first byte —
     /// `keepalive_timeout`.
+    ///
+    /// The one phase a drain also bounds: from the moment a connection sitting
+    /// here sees the drain, its wait ends at the drain period's end at the
+    /// latest, with the same `TimedOut` the keep-alive wait ends in — rather
+    /// than the drain waiting out the rest of `keepalive_timeout` for a byte
+    /// the peer may never send ([`ConnectionIo::ending_at_drain`]).
     KeepAlive,
 }
 
@@ -161,10 +170,24 @@ pub struct ConnectionIo {
     /// The phase in force, shared with the connection loop: the module doc
     /// § *The clock* says which changes each side can see.
     phase: Rc<Cell<Phase>>,
-    /// The phase the stream's deadline was last armed for, so that a poll which
-    /// changed nothing does not push the deadline it is about to be judged
-    /// against forward.
-    armed: Option<Phase>,
+    /// The phase the stream's deadline was last armed for, and whether the
+    /// drain bounded it, so that a poll which changed nothing does not push
+    /// the deadline it is about to be judged against forward — and a poll
+    /// that is the first to see the drain does re-arm without progress.
+    armed: Option<(Phase, bool)>,
+    /// When this connection first saw the drain, which is when its drain
+    /// period starts (`rule:concurrency/a-drain-closes-a-connection-cleanly`:
+    /// the period starts when a connection first sees the drain, not when the
+    /// drain began).
+    drain_seen: Option<Instant>,
+    /// The drain that ends a [`Phase::KeepAlive`] wait, or `None` for a
+    /// connection nothing drains — [`ConnectionIo::ending_at_drain`].
+    draining: Option<Draining>,
+    /// The wake that re-polls this connection when that drain begins, held for
+    /// the connection's life: what it wakes is a task parked in the reactor,
+    /// and a wake is only a hint, so the poll it provokes is where the drain is
+    /// read ([`nvs_host::wake_at_drain`]).
+    woken_at_drain: Option<DrainWake>,
 }
 
 impl ConnectionIo {
@@ -176,7 +199,32 @@ impl ConnectionIo {
             waits,
             phase: Rc::new(Cell::new(Phase::Head)),
             armed: None,
+            drain_seen: None,
+            draining: None,
+            woken_at_drain: None,
         }
+    }
+
+    /// Bounds this connection's [`Phase::KeepAlive`] wait by the drain period
+    /// once `draining` begins, and re-polls a connection already parked in it
+    /// so the shorter bound is armed at once.
+    ///
+    /// The other three phases are untouched: a request whose head, body or
+    /// response is moving is exactly what a drain exists to finish
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`), and the wait
+    /// between requests is the one that would otherwise compose the drain
+    /// period with `keepalive_timeout`. Called on the task that will drive
+    /// the connection, because the wake is issued against that task; a drain
+    /// that has already begun registers nothing, and the first idle poll
+    /// reads the bit and arms the same bound.
+    ///
+    /// What it spends: one registration on the process's drain per connection,
+    /// released with this adapter, and one atomic load per idle poll.
+    #[must_use]
+    pub fn ending_at_drain(mut self, draining: &Draining) -> Self {
+        self.woken_at_drain = nvs_host::wake_at_drain(draining.bit());
+        self.draining = Some(draining.clone());
+        self
     }
 
     /// The handle the connection loop moves between the head, the body and the
@@ -200,11 +248,22 @@ impl ConnectionIo {
     /// to see it.
     fn arm(&mut self, progressed: bool) {
         let phase = self.phase.get();
-        if !progressed && self.armed == Some(phase) {
+        // The drain bounds the idle wait and no other: a request that is
+        // moving is served to its end, and the next idle wait after it is
+        // what the drain period then caps — already in the past, if the
+        // period is over, which is `TimedOut` on the next park.
+        let closing = (phase == Phase::KeepAlive
+            && self.draining.as_ref().is_some_and(Draining::is_draining))
+        .then(|| *self.drain_seen.get_or_insert_with(Instant::now) + self.waits.drain);
+        let armed = (phase, closing.is_some());
+        if !progressed && self.armed == Some(armed) {
             return;
         }
-        self.armed = Some(phase);
-        let at = Instant::now() + phase.wait_in(&self.waits);
+        self.armed = Some(armed);
+        let mut at = Instant::now() + phase.wait_in(&self.waits);
+        if let Some(closing) = closing {
+            at = at.min(closing);
+        }
         self.stream_mut().set_deadline(Some(at));
     }
 
