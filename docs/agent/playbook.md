@@ -3633,6 +3633,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   divide it out, because the calibration program is measured in the same sweep and takes the same
   weather as the bench. Read `statements`, `calls` and `allocations` — which did not move — and
   re-run before believing a clock column on these three. [until: reviewed 2026-09-22]
+- **A Windows path handed to `npm run … -- --nvs <path>` from a POSIX shell loses its backslashes,
+  and the host suite then fails six tests that read as a broken server.** `npm.cmd` re-quotes what
+  it forwards, so `D:\mwl\target\debug\nvs.exe` reaches `scripts/host.mjs` as
+  `mwltargetdebugnvs.exe`, which `resolve` takes as relative to `editors/vscode`. Reproduce the
+  driver's check with forward slashes — `--nvs D:/mwl/target/debug/nvs.exe` — and read the status
+  item's detail in the failure before believing the tree. [until: reviewed 2026-12-22]
 
 ## Writing a test case
 
