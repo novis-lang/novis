@@ -1929,6 +1929,95 @@ mod tests {
         }
     }
 
+    /// `toBase32` reached the way a program reaches it. A group is five
+    /// octets, so the five residues a buffer can end on are what this member
+    /// is written around: each is pinned by text, from RFC 4648 § 10's
+    /// vectors, and every length to 64 by the unpadded arithmetic, since an
+    /// encoder that pads, or rounds a short group the wrong way, still spells
+    /// every aligned sample right. The alphabet is asserted as a *set* over a
+    /// sweep of all 256 values, because § 6's alphabet skips `0`, `1`, `8` and
+    /// `9` and a table off by one there answers text that reads plausibly and
+    /// that `fromBase32` refuses.
+    // covers: Core\Encoding::toBase32
+    #[test]
+    fn base32_spells_every_residue_unpadded_in_the_upper_case_alphabet() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let spell = |ctx: &mut nvs_runtime::Ctx, octets: &[u8]| {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(nvs_core_encoding_to_base32, ctx, &[subject])
+                .expect("every buffer has a spelling");
+            let text = answered.as_text().expect("a `string` answer").to_owned();
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+            text
+        };
+
+        // § 10's vectors with the padding taken off: one per residue, and the
+        // sixth octet that opens a second group.
+        for (octets, spelled) in [
+            (b"".as_slice(), ""),
+            (b"f", "MY"),
+            (b"fo", "MZXQ"),
+            (b"foo", "MZXW6"),
+            (b"foob", "MZXW6YQ"),
+            (b"fooba", "MZXW6YTB"),
+            (b"foobar", "MZXW6YTBOI"),
+        ] {
+            assert_eq!(spell(&mut ctx, octets), spelled);
+        }
+
+        // Every octet value in one buffer, and the alphabet read off the
+        // answer as a set: exactly § 6's thirty-two symbols, and no `=`.
+        let every: Vec<u8> = (0..=255_u8).collect();
+        let swept = spell(&mut ctx, &every);
+        assert_eq!(
+            swept.len(),
+            410,
+            "2048 bits are 409 whole symbols and one short"
+        );
+        let mut seen: Vec<char> = swept.chars().collect();
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(
+            seen.into_iter().collect::<String>(),
+            "234567ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        );
+
+        // Every length to 64, against the unpadded arithmetic and
+        // `fromBase32`, asserted apart for the same reason as base64's: a
+        // decoder tolerating its own encoder's mistake hides both halves.
+        for length in 0..64_usize {
+            let octets: Vec<u8> = (0..length)
+                .map(|at| u8::try_from(at * 13 % 256).expect("a residue of 256 fits a `u8`"))
+                .collect();
+            let spelled = spell(&mut ctx, &octets);
+            assert_eq!(spelled.len(), (length * 8).div_ceil(5), "{length} octets");
+
+            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let read = nvs_runtime::call(nvs_core_encoding_from_base32, &mut ctx, &[text])
+                .expect("`toBase32`'s answer is text `fromBase32` reads");
+            assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                read.release();
+                text.release();
+            }
+        }
+    }
+
     /// `toHex` reached the way a program reaches it: the spelling is swept
     /// over all 256 values rather than read off a handful, because a nibble
     /// table with one wrong entry prints plausibly on every line somebody

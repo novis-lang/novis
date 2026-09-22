@@ -1,0 +1,22 @@
+<?nvs
+// Shows base32 text next to base64 text for the same bytes.
+
+bytes $raw = Core\Encoding::fromHex("fbff00");
+
+// Base64 uses both cases and the symbols `+` and `/`. This prints +/8A.
+echo Core\Encoding::toBase64($raw), "\n";
+
+// Base32 uses upper-case letters and the digits 2 to 7 only. This prints 7P7QA.
+echo Core\Encoding::toBase32($raw), "\n";
+
+// The digits 0, 1, 8 and 9 are not used. So a reader cannot mix up 0 and O,
+// or 1 and I. Any bytes give the same result. This prints no confusing digits.
+string $all = Core\Encoding::toBase32(Core\Random::bytes(300));
+bool $mixed = Core\Str::contains($all, "0") || Core\Str::contains($all, "1")
+    || Core\Str::contains($all, "8") || Core\Str::contains($all, "9");
+echo ($mixed ? "confusing digits" : "no confusing digits"), "\n";
+
+// Base32 is longer. Twenty bytes give 32 characters in base32 and 28 in
+// base64. This prints 32 28.
+bytes $key = Core\Bytes::fill(20, 200);
+echo Core\Str::length(Core\Encoding::toBase32($key)), " ", Core\Str::length(Core\Encoding::toBase64($key)), "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how the text grows with the bytes. Every five bytes become eight
+// characters, and nothing is added at the end.
+
+// These are the test values from the base32 standard, RFC 4648.
+// This prints MY, MZXQ, MZXW6, MZXW6YQ and MZXW6YTB.
+array<string> $words = ["f", "fo", "foo", "foob", "fooba"];
+foreach ($words as string $word) {
+    echo Core\Encoding::toBase32(Core\Encoding::encodeText($word, Core\Charset::Utf8)), "\n";
+}
+
+// A sixth byte starts a new group. This prints MZXW6YTBOI.
+echo Core\Encoding::toBase32(Core\Encoding::encodeText("foobar", Core\Charset::Utf8)), "\n";
+
+// A tool that expects padding needs `=` until the length divides by eight.
+// `Core\Str::padEnd` adds it. This prints MZXW6YQ=.
+echo Core\Str::padEnd(Core\Encoding::toBase32(Core\Encoding::fromHex("666f6f62")), 8, "="), "\n";
+
+// The empty buffer gives the empty string, so this line prints nothing.
+echo Core\Encoding::toBase32(Core\Encoding::encodeText("", Core\Charset::Utf8)), "\n";

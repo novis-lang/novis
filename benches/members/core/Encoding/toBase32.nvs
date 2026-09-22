@@ -1,0 +1,27 @@
+<?nvs
+// Measures writing a 20-byte two-factor secret as text, which a program does
+// when it makes the link for an authenticator app.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $secrets = [
+            Core\Bytes::fill(20, 65),
+            Core\Bytes::fill(20, 131),
+            Core\Bytes::fill(20, 250),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the secret written depends on the count the round before gave.
+            $total = $total + Core\Str::length(
+                Core\Encoding::toBase32($secrets[$total % 3]),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
