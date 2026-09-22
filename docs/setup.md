@@ -67,6 +67,18 @@ The primary development platform, and the only one with real setup:
    `rule:testing/perf-two-mechanisms`), `cargo-fuzz` (needs libFuzzer), and the
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
+4. **Windows' own `sudo`, enabled in inline mode.** `nvs service install`, `start` and `stop` talk
+   to the service control manager, which only an elevated process may do, and the live service
+   check is run from an ordinary terminal or an agent session as `sudo nvs service …` — one UAC
+   prompt per call rather than a second, elevated terminal nobody else can see into. Windows 11
+   ships it disabled; this turns it on, through one elevation:
+
+   ```powershell
+   Start-Process powershell -Verb RunAs -ArgumentList '-Command','sudo config --enable normal'
+   ```
+
+   `sudo config` afterwards prints `normal`. It is not the WSL `sudo` two lines below — that one is
+   the distro's and needs nothing.
 
 One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/…` mount:
 
