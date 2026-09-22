@@ -1,0 +1,41 @@
+--TEST--
+A `Core\Heap::pop` whose comparator throws while the rest is re-ordered frees the element it had already taken, so a request that catches the throw a thousand times holds no more memory than one that never threw — `rule:errors/on-limit`, docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// covers: Core\Heap::pop
+final class Order {
+    public static bool $refuse = false;
+
+    public static function byText(string $a, string $b): int {
+        if (Order::$refuse) {
+            throw new LogicError('no');
+        }
+        return Core\Str::compare($a, $b);
+    }
+}
+
+// Each round pushes three fresh 100 KB texts and pops with a comparator that
+// throws once the root has been taken. A pop that kept its reference to the
+// taken text would hold 100 KB per round, and 1000 rounds is past the 64 MB
+// ceiling set here.
+Core\Config::set('memory', '64M');
+int $threw = 0;
+int $round = 0;
+while ($round < 1000) {
+    var $heap = new Core\Heap<string>(Order::byText(...));
+    Order::$refuse = false;
+    $heap->push(Core\Str::repeat('c', 100000));
+    $heap->push(Core\Str::repeat('a', 100000));
+    $heap->push(Core\Str::repeat('b', 100000));
+    Order::$refuse = true;
+    try {
+        $heap->pop();
+    } catch (LogicError $refused) {
+        $threw = $threw + 1;
+    }
+    Order::$refuse = false;
+    $round = $round + 1;
+}
+echo "threw ", $threw, "\n";
+--EXPECT--
+threw 1000

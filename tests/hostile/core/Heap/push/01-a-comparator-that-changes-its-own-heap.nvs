@@ -1,0 +1,97 @@
+<?nvs
+// Attack: a comparator adds values to the same heap while `push` puts a value in place.
+// Other steps add values that cannot be ordered, and more values than memory can keep.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    public static ?Core\Heap<int> $heap = null;
+    public static uint $calls = 0;
+
+    // Adds a value to the heap it is ordering, the first 50 times it is called.
+    public static function grows(int $a, int $b): int
+    {
+        Attack::$calls = Attack::$calls + 1;
+        var $heap = Attack::$heap;
+        if ($heap != null) {
+            if (Attack::$calls < 50) {
+                $heap->push($a + $b);
+            }
+        }
+        return $a - $b;
+    }
+
+    // Throws on its fifth call.
+    public static function refuses(int $a, int $b): int
+    {
+        Attack::$calls = Attack::$calls + 1;
+        if (Attack::$calls == 5) {
+            throw new LogicError('no');
+        }
+        return $a - $b;
+    }
+}
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. The comparator pushes into the heap during each push. The order may be wrong,
+// but every value must still be in the heap.
+var $growing = new Core\Heap<int>(Attack::grows(...));
+Attack::$heap = $growing;
+try {
+    int $i = 0;
+    while ($i < 20) {
+        $growing->push(20 - $i);
+        $i = $i + 1;
+    }
+} catch (Throwable $stopped) {
+    echo 'step 1: threw', "\n";
+}
+echo 'step 1: ', $growing->count(), ' values', "\n";
+while (!$growing->isEmpty()) {
+    $growing->pop();
+}
+Attack::$heap = null;
+
+// 2. The comparator throws in the middle of a push. The error is caught, and the
+// heap can still be emptied.
+Attack::$calls = 0;
+var $refusing = new Core\Heap<int>(Attack::refuses(...));
+array<int> $falls = [9, 8, 7, 6, 5, 4, 3, 2, 1];
+try {
+    foreach ($falls as int $fall) {
+        $refusing->push($fall);
+    }
+} catch (LogicError $refused) {
+    echo 'step 2: threw at ', $refusing->count(), ' values', "\n";
+}
+while (!$refusing->isEmpty()) {
+    $refusing->pop();
+}
+
+// 3. Two lists have no order, so the second push throws a `RuntimeError`.
+var $lists = new Core\Heap<array<int>>();
+$lists->push([1, 2]);
+try {
+    $lists->push([3]);
+} catch (RuntimeError $unordered) {
+    echo 'step 3: threw', "\n";
+}
+
+// 4. 200000 numbers, each smaller than the one before. Each one must move to the top.
+var $falling = new Core\Heap<int>();
+int $n = 200000;
+while ($n > 0) {
+    $falling->push($n);
+    $n = $n - 1;
+}
+echo 'step 4: ', $falling->count(), ' values, smallest ', $falling->peek(), "\n";
+
+// 5. Long texts are added and never taken out. This step ends the program at its memory limit.
+var $endless = new Core\Heap<string>();
+while (true) {
+    $endless->push(Core\Str::repeat('x', 1000));
+}

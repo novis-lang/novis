@@ -5,7 +5,7 @@
 //!
 //! A `Core` instance's slots hold only values Novis already holds
 //! ([`crate::instance`]), so the heap is an `array<T>` in slot `entries`,
-//! keyed `"0"`, `"1"`, … and read as the usual implicit tree: the children of
+//! a list keyed `0`, `1`, … and read as the usual implicit tree: the children of
 //! `i` are `2i+1` and `2i+2`. Nothing else is stored — the count is the
 //! array's own, and there is no separate size to keep in step.
 //!
@@ -54,11 +54,13 @@
 //! a comparator that reaches back into *this* heap memory-safe. It is still
 //! not **meaningful** — the ordering it observes is a heap mid-sift — so a
 //! comparator that mutates the heap it is ordering is unsupported, exactly as
-//! `usort`'s is in PHP.
+//! `usort`'s is in PHP. One that takes elements out can leave a sift comparing
+//! a position that is gone, and the member then throws a catchable
+//! `RuntimeError` rather than ending the request.
 
 use std::cmp::Ordering;
 
-use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Tag, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
 use crate::ordering::{compare_values, sign_of};
@@ -263,9 +265,37 @@ fn heap_of(value: Value, member: &str) -> Result<*mut ObjHeader, Fault> {
     crate::instance::receiver(value, &CLASS, member)
 }
 
-/// The store key of tree position `index`.
-fn key(index: usize) -> Vec<u8> {
-    index.to_string().into_bytes()
+/// The integer key of tree position `index`.
+///
+/// The entries array is only ever written at an existing position or at the
+/// next one, and only ever loses its last one, so it stays a packed list and
+/// [`NvsArray::get_index`] and [`NvsArray::set_index`] reach it with no key
+/// string built at all.
+fn at(index: usize) -> i64 {
+    i64::try_from(index).expect("a heap position fits in an `int`")
+}
+
+/// Runs `f` over the decimal key of tree position `index`, rendered on the
+/// stack — [`NvsArray::unset`] is the one write that takes a key's bytes, and
+/// `pop` makes it once per call.
+fn with_key<R>(index: usize, f: impl FnOnce(&[u8]) -> R) -> R {
+    use std::io::Write as _;
+    let mut buffer = [0u8; 20];
+    let mut rest = &mut buffer[..];
+    write!(rest, "{index}").expect("a `usize` renders in 20 digits");
+    let written = 20 - rest.len();
+    f(&buffer[..written])
+}
+
+/// The name a comparison's throw carries, as a constant: a label built per
+/// comparison would be an allocation on every sift step.
+fn label(member: &str) -> &'static str {
+    match member {
+        "push" => r"Core\Heap::push",
+        "pop" => r"Core\Heap::pop",
+        nvs_runtime::sequence::ITERATE => r"Core\Heap::iterate",
+        _ => NAME,
+    }
 }
 
 /// How many elements the heap holds.
@@ -291,7 +321,10 @@ fn comparator_of(receiver: *mut ObjHeader) -> Value {
 ///
 /// # Errors
 ///
-/// Whatever the ordering in force throws, plus [`store::borrow`]'s.
+/// Whatever the ordering in force throws, plus [`store::borrow`]'s, plus a
+/// [`Fault::thrown`] when a position is gone: the only way to reach that is a
+/// comparator that took elements out of this heap during the previous
+/// comparison, and the program that wrote one can catch what it caused.
 fn precedes(
     ctx: &mut Ctx,
     receiver: *mut ObjHeader,
@@ -301,10 +334,10 @@ fn precedes(
 ) -> Result<bool, Fault> {
     let (a, b) = {
         let entries = store::borrow(receiver, ENTRIES, &CLASS, member)?;
-        let (Some(a), Some(b)) = (entries.get(&key(left)), entries.get(&key(right))) else {
-            return Err(Fault::fatal(format!(
-                "{NAME}::{member} compared positions {left} and {right} of a heap holding {}",
-                entries.count()
+        let (Some(a), Some(b)) = (entries.get_index(at(left)), entries.get_index(at(right))) else {
+            return Err(Fault::thrown(format!(
+                "{NAME}::{member}() lost positions it was ordering: the comparator took elements \
+                 out of the heap it compares"
             )));
         };
         #[expect(
@@ -346,15 +379,15 @@ fn compare(
     right: Value,
     member: &str,
 ) -> Result<Ordering, Fault> {
-    let member = format!("{NAME}::{member}");
+    let member = label(member);
     let comparator = comparator_of(receiver);
     if comparator.tag() == Some(Tag::Object) {
         let verdict = nvs_runtime::call_closure(ctx, comparator, &[left, right])?;
-        return sign_of(verdict, &member);
+        return sign_of(verdict, member);
     }
     // An object pair is `compare_values`'s own row, not a branch here: two
     // domains reading one verdict differently is what a shared home prevents.
-    compare_values(ctx, &left, &right, &member)
+    compare_values(ctx, &left, &right, member)
 }
 
 /// Exchanges the values at two tree positions.
@@ -364,8 +397,8 @@ fn compare(
 /// [`store::edit`]'s, unchanged.
 fn swap(receiver: *mut ObjHeader, member: &str, left: usize, right: usize) -> Result<(), Fault> {
     store::edit(receiver, ENTRIES, &CLASS, member, |entries| {
-        let (left, right) = (key(left), key(right));
-        let (Some(a), Some(b)) = (entries.get(&left), entries.get(&right)) else {
+        let (left, right) = (at(left), at(right));
+        let (Some(a), Some(b)) = (entries.get_index(left), entries.get_index(right)) else {
             return;
         };
         #[expect(
@@ -378,8 +411,8 @@ fn swap(receiver: *mut ObjHeader, member: &str, left: usize, right: usize) -> Re
             a.retain();
             b.retain();
         }
-        entries.set(NvsStr::new(&left), b);
-        entries.set(NvsStr::new(&right), a);
+        entries.set_index(left, b);
+        entries.set_index(right, a);
     })
 }
 
@@ -443,7 +476,7 @@ fn sift_down(
 /// module's docs for why that is not a `?T`.
 fn root(receiver: *mut ObjHeader, member: &str) -> Result<Value, Fault> {
     let entries = store::borrow(receiver, ENTRIES, &CLASS, member)?;
-    let top = entries.get(&key(0)).ok_or_else(|| {
+    let top = entries.get_index(0).ok_or_else(|| {
         Fault::thrown(format!(
             "{NAME}::{member}() on an empty heap; `isEmpty()` is the question that has an answer \
              for one"
@@ -481,7 +514,7 @@ fn sorted(ctx: &mut Ctx, receiver: *mut ObjHeader) -> Result<NvsArray, Fault> {
         let entries = store::borrow(receiver, ENTRIES, &CLASS, member)?;
         let mut pending = Vec::with_capacity(entries.count());
         for index in 0..entries.count() {
-            let Some(value) = entries.get(&key(index)) else {
+            let Some(value) = entries.get_index(at(index)) else {
                 break;
             };
             #[expect(
@@ -613,8 +646,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_heap_push(ctx, args: [2]) {
         let receiver = heap_of(args[0], "push")?;
         let value = args[1];
-        let at = store::edit(receiver, ENTRIES, &CLASS, "push", |entries| {
-            let at = entries.count();
+        let position = store::edit(receiver, ENTRIES, &CLASS, "push", |entries| {
+            let position = entries.count();
             #[expect(
                 unsafe_code,
                 reason = "the argument is borrowed from the caller's frame, so \
@@ -623,10 +656,10 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            entries.set(NvsStr::new(&key(at)), value);
-            at
+            entries.set_index(at(position), value);
+            position
         })?;
-        sift_up(ctx, receiver, "push", at)?;
+        sift_up(ctx, receiver, "push", position)?;
         Ok(Value::null())
     }
 }
@@ -646,15 +679,15 @@ nvs_runtime::nvs_helper! {
     ///
     /// The last element takes the root's place and sifts down, which is the
     /// standard removal and the reason the store stays dense: every position
-    /// from `0` to `count - 1` is occupied, so [`key`] is a total map onto
-    /// the tree.
+    /// from `0` to `count - 1` is occupied, so [`at`] is a total map onto the
+    /// tree and the array never stops being a packed list.
     fn nvs_core_heap_pop(ctx, args: [1]) {
         let receiver = heap_of(args[0], "pop")?;
         let top = root(receiver, "pop")?;
         store::edit(receiver, ENTRIES, &CLASS, "pop", |entries| {
-            let last = key(entries.count() - 1);
-            if last != key(0)
-                && let Some(tail) = entries.get(&last)
+            let last = entries.count() - 1;
+            if last != 0
+                && let Some(tail) = entries.get_index(at(last))
             {
                 #[expect(
                     unsafe_code,
@@ -665,12 +698,24 @@ nvs_runtime::nvs_helper! {
                 unsafe {
                     tail.retain();
                 }
-                entries.set(NvsStr::new(&key(0)), tail);
+                entries.set_index(0, tail);
             }
-            entries.unset(&last);
-        })?;
-        sift_down(ctx, receiver, "pop", 0)?;
-        Ok(top)
+            with_key(last, |key| entries.unset(key));
+        })
+        .and_then(|()| sift_down(ctx, receiver, "pop", 0))
+        .map(|()| top)
+        .inspect_err(|_| {
+            // The root is already out of the store, so a throw from re-ordering
+            // what remains leaves this frame holding the only reference to it.
+            #[expect(
+                unsafe_code,
+                reason = "`root` retained the value for this frame, and the \
+                          caller never receives it on this edge"
+            )]
+            unsafe {
+                top.release();
+            }
+        })
     }
 }
 
@@ -746,6 +791,7 @@ mod tests {
     /// Pushing in the worst order still pops in ascending order — the whole
     /// contract, pinned over a size that forces both sifts to move more than
     /// one level.
+    // covers: Core\Heap::push, Core\Heap::pop, Core\Heap::isEmpty
     #[test]
     fn a_natural_heap_pops_in_ascending_order() {
         let heap = natural();
@@ -768,6 +814,7 @@ mod tests {
 
     /// `peek` leaves the heap alone, and both it and `pop` throw once there
     /// is nothing left rather than answering `null`.
+    // covers: Core\Heap::peek
     #[test]
     fn peek_leaves_the_element_and_an_empty_heap_throws() {
         let heap = natural();
@@ -833,6 +880,7 @@ mod tests {
 
     /// A duplicate is held, not folded away: this is a priority queue, and
     /// `Core\ObjectSet` is the member of § 9 that answers "already there".
+    // covers: Core\Heap::count
     #[test]
     fn a_heap_holds_duplicates() {
         let heap = natural();

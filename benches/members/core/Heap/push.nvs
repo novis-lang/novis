@@ -1,0 +1,26 @@
+<?nvs
+// Measures adding a number to a heap of up to 2000 numbers, as a job queue does when new work arrives.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        Core\Heap<int> $heap = new Core\Heap<int>();
+        while ($i < $rounds) {
+            // A new heap every 2000 numbers keeps the heap at the size of a real queue.
+            if ($i % 2000 == 0) {
+                $heap = new Core\Heap<int>();
+            }
+            // The number added depends on the round before, so no round can be left out.
+            $total = ($total * 31 + 7) % 10007;
+            $heap->push($total as int);
+            $i = $i + 1;
+        }
+        return $total + $heap->count();
+    }
+}
+
+echo Bench::run(200000), "\n";

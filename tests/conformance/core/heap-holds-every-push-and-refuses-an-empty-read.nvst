@@ -2,6 +2,7 @@
 A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, `rule:core-api/shape-rules` R5, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
+// covers: Core\Heap::push, Core\Heap::peek, Core\Heap::pop, Core\Heap::count, Core\Heap::isEmpty
 class Task implements Comparable {
     public string $name;
     public int $cost;
