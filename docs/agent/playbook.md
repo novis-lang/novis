@@ -6843,6 +6843,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   inside a `try` printed `15: ` and then the `catch` printed its own line, which `--bless` froze as
   the example's expected output. Put a call that can throw in its own statement above the `echo`
   whenever the example catches it. [until: reviewed 2026-09-22]
+- **A `nvs-cli` bin test that installs the process's service manager records every other case's
+  stop.** `crate::service::Notify::install` sets a `OnceLock` the first caller owns for the
+  binary's life, and `crate::stop::deliver_to` reports `STOPPING=1` into it, so a case asserting
+  its own recorder reads a line another case wrote — under load only. Take
+  `crate::stop::ONE_STOP_AT_A_TIME` in any case that reaches a stop, including the ones arriving
+  through the SCM controls, which call it without naming it. [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

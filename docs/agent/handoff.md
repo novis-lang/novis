@@ -2,37 +2,38 @@
 
 ## State
 
-Goal `core-decimal` is six of its eight members in: `Core\Decimal::allocate`, `::ceil`, `::divExact`,
-`::divRound`, `::floor` and `::pow` each own a description, three examples, an attack, a bench figure
-and a `covers:` marker on a Rust case. `python tools/dossier.py --id 'Core\Decimal::<member>'`
-reports each `complete.` `::truncate` and `::round` are what is left.
+Goal `core-decimal` is met: all eight members — `Core\Decimal::allocate`, `::ceil`, `::divExact`,
+`::divRound`, `::floor`, `::pow`, `::truncate` and `::round` — own a description, three examples, an
+attack, a measured figure and a `covers:` marker on a Rust case. `python tools/dossier.py --group
+'Core\Decimal' --owed` reports `0 features`.
 
-`divRound` and `floor` are attributed by widening a `covers:` line that already named a neighbour —
-`div_exact_throws_where_div_round_rounds` and
-`decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked` each assert both members
-of their pair — so `::truncate` and `::round` are the same one-line edit to the second of those.
+`::truncate` and `::round` are attributed by the same Rust case as `::ceil` and `::floor`,
+`decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked`, which already asserted
+all four: its `covers:` line now names all four members.
+
+The floor also turned up a flake outside this goal and it is fixed: `crate::stop::ONE_STOP_AT_A_TIME`
+moved out of `serve.rs`'s `mod tests` so the third case that stops the process takes it too.
 
 Nothing is blocked.
 
 ## Next group
 
-The last two members of goal `core-decimal`, in the goal's own order — one file set:
-`crates/nvs-stdlib/src/decimal.rs` for the `covers:` marker, plus a new directory each under
-`docs/examples/core/Decimal/` and `tests/hostile/core/Decimal/`, and one file under
-`benches/members/core/Decimal/`. One slice is one member with all its feature proofs
-(`rule:testing/feature-proofs`), and both share the implementing file with the six that landed.
+The first members of goal `core-encoding`, which the chain reaches next — one file set:
+`crates/nvs-stdlib/src/encoding.rs` for the `covers:` markers, plus a new directory each under
+`docs/examples/core/Encoding/` and `tests/hostile/core/Encoding/`, and one file under
+`benches/members/core/Encoding/`. One slice is one member with all its feature proofs
+(`rule:testing/feature-proofs`). That goal ships its own generated handoff, so this section points
+at its first two items rather than replacing them.
 
-- [ ] **`Core\Decimal::truncate`** — owes examples, hostile, perf, tests. Its cut towards zero is
-      what parts it from `::floor` and `::ceil` on a negative value, which is the example that
-      earns its place. `crates/nvs-stdlib/src/decimal.rs:147`
-- [ ] **`Core\Decimal::round`** — owes examples, hostile, perf, tests. It takes the mode before the
-      scale, and is `::divRound` against `1`. `crates/nvs-stdlib/src/decimal.rs:156`
+- [ ] **`Core\Encoding::encodeText`** — owes examples, hostile, perf, tests. It takes the text and
+      the encoding name, so what parts it from a plain write is the encoding it names.
+      `crates/nvs-stdlib/src/encoding.rs:341`
+- [ ] **`Core\Encoding::decodeText`** — owes examples, hostile, perf, tests. Its refusal on bytes
+      no encoding can read is the attack. `crates/nvs-stdlib/src/encoding.rs:350`
 
 ## Backlog
 
-- A literal with a point is not placed from the other operand of an arithmetic expression, so
-  `$price + 0.01` on a `decimal` is `E0455` while `$price + 1` compiles —
-  `crates/nvs-types/src/expr/literals.rs` owns the placement, `rule:types/arithmetic` row 9 owns the
-  refusal. Deciding whether the operand is a placement position is bigger than a proof slice.
-- `Core\Decimal::pow`, `::floor` and `::divRound` each allocate twice per call at 64–97 ns
-  (`docs/perf/members.ndjson`); nothing says whether a `decimal` answer owes two.
+- `Core\Decimal` has no instance members, so nothing in the class is owed beyond the eight —
+  `crates/nvs-stdlib/src/decimal.rs`'s registry `instance: &[]`.
+- The figures for `::truncate` and `::round` are 93 ns/op each, 3 statements, 2 allocations —
+  `docs/perf/members.ndjson`.
