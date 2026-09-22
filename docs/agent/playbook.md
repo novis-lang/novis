@@ -6773,6 +6773,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   program reading `select count(*) as n` and then `->count()` gets `1` — a number plausible enough to
   bless and wrong. Read the count out of the column with `->first()` and a typed reader, or select the
   rows and count those. [until: reviewed 2026-09-22]
+- **A `?? 0` default on a `?uint` is `uint|int`, so it does not fit anywhere a `uint` is wanted.** An
+  integer literal is `int`, and the union of the two arms keeps both, so `uint $n = $write->changed()
+  ?? 0;` is `E0401` and the same expression in a `uint`-returning method is `E0403` — while `echo
+  $write->changed() ?? 0` is fine, because `echo` takes anything. Write the house idiom instead:
+  `?uint $n = …;` and a `if ($n != null)` around the arithmetic, which is what
+  `docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs` already does.
+  [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

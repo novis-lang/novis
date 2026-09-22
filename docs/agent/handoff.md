@@ -2,58 +2,63 @@
 
 ## State
 
-Goal `core-db-transaction-and-1-more`: `Core\Db\Transaction` is finished — all eight members carry
-their feature proofs and `python tools/dossier.py --gate --group 'Core\Db\Transaction'` is green.
-Of `Core\Db\Write`'s three readers, `affected` is finished; `changed` and `lastId` are the rest of
-the goal.
+Goal `core-db-transaction-and-1-more` is met: `python tools/dossier.py --verify --group
+'Core\Db\Transaction'` and `--group 'Core\Db\Write'` are both green, so all eleven members carry
+their feature proofs. `Core\Db\Write::changed` and `Core\Db\Write::lastId` landed this session.
 
-`affected`'s attack found a real bug, and it is fixed. On SQLite a statement whose kind carries no
-count — a `create table`, a `drop table` — answered the *previous* data-changing statement's row
-count, because `sqlite3_changes` reports the last DML on the connection rather than the statement
-that just ran. `crates/nvs-db/src/sqlite.rs`'s `step` now reports `0` unless `sqlite3_total_changes`
-moved, which is what `Core\Db\Write::affected`'s reference card says and what the other four drivers
-already do from their command tags.
+**`changed` is present for every statement SQLite runs, and that is now decided.** § 4's absent case
+is a command tag carrying no count, and this driver sends no tag at all: a `create table` cannot be
+told apart here from an `update` that matched nothing, so both report `0` and neither reports an
+absence. `crates/nvs-stdlib/src/db/execute.rs:@sqlite_write`'s doc is where that is written down, and
+the `.nvst` case pins it from a program.
 
-What that fix does **not** reach is `changed`. On SQLite it is `Some(0)` where the card says `null`
-for a kind that carries no count at all, because this driver has no tag to read the absence from.
-That is `changed`'s own slice to decide, and the first item below names it.
+**`lastId` found a real bug, and it is recorded rather than fixed.** On SQLite a statement that
+inserted no row answers the key of the last insert on the *connection* — after an insert of row 4, an
+`update`, a `delete` and a `create table` each answer `4` — which is exactly the
+`mysqli_insert_id` hazard `WRITE_LAST_ID_DOC` promises this class does not have. `step`'s
+`sqlite3_total_changes` fold cannot reach it, because rows changing is not rows being *inserted*, and
+the three ways to tell an insert from the other kinds each cost a decision this goal may not make.
+`crates/nvs-db/src/sqlite.rs:65` is the `# Known gaps` entry, owned by M10, and
+`docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs` is the proof marked
+`known-gap` for it. The half of the promise that does hold — a write keeps its own key while later
+statements run — is pinned by the `.nvst` case.
 
-The whole `Core\Db\Transaction` group was re-measured in one quiet sweep: the first `transaction`
-record was taken while a release build held the target directory, so `--record-perf --force` replaced
-it. `transaction` is 54024 ns/op, 5.00 statements and 49.10 allocations — half of `stream`'s clock
-and about one and a half times `rollBack`'s, which is a `BEGIN`, a `SAVEPOINT`, a write, a `RELEASE`
-and a `COMMIT` per round. `Core\Db\Write::affected` is 41.2 ns/op at 0.00 allocations, as its bench
-declares.
+`Core\Db\Write::changed` measures 47.2 ns/op and `lastId` 40.7 ns/op, both at 0.00 allocations, as
+their benches declare. `target/release/nvs.exe` is current with the tree.
 
-`target/release/nvs.exe` is current with the tree.
+**`python tools/verify.py` is green through build, fmt, test and both `.nvst` trees, and red at
+clippy on files this session did not touch.** `crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/stop.rs`,
+`crates/nvs-host/src/reactor.rs` and `crates/nvs-runtime/src/drain.rs` carry uncommitted
+`eprintln!("TRACE …")` lines somebody is debugging with, and `clippy::print_stderr` is `-D warnings`:
+two of them in `reactor.rs` are what stops the run. Nothing here staged or edited those four, and
+clippy passes again the moment they go. `python tools/verify.py --doc` is green.
 
 ## Next group
 
-**Stage: feature proofs for the last two `Core\Db\Write` readers** — one file set:
-`crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/execute.rs`,
-`crates/nvs-db/src/sqlite.rs`, the root `nvs.toml`, and the proof trees under `core/Db-Write/changed/`
-and `core/Db-Write/lastId/`. Both readers come off the same builder and the same statement, so their
-examples and their benches are cheapest written together.
+**Stage: the key a SQLite write reports** — one file set: `crates/nvs-db/src/sqlite.rs`,
+`crates/nvs-stdlib/src/db/execute.rs`, and the marked proof under
+`docs/examples/core/Db-Write/lastId/`. This is the goal above's finding, and it needs the decision
+that goal was not allowed to make.
 
-- [ ] **`Core\Db\Write::changed`** — owes about, examples, hostile, perf, tests. The registry row is
-      at `crates/nvs-stdlib/src/db/registry.rs:1496` and the reader at
-      `crates/nvs-stdlib/src/db/row.rs:1252`; the slot is filled per driver, and SQLite's half is
-      `sqlite_write` at `crates/nvs-stdlib/src/db/execute.rs:955`. Decide there what a statement with
-      no count of its own answers on this driver — `Some(0)` today, `null` on PostgreSQL.
-      `rule:core-classes/db-statement-members` and `rule:testing/feature-proofs`.
-- [ ] **`Core\Db\Write::lastId`** — owes about, examples, hostile, perf, tests. The row is at
-      `crates/nvs-stdlib/src/db/registry.rs:1505` and the reader at
-      `crates/nvs-stdlib/src/db/row.rs:1261`. SQLite reads it from
-      `crates/nvs-db/src/sqlite.rs:1283`'s `last_insert_rowid()`, which carries the staleness
-      `affected` had: a statement that inserted nothing answers the id of the last one that did.
-      `tests/conformance/core/db-last-id-belongs-to-the-write-and-not-the-connection.nvst` is what
-      already pins the member. `rule:core-classes/db-statement-members`.
+- [ ] **Decide how this driver tells an insert from the statements that follow it** — the three
+      candidates are in the gap entry at `crates/nvs-db/src/sqlite.rs:65`: the statement's kind,
+      an update hook firing per changed row, or `sqlite3_set_last_insert_rowid` as a sentinel around
+      every statement, which is raw FFI through `rusqlite`'s handle. Weigh the per-row cost against
+      this crate's audit surface, and record it. `rule:core-classes/db-statement-members`.
+- [ ] **Report the key off the statement rather than the connection** — the read is
+      `crates/nvs-db/src/sqlite.rs:1308`, and `crates/nvs-stdlib/src/db/execute.rs:982` is where the
+      `?uint` is built from it. `step`'s `affected` fold two lines above is the shape.
+      `rule:core-classes/db-statement-members`.
+- [ ] **Unmark the proof and pin the corrected behaviour** — the `known-gap` line in
+      `docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs:4` goes, and the
+      claim joins `tests/conformance/core/db-write-lastid-is-the-key-of-the-row-its-own-statement-inserted.nvst`.
+      A marked proof that passes fails the sweep — `rule:testing/a-failing-proof-is-fixed-or-recorded`.
 
 ## Backlog
 
-- `Core\Db\Write::changed` cannot report an absent count on SQLite — decide it in that slice,
-  `crates/nvs-stdlib/src/db/execute.rs`'s `sqlite_write`.
-- `Core\Db\Write::lastId` has SQLite's stale-value hazard that `affected` just lost — `lastId`'s
-  slice either folds it or records why it cannot.
-- A proof program still cannot open a second database flow, so a hostile case abandons at most one
-  walk and that step goes last — the playbook bullet owns it.
+- `WRITE_CHANGED_DOC` says nothing about SQLite reporting a count for every statement; the sentence
+  belongs on the card, and editing `crates/nvs-stdlib/src/db/registry.rs` re-stales the perf record
+  of every `Core\Db` member, so it rides along with the next slice that has to touch that file.
+- An integer literal in a `??` arm widens nothing, so `?uint ?? 0` is `uint|int` — the playbook
+  bullet above is the workaround, and whether the literal should take the other arm's type is
+  `rule:types/` territory nobody has opened.
