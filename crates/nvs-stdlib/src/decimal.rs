@@ -1015,6 +1015,7 @@ mod tests {
     /// `rule:types/arithmetic`'s two named-rounding members over the same divisions:
     /// where `divExact` refuses, `divRound` answers under the mode it was
     /// given, and where `divExact` answers the two agree.
+    // covers: Core\Decimal::divExact
     #[test]
     fn div_exact_throws_where_div_round_rounds() {
         let mut ctx = Ctx::buffered();
@@ -1204,6 +1205,7 @@ mod tests {
 
     /// `rule:types/decimal`'s "splits a sum into parts that add back to it
     /// exactly", over the splits that have no even answer.
+    // covers: Core\Decimal::allocate
     #[test]
     fn decimal_allocate_parts_add_back_to_the_amount_exactly() {
         let mut ctx = Ctx::buffered();
@@ -1271,6 +1273,7 @@ mod tests {
 
     /// The three ratio lists that name no split, and the one bound the split
     /// shares with the operators.
+    // covers: Core\Decimal::allocate
     #[test]
     fn decimal_allocate_refuses_an_empty_zero_or_negative_ratio_list() {
         let mut ctx = Ctx::buffered();
@@ -1360,6 +1363,7 @@ mod tests {
     /// `rule:types/conversion`'s four named cuts: each answers a `decimal` at
     /// exactly the scale it was asked for, the three directions part where a
     /// value is negative, and `round` is `divRound` against `1`.
+    // covers: Core\Decimal::ceil
     #[test]
     fn decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked() {
         let mut ctx = Ctx::buffered();

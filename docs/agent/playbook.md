@@ -6825,6 +6825,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   on a paste, so a round-trip case pastes the right text and gains none of the edit meant to ride
   with it. Assert the paste half with a provider the case registers under the extension's own kind,
   the way `editors/vscode/test/host/imports.test.ts` does. [until: reviewed 2026-09-22]
+- **Two `catch` arms in one file may not reuse the binding name.** A hostile case is several
+  numbered `try` steps in one program, so a second `} catch (LogicError $caught) {` is `E0406:
+  $caught is already declared` pointing at the first arm, because a catch binding is an ordinary
+  file-scope local and not scoped to its arm. Name each arm for what it caught — `$byZero`,
+  `$repeats`, `$tooWide` — which reads better in the `echo` beside it anyway.
+  [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 
@@ -9201,6 +9207,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   arguments. An unknown class name in a parameter type is accepted silently, so read `nvs meta
   --json`'s `interfaces` list before typing a parameter with a `Core` interface.
   [until: reviewed 2026-09-21]
+- **Widening a numeric literal's placement is a union question before it is a type question, and
+  `tests/differential/` is what tells you.** Passing a `decimal` expectation through `-e` with
+  `placed_literal`'s walk also reached the `decimal` arm of every numeric union, so
+  `Core\Math::abs(-0.0)` became a `decimal` printing `0.0` while `abs(0.0)` stayed a `float`
+  printing `0`; build and `cargo test` were both green and only the PHP twin caught it. Place `-e`
+  with the same exact test the bare literal's arm uses (`wants_decimal`, not `placed_literal`), and
+  run `nvs test tests/differential` before believing a placement change is contained.
+  [until: reviewed 2026-09-22]
 
 ## Divergences and refusals already pinned
 
