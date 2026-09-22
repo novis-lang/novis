@@ -1,0 +1,69 @@
+--TEST--
+`Core\Db\Write::affected` is the count of the statement that answered it: a statement matching no row answers `0`, a statement whose kind has no count answers `0` rather than an earlier statement's rows, and a write keeps its count while later statements run — `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Write::affected
+// SQLite runs this for real, so every count below is one a driver reported.
+use Core\Db;
+
+var $db = Db::connect("main");
+
+// A `create table` has no rows to count, and it is the first statement here, so
+// nothing has run that a stale count could come from yet.
+var $made = $db->execute("create table t (id integer primary key, name text not null, done boolean not null)", []);
+echo "create ", $made->affected(), "\n";
+
+// A write's count is the rows it changed: three inserted, then the two of them
+// that were still open.
+var $inserted = $db->execute(
+    "insert into t (name, done) values (?, ?), (?, ?), (?, ?)",
+    ["ada", false, "grace", false, "alan", true],
+);
+echo "inserted ", $inserted->affected(), "\n";
+
+var $updated = $db->execute("update t set done = ? where done = ?", [true, false]);
+echo "updated ", $updated->affected(), "\n";
+
+// A `where` that matched nothing is `0`, which is the answer a caller acts on:
+// the row it meant to change is not there.
+var $missed = $db->execute("update t set name = ? where id = ?", ["nobody", 99]);
+echo "missed ", $missed->affected(), "\n";
+
+// § 4's fold: a statement whose kind carries no count answers `0` and not the
+// three rows the last data-changing statement touched. SQLite's own
+// `sqlite3_changes` is that earlier count, so this is the one place the answer
+// is the member's rather than the driver's.
+var $second = $db->execute("create table u (id integer primary key)", []);
+echo "second create ", $second->affected(), "\n";
+
+var $dropped = $db->execute("drop table u", []);
+echo "dropped ", $dropped->affected(), "\n";
+
+// The count belongs to the write and not to the connection, so the two writes
+// above changed nothing about what the first three statements answer. This is
+// the hazard `mysqli_insert_id` has and this class does not.
+echo "inserted still ", $inserted->affected(), "\n";
+echo "updated still ", $updated->affected(), "\n";
+
+// `affected` is a `uint` and never `null`, so it needs no unwrapping to add up.
+uint $total = $inserted->affected() + $updated->affected() + $missed->affected();
+echo "total ", $total, "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+create 0
+inserted 3
+updated 2
+missed 0
+second create 0
+dropped 0
+inserted still 3
+updated still 2
+total 5

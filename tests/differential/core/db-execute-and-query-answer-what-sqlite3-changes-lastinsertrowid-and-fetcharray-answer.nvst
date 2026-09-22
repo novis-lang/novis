@@ -2,11 +2,12 @@
 Core\Db::execute answers the counts SQLite3::changes and SQLite3::lastInsertRowID answer, and query answers the rows fetchArray walks — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
-// `rule:core-classes/db-statement-members`'s `Write` carries two numbers, and on this backend both come off
-// the *connection* rather than off the statement — SQLite's own rule. PHP's
-// `SQLite3` reads the same two through `changes()` and `lastInsertRowID()`, so
-// the agreement below is over what SQLite reports and not over what either
-// binding decided to report.
+// `rule:core-classes/db-statement-members`'s `Write` carries two numbers, and on this backend both are
+// read off the connection after the statement ran — SQLite's own rule, which
+// `affected` departs from in one place only: a statement that changed no rows
+// answers `0` rather than repeating the last data-changing statement's count.
+// PHP's `SQLite3` reads the same two through `changes()` and
+// `lastInsertRowID()`, and every statement below is one where the two agree.
 use Core\Db;
 
 var $db = Db::connect("main");

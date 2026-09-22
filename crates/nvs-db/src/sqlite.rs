@@ -494,12 +494,16 @@ impl SqliteRows<'_> {
         self.rows.next()
     }
 
-    /// `sqlite3_changes` after the statement finished: § 4's `execute` answer.
+    /// How many rows this statement changed: § 4's `execute` answer.
     ///
-    /// A `SELECT` leaves it at whatever the last data-changing statement on this
-    /// connection reported, which is SQLite's own rule and not something to
-    /// paper over — `nvs-stdlib` reads this for `execute` and the row count for
-    /// `query`, and the two members are where that distinction belongs.
+    /// **This statement's own count and never an earlier one's.**
+    /// `sqlite3_changes` reports the last *data-changing* statement on the
+    /// connection, so a `SELECT`, a `create table` or a `drop table` leaves it
+    /// at a count that belongs to something else — and `Core\Db\Write::affected`
+    /// is documented to answer `0` for a statement whose kind has no count of
+    /// its own. [`step`] separates the two by whether `sqlite3_total_changes`
+    /// moved, which is what makes a statement that changed nothing answer `0`
+    /// here rather than repeating a number a program already read.
     #[must_use]
     pub fn affected(&self) -> u64 {
         self.affected
@@ -1246,6 +1250,9 @@ fn step(
 ) -> io::Result<Read> {
     let guard = lock(handle);
     let mut statement = guard.prepare_cached(sql).map_err(server_error)?;
+    // Read before the statement runs, because what `sqlite3_changes` answers
+    // afterwards is only this statement's where this statement changed rows.
+    let before = guard.total_changes();
 
     let columns = describe(&statement);
     let width = columns.len();
@@ -1262,7 +1269,17 @@ fn step(
     Ok(Read {
         columns,
         rows,
-        affected: guard.changes(),
+        // `sqlite3_changes` is the last *data-changing* statement's count, so a
+        // `create table` or a `select` leaves it reporting an earlier
+        // statement's rows as this one's. `sqlite3_total_changes` moving is what
+        // says this statement changed any, and a statement that changed none
+        // answers `0` — the same answer § 4's `affected` gives on every other
+        // driver for a command whose tag carries no count.
+        affected: if guard.total_changes() == before {
+            0
+        } else {
+            guard.changes()
+        },
         last_insert_id: guard.last_insert_rowid(),
     })
 }
@@ -1732,6 +1749,72 @@ mod tests {
             SqliteTarget::resolve(&blank),
             Err(BlockError::Blank { field: "path" })
         );
+    }
+
+    /// The count a statement answers is its own, which is the one thing
+    /// `sqlite3_changes` does not say on its own: it reports the last
+    /// *data-changing* statement on the connection, so a `create table` run
+    /// after an insert would answer the insert's rows. `Core\Db\Write::affected`
+    /// answers `0` where a statement's kind has no count of its own, and
+    /// [`step`] is where that holds for this backend.
+    ///
+    /// **Asserted after a statement that really did change rows**, because a
+    /// zero read on a quiet connection passes whether the fold is there or not.
+    /// Three rows are written first, so every statement below that changes none
+    /// has three rows to wrongly report.
+    // covers: Core\Db\Write::affected
+    #[test]
+    fn a_statement_that_changed_no_rows_answers_zero_and_not_an_earlier_count() {
+        let conn = connect();
+        conn.query(
+            "create table t (id integer primary key, name text not null)",
+            Vec::new(),
+        )
+        .expect("the schema applies");
+
+        let inserted = conn
+            .query(
+                "insert into t (name) values (?), (?), (?)",
+                vec![
+                    SqliteValue::Text(String::from("ada")),
+                    SqliteValue::Text(String::from("grace")),
+                    SqliteValue::Text(String::from("alan")),
+                ],
+            )
+            .expect("the insert runs");
+        assert_eq!(inserted.affected(), 3);
+        drop(inserted);
+
+        for quiet in [
+            "create table u (id integer primary key)",
+            "drop table u",
+            "select id from t",
+        ] {
+            let answered = conn.query(quiet, Vec::new()).expect("the statement runs");
+            assert_eq!(
+                answered.affected(),
+                0,
+                "`{quiet}` answered the count of the insert before it"
+            );
+            drop(answered);
+        }
+
+        let missed = conn
+            .query(
+                "update t set name = ? where id = ?",
+                vec![
+                    SqliteValue::Text(String::from("nobody")),
+                    SqliteValue::Int(99),
+                ],
+            )
+            .expect("the update runs");
+        assert_eq!(missed.affected(), 0);
+        drop(missed);
+
+        let deleted = conn
+            .query("delete from t", Vec::new())
+            .expect("the delete runs");
+        assert_eq!(deleted.affected(), 3);
     }
 
     /// § 4's statement end to end: a schema, a bound insert, and the read back
