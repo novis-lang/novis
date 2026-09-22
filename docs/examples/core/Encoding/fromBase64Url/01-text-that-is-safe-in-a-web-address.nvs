@@ -1,0 +1,18 @@
+<?nvs
+// Shows the round trip: bytes go out as URL-safe base64 text, and the same
+// bytes come back.
+
+// A short text whose characters all need care in a web address.
+bytes $raw = Core\Encoding::encodeText("~hello?world/ok+fine~", Core\Charset::Utf8);
+
+// `Core\Encoding::toBase64Url` writes the text. This prints
+// fmhlbGxvP3dvcmxkL29rK2ZpbmV-, which a web address carries unchanged.
+string $written = Core\Encoding::toBase64Url($raw);
+echo $written, "\n";
+
+// `Core\Encoding::fromBase64Url` reads it back. This prints the text we
+// started with.
+echo Core\Encoding::decodeText(Core\Encoding::fromBase64Url($written), Core\Charset::Utf8), "\n";
+
+// The empty string gives an empty buffer. This prints 0.
+echo Core\Bytes::length(Core\Encoding::fromBase64Url("")), "\n";

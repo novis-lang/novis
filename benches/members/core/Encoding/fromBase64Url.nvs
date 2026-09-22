@@ -1,0 +1,27 @@
+<?nvs
+// Measures reading the claims out of a JSON Web Token, which a server does on
+// every request that carries one.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $payloads = [
+            "eyJzdWIiOiJhZGEiLCJhZG1pbiI6dHJ1ZX0",
+            "eyJzdWIiOiJncmFjZSIsImFkbWluIjpmYWxzZX0",
+            "eyJzdWIiOiJhbGFuIiwiZXhwIjoxNzAwMDAwMDAwfQ",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the payload read holds the count the round before gave.
+            $total = $total + Core\Bytes::length(
+                Core\Encoding::fromBase64Url($payloads[$total % 3]),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
