@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when you call `peek` on a heap with no values.
+
+var $heap = new Core\Heap<int>();
+
+// `isEmpty` is the check to make first. This prints "Nothing to read".
+if ($heap->isEmpty()) {
+    echo "Nothing to read\n";
+}
+
+// Without that check, `peek` throws a `RuntimeError`. This prints "peek threw an error".
+try {
+    echo $heap->peek(), "\n";
+} catch (RuntimeError $error) {
+    echo "peek threw an error\n";
+}

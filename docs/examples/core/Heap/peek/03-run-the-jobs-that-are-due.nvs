@@ -1,0 +1,32 @@
+<?nvs
+// Shows a small scheduler. It runs only the jobs that are due now and keeps the others for later.
+
+class Job implements Comparable {
+    public string $name;
+    public int $minute;
+
+    public function constructor(string $name, int $minute) {
+        $this->name = $name;
+        $this->minute = $minute;
+    }
+
+    // The job with the earliest minute comes first.
+    public function compareTo(Job $other): int {
+        return $this->minute - $other->minute;
+    }
+}
+
+var $jobs = new Core\Heap<Job>();
+$jobs->push(new Job("send the newsletter", 30));
+$jobs->push(new Job("clean the cache", 5));
+$jobs->push(new Job("write the daily report", 12));
+
+int $now = 15;
+
+// `peek` checks the next job without taking it. A job is taken only when it is due.
+while (!$jobs->isEmpty() && $jobs->peek()->minute <= $now) {
+    echo "running: ", $jobs->pop()->name, "\n";
+}
+
+// This prints 1, because one job is not due yet.
+echo "still waiting: ", $jobs->count(), "\n";

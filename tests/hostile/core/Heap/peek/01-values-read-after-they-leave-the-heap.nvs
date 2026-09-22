@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a program keeps values it read with `peek` after the heap removes or frees them.
+// Every value read must stay readable, and `peek` on an empty heap must only throw.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+
+class Task
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. `peek` on an empty heap, 10000 times. Each call throws a `RuntimeError`, and each is caught.
+var $empty = new Core\Heap<int>();
+uint $caught = 0;
+int $i = 0;
+while ($i < 10000) {
+    try {
+        $empty->peek();
+    } catch (RuntimeError $nothing) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 1: ', $caught, ' errors caught', "\n";
+
+// 2. An object is read with `peek`, then taken out with `pop`, and then the heap is freed.
+// The object that was read must still be whole.
+var $tasks = new Core\Heap<Task>(fn (Task $a, Task $b): int => Core\Str::compare($a->name, $b->name));
+$tasks->push(new Task(Core\Str::repeat('a', 100)));
+$tasks->push(new Task(Core\Str::repeat('b', 100)));
+var $first = $tasks->peek();
+$tasks->pop();
+$tasks->pop();
+$tasks = new Core\Heap<Task>(fn (Task $a, Task $b): int => 0);
+echo 'step 2: ', Core\Str::length($first->name), ' characters', "\n";
+
+// 3. A text of 16 million characters is read with `peek` 100000 times. No copy may be made.
+var $huge = new Core\Heap<string>();
+$huge->push(Core\Str::repeat('h', 16000000));
+uint $total = 0;
+$i = 0;
+while ($i < 100000) {
+    $total = $total + Core\Str::length($huge->peek());
+    $i = $i + 1;
+}
+echo 'step 3: ', $total, "\n";
+
+// 4. The top value is read and kept, and a new smaller value is added each time.
+// Nothing is freed, so this step ends the program at its memory limit.
+var $growing = new Core\Heap<int>();
+array<string> $kept = [];
+int $next = 0;
+while (true) {
+    $growing->push($next);
+    $kept[] = Core\Str::format('%d', $growing->peek()) . Core\Str::repeat('k', 200);
+    $next = $next - 1;
+}

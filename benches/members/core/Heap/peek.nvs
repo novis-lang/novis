@@ -1,0 +1,26 @@
+<?nvs
+// Measures reading the smallest number of a heap without removing it, as a scheduler does to see when the next job is due.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Heap<int>> $heaps = [new Core\Heap<int>(), new Core\Heap<int>(), new Core\Heap<int>()];
+        foreach ($heaps as Core\Heap<int> $heap) {
+            $heap->push(30);
+            $heap->push(10);
+            $heap->push(20);
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The heap read in each round is chosen by the round before, so no round can be left out.
+            $total = $total + ($heaps[($total % 3) as int]->peek() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

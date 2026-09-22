@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the smallest value of a heap without removing it.
+
+var $heap = new Core\Heap<int>();
+$heap->push(7);
+$heap->push(3);
+$heap->push(9);
+
+// This prints 3.
+echo $heap->peek(), "\n";
+
+// The heap still has all three values. This prints the count, 3.
+echo $heap->count(), "\n";
