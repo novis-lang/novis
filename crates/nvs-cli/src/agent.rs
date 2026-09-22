@@ -198,8 +198,31 @@ fn entries(document: &Value) -> Vec<Entry> {
     let gates = gates(document);
     let mut out = Vec::new();
 
+    let attributes: Vec<&str> = array(document, "attributes")
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
     for class in array(document, "classes") {
         let class_name = text(class, "name");
+        // The class has a line of its own, naming its members, so a query for
+        // the class — or for a word in its name, `html` — lands on it, and a
+        // memberless carrier such as `Core\Html\Markup` is on the index at all.
+        // A class that is also an attribute, `Core\Test`, keeps the attribute's
+        // line as its only one, and that line's card lists the members too.
+        if !attributes.contains(&class_name) {
+            let names: Vec<&str> = array(class, "members")
+                .iter()
+                .map(|member| text(member, "name"))
+                .collect();
+            let mut line = format!("{class_name}  class");
+            if !names.is_empty() {
+                line.push_str(&format!(": {}", names.join(", ")));
+            }
+            out.push(Entry {
+                symbol: class_name.to_owned(),
+                line,
+            });
+        }
         for member in array(class, "members") {
             let symbol = format!("{class_name}::{}", text(member, "name"));
             let mut line = format!("{class_name}::{}", text(member, "signature"));
@@ -333,6 +356,26 @@ fn unique_slug(taken: &mut Vec<String>, heading: &str) -> String {
     unique
 }
 
+/// The line with every parenthesised rule citation — `` (`rule:topic/name`) ``
+/// and the space before it — taken out. A citation names a file of this
+/// repository, which the agent reading the section does not have and cannot
+/// resolve through `show`, so on the shipped surface it is a dangling name.
+fn without_rule_citations(line: &str) -> String {
+    const OPEN: &str = "(`rule:";
+    const CLOSE: &str = "`)";
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find(OPEN) {
+        let Some(len) = rest[start..].find(CLOSE) else {
+            break;
+        };
+        out.push_str(rest[..start].trim_end_matches(' '));
+        rest = &rest[start + len + CLOSE.len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// What `show` prints for a chapter or a section, or nothing where `symbol` is
 /// neither.
 ///
@@ -346,7 +389,7 @@ fn topic_card(symbol: &str) -> Option<String> {
     if topic.level > 0 {
         let mut body = String::new();
         for line in topic.lines.iter().filter(|line| line.trim() != MARKER) {
-            body.push_str(line.trim_end());
+            body.push_str(without_rule_citations(line.trim_end()).as_str());
             body.push('\n');
         }
         out.push_str(body.trim_end());
@@ -655,6 +698,7 @@ fn card(document: &Value, entry: &Entry) -> String {
         if let Some(card) = topic_card(&entry.symbol) {
             return card;
         }
+        push_class_card(&mut out, document, &entry.symbol);
         push_roster_card(&mut out, document, &entry.symbol);
         return out;
     };
@@ -682,6 +726,26 @@ fn card(document: &Value, entry: &Entry) -> String {
         (text(error, "error").to_owned(), text(error, "desc"))
     });
     out
+}
+
+/// The card for a class: the index line of each of its members, so the class
+/// name alone is a way into its members without knowing one of them. A class
+/// with no members writes nothing under its line.
+fn push_class_card(out: &mut String, document: &Value, symbol: &str) {
+    let Some(class) = array(document, "classes")
+        .iter()
+        .find(|class| text(class, "name") == symbol)
+    else {
+        return;
+    };
+    let members = array(class, "members");
+    if members.is_empty() {
+        return;
+    }
+    out.push_str("\nmembers:\n");
+    for member in members {
+        out.push_str(&format!("  {symbol}::{}\n", text(member, "signature")));
+    }
 }
 
 /// The card for a symbol that is not a member: an enum's cases, an exception's

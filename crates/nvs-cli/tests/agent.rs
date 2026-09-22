@@ -400,6 +400,70 @@ fn show_on_a_chapter_lists_the_sections_the_index_has_for_it() {
     }
 }
 
+/// A class has a line of its own, so the class name alone resolves and lists
+/// its members, and a class with no members — the carrier `Core\Html\Markup` —
+/// is on the index at all rather than only ever a type in somebody else's
+/// signature.
+#[test]
+fn a_class_name_resolves_to_a_card_listing_its_members() {
+    let (card, _, ok) = agent(&["show", r"Core\Html"]);
+    assert!(ok, "a class name resolves");
+    assert!(
+        card.starts_with("Core\\Html  class: "),
+        "the card opens with the class line: {card}"
+    );
+    assert!(
+        card.contains(r"  Core\Html::escape(string $text): Core\Html\Markup"),
+        "a member's index line is on the class card: {card}"
+    );
+
+    let (card, _, ok) = agent(&["show", r"Core\Html\Markup"]);
+    assert!(ok, "a memberless class resolves too");
+    assert_eq!(card.trim_end(), r"Core\Html\Markup  class");
+}
+
+/// The markup literal has no member to be named for, so the word `html` has to
+/// reach it through a heading — and through the class whose value it makes —
+/// or an agent concludes from six member lines that no literal exists.
+#[test]
+fn find_html_reaches_the_literal_and_the_markup_class() {
+    let (out, _, ok) = agent(&["find", "html"]);
+    assert!(ok, "`nvs agent find` succeeds");
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(
+        lines.contains(&r"Core\Html\Markup  class"),
+        "the carrier is among {lines:?}"
+    );
+    let section = lines
+        .iter()
+        .find(|line| line.starts_with("types#") && line.contains("template literal"))
+        .unwrap_or_else(|| panic!("the literal's heading is among {lines:?}"));
+
+    let (card, _, ok) = agent(&["show", symbol_of(section)]);
+    assert!(ok, "the section's symbol resolves");
+    assert!(
+        card.contains("first token is a variable"),
+        "the hole grammar is stated at the literal: {card}"
+    );
+}
+
+/// A chapter cites this repository's rules in parentheses, and the agent that
+/// reads a section through the binary has no way to resolve one, so the shown
+/// section carries no such citation.
+#[test]
+fn a_shown_section_carries_no_rule_citation() {
+    let (card, _, ok) = agent(&["show", "expressions#refused-in-expression-position"]);
+    assert!(ok, "the section resolves");
+    assert!(
+        !card.contains("(`rule:"),
+        "no parenthesised citation survives: {card}"
+    );
+    assert!(
+        card.contains("never a command line — and the character itself"),
+        "the sentence reads on across where the citation was: {card}"
+    );
+}
+
 /// The chapter list is written by hand, so a chapter added to the reference and
 /// not to the list is one the binary cannot show while the primer says its map
 /// is all of them. Every file of the two reference directories has a line.
