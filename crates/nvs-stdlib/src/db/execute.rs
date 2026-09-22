@@ -363,6 +363,40 @@ pub(super) struct Written {
     last_id: Option<u64>,
 }
 
+impl Written {
+    /// What a driver whose protocol carries no generated key at all reports:
+    /// the affected count it did carry, and § 4's `lastId` absent.
+    ///
+    /// The absence belongs to the driver rather than to the statement, and
+    /// [`tds_write`] is its one caller and argues why SQL Server has nothing to
+    /// read. A constructor rather than a literal in that arm so a case can
+    /// build what the arm reports without a connection to run a statement on.
+    pub(super) fn keyless(changed: Option<u64>) -> Written {
+        Written {
+            changed,
+            last_id: None,
+        }
+    }
+}
+
+/// The [`WRITE`] a caller is handed, out of what the driver arm reported.
+///
+/// The first slot folds § 4's absent count to `0` and the second keeps the
+/// absence, so `affected` and `changed` are both answered off one build; the
+/// third is `lastId`, `null` wherever the arm reported no id. One function
+/// rather than a literal inside the member, because all five arms end here and
+/// a case can then read what each of them answers with no server to ask.
+pub(super) fn write_object(written: &Written) -> Value {
+    crate::instance::build(
+        &WRITE,
+        [
+            Value::uint(written.changed.unwrap_or(0)),
+            written.changed.map_or_else(Value::null, Value::uint),
+            written.last_id.map_or_else(Value::null, Value::uint),
+        ],
+    )
+}
+
 /// [`queried_rows`] over the PostgreSQL driver: the extended-query stream, § 9's
 /// decode of every row, and `rule:observability/a-query-is-a-trace-event`'s span taken off the rows before they
 /// are dropped.
@@ -1201,10 +1235,7 @@ pub(super) fn tds_write(
         .is_some()
     {}
 
-    let written = Written {
-        changed: answered.affected(),
-        last_id: None,
-    };
+    let written = Written::keyless(answered.affected());
     let taken = watch.taken(answered.span());
     Ok((written, taken))
 }
@@ -1337,14 +1368,7 @@ nvs_runtime::nvs_helper! {
             }
         };
         watch.file(ctx, taken);
-        Ok(crate::instance::build(
-            &WRITE,
-            [
-                Value::uint(written.changed.unwrap_or(0)),
-                written.changed.map_or_else(Value::null, Value::uint),
-                written.last_id.map_or_else(Value::null, Value::uint),
-            ],
-        ))
+        Ok(write_object(&written))
     }
 }
 
@@ -1799,6 +1823,81 @@ mod tests {
 
         // 5. A statement that inserts again is unaffected by them.
         assert_eq!(last_id("insert into t (name) values ('mary')"), Some(6));
+    }
+
+    /// One of a [`WRITE`]'s three counts, read the way `Core\Db\Write`'s own
+    /// reader reads it — [`write_count`] is the body all three members share.
+    fn read(write: Value, member: &str, at: usize) -> Value {
+        write_count(&[write], member, at)
+            .expect("a `Core\\Db\\Write` slot holds a `uint` or a `null`")
+    }
+
+    /// **§ 4's `lastId` is `null` on SQL Server, and that is an answer rather
+    /// than a gap.** The token stream carries no generated key at all, which
+    /// [`tds_write`] argues in full, so that arm reports [`Written::keyless`]
+    /// and this is what a caller reads off the instance it is handed.
+    ///
+    /// The affected count is asserted beside it because the two travel
+    /// together: an arm that dropped the count while dropping the key would
+    /// look exactly like this one from the `lastId` side alone. `affected`
+    /// folds an absent count to `0` and `changed` keeps it, so a command that
+    /// carries no count at all is one of the three cases here.
+    ///
+    /// This crate can build no `nvs_db::Connection`, which the playbook's own
+    /// bullet owns, so what runs a statement against a real SQL Server is
+    /// `tools/db-matrix.py`.
+    // covers: Core\Db\Write::lastId
+    #[test]
+    fn a_sql_server_write_answers_no_key_and_keeps_the_count_it_was_given() {
+        for changed in [Some(3), Some(0), None] {
+            let write = write_object(&Written::keyless(changed));
+
+            assert_eq!(
+                read(write, "lastId", LAST_ID_AT).tag(),
+                Some(Tag::Null),
+                "a key was reported for a driver that carries none"
+            );
+            assert_eq!(read(write, "changed", CHANGED_AT).as_uint(), changed);
+            assert_eq!(
+                read(write, "affected", AFFECTED_AT).as_uint(),
+                Some(changed.unwrap_or(0))
+            );
+
+            released(write);
+        }
+    }
+
+    /// **A key the driver reported is the key the caller reads**, and an absent
+    /// one reads `null`: the half of § 4's `lastId` that happens after a driver
+    /// has answered, on the four backends that carry a key.
+    ///
+    /// `8` is PostgreSQL's own id from `nvs_db::pg`'s
+    /// `the_last_id_is_the_returning_rows_and_never_the_insert_tag`, where that
+    /// driver reads the last `RETURNING` row *after* the stream is drained —
+    /// which is why [`postgres_write`] drains before it reads. What this
+    /// asserts is the step after: the number the arm was given is the number
+    /// the member answers.
+    ///
+    /// `0` is the case that separates the two absences. A row can be written
+    /// with key `0` on SQLite, and a statement that generated no key reports an
+    /// absence rather than a zero on every driver, so an arm folding either one
+    /// into the other fails here while still looking right on a plain insert.
+    // covers: Core\Db\Write::lastId
+    #[test]
+    fn a_key_the_driver_reported_is_the_key_the_caller_reads() {
+        for last_id in [Some(8), Some(0), None] {
+            let write = write_object(&Written {
+                changed: Some(1),
+                last_id,
+            });
+
+            let read_back = read(write, "lastId", LAST_ID_AT);
+            assert_eq!(read_back.as_uint(), last_id);
+            assert_eq!(read_back.tag() == Some(Tag::Null), last_id.is_none());
+            assert_eq!(read(write, "affected", AFFECTED_AT).as_uint(), Some(1));
+
+            released(write);
+        }
     }
 
     /// The rewritten text of one set, as [`batch_of`] reads it before comparing

@@ -609,9 +609,10 @@ const AFFECTED_SLOT: &str = "affected";
 /// command whose tag carries no count at all.
 const CHANGED_SLOT: &str = "changed";
 
-/// Its third: `rule:core-classes/db-statement-members`'s `lastId`, `null` for a statement that returned no
-/// integer first column — which is every statement without a `RETURNING`
-/// clause.
+/// Its third: `rule:core-classes/db-statement-members`'s `lastId`, `null` for a statement that generated
+/// no key — on PostgreSQL every statement without a `RETURNING` clause whose
+/// first column is an integer, and on SQL Server every statement at all, whose
+/// protocol carries no generated key for a driver to read.
 const LAST_ID_SLOT: &str = "lastId";
 
 /// Where [`AFFECTED_SLOT`] sits, for the reader that answers it.
