@@ -11,9 +11,12 @@ Failure actions are set at install — `--restart on-failure` by default, with a
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
 and a description.
 
-**Output.** With no console handle the process's stderr goes nowhere, so `nvs service run` binds
-diagnostics and `Core\Log` to the destination the installer insisted on, and additionally writes a
-small, fixed set of lifecycle records — started, stopped, failed to start, reload applied — to the
-Windows event log, the first place an administrator looks. The event-log source is registered at
-install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
-unit file, no granted ACL.
+**Output.** A service has no console, so under the SCM the process's stdout and stderr are redirected
+into the Windows event log, one record per line, the way the journal takes a unit's stderr under
+systemd: a boot warning, a refused configuration's diagnostic and `Core\Log` written to `stderr` all
+land where an administrator looks first, with nothing to configure. Beside them go a small, fixed set
+of lifecycle records — started, stopped, failed to start, reload applied. Every record's text is its
+one insertion string, and `nvs.exe` carries the message table that renders it
+(`rule:packaging/the-windows-binary-says-what-it-is`). The event-log source is registered at install
+and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
+file, no granted ACL.

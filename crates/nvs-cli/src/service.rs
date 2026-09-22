@@ -15,9 +15,9 @@
 //! obtain a `Plan` without having gone through it.
 //!
 //! The codes are `E0630` (the argv names something other than a server),
-//! `E0631` (a relative path, or no `--config` at all), `E0632` (output with
-//! nowhere to go), `E0633` (a password on a command line) and `E0634` (a
-//! bundle installing itself). § 2's table carries more rows than there are
+//! `E0631` (a relative path, or no `--config` at all), `E0633` (a password on
+//! a command line) and `E0634` (a bundle installing itself). § 2's table
+//! carries more rows than there are
 //! codes here, because rows that share a reason share a code: the
 //! subcommand allowlist, `--fault-inject` and an argv the command line's own
 //! parser refuses are all "the stored argv names something a service manager
@@ -27,8 +27,8 @@
 //! `nvs_diagnostics::code` owns the reasoning.
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
-//! value in the argv, the entry file `serve`/`run` names, the installer's own
-//! `--log-file`, and the two paths of the named configuration that § 4 grants
+//! value in the argv, the entry file `serve`/`run` names, and the two paths of
+//! the named configuration that § 4 grants
 //! on and the server opens as written — the file of a `[log] target` and
 //! `[opcache] file_cache_dir` — and nothing else, because a rule that refused
 //! any word that *looked* like a path would refuse a `--listen` and an
@@ -81,10 +81,7 @@
 //! the operator believes happened. The two directories § 4 grants read/write on
 //! are the residue — neither manager holds them, so they are derived again from
 //! the configuration the stored argv names, which is where the install derived
-//! them from. An install given the installer's own `--log-file` over a
-//! configuration that names no `file:` destination is the case that derivation
-//! cannot reach, and it is `run`'s to close: that binding needs the same value
-//! recoverable from what the platform stores.
+//! them from.
 //!
 //! # The manager is told what state this process is in
 //!
@@ -161,9 +158,6 @@ pub(crate) struct Request<'a> {
     /// interpreted, which is what makes § 1's "every parameter is passable"
     /// true.
     pub(crate) argv: &'a [String],
-    /// The installer's own `--log-file`, one of the two answers to § 2's
-    /// fourth row.
-    pub(crate) log_file: Option<&'a Path>,
     /// § 4's `--account`, for a deployment that needs a domain identity rather
     /// than the default virtual account.
     pub(crate) account: Option<&'a str>,
@@ -189,9 +183,6 @@ pub(crate) struct Host {
     /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (`rule:programs/bundle-trust-domain`).
     ///
     pub(crate) from_a_bundle: bool,
-    /// Whether the config the argv names sets `[log] target` to something a
-    /// process with no console handle can actually write to.
-    pub(crate) config_names_a_log_destination: bool,
     /// `[control] socket`, for the unit's `ExecReload` (§ 5).
     pub(crate) control_socket: Option<String>,
     /// `[limits] memory`, which § 5 derives `MemoryMax` from rather than
@@ -201,8 +192,7 @@ pub(crate) struct Host {
     /// condition under which § 5 emits `AmbientCapabilities` at all.
     pub(crate) privileged_port: bool,
     /// The file a `[log] target` of `file:<path>` names, whose **directory** is
-    /// one of § 4's grants. The installer's own `--log-file` is the other
-    /// answer to the same row, and the one an uninstall cannot read back.
+    /// one of § 4's grants.
     pub(crate) log_file: Option<PathBuf>,
     /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write on.
     /// Derived rather than asked for, so an uninstall names the same directory
@@ -380,23 +370,6 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         .with_help("write the path absolutely".to_owned()));
     }
 
-    if request.log_file.is_none() && !host.config_names_a_log_destination {
-        return Err(Diagnostic::error(
-            code::E_SERVICE_OUTPUT_GOES_NOWHERE,
-            "the service would have nowhere to write diagnostics".to_owned(),
-        )
-        .with_note(
-            "a service has no console handle, so its standard error is discarded: a refused \
-             compile or a FATAL under this argv would leave no trace anywhere"
-                .to_owned(),
-        )
-        .with_help(
-            "pass `--log-file <path>`, or set `[log] target` to `file:<path>` or `syslog` in the \
-             named configuration"
-                .to_owned(),
-        ));
-    }
-
     Ok(Plan {
         name: request.name.to_owned(),
         exe: host.exe.clone(),
@@ -435,11 +408,6 @@ fn relative_paths<'a>(request: &'a Request<'_>, host: &Host) -> Vec<(&'a str, St
         && !Path::new(entry).is_absolute()
     {
         out.push(("the entry file", entry.to_owned()));
-    }
-    if let Some(log) = request.log_file
-        && !log.is_absolute()
-    {
-        out.push(("--log-file", log.display().to_string()));
     }
     for (key, written) in [
         ("[log] target", &host.log_file),
@@ -1489,9 +1457,9 @@ pub(crate) mod registration {
         /// What an administrator reads beside the name. The service's own name,
         /// where the operator wrote nothing.
         pub(crate) description: Option<String>,
-        /// The installer's `--log-file`, whose **directory** is granted
-        /// read/write: a process that may write the file but not the directory
-        /// cannot rotate it.
+        /// The file the named configuration's `[log] target` names, whose
+        /// **directory** is granted read/write: a process that may write the
+        /// file but not the directory cannot rotate it.
         pub(crate) log_file: Option<PathBuf>,
         /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write
         /// on. `[cache]` is `Core\Cache`'s two tiers and holds no directory at
@@ -1516,7 +1484,8 @@ pub(crate) mod registration {
         pub(crate) argv: Vec<String>,
         /// The account those grants were made to.
         pub(crate) account: String,
-        /// The `--log-file` the install was given, if it was given one.
+        /// The file the configuration's `[log] target` named at install, if it
+        /// named one.
         pub(crate) log_file: Option<PathBuf>,
         /// The artifact cache directory it granted read/write on.
         pub(crate) cache_directory: Option<PathBuf>,
@@ -3097,7 +3066,6 @@ pub(crate) fn print_unit(
     config: &[PathBuf],
     name: &str,
     argv: &[String],
-    log_file: Option<&Path>,
     account: Option<&str>,
     password: Option<&str>,
     unaccepted: Option<&str>,
@@ -3105,7 +3073,6 @@ pub(crate) fn print_unit(
     let request = Request {
         name,
         argv,
-        log_file,
         account,
         password,
         unaccepted,
@@ -3191,9 +3158,6 @@ fn held(
 /// The installer's own options — everything `nvs service install` was given to
 /// the left of `--`, where the argv to its right is the request itself.
 pub(crate) struct InstallOptions<'a> {
-    /// Where the service writes diagnostics, if the named configuration does
-    /// not say (§ 2's fourth row).
-    pub(crate) log_file: Option<&'a Path>,
     /// § 4's `--account`, replacing the per-service virtual account.
     pub(crate) account: Option<&'a str>,
     /// § 2 refuses it and exists to name it (`E0633`).
@@ -3216,8 +3180,8 @@ pub(crate) struct InstallOptions<'a> {
 /// this platform's own steps.
 ///
 /// The grants are derived here rather than passed in: the log destination is
-/// the installer's `--log-file` or the `file:` target the named configuration
-/// carries, and the artifact cache is that configuration's
+/// the `file:` target the named configuration carries, and the artifact cache
+/// is that configuration's
 /// `[opcache] file_cache_dir`. An uninstall re-derives both from the same
 /// configuration, which is what makes § 4's closing property hold against the
 /// install that granted them.
@@ -3230,7 +3194,6 @@ pub(crate) fn install(
     let request = Request {
         name,
         argv,
-        log_file: options.log_file,
         account: options.account,
         password: options.password,
         unaccepted: options.unaccepted,
@@ -3245,10 +3208,7 @@ pub(crate) fn install(
         restart: options.restart,
         depends_on: options.depends_on.to_vec(),
         description: options.description.map(str::to_owned),
-        log_file: options
-            .log_file
-            .map(Path::to_path_buf)
-            .or_else(|| host.log_file.clone()),
+        log_file: host.log_file.clone(),
         cache_directory: host.cache_directory.clone(),
     };
     let performed = at_host(|site| {
@@ -3283,9 +3243,7 @@ pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCo
         let host = describe_host(config, &stored.argv, Unresolved::ReadsAsEmpty, &mut sources)
             .map_err(registration::Refused::Installer)?;
         // The two the platform does not hold, back from where the install
-        // read them. An install given the installer's own `--log-file` over a
-        // configuration naming no destination is the one case this misses, and
-        // the module doc owns it.
+        // read them.
         stored.log_file = host.log_file;
         stored.cache_directory = host.cache_directory;
         registration::uninstall(&stored, site, dry_run, &mut std::io::stdout())
@@ -3393,10 +3351,10 @@ fn answered(name: &str, control: registration::Control) -> ExitCode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Unresolved {
     /// The configuration's own diagnostic is the refusal. `install` and `unit`
-    /// take this one: the service would refuse the same file at every boot, and
-    /// reading it as empty reports `E0632` about a file whose `[log] target`
-    /// the operator can see — a key written with no live header above it is
-    /// the usual way to get there.
+    /// take this one: the service would refuse the same file at every boot,
+    /// and reading it as empty would install a service over a tree the
+    /// operator can see is broken — a key written with no live header above
+    /// it is the usual way to get there.
     Refuses,
     /// It reads as a configuration that says nothing. `uninstall` takes this
     /// one, because a service whose configuration has since been broken or
@@ -3493,8 +3451,6 @@ fn describe_host(
     Ok(Host {
         exe,
         from_a_bundle: crate::bundle::embedded().is_some(),
-        config_names_a_log_destination: target
-            .is_some_and(|target| target.starts_with("file:") || target == "syslog"),
         control_socket,
         memory_max,
         privileged_port: listen.is_some_and(privileged),
@@ -3558,7 +3514,6 @@ mod tests {
         Host {
             exe: PathBuf::from(absolute("bin/nvs")),
             from_a_bundle: false,
-            config_names_a_log_destination: true,
             control_socket: Some(absolute("run/control.sock")),
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
@@ -3582,7 +3537,6 @@ mod tests {
         Request {
             name: "web",
             argv,
-            log_file: None,
             account: None,
             password: None,
             unaccepted: None,
@@ -3654,20 +3608,9 @@ mod tests {
         assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
         assert!(refusal.message.contains("app/index.nvs"));
 
-        // And in the installer's own option, which § 2 names beside the argv.
-        let good = argv();
-        let mut asked = request(&good);
-        let relative = PathBuf::from("nvs.log");
-        asked.log_file = Some(&relative);
-        assert_eq!(
-            coded(&plan(&asked, &host()).expect_err("log")),
-            code::E_SERVICE_PATH_NOT_ABSOLUTE
-        );
-
         // And in the two paths the named configuration carries, which the
-        // server opens as written and § 4 grants on. An absolute `--log-file`
-        // beside a relative `[log] target` changes nothing: the target is still
-        // what the service opens.
+        // server opens as written and § 4 grants on.
+        let good = argv();
         let absolute_log = PathBuf::from(absolute("log/web.log"));
         for (key, written) in [
             ("[log] target", "../../logs/novis.log"),
@@ -3679,9 +3622,7 @@ mod tests {
             } else {
                 configured.cache_directory = Some(PathBuf::from(written));
             }
-            let mut asked = request(&good);
-            asked.log_file = Some(&absolute_log);
-            let refusal = plan(&asked, &configured).expect_err(key);
+            let refusal = plan(&request(&good), &configured).expect_err(key);
             assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
             assert!(refusal.message.contains(key), "{}", refusal.message);
             assert!(refusal.message.contains(written), "{}", refusal.message);
@@ -3724,39 +3665,11 @@ mod tests {
         assert!(plan(&named, &host()).is_ok());
     }
 
-    /// `rule:packaging/the-installer-is-a-sink`, row 4 and § 4's *Output*.
-    #[test]
-    fn the_installer_refuses_an_install_whose_output_would_go_nowhere() {
-        let argv = argv();
-        let mut nowhere = host();
-        nowhere.config_names_a_log_destination = false;
-        assert_eq!(
-            coded(&plan(&request(&argv), &nowhere).expect_err("no destination")),
-            code::E_SERVICE_OUTPUT_GOES_NOWHERE
-        );
-
-        // Either answer satisfies it, and nothing else does: `--log-file`…
-        let mut logged = request(&argv);
-        let path = PathBuf::from(absolute("log/web.log"));
-        logged.log_file = Some(&path);
-        assert!(plan(&logged, &nowhere).is_ok());
-
-        // …or a `[log] target` the process can actually reach. `stderr` is
-        // not one: a service has no console handle, which is the whole reason
-        // this row exists.
-        for target in ["file:/var/log/nvs.log", "syslog"] {
-            let mut host = host();
-            host.config_names_a_log_destination = target.starts_with("file:") || target == "syslog";
-            assert!(plan(&request(&argv), &host).is_ok(), "{target}");
-        }
-    }
-
     /// A named configuration that does not resolve is refused as itself. The
     /// file here writes `target` and leaves `[log]` commented out above it,
-    /// which makes `target` a root key: read as
-    /// empty, that file is refused as `E0632` with its destination in plain
-    /// sight. An uninstall reads the same file as saying nothing, so a broken
-    /// configuration never keeps a service installed.
+    /// which makes `target` a root key the tree refuses. An uninstall reads
+    /// the same file as saying nothing, so a broken configuration never keeps
+    /// a service installed.
     #[test]
     fn a_configuration_that_does_not_resolve_is_refused_as_itself_and_never_blocks_an_uninstall() {
         let root = unit_root("unresolved");
@@ -3772,7 +3685,6 @@ mod tests {
 
         let host = describe_host(&[], &argv, Unresolved::ReadsAsEmpty, &mut SourceMap::new())
             .expect("an uninstall reads it as empty");
-        assert!(!host.config_names_a_log_destination);
         assert_eq!(host.log_file, None);
 
         // An argv naming no `--config` is `E0631`'s to refuse, whatever this
@@ -4508,13 +4420,12 @@ mod tests {
             argv
         };
 
-        for (case, argv, bundled, logged, password) in [
-            ("a bundle", good.clone(), true, true, None),
-            ("the allowlist", wrong_subcommand, false, true, None),
-            ("a testing hook", hook, false, true, None),
-            ("a relative path", relative, false, true, None),
-            ("a password", good.clone(), false, true, Some("hunter2")),
-            ("nowhere to write", good.clone(), false, false, None),
+        for (case, argv, bundled, password) in [
+            ("a bundle", good.clone(), true, None),
+            ("the allowlist", wrong_subcommand, false, None),
+            ("a testing hook", hook, false, None),
+            ("a relative path", relative, false, None),
+            ("a password", good.clone(), false, Some("hunter2")),
         ] {
             let mut asked = request(&argv);
             asked.password = password;
@@ -4523,7 +4434,6 @@ mod tests {
             }
             let mut host = host();
             host.from_a_bundle = bundled;
-            host.config_names_a_log_destination = logged;
 
             for platform in [
                 registration::Platform::Windows,

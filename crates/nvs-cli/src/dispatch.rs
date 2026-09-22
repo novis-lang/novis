@@ -89,7 +89,12 @@ pub(crate) trait Reporter: std::fmt::Debug + Send + Sync {
     fn report(&self, report: Report);
 }
 
-/// Which of § 4's lifecycle records a moment is, for the event log.
+/// Which record a moment is, for the event log: § 4's four lifecycle
+/// records, and the two streams a process with no console would otherwise
+/// write into nothing.
+///
+/// The ids are the message table's (`build/winres.rs`, `MESSAGE_IDS`), and
+/// every record's text is its one insertion string.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Lifecycle {
     /// The boot finished and the service is serving.
@@ -100,6 +105,12 @@ pub(crate) enum Lifecycle {
     FailedToStart,
     /// A `PARAMCHANGE` was answered with the in-process reload.
     ReloadApplied,
+    /// One line the server wrote to its standard output — what a terminal
+    /// would have shown.
+    Stdout,
+    /// One line the server wrote to its standard error: a warning, a refused
+    /// configuration, a diagnostic.
+    Stderr,
 }
 
 /// The status machine: what each event this process already reports maps to.
@@ -239,10 +250,12 @@ pub(crate) mod platform {
         ERROR_CALL_NOT_IMPLEMENTED, ERROR_FAILED_SERVICE_CONTROLLER_CONNECT,
         ERROR_SERVICE_SPECIFIC_ERROR, FALSE, NO_ERROR,
     };
+    use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle};
     use windows_sys::Win32::System::EventLog::{
         DeregisterEventSource, EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE,
-        RegisterEventSourceW, ReportEventW,
+        EVENTLOG_WARNING_TYPE, RegisterEventSourceW, ReportEventW,
     };
+    use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Services::{
         RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PARAMCHANGE, SERVICE_ACCEPT_PRESHUTDOWN,
         SERVICE_ACCEPT_STOP, SERVICE_CONTROL_INTERROGATE, SERVICE_RUNNING, SERVICE_START_PENDING,
@@ -422,6 +435,11 @@ pub(crate) mod platform {
             *OUTCOME.lock().unwrap_or_else(PoisonError::into_inner) = Some(ExitCode::FAILURE);
             return;
         }
+        // Before anything is written: from here the server's console is the
+        // event log, so a refused configuration is read where an
+        // administrator looks rather than lost with a handle nobody holds.
+        capture(STD_OUTPUT_HANDLE, Lifecycle::Stdout);
+        capture(STD_ERROR_HANDLE, Lifecycle::Stderr);
         let machine = Arc::new(Machine::new(Arc::new(Scm {
             handle: handle as usize,
             started: std::sync::atomic::AtomicBool::new(false),
@@ -517,6 +535,67 @@ pub(crate) mod platform {
         }
     }
 
+    /// Points the standard handle `which` at a pipe whose far end writes each
+    /// line as one event-log record of kind `as_record`.
+    ///
+    /// A service has no console, so what the server prints — `listening on …`,
+    /// a warning, a refused configuration's diagnostic — is written into a
+    /// handle that goes nowhere. This is the SCM's spelling of what systemd
+    /// does for every unit: the journal takes stderr. `std` asks the platform
+    /// for the standard handle on every write, so the redirect holds for the
+    /// process's life, and the reader is one thread per stream that ends with
+    /// the process.
+    ///
+    /// A pipe that cannot be made leaves the handle as it was: the records are
+    /// how a failure is read, and a start refused for want of them would be the
+    /// failure with no way to read it.
+    #[expect(
+        unsafe_code,
+        reason = "an anonymous pipe and `SetStdHandle` are `kernel32` calls with no spelling in `std`"
+    )]
+    fn capture(which: u32, as_record: Lifecycle) {
+        use std::io::BufRead as _;
+        use std::os::windows::io::FromRawHandle as _;
+
+        let mut read = std::ptr::null_mut();
+        let mut write = std::ptr::null_mut();
+        // SAFETY: two out-parameters this frame owns, no security attributes,
+        // the default buffer size.
+        if unsafe { CreatePipe(&raw mut read, &raw mut write, std::ptr::null(), 0) } == FALSE {
+            return;
+        }
+        // SAFETY: a handle this process just made; the previous standard
+        // handle is a service's, which is nothing.
+        if unsafe { SetStdHandle(which, write) } == FALSE {
+            // SAFETY: both ends were made above and neither is held by
+            // anything else.
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(read);
+                windows_sys::Win32::Foundation::CloseHandle(write);
+            }
+            return;
+        }
+        // SAFETY: the read end, owned from here by the file and closed with it.
+        let reader = std::io::BufReader::new(unsafe { std::fs::File::from_raw_handle(read) });
+        // Not joined: it ends when the write end does, which is the process
+        // ending. A thread that could not be started leaves the lines in the
+        // pipe's buffer, which is no worse than the handle they had.
+        drop(
+            std::thread::Builder::new()
+                .name(match as_record {
+                    Lifecycle::Stderr => "nvs-scm-stderr".to_owned(),
+                    _ => "nvs-scm-stdout".to_owned(),
+                })
+                .spawn(move || {
+                    for line in reader.lines().map_while(Result::ok) {
+                        if !line.trim().is_empty() {
+                            log(as_record, &line);
+                        }
+                    }
+                }),
+        );
+    }
+
     /// The first wide string at `text`, NUL included.
     #[expect(
         unsafe_code,
@@ -556,6 +635,8 @@ pub(crate) mod platform {
             Lifecycle::Stopped => (EVENTLOG_INFORMATION_TYPE, 2),
             Lifecycle::FailedToStart => (EVENTLOG_ERROR_TYPE, 3),
             Lifecycle::ReloadApplied => (EVENTLOG_INFORMATION_TYPE, 4),
+            Lifecycle::Stdout => (EVENTLOG_INFORMATION_TYPE, 5),
+            Lifecycle::Stderr => (EVENTLOG_WARNING_TYPE, 6),
         };
         let text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
         let strings = [text.as_ptr()];

@@ -128,7 +128,6 @@ if (-not (Test-Path $Exe)) {
 $ServiceName = 'novis-live'
 $Port = 18790
 $Config = Join-Path $Dir 'nvs.toml'
-$ServiceLog = Join-Path $Dir 'service.log'
 $Entry = Join-Path $Root 'examples\hello.nvs'
 Set-Content -Path $Config -Encoding ascii -Value @(
     '[server]',
@@ -181,7 +180,7 @@ if ((Service-State) -ne 'ABSENT') {
 }
 
 Step 'install' {
-    (Nvs -Argv @('service', 'install', $ServiceName, '--log-file', $ServiceLog, '--start', 'manual',
+    (Nvs -Argv @('service', 'install', $ServiceName, '--start', 'manual',
         '--config', $Config, '--',
         'serve', $Entry, '--listen', "127.0.0.1:$Port", '--no-init', '--config', $Config)) -eq 0
 }
@@ -228,11 +227,6 @@ Step 'event log' {
     foreach ($event in $events) {
         Say ("   | {0:HH:mm:ss.fff} id {1} level {2}: {3}" -f $event.TimeCreated, $event.Id, $event.Level, (($event.Properties | ForEach-Object Value) -join ' '))
     }
-    $true
-}
-
-Step 'service log' {
-    if (Test-Path $ServiceLog) { foreach ($line in (Get-Content $ServiceLog)) { Say "   | $line" } } else { Say '   (no file)' }
     $true
 }
 

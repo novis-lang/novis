@@ -1043,11 +1043,6 @@ enum ServiceCommand {
         /// The service's name — the identity `sc create` and systemd use, and
         /// the one `nvs ctl --socket` addresses one of several servers by.
         name: String,
-        /// Where the service writes diagnostics, if the named configuration
-        /// does not say.
-        // `docs/decisions/0093.md` § 2.
-        #[arg(long, value_name = "PATH")]
-        log_file: Option<PathBuf>,
         /// The account the service runs as. The default is the local system
         /// account, `LocalSystem`; `SYSTEM` names the same account.
         // `docs/decisions/0093.md` § 4.
@@ -1136,11 +1131,6 @@ struct ServiceInstall {
     /// The service's name — the identity `sc create` and systemd use, and the
     /// one `nvs ctl --socket` addresses one of several servers by.
     name: String,
-    /// Where the service writes diagnostics, if the named configuration does
-    /// not say. Its directory is granted read/write.
-    // `docs/decisions/0093.md` § 2.
-    #[arg(long, value_name = "PATH")]
-    log_file: Option<PathBuf>,
     /// The account the service runs as. The default is the local system
     /// account, `LocalSystem`; `SYSTEM` names the same account.
     // `docs/decisions/0093.md` § 4.
@@ -1298,7 +1288,6 @@ fn install_service(config: &[PathBuf], args: &ServiceInstall) -> ExitCode {
         &args.name,
         &args.argv,
         &service::InstallOptions {
-            log_file: args.log_file.as_deref(),
             account: args.account.as_deref(),
             password: args.password.as_deref(),
             unaccepted: unaccepted.as_deref(),
@@ -1509,7 +1498,6 @@ fn main() -> ExitCode {
             },
             ServiceCommand::Unit {
                 name,
-                log_file,
                 account,
                 password,
                 argv,
@@ -1517,7 +1505,6 @@ fn main() -> ExitCode {
                 &cli.config,
                 &name,
                 &argv,
-                log_file.as_deref(),
                 account.as_deref(),
                 password.as_deref(),
                 unaccepted(&argv).as_deref(),

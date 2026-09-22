@@ -1678,7 +1678,7 @@ What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#pa
 
 <a id="packaging-the-installer-is-a-sink"></a>
 
-## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line
+## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no password on a command line
 
 `rule:packaging/the-installer-is-a-sink`
 
@@ -1691,15 +1691,19 @@ removes it. So the default is refusal, and the allowlist is closed:
 | A subcommand other than `serve` or `run` | everything else exits at once — a crash loop, forever — or needs a terminal |
 | `--fault-inject`, on any subcommand | a hook that must never be reachable from a served request, now with a privileged account |
 | An argv this binary's own parser refuses — `serve` with no entry file, an option it does not have | it exits at once with a usage error written to a console that is not there, which is the first row's crash loop reached through an allowed subcommand |
-| Any relative path, in the argv, an installer option, or the named configuration's `[log] target` file and `[opcache] file_cache_dir` | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code, and for the configuration's two a log or a cache in a directory nobody chose, under a grant made against the installing shell's |
+| Any relative path, in the argv or in the named configuration's `[log] target` file and `[opcache] file_cache_dir` | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code, and for the configuration's two a log or a cache in a directory nobody chose, under a grant made against the installing shell's |
 | An argv with no `--config` | it would fall back to `./nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), making the configuration a property of the starting directory; a service names it absolutely |
-| Neither `--log-file` nor a `[log]` file or syslog destination | a service has no console handle, so stderr goes nowhere and a refused compile leaves no trace; `stderr` is not a destination |
 | An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
 | Running from a bundle | [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself) |
 
-Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`–`E0634`
-diagnostic naming what was refused and why — rows that share a reason share a code — never a bare
-non-zero exit. The refusals run in front of `nvs service unit` too, so an operator learns what would
+There is no row for where the service's output goes, and no `--log-file` option: a hosted process's
+stdout and stderr are the platform log's — the journal under systemd, the event log under the SCM
+([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)) — so a refused compile leaves its diagnostic where an
+administrator looks without the installer being told a path.
+
+Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`, `E0633`
+or `E0634` diagnostic naming what was refused and why — rows that share a reason share a code — never
+a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an operator learns what would
 have been refused without an elevated shell and without installing anything.
 
 An install the service manager stops part way fails closed as well. The error names the step it
@@ -1709,7 +1713,7 @@ a registration refused because the name is taken is followed by no deregistratio
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -1764,7 +1768,7 @@ there as already revoked.
 
 <a id="packaging-a-service-answers-its-manager"></a>
 
-## A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination
+## A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log
 
 `rule:packaging/a-service-answers-its-manager`
 
@@ -1781,14 +1785,17 @@ Failure actions are set at install — `--restart on-failure` by default, with a
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
 and a description.
 
-**Output.** With no console handle the process's stderr goes nowhere, so `nvs service run` binds
-diagnostics and `Core\Log` to the destination the installer insisted on, and additionally writes a
-small, fixed set of lifecycle records — started, stopped, failed to start, reload applied — to the
-Windows event log, the first place an administrator looks. The event-log source is registered at
-install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
-unit file, no granted ACL.
+**Output.** A service has no console, so under the SCM the process's stdout and stderr are redirected
+into the Windows event log, one record per line, the way the journal takes a unit's stderr under
+systemd: a boot warning, a refused configuration's diagnostic and `Core\Log` written to `stderr` all
+land where an administrator looks first, with nothing to configure. Beside them go a small, fixed set
+of lifecycle records — started, stopped, failed to start, reload applied. Every record's text is its
+one insertion string, and `nvs.exe` carries the message table that renders it
+([`packaging/the-windows-binary-says-what-it-is`](packaging.md#packaging-the-windows-binary-says-what-it-is)). The event-log source is registered at install
+and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
+file, no granted ACL.
 
-<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md), [0204](../decisions/0204.md).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 

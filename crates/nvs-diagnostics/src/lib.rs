@@ -1771,22 +1771,7 @@ pub mod code {
     /// 's `./nvs.toml` — the same failure one step less visible, because it
     /// makes the service's configuration a property of whatever directory the
     /// manager happened to start it in.
-    ///
-    /// Not `E0631`'s neighbour `E0632` reached from another direction: this
-    /// one is about a path the service could not *find*, and that one about
-    /// output it would have nowhere to put.
     pub const E_SERVICE_PATH_NOT_ABSOLUTE: Code = Code::new("E0631");
-
-    /// `nvs service install` was given neither a `--log-file` nor a config
-    /// naming a `[log]` destination.
-    ///
-    /// `rule:packaging/the-installer-is-a-sink`'s fourth row and § 4's *Output*: a service has no console
-    /// handle, so the process's stderr is discarded, and a refused compile or
-    /// a `FATAL` under this argv would leave no trace anywhere at all. The
-    /// installer refuses rather than picking a destination, because a log file
-    /// nobody was told about is the second place an administrator looks and
-    /// the first place they do not.
-    pub const E_SERVICE_OUTPUT_GOES_NOWHERE: Code = Code::new("E0632");
 
     /// An `--account` password was passed to `nvs service` on the command
     /// line.

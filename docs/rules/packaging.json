@@ -1081,13 +1081,14 @@
     },
     {
       "id": "packaging/the-installer-is-a-sink",
-      "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line",
+      "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no password on a command line",
       "status": "shipped",
       "because": [
         "0093",
         "0088",
         "0103",
-        "0048"
+        "0048",
+        "0204"
       ],
       "divergesFromPhp": "`sc create` and a hand-written unit store whatever they are given; the installer refuses each of these by name with an `E063x` diagnostic and installs nothing",
       "seeAlso": [
@@ -1132,11 +1133,12 @@
     },
     {
       "id": "packaging/a-service-answers-its-manager",
-      "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
+      "title": "A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log",
       "status": "shipped",
       "because": [
         "0093",
-        "0078"
+        "0078",
+        "0204"
       ],
       "divergesFromPhp": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process",
       "seeAlso": [
