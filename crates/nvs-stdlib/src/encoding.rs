@@ -1783,6 +1783,228 @@ mod tests {
         );
     }
 
+    /// `toBase64Url` reached the way a program reaches it. What this member
+    /// promises is text a URL carries untouched, so the three characters that
+    /// would break that promise are swept for over every byte value rather
+    /// than read off one sample: `+` and `/` are reached only by the two
+    /// highest sextets, and an alphabet left unswapped spells most buffers
+    /// identically to [`nvs_core_encoding_to_base64`]. The unpadded length is
+    /// pinned beside them, since dropping the padding is the other half of
+    /// the difference and a residue left padded is still URL-safe text.
+    // covers: Core\Encoding::toBase64Url
+    #[test]
+    fn base64_url_writes_no_padding_and_nothing_a_url_rereads() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let spell = |ctx: &mut nvs_runtime::Ctx, octets: &[u8]| {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(nvs_core_encoding_to_base64_url, ctx, &[subject])
+                .expect("every buffer has a spelling");
+            let text = answered.as_text().expect("a `string` answer").to_owned();
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+            text
+        };
+
+        // The empty buffer, one buffer per residue, and § 5's two symbols
+        // where § 4 writes `+` and `/`.
+        assert_eq!(spell(&mut ctx, b""), "");
+        assert_eq!(spell(&mut ctx, b"abc"), "YWJj");
+        assert_eq!(spell(&mut ctx, b"ab"), "YWI");
+        assert_eq!(spell(&mut ctx, b"a"), "YQ");
+        assert_eq!(spell(&mut ctx, &[0xfb, 0xff]), "-_8");
+        assert_eq!(spell(&mut ctx, &[0xff, 0xff, 0xff]), "____");
+
+        // Every length to 64: the unpadded length, nothing a URL rereads, and
+        // the round trip. A single leftover character is a length no group
+        // arithmetic can produce, so it is asserted as impossible rather than
+        // as one more arithmetic identity.
+        for length in 0..64_usize {
+            let octets: Vec<u8> = (0..length)
+                .map(|at| u8::try_from(at * 13 % 256).expect("a residue of 256 fits a `u8`"))
+                .collect();
+            let spelled = spell(&mut ctx, &octets);
+            assert_eq!(spelled.len(), length.div_ceil(3) * 4 - (3 - length % 3) % 3);
+            assert_ne!(spelled.len() % 4, 1, "{length} octets gave {spelled}");
+            assert!(
+                !spelled.contains(['+', '/', '=']),
+                "{length} octets gave {spelled}"
+            );
+
+            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let read = nvs_runtime::call(nvs_core_encoding_from_base64_url, &mut ctx, &[text])
+                .expect("`toBase64Url`'s answer is text `fromBase64Url` reads");
+            assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                read.release();
+                text.release();
+            }
+        }
+    }
+
+    /// `toBase64` reached the way a program reaches it. The three residues a
+    /// group can end on are what this member is written around, so all three
+    /// are pinned by length as well as by text: an encoder that pads the
+    /// wrong one still spells the aligned case correctly, and every sample a
+    /// person picks by hand is likely to be aligned. `+` and `/` are asserted
+    /// to be present, because § 4's alphabet is the whole difference from
+    /// [`nvs_core_encoding_to_base64_url`] and a table swapped for that one
+    /// answers text a URL reader accepts and `fromBase64` does not.
+    // covers: Core\Encoding::toBase64
+    #[test]
+    fn base64_pads_every_residue_and_writes_the_standard_alphabet() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let spell = |ctx: &mut nvs_runtime::Ctx, octets: &[u8]| {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(nvs_core_encoding_to_base64, ctx, &[subject])
+                .expect("every buffer has a spelling");
+            let text = answered.as_text().expect("a `string` answer").to_owned();
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+            text
+        };
+
+        // The empty buffer, and one buffer per residue: none, one `=` and
+        // two, spelled out so the padding is read rather than counted.
+        assert_eq!(spell(&mut ctx, b""), "");
+        assert_eq!(spell(&mut ctx, b"abc"), "YWJj");
+        assert_eq!(spell(&mut ctx, b"ab"), "YWI=");
+        assert_eq!(spell(&mut ctx, b"a"), "YQ==");
+
+        // § 4's two symbols, which are the whole difference from the URL-safe
+        // alphabet, and the high bits that reach them.
+        assert_eq!(spell(&mut ctx, &[0xfb, 0xff]), "+/8=");
+        assert_eq!(spell(&mut ctx, &[0xff, 0xff, 0xff]), "////");
+
+        // Every length to 64, against the group arithmetic and `fromBase64`.
+        // The length is asserted apart from the round trip because a decoder
+        // that tolerates its own encoder's mistake hides both halves.
+        for length in 0..64_usize {
+            let octets: Vec<u8> = (0..length)
+                .map(|at| u8::try_from(at * 11 % 256).expect("a residue of 256 fits a `u8`"))
+                .collect();
+            let spelled = spell(&mut ctx, &octets);
+            assert_eq!(spelled.len(), length.div_ceil(3) * 4, "{length} octets");
+            assert_eq!(
+                spelled.len() - spelled.trim_end_matches('=').len(),
+                (3 - length % 3) % 3,
+                "{length} octets padded wrongly: {spelled}"
+            );
+
+            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let read = nvs_runtime::call(nvs_core_encoding_from_base64, &mut ctx, &[text])
+                .expect("`toBase64`'s answer is text `fromBase64` reads");
+            assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                read.release();
+                text.release();
+            }
+        }
+    }
+
+    /// `toHex` reached the way a program reaches it: the spelling is swept
+    /// over all 256 values rather than read off a handful, because a nibble
+    /// table with one wrong entry prints plausibly on every line somebody
+    /// looks at and only shows up on the value it misspells. The sweep also
+    /// pins the two halves in order — a table indexed high nibble first and
+    /// then low is what makes `0x1f` read as `f1` — and the length, because a
+    /// member that drops a leading zero answers text `fromHex` cannot read.
+    // covers: Core\Encoding::toHex
+    #[test]
+    fn hex_spells_every_octet_as_two_lowercase_digits() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let spell = |ctx: &mut nvs_runtime::Ctx, octets: &[u8]| {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(nvs_core_encoding_to_hex, ctx, &[subject])
+                .expect("every octet has a spelling");
+            let text = answered.as_text().expect("a `string` answer").to_owned();
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                answered.release();
+                subject.release();
+            }
+            text
+        };
+
+        // Every octet alone, against the same two digits written another way.
+        for octet in 0..=u8::MAX {
+            let spelled = spell(&mut ctx, &[octet]);
+            assert_eq!(spelled, format!("{octet:02x}"), "{octet}");
+            assert_eq!(spelled.len(), 2, "{octet}");
+            assert!(
+                spelled
+                    .bytes()
+                    .all(|digit| digit.is_ascii_digit() || (b'a'..=b'f').contains(&digit)),
+                "{octet} spelled {spelled}"
+            );
+        }
+
+        // The empty buffer, the order of the two nibbles, and a zero octet in
+        // the middle: a buffer is octets rather than a C string, so nothing
+        // ends at one.
+        assert_eq!(spell(&mut ctx, b""), "");
+        assert_eq!(spell(&mut ctx, &[0x1f, 0xf1]), "1ff1");
+        assert_eq!(spell(&mut ctx, &[0x41, 0x00, 0x42]), "410042");
+
+        // Twice the buffer's length, over a whole sweep rather than one
+        // buffer, and readable by `fromHex` — the two members are one round
+        // trip and a spelling neither side rejects is the only useful one.
+        for length in 0..64_usize {
+            let octets: Vec<u8> = (0..length)
+                .map(|at| u8::try_from(at * 7 % 256).expect("a residue of 256 fits a `u8`"))
+                .collect();
+            let spelled = spell(&mut ctx, &octets);
+            assert_eq!(spelled.len(), length * 2, "{length} octets");
+
+            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let read = nvs_runtime::call(nvs_core_encoding_from_hex, &mut ctx, &[text])
+                .expect("`toHex`'s answer is text `fromHex` reads");
+            assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the reference it built for the \
+                          argument and the one the member answered, and the \
+                          member borrowed rather than consumed its own"
+            )]
+            unsafe {
+                read.release();
+                text.release();
+            }
+        }
+    }
+
     /// `encodeText` reached the way a program reaches it, for the reason
     /// [`decoding_answers_the_text_and_names_the_offset_it_stopped_at`] gives.
     /// The refusal names the character as well as the offset, and both halves
