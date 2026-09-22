@@ -24945,7 +24945,7 @@ $write->lastId(): ?uint
 
 The key the statement handed back, read off the write that produced it rather than off the connection — `lastInsertId` and `mysqli_insert_id` without their stale-after-an-unrelated-statement hazard.
 
-**Returns** `?uint` — A `?uint`: the first column of the last row the statement returned, where that column was declared an integer, and `null` otherwise. On PostgreSQL that means a `RETURNING` clause — the protocol has no last-insert-id of its own, and an `insert`'s tag carries an OID that is `0` on every supported server.
+**Returns** `?uint` — A `?uint`: the key this statement generated, and `null` where it generated none — a statement that inserted no row answers `null`. PostgreSQL reads the key out of a `RETURNING` clause, since that protocol has no last-insert-id of its own: the first column of the last row returned, where that column was declared an integer. MySQL reads the `AUTO_INCREMENT` value out of the write's own status packet, and SQLite the rowid of a row this statement inserted itself, which may be `0`. SQL Server answers `null` always, because its token stream carries no generated key.
 
 <a id="core-core-db-column"></a>
 ### `Core\Db\Column`
