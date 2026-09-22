@@ -2,7 +2,7 @@
 id: types
 title: Types, declarations and conversions
 summary: every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
-keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 ---
 
 # Every binding has a type
@@ -481,6 +481,71 @@ echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", 1d->toSec
 **Arrays and objects.** `[1, 2]` is positional (keys `"0"`, `"1"`), `["k" => $v]` is keyed, and
 the two mix. `{x: 1, y: "two"}` is an object literal; as a statement or an arrow body it is written
 `({…})`. Both are covered above.
+
+## Markup: the `html` template literal
+
+``html`…` `` is a `Core\Html\Markup`. The text between the backticks is written to a page exactly
+as it is, and every hole in it is escaped. It is the way to build a page, or one fragment of a page,
+as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
+`Core\Response::html` write raw; a `string` written there is escaped.
+
+- A hole is written as in a double-quoted string: `$name` bare, or `{$…}` with any expression
+  whose **first token is a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}`. A `{`
+  not followed by `$` is text, so a `<style>` or `<script>` block needs no escape. It follows that
+  `{Page::TITLE}` and `{Page::render()}` are text and are printed as written: bind the value to a
+  local first and write `{$title}`.
+- A `string` in a hole is escaped, `tainted` or not. A `Core\Html\Markup` in a hole is written raw.
+  A `secret` value in a hole is a compile error.
+- `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
+  compile error, because the text it would make is escaped again at the sink.
+- Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
+  the way a heredoc's closing marker strips it. A literal backtick is `` \` `` and a literal `{$`
+  is `\{$`.
+- The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
+  `"<p>…</p>" as Core\Html\Markup` converts a string written as a literal and nothing else;
+  `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
+  `Markup`.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+
+    public static function badge(): Core\Html\Markup {
+        return html`<span class="badge">new</span>`;
+    }
+}
+tainted string $name = "<b>Ann</b>";
+string $title = Page::TITLE;
+Core\Html\Markup $badge = Page::badge();
+Core\Html\Markup $head = html`<h1>{$title} {$badge}</h1>`;
+Core\Html\Markup $body = html`<p>posted by {$name}, {Page::TITLE}</p>`;
+echo $head + $body, "\n";
+echo html`<pre>
+  kept as written \`</pre>`, "\n";
+```
+```output
+<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt;, {Page::TITLE}</p>
+<pre>
+  kept as written `</pre>
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html`<p>x</p>`;
+string $s = $m . "!";
+```
+```output
+escaping is not idempotent
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html"<p>x</p>";
+```
+```output
+written with backticks
+```
 
 # Widening without `as`
 

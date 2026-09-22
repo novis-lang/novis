@@ -39,7 +39,7 @@ Conventions the whole file uses:
 ### Part A — The language
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
@@ -154,7 +154,7 @@ Conventions the whole file uses:
 | [`Core\Jwe`](#core-core-jwe) |  |
 | [`Core\Jwe\Key`](#core-core-jwe-key) |  |
 | [`Core\Signature`](#core-core-signature) |  |
-| [`Core\Html`](#core-core-html) |  |
+| [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` literal, `Core\Html\Markup`, escaping, sanitizing and parsing |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
@@ -317,6 +317,12 @@ string $who = "world";
 Output inside a request or on a terminal goes through a *sink*, and the terminal sink substitutes
 control bytes visibly rather than passing them through; that is covered with qualifiers in the
 types chapter.
+
+Inside an HTTP request the sink escapes every `string` it is given and writes a `Core\Html\Markup`
+raw, so `<?= $title ?>` cannot emit a tag. A page or a fragment of one built as a value is an
+``html`…` `` literal — trusted text around `{$…}` holes that are escaped — and a method that
+returns one is how a page is composed from parts. The literal is the types chapter's `Markup: the
+html template literal`.
 
 Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
 render a loop or a condition around raw HTML:
@@ -505,7 +511,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 
 ### Every binding has a type
 
@@ -983,6 +989,71 @@ echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", 1d->toSec
 **Arrays and objects.** `[1, 2]` is positional (keys `"0"`, `"1"`), `["k" => $v]` is keyed, and
 the two mix. `{x: 1, y: "two"}` is an object literal; as a statement or an arrow body it is written
 `({…})`. Both are covered above.
+
+#### Markup: the `html` template literal
+
+``html`…` `` is a `Core\Html\Markup`. The text between the backticks is written to a page exactly
+as it is, and every hole in it is escaped. It is the way to build a page, or one fragment of a page,
+as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
+`Core\Response::html` write raw; a `string` written there is escaped.
+
+- A hole is written as in a double-quoted string: `$name` bare, or `{$…}` with any expression
+  whose **first token is a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}`. A `{`
+  not followed by `$` is text, so a `<style>` or `<script>` block needs no escape. It follows that
+  `{Page::TITLE}` and `{Page::render()}` are text and are printed as written: bind the value to a
+  local first and write `{$title}`.
+- A `string` in a hole is escaped, `tainted` or not. A `Core\Html\Markup` in a hole is written raw.
+  A `secret` value in a hole is a compile error.
+- `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
+  compile error, because the text it would make is escaped again at the sink.
+- Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
+  the way a heredoc's closing marker strips it. A literal backtick is `` \` `` and a literal `{$`
+  is `\{$`.
+- The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
+  `"<p>…</p>" as Core\Html\Markup` converts a string written as a literal and nothing else;
+  `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
+  `Markup`.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+
+    public static function badge(): Core\Html\Markup {
+        return html`<span class="badge">new</span>`;
+    }
+}
+tainted string $name = "<b>Ann</b>";
+string $title = Page::TITLE;
+Core\Html\Markup $badge = Page::badge();
+Core\Html\Markup $head = html`<h1>{$title} {$badge}</h1>`;
+Core\Html\Markup $body = html`<p>posted by {$name}, {Page::TITLE}</p>`;
+echo $head + $body, "\n";
+echo html`<pre>
+  kept as written \`</pre>`, "\n";
+```
+```output
+<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt;, {Page::TITLE}</p>
+<pre>
+  kept as written `</pre>
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html`<p>x</p>`;
+string $s = $m . "!";
+```
+```output
+escaping is not idempotent
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html"<p>x</p>";
+```
+```output
+written with backticks
+```
 
 ### Widening without `as`
 
@@ -1770,7 +1841,7 @@ L|L1
 
 ### String operators
 
-`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the literal forms are the types chapter's.
+`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the literal forms are the types chapter's. `+` on two `Core\Html\Markup` values joins them into one `Markup`, and `.` on a `Markup` is refused; the ``html`…` `` literal that makes one is the types chapter's `Markup: the html template literal`.
 
 ```nvs
 <?nvs
@@ -2152,7 +2223,7 @@ ambiguous with a block
 
 Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-literal`), so a backtick with no prefix in front of it is `E0001` from the lexer.
+PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-literal`), so a backtick with no prefix in front of it is `E0001` from the lexer. The literal itself is the types chapter's `Markup: the html template literal`.
 
 ```nvs error
 <?nvs
@@ -20834,7 +20905,33 @@ Authenticates `$token` against every key in `$keys`, checks the lifetime it carr
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: escape, join, toSource, parse, sanitize
+Keywords: html, markup, template, template literal, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, toSource, parse, sanitize
+
+`Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a
+page is escaped. A `Markup` is made in three ways: an ``html`…` `` literal, whose text is trusted
+because it was written in the source and whose `{$…}` holes are escaped; `Core\Html::escape`,
+which escapes a string; and `Core\Html::sanitize`, which rebuilds an untrusted document with
+only its safe parts. `+` joins two `Markup` values and `Core\Html::join` joins a list; `.` on a
+`Markup` is a compile error. `Core\Html::toSource` is the only way back to a `string`, and it
+takes a written reason. `Core\Html::parse` reads any document onto a `Core\Xml\Node` tree and
+never fails.
+
+```nvs
+<?nvs
+tainted string $name = "<script>alert(1)</script>";
+string $bio = "<p>likes <b>tea</b></p><img src=x onerror=alert(1)>";
+Core\Html\Markup $badge = html`<span class="badge">new</span>`;
+Core\Html\Markup $line = html`<p>{$name} {$badge}</p>`;
+Core\Html\Markup $safe = Core\Html::sanitize($bio);
+echo $line + $safe, "\n";
+echo Core\Html::join([$badge, $badge], html`, `), "\n";
+echo Core\Html::toSource($badge, "logging the fragment"), "\n";
+```
+```output
+<p>&lt;script&gt;alert(1)&lt;/script&gt; <span class="badge">new</span></p><p>likes <b>tea</b></p><img src="x">
+<span class="badge">new</span>, <span class="badge">new</span>
+<span class="badge">new</span>
+```
 
 | Member | Signature |
 |---|---|
