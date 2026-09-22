@@ -133,6 +133,15 @@ mod check;
 mod config;
 mod control;
 mod ctl;
+#[cfg_attr(
+    all(not(test), not(windows)),
+    expect(
+        dead_code,
+        reason = "the status machine is a value on every platform so its cases run everywhere; \
+                  only Windows has a manager to drive it"
+    )
+)]
+mod dispatch;
 mod doc;
 mod fmt;
 mod info;
@@ -1178,6 +1187,29 @@ struct ServiceInstall {
     argv: Vec<String>,
 }
 
+/// `nvs serve`, under the service control manager if it was started by one.
+///
+/// On Windows the stored `ImagePath` is this command (`service::image_path`),
+/// and the SCM ends a process that does not connect back to it within its
+/// start timeout — so the connect is tried first, and only a console run
+/// serves inline (`dispatch`). Everywhere else, and on a console, this is
+/// [`serve::run`] and nothing more.
+fn serve_command(
+    file: Option<PathBuf>,
+    listen: Option<String>,
+    port: Option<u16>,
+    config: Vec<PathBuf>,
+    init: config::Init,
+) -> ExitCode {
+    let run = move || serve::run(file.as_deref(), listen.as_deref(), port, &config, init);
+    #[cfg(windows)]
+    let run = match dispatch::serving(Box::new(run)) {
+        Ok(code) => return code,
+        Err(run) => run,
+    };
+    run()
+}
+
 /// The stored argv, run in this process.
 ///
 /// A service manager starts `nvs serve …` itself, so this is not how one is
@@ -1368,7 +1400,7 @@ fn main() -> ExitCode {
             init,
         ),
         Command::Serve { file, listen, port } => {
-            serve::run(file.as_deref(), listen.as_deref(), port, &cli.config, init)
+            serve_command(file, listen, port, cli.config.clone(), init)
         }
         Command::Test {
             paths,

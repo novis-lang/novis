@@ -473,20 +473,25 @@ pub(crate) fn run(
     // wider. Detached, because it has no ending of its own — the process's
     // drain is what stops it, and joining it here would be joining a thread
     // parked in an accept.
+    // Built whether or not the tree named a control socket, because the
+    // socket is not its only caller: a service manager's stop and reload
+    // reach the same process through `crate::dispatch`, which takes it from
+    // where this installs it.
+    let host = Arc::new(crate::control::Process::new(
+        Arc::clone(&current),
+        config.to_vec(),
+        path.map(Path::to_path_buf),
+        Arc::clone(&compiler),
+        Arc::clone(&admission),
+        nvs_server::Draining::process(),
+        told.clone(),
+    ));
+    crate::control::install(Arc::clone(&host));
     if let Some(endpoint) = controlling {
         println!("control endpoint on {}", endpoint.name().display());
-        let host = crate::control::Process::new(
-            Arc::clone(&current),
-            config.to_vec(),
-            path.map(Path::to_path_buf),
-            Arc::clone(&compiler),
-            Arc::clone(&admission),
-            nvs_server::Draining::process(),
-            told.clone(),
-        );
         if let Err(error) = std::thread::Builder::new()
             .name("nvs-control".to_owned())
-            .spawn(move || drop(nvs_server::control::serve(&endpoint, &host)))
+            .spawn(move || drop(nvs_server::control::serve(&endpoint, &*host)))
         {
             eprintln!("error: could not start the control endpoint's thread: {error}");
             return ExitCode::FAILURE;

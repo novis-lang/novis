@@ -106,9 +106,10 @@
 //! `rule:packaging/a-service-answers-its-manager`: a `STOP` or a `PRESHUTDOWN`
 //! enters [`crate::stop`]'s drain and is reported with a checkpoint that
 //! advances while requests finish, and a `PARAMCHANGE` enters
-//! [`crate::control`]'s one reload function. What is missing is the dispatcher
-//! that hands it a control — the SCM's own, which only a process that manager
-//! started has.
+//! [`crate::control`]'s one reload function. The dispatcher that hands it a
+//! control — the SCM's own, which only a process that manager started has — is
+//! [`crate::dispatch`], and it reports through [`Supervisor`] like everything
+//! else here.
 //!
 //! **The protocol is written by hand.** `sd_notify` is one datagram of
 //! `NAME=value` lines to whatever `$NOTIFY_SOCKET` names, so what a crate for
@@ -798,9 +799,10 @@ static PROCESS: OnceLock<Notify> = OnceLock::new();
 
 impl Notify {
     /// The manager `$NOTIFY_SOCKET` names, or silence where the variable is
-    /// unset — which is every process an operator started by hand, and every
-    /// process at all on Windows, where a service's state is the SCM's and not
-    /// a datagram's.
+    /// unset — which is every process an operator started by hand. On
+    /// Windows a service's state is the SCM's and not a datagram's, and the
+    /// manager is whatever `crate::dispatch` installed before the server ran:
+    /// silence on a console, the SCM under one.
     pub(crate) fn from_env() -> Self {
         #[cfg(unix)]
         {
@@ -811,7 +813,7 @@ impl Notify {
         }
         #[cfg(not(unix))]
         {
-            Self::silent()
+            Self::process()
         }
     }
 
@@ -821,7 +823,6 @@ impl Notify {
     }
 
     /// A process that reports to `sink`.
-    #[cfg(any(unix, test))]
     pub(crate) fn to(sink: Arc<dyn Supervisor>) -> Self {
         Self(Some(sink))
     }
@@ -895,11 +896,11 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
 /// thread for the length of a drain, and no allocation — nothing per request
 /// and nothing that outlives the stop.
 #[cfg_attr(
-    not(test),
+    all(not(test), not(windows)),
     expect(
         dead_code,
-        reason = "the caller is `nvs serve` registering this with the SCM, which is the dispatcher \
-                  half; a case drives every item here"
+        reason = "the caller is `crate::dispatch`, the SCM's handler, which only Windows builds; \
+                  a case drives every item here on every platform"
     )
 )]
 pub(crate) mod hosted {

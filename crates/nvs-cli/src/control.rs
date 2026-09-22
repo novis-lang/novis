@@ -43,7 +43,7 @@
 //! that hold at O(in-flight).
 
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
@@ -54,6 +54,24 @@ use nvs_server::{Admission, Draining};
 
 use crate::script::Compiler;
 use crate::service::{Notify, State};
+
+/// The process `nvs serve` installed, for the one caller that is handed
+/// nothing: a service manager's control handler (`crate::dispatch`).
+static PROCESS: OnceLock<Arc<Process>> = OnceLock::new();
+
+/// Keeps `process` as this process's, for [`installed`].
+///
+/// Installed once — a second call keeps the first, because `nvs serve` runs
+/// once per process.
+pub(crate) fn install(process: Arc<Process>) {
+    drop(PROCESS.set(process));
+}
+
+/// What [`install`] left, or `None` before the boot got that far.
+#[cfg(windows)]
+pub(crate) fn installed() -> Option<Arc<Process>> {
+    PROCESS.get().cloned()
+}
 
 /// What `nvs serve` supplies to its control endpoint.
 pub(crate) struct Process {
