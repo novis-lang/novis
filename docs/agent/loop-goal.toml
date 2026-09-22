@@ -100,6 +100,16 @@ modules = [
   # How a literal takes its type from the position it appears in, and what its own text has to
   # survive first.
   "crates/nvs-types/src/expr/literals.rs",
+  # `nvs serve`: one worker per core, every socket `[server] listen` names, and every request
+  # running one entry file as `rule:security/isolate-shares-nothing`'s isolate.
+  "crates/nvs-cli/src/serve.rs",
+  # `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s operator surface: the one argv
+  # a service manager stores, the closed set of things that argv may name, and the two spellings
+  # of "print exactly what would be installed".
+  "crates/nvs-cli/src/service.rs",
+  # What asks this process to stop: the operating system's terminating signals, turned into the
+  # one drain `rule:concurrency/a-drain-closes-a-connection-cleanly` already has.
+  "crates/nvs-cli/src/stop.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
