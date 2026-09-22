@@ -103,6 +103,9 @@ modules = [
   # `rule:config/ini-set-is-core-config-set`: the configuration one request reads, and the overlay
   # it writes over it.
   "crates/nvs-config/src/request.rs",
+  # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
+  # with one field per capture.
+  "crates/nvs-ir/src/lower/closure.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
