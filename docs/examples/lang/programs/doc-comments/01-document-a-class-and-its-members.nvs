@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to document a class. Three slashes write a doc comment, and it
+// belongs to the declaration on the line under it.
+
+/// A price in cents, so that no rounding can creep in.
+final class Price {
+    /// The lowest price a shop may set.
+    public const int MIN = 0;
+
+    /// Doubles a price.
+    /// A run of `///` lines above one declaration is a single comment, so this
+    /// sentence and the one above it are one note.
+    public static function double(int $cents): int {
+        return $cents * 2;
+    }
+}
+
+// This prints 0.
+echo Price::MIN, "\n";
+
+// This prints 250.
+echo Price::double(125), "\n";

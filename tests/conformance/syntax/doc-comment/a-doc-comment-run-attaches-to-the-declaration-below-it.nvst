@@ -2,6 +2,7 @@
 A `///` run attaches to the declaration below it and changes nothing about the program that carries it, while `//` and `////` document nothing — `rule:tooling/doc-comment-is-three-slashes`, `rule:tooling/doc-comment-attaches-to-the-next-declaration`, `rule:tooling/doc-comment-tags-are-see-and-example`
 --FILE--
 <?nvs
+// covers: lang:programs/doc-comments
 /// A greeting, and the text a reader of it sees.
 ///
 /// `rule:tooling/doc-comment-attaches-to-the-next-declaration`: the lines

@@ -1,0 +1,36 @@
+<?nvs
+// A class documented the way a shared library is documented, with a note on
+// the class and on every member of it. A doc comment is read once, when the
+// program is compiled, and never while it runs. This should cost the same as
+// the same loop with the notes taken out.
+// bench: iterations 4000000
+// bench: allocations 0
+
+/// Folds a run of numbers into one running total.
+///
+/// @see Meter::run
+final class Meter {
+    /// The number every round is folded back into.
+    ///
+    /// @see Meter::run
+    public const int WRAP = 7;
+
+    /// Runs `$rounds` rounds and returns the running total.
+    ///
+    /// Each line of the loop feeds the next one, so none of it can be dropped.
+    ///
+    /// @see Meter::WRAP
+    public static function run(int $rounds): int {
+        // Inside a body the note is an ordinary `//` one: a doc comment
+        // documents a declaration, and a local variable is not one.
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            $total = $total + (($i + $total) % Meter::WRAP);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Meter::run(4000000), "\n";

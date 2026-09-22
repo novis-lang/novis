@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to document the cases of an enum. Each case carries its own doc
+// comment, which is where the meaning of a status belongs.
+
+/// How far an order has got.
+enum Status {
+    /// The customer has ordered and has not paid yet.
+    Pending,
+    /// The money has arrived.
+    Paid,
+    /// The goods have left the building.
+    Shipped
+}
+
+Status $order = Status::Paid;
+
+// A case is a whole number, counted from the first case. This prints 1.
+echo $order as int, "\n";

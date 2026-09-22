@@ -2,10 +2,10 @@
 Every `@tag` in a doc comment but `@see` and `@example` is `E0128`, and the one PHPDoc name whose answer is the signature gets its own help — `rule:tooling/doc-comment-tags-are-see-and-example`
 --FILE--
 <?nvs
+// covers: lang:programs/doc-comments
 // `rule:tooling/doc-comment-tags-are-see-and-example`: the set is closed, so
-// every other `@tag` is a diagnostic rather than a convention nobody enforces.
-// `@param` has an answer of its own, because the signature already carries
-// what it would have said; an invented tag gets the rule itself.
+// every other `@tag` is a diagnostic. `@param` gets its own answer, since the
+// signature already says it; an invented tag gets the rule itself.
 /// Charges a card, in the smallest unit the currency has.
 ///
 /// @param $cents the amount to charge
