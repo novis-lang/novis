@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read a number from the environment and check it before you use it.
+
+// The value is text. `as ?int` converts it to a whole number.
+// If that is not possible, the result is `null`.
+?int $port = (Core\Env::get("SHOP_PORT") ?? "8080") as ?int;
+
+// `SHOP_PORT` is not set here, so the default "8080" is used and this prints `8080`.
+if ($port == null) {
+    echo "SHOP_PORT must be a whole number\n";
+} else {
+    echo "port: ", $port, "\n";
+}

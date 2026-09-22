@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program asks for variables with names no environment can hold, and then
+// keeps every value it reads until nothing is left. Each strange name should return
+// `null`. The program must stop at its memory limit with an error.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '32M');
+
+// 1. A name of one million characters. Nothing can have set it, so the result is `null`.
+string $huge = Core\Str::repeat('A', 1000000);
+echo 'huge name: ', Core\Env::get($huge) ?? 'null', "\n";
+
+// 2. An empty name, a name with `=` and a name with a zero byte. The operating system
+// does not allow any of these names, so each result is `null`.
+array<string> $strange = ['', 'A=B', "A\0B", '=', "\0"];
+foreach ($strange as string $name) {
+    echo 'strange name: ', Core\Env::get($name) ?? 'null', "\n";
+}
+
+// 3. Every name the environment has is read one thousand times, and each value is freed.
+// Memory use must stay flat.
+var $names = Core\Arr::keys(Core\Env::all());
+uint $read = 0;
+uint $round = 0;
+while ($round < 1000) {
+    foreach ($names as string $name) {
+        if (Core\Env::get($name) != null) {
+            $read = $read + 1;
+        }
+    }
+    $round = $round + 1;
+}
+echo 'rounds done: ', $round, "\n";
+
+// 4. Every value read is kept, so nothing can be freed. This step ends the program at
+// its memory limit.
+array<?tainted string> $kept = [];
+while (true) {
+    foreach ($names as string $name) {
+        $kept[] = Core\Env::get($name);
+    }
+}
