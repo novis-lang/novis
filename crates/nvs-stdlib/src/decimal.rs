@@ -1015,7 +1015,7 @@ mod tests {
     /// `rule:types/arithmetic`'s two named-rounding members over the same divisions:
     /// where `divExact` refuses, `divRound` answers under the mode it was
     /// given, and where `divExact` answers the two agree.
-    // covers: Core\Decimal::divExact
+    // covers: Core\Decimal::divExact, Core\Decimal::divRound
     #[test]
     fn div_exact_throws_where_div_round_rounds() {
         let mut ctx = Ctx::buffered();
@@ -1100,6 +1100,7 @@ mod tests {
 
     /// `rule:types/arithmetic`'s power for a `decimal` base: exact, at the
     /// scale repeated multiplication gives it, or a throw at either bound.
+    // covers: Core\Decimal::pow
     #[test]
     fn decimal_pow_is_exact_or_throws_at_the_mantissa_or_scale_bound() {
         let mut ctx = Ctx::buffered();
@@ -1363,7 +1364,7 @@ mod tests {
     /// `rule:types/conversion`'s four named cuts: each answers a `decimal` at
     /// exactly the scale it was asked for, the three directions part where a
     /// value is negative, and `round` is `divRound` against `1`.
-    // covers: Core\Decimal::ceil
+    // covers: Core\Decimal::ceil, Core\Decimal::floor
     #[test]
     fn decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked() {
         let mut ctx = Ctx::buffered();
