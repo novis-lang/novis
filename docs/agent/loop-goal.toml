@@ -123,6 +123,8 @@ modules = [
   "editors/vscode/src/extension.ts",
   # TODO: why a session opens this.
   "editors/vscode/src/surface.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/imports.ts",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
