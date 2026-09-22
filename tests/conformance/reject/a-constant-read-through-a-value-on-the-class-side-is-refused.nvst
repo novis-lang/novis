@@ -1,0 +1,31 @@
+--TEST--
+`$o::VERSION` is `E0496` like `$o::f()`, with a help that names the written form: a constant is inlined where it is read, so no value — not even a `class<T>` — stands on its left — `rule:types/class-reference-sites`
+--FILE--
+<?nvs
+class App {
+    public const string VERSION = "1.2";
+}
+App $o = new App();
+class<App> $cls = App::class as class<App>;
+// An instance on the class side: the same mistake `$o::f()` makes.
+echo $o::VERSION, "\n";
+// A class reference is accepted by `new`, a call and `is`, and by nothing else.
+echo $cls::VERSION, "\n";
+// The written form, for the control.
+echo App::VERSION, "\n";
+--EXPECTF-ERROR--
+error[E0496]: the class side of a `::` constant must be a written class name
+  --> %s:8:6
+  |
+8 | echo $o::VERSION, "\n";
+  |      ^^ not a class name
+  = help: a constant is inlined where it is read, so its class is written, never carried in a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a constant (`rule:types/class-reference-sites`)
+
+error[E0496]: the class side of a `::` constant must be a written class name
+   --> %s:10:6
+   |
+10 | echo $cls::VERSION, "\n";
+   |      ^^^^ not a class name
+   = help: a constant is inlined where it is read, so its class is written, never carried in a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a constant (`rule:types/class-reference-sites`)
+
+error: aborting due to 2 errors

@@ -86,6 +86,28 @@ pub(crate) fn infer_class_const(
 ) -> TypeId {
     check_expr(class, None, live, scope, ctx, env);
     super::reject_class_side_outside_class(class, ctx, env);
+    // `$o::VERSION` is the mistake `$o::f()` makes, written on a constant, and
+    // it is not one of `rule:types/class-reference-sites`'s three sites: a
+    // constant is inlined where it is read, so there is no class to resolve it
+    // on at run time and a `class<T>` operand buys nothing here. Left
+    // unreported, the arms below record no value and `nvs-ir` panics naming
+    // the table it found no entry in — see [`reject_dynamic_class_name`].
+    if !is_written_class_side(class) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DYNAMIC_CLASS_NAME,
+                "the class side of a `::` constant must be a written class name",
+            )
+            .with_primary(class.span, "not a class name")
+            .with_help(
+                "a constant is inlined where it is read, so its class is written, never carried in \
+                 a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` \
+                 reference opens `new`, a `::` call and `is`, not a constant \
+                 (`rule:types/class-reference-sites`)",
+            ),
+        );
+        return env.interner.mixed();
+    }
     let qname = resolve_class_expr(class, ctx, env);
     // `rule:testing/interaction-after-the-fact`'s method reference. The
     // spelling names no constant, and at the argument positions
@@ -782,20 +804,22 @@ pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
     )
 }
 
-/// `rule:types/conversion`'s no-computed-names rule, at the three spellings that reach a
-/// class through a *value*: `$x is $c` (`crate::expr::type_test`), `new $c()`
-/// and `$c::f()` ([`super::calls`]). The headline names the spelling; the label
-/// and the help are the rule, which does not vary by site.
+/// `rule:types/conversion`'s no-computed-names rule, at the four spellings that reach a
+/// class through a *value*: `$x is $c` (`crate::expr::type_test`), `new $c()`,
+/// `$c::f()` ([`super::calls`]) and `$c::CONST` ([`infer_class_const`]). The
+/// headline names the spelling; the label and the help are the rule, which does
+/// not vary by site.
 ///
-/// **A `class<T>` operand is not this mistake.** `rule:types/class-reference-sites` gives all three
-/// sites a checked dynamic form, and each asks [`class_ref_argument`] before
-/// reaching here. What is left is a value the checker can resolve to no class
-/// at all, so the help names the conversion that turns one into a value it
-/// can — the fix an author can take, rather than only the written-out form.
+/// **A `class<T>` operand is not this mistake at the first three.** `rule:types/class-reference-sites`
+/// gives those a checked dynamic form, and each asks [`class_ref_argument`]
+/// before reaching here; a constant has no such form, since it is inlined where
+/// it is read. What is left is a value the checker can resolve to no class at
+/// all, so the help names the conversion that turns one into a value it can —
+/// the fix an author can take, rather than only the written-out form.
 ///
 /// Nothing below the checker could resolve such a name either — `nvs-codegen`
 /// bakes a descriptor's address in as a constant — so this is the last place
-/// the mistake can be reported as one. Left unreported, each of the three
+/// the mistake can be reported as one. Left unreported, each of the four
 /// records nothing in the typed-expression table and `nvs-ir` panics naming
 /// the table it found no entry in, which is an internal message for an
 /// ordinary mistake.

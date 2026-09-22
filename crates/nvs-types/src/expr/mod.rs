@@ -489,6 +489,27 @@ pub(crate) fn infer(
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
             reject_class_side_outside_class(class, ctx, env);
+            // `$o::$mode` is `$o::f()`'s mistake written on storage, and not one
+            // of `rule:types/class-reference-sites`'s three sites: a static
+            // property's storage is resolved where the access is written, so
+            // no value on the class side has a storage to name. Left
+            // unreported, the arm below records nothing and `nvs-ir` panics
+            // naming the table — see `members::reject_dynamic_class_name`.
+            if !members::is_written_class_side(class) {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_DYNAMIC_CLASS_NAME,
+                        "the class side of a `::` static property must be a written class name",
+                    )
+                    .with_primary(class.span, "not a class name")
+                    .with_help(
+                        "a static property's storage belongs to a written class — `App::$mode`, or \
+                         `self::$mode` inside the class; a `class<T>` reference opens `new`, a `::` \
+                         call and `is`, not a static property (`rule:types/class-reference-sites`)",
+                    ),
+                );
+                return env.interner.mixed();
+            }
             // A static property's storage is resolved where the access is
             // written, so `static::` — which PHP re-resolves against the
             // *called* class — has no honest answer here. See

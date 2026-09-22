@@ -1592,7 +1592,9 @@ Three spellings accept a `class<T>` operand, and nothing else:
 | `$x is $cls` | nothing; the descriptor is the test | a descriptor-valued class test |
 
 Every other operand type keeps `E0496`, with its help naming `as class<T>`. A bare `string` is
-therefore still refused at all three sites — one refusal, with a fix the author can take.
+therefore still refused at all three sites — one refusal, with a fix the author can take. A
+constant read, `$cls::CONST`, is not a site at all: a constant is inlined where it is read, so its
+class side is a written name and any value there, a `class<T>` included, is `E0496`.
 
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be

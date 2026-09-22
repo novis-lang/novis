@@ -1,0 +1,19 @@
+--TEST--
+`$o::$mode` is `E0496` like `$o::f()`: a static property's storage is resolved where the access is written, so no value stands on its left — `rule:types/class-reference-sites`
+--FILE--
+<?nvs
+class App {
+    public static string $mode = "dev";
+}
+App $o = new App();
+echo $o::$mode, "\n";
+echo App::$mode, "\n";
+--EXPECTF-ERROR--
+error[E0496]: the class side of a `::` static property must be a written class name
+  --> %s:6:6
+  |
+6 | echo $o::$mode, "\n";
+  |      ^^ not a class name
+  = help: a static property's storage belongs to a written class — `App::$mode`, or `self::$mode` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a static property (`rule:types/class-reference-sites`)
+
+error: aborting due to 1 error
