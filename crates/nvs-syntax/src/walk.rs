@@ -28,7 +28,11 @@
 //! arm, a catch clause, a `foreach` binding — is a *property* of the node it
 //! belongs to rather than a node of its own, and its nested expressions are
 //! children of that node. So a parameter's default is a child of the function
-//! it belongs to, and no node stands for the parameter itself.
+//! it belongs to, and no node stands for the parameter itself. An attribute's
+//! payload is the one exception: its values are no node's children, because
+//! `nvs fmt`'s indenter and `Core\Ast` read this tree and a payload node under
+//! a method moves what both print. An editor that needs a span inside a
+//! payload walks the attribute lists itself (`nvs_lsp::definition`).
 //!
 //! The alternative was one node per struct in [`crate::ast`], and
 //! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
