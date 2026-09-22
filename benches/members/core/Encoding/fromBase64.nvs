@@ -1,0 +1,27 @@
+<?nvs
+// Measures reading the credentials out of an `Authorization: Basic` header,
+// which a server does on every request it has to authenticate.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $headers = [
+            "YWRhOmh1bnRlcjI=",
+            "Z3JhY2U6cGFzc3cwcmQ=",
+            "YWxhbjpvcGVuIHNlc2FtZQ==",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the header read holds the count the round before gave.
+            $total = $total + Core\Bytes::length(
+                Core\Encoding::fromBase64($headers[$total % 3]),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

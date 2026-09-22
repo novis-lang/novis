@@ -1,0 +1,17 @@
+<?nvs
+// Shows the round trip: bytes go out as base64 text, and the same bytes come
+// back.
+
+// The first eight bytes of every PNG file.
+bytes $signature = Core\Encoding::fromHex("89504e470d0a1a0a");
+
+// `Core\Encoding::toBase64` writes the text. This prints iVBORw0KGgo=.
+string $written = Core\Encoding::toBase64($signature);
+echo $written, "\n";
+
+// `Core\Encoding::fromBase64` reads it back. This prints 89504e470d0a1a0a,
+// the hex we started with.
+echo Core\Encoding::toHex(Core\Encoding::fromBase64($written)), "\n";
+
+// The empty string gives an empty buffer. This prints 0.
+echo Core\Bytes::length(Core\Encoding::fromBase64("")), "\n";

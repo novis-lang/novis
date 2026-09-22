@@ -1,0 +1,25 @@
+<?nvs
+// Shows the everyday use: an HTTP `Authorization: Basic` header carries a user
+// name and a password as base64.
+
+string $header = "Basic YWRhOmh1bnRlcjI=";
+
+// Everything after "Basic " is the base64 text. This prints ada:hunter2.
+string $pair = Core\Encoding::decodeText(
+    Core\Encoding::fromBase64(Core\Str::slice($header, 6, null)),
+    Core\Charset::Utf8,
+);
+echo $pair, "\n";
+
+// The first `:` separates the two. This prints ada and then hunter2.
+echo Core\Str::before($pair, ":"), "\n";
+echo Core\Str::after($pair, ":"), "\n";
+
+// The bytes behind the base64 are not always text. Here the password is one
+// byte that UTF-8 has no character for, so `Core\Encoding::decodeText` throws.
+try {
+    bytes $raw = Core\Encoding::fromBase64("YWRhOv8=");
+    echo Core\Encoding::decodeText($raw, Core\Charset::Utf8), "\n";
+} catch (RuntimeError $notText) {
+    echo "refused: ", $notText->message, "\n";
+}
