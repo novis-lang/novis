@@ -2,33 +2,39 @@
 
 ## State
 
-Goal `core-env-and-4-more`, 11 of its 16 features taken. `Core\Env::all`, `get` and `mode`,
-`Core\Fatal::onLimit` and `onUncaughtThrow`, `Core\Hash::of`, `hmac`, `equals` and `stream`, and
-`Core\Hash\Stream::update` and `finish` each carry `about.md`, three examples with blessed `.out`
-files, an attack, a bench and a Rust `// covers:` test. The only proof they still owe is the perf
-figure. `python tools/dossier.py --record-perf` writes it against a release build, and this goal
-records all of them in one commit at its end.
+Goal `core-env-and-4-more`, all 16 of its features taken. `Core\Env::all`, `get` and `mode`,
+`Core\Fatal::onLimit` and `onUncaughtThrow`, `Core\Hash::of`, `hmac`, `equals` and `stream`,
+`Core\Hash\Stream::update` and `finish`, and `Core\Heap::push`, `pop`, `peek`, `count` and `isEmpty`
+each carry `about.md`, three examples with blessed `.out` files, an attack, a bench and a Rust
+`// covers:` test. The only proof they still owe is the perf figure, recorded in one commit at the
+goal's end. The driver's acceptance failure (`target/release/nvs.exe is missing or older than the
+tree`) is that release build not having been made yet, not a regression.
 
-`Core\Hash\Stream::finish` now feeds each retained chunk to the running hasher where it lies
-(`crates/nvs-stdlib/src/hash.rs`'s `Running`), so a stream fed one buffer many times is held once;
-`tests/conformance/core/hash-stream-finish-holds-no-copy-of-what-it-was-fed.nvst` pins it.
+`Core\Heap`'s proofs found three bugs, all fixed and pinned. A callable reference
+(`Class::method(...)`) whose target throws released its arguments twice, which corrupted the heap
+(`tests/conformance/closures/a-callable-reference-that-throws-releases-each-argument-once.nvst`).
+`Core\Heap::pop` leaked the element it took when the comparator threw. A comparator that takes
+elements out of its own heap ended the request with a `FATAL`, and is now a catchable
+`RuntimeError`. The heap also reaches its entries by integer key, so `push` allocates nothing.
 
 Goal `limit-handler-reach`'s stage 3 still owns the `cpu_time` narrowed by `Core\Config::set`
 that is accepted and never enforced.
 
 ## Next group
 
-**`Core\Heap`'s five members** — one file set: `crates/nvs-stdlib/src/heap.rs`, plus the proof
-trees under `core/Heap/<member>` (`python tools/dossier.py --id` prints each path).
-`rule:testing/feature-proofs` owns what each owes. `push`, `pop` and `peek` share one set of
-examples well; `count` and `isEmpty` are small enough to take in the same session.
+**The goal's end: perf figures and the closing gates** — one file set: `docs/perf/members.ndjson`
+and the release build `tools/dossier.py` makes for itself.
 
-- [ ] **`Core\Heap::push`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:109`
-- [ ] **`Core\Heap::pop`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:127`
-- [ ] **`Core\Heap::peek`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:118`
-- [ ] **`Core\Heap::count`** and **`isEmpty`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:136`
+- [ ] **Record the perf figure for all 16 features** — `rule:testing/member-perf-ledger`; `python
+      tools/dossier.py --record-perf` builds `target/release/nvs.exe` itself first (about six
+      minutes, `tools/dossier.py:513`), then measures every stale feature. Commit the ledger lines
+      in one commit.
+- [ ] **Close the goal** — `rule:testing/feature-proofs`; `python tools/verify.py --doc`, then
+      `python tools/owners.py --closes core-env-and-4-more` and `python tools/playbook.py --closes
+      core-env-and-4-more`, then `DONE` in `.loop/status.txt`. `docs/agent/loop-goal.md:1`
 
 ## Backlog
 
-- The perf figure for every feature this goal took — `python tools/dossier.py --record-perf`, once, at the goal's end.
-- `Core\Hash\Stream` still holds every chunk until `finish` — `crates/nvs-stdlib/src/hash.rs`'s module doc § *`Hash\Stream` accumulates*.
+- `fn (string $a): int => throw new LogicError('no')` does not compile: `E0401 expected int, found
+  never`. A `never` expression should be accepted where any type is expected. Owner: `nvs-types`'
+  module doc `# Known gaps` (not checked whether it already names this).

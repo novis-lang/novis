@@ -2,6 +2,7 @@
 `Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, `rule:classes/comparable`, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
+// covers: Core\Heap::count, Core\Heap::isEmpty, Core\Heap::peek
 // § 9 gives the class five members and an iteration, and four of them are
 // independent readers of one question: how much is in there, and what comes
 // out next. `count` reads the entries array, `isEmpty` reads its length,

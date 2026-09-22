@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a comparator calls `isEmpty` and `pop` on the heap it is ordering, while the heap
+// loses its last values. Other steps ask a heap millions of times.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    public static ?Core\Heap<int> $heap = null;
+
+    // Empties the heap it is ordering, one value per call.
+    public static function empties(int $a, int $b): int
+    {
+        var $heap = Attack::$heap;
+        if ($heap != null) {
+            if (!$heap->isEmpty()) {
+                $heap->pop();
+            }
+        }
+        return $a - $b;
+    }
+}
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. While `pop` reorders the heap, the comparator empties it. `pop` throws a `RuntimeError`.
+// `isEmpty` and `count` must still give true answers, and the heap can still be emptied.
+var $reentrant = new Core\Heap<int>(Attack::empties(...));
+int $i = 0;
+while ($i < 64) {
+    $reentrant->push(64 - $i);
+    $i = $i + 1;
+}
+Attack::$heap = $reentrant;
+try {
+    while (!$reentrant->isEmpty()) {
+        $reentrant->pop();
+    }
+} catch (RuntimeError $gone) {
+    echo 'step 1: threw', "\n";
+}
+Attack::$heap = null;
+echo 'step 1: ', $reentrant->isEmpty() ? 'empty' : 'not empty', ', ', $reentrant->count(), "\n";
+while (!$reentrant->isEmpty()) {
+    $reentrant->pop();
+}
+try {
+    $reentrant->pop();
+} catch (RuntimeError $nothing) {
+    echo 'step 1: pop on the empty heap threw', "\n";
+}
+
+// 2. An empty heap is asked one million times.
+var $empty = new Core\Heap<string>();
+uint $yes = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($empty->isEmpty()) {
+        $yes = $yes + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 2: ', $yes, "\n";
+
+// 3. A heap of 100000 values is emptied by a loop that asks before each `pop`.
+var $full = new Core\Heap<int>();
+$i = 0;
+while ($i < 100000) {
+    $full->push(($i * 7919) % 100000);
+    $i = $i + 1;
+}
+while (!$full->isEmpty()) {
+    $full->pop();
+}
+echo 'step 3: ', $full->count(), "\n";
+
+// 4. Texts are added while the heap is asked each time, and never taken out. This step
+// ends the program at its memory limit.
+var $endless = new Core\Heap<string>();
+while (true) {
+    $endless->push(Core\Str::repeat('e', 1000));
+    if ($endless->isEmpty()) {
+        echo 'step 4: a heap with values says it is empty', "\n";
+    }
+}

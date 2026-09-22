@@ -1,0 +1,14 @@
+<?nvs
+// Shows how the count of a heap grows with each value you add.
+
+var $heap = new Core\Heap<int>();
+
+// A new heap has no values. This prints 0.
+echo $heap->count(), "\n";
+
+$heap->push(10);
+$heap->push(30);
+$heap->push(20);
+
+// This prints 3.
+echo $heap->count(), "\n";

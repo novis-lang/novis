@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a comparator calls `count` on the heap it is ordering, and orders by that count.
+// Other steps count a heap after a failed push and a heap of a million values.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+class Attack
+{
+    public static ?Core\Heap<int> $heap = null;
+
+    // Answers with the heap's own count, so the order changes as the heap grows.
+    public static function byCount(int $a, int $b): int
+    {
+        var $heap = Attack::$heap;
+        if ($heap != null) {
+            return ($heap->count() as int) % 3 - 1;
+        }
+        return 0;
+    }
+
+    public static function refuses(int $a, int $b): int
+    {
+        throw new LogicError('no');
+    }
+}
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. The comparator counts the heap on every call. Every value pushed must be counted.
+var $counted = new Core\Heap<int>(Attack::byCount(...));
+Attack::$heap = $counted;
+int $i = 0;
+while ($i < 1000) {
+    $counted->push($i);
+    $i = $i + 1;
+}
+echo 'step 1: ', $counted->count(), "\n";
+while (!$counted->isEmpty()) {
+    $counted->pop();
+}
+Attack::$heap = null;
+echo 'step 1: ', $counted->count(), ' after emptying', "\n";
+
+// 2. The second push fails in the comparator. The value is kept, so the count is 2.
+var $refusing = new Core\Heap<int>(Attack::refuses(...));
+$refusing->push(1);
+try {
+    $refusing->push(2);
+} catch (LogicError $refused) {
+    echo 'step 2: ', $refusing->count(), "\n";
+}
+
+// 3. A heap of one million numbers is counted 100000 times.
+var $big = new Core\Heap<int>();
+$i = 0;
+while ($i < 1000000) {
+    $big->push($i);
+    $i = $i + 1;
+}
+uint $total = 0;
+$i = 0;
+while ($i < 100000) {
+    $total = $total + $big->count();
+    $i = $i + 1;
+}
+echo 'step 3: ', $total, "\n";
+
+// 4. Long texts are added and counted, and never taken out. This step ends the program
+// at its memory limit.
+var $endless = new Core\Heap<string>();
+while (true) {
+    $endless->push(Core\Str::repeat('c', 1000) . Core\Str::format('%d', $endless->count()));
+}
