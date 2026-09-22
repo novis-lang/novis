@@ -516,10 +516,44 @@ impl Accepting for mio::net::TcpListener {
     type Stream = mio::net::TcpStream;
     type Peer = SocketAddr;
 
+    /// On Windows, one `accept` at a time across the whole process
+    /// ([`ACCEPTING`]); on Unix the syscall itself, which is atomic.
     fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)> {
+        #[cfg(windows)]
+        let _one_at_a_time = ACCEPTING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         mio::net::TcpListener::accept(self)
     }
 }
+
+/// The one `accept` in flight on Windows, over every TCP listener this process
+/// holds.
+///
+/// Winsock's `accept` on a non-blocking socket is two steps with a hole
+/// between them: a user-mode check that a connection is queued, then a kernel
+/// wait for one that no longer honours the non-blocking mode. A server whose
+/// cores each hold a duplicate of one listening socket registers as many
+/// readiness polls on that one endpoint, so a single connection wakes every
+/// core and every core calls `accept` at once. The cores whose check passed
+/// before the winner dequeued the connection then wait in the kernel until
+/// the *next* connection arrives — and a drain, which makes the listener
+/// readable to nobody, never ends that wait. That is a Ctrl-C a fleet of idle
+/// cores does not answer.
+///
+/// Held around the syscall, the check and the wait are one step relative to
+/// every other accept in the process: a connection the check saw is still
+/// queued when the wait is issued, because only an accept dequeues one and
+/// every accept is on the far side of this lock. The syscall under it does not
+/// block — a queued connection the peer has already reset is returned to the
+/// caller rather than dropped from the queue, which is the one case that could
+/// otherwise have parked the holder.
+///
+/// What it spends: one uncontended lock per accept call. It is contended only
+/// while several cores answer the same wake, and there each loser takes the
+/// lock, gets `WouldBlock`, and parks — the turn it would have taken anyway.
+#[cfg(windows)]
+static ACCEPTING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(unix)]
 impl Accepting for mio::net::UnixListener {
@@ -2770,6 +2804,67 @@ mod tests {
             with_current(|reactor| reactor.registrations()),
             Some(0),
             "the finished task left its registration behind"
+        );
+    }
+
+    /// [`ACCEPTING`]'s reason: many cores each accepting on their own duplicate
+    /// of one listener, all woken by one connection, all calling `accept` at
+    /// once. Every one of them returns — one with the connection and the rest
+    /// with `WouldBlock` — rather than some waiting in the kernel for a
+    /// connection that never comes.
+    ///
+    /// The threads spin on the syscall itself rather than parking, which is
+    /// the herd with the reactor's wake taken out of it: what the lock has to
+    /// beat is the race inside Winsock, and a spin reaches it every time.
+    #[cfg(windows)]
+    #[test]
+    fn a_herd_of_accepts_on_duplicates_of_one_listener_all_return() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+        const CORES: usize = 16;
+        let base = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let addr = base.local_addr().expect("a bound address");
+        let stop = Arc::new(AtomicBool::new(false));
+        let inside = Arc::new(AtomicUsize::new(0));
+        let won = Arc::new(AtomicUsize::new(0));
+        for _ in 0..CORES {
+            let listener = NvsListener::from_std(base.try_clone().expect("a duplicate"))
+                .expect("non-blocking");
+            let (stop, inside, won) = (Arc::clone(&stop), Arc::clone(&inside), Arc::clone(&won));
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    inside.fetch_add(1, Ordering::SeqCst);
+                    // The trait's `accept`, which is the one under the lock
+                    // — the mio listener's own method of the same name is
+                    // the bare syscall.
+                    let accepted = Accepting::accept(&listener.0.inner);
+                    inside.fetch_sub(1, Ordering::SeqCst);
+                    match accepted {
+                        Ok(_) => {
+                            won.fetch_add(1, Ordering::SeqCst);
+                            return;
+                        }
+                        Err(err) if err.kind() == io::ErrorKind::WouldBlock => {}
+                        Err(err) => panic!("accept failed: {err}"),
+                    }
+                }
+            });
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        let _client = std::net::TcpStream::connect(addr).expect("a connection");
+        std::thread::sleep(Duration::from_millis(500));
+        stop.store(true, Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(500));
+        assert_eq!(
+            won.load(Ordering::SeqCst),
+            1,
+            "the one connection was not accepted once"
+        );
+        assert_eq!(
+            inside.load(Ordering::SeqCst),
+            0,
+            "a core is waiting inside `accept` for a connection another core already took"
         );
     }
 }
