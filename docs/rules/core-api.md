@@ -1281,7 +1281,7 @@ strings in the binary — per process, not per request, on the order of a few hu
 member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
 cares.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md).</sub>
 
 <a id="core-api-removals"></a>
 

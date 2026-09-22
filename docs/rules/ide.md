@@ -1306,7 +1306,7 @@ directly after it, the kind, the text at the right ([`ide/a-completion-row-reads
 sorted by label; semantic tokens as
 `L:C+len type modifiers`; symbols as an indented outline.
 
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md), [0203](../decisions/0203.md).</sub>
 
 <a id="ide-lspt-coverage-is-inferred"></a>
 
