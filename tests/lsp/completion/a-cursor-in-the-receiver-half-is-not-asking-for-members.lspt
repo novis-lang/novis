@@ -1,11 +1,11 @@
 --TEST--
-a cursor still inside the receiver is writing the receiver, so the access it is in offers nothing rather than the members of the class it is standing on — `rule:ide/the-index-answers-the-cursor`
+a cursor still inside the receiver is writing the receiver, so the access it is in offers the position's own list and never the members of the class it is standing on — the property `name` is not among the answers — `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 class User { public string $name; }
 var $u = new User();
 echo $<|>u->name;
 --REQUEST--
-completion
+completion prefix=name
 --EXPECT--
 none

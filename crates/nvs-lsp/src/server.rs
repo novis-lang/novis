@@ -80,6 +80,7 @@ use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hints;
 use crate::hover;
+use crate::imports;
 use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
@@ -482,6 +483,14 @@ fn answer(
         },
         regions::METHOD => match regions::Params::from_value(params) {
             Ok(params) => Response::new_ok(id, template_regions(documents, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        imports::METHOD => match imports::Params::from_value(params) {
+            Ok(params) => Response::new_ok(id, imports_in(documents, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        imports::EDITS_METHOD => match imports::EditsParams::from_value(params) {
+            Ok(params) => Response::new_ok(id, import_edits(documents, index, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         _ => Response::new_err(
@@ -1373,6 +1382,45 @@ fn redaction_ranges(
             .into_iter()
             .map(|item| serde_json::json!({ "range": item.range, "kind": item.kind }))
             .collect()
+    })
+}
+
+/// `nvs/imports` — the type names one range of an open document writes, and
+/// what each resolved to, for the paste that carries them along
+/// (`rule:ide/a-pasted-type-carries-its-use-line`).
+///
+/// [`redaction_ranges`]'s shape: a document goes in, a JSON array comes back,
+/// and an empty array is the answer for a document the server was never told
+/// about as much as for a range that names no type.
+fn imports_in(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &imports::Params,
+) -> Vec<serde_json::Value> {
+    analyse(documents, &params.text_document.uri).map_or_else(Vec::new, |analysed| {
+        let file = analysed.map.file(analysed.entry);
+        let start = offset_at(file, params.range.start, encoding);
+        let end = offset_at(file, params.range.end, encoding);
+        imports::in_range(&analysed, start, end)
+            .iter()
+            .map(imports::Import::to_value)
+            .collect()
+    })
+}
+
+/// `nvs/importEdits` — the `use` lines a paste of the names `nvs/imports`
+/// answered needs at one position of an open document, as the edits that
+/// insert them, and none where every name already resolves there.
+fn import_edits(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &imports::EditsParams,
+) -> Vec<TextEdit> {
+    analyse(documents, &params.text_document.uri).map_or_else(Vec::new, |analysed| {
+        let file = analysed.map.file(analysed.entry);
+        let offset = offset_at(file, params.position, encoding);
+        imports::edits(&analysed, index, offset, &params.imports, encoding)
     })
 }
 

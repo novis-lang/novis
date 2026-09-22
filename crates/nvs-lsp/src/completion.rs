@@ -44,6 +44,17 @@
 //! containment stays half-open, because a cursor being outside the node it
 //! touches is what `selectionRange` is frozen on.
 //!
+//! **A cursor inside the receiver, or in the arguments, is asking a bare
+//! position's question.** `Request|::headers()` is still writing `Request`,
+//! and `Core\Debug::dump(|)` is writing an argument: neither is asking for the
+//! members of a class, so both fall through to the position arms below, which
+//! is where a name gets the type list and the `use` line that comes with it.
+//! The receiver's end is read off its node, and the arguments off the `(`
+//! between that end and the cursor — no member name contains one, so its
+//! presence is the whole test, and it also covers a cursor just past a call's
+//! `)`, which the end-of-access lookup above would otherwise hand the member
+//! list.
+//!
 //! # Where a plain variable's type comes from
 //!
 //! `$u` is a variable *read*, and until this request existed the checker kept
@@ -284,7 +295,7 @@ use nvs_hir::QName;
 use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, Stmt, StmtKind,
+    ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::{ExprInfo, Ty, TypeId};
@@ -517,21 +528,40 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
         return Asked::Namespace(prefix);
     }
     let Some((access, reach)) = access_in(path).or_else(|| ended_at(analysed, offset)) else {
-        return owner_written(analysed, offset).map_or(Asked::Position, Asked::TypeMember);
+        return bare(analysed, offset);
     };
     let Some(receiver) = analysed.index.children_of(access).into_iter().next() else {
         return Asked::Nothing;
     };
-    // A cursor still inside the receiver is writing the receiver, and the
-    // members of its own class are not what it is asking for.
-    if offset < receiver.span.end {
-        return Asked::Nothing;
+    // A cursor inside the receiver, or touching its end, is writing the
+    // receiver: a name there is a bare position's question, and the members
+    // of the class it names are not what it is asking for.
+    if offset <= receiver.span.end {
+        return bare(analysed, offset);
+    }
+    // A cursor past the member name is in the call's arguments, or past its
+    // `)`. No member name contains a `(`, so one between the receiver's end
+    // and the cursor is the whole test.
+    let between = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(receiver.span.end as usize..offset as usize);
+    if between.is_some_and(|between| between.contains('(')) {
+        return bare(analysed, offset);
     }
     let class = match reach {
         Reach::Instance => held_class(analysed, receiver.span, offset),
         Reach::Static => named_class(analysed, access, receiver.span),
     };
     class.map_or(Asked::Nothing, |class| Asked::Member(class, reach))
+}
+
+/// What a cursor in no member half is asked: the members `Owner::` in type
+/// position reaches where one was written, and otherwise the position's own
+/// lists.
+fn bare(analysed: &Analysed, offset: BytePos) -> Asked {
+    owner_written(analysed, offset).map_or(Asked::Position, Asked::TypeMember)
 }
 
 /// The innermost access `path` runs through, and the half of a class it
@@ -1569,6 +1599,7 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         analysed,
         symbols,
         offset,
+        encoding,
         ..
     } = *cursor;
     let imports = imports_of(analysed);
@@ -1585,31 +1616,10 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         .iter()
         .map(|occurrence| occurrence.symbol.as_str())
         .collect();
-    let core = registry::CLASSES
-        .iter()
-        .map(|class| (class.name.to_owned(), CompletionItemKind::CLASS))
-        .chain(
-            registry::ENUMS
-                .iter()
-                .map(|core| (core.name.to_owned(), CompletionItemKind::ENUM)),
-        )
-        .map(|(symbol, kind)| (symbol, kind, Tier::Core));
-    let declared = symbols.files().flat_map(|path| {
-        symbols.declarations_in(path).iter().filter_map(|declared| {
-            let kind = namespace_kind(declared.kind)?;
-            Some((declared.symbol.clone(), kind, Tier::Workspace))
-        })
-    });
-    let candidates: Vec<(String, CompletionItemKind, Tier)> = declared.chain(core).collect();
-    // A short name is free to import under only where nothing in force in this
-    // file already answers to it.
-    let mut taken: FxHashSet<String> = imports.keys().cloned().collect();
-    taken.extend(candidates.iter().filter_map(|(symbol, _, _)| {
-        let segments = QName::parse(symbol).segments().to_vec();
-        (segments.len() == here.len() + 1 && segments.starts_with(&here))
-            .then(|| segments[here.len()].clone())
-    }));
-    let site = import_site(cursor);
+    let candidates = every_type(symbols);
+    let taken = taken_short_names(symbols, &imports, &here);
+    let site = crate::imports::entry_stmts(analysed)
+        .and_then(|stmts| nvs_hir::import_site(stmts, file, offset));
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
     for (symbol, kind, origin) in candidates {
         let reached = written_as(&symbol, &here, &short);
@@ -1634,7 +1644,7 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
                     detail: None,
                     description: Some(symbol.clone()),
                 }),
-                additional_text_edits: Some(vec![site.importing(&symbol)]),
+                additional_text_edits: Some(vec![importing(file, *site, &symbol, encoding)]),
                 ..item(last, kind, symbol.clone())
             }
         } else {
@@ -1672,96 +1682,75 @@ enum Spelled {
     Qualified,
 }
 
-/// Where a `use` line is added to the entry document, and what separates it
-/// from what is already there.
-struct ImportSite {
-    /// The empty range the line is inserted at.
-    range: lsp_types::Range,
-    /// What is written before the declaration: the line break that ends the
-    /// line it follows, and a blank line where it starts a group of its own.
-    lead: &'static str,
-}
-
-impl ImportSite {
-    /// The edit that imports `symbol` here.
-    fn importing(&self, symbol: &str) -> TextEdit {
-        TextEdit {
-            range: self.range,
-            new_text: format!("{}use {symbol};", self.lead),
-        }
-    }
-}
-
-/// Where a new `use` line goes for a name written at the cursor, or `None`
-/// where this module will not choose.
-///
-/// After the last `use` declaration the cursor's namespace already has, which
-/// keeps the group together; failing that after the `namespace Name;` line in
-/// force; failing that after the open tag. Every one of those is above the
-/// cursor and ends before the name being written, so the edit never touches
-/// the text the item itself replaces. A bracketed namespace with no `use` in
-/// it and a file with no open tag — a shebang script — have no such line, and
-/// there the type is offered by its qualified name instead.
-fn import_site(cursor: &Cursor<'_>) -> Option<ImportSite> {
-    let Cursor {
-        analysed,
-        offset,
-        encoding,
-        ..
-    } = *cursor;
-    let file = analysed.map.file(analysed.entry);
-    let loaded = analysed
-        .loaded
+/// Every type the server holds, for a bare name to reach: the workspace
+/// index's declarations, then the `Core` registry's classes and enums, each
+/// with the kind an item shows and the tier it ranks at when nothing nearer
+/// claims it.
+fn every_type(symbols: &SymbolIndex) -> Vec<(String, CompletionItemKind, Tier)> {
+    let core = registry::CLASSES
         .iter()
-        .find(|loaded| loaded.id == analysed.entry)?;
-    // The statements the cursor's namespace is made of: a bracketed block's
-    // own where the cursor is inside one, and otherwise the file's, from the
-    // `namespace Name;` line in force onward.
-    let block = loaded.stmts.iter().find_map(|stmt| match &stmt.kind {
-        StmtKind::NamespaceDecl(decl) => decl
-            .body
-            .as_ref()
-            .filter(|block| block.span.start <= offset && offset < block.span.end),
-        _ => None,
+        .map(|class| (class.name.to_owned(), CompletionItemKind::CLASS))
+        .chain(
+            registry::ENUMS
+                .iter()
+                .map(|core| (core.name.to_owned(), CompletionItemKind::ENUM)),
+        )
+        .map(|(symbol, kind)| (symbol, kind, Tier::Core));
+    let declared = symbols.files().flat_map(|path| {
+        symbols.declarations_in(path).iter().filter_map(|declared| {
+            let kind = namespace_kind(declared.kind)?;
+            Some((declared.symbol.clone(), kind, Tier::Workspace))
+        })
     });
-    let bracketed = block.is_some();
-    let stmts: &[Stmt] = block.map_or(&loaded.stmts, |block| &block.stmts);
-    let above = || stmts.iter().filter(|stmt| stmt.span.end <= offset);
-    let governing = above()
-        .rfind(|stmt| matches!(&stmt.kind, StmtKind::NamespaceDecl(decl) if decl.body.is_none()));
-    let last_use = above().rfind(|stmt| {
-        matches!(stmt.kind, StmtKind::UseDecl(_))
-            && governing.is_none_or(|decl| decl.span.end <= stmt.span.start)
-    });
-    let (after, lead) = match (last_use, governing) {
-        (Some(stmt), _) => (stmt.span.end, "\n"),
-        (None, Some(decl)) => (decl.span.end, "\n\n"),
-        (None, None) if bracketed => return None,
-        (None, None) => {
-            let tag = tokenize(file, &mut Diagnostics::new())
-                .into_iter()
-                .find(|token| token.kind == TokenKind::OpenTagNvs)?;
-            (tag.span.end, "\n")
-        }
-    };
-    (after <= offset).then(|| ImportSite {
-        range: range_at(
-            file,
-            Span {
-                file: analysed.entry,
-                start: after,
-                end: after,
-            },
-            encoding,
-        ),
-        lead,
-    })
+    declared.chain(core).collect()
+}
+
+/// The short names already spoken for at a cursor whose namespace is `here`
+/// and whose file's imports are `imports`: every import's own name, and the
+/// last segment of every type declared in `here` itself. A `use` line may
+/// import under a short name only where nothing here already answers to it —
+/// the same test whether the line comes from an accepted item or from a paste
+/// (`crate::imports`).
+pub(crate) fn taken_short_names(
+    symbols: &SymbolIndex,
+    imports: &FxHashMap<String, QName>,
+    here: &[String],
+) -> FxHashSet<String> {
+    let mut taken: FxHashSet<String> = imports.keys().cloned().collect();
+    taken.extend(
+        every_type(symbols)
+            .into_iter()
+            .filter_map(|(symbol, _, _)| {
+                let segments = QName::parse(&symbol).segments().to_vec();
+                (segments.len() == here.len() + 1 && segments.starts_with(here))
+                    .then(|| segments[here.len()].clone())
+            }),
+    );
+    taken
+}
+
+/// The edit that imports `symbol` at `site` in `file`, which is
+/// `nvs_hir::import_site`'s line at the range an editor applies it to.
+fn importing(
+    file: &SourceFile,
+    site: nvs_hir::ImportSite,
+    symbol: &str,
+    encoding: PositionEncoding,
+) -> TextEdit {
+    TextEdit {
+        range: range_at(file, site.span(file.id()), encoding),
+        new_text: site.use_line(&QName::parse(symbol)),
+    }
 }
 
 /// How `symbol` is written at a cursor whose namespace is `here` and whose
 /// imports are `short`, keyed the way they are looked up — target to the name
 /// it was imported under.
-fn written_as(symbol: &str, here: &[String], short: &FxHashMap<String, String>) -> String {
+pub(crate) fn written_as(
+    symbol: &str,
+    here: &[String],
+    short: &FxHashMap<String, String>,
+) -> String {
     if let Some(name) = short.get(symbol) {
         return name.clone();
     }

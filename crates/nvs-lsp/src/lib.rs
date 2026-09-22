@@ -29,9 +29,9 @@
 //! # What is answered
 //!
 //! The request set is closed: `rule:ide/the-request-set-is-closed` names every
-//! standard request answered here, two code actions and two of Novis's own —
-//! [`redactions`] and [`regions`] — and [`capabilities`] is the single place
-//! that declaration is written.
+//! standard request answered here, three code actions and four of Novis's own
+//! — [`redactions`], [`regions`] and the two in [`imports`] — and
+//! [`capabilities`] is the single place that declaration is written.
 //! A request that is not on that list is a decision, not an addition — ADR 0099
 //! § 3 holds the test a candidate has to pass, and ADR 0171 § 2 is what it
 //! looks like applied to eight of them.
@@ -106,6 +106,7 @@ mod document;
 pub mod folding;
 pub mod hints;
 pub mod hover;
+pub mod imports;
 pub mod index;
 pub mod links;
 mod position;

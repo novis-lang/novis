@@ -1,0 +1,9 @@
+--TEST--
+a cursor touching the end of a `::` receiver that resolves to nothing is still writing that name, and is offered the types a bare name reaches — the one that matches carries its `use` line — `rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`, `rule:ide/completion-is-asked-where-a-spelling-ends`
+--FILE--
+<?nvs
+Core\Debug::dump(Request<|>::headers());
+--REQUEST--
+completion prefix=Request limit=1
+--EXPECT--
+Request class     Core\Request

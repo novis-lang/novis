@@ -579,7 +579,7 @@ const SOURCED: [(&str, &str); 24] = [
     ("scoped", "..offered"),
     ("called", "..offered"),
     ("under", "registry::CLASSES"),
-    ("in_reach", "symbols.declarations_in("),
+    ("in_reach", "every_type(symbols)"),
     ("in_scope", ".bodies_at("),
     ("php_builtins", "php_names::starting_with("),
     ("php_item", "php_names::Item"),

@@ -809,110 +809,229 @@ pub(crate) fn written_type_at(analysed: &Analysed, offset: BytePos) -> Option<&T
         .loaded
         .iter()
         .find(|loaded| loaded.id == analysed.entry)?;
-    stmts_type(&entry.stmts, offset)
+    written_types_in(&entry.stmts, offset, offset)
+        .into_iter()
+        .find_map(|root| type_in(root, offset))
 }
 
-/// The written type at `offset` in one statement sequence.
-fn stmts_type(stmts: &[Stmt], offset: BytePos) -> Option<&Type> {
-    stmts.iter().find_map(|stmt| stmt_type(stmt, offset))
-}
-
-/// The written type at `offset` in one statement, and nothing for a statement
-/// the offset is outside.
+/// Every annotation written in `stmts` whose span meets `[start, end]`, in
+/// source order — each as the whole type written at that position, a
+/// parameter's, a local's, a property's, a `catch`'s, a return's, an alias's.
 ///
-/// The span test is what makes this one path down the file rather than a walk
-/// of all of it: a statement the cursor is not in holds no type the cursor
-/// could be inside. A top-level `function` or `const` is deliberately absent
-/// for `rule:ide/rejected-syntax-gets-no-colour`'s reason — the construct is
-/// refused, so the server answers nothing about the names written inside it.
-fn stmt_type(stmt: &Stmt, offset: BytePos) -> Option<&Type> {
-    if !covers(stmt.span, offset) {
-        return None;
+/// The span test on each statement is what makes this one path down the file
+/// rather than a walk of all of it: a statement the range does not meet holds
+/// no type the range could. Asked with `start == end` it is the path
+/// [`written_type_at`] takes to the one annotation under a cursor; asked over
+/// a range it is every annotation a copied selection carries
+/// (`crate::imports`). A top-level `function` or `const` is deliberately
+/// absent for `rule:ide/rejected-syntax-gets-no-colour`'s reason — the
+/// construct is refused, so the server answers nothing about the names written
+/// inside it.
+pub(crate) fn written_types_in(stmts: &[Stmt], start: BytePos, end: BytePos) -> Vec<&Type> {
+    let mut found = Vec::new();
+    stmts_types(stmts, start, end, &mut found);
+    found
+}
+
+/// Whether `span` and `[start, end]` share at least one offset, both ends
+/// included, on [`covers`]'s terms.
+const fn meets(span: Span, start: BytePos, end: BytePos) -> bool {
+    span.start <= end && start <= span.end
+}
+
+/// [`written_types_in`] over one statement sequence, appending to `found`.
+fn stmts_types<'a>(stmts: &'a [Stmt], start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    for stmt in stmts {
+        stmt_types(stmt, start, end, found);
+    }
+}
+
+/// The annotations written in one statement that meet the range, and nothing
+/// for a statement the range does not meet.
+fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    if !meets(stmt.span, start, end) {
+        return;
     }
     match &stmt.kind {
-        StmtKind::TypeAliasDecl(decl) => type_in(&decl.ty, offset),
-        StmtKind::ClassDecl(decl) => members_type(&decl.members, offset),
-        StmtKind::InterfaceDecl(decl) => members_type(&decl.members, offset),
-        StmtKind::EnumDecl(decl) => members_type(&decl.members, offset),
-        StmtKind::NamespaceDecl(decl) => stmts_type(&decl.body.as_ref()?.stmts, offset),
-        StmtKind::LocalDecl { ty, .. } => type_in(ty.as_ref()?, offset),
-        StmtKind::Block(block) => stmts_type(&block.stmts, offset),
-        StmtKind::If { then, else_, .. } => {
-            stmt_type(then, offset).or_else(|| stmt_type(else_.as_deref()?, offset))
+        StmtKind::TypeAliasDecl(decl) => root(&decl.ty, start, end, found),
+        StmtKind::ClassDecl(decl) => members_types(&decl.members, start, end, found),
+        StmtKind::InterfaceDecl(decl) => members_types(&decl.members, start, end, found),
+        StmtKind::EnumDecl(decl) => members_types(&decl.members, start, end, found),
+        StmtKind::NamespaceDecl(decl) => {
+            if let Some(block) = &decl.body {
+                stmts_types(&block.stmts, start, end, found);
+            }
         }
-        StmtKind::While { body, .. } | StmtKind::DoWhile { body, .. } => stmt_type(body, offset),
-        StmtKind::For { init, body, .. } => init
-            .decl()
-            .and_then(|decl| stmt_type(decl, offset))
-            .or_else(|| stmt_type(body, offset)),
+        StmtKind::LocalDecl { ty: Some(ty), .. } => root(ty, start, end, found),
+        StmtKind::Block(block) => stmts_types(&block.stmts, start, end, found),
+        StmtKind::If { then, else_, .. } => {
+            stmt_types(then, start, end, found);
+            if let Some(else_) = else_ {
+                stmt_types(else_, start, end, found);
+            }
+        }
+        StmtKind::While { body, .. } | StmtKind::DoWhile { body, .. } => {
+            stmt_types(body, start, end, found);
+        }
+        StmtKind::For { init, body, .. } => {
+            if let Some(decl) = init.decl() {
+                stmt_types(decl, start, end, found);
+            }
+            stmt_types(body, start, end, found);
+        }
         StmtKind::Foreach {
             key, value, body, ..
-        } => key
-            .as_ref()
-            .and_then(|binding| type_in(binding.ty.as_ref()?, offset))
-            .or_else(|| type_in(value.ty.as_ref()?, offset))
-            .or_else(|| stmt_type(body, offset)),
+        } => {
+            if let Some(ty) = key.as_ref().and_then(|binding| binding.ty.as_ref()) {
+                root(ty, start, end, found);
+            }
+            if let Some(ty) = &value.ty {
+                root(ty, start, end, found);
+            }
+            stmt_types(body, start, end, found);
+        }
         StmtKind::Switch { cases, .. } => {
-            cases.iter().find_map(|arm| stmts_type(&arm.body, offset))
+            for arm in cases {
+                stmts_types(&arm.body, start, end, found);
+            }
         }
         StmtKind::Try {
             body,
             catches,
             finally,
-        } => stmts_type(&body.stmts, offset)
-            .or_else(|| {
-                catches.iter().find_map(|catch| {
-                    type_in(&catch.ty, offset).or_else(|| stmts_type(&catch.body.stmts, offset))
-                })
-            })
-            .or_else(|| stmts_type(&finally.as_ref()?.stmts, offset)),
-        _ => None,
+        } => {
+            stmts_types(&body.stmts, start, end, found);
+            for catch in catches {
+                root(&catch.ty, start, end, found);
+                stmts_types(&catch.body.stmts, start, end, found);
+            }
+            if let Some(finally) = finally {
+                stmts_types(&finally.stmts, start, end, found);
+            }
+        }
+        _ => {}
     }
 }
 
-/// The written type at `offset` among one body's members.
-fn members_type(members: &[ClassMember], offset: BytePos) -> Option<&Type> {
-    members.iter().find_map(|member| match &member.kind {
-        ClassMemberKind::Property(property) => {
-            type_in(&property.ty, offset).or_else(|| hooks_type(property.hooks.as_deref()?, offset))
+/// One annotation, kept where the range meets it.
+fn root<'a>(ty: &'a Type, start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    if meets(ty.span, start, end) {
+        found.push(ty);
+    }
+}
+
+/// The annotations among one body's members that meet the range.
+fn members_types<'a>(
+    members: &'a [ClassMember],
+    start: BytePos,
+    end: BytePos,
+    found: &mut Vec<&'a Type>,
+) {
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(property) => {
+                root(&property.ty, start, end, found);
+                if let Some(hooks) = property.hooks.as_deref() {
+                    hooks_types(hooks, start, end, found);
+                }
+            }
+            ClassMemberKind::Const(constant) => {
+                if let Some(ty) = &constant.ty {
+                    root(ty, start, end, found);
+                }
+            }
+            ClassMemberKind::TypeAlias(alias) => root(&alias.ty, start, end, found),
+            ClassMemberKind::Method(method) => method_types(method, start, end, found),
+            _ => {}
         }
-        ClassMemberKind::Const(constant) => type_in(constant.ty.as_ref()?, offset),
-        ClassMemberKind::TypeAlias(alias) => type_in(&alias.ty, offset),
-        ClassMemberKind::Method(method) => method_type(method, offset),
-        _ => None,
-    })
+    }
 }
 
-/// The written type at `offset` in one method's signature or its body.
-fn method_type(method: &MethodMember, offset: BytePos) -> Option<&Type> {
-    params_type(&method.params, offset)
-        .or_else(|| type_in(method.return_type.as_ref()?, offset))
-        .or_else(|| stmts_type(&method.body.as_ref()?.stmts, offset))
+/// The annotations in one method's signature and its body that meet the range.
+fn method_types<'a>(
+    method: &'a MethodMember,
+    start: BytePos,
+    end: BytePos,
+    found: &mut Vec<&'a Type>,
+) {
+    params_types(&method.params, start, end, found);
+    if let Some(ty) = &method.return_type {
+        root(ty, start, end, found);
+    }
+    if let Some(body) = &method.body {
+        stmts_types(&body.stmts, start, end, found);
+    }
 }
 
-/// The written type at `offset` in one parameter list.
-fn params_type(params: &[Param], offset: BytePos) -> Option<&Type> {
-    params
-        .iter()
-        .find_map(|param| type_in(param.ty.as_ref()?, offset))
+/// The annotations in one parameter list that meet the range.
+fn params_types<'a>(params: &'a [Param], start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    for param in params {
+        if let Some(ty) = &param.ty {
+            root(ty, start, end, found);
+        }
+    }
 }
 
-/// The written type at `offset` in one property's hook block.
+/// The annotations in one property's hook block that meet the range.
 ///
 /// A hook is a method in the two ways that matter here: `set(Order::Meta $m)`
 /// writes a parameter type, and a block-bodied hook writes statements. The
 /// short `=> expr;` form writes an expression and so writes no type this walk
 /// reaches.
-fn hooks_type(hooks: &[PropertyHook], offset: BytePos) -> Option<&Type> {
-    hooks.iter().find_map(|hook| {
-        hook.param
-            .as_ref()
-            .and_then(|param| type_in(param.ty.as_ref()?, offset))
-            .or_else(|| match hook.body.as_ref()? {
-                PropertyHookBody::Block(block) => stmts_type(&block.stmts, offset),
-                PropertyHookBody::Expr(_) => None,
-            })
-    })
+fn hooks_types<'a>(
+    hooks: &'a [PropertyHook],
+    start: BytePos,
+    end: BytePos,
+    found: &mut Vec<&'a Type>,
+) {
+    for hook in hooks {
+        if let Some(ty) = hook.param.as_ref().and_then(|param| param.ty.as_ref()) {
+            root(ty, start, end, found);
+        }
+        if let Some(PropertyHookBody::Block(block)) = hook.body.as_ref() {
+            stmts_types(&block.stmts, start, end, found);
+        }
+    }
+}
+
+/// Every name written inside `ty`, as the span each was written at: the leaf
+/// a `use` line can make resolve, with the arguments of a generic name and the
+/// members of a shape walked for theirs. A reserved word is no name and is
+/// skipped, and so is a member of a type written as `Owner::Member`, whose
+/// owner is what a cursor on it asks about.
+pub(crate) fn type_names(ty: &Type, found: &mut Vec<Span>) {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_names(inner, found),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            for member in members {
+                type_names(member, found);
+            }
+        }
+        TypeKind::Atom(atom) => match atom {
+            TypeAtom::Array(Some(arg)) | TypeAtom::ClassRef(arg) | TypeAtom::PropertyKey(arg) => {
+                type_names(arg, found);
+            }
+            TypeAtom::Shape(fields) => {
+                for field in fields {
+                    type_names(&field.ty, found);
+                }
+            }
+            TypeAtom::CallableSig { params, ret } => {
+                for param in params {
+                    type_names(param, found);
+                }
+                type_names(ret, found);
+            }
+            TypeAtom::Name(name, args) => {
+                found.push(name.span);
+                for arg in args {
+                    type_names(arg, found);
+                }
+            }
+            _ => {}
+        },
+        _ => {}
+    }
 }
 
 /// The innermost written type covering `offset` inside `ty`, and `None` for an

@@ -1,0 +1,9 @@
+--TEST--
+a cursor between the parentheses of a `::` call is writing an argument, and is offered the position's own list rather than the members of the class named on the left — `rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`, `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+Core\Debug::dump(<|>);
+--REQUEST--
+completion prefix=Str limit=1
+--EXPECT--
+Str     class     Core\Str
