@@ -6855,6 +6855,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   needs three, so every step of a fresh case missed the bound on the first write. Put "every error
   is caught here, so every step runs" once in the top comment, and leave each step one sentence
   saying what it tries. [until: reviewed 2026-09-22]
+- **`Core\Str::before` and `Core\Str::after` answer `string|null`, so neither can be handed
+  straight to a `Core` parameter typed `string`.** An example that cuts a header at its first `:`
+  compiles until the piece is passed on, and the `E0401` then names the *receiving* call rather
+  than the splitter that produced the union. Use `Core\Str::slice` or `Core\Str::split` wherever
+  the piece goes into another member, and keep `before`/`after` for what is echoed.
+  [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

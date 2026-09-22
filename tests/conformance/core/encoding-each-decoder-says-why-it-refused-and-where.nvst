@@ -43,15 +43,19 @@ final class Say {
     }
 }
 
-// Base64 has four ways to be wrong and says which: a byte outside § 4's
+// Base64 has five ways to be wrong and says which: a byte outside § 4's
 // alphabet, padding that is absent where the standard form requires it, a final
-// symbol carrying bits no octet reads, and — the one a caller most often means
-// — the *other* variant's alphabet, refused here rather than accepted as a
-// courtesy, since a decoder taking both cannot say which was meant.
+// symbol carrying bits no octet reads, the *other* variant's alphabet — the one
+// a caller most often means, refused here rather than accepted as a courtesy,
+// since a decoder taking both cannot say which was meant — and a symbol left
+// over after whole groups, which is the only short text the padded form reports
+// as a length rather than as missing padding, and the one place the count is
+// one.
 echo Say::b64("YW*j"), "\n";
 echo Say::b64("YWJ"), "\n";
 echo Say::b64("YWJjZB=="), "\n";
 echo Say::b64("YW-j"), "\n";
+echo Say::b64("a"), "\n";
 
 // The URL-safe half mirrors it, and its two differences from the standard form
 // are exactly the two things the messages name: padding is refused rather than
@@ -108,6 +112,7 @@ Core\Encoding::fromBase64(): "YW*j" is not base64 — the byte 0x2a at offset 2 
 Core\Encoding::fromBase64(): "YWJ" is not base64 — its `=` padding is missing or malformed, and the standard form is written with it
 Core\Encoding::fromBase64(): "YWJjZB==" is not base64 — the final symbol 0x42 at offset 5 carries bits no octet reads, so it is one of several spellings of the same value and not the canonical one (RFC 4648 § 3.5)
 Core\Encoding::fromBase64(): "YW-j" is not base64 — the byte 0x2d at offset 2 is not a base64 character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
+Core\Encoding::fromBase64(): "a" is not base64 — it measures 1 symbol, and a base64 group is 2, 3 or 4 of them — this one is truncated
 Core\Encoding::fromBase64Url(): "YWJjZA==" is not URL-safe base64 — it is padded, and the URL-safe form is written without `=`
 Core\Encoding::fromBase64Url(): "YW+j" is not URL-safe base64 — the byte 0x2b at offset 2 is not a base64url character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
 Core\Encoding::fromBase64Url(): "YWJjZ" is not URL-safe base64 — it measures 5 symbols, and a base64 group is 2, 3 or 4 of them — this one is truncated

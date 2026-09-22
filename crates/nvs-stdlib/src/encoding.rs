@@ -965,8 +965,9 @@ fn why_not_base64(error: &base64::DecodeError, variant: &str) -> String {
              something skipped"
         ),
         base64::DecodeError::InvalidLength(len) => format!(
-            "it measures {len} symbols, and a base64 group is 2, 3 or 4 of them — this one \
-             is truncated"
+            "it measures {len} symbol{}, and a base64 group is 2, 3 or 4 of them — this one \
+             is truncated",
+            if len == 1 { "" } else { "s" }
         ),
         base64::DecodeError::InvalidLastSymbol(offset, byte) => format!(
             "the final symbol {byte:#04x} at offset {offset} carries bits no octet reads, so \
@@ -1552,6 +1553,233 @@ mod tests {
         assert!(
             message.contains("group starting at offset 16"),
             "the truncation offset is the group start, not the length: {message}"
+        );
+    }
+
+    /// `fromBase64` reached the way a program reaches it: the one form it
+    /// reads, and the four near misses a caller arrives with.
+    ///
+    /// Each refusal is asserted for the reason it names rather than only for
+    /// happening, because the standard and URL-safe forms differ in exactly
+    /// two things — the two symbols outside the letters and digits, and the
+    /// padding — and those are the two a caller confuses. A decoder that said
+    /// "not base64" to both sends the caller to check the wrong half. The
+    /// length reason is reachable here only for a symbol left over after whole
+    /// groups, since every other short text is missing its padding first.
+    // covers: Core\Encoding::fromBase64
+    #[test]
+    fn base64_reads_one_alphabet_and_one_padding() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answered = nvs_runtime::call(nvs_core_encoding_from_base64, ctx, &[subject]);
+            let octets = answered.as_ref().ok().map(|value| {
+                let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
+                #[expect(
+                    unsafe_code,
+                    reason = "the answer's one reference is this closure's, \
+                              and its octets are copied out before it goes"
+                )]
+                unsafe {
+                    value.release();
+                }
+                owned
+            });
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the one reference it built, and \
+                          the member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            octets
+        };
+
+        // A whole group, a short one padded to the group, and the empty text.
+        assert_eq!(read(&mut ctx, "YWJj").as_deref(), Some(b"abc".as_slice()));
+        assert_eq!(
+            read(&mut ctx, "YWJjZA==").as_deref(),
+            Some(b"abcd".as_slice())
+        );
+        assert_eq!(read(&mut ctx, "").as_deref(), Some(b"".as_slice()));
+
+        // A second spelling of the same octets, the URL-safe alphabet, padding
+        // left off, and the whitespace an older reader skipped.
+        for text in ["YWJjZB==", "aGVsbG8-d29ybGQ_", "YWJ", "YWJj ZA=="] {
+            assert!(read(&mut ctx, text).is_none(), "{text}");
+            assert!(ctx.take_pending().is_some(), "{text} refused uncatchably");
+        }
+
+        // The URL-safe text is refused for the byte at offset 7 rather than
+        // for its padding, and the unpadded one for its padding rather than
+        // its alphabet.
+        assert!(read(&mut ctx, "aGVsbG8-d29ybGQ_").is_none());
+        let alphabet = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            alphabet.contains("0x2d at offset 7"),
+            "the URL-safe symbol is named where it sits: {alphabet}"
+        );
+        assert!(read(&mut ctx, "YWJ").is_none());
+        let padding = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            padding.contains("`=` padding is missing"),
+            "an unpadded group is a padding reason: {padding}"
+        );
+
+        // A symbol left over after whole groups is the length reason, and one
+        // of them is counted as one symbol.
+        assert!(read(&mut ctx, "a").is_none());
+        let length = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            length.contains("it measures 1 symbol,"),
+            "one leftover symbol is counted in the singular: {length}"
+        );
+    }
+
+    /// `fromBase64Url` reached the way a program reaches it: the alphabet a
+    /// web address carries, and the standard form's three characters arriving
+    /// where they do not belong.
+    ///
+    /// The unpadded form is where a decoder is tempted to be helpful, since
+    /// `=` is harmless to strip and `+` is one table entry away from `-`. It
+    /// is not helpful: a token compared as text and used as bytes must have
+    /// one spelling, so each of those is refused and the message names which
+    /// of the two differences it was.
+    // covers: Core\Encoding::fromBase64Url
+    #[test]
+    fn base64url_reads_the_web_alphabet_and_refuses_padding() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answered = nvs_runtime::call(nvs_core_encoding_from_base64_url, ctx, &[subject]);
+            let octets = answered.as_ref().ok().map(|value| {
+                let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
+                #[expect(
+                    unsafe_code,
+                    reason = "the answer's one reference is this closure's, \
+                              and its octets are copied out before it goes"
+                )]
+                unsafe {
+                    value.release();
+                }
+                owned
+            });
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the one reference it built, and \
+                          the member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            octets
+        };
+
+        // Its own two symbols, a whole group, a short group that simply stops
+        // where it stops, and the empty text.
+        assert_eq!(
+            read(&mut ctx, "aGVsbG8-d29ybGQ_").as_deref(),
+            Some(b"hello>world?".as_slice())
+        );
+        assert_eq!(read(&mut ctx, "YWJj").as_deref(), Some(b"abc".as_slice()));
+        assert_eq!(read(&mut ctx, "YWI").as_deref(), Some(b"ab".as_slice()));
+        assert_eq!(read(&mut ctx, "").as_deref(), Some(b"".as_slice()));
+
+        // A second spelling of the same octets, the standard alphabet, the
+        // padding that form writes, and whitespace.
+        for text in ["YWJjZB", "aGVsbG8+d29ybGQ/", "YWJjZA==", "YWJj ZA"] {
+            assert!(read(&mut ctx, text).is_none(), "{text}");
+            assert!(ctx.take_pending().is_some(), "{text} refused uncatchably");
+        }
+
+        // Which of the two differences: the padded text is refused for its
+        // padding rather than for its alphabet, and the `+` for the byte at
+        // offset 7 rather than for the length its group then has.
+        assert!(read(&mut ctx, "YWJjZA==").is_none());
+        let padded = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            padded.contains("it is padded"),
+            "padding is named as the difference: {padded}"
+        );
+        assert!(read(&mut ctx, "aGVsbG8+d29ybGQ/").is_none());
+        let alphabet = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            alphabet.contains("0x2b at offset 7"),
+            "the standard symbol is named where it sits: {alphabet}"
+        );
+    }
+
+    /// `fromHex` reached the way a program reaches it: every octet has exactly
+    /// two spellings, and nothing else is one.
+    ///
+    /// The round trip is swept over all 256 values rather than read off a
+    /// handful, because case folding is the one thing this decoder does and a
+    /// table that folds all but one entry still prints plausibly on any line
+    /// somebody looks at. The two refusals are asserted for which reason they
+    /// name: the digit count is checked before the digits are, so a separator
+    /// between the pairs is the odd-count reason when it makes the count odd
+    /// and the digit reason when it does not, and a caller told the wrong one
+    /// goes looking in the wrong half of their text.
+    // covers: Core\Encoding::fromHex
+    #[test]
+    fn hex_reads_two_spellings_of_every_octet_and_nothing_else() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answered = nvs_runtime::call(nvs_core_encoding_from_hex, ctx, &[subject]);
+            let octets = answered.as_ref().ok().map(|value| {
+                let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
+                #[expect(
+                    unsafe_code,
+                    reason = "the answer's one reference is this closure's, \
+                              and its octets are copied out before it goes"
+                )]
+                unsafe {
+                    value.release();
+                }
+                owned
+            });
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the one reference it built, and \
+                          the member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            octets
+        };
+
+        // Every octet, in both of its spellings, and the empty text.
+        for octet in 0..=u8::MAX {
+            let lower = format!("{octet:02x}");
+            let upper = lower.to_ascii_uppercase();
+            assert_eq!(read(&mut ctx, &lower).as_deref(), Some([octet].as_slice()));
+            assert_eq!(read(&mut ctx, &upper).as_deref(), Some([octet].as_slice()));
+        }
+        assert_eq!(read(&mut ctx, "").as_deref(), Some(b"".as_slice()));
+
+        // A count no pair can fill, a prefix, a separator, and a trailing
+        // newline.
+        for text in ["abc", "0xff", "ab:cd", "ff\n"] {
+            assert!(read(&mut ctx, text).is_none(), "{text}");
+            assert!(ctx.take_pending().is_some(), "{text} refused uncatchably");
+        }
+
+        // `ab:cd` is five characters long, so it is the odd-count reason;
+        // `0xff` is four, so its `0x` is read as digits and refused as such.
+        assert!(read(&mut ctx, "ab:cd").is_none());
+        let odd = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            odd.contains("odd number of digits"),
+            "the count is checked before the digits: {odd}"
+        );
+        assert!(read(&mut ctx, "0xff").is_none());
+        let digits = ctx.take_pending().expect("a catchable refusal");
+        assert!(
+            digits.contains("only the digits"),
+            "an even count is refused on its digits: {digits}"
         );
     }
 
