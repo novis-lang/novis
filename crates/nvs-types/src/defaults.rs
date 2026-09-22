@@ -361,6 +361,11 @@ fn const_reference_default(
     let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
         return None;
     };
+    if matches!(class.kind, ExprKind::StaticExpr) {
+        report_static_in_constant_expression(expr.span, env);
+        *reported = true;
+        return None;
+    }
     let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
     let member = crate::span_text(env.src, *name).to_owned();
     if let Some(case) = env.enums.case(&qname, &member) {
@@ -411,6 +416,27 @@ fn const_reference_default(
     place_const(folded, declared, env)
 }
 
+/// `E0831`: `static::NAME` where a constant expression is folded. The two
+/// folders above share it: a constant expression has no frame, and
+/// `rule:statements/static-is-a-member-modifier` makes the read a run-time
+/// one, so there is no class to fold it against — and folding it as
+/// `self::NAME`, which is what happened before, answered the declaring
+/// class's value where a subclass's was meant.
+fn report_static_in_constant_expression(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_STATIC_CONST_IN_CONSTANT_EXPRESSION,
+            "`static::` has no class in a constant expression",
+        )
+        .with_primary(span, "folded once, with no call to bind `static` to")
+        .with_help(
+            "`rule:statements/static-is-a-member-modifier`: a `static::` constant is read when the call runs, \
+             and a default or a payload is fixed before any call — write `self::NAME` or the \
+             class name here, and read `static::NAME` in a method body instead",
+        ),
+    );
+}
+
 /// `Mode::Fast`, `Limits::MAX` or `Foo::class` as the value each already
 /// resolved to elsewhere — `rule:attributes/payload-is-a-compile-time-constant`'s three *named* constants, folded for
 /// the § 5 payload that has to compile one in.
@@ -445,6 +471,10 @@ pub(crate) fn fold_const_reference(
             Some(ConstArg::Str(qname.to_string()))
         }
         ExprKind::ClassConstAccess { class, name } => {
+            if matches!(class.kind, ExprKind::StaticExpr) {
+                report_static_in_constant_expression(expr.span, env);
+                return None;
+            }
             let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
             let member = crate::span_text(env.src, *name).to_owned();
             if let Some(case) = env.enums.case(&qname, &member) {

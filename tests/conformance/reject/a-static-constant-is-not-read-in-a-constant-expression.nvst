@@ -1,0 +1,17 @@
+--TEST--
+`static::NAME` in a property default is refused: a constant expression is folded once with no call to bind `static` to, `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+class Page {
+    public const string NAME = "page";
+    public string $title = static::NAME;
+}
+echo "after\n";
+// covers: lang:classes/methods-self-static-and-parent
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0831]: `static::` has no class in a constant expression
+  --> case.nvs:4:28
+%A
+error: aborting due to 1 error

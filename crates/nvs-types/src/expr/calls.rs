@@ -1958,6 +1958,7 @@ pub(crate) fn check_fn_literal(
         // called, which this checker cannot bound, so a `readonly` write it
         // holds is not proven to happen during construction (`rule:classes/lateinit-restrictions`).
         in_constructor: false,
+        in_closure: true,
     };
     // A closure's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters

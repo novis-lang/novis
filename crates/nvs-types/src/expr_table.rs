@@ -923,6 +923,29 @@ pub enum ExprInfo {
         /// The constant's value, in its declared type.
         value: ConstArg,
     },
+    /// `static::NAME` — a class-constant read whose class is the one the call
+    /// was made on, which is not known until the call runs
+    /// (`rule:statements/static-is-a-member-modifier`), and so the one
+    /// constant read that is **not** inlined.
+    ///
+    /// The same three fields as [`Self::ClassConst`], and read differently:
+    /// `nvs-ir` takes the frame's called class (`Lowering::lsb`) and reads
+    /// `name` off that descriptor's own constant table through
+    /// `nvs_ir::ir::Helper::ClassConstant`, at the representation `value`'s
+    /// kind names. `class` and `value` are the *declaring* class's, recorded
+    /// for the editor — a read is an occurrence of the declaration it names —
+    /// and for the type of the load; the value itself is never emitted.
+    ClassConstLate {
+        /// The class that declares the constant the read resolves to when
+        /// `static` is the declaring class — [`Self::ClassConst`]'s `class`.
+        class: QName,
+        /// The constant's own name, which is what the run-time read keys on.
+        name: String,
+        /// The declaring class's value, in its declared type, whose kind is
+        /// the representation the read is typed at. `nvs_types::expr::members`
+        /// records this entry only for a value with a scalar form (`E0832`).
+        value: ConstArg,
+    },
     /// `static::class` and `$obj::class` — a `::class` whose answer is not
     /// known until the call runs, and the one shape that is *not* folded into
     /// an [`Self::CoreConst`] beside it.

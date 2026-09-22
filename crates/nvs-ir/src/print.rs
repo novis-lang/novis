@@ -526,6 +526,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::FloatToString => "float_to_string",
         Helper::BoolToString => "bool_to_string",
         Helper::ClassDescName => "class_desc_name",
+        Helper::ClassConstant => "class_constant",
         Helper::IntTruthy => "int_truthy",
         Helper::UintTruthy => "uint_truthy",
         Helper::FloatTruthy => "float_truthy",

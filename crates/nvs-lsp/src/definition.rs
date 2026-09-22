@@ -703,7 +703,9 @@ pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
         // recorded and what the declaration side of the index is keyed by —
         // reading an inherited constant through a subclass names one
         // declaration, not two (`nvs_types::ExprInfo::ClassConst`).
-        ExprInfo::ClassConst { class, name, .. } => Target::Constant { class, name },
+        ExprInfo::ClassConst { class, name, .. } | ExprInfo::ClassConstLate { class, name, .. } => {
+            Target::Constant { class, name }
+        }
         _ => return None,
     })
 }

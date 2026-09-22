@@ -2048,6 +2048,21 @@ pub enum Helper {
     /// sharing one across isolates is the request-isolation boundary
     /// [AGENTS.md](/AGENTS.md)'s first priority does not trade.
     ClassDescName,
+    /// A class constant read off a [`Ty::ClassDesc`] by name — the run-time
+    /// half of `static::NAME` (`rule:statements/static-is-a-member-modifier`),
+    /// and the one constant read that is not inlined. Two operands: the
+    /// descriptor, and the name as a `Ty::Str`. A descriptor's constant table
+    /// is flattened own-first, so the answer is the called class's own
+    /// override where it has one; the result is typed at the declaring
+    /// class's declaration, which `nvs_types::conformance` holds every
+    /// redeclaration assignable to.
+    ///
+    /// **What it costs:** one scan of that table per evaluation, and for a
+    /// `string` constant one `NvsStr` allocation, for [`Self::ClassDescName`]'s
+    /// reason — the table is process-wide and its strings are not shared
+    /// across isolates. `self::NAME` and `Class::NAME` pay nothing: they are
+    /// still inlined.
+    ClassConstant,
     /// `int` truthiness: falsy iff `0`.
     IntTruthy,
     /// `uint` truthiness: falsy iff `0`.

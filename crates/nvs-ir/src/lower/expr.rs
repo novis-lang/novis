@@ -310,6 +310,46 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     self.emit_const_arg(&value, None, env, *cur)
                 }
+                // `static::NAME` — `rule:statements/static-is-a-member-modifier`'s
+                // late-bound read, and the one constant that is not inlined.
+                // The entry's value is the *declaring* class's and only its
+                // kind is used, to type the load: the class is the frame's
+                // called class, so the value is read off that descriptor's own
+                // constant table at run time. The name is a fresh string with
+                // exactly one use, staged as a borrowed temporary the way
+                // [`Self::emit_const_arg`]'s `Core` arguments are, so it is
+                // released on both edges of the call.
+                Some(ExprInfo::ClassConstLate { name, value, .. }) => {
+                    let ty = match value {
+                        nvs_types::ConstArg::Str(_) => Ty::Str,
+                        nvs_types::ConstArg::Int(_) => Ty::Int,
+                        nvs_types::ConstArg::Uint(_) => Ty::Uint,
+                        nvs_types::ConstArg::Bool(_) => Ty::Bool,
+                        nvs_types::ConstArg::Float(_) => Ty::Float,
+                        _ => panic!(
+                            "nvs-ir: a `static::` constant read at {:?} carries a value with no \
+                             scalar form — `nvs_types` refuses that read with `E0832` before \
+                             lowering",
+                            expr.span
+                        ),
+                    };
+                    let name = name.clone();
+                    let desc = self.lsb();
+                    let mark = self.temporaries_mark();
+                    let (name_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name));
+                    self.account_for_arg(name_v, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+                    let read = self.emit_fallible(
+                        *cur,
+                        ty,
+                        InstKind::HelperCall {
+                            helper: Helper::ClassConstant,
+                            args: vec![desc, name_v],
+                        },
+                        env,
+                    );
+                    self.release_temporaries_since(mark, *cur);
+                    read
+                }
                 // Unreachable: a read of a constant whose declaration folds to
                 // no value is `E0792` in `nvs_types::expr::members`, refused
                 // at the span the author can act on, and a unit that failed to

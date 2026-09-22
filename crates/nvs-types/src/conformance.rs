@@ -50,7 +50,7 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::{QName, SymbolKind, implements_interface};
-use nvs_syntax::ast::{ClassDecl, ClassMemberKind, Modifier};
+use nvs_syntax::ast::{ClassDecl, ClassMember, ClassMemberKind, Modifier};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
@@ -60,6 +60,75 @@ use crate::expr_table::{ArgSlot, Delegation};
 use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{span_text, strip_sigil};
+
+/// `rule:statements/static-is-a-member-modifier`'s one obligation on a
+/// constant redeclaration: a class or interface that redeclares a name a
+/// direct ancestor already declares keeps a type assignable to the ancestor's
+/// (`E0833`).
+///
+/// A `static::NAME` read is typed at the declaring class and lowered as a
+/// load at that type, and it answers whichever class the call was made on —
+/// so a redeclaration at another type would be read at the wrong
+/// representation, the `secret` bit included, which is why the test is
+/// [`is_assignable`] rather than equality. Every declaration kind is walked,
+/// `abstract` classes and interfaces too: the read may be made through any
+/// of them, and an interface's own redeclaration over one it `extends` is the
+/// same hazard.
+pub(crate) fn check_constant_redeclarations(
+    members: &[ClassMember],
+    qname: &QName,
+    env: &mut Env<'_>,
+) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    let parents: Vec<QName> = links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .cloned()
+        .collect();
+    for member in members {
+        let ClassMemberKind::Const(constant) = &member.kind else {
+            continue;
+        };
+        let name = span_text(env.src, constant.name).to_owned();
+        let Some(own) = env
+            .signatures
+            .get(qname)
+            .and_then(|sig| sig.constants.get(&name))
+            .map(|sig| sig.ty)
+        else {
+            continue;
+        };
+        for parent in &parents {
+            let Some((owner, inherited)) =
+                crate::signatures::resolve_const_owned(parent, &name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            let inherited = inherited.ty;
+            if is_assignable(own, inherited, env.interner, env.graph, env.signatures) {
+                continue;
+            }
+            let have = env.interner.describe(own);
+            let want = env.interner.describe(inherited);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CONST_REDECLARED_AT_ANOTHER_TYPE,
+                    format!("`{qname}::{name}` is `{have}`, and `{owner}::{name}` is `{want}`"),
+                )
+                .with_primary(constant.name, "redeclared at another type")
+                .with_help(format!(
+                    "`rule:statements/static-is-a-member-modifier`: a `static::{name}` read is typed `{want}` where \
+                     `{owner}` declares it and answers whichever class the call was made on, \
+                     so every redeclaration keeps a type assignable to `{want}` — declare it \
+                     `{want}` here, or a subtype of it"
+                )),
+            );
+        }
+    }
+}
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing
 /// answers, and one `E0404` per member the answer weakens. See the module

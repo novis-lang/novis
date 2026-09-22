@@ -9365,12 +9365,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   fault; it was an ordinary off-by-one that ASAN merely made deterministic by poisoning the slot
   past the array. Before theorising about instrumentation, print what the callee actually received
   for several distinct non-zero arguments. [until: reviewed 2026-09-06]
-- **`static::` anything inside a closure body panics in `Lowering::lsb`** — `nvs-ir: … names
-  `static` but has neither a receiver nor a called class`. A closure is lifted to its own
-  `Class$fnN::invoke` frame that captures neither `$this` nor the called class, and the checker that
-  `lsb`'s panic message says should have refused it does not. Whichever way it is closed, the first
-  test is a closure inside both a `static` and an instance method, because those frames carry the
-  descriptor in different slots. [until: reviewed 2026-09-06]
 - **A test that reads `nvs_codegen::disassemble` is x86_64-only until it says which backend it
   means.** Cranelift prints the vcode of whichever backend it emitted for, so a scan for lines
   beginning `call ` counts zero on aarch64 (`bl 0`, `blr <reg>`) — a structurally empty answer that

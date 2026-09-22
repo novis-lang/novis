@@ -218,6 +218,29 @@ pub(crate) fn infer_class_const(
             match found {
                 Some((owner, sig)) => {
                     match sig.value {
+                        // `static::NAME` is `rule:statements/static-is-a-member-modifier`'s
+                        // late-bound read: the class is the frame's called
+                        // class, not the one this body is written in, so the
+                        // value cannot be inlined here. The declaring class's
+                        // own value still travels beside the name — for the
+                        // editor, and for `nvs-ir` to type the read — and the
+                        // called class's table is what answers at run time.
+                        Some(value) if matches!(class.kind, ExprKind::StaticExpr) => {
+                            if has_scalar_form(&value) {
+                                env.exprs.record(
+                                    expr.span,
+                                    ExprInfo::ClassConstLate {
+                                        class: owner,
+                                        name: constant.clone(),
+                                        value,
+                                    },
+                                );
+                            } else {
+                                report_static_const_without_scalar(
+                                    expr, &owner, &constant, sig.ty, env,
+                                );
+                            }
+                        }
                         Some(value) => {
                             env.exprs.record(
                                 expr.span,
@@ -318,6 +341,49 @@ fn method_reference(
 /// none has a `ConstArg` here, so the refusal is a gap named rather than a
 /// rule: what closes it is that resolver, one position along, which needs the
 /// `Ctx` this table's collection pass does hold.
+/// Whether a folded constant is one of the kinds a class descriptor's table
+/// carries (`nvs_runtime::ConstantValue`): the four scalars, with `uint`
+/// travelling as the `int` bits it is. A `static::` read of anything else has
+/// no run-time value to answer with.
+fn has_scalar_form(value: &crate::defaults::ConstArg) -> bool {
+    use crate::defaults::ConstArg;
+    matches!(
+        value,
+        ConstArg::Str(_)
+            | ConstArg::Int(_)
+            | ConstArg::Uint(_)
+            | ConstArg::Bool(_)
+            | ConstArg::Float(_)
+    )
+}
+
+/// `E0832`: a `static::NAME` whose declaration folds to no scalar — the read
+/// the called class's constant table cannot answer. Reported at the read, as
+/// [`report_unfoldable_const`] is, because the declaration itself is fine and
+/// `self::NAME` still inlines it.
+fn report_static_const_without_scalar(
+    expr: &Expr,
+    owner: &QName,
+    constant: &str,
+    ty: TypeId,
+    env: &mut Env<'_>,
+) {
+    let declared = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_STATIC_CONST_HAS_NO_SCALAR_VALUE,
+            format!("`static::{constant}` reads `{owner}::{constant}`, which is `{declared}` and has no scalar value"),
+        )
+        .with_primary(expr.span, "read through `static::`")
+        .with_help(
+            "`rule:statements/static-is-a-member-modifier`: a `static::` constant is read at run time off the \
+             called class's table, which carries `string`, `int`, `uint`, `bool` and `float` \
+             values and nothing else — write `self::` or the class name, which inline the \
+             constant, or make the constant a scalar",
+        ),
+    );
+}
+
 fn report_unfoldable_const(
     expr: &Expr,
     qname: &QName,
@@ -880,6 +946,9 @@ pub(crate) fn check_class_name_const(
     // `resolve_class_expr` answers `None` outside one, and the arm below
     // reports it with the same code every other unresolvable side takes.
     if matches!(class.kind, ExprKind::StaticExpr) && ctx.current_class.is_some() {
+        // The frame has to be the method's own: inside a closure body there is
+        // no called class to read, and `E0834` says so where it is written.
+        super::report_class_keyword_outside_class("static", class.span, ctx, env);
         env.exprs.record(expr.span, ExprInfo::ClassNameOf);
         return env.interner.string();
     }

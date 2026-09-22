@@ -957,6 +957,7 @@ mod tests {
             current_hook: None,
             generator_elem: None,
             in_constructor: false,
+            in_closure: false,
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();

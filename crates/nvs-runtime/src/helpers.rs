@@ -109,6 +109,47 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::ClassConstant` — `static::NAME`'s run-time read.
+    ///
+    /// The descriptor's table is flattened own-first (`ClassDesc::constants`),
+    /// so a name a subclass redeclares answers the subclass's value, which is
+    /// what late static binding means for a constant. A name the table lacks,
+    /// or one whose value is `ConstantValue::Opaque`, is a `FATAL` naming the
+    /// class: `nvs_types` refuses both reads before lowering, so reaching
+    /// either here is a checker that did not run.
+    fn nvs_class_constant(_ctx, args: [2]) {
+        let desc = expect_tag!("nvs_class_constant", args[0], as_class_desc, Tag::Null);
+        let Some(name) = args[1].as_str_bytes() else {
+            return Err(wrong_tag("nvs_class_constant", Tag::Str, args[1]));
+        };
+        let name = String::from_utf8_lossy(name);
+        // The same borrow `nvs_class_desc_name` takes: the descriptor is owned
+        // by the unit's `ClassTable` and outlives every frame that can name it.
+        #[allow(
+            unsafe_code,
+            reason = "a `Ty::ClassDesc` slot carries a descriptor address by \
+                      construction (`nvs_codegen::ty::tag_of`), and the \
+                      `ClassTable` that owns it outlives the unit"
+        )]
+        let (class, found) = unsafe { ((*desc).name(), (*desc).constant(&name)) };
+        match found.map(|constant| &constant.value) {
+            Some(crate::object::ConstantValue::Str(text)) => {
+                Ok(Value::str(NvsStr::new(text.as_bytes())))
+            }
+            Some(crate::object::ConstantValue::Int(value)) => Ok(Value::int(*value)),
+            Some(crate::object::ConstantValue::Bool(value)) => Ok(Value::bool(*value)),
+            Some(crate::object::ConstantValue::Float(value)) => Ok(Value::float(*value)),
+            Some(crate::object::ConstantValue::Opaque) => Err(Fault::fatal(format!(
+                "`{class}::{name}` has no scalar value to read through `static::`"
+            ))),
+            None => Err(Fault::fatal(format!(
+                "`{class}` declares no constant `{name}` for `static::` to read"
+            ))),
+        }
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::IntTruthy`.
     fn nvs_int_truthy(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_truthy", args[0], as_int, Tag::Int);
@@ -2869,6 +2910,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_float_to_string", address(nvs_float_to_string)),
         ("nvs_bool_to_string", address(nvs_bool_to_string)),
         ("nvs_class_desc_name", address(nvs_class_desc_name)),
+        ("nvs_class_constant", address(nvs_class_constant)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),
         ("nvs_float_truthy", address(nvs_float_truthy)),

@@ -1110,6 +1110,27 @@ pub(crate) fn report_class_keyword_outside_class(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    // `static` inside a closure body: the enclosing class exists, and still
+    // nothing in the closure's own frame names the class the call was made on
+    // — `nvs_ir::lower`'s `Lowering::lsb` panics on the spelling — so it is
+    // refused here, at every site that asks this question. `self` and
+    // `parent` are folded and need no frame.
+    if keyword == "static" && ctx.in_closure {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_IN_CLOSURE,
+                "`static::` names no class inside a closure body",
+            )
+            .with_primary(span, "inside a closure")
+            .with_help(
+                "`rule:statements/static-is-a-member-modifier`: the called class is what the enclosing \
+                 method's frame holds, and a closure is a frame of its own that carries \
+                 neither it nor a receiver — read the value into a variable before the \
+                 closure and use that",
+            ),
+        );
+        return;
+    }
     if ctx.current_class.is_some() {
         return;
     }

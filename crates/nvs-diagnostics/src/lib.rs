@@ -3828,6 +3828,44 @@ pub mod code {
     /// where it was written. The reference is the whole point of the position.
     pub const E_METHOD_REF_REQUIRED: Code = Code::new("E0830");
 
+    /// `static::NAME` inside a constant expression — a property or parameter
+    /// default, an attribute payload.
+    ///
+    /// `rule:statements/static-is-a-member-modifier` makes a `static::` constant read a
+    /// run-time one, bound to the class the call was made on, and a constant
+    /// expression is folded once with no frame to read that class from. Refused
+    /// by name rather than folded as `self::NAME`, which is what it silently
+    /// was: the declaring class's value where a subclass's was meant.
+    pub const E_STATIC_CONST_IN_CONSTANT_EXPRESSION: Code = Code::new("E0831");
+
+    /// `static::NAME` where `NAME`'s value is not a scalar — an `array`
+    /// constant, an object, a `null`, an integer outside `int`.
+    ///
+    /// The late-bound read answers from the called class's constant table,
+    /// which carries the four scalar kinds and nothing else
+    /// (`nvs_runtime::ConstantValue`), so there is no value to answer with.
+    /// `self::NAME` and `Class::NAME` still inline such a constant.
+    pub const E_STATIC_CONST_HAS_NO_SCALAR_VALUE: Code = Code::new("E0832");
+
+    /// A class or interface redeclares a constant an ancestor already declares,
+    /// at a type not assignable to the ancestor's.
+    ///
+    /// A `static::NAME` read is typed at the declaring class and lowered as a
+    /// load at that type, and it answers whichever class the call was made on
+    /// — so a redeclaration at another type would be read at the wrong
+    /// representation, `secret` bit included. PHP 8.3 makes the same demand of
+    /// a typed constant override.
+    pub const E_CONST_REDECLARED_AT_ANOTHER_TYPE: Code = Code::new("E0833");
+
+    /// `static::` — a constant, a call, `::class`, `new static()` — inside a
+    /// closure body.
+    ///
+    /// The called class is what the enclosing method's frame holds, and a
+    /// closure is lifted to a frame of its own that carries neither it nor a
+    /// receiver, so there is nothing to bind `static` to. Refused where it is
+    /// written; before this code, lowering panicked on the spelling.
+    pub const E_STATIC_IN_CLOSURE: Code = Code::new("E0834");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -871,6 +871,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 // Before the members: `rule:iteration/concrete-generic-implements`'s type arguments are part
                 // of the declaration's own shape, not of any one member's.
@@ -892,6 +893,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -904,6 +906,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }

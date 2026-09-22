@@ -305,9 +305,11 @@ does not resolve a static property
   It has no `$this`.
 - `self` names the declaring class: `new self()`, `self::method()`, `self::CONST`, and as a
   return type. `static` names the class the call was made on — late static binding — for
-  `new static()`, `static::method()` and the return type `static`. A body declared `: static`
-  must return `$this`, `new static(...)` or a `static::` call; returning `new self()` or a named
-  class there is a compile error.
+  `new static()`, `static::method()`, `static::CONST` and the return type `static`. A body
+  declared `: static` must return `$this`, `new static(...)` or a `static::` call; returning
+  `new self()` or a named class there is a compile error.
+- `static::` is not allowed inside a closure body (`E0834`). Read the value into a variable
+  before the closure and use that variable.
 - `parent::method()` calls the parent's version of an overridden method, and
   `parent::constructor(...)` its constructor.
 
@@ -373,7 +375,12 @@ echo $f(3) as int, "\n";
 # Constants and `::class`
 
 A class constant is `public const int NAME = …;`, and like every other binding it writes its type
-(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
+(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. Both give the
+value of the class that declares it. `static::NAME` gives the value of the class the call was made
+on, so a subclass or an implementor that redeclares the constant is seen by an inherited method or
+an interface default method. A redeclaration keeps the constant's type (`E0833`). `static::NAME`
+works for `string`, `int`, `uint`, `bool` and `float` constants (`E0832` for an `array`), and not in
+a default value or an attribute (`E0831`). `Class::class` is the
 class's name as a string, and it stays a `string` — the type that holds a class itself is `class<T>`,
 and the three sites that take one are below.
 

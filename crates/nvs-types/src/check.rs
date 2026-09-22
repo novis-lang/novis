@@ -360,6 +360,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -372,6 +373,7 @@ pub(crate) fn check_stmts(
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
+                crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
                 crate::conformance::check_class_finality(decl, &qname, env);
                 crate::conformance::check_abstract_members(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
@@ -384,6 +386,7 @@ pub(crate) fn check_stmts(
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
                 let ctx = Ctx {
                     namespace: &current_ns,
                     imports: &current_imports,
@@ -391,6 +394,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -410,6 +414,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -442,6 +447,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
+                    in_closure: false,
                 };
                 check_stmt(
                     stmt,
@@ -571,6 +577,7 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         // A hook body is not the constructor's, whichever accessor it is: ADR
         // 0014 § 1 makes it a member called on a built instance.
         in_constructor: false,
+        in_closure: false,
     };
     for hook in hooks {
         env.exprs.record_method(
@@ -651,6 +658,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         current_hook: ctx.current_hook,
         generator_elem: ctx.generator_elem,
         in_constructor: span_text(env.src, m.name) == "constructor",
+        in_closure: false,
     };
 
     let mut scope = LocalScope::new();
@@ -723,6 +731,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         current_hook: ctx.current_hook,
         generator_elem: Some(elem),
         in_constructor: ctx.in_constructor,
+        in_closure: ctx.in_closure,
     };
     // A generator's body returns nothing: calling it produced the cursor, and
     // `rule:iteration/one-way-only` leaves no return value to retrieve. So the body is checked

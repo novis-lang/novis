@@ -4,6 +4,19 @@ static binding is load-bearing in the OO code Novis converts, and `new static()`
 would return the wrong class rather than fail to compile. `static::class` is the called class's own name,
 read at run time off the descriptor the frame already holds.
 
+`static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
+the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
+body reads the implementor's override where `self::NAME` reads the declaring class's value. Four things
+follow from that read being a run-time one. A redeclaration of an inherited constant keeps a type
+assignable to the ancestor's, in every class and interface, because the read is typed where the
+constant is declared and answers whichever class the call was made on (`E0833`). A `static::` constant
+is refused in a constant expression — a default, a payload — which is folded once with no call to bind
+it to (`E0831`). A `static::` read of a constant with no scalar value — an `array`, an object, `null`
+— is refused, because the called class's table carries `string`, `int`, `uint`, `bool` and `float`
+and nothing else (`E0832`); `self::` and the class name still inline such a constant. And `static::`
+in any form inside a closure body is refused, since a closure is a frame of its own that carries
+neither a receiver nor a called class (`E0834`).
+
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
 declaring `static` as its return type may not return the declaring class, since a subclass call site is
 promised its own.

@@ -1,0 +1,24 @@
+--TEST--
+`static::NAME` on an `array` constant is refused, because the called class's table carries scalars only; `self::NAME` still inlines it, `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+class Page {
+    public const array<int> ROWS = [1, 2];
+
+    public function viaSelf(): array<int> {
+        return self::ROWS;
+    }
+
+    public function viaStatic(): array<int> {
+        return static::ROWS;
+    }
+}
+echo "after\n";
+// covers: lang:classes/methods-self-static-and-parent
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0832]: `static::ROWS` reads `Page::ROWS`, which is `array<int>` and has no scalar value
+   --> case.nvs:10:16
+%A
+error: aborting due to 1 error

@@ -134,6 +134,7 @@ fn site_ctx(scope: &Scope) -> Ctx<'_> {
         current_class: Some(&scope.class),
         current_hook: None,
         in_constructor: false,
+        in_closure: false,
         generator_elem: None,
     }
 }

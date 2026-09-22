@@ -327,6 +327,12 @@ pub(crate) struct Ctx<'a> {
     /// `check_method` is the only place it is ever set, from
     /// `nvs_syntax::ast::is_generator_body` plus the declared return type.
     pub generator_elem: Option<crate::ty::TypeId>,
+    /// Whether the body being checked is a closure's. A closure is lifted to
+    /// a frame of its own that carries neither a receiver nor a called class,
+    /// so `static::` has nothing to bind to inside one and is refused there
+    /// (`E0834`, [`crate::expr::report_class_keyword_outside_class`]). Set
+    /// only where a closure literal's body is entered.
+    pub in_closure: bool,
 }
 
 /// `rule:types/closure-self-name`'s
