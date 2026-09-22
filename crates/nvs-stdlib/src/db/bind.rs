@@ -1188,6 +1188,83 @@ mod tests {
         );
     }
 
+    /// Reduces a callable parameter to the two names the case below compares:
+    /// the class it hands its closure, and the variable that closure answers.
+    fn handed_over(ty: &CoreTy) -> Option<(&'static str, &'static str)> {
+        match *ty {
+            CoreTy::CallableSig(&[CoreTy::Instance(given)], &CoreTy::Var(answered)) => {
+                Some((given, answered))
+            }
+            _ => None,
+        }
+    }
+
+    /// The variable a return type names, for the same reason.
+    fn answered(ty: &CoreTy) -> Option<&'static str> {
+        match *ty {
+            CoreTy::Var(name) => Some(name),
+            _ => None,
+        }
+    }
+
+    /// A nested `transaction` is the same row as the outermost one, so what
+    /// makes § 7's nesting compose is that neither what the closure is handed
+    /// nor what the member answers depends on the receiver: the closure is given
+    /// a [`TRANSACTION`], and the member answers the very variable that closure
+    /// declared. A library opening a transaction for its own writes then reads
+    /// the same types inside a caller's transaction as outside one.
+    ///
+    /// **Asserted as the identity between the callable's answer and the row's,
+    /// on every receiver that declares the row.** Either half alone is satisfied
+    /// by the wrong shape: a row answering a variable of its own typechecks
+    /// against itself and still loses the closure's type at the call site, and
+    /// one handing over a [`CONNECTION`] would give a step the four members
+    /// § 7 keeps off a transaction. The row is declared once and carried twice,
+    /// so this is one decision, and the sweep over both receivers is what says
+    /// so.
+    // covers: Core\Db\Transaction::transaction
+    #[test]
+    fn a_nested_transaction_hands_over_a_transaction_and_answers_its_closures_own_variable() {
+        let mut swept: Vec<&str> = Vec::new();
+        for table in [&TRANSACTION, &CONNECTION] {
+            let row = table
+                .instance
+                .iter()
+                .find(|member| member.name == "transaction")
+                .unwrap_or_else(|| panic!("`{}` declares § 7's `transaction`", table.name));
+            let (given, closure) = handed_over(&row.params[0]).unwrap_or_else(|| {
+                panic!(
+                    "`{}::transaction` takes the closure it runs first, at one written instance",
+                    table.name
+                )
+            });
+            let returned = answered(&row.return_ty).unwrap_or_else(|| {
+                panic!(
+                    "`{}::transaction` answers a type variable and not a concrete type",
+                    table.name
+                )
+            });
+            assert_eq!(
+                given, TRANSACTION_NAME,
+                "`{}::transaction` hands its closure `{given}`, which is a receiver § 7 keeps four \
+                 members off",
+                table.name
+            );
+            assert_eq!(
+                closure, returned,
+                "`{}::transaction` answers `{returned}` where its closure answers `{closure}`, so \
+                 a nested call loses the type its call site wrote",
+                table.name
+            );
+            swept.push(table.name);
+        }
+        assert_eq!(
+            swept.len(),
+            2,
+            "both receivers carry the row this case is about: {swept:?}"
+        );
+    }
+
     /// `rollBack` is the one member of [`TRANSACTION`] that takes text and runs
     /// no statement with it, so it is where `rule:security/sink-predicate`'s predicate is
     /// decided rather than copied: a reason is prose for a human, reaches no

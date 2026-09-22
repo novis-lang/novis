@@ -1,0 +1,31 @@
+<?nvs
+// Shows a function that opens a transaction of its own while the caller already
+// has one open. Both writes are one unit of work, and neither side needs to
+// know what the other did.
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('create table events (id integer primary key, what text not null)', []);
+
+class Audit {
+    // The parameter is a `Core\Db\Transaction`, so this function runs inside the
+    // caller's transaction. Its own `transaction` call is one step of it.
+    public static function record(Transaction $tx, string $what): void
+    {
+        $tx->transaction(fn (Transaction $step): void => {
+            $step->execute('insert into events (what) values (?)', [$what]);
+        });
+    }
+}
+
+$db->transaction(fn (Transaction $work): void => {
+    $work->execute('insert into notes (text) values (?)', ['buy milk']);
+    Audit::record($work, 'a note was written');
+});
+
+// Both rows are saved together. This prints `1 note` and `1 event`.
+echo $db->query('select id from notes', [])->count(), " note\n";
+echo $db->query('select id from events', [])->count(), " event\n";
+
+$db->close();

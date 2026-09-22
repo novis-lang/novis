@@ -1,0 +1,34 @@
+<?nvs
+// Shows a transaction opened inside another transaction. Giving up on the inner
+// one undoes only what that one wrote, and the work around it is still saved.
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+$db->transaction(fn (Transaction $work): void => {
+    $work->execute('insert into notes (text) values (?)', ['buy milk']);
+
+    try {
+        // A second transaction inside the first one. It is one step of the work,
+        // with its own end.
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute('insert into notes (text) values (?)', ['call Ana']);
+            $step->rollBack('this note is not wanted');
+        });
+    } catch (RolledBack $gaveUp) {
+        // This prints `gave up: this note is not wanted`.
+        echo 'gave up: ', $gaveUp->reason, "\n";
+    }
+
+    $work->execute('insert into notes (text) values (?)', ['book train']);
+});
+
+// The step's note is gone and the two around it are kept. This prints
+// `buy milk` and `book train`.
+foreach ($db->query('select text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->string('text') ?? '', "\n";
+}
+
+$db->close();

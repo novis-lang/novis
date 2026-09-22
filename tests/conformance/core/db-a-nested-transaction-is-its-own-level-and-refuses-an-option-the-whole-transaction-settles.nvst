@@ -1,0 +1,89 @@
+--TEST--
+A nested `transaction` is a level of its own: a `rollBack` inside it undoes that level and leaves the one around it to commit, its answer travels out through the nesting, and an option the whole transaction settles is refused at depth rather than run weaker — `rule:core-classes/db-transactions`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::transaction
+// SQLite runs this for real, so the `SAVEPOINT` and the `ROLLBACK TO` below are
+// really sent. db-a-sqlite-transaction-nests-as-a-savepoint.nvst asks what a
+// *throw* inside a nested level does; this case asks the three questions that
+// belong to the nested member itself.
+use Core\Db;
+use Core\Db\Isolation;
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+class Names {
+    public static function total(Core\Db\Connection $db): int {
+        var $row = $db->query("select count(*) as n from t", [])->first();
+        if ($row == null) {
+            return -1;
+        }
+        var $n = $row->int("n");
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+}
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+// § 7's flag, at a nested level: `rollBack` records its reason on the
+// transaction it was called on, which is the *step* and not the work around it.
+// So the savepoint is rolled back, `Core\Db\RolledBack` arrives here, and the
+// level above is still free to commit — the rollback-only flag the owning frame
+// acts on belongs to one level each.
+$db->transaction(fn (Transaction $work): void => {
+    $work->execute("insert into t (name) values (?)", ["grace"]);
+    try {
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute("insert into t (name) values (?)", ["alan"]);
+            $step->rollBack("this step keeps nothing");
+        });
+    } catch (RolledBack $gaveUp) {
+        echo "step gave up: ", $gaveUp->reason, "\n";
+    }
+    $work->execute("insert into t (name) values (?)", ["ada"]);
+});
+echo "committed ", Names::total($db), "\n";
+
+// The member's answer is its closure's at every depth, so a value computed
+// three levels down leaves as the `uint` it was declared — no `mixed`, and no
+// annotation at any of the three call sites.
+uint $deep = $db->transaction(fn (Transaction $one): uint =>
+    $one->transaction(fn (Transaction $two): uint =>
+        $two->transaction(fn (Transaction $three): uint =>
+            $three->query("select id from t", [])->count())));
+echo "read three levels down ", $deep, "\n";
+
+// § 7's refusal: `isolation` and `readOnly` are settled for the whole
+// transaction, so a nested call carrying either is a `LogicError` rather than a
+// level quietly weaker than the one its author wrote. The work around it is
+// untouched and commits.
+$db->transaction(fn (Transaction $work): void => {
+    try {
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute("insert into t (name) values (?)", ["never written"]);
+        }, {isolation: Isolation::Serializable});
+    } catch (LogicError $refused) {
+        echo "own level refused\n";
+    }
+    $work->execute("insert into t (name) values (?)", ["bo"]);
+});
+echo "kept ", Names::total($db), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+step gave up: this step keeps nothing
+committed 2
+read three levels down 2
+own level refused
+kept 3

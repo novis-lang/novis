@@ -1,0 +1,27 @@
+<?nvs
+// Measures one transaction opened inside another, as a program does when a
+// function writes its own rows inside a caller's transaction.
+// bench: iterations 20000
+use Core\Db\Transaction;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The count is written into the row and comes back as the step's
+            // answer. Neither the step nor its write can be left out.
+            $written = $db->transaction(fn (Transaction $work): uint =>
+                $work->transaction(fn (Transaction $step): uint => {
+                    $step->execute('insert into notes (n) values (?)', [$written as int]);
+                    return $written + 1;
+                }));
+            $i = $i + 1;
+        }
+        return $written;
+    }
+}
+
+echo Bench::run(20000), "\n";
