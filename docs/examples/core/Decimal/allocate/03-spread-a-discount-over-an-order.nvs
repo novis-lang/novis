@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to spread a discount over the lines of an order. Each line takes a
+// share of the discount in proportion to its price, and the shares add back to
+// the discount exactly.
+
+array<decimal> $prices = [19.99, 5.00, 34.50];
+decimal $discount = 10.00;
+
+// The prices are the ratios, so a line that costs more takes more of the cut.
+array<decimal> $cuts = Core\Decimal::allocate($discount, $prices);
+
+decimal $given = 0.00;
+uint $line = 0;
+foreach ($prices as decimal $price) {
+    decimal $cut = $cuts[$line];
+    echo $price, " - ", $cut, " = ", $price - $cut, "\n";
+    $given = $given + $cut;
+    $line = $line + 1;
+}
+
+// This prints 10.00. The whole discount was given out, to the cent.
+echo "discount given: ", $given, "\n";

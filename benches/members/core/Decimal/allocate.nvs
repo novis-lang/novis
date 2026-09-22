@@ -1,0 +1,23 @@
+<?nvs
+// Measures one split of a price into three equal parts, which a program does
+// when it shares a payment between several accounts.
+// bench: iterations 200000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<decimal> $amounts = [0.05, 19.99, 100.00, 7.35];
+        array<decimal> $evenly = [1, 1, 1];
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: which price is split holds the count the last round made.
+            array<decimal> $parts = Core\Decimal::allocate($amounts[$total % 4], $evenly);
+            $total = $total + Core\Arr::count($parts);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

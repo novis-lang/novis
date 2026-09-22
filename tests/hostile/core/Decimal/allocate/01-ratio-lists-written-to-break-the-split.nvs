@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a split is given ratio lists that are enormous, that overflow, and
+// that name no split at all. Every attempt should return parts that add back
+// to the amount, or throw an error. The runtime should still be standing at
+// the end.
+// hostile: timeout-ms 60000
+
+// 1. A million parts out of one hundred. There are only ten thousand cents to
+// give, so most of the parts must be zero and the sum must still be exact.
+array<decimal> $many = [];
+uint $i = 0;
+while ($i < 1000000) {
+    $many[] = 1;
+    $i = $i + 1;
+}
+array<decimal> $parts = Core\Decimal::allocate(100.00, $many);
+echo 'step 1: ', Core\Arr::count($parts), " parts of one hundred\n";
+
+// 2. The same million parts, and the sum of them added back up. It has to be
+// the amount again, to the cent.
+decimal $back = 0.00;
+foreach ($parts as decimal $part) {
+    $back = $back + $part;
+}
+echo 'step 2: the million parts add back to ', $back, "\n";
+
+// 3. Ratios far too large to add together. The error is caught, so the steps
+// after this one still run.
+decimal $huge = Core\Decimal::pow(10, 28);
+array<decimal> $over = [$huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge];
+try {
+    Core\Decimal::allocate(1.00, $over);
+    echo "step 3: the split was made\n";
+} catch (ArithmeticError $overflowed) {
+    echo 'step 3 stopped: ', $overflowed->message, "\n";
+}
+
+// 4. An amount already at the smallest size a `decimal` can write, split by
+// ratios that need one more digit than there is.
+try {
+    Core\Decimal::allocate(0.0000000000000000000000000001, [0.5, 0.5]);
+    echo "step 4: the split was made\n";
+} catch (ArithmeticError $narrow) {
+    echo 'step 4 stopped: ', $narrow->message, "\n";
+}
+
+// 5. A ratio below zero. A part cannot owe money, so this is not a split.
+try {
+    Core\Decimal::allocate(1.00, [2, -1]);
+    echo "step 5: the split was made\n";
+} catch (LogicError $owing) {
+    echo 'step 5 stopped: ', $owing->message, "\n";
+}
+
+// 6. No ratios at all, and then ratios that every part asks to be empty.
+try {
+    Core\Decimal::allocate(1.00, []);
+    echo "step 6: the split was made\n";
+} catch (LogicError $noParts) {
+    echo 'step 6 stopped: ', $noParts->message, "\n";
+}
+try {
+    Core\Decimal::allocate(1.00, [0, 0, 0]);
+    echo "step 7: the split was made\n";
+} catch (LogicError $allEmpty) {
+    echo 'step 7 stopped: ', $allEmpty->message, "\n";
+}
+
+// 8. Ten thousand splits of a thousand parts each, all kept at the same time.
+array<array<decimal>> $kept = [];
+uint $round = 0;
+array<decimal> $thousand = [];
+while ($round < 1000) {
+    $thousand[] = 1;
+    $round = $round + 1;
+}
+$round = 0;
+while ($round < 10000) {
+    $kept[] = Core\Decimal::allocate(9.99, $thousand);
+    $round = $round + 1;
+}
+echo 'step 8: ', Core\Arr::count($kept), " splits kept at once\n";
+
+echo "the runtime is still standing\n";
