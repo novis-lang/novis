@@ -1,0 +1,3 @@
+each of 4 pays 21
+Core\Decimal::divExact cannot answer 84.00 / 9 exactly: the quotient repeats or is wider than a `decimal` holds
+Core\Decimal::divExact cannot divide by zero
