@@ -2198,6 +2198,66 @@ entry = "benches/members/core/Db-Write/affected.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/01-read-the-count-the-server-reported.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/02-tell-no-count-apart-from-no-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/03-add-up-what-a-clean-up-removed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/changed/01-a-count-that-may-be-nothing-at-all.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/changed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/01-read-the-key-of-a-new-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/03-write-the-lines-that-belong-to-an-order.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/lastId/01-keys-at-the-far-end-of-what-a-number-holds.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/lastId.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

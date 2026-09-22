@@ -940,14 +940,20 @@ pub(super) fn sqlite_rows(
 /// `execute` over the SQLite driver: the same statement [`sqlite_rows`] runs,
 /// read for its counts rather than its cells.
 ///
-/// **Both counts are the connection's and not the statement's**, and that is
-/// SQLite's rule rather than a shortcut here: `sqlite3_changes` and
-/// `sqlite3_last_insert_rowid` describe the last data-changing statement on the
-/// connection, so a `create table` reports whatever the insert before it did.
-/// `nvs_db::SqliteRows::affected`'s own doc is where that is stated. `changed`
-/// is therefore always present on this driver — unlike PostgreSQL, where a
-/// command tag carrying no count is § 4's absent case — and `lastId` keeps the
-/// absence, `0` being how SQLite spells "no row has ever been inserted here".
+/// **`changed` is present for every statement this driver runs.** § 4's absent
+/// case is a command tag that carries no count, and SQLite sends no tag at all:
+/// a statement whose kind counts nothing cannot be told apart here from one
+/// that changed no rows, so both report `0` and neither reports an absence.
+/// That is what makes `Core\Db\Write::changed` answer on this driver exactly
+/// what `affected` folds, where PostgreSQL keeps the two apart. `lastId` does
+/// keep an absence, `0` being how SQLite spells "no row has ever been inserted
+/// here".
+///
+/// The count is the statement's own rather than the connection's, which is
+/// `nvs_db::SqliteRows::affected`'s work and its doc's to argue:
+/// `sqlite3_changes` describes the last data-changing statement on the
+/// connection, and `sqlite3_total_changes` moving is what tells this
+/// statement's rows from an earlier statement's.
 ///
 /// # Errors
 ///
@@ -1627,6 +1633,146 @@ mod tests {
             answered.rows.count(),
             2,
             "the result changed under a statement that ran after it"
+        );
+    }
+
+    /// **`Core\Db\Write::changed` is the count the server itself reported, and
+    /// on SQLite every statement reports one.** § 4's absent case is a command
+    /// tag that carries no count, and this driver sends no tag at all: what
+    /// [`sqlite_write`] can read is a number for every statement kind, so the
+    /// `?uint` is present throughout and holds whatever `affected` folds.
+    ///
+    /// **Asserted after a statement that really changed rows**, which is
+    /// `nvs_db::sqlite`'s own reason: `sqlite3_changes` describes the last
+    /// data-changing statement on the connection, so a count read on a quiet
+    /// connection passes whether this statement's own count is reported or an
+    /// earlier statement's is.
+    ///
+    /// The `.nvst` half runs the same statements through a program, where the
+    /// `?uint` is unwrapped the way a caller unwraps it.
+    // covers: Core\Db\Write::changed
+    #[test]
+    fn a_sqlite_write_reports_a_count_for_every_statement_kind() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let mut conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        let ctx = nvs_runtime::Ctx::buffered();
+
+        // The statement a bound `execute` reaches this arm with, for the binds
+        // the sibling case above gives: nothing below binds a value, so every
+        // count is the statement's own rather than an argument's.
+        let mut changed = |sql: &str| -> Option<u64> {
+            let statement = crate::db::bind::Statement {
+                key: 0,
+                block: Value::null(),
+                sql: String::from(sql),
+                binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+            };
+            let (written, _) = sqlite_write(
+                &mut conn,
+                &statement,
+                None,
+                crate::db::span::QueryWatch::named(&ctx, None),
+                EXECUTE,
+            )
+            .expect("a statement over an open connection answers its counts");
+            written.changed
+        };
+
+        // 1. A schema and three rows: the write's count is the rows it changed.
+        assert_eq!(
+            changed("create table t (id integer primary key, name text not null)"),
+            Some(0)
+        );
+        assert_eq!(
+            changed("insert into t (name) values ('ada'), ('grace'), ('alan')"),
+            Some(3)
+        );
+
+        // 2. Three rows are now behind every statement below, so a count that
+        //    is not the statement's own has something to report as this one's.
+        for quiet in [
+            "create table u (id integer primary key)",
+            "drop table u",
+            "update t set name = 'nobody' where id = 99",
+        ] {
+            assert_eq!(
+                changed(quiet),
+                Some(0),
+                "`{quiet}` reported no count, or reported the insert's rows"
+            );
+        }
+
+        // 3. And the driver goes on counting after them.
+        assert_eq!(changed("delete from t"), Some(3));
+    }
+
+    /// **`Core\Db\Write::lastId` is the key of the row this statement inserted,
+    /// and `null` where there is no key a `uint` holds.** One statement writing
+    /// several rows answers the last row's key, which is all SQLite reports and
+    /// all § 4 promises; a row written with a negative key has none to report,
+    /// since [`sqlite_write`]'s `u64::try_from` is where a `?uint` stops.
+    ///
+    /// **What a statement that inserted nothing answers is not asserted here**,
+    /// because it is wrong: `sqlite3_last_insert_rowid` belongs to the
+    /// connection, so an `update` after an insert reports the insert's key.
+    /// `nvs_db::sqlite`'s `# Known gaps` carries it, and the example under
+    /// `docs/examples/core/Db-Write/lastId` is the proof that fails on it.
+    ///
+    /// The `.nvst` half runs the same statements through a program, where the
+    /// `?uint` is unwrapped the way a caller unwraps it.
+    // covers: Core\Db\Write::lastId
+    #[test]
+    fn a_sqlite_write_carries_the_key_of_the_row_it_inserted() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let mut conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        let ctx = nvs_runtime::Ctx::buffered();
+
+        let mut last_id = |sql: &str| -> Option<u64> {
+            let statement = crate::db::bind::Statement {
+                key: 0,
+                block: Value::null(),
+                sql: String::from(sql),
+                binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+            };
+            let (written, _) = sqlite_write(
+                &mut conn,
+                &statement,
+                None,
+                crate::db::span::QueryWatch::named(&ctx, None),
+                EXECUTE,
+            )
+            .expect("a statement over an open connection answers its key");
+            written.last_id
+        };
+
+        // 1. A schema hands back no key, and the first row written is row 1.
+        assert_eq!(
+            last_id("create table t (id integer primary key, name text not null)"),
+            None
+        );
+        assert_eq!(last_id("insert into t (name) values ('ada')"), Some(1));
+
+        // 2. Three rows in one statement, and the key is the last row's.
+        assert_eq!(
+            last_id("insert into t (name) values ('grace'), ('alan'), ('kay')"),
+            Some(4)
+        );
+
+        // 3. A key below zero is no `uint`, so the write carries no key at all
+        //    rather than a number that wrapped around.
+        assert_eq!(
+            last_id("insert into t (id, name) values (-5, 'below zero')"),
+            None
         );
     }
 
