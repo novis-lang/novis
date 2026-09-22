@@ -103,6 +103,14 @@ modules = [
   # SQLite: a file rather than a socket, so every call goes to `nvs-host`'s blocking pool and the
   # rows are in hand before the core is taken back.
   "crates/nvs-db/src/sqlite.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
+  # `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s operator surface: the one argv
+  # a service manager stores, the closed set of things that argv may name, and the two spellings
+  # of "print exactly what would be installed".
+  "crates/nvs-cli/src/service.rs",
+  # The four executing members, and the per-driver arms beneath them.
+  "crates/nvs-stdlib/src/db/execute.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
