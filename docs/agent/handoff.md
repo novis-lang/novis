@@ -2,51 +2,46 @@
 
 ## State
 
-Goal `core-db-transaction-and-1-more` is met **and its floor is green now**. The check that failed
-session 0003's DONE claim was `dossier: lang:types`, red because every one of that chapter's 18
-features carried a stale perf figure; the 18 are re-measured, and
-`benches/members/lang/types/void-never-self-static.nvs` declares the one allocation a round of
-record types now costs, where it had declared two.
+Goal `core-db-transaction-and-1-more` is met and **its floor is green**. Both DONE claims before this
+one fell to a stale perf figure, and the cause was one commit ahead of them: the `html` literal's new
+section moved `docs/reference/lang/10-programs.md` and `30-expressions.md`, which stales every feature
+keyed on a chapter. Those 22 figures are re-measured, and three programs got *cheaper* rather than
+dearer — `lang:programs/a-complete-program-annotated` allocates six times a round where it allocated
+eight, `lang:expressions/arrays-in-expressions` six where it was seven, `lang:expressions/object-literals`
+once where it was twice.
 
-**A SQLite write reports the key of a row it inserted itself**, which closes the finding the goal
-above recorded rather than fixed. `sqlite3_update_hook` is what tells an insert from the statements
-after it, and `crates/nvs-db/src/sqlite.rs`'s doc § *Which statement inserted a row* is the whole
-decision: what it costs per changed row, and why neither the statement's kind nor a
-`sqlite3_set_last_insert_rowid` sentinel was taken. `SqliteRows::last_insert_id` answers
-`Option<i64>`, the `# Known gaps` section that held the finding is gone, and
-`docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs` carries no
-`known-gap` marker any more. A row a trigger inserted counts as its statement's, which is the one
-answer this driver gives that the connection's own value does not.
+**MySQL keeps an absent key an absence.** `nvs_db::Answer::Done::last_id` and `MySqlRows::last_id`
+carry `Option<u64>` from the status packet down, so the driver no longer mints a `0` for
+`nvs_stdlib::db::execute` to filter back out — `mysql_common` maps the protocol's own `0` to `None`
+already, and the member now means one thing on every driver. The observable answer is unchanged.
+`Core\Db\Write::lastId`'s reference card says what each of the four drivers reads the key out of and
+that a statement which inserted no row answers `null`; that card edit staled all 57 `Core\Db*`
+figures, which are re-measured and moved only in the third decimal.
 
-`python tools/verify.py` is green over the whole tree, and `target/release/nvs.exe` is current with
-it. Nothing is uncommitted here that this session did not write.
+Nothing in the tree is stale: `python tools/verify.py` is 14 of 14 green, `--doc` green, and
+`owners.py --closes` and `playbook.py --closes` name nothing for this goal.
 
 ## Next group
 
-**Stage: the key a write reports, on the drivers that are not SQLite** — one file set:
-`crates/nvs-db/src/mysql.rs`, `crates/nvs-stdlib/src/db/execute.rs`,
-`crates/nvs-stdlib/src/db/registry.rs`.
+**Stage: what a write reports on the two drivers nobody has pinned** — one file set:
+`crates/nvs-stdlib/src/db/execute.rs`, `crates/nvs-db/src/pg.rs`.
 
-- [ ] **Keep MySQL's absent key an absence rather than routing it through `0`** — the OK packet's
-      id is collapsed to `0` at `crates/nvs-db/src/mysql.rs:1363` and filtered back out at
-      `crates/nvs-stdlib/src/db/execute.rs:831`, so a statement that generated no key and a row
-      whose key really is `0` are one answer on that driver. SQLite keeps the two apart now, and the
-      member may not mean two things on two drivers. `rule:core-classes/db-statement-members`.
-- [ ] **Say on the card what `lastId` answers for a statement that inserted nothing** —
-      `WRITE_LAST_ID_DOC` at `crates/nvs-stdlib/src/db/registry.rs:2929` describes the PostgreSQL
-      and SQL Server halves and not this one, and `WRITE_CHANGED_DOC` below it owes the sentence
-      about SQLite reporting a count for every statement. Both ride in one edit because touching
-      that file re-stales the perf record of every `Core\Db` member, and one edit pays that once.
-- [ ] **Re-measure `Core\Db` once, after that edit** — every member's figure is keyed on
-      `crates/nvs-stdlib/src/db/registry.rs:1504`'s own file, so `python tools/dossier.py
-      --record-perf --group 'Core\Db\Write'` and its siblings run on an idle machine before the
-      wrap, or the next session's floor opens on a group owing figures it already has.
+- [ ] **Pin that SQL Server's `lastId` is `null` and that this is an answer** — the doc comment at
+      `crates/nvs-stdlib/src/db/execute.rs:840` says the token stream carries no generated key and
+      `nvs_db::tds::TdsRows` has no `last_id` at all, and no test asserts what a caller then reads.
+      `rule:core-classes/db-statement-members`.
+- [ ] **Pin the stdlib arm of PostgreSQL's key, not just the driver's** — `crates/nvs-db/src/pg.rs:2816`
+      is pinned on the driver side by `a_statement_that_returned_no_key_has_no_last_id`, while the arm
+      that carries it into a `Written` is `crates/nvs-stdlib/src/db/execute.rs:786` and nothing asks it
+      for a statement with no `returning` clause. `rule:core-classes/db-statement-members`.
 
 ## Backlog
 
-- The three `Core\Db\Write` member benches measure an accessor loop over one finished write
-  (`benches/members/core/Db-Write/lastId.nvs`), so the per-row cost the update hook adds to every
-  write is measured nowhere. `rule:testing/member-perf-ledger`.
-- An integer literal in a `??` arm widens nothing, so `?uint ?? 0` is `uint|int` — the playbook
-  bullet is the workaround, and whether the literal should take the other arm's type is
-  `rule:types/` territory nobody has opened.
+- A `--stale` selector on `tools/dossier.py` would answer the currency question in one call; today it
+  takes one `--gate --group` per group. Nobody owns it.
+- `benches/members/lang/expressions/{assignment,calls,closures}.nvs` carry `known-gap:` markers for
+  allocations a `callable` call and a `uint` array subscript cost — owned by
+  `crates/nvs-runtime/src/lib.rs` and `crates/nvs-ir/src/lib.rs`.
+- `Core\Queue`'s MySQL insert fatals when the OK packet carries no key
+  (`crates/nvs-stdlib/src/queue.rs:3959`); `schema` declares the column that makes it impossible, and
+  nothing pins the fatal.

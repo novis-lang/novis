@@ -2623,6 +2623,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   concluding a red floor check is stale, `grep -n failing .loop/logs/<run>-console.log` and read the
   run's own output — the per-suite lines, the failing test names and the assertion are all in it.
   [until: reviewed 2026-09-22]
+- **Neither a tree-wide `python tools/dossier.py --gate` nor `--owed` will tell you a figure is
+  stale.** The gate prints only its first 30 owing features (`missing[:30]`) out of the hundreds the
+  feature-proofs program still owes, and `--owed` prints each row's proof *names* with the reason
+  dropped, so a stale figure reads exactly like a feature with no bench at all. Ask per group —
+  `python tools/dossier.py --gate --group 'Core\Db\Write'` — or per feature with `--id`, and pick the
+  groups from the files your own commits touched, since a figure is keyed on its implementing file's
+  text. [until: reviewed 2026-09-22]
 
 ## Running things
 
