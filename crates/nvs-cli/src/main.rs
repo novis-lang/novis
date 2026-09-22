@@ -392,13 +392,14 @@ enum Command {
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
     ///
-    /// One subcommand runs both, because they answer different questions about
-    /// the same tree, and which one is meant is read off the path — a `.nvs`
-    /// file is a program whose compiled test table is run, a directory holding
-    /// `.nvs` files is one program that requires every one of them in name
-    /// order, and anything else is a `.nvst` case file or a directory walked
-    /// for `*.nvst`. The two are not mixed in one invocation: they report
-    /// differently and share no summary.
+    /// Which one runs is read off the path. A `.nvs` file is a program, and
+    /// its `#[Test]` methods run. A directory holding `.nvs` files is one
+    /// program made of every `.nvs` file under it, in name order: put one file
+    /// in the directory that requires your application's bootstrap file, and
+    /// every test file in it sees the classes that file loads. Anything else
+    /// is a `.nvst` case file or a directory walked for `*.nvst`. A directory
+    /// holding both kinds of file is refused, and the two kinds never run in
+    /// one invocation: they report differently and share no summary.
     ///
     /// Exits non-zero if any case or any test failed; a skipped one is not a
     /// failure.
