@@ -2630,6 +2630,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `python tools/dossier.py --gate --group 'Core\Db\Write'` — or per feature with `--id`, and pick the
   groups from the files your own commits touched, since a figure is keyed on its implementing file's
   text. [until: reviewed 2026-09-22]
+- **A doc comment that *teaches* the `rule:` citation shape is itself a citation, and a made-up id
+  turns `python tools/rules.py --check` red.** `crates/nvs-cli/src/agent.rs`'s citation stripper
+  spelled its example as the token plus a topic and a name, so the floor reported a dangling rule in
+  a file whose every other citation is real. `rules.py`'s `rules-py:examples` marker is the other
+  way out and is whole-file, which would stop checking those too — write the token with no topic and
+  no name, since the regex needs both, and keep the marker for a file that is only about the format.
+  [until: reviewed 2026-09-22]
 
 ## Running things
 
