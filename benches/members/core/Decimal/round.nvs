@@ -1,0 +1,25 @@
+<?nvs
+// Measures one `Core\Decimal::round` of a tax line to cents, which a checkout
+// does for every line of an order.
+// bench: iterations 1000000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): decimal {
+        array<decimal> $lines = [47.4905, 6.5550, 1.3775, 22.0000];
+        decimal $carried = 0.00;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value rounded holds the last round's answer.
+            $carried = Core\Decimal::round(
+                $carried + $lines[$i % 4],
+                Core\RoundMode::HalfUp,
+                2,
+            );
+            $i = $i + 1;
+        }
+        return $carried;
+    }
+}
+
+echo Bench::run(1000000), "\n";

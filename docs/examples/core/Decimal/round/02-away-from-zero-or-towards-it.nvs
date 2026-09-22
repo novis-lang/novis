@@ -1,0 +1,15 @@
+<?nvs
+// Shows the two modes that ignore which neighbour is nearer. `Up` moves away
+// from zero and `Down` moves towards it, whatever the digits say.
+
+array<decimal> $values = [2.1, 2.9, -2.1, -2.9];
+
+// This prints 3, 3, -3 and -3, one on each line.
+foreach ($values as decimal $value) {
+    echo Core\Decimal::round($value, Core\RoundMode::Up), "\n";
+}
+
+// The same four values under `Down`. This prints 2, 2, -2 and -2.
+foreach ($values as decimal $value) {
+    echo Core\Decimal::round($value, Core\RoundMode::Down), "\n";
+}
