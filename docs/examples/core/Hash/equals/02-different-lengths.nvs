@@ -1,0 +1,14 @@
+<?nvs
+// Shows that two values of different lengths are never equal.
+
+bytes $short = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $long = Core\Hash::of("abc", Core\Digest::Sha512);
+// This prints 32 and 64.
+echo Core\Bytes::length($short), " and ", Core\Bytes::length($long), "\n";
+
+// The lengths differ, so the result is `false`.
+echo Core\Hash::equals($short, $long) ? "true" : "false", "\n";
+
+// An empty value is equal only to another empty value. This prints `true`, then `false`.
+echo Core\Hash::equals("" as bytes, "" as bytes) ? "true" : "false", "\n";
+echo Core\Hash::equals("" as bytes, $short) ? "true" : "false", "\n";

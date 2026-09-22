@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check an API token that a client sends with each request.
+
+class ApiTokens {
+    // The server stores only the SHA-256 digest of each token, never the token itself.
+    private static function storedDigest(): bytes {
+        return Core\Hash::of("tok_live_4f9a2c", Core\Digest::Sha256);
+    }
+
+    // Returns `true` when `$sent` is the right token.
+    public static function isValid(string $sent): bool {
+        bytes $sentDigest = Core\Hash::of($sent, Core\Digest::Sha256);
+        return Core\Hash::equals(ApiTokens::storedDigest(), $sentDigest);
+    }
+}
+
+// This prints `allowed`, then `denied` twice.
+array<string> $attempts = ["tok_live_4f9a2c", "tok_live_4f9a2d", ""];
+foreach ($attempts as string $token) {
+    echo ApiTokens::isValid($token) ? "allowed" : "denied", "\n";
+}

@@ -1,0 +1,30 @@
+<?nvs
+// Measures the comparison of two SHA-256 digests, as a program does when it checks a signature.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $expected = Core\Hash::of("signed", Core\Digest::Sha256);
+        array<bytes> $sent = [
+            Core\Hash::of("signed", Core\Digest::Sha256),
+            Core\Hash::of("forged", Core\Digest::Sha256),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The digest compared in each round is chosen by the round before it, so no round
+            // can be left out.
+            if (Core\Hash::equals($expected, $sent[($total % 2) as int])) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

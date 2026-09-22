@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program compares empty values, values of 16 million bytes and values that differ
+// only in their last byte. Every comparison should return the right answer, and the
+// program must not crash.
+
+// 1. Empty against empty, and empty against one zero byte.
+bytes $empty = '' as bytes;
+echo 'empty and empty: ', Core\Hash::equals($empty, $empty) ? 'true' : 'false', "\n";
+echo 'empty and zero: ', Core\Hash::equals($empty, "\0" as bytes) ? 'true' : 'false', "\n";
+
+// 2. Two equal values of 16 million bytes each.
+bytes $huge = Core\Str::repeat('a', 16000000) as bytes;
+bytes $twin = Core\Str::repeat('a', 16000000) as bytes;
+echo 'huge twins: ', Core\Hash::equals($huge, $twin) ? 'true' : 'false', "\n";
+
+// 3. Two values of 16 million bytes that differ only in the last byte.
+bytes $lastDiffers = (Core\Str::repeat('a', 15999999) . 'b') as bytes;
+echo 'last byte differs: ', Core\Hash::equals($huge, $lastDiffers) ? 'true' : 'false', "\n";
+
+// 4. A value one byte longer than the other.
+bytes $oneLonger = (Core\Str::repeat('a', 16000000) . 'a') as bytes;
+echo 'one byte longer: ', Core\Hash::equals($huge, $oneLonger) ? 'true' : 'false', "\n";
+echo 'empty and huge: ', Core\Hash::equals($empty, $huge) ? 'true' : 'false', "\n";
+
+// 5. One hundred thousand comparisons of two short digests. Nothing is kept, so memory
+// use must stay flat.
+bytes $digest = Core\Hash::of('token', Core\Digest::Sha256);
+uint $matches = 0;
+uint $round = 0;
+while ($round < 100000) {
+    if (Core\Hash::equals($digest, Core\Hash::of('token', Core\Digest::Sha256))) {
+        $matches = $matches + 1;
+    }
+    $round = $round + 1;
+}
+echo 'matches: ', $matches, "\n";

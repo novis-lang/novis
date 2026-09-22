@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to check whether two digests are the same.
+
+bytes $first = Core\Hash::of("report.pdf", Core\Digest::Sha256);
+bytes $again = Core\Hash::of("report.pdf", Core\Digest::Sha256);
+bytes $other = Core\Hash::of("report.PDF", Core\Digest::Sha256);
+
+// The same text gives the same digest. This prints `true`.
+echo Core\Hash::equals($first, $again) ? "true" : "false", "\n";
+// One changed letter gives another digest. This prints `false`.
+echo Core\Hash::equals($first, $other) ? "true" : "false", "\n";
