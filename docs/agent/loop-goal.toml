@@ -119,6 +119,10 @@ modules = [
   # `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background job,
   # over the `[db.<name>]` block a `[queue] connection` names.
   "crates/nvs-stdlib/src/queue.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/extension.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/surface.ts",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
