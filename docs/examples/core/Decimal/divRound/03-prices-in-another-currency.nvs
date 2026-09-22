@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to put a price list into another currency. Every price is divided
+// by the rate and rounded to cents, which is what an invoice prints.
+
+array<decimal> $prices = ["desk" => 249.00, "lamp" => 39.90, "chair" => 115.50];
+decimal $rate = 1.0875;
+decimal $sum = 0.00;
+
+foreach ($prices as string $item => decimal $price) {
+    decimal $converted = Core\Decimal::divRound($price, $rate, 2, Core\RoundMode::HalfUp);
+    $sum = $sum + $converted;
+    echo $item, ": ", $converted, "\n";
+}
+
+// Add the rounded prices, never the unrounded ones. Then the total on the
+// invoice is the total of the lines the customer reads. This prints 371.87.
+echo "total: ", $sum, "\n";

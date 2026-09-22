@@ -1,0 +1,23 @@
+<?nvs
+// Measures one rounded division of a bill by a number of people, which a
+// checkout does to print what each person pays.
+// bench: iterations 1000000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): decimal {
+        array<decimal> $bills = [100.00, 249.90, 12.00, 84.55];
+        decimal $people = 3;
+        decimal $carried = 1.00;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number divided holds the last round's answer.
+            decimal $bill = $bills[$i % 4] + $carried;
+            $carried = Core\Decimal::divRound($bill, $people, 2, Core\RoundMode::HalfUp);
+            $i = $i + 1;
+        }
+        return $carried;
+    }
+}
+
+echo Bench::run(1000000), "\n";

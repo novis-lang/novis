@@ -1,0 +1,18 @@
+<?nvs
+// Shows what the fourth argument does. 1 divided by 8 is 0.125. At two digits
+// that value sits exactly between 0.12 and 0.13, and each mode settles it in
+// its own way.
+
+array<Core\RoundMode> $modes = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+
+// This prints 0.13, 0.12, 0.12, 0.13, 0.13 and 0.12, one on each line.
+foreach ($modes as Core\RoundMode $mode) {
+    echo Core\Decimal::divRound(1, 8, 2, $mode), "\n";
+}

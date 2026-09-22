@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to divide a number and keep a fixed number of digits. A bill is
+// split between three people, and each share is rounded to cents.
+
+decimal $bill = 100.00;
+
+// The third argument is how many digits to keep after the point. This
+// prints 33.33.
+echo Core\Decimal::divRound($bill, 3, 2, Core\RoundMode::HalfUp), "\n";
+
+// The answer always has the number of digits you asked for. 100 divided by 4
+// is 25, so this prints 25.00.
+echo Core\Decimal::divRound($bill, 4, 2, Core\RoundMode::HalfUp), "\n";
+
+// Four digits after the point. This prints 33.3333.
+echo Core\Decimal::divRound($bill, 3, 4, Core\RoundMode::HalfUp), "\n";
