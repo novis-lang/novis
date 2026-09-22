@@ -1,0 +1,31 @@
+<?nvs
+// Measures one transaction that writes a row and then gives up, as a program
+// does when a check at the end of the work fails.
+// bench: iterations 20000
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $given = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                // The count so far is written into the row and into the reason,
+                // so neither the statement nor the give-up can be left out.
+                $db->transaction(fn (Transaction $tx): void => {
+                    $tx->execute('insert into notes (n) values (?)', [$given as int]);
+                    $tx->rollBack('round ' . $given);
+                });
+            } catch (RolledBack $gaveUp) {
+                $given = $given + 1;
+            }
+            $i = $i + 1;
+        }
+        return $given;
+    }
+}
+
+echo Bench::run(20000), "\n";

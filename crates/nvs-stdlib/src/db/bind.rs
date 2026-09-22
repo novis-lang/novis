@@ -1122,4 +1122,115 @@ mod tests {
             "a shared member resolving to a body of its own states § 4's rules twice: {apart:?}"
         );
     }
+
+    /// Reduces a return type to the container it names and what one step of the
+    /// walk over it yields, so the four rows below compare as two words rather
+    /// than as [`CoreTy`]s — which carry an `f64` and are deliberately not
+    /// comparable.
+    fn walked(ty: &CoreTy) -> Option<(&'static str, &'static str)> {
+        match ty {
+            CoreTy::InstanceAt(container, [CoreTy::Written(_)]) => Some((container, "written")),
+            CoreTy::InstanceAt(container, [CoreTy::Instance(row)]) if *row == ROW_NAME => {
+                Some((container, "row"))
+            }
+            _ => None,
+        }
+    }
+
+    /// `streamAs` is where two axes cross — `queryAs`'s hydration and `stream`'s
+    /// constant memory — so what it owes is that neither axis moved the other.
+    /// A `…As` member answers the container its plain twin answers, at the class
+    /// the call site wrote instead of at [`ROW_NAME`]; the pair is the whole
+    /// claim, and the container half is what a member cannot decide on its own.
+    ///
+    /// **Asserted as agreement over every such pair on both receivers rather
+    /// than for `streamAs` alone.** A member that grew a `Rows` return under a
+    /// streaming name, or a plain `Row` under an `As` name, still reads
+    /// correctly on its own line and is a different member from the one its name
+    /// promises; it fails here. Compared against the *twin's* container rather
+    /// than against a written-down name, so adding a sixth `…As` member needs no
+    /// edit and is covered the day it lands.
+    // covers: Core\Db\Transaction::streamAs
+    #[test]
+    fn every_as_member_answers_its_plain_twins_container_at_the_written_class() {
+        let mut checked: Vec<&str> = Vec::new();
+        for table in [&TRANSACTION, &CONNECTION] {
+            for member in table.instance {
+                let Some(plain) = member.name.strip_suffix("As") else {
+                    continue;
+                };
+                let twin = table
+                    .instance
+                    .iter()
+                    .find(|other| other.name == plain)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "`{}` on `{}` has no `{plain}` twin",
+                            member.name, table.name
+                        )
+                    });
+                assert_eq!(
+                    walked(&member.return_ty),
+                    Some((
+                        walked(&twin.return_ty).expect("the twin walks rows").0,
+                        "written"
+                    )),
+                    "`{}` on `{}` does not answer `{plain}`'s container at the written class",
+                    member.name,
+                    table.name
+                );
+                checked.push(member.name);
+            }
+        }
+        assert!(
+            checked.contains(&"streamAs") && checked.contains(&"queryAs"),
+            "both hydrating members are on the sweep this case is about: {checked:?}"
+        );
+    }
+
+    /// `rollBack` is the one member of [`TRANSACTION`] that takes text and runs
+    /// no statement with it, so it is where `rule:security/sink-predicate`'s predicate is
+    /// decided rather than copied: a reason is prose for a human, reaches no
+    /// parser, and a `tainted` one — "the cart holds ${item}, which is gone" —
+    /// is exactly the string a program has to hand.
+    ///
+    /// **Asserted as the biconditional over every text parameter the class
+    /// takes**, because either half alone is satisfied by the wrong table. A
+    /// `reason` that drifted to `Sink` would push callers to launder text no
+    /// sink ever reads, and a `sql` that drifted off `Sink` would take a tainted
+    /// statement — and the two are one decision made per parameter, so what
+    /// guards them is one rule and not two lists.
+    // covers: Core\Db\Transaction::rollBack
+    #[test]
+    fn a_transaction_takes_text_as_a_sink_exactly_where_that_text_is_the_statement() {
+        let mut seen: Vec<(&str, bool, bool)> = Vec::new();
+        for member in TRANSACTION.instance {
+            for (name, ty) in member.names.iter().zip(member.params) {
+                let CoreTy::Text(qual) = ty else {
+                    continue;
+                };
+                seen.push((member.name, *name == "sql", matches!(qual, Qual::Sink)));
+            }
+        }
+
+        let wrong: Vec<&(&str, bool, bool)> = seen
+            .iter()
+            .filter(|(_, is_statement, is_sink)| is_statement != is_sink)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "a text parameter is a sink exactly where it is the statement: {wrong:?}"
+        );
+        assert!(
+            seen.contains(&("rollBack", false, false)),
+            "`rollBack`'s reason is the text this case is about: {seen:?}"
+        );
+        assert!(
+            seen.iter()
+                .filter(|(_, is_statement, _)| *is_statement)
+                .count()
+                >= 4,
+            "every statement-running member is on the sweep: {seen:?}"
+        );
+    }
 }

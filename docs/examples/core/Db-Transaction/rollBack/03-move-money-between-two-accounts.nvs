@@ -1,0 +1,46 @@
+<?nvs
+// Shows the work a program really does here: money moves from one account to
+// another, and the whole move is given up if the first account cannot pay.
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table accounts (id integer primary key, owner text not null, cents int not null)', []);
+$db->execute('insert into accounts (owner, cents) values (?, ?), (?, ?)', ['Ana', 5000, 'Bo', 1200]);
+
+class Bank {
+    public static function move(Core\Db\Connection $db, int $from, int $to, int $cents): void
+    {
+        $db->transaction(fn (Transaction $tx): void => {
+            $tx->execute('update accounts set cents = cents - ? where id = ?', [$cents, $from]);
+            $tx->execute('update accounts set cents = cents + ? where id = ?', [$cents, $to]);
+
+            // Both updates have run. The check comes after them, so it reads the
+            // balance the move would leave behind.
+            var $left = $tx->query('select cents from accounts where id = ?', [$from])->first();
+            if (($left?->int('cents') ?? 0) < 0) {
+                // Neither update is saved, because both are part of this
+                // transaction.
+                $tx->rollBack('account ' . $from . ' is short by ' . (0 - ($left?->int('cents') ?? 0)) . ' cents');
+            }
+        });
+    }
+}
+
+// This move fits, so it is saved.
+Bank::move($db, 1, 2, 2000);
+
+// This one does not.
+try {
+    Bank::move($db, 2, 1, 999999);
+} catch (RolledBack $gaveUp) {
+    // This prints `gave up: account 2 is short by 996799 cents`.
+    echo 'gave up: ', $gaveUp->reason, "\n";
+}
+
+// Only the first move is in the table. This prints `Ana: 3000` and `Bo: 3200`.
+foreach ($db->query('select owner, cents from accounts order by id', []) as Core\Db\Row $row) {
+    echo $row->string('owner') ?? '', ': ', $row->int('cents') ?? 0, "\n";
+}
+
+$db->close();

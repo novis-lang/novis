@@ -2075,6 +2075,66 @@ entry = "benches/members/core/Db-Transaction/stream.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/01-read-the-transactions-own-rows-as-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/02-build-each-object-from-several-columns.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/03-remind-every-overdue-invoice.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/streamAs/01-ten-thousand-typed-walks-and-a-walk-nobody-finishes.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/streamAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/01-give-up-when-a-check-fails.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/02-give-up-from-inside-a-function.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/03-move-money-between-two-accounts.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/rollBack/01-a-million-reasons-and-one-nobody-can-print.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/rollBack.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
