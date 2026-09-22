@@ -18,10 +18,14 @@
 # security reason would never reach it. Uncommenting a line is how an operator takes ownership of
 # that value and of every later change to its shipped default.
 #
-# A value shown here is the key's spelling, not a promise about the shipped default. Where the
-# default is a fact this tree states, the comment above the key says so in a sentence opening
-# `Unset,`. Where there is no such sentence, the value beside the key is an example: uncommenting it
-# changes what the host does. Read the comment before you uncomment the line.
+# Every key's line ends with a note saying what leaving the key unset does, because the value beside
+# a commented-out key does not say on its own whether it is the default or a suggestion. `# default`
+# means the value shown is what an unset key gives, so uncommenting the line as it stands changes
+# nothing. `# default: <what unset gives>` means unset gives something no value spells — no cap, off,
+# the driver's own — and the value shown is one you could write instead, so uncommenting it changes
+# what the host does. `# example` means there is nothing to call a default: until the key is written
+# nothing is granted, mounted, opened or scheduled, or the key is required once its block is. Read
+# the comment above a key as well before you uncomment the line.
 #
 # A key whose comment opens with `NOT IMPLEMENTED` is parsed and accepted and then does nothing. The
 # note names the rule that closes it, and it is there so that this is learned before the key is
@@ -39,13 +43,13 @@
 # ----------------------------------------------------------------------------------------------
 
 [mode]
-# `production` or `development`. Unset, `production`, which is also the mode a host with no file at
-# all starts in. The mode selects the default of five other directives, and each of the three that
-# are keys in this file names its production value where it appears below.
-#default = "production"
-# The most permissive mode any code may select. Unset, the mode the server started in, which is what
-# makes a production host unreachable from code with nothing written here.
-#ceiling = "development"
+# `production` or `development`, which is also the mode a host with no file at all starts in. The
+# mode selects the default of five other directives, and each of the three that are keys in this
+# file names both values where it appears below.
+#default = "production"               # default
+# The most permissive mode any code may select. With nothing written here a production host is
+# unreachable from code.
+#ceiling = "development"              # default: the mode the server started in
 
 
 # ----------------------------------------------------------------------------------------------
@@ -55,52 +59,52 @@
 
 [limits]
 # `Runtime` — the keys a request may set wider or narrower at runtime, up to the matching
-# `[limits.hard]` ceiling. Unset, there is no cap of that kind at all: the runtime reads a missing
-# value as no ceiling, so the numbers below are spellings rather than the shipped bounds, and a
-# deployment that wants one writes it. A duration or a size takes a suffix or a bare number of
-# seconds or bytes, so `"30s"` and `30` are the same wait.
-#memory = "512M"                    # the heap a request starts with
-#cpu_time = "30s"                   # CPU time
-#wall_time = "60s"                  # wall time
-#max_output = "32M"                 # bytes written to the response
-# `Runtime`, and named to a request like the ones above — but no scheduler or budget reads it yet,
-# so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it is for).
-#max_tasks = 16                     # concurrent tasks
-# `Runtime` — how many steps the backtracking regex tier may spend on one subject before it throws
-# (`rule:core-classes/regex-two-tiers`). Unset, the budget `nvs_stdlib::regex` ships. The linear
-# tier runs under none, so this bounds only the patterns the linear engine cannot express.
-#max_regex_steps = 1000000          # backtracking steps per subject
-# `System` — the slice carved out of `memory` and `cpu_time` at request start and left for the
-# tier-1 fatal handler, which is the one thing that may still allocate once the rest of the ceiling
-# is gone (`rule:errors/on-limit`). A request may not set either one, and neither has a
-# `[limits.hard]` ceiling, because there is no request-set value for a ceiling to bound. Unset, a
-# megabyte and 50 ms, which is what the two below are written at; either is clamped to a quarter of
-# the ceiling it comes out of, so a short budget stays mostly program.
-#fatal_reserve_memory = "1M"        # bytes kept back for the handler
-#fatal_reserve_time = "50ms"        # CPU time kept back for it
-# `System` — how deep a chain of `spawn script` may nest before the next one is refused. Unset, 64.
-# `false` removes the ceiling, which is the one value that lets a recursion end as an exhausted heap
-# rather than as a depth.
-#max_script_depth = 64
+# `[limits.hard]` ceiling: the heap a request starts with, its CPU time, its wall time, and the bytes
+# it may write to the response. The runtime reads a missing value as no ceiling, so a deployment
+# that wants one writes it. A duration or a size takes a suffix or a bare number of seconds or
+# bytes, so `"30s"` and `30` are the same wait.
+#memory = "512M"                      # default: no cap
+#cpu_time = "30s"                     # default: no cap
+#wall_time = "60s"                    # default: no cap
+#max_output = "32M"                   # default: no cap
+# `Runtime` — concurrent tasks, named to a request like the ones above. No scheduler or budget reads
+# it yet, so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it
+# is for).
+#max_tasks = 16                       # default: no cap
+# `Runtime` — how many backtracking steps the regex engine may spend on one subject before it throws
+# (`rule:core-classes/regex-two-tiers`). The linear tier runs under none, so this bounds only the
+# patterns the linear engine cannot express.
+#max_regex_steps = 1000000            # default
+# `System` — the bytes and the CPU time carved out of `memory` and `cpu_time` at request start and
+# kept back for the tier-1 fatal handler, which is the one thing that may still allocate once the
+# rest of the ceiling is gone (`rule:errors/on-limit`). A request may not set either one, and
+# neither has a `[limits.hard]` ceiling, because there is no request-set value for a ceiling to
+# bound. Either is clamped to a quarter of the ceiling it comes out of, so a short budget stays
+# mostly program, and where that ceiling is not set nothing is reserved.
+#fatal_reserve_memory = "1M"          # default
+#fatal_reserve_time = "50ms"          # default
+# `System` — how deep a chain of `spawn script` may nest before the next one is refused. `false`
+# removes the ceiling, which is the one value that lets a recursion end as an exhausted heap rather
+# than as a depth.
+#max_script_depth = 64                # default
 # `System` — the two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
 # most any one `Core\Compress` or `Core\Zip` call may produce, and the most output per octet of
 # input. A bomb is small on the wire, so the byte ceiling alone is one a small request still reaches.
-# Unset, 64 MiB and 1000:1, which is what the two below are written at. `false` does not remove
-# either — an unbounded value reads as the bound `nvs_stdlib::compress` ships, so no configuration
+# `false` does not remove either — an unbounded value reads as the default, so no configuration
 # spells an unbounded decompression.
-#max_decompressed = "64M"
-#max_decompression_ratio = 1000
+#max_decompressed = "64M"             # default
+#max_decompression_ratio = 1000       # default
 
 [limits.hard]
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
 # removes the ceiling for that key. A request that asks for more gets `false` back from
 # `Core\Config::set` and keeps the value it had.
-#memory = "1G"
-#cpu_time = "120s"
-#wall_time = "300s"
-#max_tasks = 64
-#max_output = "128M"
-#max_regex_steps = 5000000
+#memory = "1G"                        # default: no ceiling
+#cpu_time = "120s"                    # default: no ceiling
+#wall_time = "300s"                   # default: no ceiling
+#max_tasks = 64                       # default: no ceiling
+#max_output = "128M"                  # default: no ceiling
+#max_regex_steps = 5000000            # default: no ceiling
 
 
 # ----------------------------------------------------------------------------------------------
@@ -111,40 +115,40 @@
 [capabilities.script]
 # The roots a `spawn script` target may live under. Being able to read a file is not permission to
 # run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).
-#spawn = ["scripts/"]
+#spawn = ["scripts/"]                 # example
 
 [capabilities.fs]
 # The roots readable and the roots writable, each a path prefix.
-#read = ["public/", "storage/"]
-#write = ["storage/"]
+#read = ["public/", "storage/"]       # example
+#write = ["storage/"]                 # example
 
 [capabilities.net]
 # The hosts an outbound connection may reach.
-#connect = ["api.example.com:443"]
+#connect = ["api.example.com:443"]    # example
 # The hosts a call may name its own address for with `connectTo`
 # (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`). The address written is
 # judged by the policy below exactly as a resolved one is and the certificate is still checked
 # against the URL's host, so this chooses among addresses already reachable rather than adding one.
 # `true` is not a spelling it has.
-#connect_to = ["api.example.com"]
+#connect_to = ["api.example.com"]     # example
 # The hosts a redirect from `https` to `http` may land on, which the call must ask for as well
 # (`rule:http-server/an-https-redirect-never-becomes-plaintext`). A plain `http` URL asked for
 # directly needs nothing here; what this names is a server stripping a call's TLS with one
 # `Location` header. `true` is not a spelling it has.
-#downgrade = ["legacy.example.com"]
+#downgrade = ["legacy.example.com"]   # example
 # The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches
 # anyway — written as IP literals and never as hostnames, because the policy is asked of a resolved
 # address and a name can resolve anywhere. It widens nothing on its own: an address named here is
 # still reachable only under a host `connect` grants, and `true` is not a spelling it has.
-#internal = ["10.0.0.5"]
+#internal = ["10.0.0.5"]              # example
 # The endpoints a program may bind, as `address:port` literals matched exactly
 # (`rule:security/net-listen-is-a-separate-grant-from-net-connect`). `true` is every endpoint this
 # process may bind, and an entry that does not parse as an endpoint matches nothing.
-#listen = ["127.0.0.1:9000"]
+#listen = ["127.0.0.1:9000"]          # example
 # The socket paths a program may connect to or bind, as absolute paths or directory prefixes. It
 # follows from `connect` no more than `connect` follows from it: reaching the network and opening a
 # socket on this machine are different powers.
-#local = ["/run/novis/"]
+#local = ["/run/novis/"]              # example
 
 [capabilities.tls]
 # Where an outbound call may relax certificate verification
@@ -160,46 +164,46 @@
 # which builds and checks the chain and skips only the name; and `insecure` unlocks
 # `tlsVerify: false`, which checks neither. Every relaxed session still checks the handshake
 # signature, so the peer does hold the key it presented.
-#anchors = ["partner.example.com"]
-#pin = ["device.local"]
-#any_name = ["10-4-0-9.internal"]
-#insecure = ["staging.example.com"]
+#anchors = ["partner.example.com"]    # example
+#pin = ["device.local"]               # example
+#any_name = ["10-4-0-9.internal"]     # example
+#insecure = ["staging.example.com"]   # example
 
 [capabilities.process]
 # Whether a subprocess may be started — `true`, or the list of programs it may be.
-#exec = ["/usr/bin/convert"]
+#exec = ["/usr/bin/convert"]          # example
 
 [capabilities.debug]
 # Where a trace and where a profile may be written (`rule:testing/debug-probes`).
-#trace = ["storage/trace/"]
-#profile = ["storage/profile/"]
+#trace = ["storage/trace/"]           # example
+#profile = ["storage/profile/"]       # example
 
 [capabilities.db]
 # Which `[db.<name>]` blocks a program may open, and which it may issue DDL to. A block named here
 # was written by an operator, so it is pre-approved against the denied address ranges. Opening a
 # connection is not permission to change what is behind it, so `schema` does not follow from
 # `connect` (`rule:core-classes/schema-apply-capability`).
-#connect = ["main"]
-#schema = ["main"]
+#connect = ["main"]                   # example
+#schema = ["main"]                    # example
 # Which hosts a program-supplied `Db\Settings` may reach. These stay subject to the address policy,
 # which is why they are named as hosts and the two keys above are named as blocks.
-#open = ["db.example.com:5432"]
+#open = ["db.example.com:5432"]       # example
 
 [capabilities.mail]
 # Which `[mail.<name>]` blocks a program may send through, by name and never by host.
-#send = ["default"]
+#send = ["default"]                   # example
 
 [capabilities.cache]
 # Whether this program may reach the coherent tier — whichever store `[cache.shared] url` names.
 # There is nothing to scope: a deployment has one shared store.
-#shared = true
+#shared = true                        # example
 
 [capabilities.queue]
 # The queues whose rows a program may remove — `Core\Queue`'s `delete` and `purge`, the only two
 # members taking a grant at all (`rule:concurrency/queue-deletion-is-explicit-and-bounded`). Matched
 # exactly, so two queues differing only in case are two queues. A deployment that never removes a row
 # writes nothing here: enqueuing needs no grant.
-#purge = ["emails"]
+#purge = ["emails"]                   # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -211,19 +215,18 @@
 # Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument, plus the
 # memory and time reserved for it. The reserve is the engine's rather than the failing request's and
 # is sized once per core, so that the tier reporting an out-of-memory is not itself out of memory.
-# Unset, 16 MiB and 5 s — what compiling and running a whole script costs, which is why both are
-# larger than `[limits]`' own reserve for a handler the request already holds.
-#handler = "scripts/on-error.nvs"
-#handler_reserve_memory = "16M"
-#handler_reserve_time = "5s"
+# Both are what compiling and running a whole script costs, which is why both are larger than
+# `[limits]`' own reserve for a handler the request already holds.
+#handler = "scripts/on-error.nvs"     # example
+#handler_reserve_memory = "16M"       # default
+#handler_reserve_time = "5s"          # default
 # Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
-#target = "stderr"
+#target = "stderr"                    # default
 # Which rendering the target emits — `rule:errors/renderings`' set minus the HTML one, which belongs
-# to a response and never to a destination. Unset, the production default, `json`.
-#format = "json"
-# The minimum level written. Unset, the production default, `Info`. The mode picks this: a
-# `development` host logs from `Debug` instead.
-#level = "Info"
+# to a response and never to a destination. The mode picks this.
+#format = "json"                      # default: "json" in production, "text" in development
+# The minimum level written. The mode picks this.
+#level = "Info"                       # default: "Info" in production, "Debug" in development
 
 
 # ----------------------------------------------------------------------------------------------
@@ -239,7 +242,7 @@
 # Set this to put temporaries on a particular filesystem, such as a larger disk or a tmpfs.
 # `Boot`-class: `nvs serve` removes leftover directories at start, under the root it started with.
 # Changing it while a server runs leaves the old root's leftovers in place; nothing removes them.
-#temp_root = "/var/tmp/novis"
+#temp_root = "/var/tmp/novis"         # default: the system's temporary directory, under `novis`
 
 
 # ----------------------------------------------------------------------------------------------
@@ -253,20 +256,20 @@
 # `rule:testing/debug-mode-directive` is what closes it.
 # `[]` is off; otherwise any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so
 # a request may narrow this and can never turn a bit on.
-#mode = ["coverage"]
+#mode = ["coverage"]                  # example
 
 # `true` and a `Core\Debug::dump` made while a request writes an HTML body is appended to that body
 # as a collapsible block as well as written as a record. A JSON body is never modified either way.
 # `RuntimeTighten`, so a request may turn its own inline output off and can never turn it on: the run
 # mode's default is the only thing that enables it, and `mode = "development"` is what sets it.
-#inline = true
+#inline = false                       # default: false in production, true in development
 
 # `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so
 # that absent cleanup is deliberate and visible rather than a silent leak. `System` and reloadable,
 # which is what lets an operator flip it on around one problematic request and off again; there is
 # deliberately no in-language setter, because a program that could exempt its own files from cleanup
 # is a program that can be made to hoard them.
-#keep_temporary = false
+#keep_temporary = false               # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -283,73 +286,80 @@
 # request's session cookie. With no key the door still refuses the cross-origin half, which needs
 # nothing configured. A secret like every other credential here, so `csrf_key_file` is the sibling a
 # mounted file arrives in and writing both is a refusal.
-#csrf_key = "…"
-#csrf_key_file = "/run/secrets/nvs-csrf-key"
+#csrf_key = "…"                       # example
+#csrf_key_file = "/run/secrets/nvs-csrf-key"  # example
 
 [http.errors]
-# What a request that never got a frame shows: `generic` or `full`. Unset, the production default,
-# `generic`; a `development` host shows `full`. `Runtime`-class, so a request may pick the other.
-#detail = "generic"
+# What a request that never got a frame shows: `generic` or `full`. The mode picks this.
+# `Runtime`-class, so a request may pick the other.
+#detail = "generic"                   # default: "generic" in production, "full" in development
 
 [http.headers]
 # The secure header set, applied with no configuration present
 # (`rule:http-server/secure-headers-with-nothing-written`). What is written here replaces the shipped
-# value for that one header and leaves the rest alone.
-#content_type_options = true        # `X-Content-Type-Options: nosniff`
-#frame_ancestors = "none"           # `none`, `self`, or a list of origins
-#referrer_policy = "no-referrer"    # the `Referrer-Policy` value
-#hsts = "180d"                      # `Strict-Transport-Security` max-age; `false` disables it
-#hsts_subdomains = true             # whether that header carries `includeSubDomains`
+# value for that one header and leaves the rest alone. `content_type_options` is
+# `X-Content-Type-Options: nosniff`; `frame_ancestors` is `none`, `self` or a list of origins;
+# `referrer_policy` is the `Referrer-Policy` value; `hsts` is the `Strict-Transport-Security`
+# max-age, sent on `https` only, and `false` disables it; `hsts_subdomains` is whether that header
+# carries `includeSubDomains`.
+#content_type_options = true          # default
+#frame_ancestors = "none"             # default
+#referrer_policy = "strict-origin-when-cross-origin"  # default
+#hsts = "365d"                        # default
+#hsts_subdomains = false              # default
 # Emitting nothing is what an empty value means for these two, and for the policy that is the
-# difference between no header and a header that allows everything.
-#content_security_policy = "default-src 'self'"
-#permissions_policy = "geolocation=(), camera=()"
+# difference between no header and a header that allows everything. With nothing written the policy
+# carries `frame-ancestors` alone and no `Permissions-Policy` is sent.
+#content_security_policy = "default-src 'self'"  # default: `frame-ancestors` only
+#permissions_policy = "geolocation=(), camera=()"  # default: off
 
 [http.cors]
 # Closed until origins are named (`rule:http-server/cors-is-closed-until-origins-are-named`): with no
 # `origins`, no cross-origin request is answered, whatever the other keys say. `["*"]` is permitted
-# only with `credentials = false`.
-#origins = ["https://app.example.com"]
-#methods = ["GET", "POST"]          # what a preflight may allow
-#headers = ["content-type"]         # the request headers a preflight may allow
-#expose = ["x-request-id"]          # the response headers exposed to script
-#credentials = false                # whether credentials are allowed
-#max_age = "10m"                    # how long a preflight may be cached
+# only with `credentials = false`. `methods` and `headers` are what a preflight may allow, `expose`
+# the response headers exposed to script, `credentials` whether credentials are allowed, and
+# `max_age` how long a preflight may be cached.
+#origins = ["https://app.example.com"]  # example
+#methods = ["GET", "HEAD", "POST"]    # default
+#headers = ["content-type"]           # default: none
+#expose = ["x-request-id"]            # default: none
+#credentials = false                  # default
+#max_age = "10m"                      # default
 
 [http.cookies]
 # What every `Core\Response::addCookie` inherits
-# (`rule:http-server/cookies-are-secure-httponly-and-lax`). `same_site = "None"` with
-# `secure = false` is refused where the pair is read, because it is a cookie sent cross-site in the
-# clear.
-#secure = true
-#http_only = true
-#same_site = "Lax"                  # `Lax`, `Strict` or `None`
-#path = "/"                         # the default path
+# (`rule:http-server/cookies-are-secure-httponly-and-lax`). `same_site` is `Lax`, `Strict` or
+# `None`, and `path` is the path every cookie takes. `same_site = "None"` with `secure = false` is
+# refused where the pair is read, because it is a cookie sent cross-site in the clear.
+#secure = true                        # default
+#http_only = true                     # default
+#same_site = "Lax"                    # default
+#path = "/"                           # default
 
 [http.client]
 # No outbound call may wait forever (`rule:http-server/no-spelling-for-an-unbounded-wait`), and
 # neither key has a spelling that removes the bound. `deadline` covers every attempt and every
 # redirect hop together.
-#connect_timeout = "5s"
-#deadline = "30s"
+#connect_timeout = "5s"               # default
+#deadline = "30s"                     # default
 # Redirects are off unless a number is written here, and each hop is re-pinned against the address
 # policy (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
-#max_redirects = 0
+#max_redirects = 0                    # default
 
 # `Core\Http\Client::stream`'s two bounds, which pick up where `deadline` stops: that one covers the
 # connection and the head, and from there `idle` is the longest silence the body may go through and
 # `max_duration` the longest it may take at all — the one that ends an origin dribbling a byte at a
 # time under every idle check. Either can be written at the call instead
 # (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
-#idle = "30s"
-#max_duration = "5m"
+#idle = "30s"                         # default
+#max_duration = "5m"                  # default
 
 # A connection outlives its call in a per-core pool keyed on what the outbound check approved
 # (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`). These two bound a
 # core's memory rather than a request's, so neither is settable by a request: `pool_idle = 0` keeps
 # none, which is a connection per call exactly.
-#pool_idle = 16
-#pool_idle_timeout = "30s"
+#pool_idle = 16                       # default
+#pool_idle_timeout = "30s"            # default
 
 [http.client.socket]
 # The two bounds an outbound WebSocket has that no other outbound call does
@@ -361,9 +371,9 @@
 # opinions about the size of one message is how a program comes to work in one direction and not
 # the other.
 # The largest message reassembled, in bytes; a message past it closes the socket with `1009`.
-#max_message = 4194304
+#max_message = 4194304                # default
 # How long one frame may wait to be written before the send fails.
-#send_timeout = "30s"
+#send_timeout = "30s"                 # default
 
 [http.client.tls]
 # Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
@@ -373,15 +383,15 @@
 # (`rule:config/ownership-is-the-trust-boundary`), the same check a `[db]` block's `tls_ca_file`
 # passes. An empty list is refused: it would trust nobody, which is a handshake failure per call
 # rather than a policy.
-#roots = ["bundled"]
+#roots = ["bundled"]                  # default
 # The version floor every call speaks over. `"1.3"` raises it for all of them; there is nothing
 # below `"1.2"` to write, because the client implements neither TLS 1.0 nor 1.1.
-#min_version = "1.2"
+#min_version = "1.2"                  # default
 # A file each session's secrets are appended to in the `SSLKEYLOGFILE` format, for reading this
-# deployment's own traffic in Wireshark. Unset, and nothing is written. Refused at boot when `[mode]
-# default` is `production` — the file decrypts everything sent, credentials included, for whoever
-# can read it — and announced at every start in `development`.
-#keylog = "/var/log/novis/tls-secrets.log"
+# deployment's own traffic in Wireshark. Refused at boot when `[mode] default` is `production` — the
+# file decrypts everything sent, credentials included, for whoever can read it — and announced at
+# every start in `development`.
+#keylog = "/var/log/novis/tls-secrets.log"  # default: off
 
 [http.client.proxy]
 # The forward proxy every `Core\Http\Client` call leaves through
@@ -391,27 +401,27 @@
 # every call is dialled directly, which is what a deployment with no proxy wants. `http://` only:
 # every destination is tunnelled with `CONNECT` over plain TCP, and TLS to the proxy is a second
 # trust decision with no spelling here.
-#url = "http://proxy.internal:3128"
+#url = "http://proxy.internal:3128"   # example
 # Who resolves the destination, and there is no default — a block without this word refuses the
 # boot (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
 # `"local"` keeps everything the address pin buys: Novis resolves, checks every address against
 # `rule:security/net-address-policy` and asks for a tunnel to one it approved. `"proxy"` is for the
 # network where only the proxy can resolve a name; it moves the address question to the proxy, and
 # every boot writes a warning saying so.
-#resolve = "local"
+#resolve = "local"                    # example
 # The hosts reached directly instead, matched against the URL's host text before anything is
 # resolved: each entry exact, or with a leading `.` for every host under it. No port, no scheme, no
 # wildcard and no CIDR — an entry carrying one is refused, because a range here is more traffic
 # leaving unproxied than an operator can see they are asking for.
-#bypass = [".internal.example.com", "localhost"]
+#bypass = [".internal.example.com", "localhost"]  # example
 # The password half of the credential, inline or as the file whose whole content is the value
 # (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of the two may be set,
 # and `password_file` is `[db.<name>]`'s, under the same rule and with the same audit property.
-#password = "s3cret"
-#password_file = "/run/secrets/http-proxy"
+#password = "s3cret"                  # example
+#password_file = "/run/secrets/http-proxy"  # example
 # The user half. Both go onto `Proxy-Authorization: Basic` on the `CONNECT` request alone — never
 # to the destination, never on a redirect hop, and never into a log record or an error message.
-#username = "app"
+#username = "app"                     # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -424,51 +434,55 @@
 # written when a `[[server.mount]]` is: the server does not start without it. `listen` is one
 # flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
 # and Windows listens on TCP loopback.
-#root = "/srv/app"
-#listen = ["127.0.0.1:8080"]
+#root = "/srv/app"                    # example
+#listen = ["127.0.0.1:8000"]          # default
 # Unix-socket entries only, and the whole of who may connect to one: a connection over a Unix
 # socket names its own client address, so this is `rule:config/ownership-is-the-trust-boundary`'s
 # question asked of a socket rather than of a file. `0660` with the key left out — the owner's
 # account and the socket's group, and adding a tenant to that group grants them that address.
-#socket_mode = "0660"
+#socket_mode = "0660"                 # default
 
-# How a request finds its entry file: `entry` or `path`. The development default is `path`
+# How a request finds its entry file: `entry` or `path`
 # (`rule:config/a-startup-default-is-never-flipped`).
-#dispatch = "entry"
-# Static file serving; the development default is on. Spelled `static`, which is a Rust keyword but
-# not a TOML one.
-#static = false
+#dispatch = "entry"                   # default
+# Static file serving. Spelled `static`, which is a Rust keyword but not a TOML one.
+#static = false                       # default
 # Fail-closed: with nothing here, no forwarding header is believed, and a proxy's `X-Forwarded-For`
 # is read as the untrusted text it is.
-#trusted_proxies = ["10.0.0.1"]
+#trusted_proxies = ["10.0.0.1"]       # example
 # Off when empty — a path answered without entering the application at all.
-#health_path = "/healthz"
+#health_path = "/healthz"             # default: off
 # The in-flight ceiling, and how many cores accept over this machine's own available parallelism
 # (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
-#max_in_flight = 1024
-#workers = 4
-# The connection waits, each idle rather than total, and each finite with nothing configured.
-# A bare number is seconds, so `"10s"` and `10` are the same wait.
-#header_timeout = "10s"             # the header read wait
-#body_idle_timeout = "30s"          # the body idle wait
-#write_idle_timeout = "30s"         # the write idle wait
-#keepalive_timeout = "75s"          # the keep-alive idle wait
+#max_in_flight = 10000                # default
+#workers = 4                          # default: one per core
+# The connection waits — the header read, the body idle, the write idle and the keep-alive idle
+# wait — each idle rather than total, and each finite with nothing configured. A bare number is
+# seconds, so `"10s"` and `10` are the same wait.
+#header_timeout = "10s"               # default
+#body_idle_timeout = "30s"            # default
+#write_idle_timeout = "30s"           # default
+#keepalive_timeout = "75s"            # default
 # How long a connection keeps being served once it has seen the drain — the period that bounds a
 # stop, spelled the same way and finite for the same reason. It is not an idle wait and not
 # keep-alive under another name, so lengthening the wait a proxy needs leaves the restart alone.
-#drain_timeout = "30s"              # the drain period
+#drain_timeout = "30s"                # default
 
 [server.connection]
 # What holds a connection that was upgraded out of a request — a WebSocket, or an event stream on
 # the door that has no peer speaking. Every one of these is finite with nothing written here, and
 # none of them has an unbounded spelling: `false` and `0` are both refused, because a connection is
-# the one thing this server holds that no request ever ends.
-#max_open = 10000                   # connections this process holds open at once
-#max_frame = "1MB"                  # the largest frame payload the codec accepts
-#max_message = "4MB"                # the largest message, frames reassembled
-#idle_timeout = "5m"                # the longest silence from the peer; unarmed on an event stream
-#max_lifetime = "24h"               # the longest one connection may stay open, however busy
-#send_timeout = "30s"               # the longest one `send` may take before it throws
+# the one thing this server holds that no request ever ends. `max_open` is how many connections this
+# process holds open at once; `max_frame` the largest frame payload the codec accepts; `max_message`
+# the largest message, frames reassembled; `idle_timeout` the longest silence from the peer, unarmed
+# on an event stream; `max_lifetime` the longest one connection may stay open, however busy; and
+# `send_timeout` the longest one `send` may take before it throws.
+#max_open = 10000                     # default
+#max_frame = "1MB"                    # default
+#max_message = "4MB"                  # default
+#idle_timeout = "5m"                  # default
+#max_lifetime = "24h"                 # default
+#send_timeout = "30s"                 # default
 
 #[[server.mount]]
 # One mount — `rule:http-server/a-request-resolves-in-five-steps`. A mount matches on `prefix`, on
@@ -477,12 +491,13 @@
 # `Shop` served at `/shop`, and any other brace is refused. A host is compared without regard to
 # case; a prefix is matched exactly. There is no `mode` key here: a mount routes and an `[[app]]`
 # block sets policy (`rule:config/a-mount-routes-and-an-app-block-sets-policy`), so an application's
-# mode is one answer wherever its entry file is reached from.
-#scan = "apps/*/public/index.nvs"
-#prefix = "/{1}"
-#host = "{1}.example.com"
-#entry = "apps/shop/public/index.nvs"    # one literal file, overriding a `scan` at this key
-#origin = "https://shop.example.com"     # what `Core\Router::urlAbsolute` prepends here
+# mode is one answer wherever its entry file is reached from. `entry` is one literal file, overriding
+# a `scan` at this key, and `origin` is what `Core\Router::urlAbsolute` prepends here.
+#scan = "apps/*/public/index.nvs"     # example
+#prefix = "/{1}"                      # example
+#host = "{1}.example.com"             # example
+#entry = "apps/shop/public/index.nvs"  # example
+#origin = "https://shop.example.com"  # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -496,15 +511,13 @@
 # `shared` or `db`. The local and process cache tiers are deliberately unspellable and writing
 # either is `E0626`: a tier that is one core's own memory, or one process's, cannot hold what must
 # be coherent across every core and process serving this deployment.
-#backend = "shared"
-# How long an untouched record survives, written onto the entry so the store expires it. Unset, the
-# two hours `nvs_stdlib::session` ships, which is that module's to state because it is the one thing
-# that writes the expiry.
-#ttl = "2h"
-# The cookie name the identifier rides under. Unset, `nvs_stdlib::session`'s default. The cookie's
-# attributes are not here — `[http.cookies]` already fixes them for every cookie this server writes,
-# and a second spelling would be a way to weaken them.
-#cookie = "nvsid"
+#backend = "shared"                   # example
+# How long an untouched record survives, written onto the entry so the store expires it.
+#ttl = "2h"                           # default
+# The cookie name the identifier rides under. The cookie's attributes are not here —
+# `[http.cookies]` already fixes them for every cookie this server writes, and a second spelling
+# would be a way to weaken them.
+#cookie = "nvsid"                     # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -516,7 +529,7 @@
 # `pool = false` with no block in front of it turns pooling off everywhere, including for a
 # connection a program described for itself through `Core\Db::open` — which names no block, so no
 # per-block key could ever reach it (`rule:security/db-pool-reset-is-a-boundary`).
-#pool = false
+#pool = false                         # default: on
 
 #[db.pool]
 # This header stays commented out: `pool = false` above is the same key, and TOML refuses a file
@@ -524,60 +537,61 @@
 # set for a pool whose key is a credential hash, and could not be sized against any one server.
 # They are listed because the parser reads them, and they are spelled properly one block down,
 # under `[db.<name>.pool]`.
-#max = 8
-#idle = 2
-#lifetime = "30m"
-#acquire = "5s"
+#max = 16                             # default
+#idle = 2                             # default
+#lifetime = "30m"                     # default
+#acquire = "5s"                       # default
 
 # A connection is named, and the name is what a program and a `capabilities.db` grant refer to.
 # `main` here is an example: any name may be used, and `[db.<name>]` is the shape.
 [db.main]
 # Which driver this block selects, and where it connects. SQLite takes a `path`, resolved against
 # the directory of the file it is written in, and has no host, port, user or password.
-#driver = "postgres"
-#path = "storage/app.sqlite"
-#host = "db.example.com"
-#port = 5432
-#user = "app"
-#database = "app"
+#driver = "postgres"                  # example
+#path = "storage/app.sqlite"          # example
+#host = "db.example.com"              # example
+#port = 5432                          # default: the driver's own port
+#user = "app"                         # example
+#database = "app"                     # example
 # The password inline, or the file whose whole content is the password minus one trailing newline
 # (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of the two may be set,
 # and `password_file` is the one an audited deployment wants: it stays set after the value is read,
 # so `nvs config dump` can say where the secret came from without printing it.
-#password = "s3cret"
-#password_file = "/run/secrets/db-main"
+#password = "s3cret"                  # example
+#password_file = "/run/secrets/db-main"  # example
 # The PEM file of trust anchors this server's certificate is verified against, resolved against the
 # directory of the file it is written in. Written, it replaces the compiled-in Mozilla set for this
 # block rather than adding to it — a server behind a private CA is exactly the case where a public CA
 # vouching for it is the attack. It is trust-checked at boot on `password_file`'s footing: whoever
 # can write it chooses which server this connection may be talking to.
-#tls_ca_file = "/etc/ssl/private-ca.pem"
-# How many server-side prepared statements one connection keeps alive. Unset, the driver's own
-# default, because the size that suits a request is a property of the protocol and not of this file.
-# A written `0` is not a broken cache: it is the unnamed statement every time.
-#statement_cache = 64
+#tls_ca_file = "/etc/ssl/private-ca.pem"  # default: the bundled Mozilla set
+# How many server-side prepared statements one connection keeps alive. A written `0` is not a
+# broken cache: it is the unnamed statement every time.
+#statement_cache = 16                 # default
 # How long a statement on this connection may take before it is also written to `Core\Log`
-# (`rule:observability/a-slow-query-is-logged-past-a-threshold`). Unset, off — a slow-query log every
-# deployment gets without asking would be output nobody asked for. A written `0` logs every
-# statement, which is the honest reading of "slower than nothing".
-#slow_query = "200ms"
-# The zone this database's zone-less `DATETIME` and `TIMESTAMP` columns are written in. Unset, UTC.
-# An offset and never a zone name, because it is sent to the server as a numeric offset and a named
-# zone needs server-side tables that usually are not populated.
-#time_zone = "+02:00"
+# (`rule:observability/a-slow-query-is-logged-past-a-threshold`). A slow-query log every deployment
+# gets without asking would be output nobody asked for. A written `0` logs every statement, which is
+# the honest reading of "slower than nothing".
+#slow_query = "200ms"                 # default: off
+# The zone this database's zone-less `DATETIME` and `TIMESTAMP` columns are written in. An offset
+# and never a zone name, because it is sent to the server as a numeric offset and a named zone needs
+# server-side tables that usually are not populated.
+#time_zone = "+00:00"                 # default
 # `false` turns pooling off for this block alone; a table of bounds is the other shape, below.
-#pool = false
+#pool = false                         # default: on
 
 #[db.main.pool]
 # This header stays commented out, because `pool = false` above is the same key and TOML refuses a
 # file that writes both: to set a bound, remove the `#` from the header as well.
-# The bounds on this block's pool. `max` is per core, so a deployment's ceiling on the server is
-# cores times `max` — the number to size `max_connections` against. Unset, the set
-# `nvs_config::db::PoolBounds` ships, which is where they live because it is what parses them.
-#max = 8                            # connections one core may hold
-#idle = 2                           # how many of those stay open with nothing to do; `0` keeps none
-#lifetime = "30m"                   # how long a connection may live before it is retired regardless
-#acquire = "5s"                     # how long an acquire waits before it throws; `0` never waits
+# The bounds on this block's pool: `max` connections one core may hold, `idle` how many of those
+# stay open with nothing to do (`0` keeps none), `lifetime` how long a connection may live before it
+# is retired regardless, and `acquire` how long an acquire waits before it throws (`0` never waits).
+# `max` is per core, so a deployment's ceiling on the server is cores times `max` — the number to
+# size `max_connections` against.
+#max = 16                             # default
+#idle = 2                             # default
+#lifetime = "30m"                     # default
+#acquire = "5s"                       # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -587,18 +601,18 @@
 
 [mail.default]
 # The relay, and the sender every message carries. There is no call-site override for `from`: domain
-# alignment is a fact about the deployment. Unset, `port` is 25 and `timeout` is 30s.
-#host = "smtp.example.com"
-#port = 587
-#from = "noreply@example.com"
-#timeout = "30s"
+# alignment is a fact about the deployment.
+#host = "smtp.example.com"            # example
+#port = 25                            # default
+#from = "noreply@example.com"         # example
+#timeout = "30s"                      # default
 # `user` and `password` are the pair that asks for TLS: a block naming them is sent through
 # `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in the
 # clear. Half a credential is refused. `password_file` is `[db.<name>]`'s, under the same rule and
 # with the same audit property.
-#user = "app"
-#password = "s3cret"
-#password_file = "/run/secrets/mail-default"
+#user = "app"                         # example
+#password = "s3cret"                  # example
+#password_file = "/run/secrets/mail-default"  # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -610,7 +624,7 @@
 [storage.local]
 # The directory the disk's objects are files in. Every object is one entry directly under it, because
 # a key is one segment and never a path.
-#root = "storage/files"
+#root = "storage/files"               # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -619,24 +633,23 @@
 # ----------------------------------------------------------------------------------------------
 
 [cache.local]
-# What this core's entries may hold together — a size, or `false` for no ceiling at all. Unset, the
-# cap `nvs_stdlib::cache` ships, which is that module's to state because it is the one thing that
-# enforces it. Exceeding it forgets entries rather than failing a write, so it is never a reason a
-# `put` throws. `System`-class: the footprint is charged to the core and not to any one request.
-#max_size = "32M"
+# What this core's entries may hold together — a size, or `false` for no ceiling at all. Exceeding it
+# forgets entries rather than failing a write, so it is never a reason a `put` throws.
+# `System`-class: the footprint is charged to the core and not to any one request.
+#max_size = "32M"                     # default
 
 [cache.process]
 # What the entries of the one map every core of this process reads may hold together — a size, or
-# `false` for no ceiling at all. Unset, the cap `nvs_stdlib::cache` ships. It is the same figure the
-# local tier takes, and the same number here is less memory rather than more: this map is held once
-# per process where that one is held once per core. `System`-class, and read by the next write.
-#max_size = "32M"
+# `false` for no ceiling at all. It is the same figure the local tier takes, and the same number
+# here is less memory rather than more: this map is held once per process where that one is held
+# once per core. `System`-class, and read by the next write.
+#max_size = "32M"                     # default
 
 # How long a caller waits for the one filler in this process before it throws `TimeoutError`, and
 # the default a `getSecret` overrides by writing `wait` at its own call site. `0` and `false` are
 # both refused at boot: a wait of nothing releases every concurrent caller throwing, and a wait
 # nothing ends has no spelling here.
-#fill_wait = "5s"
+#fill_wait = "5s"                     # default
 
 [cache.shared]
 # Where the coherent tier lives: `redis://host[:port]`, `rediss://host[:port]` for the same store
@@ -645,24 +658,25 @@
 # than answering a store that would behave like the local one. TLS is the scheme and never a key
 # here, because it says which transport this is rather than carrying a value over one; a private CA
 # goes in this deployment's trust anchors beside every other outbound call's.
-#url = "redis://127.0.0.1:6379"
+#url = "redis://127.0.0.1:6379"       # example
 # The credential the store is behind, sent as `AUTH` before any command on every connection — and
 # again on the reconnect after a dropped socket, so a store behind a password is never reached
-# without one. Unset, nothing is sent, which is what a store with no password accepts. It is never
-# written into the URL: a credential in a URL is a credential in a string that gets logged.
-#password = "hunter2"
+# without one. With nothing written nothing is sent, which is what a store with no password accepts.
+# It is never written into the URL: a credential in a URL is a credential in a string that gets
+# logged.
+#password = "hunter2"                 # example
 # The file the credential is read out of instead — exactly one of the pair, the file's whole
 # content is the value, and the value never enters the table `nvs config dump` writes. This is the
 # half a container injects, and it is trust-checked at boot: whoever can write it chooses the
 # credential this deployment connects with.
-#password_file = "/run/secrets/cache_password"
+#password_file = "/run/secrets/cache_password"  # example
 # Which of the store's databases this deployment's entries live in, sent as `SELECT` on every
-# connection. Unset, the index the store opens on, which costs no round trip. A store that does not
-# have this index refuses the connection in its own words: how many databases it keeps is its
-# answer and not this file's.
-#database = 3
-# The bound on the handshake and on each command. Unset, the shipped five seconds.
-#timeout = "5s"
+# connection. The store's own index costs no round trip. A store that does not have this index
+# refuses the connection in its own words: how many databases it keeps is its answer and not this
+# file's.
+#database = 3                         # default: the store's own
+# The bound on the handshake and on each command.
+#timeout = "5s"                       # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -676,17 +690,17 @@
 [queue]
 # The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required, and best
 # the application's own: that is what makes an enqueue commit with the write that caused it.
-#connection = "main"
+#connection = "main"                  # example
 # Workers this instance runs. `0` makes it enqueue-only, which is a supported deployment and not a
 # disabled queue.
-#workers = 4
+#workers = 4                          # default
 # Attempts a job gets before it is moved to the dead-letter table. Finite with nothing configured,
 # and there is no spelling for unbounded: nothing is retried forever and nothing is discarded
 # silently.
-#max_attempts = 5
+#max_attempts = 5                     # default
 # How long a claimed job stays invisible to other workers before it may be claimed again. A duration,
 # so `"5m"` and `300` read the same.
-#visibility = "5m"
+#visibility = "5m"                    # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -697,9 +711,9 @@
 [deferred]
 # `System` — request trees per core kept alive for deferred work. Past the cap, `afterResponse`
 # throws rather than queueing, so the pressure is visible in the request that caused it.
-#max_concurrent = 32
+#max_concurrent = 256                 # default
 # `Runtime` — the deadline a call inherits when it names none.
-#deadline = "30s"
+#deadline = "30s"                     # default: none
 
 
 # ----------------------------------------------------------------------------------------------
@@ -712,81 +726,81 @@
 # `name` is required and unique — it is the log and metric label, and a duplicate is a boot error
 # naming both lines. `script` is resolved against the `script.spawn` roots and prefix-checked, so a
 # path outside them is a boot error and not a first-fire one.
-#name = "nightly-report"
-#cron = "0 3 * * *"                 # five-field cron, and nothing more
-#script = "scripts/report.nvs"
-# `scope` is required and has no default: `fleet` runs the entry once across the deployment, `host`
-# once on each. `timezone` is UTC unless written. `overlap` is `skip` unless written — what happens
+#name = "nightly-report"              # example
+#cron = "0 3 * * *"                   # example
+#script = "scripts/report.nvs"        # example
+# `cron` is five-field cron, and nothing more. `scope` is required: `fleet` runs the entry once
+# across the deployment, `host` once on each. `overlap` is `skip`, `queue` or `kill` — what happens
 # when a fire arrives while the previous one is still running.
-#scope = "fleet"
-#timezone = "UTC"
-#overlap = "skip"                   # `skip`, `queue` or `kill`
+#scope = "fleet"                      # example
+#timezone = "UTC"                     # default
+#overlap = "skip"                     # default
 
 #[schedule.limits]
 # This entry's ceilings, which are `[limits.hard]`'s keys with no ceiling nested under them. `false`
 # removes one.
-#memory = "1G"
-#cpu_time = "300s"
-#wall_time = "600s"
-#max_tasks = 16
-#max_output = "64M"
-#max_regex_steps = 5000000
+#memory = "1G"                        # default: no ceiling
+#cpu_time = "300s"                    # default: no ceiling
+#wall_time = "600s"                   # default: no ceiling
+#max_tasks = 16                       # default: no ceiling
+#max_output = "64M"                   # default: no ceiling
+#max_regex_steps = 5000000            # default: no ceiling
 
 #[schedule.grants.script]
 # This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
 # is not named is not granted. Each block's comment there is the one that explains the key.
-#spawn = ["scripts/"]
+#spawn = ["scripts/"]                 # example
 
 #[schedule.grants.fs]
 # The roots readable and writable while this entry runs.
-#read = ["storage/"]
-#write = ["storage/reports/"]
+#read = ["storage/"]                  # example
+#write = ["storage/reports/"]         # example
 
 #[schedule.grants.net]
 # Where this entry may reach, bind, or step outside the denied ranges to, and the two hosts lists a
 # call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com:443"]
-#connect_to = ["api.example.com"]
-#downgrade = ["legacy.example.com"]
-#internal = ["10.0.0.5"]
-#listen = ["127.0.0.1:9100"]
-#local = ["/run/novis/"]
+#connect = ["api.example.com:443"]    # example
+#connect_to = ["api.example.com"]     # example
+#downgrade = ["legacy.example.com"]   # example
+#internal = ["10.0.0.5"]              # example
+#listen = ["127.0.0.1:9100"]          # example
+#local = ["/run/novis/"]              # example
 
 #[schedule.grants.tls]
 # Where this entry may relax certificate verification, key for key as `[capabilities.tls]` above.
-#anchors = ["partner.example.com"]
-#pin = ["device.local"]
-#any_name = ["10-4-0-9.internal"]
-#insecure = ["staging.example.com"]
+#anchors = ["partner.example.com"]    # example
+#pin = ["device.local"]               # example
+#any_name = ["10-4-0-9.internal"]     # example
+#insecure = ["staging.example.com"]   # example
 
 #[schedule.grants.process]
 # Whether this entry may start a subprocess, and which.
-#exec = ["/usr/bin/convert"]
+#exec = ["/usr/bin/convert"]          # example
 
 #[schedule.grants.debug]
 # Where this entry's trace and profile may be written.
-#trace = ["storage/trace/"]
-#profile = ["storage/profile/"]
+#trace = ["storage/trace/"]           # example
+#profile = ["storage/profile/"]       # example
 
 #[schedule.grants.db]
 # Which blocks this entry may open and issue DDL to, and which hosts it may reach with settings of
 # its own.
-#connect = ["main"]
-#schema = ["main"]
-#open = ["db.example.com:5432"]
+#connect = ["main"]                   # example
+#schema = ["main"]                    # example
+#open = ["db.example.com:5432"]       # example
 
 #[schedule.grants.mail]
 # Which `[mail.<name>]` blocks this entry may send through.
-#send = ["default"]
+#send = ["default"]                   # example
 
 #[schedule.grants.cache]
 # Whether this entry may reach the coherent tier.
-#shared = true
+#shared = true                        # example
 
 #[schedule.grants.queue]
 # The queues whose rows this entry may remove — the retention entry is the one place this grant
 # usually belongs.
-#purge = ["emails"]
+#purge = ["emails"]                   # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -797,28 +811,29 @@
 # `false`, `prometheus` or `otlp`, and the bound on how many series one core accumulates between
 # scrapes. Past the bound a new series is refused rather than allowed to grow the registry without
 # end (`rule:observability/past-max-series-a-new-series-is-refused`).
-#exporter = false
-#max_series = 10000
-# Where a collector reaches the scrape endpoint. Required where `exporter = "prometheus"`, and a
-# start that names that exporter without this one is refused: the address decides who on the network
-# reads this process's series, and picking one nobody wrote down is not a default to have
+#exporter = false                     # default
+#max_series = 10000                   # default
+# The Prometheus scrape endpoint, where a collector reaches it. Required where
+# `exporter = "prometheus"`, and a start that names that exporter without this one is refused: the
+# address decides who on the network reads this process's series, and picking one nobody wrote down
+# is not a default to have
 # (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
-#listen = "127.0.0.1:9090"          # the Prometheus scrape endpoint
-# Where the collector this process pushes its series to is. Required where `exporter = "otlp"`, on
+#listen = "127.0.0.1:9090"            # example
+# The OTLP collector URL this process pushes its series to. Required where `exporter = "otlp"`, on
 # the terms `listen` is required by `prometheus`. The push is OTLP over HTTP and goes to
 # `/v1/metrics` under a URL that names no path; a URL that names one is dialled as written.
-#endpoint = "http://127.0.0.1:4318" # the OTLP collector URL
+#endpoint = "http://127.0.0.1:4318"   # example
 
 [trace]
 # `false` or `otlp`, head-based sampling from 0.0 to 1.0, and whether `traceparent` is sent on
 # outbound `Core\Http\Client` calls. An inbound sampled trace is always continued regardless of the
 # sample rate.
-#exporter = false
-#sample = 0.01
-#propagate = true
+#exporter = false                     # default
+#sample = 0.0                         # default
+#propagate = true                     # default
 # Where the collector this process pushes its spans to is, on `[metrics] endpoint`'s terms and
 # required where `exporter = "otlp"`. A URL that names no path takes `/v1/traces`.
-#endpoint = "http://127.0.0.1:4318"
+#endpoint = "http://127.0.0.1:4318"   # example
 
 
 # ----------------------------------------------------------------------------------------------
@@ -828,7 +843,7 @@
 [control]
 # A path, `\\.\pipe\nvs-control` on Windows, or `false` to disable. There is no TCP listener, no token
 # and no auth middleware: the socket's owner and mode are the authentication.
-#socket = "/run/novis/control.sock"
+#socket = "/run/novis/control.sock"   # default: off
 
 
 # ----------------------------------------------------------------------------------------------
@@ -839,22 +854,21 @@
 [opcache]
 # When a source file is re-`stat`ed, and the rate cap that bounds what those `stat`s cost. `never` is
 # the production answer, and it is what makes a warm start read no source at all.
-#validate = "never"
-#revalidate_freq = "2s"
+#validate = "never"                   # default: "never" in production, "mtime" in development
+#revalidate_freq = "2s"               # default
 # Whether the on-disk artifact cache is used at all, and where it lives. `file_cache_dir` is the only
 # spelling of that directory — `[cache]` above is `Core\Cache`'s two tiers and holds none — and it is
 # the one key in this block that applies at boot rather than at reload, because moving it re-creates
-# the runtime's mapping of every cached unit. Unset, the per-build location `nvs-cli`'s cache module
-# derives inside the account already running the compile; whatever it is, it must be owned by that
-# account and writable by nobody else.
-#file_cache = true
-#file_cache_dir = "/var/cache/novis"
+# the runtime's mapping of every cached unit. Whatever the directory is, it must be owned by the
+# account running the compile and writable by nobody else.
+#file_cache = true                    # default
+#file_cache_dir = "/var/cache/novis"  # default: a cache directory of the account running Novis
 # The cache's ceiling in bytes, and the probability pair that decides how often a sweep runs — the
 # shape PHP's session GC uses, read the same way: a sweep on `file_cache_gc_probability` runs in
 # `file_cache_gc_divisor`.
-#file_cache_max_size = "1G"
-#file_cache_gc_probability = 1
-#file_cache_gc_divisor = 100
+#file_cache_max_size = "256M"         # default
+#file_cache_gc_probability = 1        # default
+#file_cache_gc_divisor = 100          # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -867,101 +881,100 @@
 # `root` or `entry`, never both and never neither. `root` matches every entry file beneath a
 # directory on path-component boundaries; `entry` is one file exactly, which is the most specific
 # form of the same test.
-#root = "apps/shop"
-#entry = "apps/shop/public/index.nvs"
+#root = "apps/shop"                   # example
+#entry = "apps/shop/public/index.nvs"  # example
 # The mode this application starts in, under `[mode] ceiling` like any other, and what
 # `Core\Router::urlAbsolute` prepends for it.
-#mode = "production"
-#origin = "https://shop.example.com"
+#mode = "production"                  # default: the `[mode]` block's
+#origin = "https://shop.example.com"  # example
 
 #[app.limits]
-# `[limits]`' keys for this application alone, read exactly as they are read there — including that
-# an unset one is no cap rather than a shipped number.
-#memory = "512M"
-#cpu_time = "30s"
-#wall_time = "60s"
-#max_output = "32M"
-#max_tasks = 16
-#max_regex_steps = 1000000
-#fatal_reserve_memory = "1M"
-#fatal_reserve_time = "50ms"
-#max_script_depth = 64
-#max_decompressed = "64M"
-#max_decompression_ratio = 1000
+# `[limits]`' keys for this application alone, read exactly as they are read there.
+#memory = "512M"                      # default: no cap
+#cpu_time = "30s"                     # default: no cap
+#wall_time = "60s"                    # default: no cap
+#max_output = "32M"                   # default: no cap
+#max_tasks = 16                       # default: no cap
+#max_regex_steps = 1000000            # default
+#fatal_reserve_memory = "1M"          # default
+#fatal_reserve_time = "50ms"          # default
+#max_script_depth = 64                # default
+#max_decompressed = "64M"             # default
+#max_decompression_ratio = 1000       # default
 
 #[app.limits.hard]
 # This application's ceilings; `false` removes one.
-#memory = "1G"
-#cpu_time = "120s"
-#wall_time = "300s"
-#max_tasks = 64
-#max_output = "128M"
-#max_regex_steps = 5000000
+#memory = "1G"                        # default: no ceiling
+#cpu_time = "120s"                    # default: no ceiling
+#wall_time = "300s"                   # default: no ceiling
+#max_tasks = 64                       # default: no ceiling
+#max_output = "128M"                  # default: no ceiling
+#max_regex_steps = 5000000            # default: no ceiling
 
 #[app.capabilities.script]
 # This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not
 # named is not granted, and the block's comment up there is the one that explains the key.
-#spawn = ["apps/shop/scripts/"]
+#spawn = ["apps/shop/scripts/"]       # example
 
 #[app.capabilities.fs]
 # The roots this application may read and write.
-#read = ["apps/shop/public/", "storage/shop/"]
-#write = ["storage/shop/"]
+#read = ["apps/shop/public/", "storage/shop/"]  # example
+#write = ["storage/shop/"]            # example
 
 #[app.capabilities.net]
 # Where this application may reach, bind, or step outside the denied ranges to, and the two host
 # lists a call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com:443"]
-#connect_to = ["api.example.com"]
-#downgrade = ["legacy.example.com"]
-#internal = ["10.0.0.5"]
-#listen = ["127.0.0.1:9000"]
-#local = ["/run/novis/"]
+#connect = ["api.example.com:443"]    # example
+#connect_to = ["api.example.com"]     # example
+#downgrade = ["legacy.example.com"]   # example
+#internal = ["10.0.0.5"]              # example
+#listen = ["127.0.0.1:9000"]          # example
+#local = ["/run/novis/"]              # example
 
 #[app.capabilities.tls]
 # Where this application may relax certificate verification, key for key `[capabilities.tls]`'s.
-#anchors = ["partner.example.com"]
-#pin = ["device.local"]
-#any_name = ["10-4-0-9.internal"]
-#insecure = ["staging.example.com"]
+#anchors = ["partner.example.com"]    # example
+#pin = ["device.local"]               # example
+#any_name = ["10-4-0-9.internal"]     # example
+#insecure = ["staging.example.com"]   # example
 
 #[app.capabilities.process]
 # Whether this application may start a subprocess, and which.
-#exec = ["/usr/bin/convert"]
+#exec = ["/usr/bin/convert"]          # example
 
 #[app.capabilities.debug]
 # Where this application's trace and profile may be written.
-#trace = ["storage/shop/trace/"]
-#profile = ["storage/shop/profile/"]
+#trace = ["storage/shop/trace/"]      # example
+#profile = ["storage/shop/profile/"]  # example
 
 #[app.capabilities.db]
 # Which blocks this application may open and issue DDL to, and which hosts it may reach with settings
 # of its own.
-#connect = ["main"]
-#schema = ["main"]
-#open = ["db.example.com:5432"]
+#connect = ["main"]                   # example
+#schema = ["main"]                    # example
+#open = ["db.example.com:5432"]       # example
 
 #[app.capabilities.mail]
 # Which `[mail.<name>]` blocks this application may send through.
-#send = ["default"]
+#send = ["default"]                   # example
 
 #[app.capabilities.cache]
 # Whether this application may reach the coherent tier.
-#shared = true
+#shared = true                        # example
 
 #[app.capabilities.queue]
 # The queues whose rows this application may remove.
-#purge = ["emails"]
+#purge = ["emails"]                   # example
 
 #[app.log]
 # `[log]`'s keys for this application alone: the tier-3 handler and its reserve, and what the record
 # written for it looks like.
-#handler = "apps/shop/scripts/on-error.nvs"
-#handler_reserve_memory = "16M"
-#handler_reserve_time = "5s"
-#target = "stderr"
-#format = "json"
-#level = "Info"
+#handler = "apps/shop/scripts/on-error.nvs"  # example
+#handler_reserve_memory = "16M"       # default
+#handler_reserve_time = "5s"          # default
+#target = "stderr"                    # default
+#format = "json"                      # default: "json" in production, "text" in development
+#level = "Info"                       # default: "Info" in production, "Debug" in development
 
 
 # ----------------------------------------------------------------------------------------------
@@ -972,12 +985,12 @@
 
 #[[include]]
 # One file, relative to the directory of the file this entry is written in.
-#path = "conf/limits.toml"
+#path = "conf/limits.toml"            # example
 # Every `*.toml` directly inside a directory, ascending by filename and not recursing. Not a glob.
-#dir = "conf.d"
+#dir = "conf.d"                       # example
 # Absence is fine; unreadable, unowned or unparseable is not. With it, the ownership check moves to
 # the directory that would have held the file.
-#optional = true
+#optional = true                      # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -988,5 +1001,5 @@
 #[[extension]]
 # The `.nvsx` to load, and the pin re-verified on every `nvs ctl reload` — a mismatch refuses the
 # whole swap rather than loading the file that changed.
-#path = "/usr/lib/novis/image.nvsx"
-#sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+#path = "/usr/lib/novis/image.nvsx"   # example
+#sha256 = "0000000000000000000000000000000000000000000000000000000000000000"  # example

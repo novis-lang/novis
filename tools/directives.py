@@ -89,6 +89,20 @@ are refused: a setting that is the same TOML key as a live header, which is a
 duplicate key the moment it is uncommented, and a setting under a commented-out
 header whose name is also a key of the live header above it, which is accepted
 into the wrong block.
+
+**Every setting line ends with a trailer saying what leaving the key unset does**,
+because the value beside a commented-out key is otherwise indistinguishable from
+a default: `# default` when the value shown is what an unset key gives,
+`# default: <what unset gives instead>` when the value shown is one an operator
+could write and unset means something no value spells -- no cap, off, the
+driver's own -- and `# example` when there is nothing to call a default, because
+unset means nothing is granted, mounted, opened or scheduled, or the key is
+required once its block is written. Two keys that are one field carry one
+trailer, so `[limits]` and `[app.limits]` cannot disagree about what unset
+means. Where the config crate itself ships the default -- `PoolBounds::DEFAULT`,
+`Waits::default`, `Revalidation::default` -- the value on a `# default` line is
+compared with the code, so the file cannot show a number the crate stopped
+shipping.
 """
 
 from __future__ import annotations
@@ -143,6 +157,37 @@ SETTING = re.compile(r"^(?P<out>#?)(?P<key>[A-Za-z_][\w\-]*(?:\.[A-Za-z_][\w\-]*
 #: What an `[unread:]` key's prose block has to open with, so that an operator
 #: reads it before the key rather than after writing the key.
 UNIMPLEMENTED = "NOT IMPLEMENTED"
+
+#: The trailer every setting line in the default file ends with: what leaving the key
+#: unset does. `default` alone says the value shown is it; `default: <text>` says unset
+#: gives what the text says, and the value shown is one an operator could write instead;
+#: `example` says there is nothing to call a default.
+NOTE = re.compile(r"^(?P<kind>default|example)(?::\s*(?P<text>\S.*?))?\s*$")
+
+#: The defaults the config crate ships itself, and the setting each field of them is. A
+#: `# default` line for one of these keys has to show the code's value. Every other
+#: default lives in the crate that enforces it, and the trailer is its one home in the
+#: file.
+CODE_DEFAULTS: dict[tuple[str, str], dict[str, str]] = {
+    ("crates/nvs-config/src/db.rs", "PoolBounds"): {
+        "max": "db.<name>.pool.max",
+        "idle": "db.<name>.pool.idle",
+        "lifetime": "db.<name>.pool.lifetime",
+        "acquire": "db.<name>.pool.acquire",
+    },
+    ("crates/nvs-config/src/server.rs", "Waits"): {
+        "header": "server.header_timeout",
+        "body_idle": "server.body_idle_timeout",
+        "write_idle": "server.write_idle_timeout",
+        "keepalive": "server.keepalive_timeout",
+        "drain": "server.drain_timeout",
+    },
+    ("crates/nvs-config/src/cache.rs", "Revalidation"): {"freq": "opcache.revalidate_freq"},
+}
+
+#: A duration as the file writes one: `"30m"`, `"50ms"`, or a bare number of seconds.
+DURATION = re.compile(r'^"?(?P<n>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|m|h|d)?"?$')
+UNITS = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0, "d": 86400.0, None: 1.0}
 
 #: A line comment, dropped where the question is whether a file's *code* names a
 #: block: a rustdoc header naming another crate's business is prose, not a read.
@@ -623,11 +668,15 @@ class Entry:
     """One setting in the default file: the key it spells, and the prose above it."""
 
     def __init__(self, dotted: str, line: int, prose: list[str], commented: bool,
-                 lands: str | None = None):
+                 lands: str | None = None, value: str = "", note: str | None = None):
         self.dotted = dotted
         self.line = line
         self.prose = prose
         self.commented = commented
+        #: The value written beside the key, and the trailer after it -- the text past the
+        #: first `#` that is not inside a string -- or `None` when the line carries none.
+        self.value = value
+        self.note = note
         #: The key this line becomes when it is uncommented and its own header is not:
         #: TOML puts it under the nearest live header above. `None` under a live header,
         #: where the line already reads as what it says.
@@ -658,14 +707,151 @@ def parse_template(text: str) -> list[Entry]:
         if setting:
             key = setting.group("key")
             lands = None if live == prefix else (f"{live}.{key}" if live else key)
+            value, note = split_value(line[setting.end():])
             entries.append(Entry(f"{prefix}.{key}" if prefix else key, number, prose,
-                                 bool(setting.group("out")), lands))
+                                 bool(setting.group("out")), lands, value, note))
             continue
         if line.startswith("#"):
             prose.append(line.lstrip("#").strip())
             continue
         prose = []
     return entries
+
+
+def split_value(rest: str) -> tuple[str, str | None]:
+    """What follows a setting's `=`: the value, and the trailer past the first `#` that is
+    not inside a string. TOML has no `#` outside a string that is not a comment, so the
+    scan needs only the two quote characters."""
+    quote = ""
+    for index, char in enumerate(rest):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#":
+            return rest[:index].strip(), rest[index + 1:].strip()
+    return rest.strip(), None
+
+
+def seconds(text: str) -> float | None:
+    """A duration as the file or the code spells it, in seconds -- `"30m"`, `75`, or what
+    `Duration::from_secs(30 * 60)` evaluates to -- or `None` for anything else."""
+    text = text.strip()
+    code = re.match(r"Duration::from_(?P<unit>secs|millis)\((?P<expr>[\d\s*]+)\)$", text)
+    if code:
+        product = 1
+        for factor in code.group("expr").split("*"):
+            product *= int(factor)
+        return product / 1000 if code.group("unit") == "millis" else float(product)
+    plain = DURATION.match(text)
+    if plain:
+        return float(plain.group("n")) * UNITS[plain.group("unit")]
+    return None
+
+
+def same_value(written: str, expr: str) -> bool:
+    """Whether the value a setting line shows is the one the code spells: the same text, or
+    the same number of seconds when both are durations."""
+    if written.strip() == expr.strip():
+        return True
+    left, right = seconds(written), seconds(expr)
+    return left is not None and right is not None and left == right
+
+
+def code_defaults() -> dict[str, tuple[str, str]]:
+    """Every default the config crate ships itself, by the setting it is: the value as the
+    code spells it, and the `file:line` it is spelled at.
+
+    Read out of the struct literal under `impl Default for <Type>` or
+    `pub const DEFAULT: <Type>`, one `field: expr,` per line, which is the shape all three
+    are written in. A default that stops being written that way is an error here rather
+    than a comparison quietly skipped."""
+    found: dict[str, tuple[str, str]] = {}
+    for (rel, struct), fields in CODE_DEFAULTS.items():
+        opened = literal = False
+        for number, raw in enumerate((ROOT / rel).read_text(encoding="utf-8").split("\n"),
+                                     start=1):
+            line = raw.strip()
+            if not opened:
+                if line == f"impl Default for {struct} {{":
+                    opened = True
+                elif line == f"pub const DEFAULT: {struct} = {struct} {{":
+                    opened = literal = True
+                continue
+            if not literal:
+                literal = line in ("Self {", f"{struct} {{")
+                continue
+            pair = re.match(r"(?P<field>\w+): (?P<expr>.+),$", line)
+            if pair and pair.group("field") in fields:
+                found[fields[pair.group("field")]] = (pair.group("expr"), f"{rel}:{number}")
+            elif line.startswith("}"):
+                break
+        missing = [field for field, dotted in fields.items() if dotted not in found]
+        if missing:
+            raise SystemExit(
+                f"directives.py: {rel}: `{struct}`'s default no longer spells "
+                f"{', '.join(missing)} as `field: expr,` under its struct literal, so "
+                f"`--check-template` cannot compare the default file with it. Teach "
+                f"`code_defaults` the new shape, or write the literal that way."
+            )
+    return found
+
+
+def check_notes(keys: list[Key], entries: list[Entry], rel: str) -> list[str]:
+    """The trailer every setting line owes, in the three ways it goes wrong: missing or
+    malformed, two spellings of one field disagreeing, and a `# default` value the config
+    crate does not ship."""
+    problems: list[str] = []
+    first: dict[int, tuple[Entry, str]] = {}
+    shipped = code_defaults()
+    for entry in entries:
+        key = find_key(keys, entry.dotted)
+        if key is None:
+            continue
+        note = NOTE.match(entry.note or "")
+        if not note:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` does not say what leaving it unset "
+                f"does. End the line with `# default` when the value shown is what an unset "
+                f"key gives, `# default: <what unset gives>` when that is something no value "
+                f"spells, or `# example` when there is nothing to call a default."
+            )
+            continue
+        kind, text = note.group("kind"), note.group("text")
+        spelled = f"{kind}: {text}" if text else kind
+        if kind == "example" and text:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` says `# {spelled}`. `example` takes "
+                f"no text -- it says nothing is granted, mounted, opened or scheduled until "
+                f"the key is written -- and a key with a default says `# default: <what "
+                f"unset gives>` instead."
+            )
+            continue
+        earlier = first.setdefault(id(key.field), (entry, spelled))
+        if earlier[1] != spelled:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` says `# {spelled}`, and "
+                f"`{earlier[0].dotted}` at line {earlier[0].line} says `# {earlier[1]}`. "
+                f"They are one field ({key.anchor}) read by one piece of code, so unset "
+                f"means one thing."
+            )
+        code = shipped.get(key.dotted)
+        if code is None:
+            continue
+        expr, anchor = code
+        if text:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` says `# {spelled}`, and {anchor} "
+                f"ships `{expr}` for it. Show that value and say `# default`."
+            )
+        elif not same_value(entry.value, expr):
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted} = {entry.value}` is marked "
+                f"`# default`, and {anchor} ships `{expr}`. Show the value the code ships: "
+                f"the file must not carry a number the crate stopped shipping."
+            )
+    return problems
 
 
 def marked(entry: Entry, owner: str) -> bool:
@@ -675,14 +861,17 @@ def marked(entry: Entry, owner: str) -> bool:
 
 
 def check_template(keys: list[Key], path: Path) -> list[str]:
-    """A default file against the roster, in the four ways that file rots.
+    """A default file against the roster, in the five ways that file rots.
 
     A key the tree parses and the file omits is a setting an operator never learns
     exists. A key the file spells and the tree does not parse is one they write and
     the next boot refuses. A key spelled twice means they uncomment the copy nothing
-    reads. And an `[unread:]` key with no `# NOT IMPLEMENTED` note is the worst of
-    them, because the file accepts the key, the boot accepts the file, and nothing
-    happens -- which is the whole failure this goal exists to close.
+    reads. A setting line with no trailer saying what unset does, or one that disagrees
+    with another spelling of the same field or with the value the config crate ships,
+    is a line an operator cannot tell a default from a suggestion on (`check_notes`).
+    And an `[unread:]` key with no `# NOT IMPLEMENTED` note is the worst of them,
+    because the file accepts the key, the boot accepts the file, and nothing happens --
+    which is the whole failure this goal exists to close.
 
     The path is an argument so that a draft is gated where it is written, rather than
     only once it has been moved into the crate."""
@@ -702,7 +891,8 @@ def check_template(keys: list[Key], path: Path) -> list[str]:
     live_headers = {match.group(1) for line in text.split("\n")
                     if not line.startswith("#") and (match := HEADER.match(line.strip()))}
     seen: dict[str, Entry] = {}
-    for entry in parse_template(text):
+    entries = parse_template(text)
+    for entry in entries:
         if entry.dotted in live_headers:
             problems.append(
                 f"{rel}:{entry.line}: `{entry.dotted}` is a setting, and `[{entry.dotted}]` is "
@@ -755,6 +945,7 @@ def check_template(keys: list[Key], path: Path) -> list[str]:
                 f"({key.anchor}). A key only this tool knows about is one an operator "
                 f"never finds."
             )
+    problems += check_notes(keys, entries, rel)
     return problems
 
 
@@ -823,7 +1014,7 @@ def main() -> int:
         path = named if named.is_absolute() else ROOT / named
         return report(check_template(keys, path), keys,
                       f"directives: {args.check_template} spells all {len(keys)} "
-                      f"leaf keys, each once")
+                      f"leaf keys, each once, each saying what unset does")
     if args.check:
         return report(check(keys), keys,
                       f"directives: {len(keys)} leaf keys, every one read or declared")

@@ -26458,6 +26458,12 @@ prefix = "/{1:lower}"
 it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
 file is never overwritten.
 
+Each key's line ends with a short note. `# default` means the value shown is what Novis uses when
+the key is not set, so removing the `#` changes nothing. `# default: no cap` (or `off`, or another
+short phrase) means Novis uses that when the key is not set, and the value shown is one you could
+write instead. `# example` means there is no default: nothing is granted, mounted or opened until
+you write the key.
+
 Two keys in that file point at the other two folders. Write paths with `/`, on Windows too:
 
 ```toml

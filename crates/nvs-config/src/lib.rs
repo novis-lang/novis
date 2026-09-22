@@ -108,9 +108,13 @@ pub use value::{Quantity, Unit};
 /// tightens still reaches the deployment that kept the file. What an operator gets is the roster:
 /// the keys exist to be read, and uncommenting one is how they take ownership of that value.
 ///
+/// Every setting line ends with a note saying what leaving the key unset does — `# default`,
+/// `# default: <what unset gives>` or `# example` — because the value beside a commented-out key
+/// does not say on its own whether it is the default or a suggestion.
 /// `python tools/directives.py --check-template` holds the file to the tree beside it — a key the
-/// parser gained and the file omits, a key spelled twice, and a key that parses and does nothing
-/// without saying so are each a failure there.
+/// parser gained and the file omits, a key spelled twice, a key that parses and does nothing
+/// without saying so, and a setting line whose note is missing, disagrees with another spelling of
+/// the same field or shows a value this crate does not ship are each a failure there.
 #[must_use]
 pub fn default_file() -> &'static str {
     include_str!("default.toml")
