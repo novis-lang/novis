@@ -36,6 +36,22 @@ reported, and make that path run `Ctx::run_limit_handler` the way
 conformance case registering `Core\Fatal::onLimit` and driving `Core\Arr::from` over a sequence
 with no end is what pins it, beside the case that already pins the stop.
 
+## Stage 3 — a `cpu_time` the program narrows is enforced
+
+`Core\Config::set('limits.cpu_time', '200ms')` answers `true` and `get` reads `200ms` back, and a
+loop that calls nothing then runs for seconds. `Ctx::refresh_limits` moves `Ctx::cpu_limit`, but
+what stops such a loop is `nvs_host::watchdog`, which charges the ceiling published once when the
+request started (`crates/nvs-host/src/isolate.rs`'s `watch.publish`) and publishes nothing for a
+request that started under no cap. The memory half has no such gap: the allocator is re-armed on
+the spot. Found by goal `core-env-and-4-more` while writing `Core\Fatal::onLimit`'s examples,
+which end on the memory limit for this reason.
+
+The fix must keep the charge's starting point. A republish that takes a new baseline would let a
+program reset its own CPU charge by calling `set` in a loop, which trades priority 1 for this
+stage and is not allowed. The CPU ceiling is also the request tree's, not one isolate's, so a
+child's narrowing must not loosen or move the root's. A case in `tests/conformance/error/` with an
+`onLimit` handler, a `set` to a short `cpu_time` and a loop that calls nothing pins it.
+
 ## Standing decisions
 
 - **The handler runs on the reserve, and the reserve is what makes this safe.**

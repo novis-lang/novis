@@ -101,3 +101,17 @@ args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/arr-from-over-a-sequence-with-no-end-runs-the-on-limit-handler.nvst",
 ]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- goal prose stage 3. The case does not exist yet: the session that makes a narrowed
+# `cpu_time` reach the watchdog writes it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 a narrowed cpu_time is enforced"
+name = "a cpu_time the program narrows with Core\\Config::set stops a loop that calls nothing"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/error/a-cpu-time-narrowed-by-config-set-stops-a-loop-that-calls-nothing.nvst",
+]
