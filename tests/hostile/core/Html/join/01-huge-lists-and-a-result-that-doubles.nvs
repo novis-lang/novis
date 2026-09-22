@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a list of one million pieces is joined, and a result is joined with itself until it is huge.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. The same piece one million times, with an empty separator.
+array<Core\Html\Markup> $many = [];
+var $piece = '<i>x</i>' as Core\Html\Markup;
+int $i = 0;
+while ($i < 1000000) {
+    $many[] = $piece;
+    $i = $i + 1;
+}
+var $long = Core\Html::join($many, '' as Core\Html\Markup);
+echo 'step 1: ', Core\Str::length(Core\Html::toSource($long, 'measuring the joined text')), "\n";
+
+// 2. Two empty pieces and a separator made by escaping one hundred thousand `&` characters.
+array<Core\Html\Markup> $empty = ['' as Core\Html\Markup, '' as Core\Html\Markup];
+var $separator = Core\Html::escape(Core\Str::repeat('&', 100000));
+var $gap = Core\Html::join($empty, $separator);
+echo 'step 2: ', Core\Str::length(Core\Html::toSource($gap, 'measuring the joined text')), "\n";
+
+// 3. The list and the separator are the same piece.
+array<Core\Html\Markup> $self = [$piece, $piece, $piece];
+echo 'step 3: ', Core\Html::join($self, $piece), "\n";
+
+// 4. A result is joined with itself again and again, so its length doubles each time.
+// This step ends the program at its memory limit.
+var $grow = '<b>ab</b>' as Core\Html\Markup;
+array<Core\Html\Markup> $pair = [];
+while (true) {
+    $pair = [$grow, $grow];
+    $grow = Core\Html::join($pair, '<br>' as Core\Html\Markup);
+}

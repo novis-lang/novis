@@ -1,0 +1,27 @@
+<?nvs
+// Measures joining three short HTML pieces, as a page does when it puts a row of links together.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<Core\Html\Markup>> $lists = [
+            ["<a>Home</a>" as Core\Html\Markup, "<a>Blog</a>" as Core\Html\Markup],
+            ["<li>one</li>" as Core\Html\Markup, "<li>two</li>" as Core\Html\Markup, "<li>three</li>" as Core\Html\Markup],
+            ["<b>news</b>" as Core\Html\Markup],
+        ];
+        var $separator = " | " as Core\Html\Markup;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The list joined in each round is chosen by the round before, so no round can be left out.
+            $total = $total + Core\Str::length(
+                Core\Html::toSource(Core\Html::join($lists[($total % 3) as int], $separator), "measuring the joined text"),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
