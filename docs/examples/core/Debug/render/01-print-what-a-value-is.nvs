@@ -1,0 +1,12 @@
+<?nvs
+// Shows `Core\Debug::render`. It builds the text that describes a value and
+// returns it, so you can print it as part of your own output.
+
+array<string> $row = [
+    "name" => "Ada Lovelace",
+    "email" => "ada@example.com",
+];
+
+// `render` returns the same text `Core\Debug::dump` writes, without a line
+// break at the end. The `echo` below adds one.
+echo Core\Debug::render($row), "\n";

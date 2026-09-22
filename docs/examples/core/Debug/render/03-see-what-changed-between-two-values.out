@@ -1,0 +1,9 @@
+the settings changed
+array(2) [
+  "host" => string(11) "example.com"
+  "port" => string(4) "8080"
+]
+array(2) [
+  "host" => string(11) "example.com"
+  "port" => string(4) "9090"
+]

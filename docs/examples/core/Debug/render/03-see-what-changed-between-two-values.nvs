@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to compare two values through their renderings. The settings a
+// program started with and the settings it has now are rendered and compared
+// as text.
+
+array<string> $started = [
+    "host" => "example.com",
+    "port" => "8080",
+];
+
+array<string> $current = [
+    "host" => "example.com",
+    "port" => "9090",
+];
+
+string $before = Core\Debug::render($started) as string;
+string $after = Core\Debug::render($current) as string;
+
+if ($before == $after) {
+    echo "the settings are unchanged\n";
+} else {
+    // Both renderings are printed, so you can see which line is different.
+    echo "the settings changed\n";
+    echo $before, "\n";
+    echo $after, "\n";
+}

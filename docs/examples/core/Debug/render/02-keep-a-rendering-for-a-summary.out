@@ -1,0 +1,9 @@
+2 rows have no email address
+array(2) [
+  0 => string(12) "Grace Hopper"
+  1 => string(0) ""
+]
+array(2) [
+  0 => string(11) "Alan Turing"
+  1 => string(0) ""
+]

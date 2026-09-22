@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program keeps every rendering it makes, so the text piles up in
+// memory. It renders values whose text is far bigger than the value, and keeps
+// a hundred thousand renderings at once. The runtime should still be standing
+// at the end.
+// hostile: timeout-ms 60000
+
+// Step 1: a million control bytes. Each one is made visible, so the text is
+// several times longer than the value it describes.
+string $control = Core\Str::repeat("\x00\x01\t\x1b", 250000);
+var $escaped = Core\Debug::render($control);
+echo 'step 1: ', Core\Str::length($control), " control bytes rendered\n";
+
+// Step 2: a hundred thousand renderings, all kept at the same time.
+array<string> $kept = [];
+int $round = 0;
+while ($round < 100000) {
+    array<int> $value = [$round, $round + 1, $round + 2];
+    $kept[] = Core\Debug::render($value) as string;
+    $round = $round + 1;
+}
+echo 'step 2: ', Core\Arr::count($kept), " renderings kept at once\n";
+
+// Step 3: the array holding all of them, rendered as one value.
+var $pile = Core\Debug::render($kept);
+echo "step 3: the whole pile rendered as one value\n";
+
+// Step 4: five hundred more renderings of that same array.
+int $pass = 0;
+while ($pass < 500) {
+    var $again = Core\Debug::render($kept);
+    $pass = $pass + 1;
+}
+echo 'step 4: ', $pass, " renderings of the whole pile\n";
+
+echo "the runtime is still standing\n";

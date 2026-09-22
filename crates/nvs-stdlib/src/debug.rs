@@ -363,6 +363,7 @@ mod tests {
 
     /// The two rows `rule:errors/debug-dump` declares, as the registry states them — what
     /// `nvs-types` seeds and what `nvs_ir::lower_call_args` flattens against.
+    // covers: Core\Debug::render
     #[test]
     fn dump_is_variadic_and_render_answers_the_carrier() {
         let dump = CLASS.methods[0];
@@ -385,6 +386,8 @@ mod tests {
     /// **There is no format argument on either member** — § 7. The sink in
     /// force is the only input to which rendering runs, which is what keeps
     /// the renderings from becoming twenty.
+    // covers: Core\Debug::dump
+    // covers: Core\Debug::render
     #[test]
     fn neither_member_takes_a_format_argument() {
         for method in CLASS.methods {
@@ -408,6 +411,7 @@ mod tests {
     /// run. What the conformance case asserts instead is the other half — that
     /// a dump puts nothing on standard output — and the two together are the
     /// bullet.
+    // covers: Core\Debug::dump
     #[test]
     fn a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -444,6 +448,7 @@ mod tests {
     /// Asserted on the block's frame rather than on the whole document,
     /// because what the nodes inside it look like is `nvs_render::html`'s own
     /// test and repeating it here would make one rendering change two files.
+    // covers: Core\Debug::dump
     #[test]
     fn a_dump_renders_for_the_channel_it_writes_to() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -524,6 +529,7 @@ mod tests {
     /// which envelope keys a record carries is `nvs_render::json`'s own test and
     /// `Ctx::write_log_record`'s; what is this module's is that the dump went
     /// through them.
+    // covers: Core\Debug::dump
     #[test]
     fn a_dump_inside_a_request_is_a_record_and_not_a_line() {
         let mut ctx = requesting("");
@@ -594,6 +600,7 @@ mod tests {
     /// renders no envelope there. The datum is on the record for the renderings
     /// that do carry one — `nvs_render::json` writes every envelope key — and
     /// putting it anywhere else would be the second construction § 1 refuses.
+    // covers: Core\Debug::dump
     #[test]
     fn a_dump_reports_the_line_it_was_written_on() {
         let written_at = Source {
@@ -629,5 +636,34 @@ mod tests {
         unsafe {
             tail.release();
         }
+    }
+
+    /// `rule:errors/renderings`: `render` answers exactly what a `dump` of the
+    /// same value writes, minus the line `dump` ends with — [`rendered`]'s own
+    /// bound, and what lets an inline snapshot share the walk rather than grow
+    /// a second one.
+    ///
+    /// Asserted as the agreement between the two rather than against a text
+    /// literal, so a change to the walk cannot leave one of them right and the
+    /// other wrong.
+    // covers: Core\Debug::render
+    #[test]
+    fn render_answers_what_a_dump_writes_without_its_trailing_line() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        dump_in(&mut ctx);
+        let written = ctx
+            .take_buffered_diagnostic()
+            .expect("the diagnostic channel buffers");
+        let answered = rendered(Value::int(7));
+        assert!(
+            !answered.ends_with('\n'),
+            "`render` answers a value and the caller decides where the line ends: {answered:?}"
+        );
+        assert_eq!(
+            written,
+            format!("{answered}\n").into_bytes(),
+            "one walk and two producers: a dump is the rendering plus the line it ends with"
+        );
     }
 }
