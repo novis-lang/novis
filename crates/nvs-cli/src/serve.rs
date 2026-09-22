@@ -3732,17 +3732,18 @@ mod tests {
     /// and a run that stopped answering has to fail rather than hang.
     const CLIENT_PATIENCE: Duration = Duration::from_secs(20);
 
-    /// What the connection below is given to say anything more, shortened for
-    /// this case from the ten seconds a deployment gets.
+    /// The idle waits the connection below is given, shortened for this case
+    /// from the deployment defaults.
     ///
-    /// **It is what bounds the close**, because a drain does not yet cut an
-    /// idle wait short: a connection sees the drain when its own wait ends, and
-    /// `nvs_server::socket`'s `receive` owns that gap for both readers. Both
-    /// waits are set because a connection between one response and the next
-    /// request is waiting for a request head, so `header` is the one in force
-    /// and `keepalive` is here to say that neither is what this case turns on.
-    /// What it asserts is unaffected either way: the close is the connection's
-    /// own, and it arrives without a reset.
+    /// **Neither is what bounds the close.** A connection idle between one
+    /// response and the next request closes the moment it sees the drain
+    /// (`nvs_server::io`'s `ending_at_drain`), so the wait it was parked in
+    /// never expires. They are short so that a run in which the drain did not
+    /// end that wait fails inside `CLIENT_PATIENCE` rather than passing
+    /// slowly, and both are set because which of the two is armed in that gap
+    /// is `nvs_server::io`'s business and not this case's. What it asserts is
+    /// unaffected either way: the close is the connection's own, and it
+    /// arrives without a reset.
     const KEPT_ALIVE_FOR: Duration = Duration::from_millis(250);
 
     /// One response head off the wire, read a byte at a time so that nothing

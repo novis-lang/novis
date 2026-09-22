@@ -1531,7 +1531,20 @@ where
     // registered on the core that accepted it, and making it `Send` to satisfy
     // a bound would be saying it may move between cores.
     let mut connection = http1::Builder::new().serve_connection(io, service);
+    let mut asked_to_close = false;
     let framed = block_on(std::future::poll_fn(|cx| {
+        // `rule:concurrency/a-drain-closes-a-connection-cleanly`: a connection
+        // idle between requests closes the moment it sees the drain, and only
+        // `hyper` knows whether it is idle — the adapter's phase reads the
+        // end-of-stream probe `hyper` makes during a streaming body as the
+        // keep-alive wait, so the phase alone would cut a stream short. Once
+        // the phase says the last answer was written, the question is put to
+        // `hyper` once: an idle connection is closed on this poll, and one
+        // still writing has keep-alive disabled and closes after its response.
+        if !asked_to_close && phase.get() == Phase::KeepAlive && draining.is_draining() {
+            asked_to_close = true;
+            Pin::new(&mut connection).graceful_shutdown();
+        }
         // A request that is still writing its answer may still be reading its
         // own body, and the wait that used to pump it has already returned —
         // so the pump moves here with the request. Ahead of the poll below for
@@ -3096,6 +3109,7 @@ mod tests {
             socket
                 .read_to_string(&mut seen)
                 .expect("the second response could not be read");
+            end_the_loop(addr);
             seen
         });
 
@@ -3110,7 +3124,7 @@ mod tests {
                 &wide_open(),
                 &Draining::detached(),
                 |_note| {},
-                || ControlFlow::Break(()),
+                until_the_loop_is_ended(),
             )
             .expect("the accept loop failed");
         });
@@ -5967,6 +5981,7 @@ mod tests {
             socket
                 .read_to_string(&mut answer)
                 .expect("the response could not be read");
+            end_the_loop(addr);
             answer
         });
 
@@ -5989,7 +6004,7 @@ mod tests {
                 supply,
             )
         });
-        served_by(listener, &handler, client)
+        served_across_requests(listener, &handler, client, wide_open())
     }
 
     /// The same suite across an **isolate** boundary: the planting run is the
@@ -6363,10 +6378,78 @@ mod tests {
     /// [`served_by`], under a policy the case names — the one thing a request
     /// cannot state about itself, and what `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s case is about.
     fn served_under<H>(
+        listener: NvsListener,
+        handler: &Rc<H>,
+        client: std::thread::JoinHandle<String>,
+        serving: Serving,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
+        served_until(
+            listener,
+            handler,
+            client,
+            serving,
+            || ControlFlow::Break(()),
+        )
+    }
+
+    /// [`served_under`] for a client that sends a second request on the
+    /// connection it already has. The loop's tail begins the drain the moment
+    /// it stops accepting, and a drain closes a connection idle between
+    /// requests at once (`rule:concurrency/a-drain-closes-a-connection-cleanly`),
+    /// so a loop that broke after the one accept would close the connection
+    /// between the two requests. The client ends the loop instead, with
+    /// [`end_the_loop`] once its last answer is in.
+    fn served_across_requests<H>(
+        listener: NvsListener,
+        handler: &Rc<H>,
+        client: std::thread::JoinHandle<String>,
+        serving: Serving,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
+        served_until(
+            listener,
+            handler,
+            client,
+            serving,
+            until_the_loop_is_ended(),
+        )
+    }
+
+    /// One more connection, made once a client is done with its own and
+    /// dropped unread: what un-parks an accept loop asking
+    /// [`until_the_loop_is_ended`], which answers `Break` on it. The
+    /// connection it spawns reads end of stream and ends by itself.
+    fn end_the_loop(addr: std::net::SocketAddr) {
+        drop(TcpStream::connect(addr).expect("the loopback refused the closing connection"));
+    }
+
+    /// The `keep_serving` of a case whose client calls [`end_the_loop`]:
+    /// `Continue` after the client's own connection, `Break` after the one
+    /// that ends the loop.
+    fn until_the_loop_is_ended() -> impl FnMut() -> ControlFlow<()> {
+        let mut accepted = 0_usize;
+        move || {
+            accepted += 1;
+            if accepted < 2 {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            }
+        }
+    }
+
+    /// [`served_under`], with the `keep_serving` the case names.
+    fn served_until<H>(
         mut listener: NvsListener,
         handler: &Rc<H>,
         client: std::thread::JoinHandle<String>,
         serving: Serving,
+        keep_serving: impl FnMut() -> ControlFlow<()> + 'static,
     ) -> String
     where
         H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
@@ -6383,7 +6466,7 @@ mod tests {
                 &serving,
                 &Draining::detached(),
                 |_note| {},
-                || ControlFlow::Break(()),
+                keep_serving,
             )
             .expect("the accept loop failed");
         });
@@ -7012,6 +7095,7 @@ mod tests {
             socket
                 .read_to_string(&mut seen)
                 .expect("the response could not be read");
+            end_the_loop(addr);
             seen
         });
 
@@ -7049,7 +7133,7 @@ mod tests {
                     &wide_open(),
                     &Draining::detached(),
                     |_note| {},
-                    || ControlFlow::Break(()),
+                    until_the_loop_is_ended(),
                 )
                 .expect("the accept loop failed");
             }
@@ -8114,6 +8198,7 @@ mod tests {
             socket
                 .read_to_string(&mut seen)
                 .expect("the second response could not be read");
+            end_the_loop(addr);
             seen
         });
 
@@ -8128,7 +8213,7 @@ mod tests {
                 &wide_open(),
                 &Draining::detached(),
                 |_note| {},
-                || ControlFlow::Break(()),
+                until_the_loop_is_ended(),
             )
             .expect("the accept loop failed");
         });
@@ -8409,16 +8494,17 @@ mod tests {
         );
     }
 
-    /// `ConnectionIo::ending_at_drain`: a drain closes a connection that is
-    /// idle between requests at the drain period's end, not when its
-    /// keep-alive wait ends. That wait is far longer here than the case is
-    /// allowed to take, so a drain that only waited it out fails by the clock
-    /// rather than passing slowly.
+    /// [`serve_connection`]'s drive, on `ConnectionIo::ending_at_drain`'s
+    /// wake: a drain closes a connection that is idle between requests the
+    /// moment it sees the drain — not when its keep-alive wait ends, and not
+    /// at the drain period's end either. Both are far longer here than the
+    /// case is allowed to take, so a drain that waited either one out fails by
+    /// the clock rather than passing slowly.
     ///
     /// The drain is the accept loop's own: `keep_serving` breaks after the one
     /// connection, and the loop's tail begins the drain before that connection
     /// has even been answered — so the case also holds that a request already
-    /// moving is served to its end and only the idle wait after it is bounded.
+    /// moving is served to its end and only the idle wait after it is cut.
     #[test]
     fn an_idle_kept_alive_connection_is_closed_when_the_drain_begins() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -8444,7 +8530,7 @@ mod tests {
         let waits = Waits {
             header: Duration::from_secs(30),
             keepalive: Duration::from_secs(30),
-            drain: Duration::from_millis(100),
+            drain: Duration::from_secs(30),
             ..Waits::default()
         };
         let mut sched = nvs_host::Scheduler::new();
@@ -8471,7 +8557,7 @@ mod tests {
         );
         assert!(
             closed && took < Duration::from_secs(5),
-            "the drain waited out the keep-alive wait on an idle connection: closed after {took:?}"
+            "the drain waited out a period on an idle connection: closed after {took:?}"
         );
     }
 

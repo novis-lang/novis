@@ -136,7 +136,10 @@ pub enum Phase {
     /// here sees the drain, its wait ends at the drain period's end at the
     /// latest, with the same `TimedOut` the keep-alive wait ends in — rather
     /// than the drain waiting out the rest of `keepalive_timeout` for a byte
-    /// the peer may never send ([`ConnectionIo::ending_at_drain`]).
+    /// the peer may never send ([`ConnectionIo::ending_at_drain`]). That is
+    /// the backstop: the close itself comes sooner, from `crate::serve`'s
+    /// drive asking `hyper` to shut down once this phase is reached under a
+    /// drain, which closes an idle connection at once.
     KeepAlive,
 }
 
@@ -207,16 +210,23 @@ impl ConnectionIo {
 
     /// Bounds this connection's [`Phase::KeepAlive`] wait by the drain period
     /// once `draining` begins, and re-polls a connection already parked in it
-    /// so the shorter bound is armed at once.
+    /// so the drive that owns it reads the drain at once.
     ///
     /// The other three phases are untouched: a request whose head, body or
     /// response is moving is exactly what a drain exists to finish
     /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`), and the wait
     /// between requests is the one that would otherwise compose the drain
-    /// period with `keepalive_timeout`. Called on the task that will drive
-    /// the connection, because the wake is issued against that task; a drain
-    /// that has already begun registers nothing, and the first idle poll
-    /// reads the bit and arms the same bound.
+    /// period with `keepalive_timeout`. The re-poll is what makes the close
+    /// prompt: `crate::serve`'s drive reads this phase and the drain on every
+    /// poll and asks `hyper` to shut the connection down, and `hyper` closes
+    /// an idle one on that same poll. The period this arms is the bound
+    /// behind that. This phase is also read off `hyper`'s end-of-stream probe
+    /// during a streaming body, which is why the close is `hyper`'s to take
+    /// and not this adapter's: only `hyper` knows whether a response is still
+    /// moving. Called on the task that will drive the connection, because the
+    /// wake is issued against that task; a drain that has already begun
+    /// registers nothing, and the first idle poll reads the bit and arms the
+    /// same bound.
     ///
     /// What it spends: one registration on the process's drain per connection,
     /// released with this adapter, and one atomic load per idle poll.
