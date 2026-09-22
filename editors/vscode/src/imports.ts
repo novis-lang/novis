@@ -23,6 +23,19 @@
 // overrides that preference in their own settings; nothing here adds a switch beside it. The kind id,
 // the MIME type and the contributed default reach a user's settings and other extensions' providers,
 // so all three are frozen on `rule:ide/contributions-are-frozen-and-only-ever-added`'s terms.
+//
+// # Known gaps
+//
+// 1. The copy half has no proof in a real editor. `test/host/imports.test.ts` asserts what the editor
+//    does with an edit offered under this kind, because that is where the contributed preference above
+//    is observable at all — but it cannot reach `prepareDocumentPaste`. Driving a copy from the
+//    extension host with `editor.action.clipboardCopyAction` puts the text on the clipboard and runs no
+//    copy provider, this one or a second one registered by the test, so nothing puts `MIME` on the
+//    clipboard and the round trip is proved only against the server (`crates/nvs-lsp/tests/imports.rs`
+//    and `test/protocol/requests.test.ts`) and never against an editor. What is missing is a way to
+//    make the editor fire a real copy; until there is one, a user is the only thing that has run this
+//    path end to end.
+//    — owner: M10
 
 import {
   CancellationToken,
