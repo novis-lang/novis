@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the row count a server reported for a write. The type is
+// `?uint`, so the count is a whole number or `null`.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null, done boolean not null)', []);
+$db->execute(
+    'insert into notes (text, done) values (?, ?), (?, ?), (?, ?)',
+    ['buy milk', false, 'call Ana', false, 'book train', true],
+);
+
+var $write = $db->execute('update notes set done = ? where done = ?', [true, false]);
+
+// `??` prints a `0` where the count is `null`. Two of the three notes were
+// still open, so this prints `2 rows changed`.
+echo $write->changed() ?? 0, " rows changed\n";
+
+$db->close();

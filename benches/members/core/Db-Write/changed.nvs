@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading the row count a server reported for a write, as a program
+// does after every write whose result it reports back.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, text text not null)', []);
+        var $write = $db->execute('insert into notes (text) values (?), (?)', ['buy milk', 'call Ana']);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each count is read again and added to the ones before it, so the
+            // loop cannot be left out.
+            ?uint $count = $write->changed();
+            if ($count != null) {
+                $total = $total + $count;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

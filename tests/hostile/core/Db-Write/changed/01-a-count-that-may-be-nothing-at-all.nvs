@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a count that may be `null` is read a million times and added up. A
+// write of a hundred thousand rows is read. So is a statement that has no rows
+// to count. The last read happens after the connection is closed. Nothing here
+// may crash.
+// hostile: timeout-ms 60000
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+use Core\Db\Write;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. One count, read a million times and tested every time. Every read answers
+// the same number, and reading it may not grow the memory.
+var $three = $db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+uint $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    ?uint $count = $three->changed();
+    if ($count != null) {
+        $sum = $sum + $count;
+    }
+    $i = $i + 1;
+}
+echo '1 read a million times: ', $sum, "\n";
+
+// 2. Statements with no rows of their own to count: a table is created and a
+// table is dropped. Whatever each answers, it must not be the three rows above.
+$db->execute('create table spare (id integer primary key)', []);
+var $made = $db->execute('create table spare_two (id integer primary key)', []);
+var $gone = $db->execute('drop table spare', []);
+echo '2 create: ', $made->changed() ?? 0, ', drop: ', $gone->changed() ?? 0, "\n";
+
+// 3. A statement that changed no rows. This is the count a program acts on, so
+// it must be a number and not the absence.
+var $missed = $db->execute('update notes set text = ? where id = ?', ['nothing', 99]);
+echo '3 nothing matched: ', $missed->changed() == null ? 'no count' : 'a count', "\n";
+
+// 4. One statement changes a hundred thousand rows. The count must be all of
+// them and not a part.
+var $many = $db->execute('insert into notes (text) select hex(zeroblob(8)) from (with recursive n(i) as (select 1 union all select i + 1 from n where i < 100000) select i from n)', []);
+echo '4 rows written: ', $many->changed() ?? 0, "\n";
+
+// 5. A hundred thousand writes are kept, and every count is read again at the
+// end. Each write holds its own count, so the total is the rows really written.
+array<Write> $kept = [];
+uint $round = 0;
+while ($round < 100000) {
+    $kept[] = $db->execute('insert into notes (text) values (?)', ['row']);
+    $round = $round + 1;
+}
+uint $written = 0;
+foreach ($kept as Write $one) {
+    ?uint $each = $one->changed();
+    if ($each != null) {
+        $written = $written + $each;
+    }
+}
+echo '5 counts added up: ', $written, "\n";
+
+// 6. The count of a write inside a transaction that was given up. The rows are
+// not in the table, and the write still answers the number it reported.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        var $write = $tx->execute('insert into notes (text) values (?), (?)', ['never saved', 'never saved either']);
+        echo '6 inside the transaction: ', $write->changed() ?? 0, "\n";
+        $tx->rollBack('nothing worth keeping');
+    });
+} catch (RolledBack $gaveUp) {
+    echo "6 the work gave up\n";
+}
+
+// 7. The count is read after the connection is closed. The number was read off
+// the statement when it ran, so the closed connection cannot take it away.
+var $last = $db->execute('delete from notes where text = ?', ['row']);
+$db->close();
+echo '7 after the connection closed: ', $last->changed() ?? 0, "\n";

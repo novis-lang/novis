@@ -1,0 +1,83 @@
+--TEST--
+`Core\Db\Write::changed` is the count the server itself reported: a `?uint` a caller unwraps, equal to `affected` wherever it is present, its own statement's rather than an earlier one's, and present for every statement kind on SQLite, which has nothing to report an absence with — `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Write::changed
+// SQLite runs this for real, so every count below is one a driver reported.
+use Core\Db;
+
+var $db = Db::connect("main");
+
+// A `create table` has no rows of its own to count. On a driver whose command
+// tag says so this is § 4's absent case; SQLite has no tag to read that out of,
+// so what it reports is a count of `0`.
+var $made = $db->execute("create table t (id integer primary key, name text not null, done boolean not null)", []);
+?uint $first = $made->changed();
+if ($first == null) {
+    echo "create no count\n";
+} else {
+    echo "create count ", $first, "\n";
+}
+
+// A write's count is the rows it changed: three inserted, then the two of them
+// that were still open.
+var $inserted = $db->execute(
+    "insert into t (name, done) values (?, ?), (?, ?), (?, ?)",
+    ["ada", false, "grace", false, "alan", true],
+);
+echo "inserted ", $inserted->changed() ?? 0, "\n";
+
+var $updated = $db->execute("update t set done = ? where done = ?", [true, false]);
+echo "updated ", $updated->changed() ?? 0, "\n";
+
+// A `where` that matched nothing reports `0`, and `0` is a count rather than an
+// absence: this is the answer a caller acts on, so a driver reporting no count
+// here would hide it.
+var $missed = $db->execute("update t set name = ? where id = ?", ["nobody", 99]);
+?uint $none = $missed->changed();
+if ($none == null) {
+    echo "missed no count\n";
+} else {
+    echo "missed count ", $none, "\n";
+}
+
+// The count is the statement's own. `sqlite3_changes` reports the last
+// data-changing statement on the connection, so a `create table` run after an
+// insert of three rows is where an earlier count would show up.
+var $second = $db->execute("create table u (id integer primary key)", []);
+echo "second create ", $second->changed() ?? 0, "\n";
+
+var $dropped = $db->execute("drop table u", []);
+echo "dropped ", $dropped->changed() ?? 0, "\n";
+
+// `affected` is the same count with the absence folded to `0`, so on every
+// statement above the two members answer the same number.
+bool $agree = $made->changed() == $made->affected()
+    && $inserted->changed() == $inserted->affected()
+    && $updated->changed() == $updated->affected()
+    && $missed->changed() == $missed->affected();
+echo "agree ", $agree ? "yes" : "no", "\n";
+
+// The count belongs to the write and not to the connection, so the statements
+// that ran after these two left what they answer alone.
+echo "inserted still ", $inserted->changed() ?? 0, "\n";
+echo "updated still ", $updated->changed() ?? 0, "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+create count 0
+inserted 3
+updated 2
+missed count 0
+second create 0
+dropped 0
+agree yes
+inserted still 3
+updated still 2
