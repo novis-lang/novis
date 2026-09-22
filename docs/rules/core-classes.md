@@ -409,22 +409,29 @@ front of every attribute; the backtick is free because Novis has no shell-execut
 name rather than a bare delimiter so that a second carrier, if one ever earns a literal, can say which
 sink it means.
 
-**A hole is `{$`; every other brace is text.** The hole grammar is a double-quoted string's
-interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a **full
-expression** closed by the matching `}`, with brace depth counted so a closure inside one does not close
-it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
-interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. **A hole must
-begin with `$`**, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and a
-static call reaches a hole through a local or a closure. Every other `{` is text, so a `<style>` block's
-braces need no escape, and `\{` is the one case that wants a literal `{$`.
+**Two holes: `{$…}` as in a string, and `<?= … ?>` as in a page.** The first is a double-quoted
+string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
+**full expression** closed by the matching `}`, with brace depth counted so a closure inside one does not
+close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
+interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
+must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
+every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a literal brace.
+The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
+expression and closes on the first `?>` outside a nested string or literal, so a constant, a static
+call and a nested literal reach the page without a local — `<?= App::VERSION ?>`,
+`<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
+is an ordinary brace ([ADR 0202](../../decisions/0202.md)). Both holes are escaped by the same rule;
+the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
+string is not a page, and PHP prints one as text. A `<?nvs` tag inside a literal is `E0010`, since a
+literal is one expression and a loop around markup is code mode outside it.
 
-A `secret` value in a hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
-`tainted` one is accepted, because the sink never distinguishes the two. An unterminated literal is
-`E0002`, the code that already covers an unterminated string, heredoc and interpolation — this rule adds
-no diagnostic of its own.
+A `secret` value in either hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
+`tainted` one is accepted, because the sink never distinguishes the two. An unterminated literal or hole
+is `E0002`, the code that already covers an unterminated string, heredoc and interpolation. `E0010` is
+the one diagnostic this rule adds, for the code block a literal cannot hold.
 
-**The compiler learns no HTML.** Segments are opaque bytes and only `{$` and the closing delimiter are
-scanned for, so there is no tag tracking, no balance requirement and no rule about where a literal may
+**The compiler learns no HTML.** Segments are opaque bytes and only `{$`, `<?=`, `<?nvs` and the closing
+delimiter are scanned for, so there is no tag tracking, no balance requirement and no rule about where a literal may
 begin or end — ``html`<table>` `` and ``html`</table>` `` are both ordinary literals, which is what lets
 a page be composed from fragments. It follows that a hole in a position element-text escaping does not
 cover — an unquoted attribute, a URL-valued one, a `<script>` body — is accepted and produces exactly
@@ -450,7 +457,7 @@ segments could only ever be plain text, which needs no trust, because
 string is already accepted everywhere the carrier is. A third carrier is measured against that
 predicate rather than against the count.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 

@@ -2573,6 +2573,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                     self.expect(TokenKind::ComplexInterpClose, "`}`");
                     parts.push(StringPart::Expr(e));
                 }
+                // The same part as a brace hole: what differs is only which
+                // expressions the lexer let through, and by here that is
+                // decided (`rule:core-classes/html-literal`).
+                TokenKind::MarkupEchoOpen => {
+                    self.bump();
+                    let e = self.parse_expr();
+                    self.expect(TokenKind::MarkupEchoClose, "`?>`");
+                    parts.push(StringPart::Expr(e));
+                }
                 TokenKind::Eof => return (parts, self.peek().span),
                 _ => parts.push(StringPart::Text(self.bump().span)),
             }

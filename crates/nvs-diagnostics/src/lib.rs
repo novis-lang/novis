@@ -93,6 +93,10 @@ pub mod code {
     /// . Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
     /// lexing code rather than leaving `<` `?` `nvs` for the parser.
     pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
+    /// A `<?nvs` open tag inside a markup literal, whose body is one expression
+    /// and has no code mode to enter (`rule:core-classes/html-literal`); the
+    /// output tag `<?= … ?>` is the hole a literal has.
+    pub const E_CODE_BLOCK_IN_MARKUP: Code = Code::new("E0010");
 
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.

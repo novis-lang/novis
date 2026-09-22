@@ -184,6 +184,17 @@ pub enum TokenKind {
     /// written `` \` ``, which the body scanner takes as an escape like any
     /// other and leaves for the cooking pass.
     MarkupClose,
+    /// Opens the second kind of hole a markup literal has, `<?=` — the output
+    /// tag a page already uses, so a literal is a piece of a page in a value.
+    /// One expression follows, lexed as ordinary code tokens, then
+    /// [`MarkupEchoClose`](Self::MarkupEchoClose). Unlike
+    /// [`ComplexInterpOpen`](Self::ComplexInterpOpen) the expression may begin
+    /// with anything, which is what puts a constant or a static call in a page
+    /// without a local (`rule:core-classes/html-literal`).
+    MarkupEchoOpen,
+    /// Closes a `<?= … ?>` hole: the `?>`. Inside the hole `}` is a brace like
+    /// any other, and nothing but this token ends it.
+    MarkupEchoClose,
 
     // --- punctuation and operators ------------------------------------------
     /// `(`

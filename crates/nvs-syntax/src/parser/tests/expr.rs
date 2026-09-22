@@ -777,6 +777,22 @@ fn a_markup_hole_is_a_strings_hole() {
 }
 
 #[test]
+fn a_tag_hole_is_the_same_part_as_a_brace_hole_and_takes_a_static_call() {
+    // What differs between the two holes is decided in the lexer; by here a
+    // `<?= … ?>` is one more `StringPart::Expr`, so nothing downstream learns a
+    // second kind of hole (`rule:core-classes/html-literal`).
+    let e = parse_ok("html`<td><?= Money::format($c) ?></td>`");
+    let ExprKind::Markup(parts) = e.kind else {
+        panic!("expected a markup literal: {e:?}");
+    };
+    assert_eq!(parts.len(), 3);
+    let StringPart::Expr(inner) = &parts[1] else {
+        panic!("expected a hole in the middle: {parts:?}");
+    };
+    assert!(matches!(inner.kind, ExprKind::StaticCall { .. }));
+}
+
+#[test]
 fn spawn_script_with_options() {
     let e = parse_ok("spawn script 'jobs/report.nvs' with(args: $a, grants: $g)");
     let ExprKind::SpawnScript { options, .. } = e.kind else {

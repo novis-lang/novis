@@ -1,0 +1,34 @@
+--TEST--
+`<?= expr ?>` inside a markup literal is a hole that takes any expression, escaped by the same rule as `{$…}`, and `{Name::…}` stays text — `rule:core-classes/html-literal`, ADR 0202
+--FILE--
+<?nvs
+class App {
+    public const string VERSION = "1.2.0";
+    public static function price(int $cents): string { return "$" . $cents / 100; }
+    public static function badge(): Core\Html\Markup { return html`<b>new</b>`; }
+}
+tainted string $title = "<i>Kettle</i>";
+bool $on = true;
+callable $twice = fn(int $n): int => $n * 2;
+
+// A constant and a static call returning a `string`: escaped, so the `<` in
+// the title and the `&` here reach the page as entities.
+echo html`<h1><?= App::VERSION ?> &amp; <?= App::price(5990) ?> <?= "a & b" ?></h1>`, "\n";
+echo html`<h2>{$title} <?= $title ?></h2>`, "\n";
+
+// A static call returning a `Markup` is written raw, and so is a nested
+// literal chosen inside the hole: the same rule a `{$…}` hole follows.
+echo html`<p><?= App::badge() ?> <?= $on ? html`<u>on</u>` : html`<s>off</s>` ?></p>`, "\n";
+
+// The hole is code: spaces, a closure with a brace body, and a `?>` inside a
+// string in it are all the expression's, and only the outer `?>` closes.
+echo html`<p><?=App::VERSION?> <?= $twice(21) ?> <?= (fn(): string => { return "?>"; })() ?></p>`, "\n";
+
+// A brace hole still begins with `$`, so a class name after `{` is text.
+echo html`<p>{App::VERSION} { App::price(1) }</p>`, "\n";
+--EXPECT--
+<h1>1.2.0 &amp; $59.9 a &amp; b</h1>
+<h2>&lt;i&gt;Kettle&lt;/i&gt; &lt;i&gt;Kettle&lt;/i&gt;</h2>
+<p><b>new</b> <u>on</u></p>
+<p>1.2.0 42 ?&gt;</p>
+<p>{App::VERSION} { App::price(1) }</p>

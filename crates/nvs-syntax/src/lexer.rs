@@ -57,6 +57,11 @@ enum Mode {
         /// case: the frame closes on a `}` seen at depth 0, not on the first
         /// `}` at all — a closure literal inside `{$…}` has its own braces.
         brace_depth: u32,
+        /// True for a frame opened by `<?=` inside a markup literal
+        /// (`rule:core-classes/html-literal`): it closes on `?>` and on nothing
+        /// else, so a `}` inside it is an ordinary [`TokenKind::RBrace`]
+        /// whatever the depth.
+        tag_hole: bool,
     },
     /// Inside `"…"`, between [`TokenKind::DoubleQuoteOpen`] and
     /// [`TokenKind::DoubleQuoteClose`].
@@ -139,6 +144,7 @@ impl<'a> Lexer<'a> {
                 Mode::Code {
                     interpolation: false,
                     brace_depth: 0,
+                    tag_hole: false,
                 }
             } else {
                 Mode::Html
@@ -235,6 +241,11 @@ impl<'a> Lexer<'a> {
                 "unterminated heredoc/nowdoc",
                 start,
                 TokenKind::HeredocClose,
+            ),
+            Mode::Code { tag_hole: true, .. } => (
+                "unterminated `<?= … ?>` hole in a markup literal",
+                self.pos,
+                TokenKind::MarkupEchoClose,
             ),
             Mode::Code { .. } => (
                 "unterminated `{$…}` interpolation",
@@ -395,6 +406,7 @@ impl<'a> Lexer<'a> {
                 *self.modes.last_mut().expect("mode stack never empty") = Mode::Code {
                     interpolation: false,
                     brace_depth: 0,
+                    tag_hole: false,
                 };
                 return;
             }
@@ -511,6 +523,18 @@ impl<'a> Lexer<'a> {
                 ..
             })
         );
+        let tag_frame = matches!(self.modes.last(), Some(Mode::Code { tag_hole: true, .. }));
+
+        // A `<?= … ?>` hole inside a markup literal ends here, and the literal's
+        // body resumes: this frame was pushed over the markup mode, so popping
+        // it is all the return takes.
+        if tag_frame && self.starts_with("?>") {
+            let start = self.pos;
+            self.pos += 2;
+            self.push(TokenKind::MarkupEchoClose, self.mk_span(start, self.pos));
+            self.modes.pop();
+            return;
+        }
 
         if !interp_frame && self.starts_with("?>") {
             let start = self.pos;
@@ -1102,6 +1126,7 @@ impl<'a> Lexer<'a> {
                 if let Some(Mode::Code {
                     interpolation: true,
                     brace_depth,
+                    ..
                 }) = self.modes.last_mut()
                 {
                     *brace_depth += 1;
@@ -1112,6 +1137,7 @@ impl<'a> Lexer<'a> {
                 if let Some(Mode::Code {
                     interpolation: true,
                     brace_depth,
+                    tag_hole: false,
                 }) = self.modes.last_mut()
                 {
                     if *brace_depth == 0 {
@@ -1289,6 +1315,7 @@ impl<'a> Lexer<'a> {
             _ => unreachable!("lex_quoted_body called outside a string/heredoc/markup mode"),
         };
         let is_heredoc = delimiter.is_none();
+        let is_markup = matches!(delimiter, Some(('`', _)));
 
         if is_heredoc && self.heredoc_terminator_here(&label) {
             let span = self.consume_heredoc_terminator(&label);
@@ -1307,6 +1334,21 @@ impl<'a> Lexer<'a> {
         }
 
         if interpolation {
+            // The output tag a page already uses opens a hole in a markup
+            // literal too, and the hole takes any expression, so a constant or
+            // a static call needs no local to reach the page
+            // (`rule:core-classes/html-literal`). A string keeps `{$` alone.
+            if is_markup && self.starts_with("<?=") {
+                let start = self.pos;
+                self.pos += 3;
+                self.push(TokenKind::MarkupEchoOpen, self.mk_span(start, self.pos));
+                self.modes.push(Mode::Code {
+                    interpolation: true,
+                    brace_depth: 0,
+                    tag_hole: true,
+                });
+                return;
+            }
             if self.starts_with("{$") {
                 let start = self.pos;
                 self.pos += 1; // consume only '{'; '$' becomes the next code token
@@ -1314,6 +1356,7 @@ impl<'a> Lexer<'a> {
                 self.modes.push(Mode::Code {
                     interpolation: true,
                     brace_depth: 0,
+                    tag_hole: false,
                 });
                 return;
             }
@@ -1339,6 +1382,30 @@ impl<'a> Lexer<'a> {
             if interpolation {
                 if self.starts_with("{$") {
                     break;
+                }
+                if is_markup && self.starts_with("<?=") {
+                    break;
+                }
+                if is_markup && let Some((_, len)) = self.match_open_tag() {
+                    // A code block has no meaning inside a value: the literal is
+                    // one expression, and a loop or a condition around it is
+                    // written in code mode outside. Reported once, at the tag,
+                    // and the tag is then text like any other byte.
+                    let len = u32::try_from(len).expect("an open tag is a few bytes long");
+                    let span = self.mk_span(self.pos, self.pos + len);
+                    diags.report(
+                        Diagnostic::error(
+                            code::E_CODE_BLOCK_IN_MARKUP,
+                            "a code block cannot open inside a markup literal",
+                        )
+                        .with_primary(span, "a markup literal is one expression")
+                        .with_help(
+                            "write `<?= expr ?>` for one value, or build the fragments in code \
+                             mode and compose them with `+` or `Core\\Html::join`",
+                        ),
+                    );
+                    self.pos += len;
+                    continue;
                 }
                 if self.peek() == Some('$') && self.peek_at(1).is_some_and(Self::is_ident_start) {
                     break;
@@ -2286,6 +2353,108 @@ mod tests {
                 Semicolon,
                 Eof,
             ]
+        );
+    }
+
+    #[test]
+    fn an_output_tag_opens_a_hole_that_takes_any_expression_in_a_markup_literal() {
+        // `<?=` is the second hole a markup literal has, and the expression in
+        // it may begin with anything — here a class name — where a brace hole
+        // has to begin with `$` (`rule:core-classes/html-literal`).
+        assert_eq!(
+            kinds_ok("<?nvs html`<p><?= App::VERSION ?></p>`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                MarkupEchoOpen,
+                Ident,
+                DoubleColon,
+                Ident,
+                MarkupEchoClose,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_brace_inside_a_tag_hole_is_a_brace_and_only_the_close_tag_ends_it() {
+        // A closure with a body is written in a tag hole as anywhere else: the
+        // frame closes on `?>`, never on a `}`, whatever the depth.
+        assert_eq!(
+            kinds_ok("<?nvs html`<p><?= $f(function () { return 1; }) ?></p>`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                MarkupEchoOpen,
+                Variable,
+                LParen,
+                Keyword(super::Keyword::Function),
+                LParen,
+                RParen,
+                LBrace,
+                Keyword(super::Keyword::Return),
+                IntLiteral,
+                Semicolon,
+                RBrace,
+                RParen,
+                MarkupEchoClose,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn an_output_tag_in_a_double_quoted_string_is_text() {
+        // A string is not a page: `<?=` opens nothing there, and PHP's own
+        // reading of the bytes is kept (`rule:core-classes/html-literal`).
+        assert_eq!(
+            kinds_ok("<?nvs \"<?= $x ?>\";"),
+            vec![
+                OpenTagNvs,
+                DoubleQuoteOpen,
+                StringPart,
+                Variable,
+                StringPart,
+                DoubleQuoteClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_code_tag_inside_a_markup_literal_is_e0010_and_then_text() {
+        let src = "<?nvs html`<ul><?nvs echo 1; ?></ul>`;";
+        let (kinds, diags) = kinds(src);
+        assert_eq!(
+            kinds,
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ],
+            "the tag and everything after it stay one segment"
+        );
+        let reported = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_CODE_BLOCK_IN_MARKUP))
+            .expect("a code tag inside a literal is reported");
+        assert_eq!(
+            reported.primary_span().map(|span| span.start),
+            src.find("<?nvs echo")
+                .map(|at| BytePos::try_from(at).expect("the source is a few bytes long")),
+            "reported at the tag"
         );
     }
 

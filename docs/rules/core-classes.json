@@ -284,7 +284,8 @@
       "title": "``html`…` `` is a `Core\\Html\\Markup` whose segments are trusted and whose holes are escaped",
       "status": "shipped",
       "because": [
-        "0169"
+        "0169",
+        "0202"
       ],
       "divergesFromPhp": "there is no template literal in PHP; the nearest thing is `<?= ?>` in an inline-HTML region, and this is that rule available in expression position",
       "seeAlso": [
