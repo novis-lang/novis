@@ -1302,11 +1302,12 @@ pub enum Answer {
     Done {
         /// Rows the statement changed, as the server counted them — `rule:core-classes/db-statement-members`'s `affected`.
         affected: u64,
-        /// The `AUTO_INCREMENT` value the statement generated, or `0` for none.
-        /// The protocol's own spelling for absence is kept rather than mapped
-        /// to an `Option`, because § 4's `lastId` answers `0` for a statement
-        /// that generated none and mapping twice would be two decisions.
-        last_id: u64,
+        /// The `AUTO_INCREMENT` value the statement generated, and `None` where
+        /// it generated none. The status packet spells that absence `0` and
+        /// `mysql_common` maps it, so the absence is an absence in the first
+        /// place that holds it: the server reports no key as `0` and reports a
+        /// generated key from `1` upward, and § 4's `lastId` is `?uint`.
+        last_id: Option<u64>,
     },
     /// A result set of this many columns. That many column definition packets
     /// follow it, and [`read_columns`] is what takes them.
@@ -1360,7 +1361,7 @@ pub(crate) fn read_answer<S: Read + Write>(
             .into_inner();
             Ok(Answer::Done {
                 affected: ok.affected_rows(),
-                last_id: ok.last_insert_id().unwrap_or(0),
+                last_id: ok.last_insert_id(),
             })
         }
         Some(0xFF) => Err(server_refusal(wire.backend, &packet, capabilities)),
@@ -2244,7 +2245,7 @@ pub(crate) fn open_result<S: Read + Write>(
                     columns: Arc::from(columns),
                     rows: 0,
                     affected: 0,
-                    last_id: 0,
+                    last_id: None,
                     ended: false,
                     span,
                 })
@@ -3301,7 +3302,7 @@ pub(crate) struct MySqlCursor {
     columns: Arc<[Column]>,
     rows: u64,
     affected: u64,
-    last_id: u64,
+    last_id: Option<u64>,
     ended: bool,
     /// `rule:observability/a-query-is-a-trace-event`'s trace event for this statement, opened when it went out
     /// and ended by whatever ends the stream — [`crate::PgRows`]' field, for
@@ -3388,15 +3389,18 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `lastId` — the
-    /// `AUTO_INCREMENT` value this statement generated, `0` for none — once the
-    /// stream has ended.
+    /// `AUTO_INCREMENT` value this statement generated, once the stream has
+    /// ended, and `None` where it generated none.
     ///
     /// MySQL puts it in the status packet, so unlike PostgreSQL it belongs to
     /// the write that produced it with no `RETURNING` clause to ask for. A
-    /// statement that returned a result set has none, and answers `0`.
+    /// statement that returned a result set generated no key and answers `None`
+    /// too, which is [`Self::affected`]'s shape read the other way round: that
+    /// member's `None` is the stream that has not ended, and this one's is a key
+    /// the statement never produced.
     #[must_use]
     pub fn last_id(&self) -> Option<u64> {
-        self.reading.ended.then_some(self.reading.last_id)
+        self.reading.ended.then_some(self.reading.last_id).flatten()
     }
 
     /// The next row, or `None` once the stream has ended.
@@ -4282,6 +4286,49 @@ mod tests {
         body
     }
 
+    /// `rule:core-classes/db-statement-members`'s `lastId` over a write the server
+    /// generated no key for: the status packet says `0`, and that is an absence
+    /// rather than a key whose value is zero.
+    ///
+    /// An `UPDATE` generates no `AUTO_INCREMENT` value and every driver has to
+    /// say so in its own way. A driver that carried the protocol's zero through
+    /// would hand a caller a number where the statement produced none, and the
+    /// member would mean two things on two drivers.
+    // covers: Core\Db\Write::lastId
+    #[test]
+    fn a_write_that_generated_no_key_reports_none_rather_than_zero() {
+        const SQL: &str = "UPDATE t SET a = ? WHERE id = 1";
+        const VALUE: &[u8] = b"x";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(9, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(1, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        let rows = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            SQL,
+            &[Some(VALUE)],
+        )
+        .expect("a prepare and an execution the server answered");
+
+        assert_eq!(rows.affected(), Some(1), "the status packet's own count");
+        assert_eq!(
+            rows.last_id(),
+            None,
+            "the status packet's `0` is no generated key at all"
+        );
+    }
+
     /// `rule:core-classes/db-one-api`'s two round trips, and its no-emulated-prepares rule
     /// asserted **on the wire** rather than as a claim about the code.
     ///
@@ -4921,7 +4968,7 @@ mod tests {
                 "the terminator is what gives the connection back"
             );
             assert_eq!(rows.affected(), Some(1), "one row came back");
-            assert_eq!(rows.last_id(), Some(0), "a `SELECT` generated no key");
+            assert_eq!(rows.last_id(), None, "a `SELECT` generated no key");
         }
 
         assert_eq!(

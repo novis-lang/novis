@@ -3934,8 +3934,8 @@ fn deduped(
 /// # Errors
 ///
 /// [`insert_refused`] for anything the server refused, and a [`Fault::fatal`] for an insert that
-/// generated no `AUTO_INCREMENT` value — [`MySqlRows::last_id`](nvs_db::MySqlRows::last_id) says
-/// `0` for none, and [`schema`] declares the column that makes it impossible.
+/// generated no `AUTO_INCREMENT` value — [`MySqlRows::last_id`](nvs_db::MySqlRows::last_id) answers
+/// `None` for none, and [`schema`] declares the column that makes it impossible.
 fn inserted(
     framed: &mut crate::db::Framed<'_>,
     bound: &[Option<&[u8]>],
@@ -3953,7 +3953,7 @@ fn inserted(
         .map_err(|refused| insert_refused(block, &refused))?
         .is_some()
     {}
-    let last = answered.last_id().filter(|id| *id != 0);
+    let last = answered.last_id();
     spans.note(answered.span());
     drop(answered);
     last.ok_or_else(|| {

@@ -797,11 +797,12 @@ pub(super) fn postgres_write(
 /// `execute` over the MySQL driver: [`postgres_write`]'s shape, and § 4's two
 /// counts read out of the status packet rather than out of a completion tag.
 ///
-/// **`lastId` is where the two drivers differ and § 4 does not.** MySQL answers
-/// `0` for a statement that generated no `AUTO_INCREMENT` value, and § 4's field
-/// is `?uint` — so the zero is mapped to null here rather than handed to a
-/// caller who would have to know to read it as absence. PostgreSQL reaches the
-/// same answer by having no `RETURNING` id to read at all.
+/// **`lastId` is where the two drivers differ and § 4 does not.** MySQL carries
+/// the key in the status packet, and [`nvs_db::MySqlRows::last_id`] answers the
+/// `AUTO_INCREMENT` value the statement generated and `None` where it generated
+/// none — the driver holds the absence the protocol reported, so nothing is
+/// mapped a second time here. PostgreSQL reaches the same answer by having no
+/// `RETURNING` id to read at all.
 ///
 /// # Errors
 ///
@@ -828,7 +829,7 @@ pub(super) fn mysql_write(
 
     let written = Written {
         changed: answered.affected(),
-        last_id: answered.last_id().filter(|id| *id != 0),
+        last_id: answered.last_id(),
     };
     let taken = watch.taken(answered.span());
     Ok((written, taken))
