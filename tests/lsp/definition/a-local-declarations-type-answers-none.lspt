@@ -1,5 +1,5 @@
 --TEST--
-a written type is a property of the declaration and never a node of its own, so a cursor inside one is inside the declaration, which names nothing to jump to, `rule:ide/the-index-answers-the-cursor`
+a scalar written as a local's type is no name — `string` is its own type atom and never a class name — so the walk over written types answers nothing for it, and the declaration the index places the cursor in names nothing to jump to either, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 stri<|>ng $name = "hi";

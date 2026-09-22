@@ -1,0 +1,17 @@
+--TEST--
+a `Core` class written as a parameter's type has no declaration in any source file, so the jump opens the generated stub on the line the class is declared — the written name travels as its own spelling because no symbol table holds it, `rule:ide/the-stub-tree-is-where-core-is-declared`
+--FILE--
+<?nvs
+class Page
+{
+    public static function document(string $title, Core\Html\Mar<|>kup $body): Core\Html\Markup
+    {
+        return $body;
+    }
+}
+
+echo "made";
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Html/Markup.nvs:7:13

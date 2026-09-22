@@ -1,0 +1,15 @@
+--TEST--
+the class inside a call's `<Type>` argument is a written type, which is asked before the index is — to the index the cursor is inside the call, and the method is the wrong answer for a caret on the class it names, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface View
+{
+    public function render(): string;
+}
+
+array<View> $views = Core\Program::implementing<Vi<|>ew>();
+echo Core\Arr::count($views);
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:11

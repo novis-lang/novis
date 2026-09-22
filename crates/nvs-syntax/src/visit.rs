@@ -53,7 +53,7 @@ use crate::ast::{CallArgs, Expr, ExprKind, MemberName, NewTarget, StringPart, Te
 /// See the module docs for what a child is: a closure's body and an anonymous
 /// class's members are not children of the expression that writes them, and a
 /// branch that may not run is.
-pub fn each_child_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
+pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
     match &e.kind {
         ExprKind::Null
         | ExprKind::Bool(_)
@@ -219,7 +219,7 @@ pub fn each_child_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
 /// The expressions an argument list evaluates. `(...)` — the first-class
 /// callable marker — names a callable rather than calling one, so it
 /// evaluates nothing.
-fn each_arg(args: &CallArgs, f: &mut dyn FnMut(&Expr)) {
+fn each_arg<'a>(args: &'a CallArgs, f: &mut dyn FnMut(&'a Expr)) {
     if let CallArgs::List(list) = args {
         for arg in list {
             f(&arg.value);
@@ -230,7 +230,7 @@ fn each_arg(args: &CallArgs, f: &mut dyn FnMut(&Expr)) {
 /// The expression a dynamic member name evaluates — `->$name` and `->{expr}`
 /// compute the name at run time, and a written or invented identifier
 /// computes nothing.
-fn each_member_name_expr(name: &MemberName, f: &mut dyn FnMut(&Expr)) {
+fn each_member_name_expr<'a>(name: &'a MemberName, f: &mut dyn FnMut(&'a Expr)) {
     match name {
         MemberName::Ident(_) | MemberName::Missing(_) => {}
         MemberName::Variable(computed) | MemberName::Expr(computed) => f(computed),

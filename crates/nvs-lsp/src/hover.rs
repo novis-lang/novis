@@ -73,6 +73,8 @@
 //! off the argument spans the parser produced rather than off commas looked
 //! for here.
 
+use std::borrow::Cow;
+
 use lsp_types::{
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
     ParameterLabel, SignatureHelp, SignatureInformation,
@@ -292,7 +294,7 @@ fn enclosing_run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     if symbol.kind != SymbolKind::Enum {
         return None;
     }
-    run(analysed, &Target::Type(class))
+    run(analysed, &Target::Type(Cow::Borrowed(class)))
 }
 
 /// The `///` run above the declaration `target` resolves to, as Markdown.
@@ -411,15 +413,19 @@ fn written(
     if !receiver {
         return None;
     }
-    core_type_hover(&class.to_string()).or_else(|| run(analysed, &Target::Type(class)))
+    core_type_hover(&class.to_string())
+        .or_else(|| run(analysed, &Target::Type(Cow::Borrowed(class))))
 }
 
 /// The class a target is on: the declaring class of a member, or the type
 /// itself.
-fn class_of<'a>(target: &Target<'a>) -> &'a QName {
+///
+/// Borrowed from the target and not from the analysis behind it, because a
+/// [`Target::Type`] may own its name (`crate::definition::type_name_at`).
+fn class_of<'t>(target: &'t Target<'_>) -> &'t QName {
     match target {
-        Target::Type(class)
-        | Target::Property { class, .. }
+        Target::Type(class) => class.as_ref(),
+        Target::Property { class, .. }
         | Target::Constant { class, .. }
         | Target::TypeAlias { class, .. } => class,
         Target::Method(call) => &call.class,

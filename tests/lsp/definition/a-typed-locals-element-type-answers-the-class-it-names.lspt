@@ -1,0 +1,15 @@
+--TEST--
+the class inside a typed local's `array<…>` is the innermost written type under the cursor, so it opens the class's declaration where a scalar in the same position still answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class View
+{
+    public string $name = "";
+}
+
+array<Vi<|>ew> $views = [new View()];
+echo $views[0]->name;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

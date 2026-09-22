@@ -43,21 +43,34 @@
 //! property of the node that writes it, which is why nothing above looks for a
 //! node called `TypeName` — and it is why [`written_type_at`] enumerates the
 //! positions a type is *written* at rather than asking the index anything.
-//! Those positions are a declaration's own: a `type` alias's right-hand side at
-//! either declaration site, a property's and a class constant's declared type,
-//! a method's parameter and return types, a property hook's parameter, a
-//! `foreach` binding's and a `catch` clause's, and a typed local's wherever a
-//! statement sequence holds one. A type written inside an *expression* — `as`,
-//! `is`, a closure literal's signature — is reached through none of those and
-//! is answered by nothing here.
+//! Those positions are a declaration's own — a `type` alias's right-hand side
+//! at either declaration site, a property's and a class constant's declared
+//! type, a method's parameter and return types, a property hook's parameter,
+//! a `foreach` binding's and a `catch` clause's, and a typed local's wherever
+//! a statement sequence holds one — and an expression's: an `as` conversion's
+//! target, the right side of an `is` test, a closure literal's signature, the
+//! class a `catch` arm names, and the `<Type>` arguments a call or a `new`
+//! writes. An expression is reached through the statement holding it and a
+//! closure's body through the closure, so a type written anywhere in the entry
+//! document is on the walk.
 //!
-//! What that walk exists for is [`type_member_at`]. `Owner::Name` in type
-//! position is the one type atom that names a **member**, and which member it
-//! names is what the owner declares: a `type` alias of that owner, one of its
-//! enum cases, or one of its constants, in that order — an order that decides
-//! nothing a compiling program can observe, because a body declaring two of
-//! them under one name is refused where the second is written
-//! (`rule:types/type-alias`).
+//! **A written type is asked before the index is.** To the index a cursor in
+//! the `<User>` of `decodeAs<User>()` is inside the call, and the call's method
+//! is the wrong answer for a caret on the class it names. So [`named_at`]
+//! consults the walk first, and the index only for a cursor no written type
+//! covers.
+//!
+//! The walk answers two kinds of name. [`type_name_at`] is the plain class
+//! name — `User $u`, `array<User>`, `implementing<User>()` — resolved the way
+//! the checker resolves one
+//! (`rule:statements/one-function-resolves-every-name`) and answered as the
+//! declaration it names, or as the stub a `Core` class has instead.
+//! [`type_member_at`] is `Owner::Name`, the one type atom that names a
+//! **member**, and which member it names is what the owner declares: a `type`
+//! alias of that owner, one of its enum cases, or one of its constants, in
+//! that order — an order that decides nothing a compiling program can observe,
+//! because a body declaring two of them under one name is refused where the
+//! second is written (`rule:types/type-alias`).
 //!
 //! **A `use` line names a type too.** An import is a statement and no
 //! expression, so nothing above reaches it, and what it resolved to is already
@@ -71,14 +84,16 @@
 //! `SourceId` and the caller spells whichever file that is, exactly as
 //! [`crate::links`] spells a `require`'s target.
 
+use std::borrow::Cow;
 use std::path::PathBuf;
 
 use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AttributeGroup, ClassMember, ClassMemberKind, DocComment, EnumCase, Expr, MethodMember, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+    AttributeGroup, ClassMember, ClassMemberKind, DocComment, EnumCase, Expr, ExprKind, FnBody,
+    ForInit, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
+    TestOperand, Type, TypeAtom, TypeKind,
 };
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 use rustc_hash::FxHashMap;
@@ -130,7 +145,7 @@ fn declared(
         });
     }
     let (class, member) = match target {
-        Target::Type(class) => (*class, None),
+        Target::Type(class) => (class.as_ref(), None),
         Target::Method(call) => (&call.class, Some(call.method.as_str())),
         Target::Constant { class, name } => (*class, Some(*name)),
         Target::Property { .. } | Target::TypeAlias { .. } => return None,
@@ -173,7 +188,7 @@ pub fn type_at(
         .nodes()
         .iter()
         .find_map(|node| instance_of(analysed, analysed.exprs.lookup(node.span)?))?;
-    declared(analysed, &Target::Type(&class), encoding)
+    declared(analysed, &Target::Type(Cow::Owned(class)), encoding)
 }
 
 /// The class one recorded expression is an instance of, by name.
@@ -267,7 +282,12 @@ fn class_of(interner: &TypeInterner, ty: TypeId) -> Option<QName> {
 /// list the checker resolved it in tells them apart.
 pub(crate) enum Target<'a> {
     /// A class, an interface or an enum, by its fully-qualified name.
-    Type(&'a QName),
+    ///
+    /// Borrowed from the checker's record wherever there is one, and owned
+    /// for the one name nothing records: a class written in type position
+    /// that no source file declares ([`type_name_at`]), which is a `Core`
+    /// class on its way to the stub tree.
+    Type(Cow<'a, QName>),
     /// A method, as the checker resolved the call to it — named on the class
     /// that **declares** it rather than on the receiver's, which is what
     /// `nvs_types::ResolvedCall::class` already is, so an inherited method
@@ -354,7 +374,7 @@ pub(crate) struct Site<'a> {
 /// its span exists.
 pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Site<'a>> {
     let (class, member) = match target {
-        Target::Type(qname) => (*qname, None),
+        Target::Type(qname) => (qname.as_ref(), None),
         Target::Method(call) => (
             &call.class,
             Some((call.method.as_str(), MemberKind::Method)),
@@ -554,10 +574,16 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// asks about the enum. `Cart::LIMIT` is not this case and still answers the
 /// constant wherever the cursor is: its entry names the class that *declares*
 /// the constant, which need not be the one the source wrote.
-/// A name no recorded expression covers is answered last, by the three places
-/// a name is written outside an expression: an `extends` or `implements`
-/// clause off the hierarchy graph ([`clause_at`]), an `Owner::Name` in type
-/// position ([`type_member_at`]), and a `use` line ([`import_at`]).
+/// **A written type is asked before any node is**, for the module doc's
+/// reason: the index cannot see a type, so a cursor on one is inside whatever
+/// wrote it — a call, for its `<Type>` argument — and that node is the wrong
+/// answer. [`type_member_at`] and [`type_name_at`] answer nothing for a cursor
+/// outside a written type, and the walk over the nodes then runs as before.
+///
+/// A name no recorded expression covers is answered last, by the places a
+/// name is written outside an expression and outside a type: an `extends` or
+/// `implements` clause off the hierarchy graph ([`clause_at`]), an attribute's
+/// name ([`attribute_at`]) and a `use` line ([`import_at`]).
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
     let nodes: Vec<Span> = analysed
         .index
@@ -566,10 +592,11 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         .iter()
         .map(|node| node.span)
         .collect();
-    resolved_in(analysed, &nodes)
+    type_member_at(analysed, offset)
+        .or_else(|| type_name_at(analysed, offset))
+        .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| resolved_in(analysed, &payload_path(analysed, offset)))
         .or_else(|| clause_at(analysed, offset))
-        .or_else(|| type_member_at(analysed, offset))
         .or_else(|| attribute_at(analysed, offset))
         .or_else(|| import_at(analysed, offset))
 }
@@ -585,7 +612,7 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
         let inside = depth.checked_sub(1).map(|inner| nodes[inner]);
         match (info, inside) {
             (ExprInfo::EnumCase { enum_, .. }, Some(qualifier)) => {
-                Some((Target::Type(enum_), qualifier))
+                Some((Target::Type(Cow::Borrowed(enum_)), qualifier))
             }
             // `$x is Shape` writes a type where no other expression does,
             // so the name is reached through the interner rather than off
@@ -594,7 +621,7 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
             // anything but one class — a scalar, a union — names no single
             // declaration and falls through to the node above.
             (ExprInfo::TypeTest { tested }, _) => Some((
-                Target::Type(class_named_by(&analysed.interner, *tested)?),
+                Target::Type(Cow::Borrowed(class_named_by(&analysed.interner, *tested)?)),
                 *node,
             )),
             _ => Some((target_of(info)?, *node)),
@@ -730,7 +757,7 @@ pub(crate) fn attribute_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
         .attribute_names()
         .filter(|(span, _)| span.file == analysed.entry)
         .find(|(span, _)| covers(*span, offset))
-        .map(|(span, name)| (Target::Type(name), span))
+        .map(|(span, name)| (Target::Type(Cow::Borrowed(name)), span))
 }
 
 /// The type a `use` line of the entry document imports at `offset`, and the
@@ -749,7 +776,7 @@ pub(crate) fn import_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<
         .iter()
         .filter(|import| import.span.file == analysed.entry && import.resolved)
         .find(|import| covers(import.span, offset))
-        .map(|import| (Target::Type(&import.target), import.span))
+        .map(|import| (Target::Type(Cow::Borrowed(&import.target)), import.span))
 }
 
 /// The supertype an `extends` or `implements` clause of the entry document
@@ -781,7 +808,7 @@ pub(crate) fn clause_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<
             .zip(resolved_bases)
             .chain(ifaces.iter().zip(resolved_ifaces))
             .find(|(name, _)| covers(**name, offset))
-            .map(|(name, qname)| (Target::Type(qname), *name))
+            .map(|(name, qname)| (Target::Type(Cow::Borrowed(qname)), *name))
     })
 }
 
@@ -850,11 +877,11 @@ pub(crate) const fn covers(span: Span, offset: BytePos) -> bool {
 /// cursor sitting on one of its arguments.
 pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
     Some(match info {
-        ExprInfo::New { class, .. } => Target::Type(class),
+        ExprInfo::New { class, .. } => Target::Type(Cow::Borrowed(class)),
         // The bound, which is the only class this site named — the one
         // allocated is whatever descriptor is in hand, and no compile
         // knows it (`nvs_types::ExprInfo::NewDynamic`).
-        ExprInfo::NewDynamic { bound, .. } => Target::Type(bound),
+        ExprInfo::NewDynamic { bound, .. } => Target::Type(Cow::Borrowed(bound)),
         // The case and not the enum around it, which is the declaration the
         // index already keys under `Status::Draft` — the enum is a fact about
         // the case's *type* and [`type_at`] is the request that asks for one.
@@ -903,7 +930,7 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
     let resolved = resolved_name(analysed, text_of(file, written.span), written.span.start)?;
     let owner = &analysed.module.symbols.get(&resolved)?.qname;
     if !covers(*member, offset) {
-        return Some((Target::Type(owner), written.span));
+        return Some((Target::Type(Cow::Borrowed(owner)), written.span));
     }
     let name = text_of(file, *member);
     let target = if analysed.module.aliases.get_member(owner, name).is_some() {
@@ -912,6 +939,41 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
         Target::Constant { class: owner, name }
     };
     Some((target, *member))
+}
+
+/// What a plain class name written in type position at `offset` names, and
+/// the span the source wrote it at.
+///
+/// `User` in `User $u`, in `array<User>`, in `): User`, in `foreach ($rows as
+/// User $row)`, in `$v as User` and in `implementing<User>()` — every
+/// position [`written_type_at`] walks. The name goes through the one resolver
+/// ([`resolved_name`]) and is answered as the declaration it names. A name the
+/// symbol table does not hold is answered as its own spelling, owned, so that
+/// a `Core` class — declared in no source file — still reaches the stub tree
+/// [`declared`] asks second; a name that is neither answers a jump to nowhere
+/// there, which is what an unresolved name gets everywhere in this module.
+///
+/// A scalar is no name: `string` is its own [`TypeAtom`] and never a
+/// [`TypeAtom::Name`], so `string $s` answers nothing here. The cursor has to
+/// be on the name itself and not on an argument of it — in `Core\ObjectSet<Tag>`
+/// the innermost written type covering an offset in `Tag` is `Tag`, and an
+/// offset in the owner's segments is covered by the whole, whose own name span
+/// is what is tested.
+pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    let ty = written_type_at(analysed, offset)?;
+    let TypeKind::Atom(TypeAtom::Name(name, _)) = &ty.kind else {
+        return None;
+    };
+    if !covers(name.span, offset) {
+        return None;
+    }
+    let file = analysed.map.file(analysed.entry);
+    let resolved = resolved_name(analysed, text_of(file, name.span), name.span.start)?;
+    let target = match analysed.module.symbols.get(&resolved) {
+        Some(symbol) => Target::Type(Cow::Borrowed(&symbol.qname)),
+        None => Target::Type(Cow::Owned(resolved)),
+    };
+    Some((target, name.span))
 }
 
 /// What the name `text`, written at `at` in the entry document, means — and
@@ -985,10 +1047,10 @@ pub(crate) fn imports_of(analysed: &Analysed) -> FxHashMap<String, QName> {
 /// The written type the cursor at `offset` is inside, innermost first, and
 /// `None` for a cursor inside none.
 ///
-/// The positions walked are the module doc's, and they are a **declaration's**:
-/// a type reached only through an expression is not among them. Innermost for
-/// [`named_at`]'s reason — `array<Order::Meta>` covers one offset with two
-/// written types, and the nearer one is what the caret is pointing at.
+/// The positions walked are the module doc's: a declaration's own and an
+/// expression's, anywhere in the entry document. Innermost for [`named_at`]'s
+/// reason — `array<Order::Meta>` covers one offset with two written types,
+/// and the nearer one is what the caret is pointing at.
 pub(crate) fn written_type_at(analysed: &Analysed, offset: BytePos) -> Option<&Type> {
     let entry = analysed
         .loaded
@@ -999,19 +1061,21 @@ pub(crate) fn written_type_at(analysed: &Analysed, offset: BytePos) -> Option<&T
         .find_map(|root| type_in(root, offset))
 }
 
-/// Every annotation written in `stmts` whose span meets `[start, end]`, in
-/// source order — each as the whole type written at that position, a
-/// parameter's, a local's, a property's, a `catch`'s, a return's, an alias's.
+/// Every type written in `stmts` whose span meets `[start, end]`, in source
+/// order — each as the whole type written at that position: a parameter's, a
+/// local's, a property's, a `catch`'s, a return's, an alias's, an `as`
+/// conversion's, an `is` test's, a closure signature's, a `catch` arm's and a
+/// call's `<Type>` argument.
 ///
-/// The span test on each statement is what makes this one path down the file
-/// rather than a walk of all of it: a statement the range does not meet holds
-/// no type the range could. Asked with `start == end` it is the path
-/// [`written_type_at`] takes to the one annotation under a cursor; asked over
-/// a range it is every annotation a copied selection carries
-/// (`crate::imports`). A top-level `function` or `const` is deliberately
-/// absent for `rule:ide/rejected-syntax-gets-no-colour`'s reason — the
-/// construct is refused, so the server answers nothing about the names written
-/// inside it.
+/// The span test on each statement and each expression is what makes this
+/// one path down the file rather than a walk of all of it: a node the range
+/// does not meet holds no type the range could. Asked with `start == end` it
+/// is the path [`written_type_at`] takes to the one type under a cursor;
+/// asked over a range it is every type a copied selection carries
+/// (`crate::imports`). A top-level `function` or `const` and a `static` local
+/// are deliberately absent for `rule:ide/rejected-syntax-gets-no-colour`'s
+/// reason — the construct is refused, so the server answers nothing about the
+/// names written inside it.
 pub(crate) fn written_types_in(stmts: &[Stmt], start: BytePos, end: BytePos) -> Vec<&Type> {
     let mut found = Vec::new();
     stmts_types(stmts, start, end, &mut found);
@@ -1047,26 +1111,57 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
                 stmts_types(&block.stmts, start, end, found);
             }
         }
-        StmtKind::LocalDecl { ty: Some(ty), .. } => root(ty, start, end, found),
+        StmtKind::LocalDecl { ty, value, .. } => {
+            if let Some(ty) = ty {
+                root(ty, start, end, found);
+            }
+            if let Some(value) = value {
+                expr_types(value, start, end, found);
+            }
+        }
+        StmtKind::Expr(expr) | StmtKind::Destructure { value: expr, .. } => {
+            expr_types(expr, start, end, found);
+        }
+        StmtKind::Return(value) | StmtKind::Break(value) | StmtKind::Continue(value) => {
+            if let Some(expr) = value {
+                expr_types(expr, start, end, found);
+            }
+        }
+        StmtKind::Echo(exprs) | StmtKind::Unset(exprs) => exprs_types(exprs, start, end, found),
         StmtKind::Block(block) => stmts_types(&block.stmts, start, end, found),
-        StmtKind::If { then, else_, .. } => {
+        StmtKind::If { cond, then, else_ } => {
+            expr_types(cond, start, end, found);
             stmt_types(then, start, end, found);
             if let Some(else_) = else_ {
                 stmt_types(else_, start, end, found);
             }
         }
-        StmtKind::While { body, .. } | StmtKind::DoWhile { body, .. } => {
+        StmtKind::While { cond, body } | StmtKind::DoWhile { cond, body } => {
+            expr_types(cond, start, end, found);
             stmt_types(body, start, end, found);
         }
-        StmtKind::For { init, body, .. } => {
-            if let Some(decl) = init.decl() {
-                stmt_types(decl, start, end, found);
+        StmtKind::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            match init {
+                ForInit::Decl(decl) => stmt_types(decl, start, end, found),
+                ForInit::Exprs(exprs) => exprs_types(exprs, start, end, found),
             }
+            exprs_types(cond, start, end, found);
+            exprs_types(step, start, end, found);
             stmt_types(body, start, end, found);
         }
         StmtKind::Foreach {
-            key, value, body, ..
+            subject,
+            key,
+            value,
+            body,
+            ..
         } => {
+            expr_types(subject, start, end, found);
             if let Some(ty) = key.as_ref().and_then(|binding| binding.ty.as_ref()) {
                 root(ty, start, end, found);
             }
@@ -1075,8 +1170,12 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
             }
             stmt_types(body, start, end, found);
         }
-        StmtKind::Switch { cases, .. } => {
+        StmtKind::Switch { subject, cases } => {
+            expr_types(subject, start, end, found);
             for arm in cases {
+                if let Some(cond) = &arm.cond {
+                    expr_types(cond, start, end, found);
+                }
                 stmts_types(&arm.body, start, end, found);
             }
         }
@@ -1096,6 +1195,68 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
         }
         _ => {}
     }
+}
+
+/// [`expr_types`] over one expression list, appending to `found`.
+fn exprs_types<'a>(exprs: &'a [Expr], start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    for expr in exprs {
+        expr_types(expr, start, end, found);
+    }
+}
+
+/// The types written in one expression that meet the range, and nothing for
+/// an expression the range does not meet.
+///
+/// The five places an expression writes a type — an `as` conversion's target,
+/// an `is` test's, a closure literal's signature, a `catch` arm's class and
+/// the `<Type>` arguments of a call or a `new` — and then every expression
+/// this one evaluates (`nvs_syntax::visit::each_child_expr`). That walk stops
+/// at a closure's body and at an anonymous class's members on purpose, so both
+/// are stepped into here: the body is a statement sequence or an expression,
+/// and the members are a class body like any other.
+fn expr_types<'a>(expr: &'a Expr, start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
+    if !meets(expr.span, start, end) {
+        return;
+    }
+    match &expr.kind {
+        ExprKind::Conversion { ty, .. } => root(ty, start, end, found),
+        ExprKind::TypeTest {
+            against: TestOperand::Type(ty),
+            ..
+        } => root(ty, start, end, found),
+        ExprKind::MethodCall { type_args, .. } | ExprKind::StaticCall { type_args, .. } => {
+            for ty in type_args {
+                root(ty, start, end, found);
+            }
+        }
+        ExprKind::New {
+            target, type_args, ..
+        } => {
+            for ty in type_args {
+                root(ty, start, end, found);
+            }
+            if let NewTarget::AnonClass(decl) = target {
+                members_types(&decl.members, start, end, found);
+            }
+        }
+        ExprKind::Fn(function) => {
+            params_types(&function.params, start, end, found);
+            if let Some(ty) = &function.return_type {
+                root(ty, start, end, found);
+            }
+            match &function.body {
+                FnBody::Expr(body) => expr_types(body, start, end, found),
+                FnBody::Block(block) => stmts_types(&block.stmts, start, end, found),
+            }
+        }
+        ExprKind::Catch { arms, .. } => {
+            for arm in arms {
+                root(&arm.ty, start, end, found);
+            }
+        }
+        _ => {}
+    }
+    nvs_syntax::visit::each_child_expr(expr, &mut |child| expr_types(child, start, end, found));
 }
 
 /// One annotation, kept where the range meets it.
@@ -1334,5 +1495,33 @@ mod tests {
         assert_eq!(jump(OWNERS, "of(Ord"), "1:6");
         assert_eq!(jump(OWNERS, "Status::Pa"), "6:7");
         assert_eq!(jump(OWNERS, "Order::Meta $m): i"), "none");
+    }
+
+    /// One interface, written at every type position a program has: a
+    /// parameter, a return, a typed local's element, a call's `<Type>`
+    /// argument, a `foreach` binding, an `as` conversion and a closure
+    /// signature.
+    const WRITTEN: &str = "<?nvs\ninterface Shape { public function area(): int; }\n\
+                           class Square implements Shape { public function area(): int { return \
+                           1; } }\nclass Box {\n  public function of(Shape $s): Shape { return \
+                           $s; }\n}\narray<Shape> $all = Core\\Program::implementing<Shape>();\n\
+                           foreach ($all as Shape $one) { echo $one->area(); }\nmixed $m = new \
+                           Square();\nvar $cast = $m as Shape;\nvar $f = fn(Shape $p): Shape => \
+                           $p;\n";
+
+    /// A class name in type position is a written name like the one after
+    /// `is`, so a cursor on it opens the declaration wherever the type was
+    /// written — and the one inside a call's `<Type>` argument opens the class,
+    /// not the method the index would have answered with.
+    #[test]
+    fn definition_on_a_class_written_in_type_position_is_its_declaration() {
+        assert_eq!(jump(WRITTEN, "of(Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "$s): Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "array<Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "implementing<Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "($all as Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "$m as Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "fn(Sha"), "1:10");
+        assert_eq!(jump(WRITTEN, "$p): Sha"), "1:10");
     }
 }

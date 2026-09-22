@@ -423,8 +423,8 @@ impl Named<'_> {
             return 0;
         };
         let class = match &target {
-            Target::Type(class)
-            | Target::Property { class, .. }
+            Target::Type(class) => class.as_ref(),
+            Target::Property { class, .. }
             | Target::Constant { class, .. }
             | Target::TypeAlias { class, .. } => *class,
             Target::Method(call) => &call.class,
