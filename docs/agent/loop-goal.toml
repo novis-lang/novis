@@ -111,6 +111,14 @@ modules = [
   "crates/nvs-cli/src/service.rs",
   # The four executing members, and the per-driver arms beneath them.
   "crates/nvs-stdlib/src/db/execute.rs",
+  # MySQL: reading a `[db.<name>]` block, reading the server's greeting, upgrading the socket in
+  # band, authenticating with a proof rather than a password, forcing the connection's charset to
+  # `utf8mb4`, and running one statement over `COM_STMT_PREPARE` and `COM_STMT_EXECUTE` — the
+  # prepare only the first time, which is § 1's cache.
+  "crates/nvs-db/src/mysql.rs",
+  # `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background job,
+  # over the `[db.<name>]` block a `[queue] connection` names.
+  "crates/nvs-stdlib/src/queue.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
