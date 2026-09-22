@@ -1221,18 +1221,33 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         ExprKind::ConstFetch(name) => {
             let text = name_text(src, name);
             if !env.refused_toplevel.contains(text) {
+                // `html"…"` is the markup literal written with a string's
+                // delimiter, one character from the form that compiles, and a
+                // help about class constants reads as "there is no such
+                // literal". The bare name followed by a quote is that guess
+                // and nothing else, since no constant is ever followed by one.
+                let quote_follows = src
+                    .text()
+                    .get(expr.span.end as usize..)
+                    .is_some_and(|after| after.starts_with(['"', '\'']));
+                let help = if text == "html" && quote_follows {
+                    "the markup literal is written with backticks, `html`<p>{$name}</p>``: its \
+                     text is a `Core\\Html\\Markup` and every `{$…}` hole in it is escaped"
+                        .to_owned()
+                } else {
+                    "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \
+                     global one to fetch — write `Class::NAME`, and for a PHP built-in the \
+                     `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is \
+                     `Core\\Math::PI`)"
+                        .to_owned()
+                };
                 env.diags.report(
                     Diagnostic::error(
                         code::E_NO_GLOBAL_CONSTANT,
                         format!("`{text}` is not a constant that exists"),
                     )
                     .with_primary(expr.span, "no global constant has this name")
-                    .with_help(
-                        "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \
-                         global one to fetch — write `Class::NAME`, and for a PHP built-in the \
-                         `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is \
-                         `Core\\Math::PI`)",
-                    ),
+                    .with_help(help),
                 );
             }
         }
