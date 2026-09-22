@@ -26,12 +26,13 @@ statements run — is pinned by the `.nvst` case.
 `Core\Db\Write::changed` measures 47.2 ns/op and `lastId` 40.7 ns/op, both at 0.00 allocations, as
 their benches declare. `target/release/nvs.exe` is current with the tree.
 
-**`python tools/verify.py` is green through build, fmt, test and both `.nvst` trees, and red at
-clippy on files this session did not touch.** `crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/stop.rs`,
-`crates/nvs-host/src/reactor.rs` and `crates/nvs-runtime/src/drain.rs` carry uncommitted
-`eprintln!("TRACE …")` lines somebody is debugging with, and `clippy::print_stderr` is `-D warnings`:
-two of them in `reactor.rs` are what stops the run. Nothing here staged or edited those four, and
-clippy passes again the moment they go. `python tools/verify.py --doc` is green.
+**`python tools/verify.py` was green through build, fmt, test and both `.nvst` trees, and red at
+clippy on files this session did not touch**: four crates carried uncommitted `eprintln!("TRACE …")`
+lines somebody was debugging with, and `clippy::print_stderr` is `-D warnings`. Those lines have
+since gone from the tree, and clippy was not re-run after they did. What is uncommitted now is
+`crates/nvs-host/src/reactor.rs`'s `REMOTE_WAKE_BOUND` — somebody's in-flight work on a Windows
+completion packet that does not release a parked core, and nothing here staged or edited it.
+`python tools/verify.py --doc` is green.
 
 ## Next group
 
