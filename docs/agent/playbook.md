@@ -2652,12 +2652,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   a missing command: Windows reports a double release that way, with nothing on stderr, and a
   refcount bug is otherwise silent until the WSL valgrind leg catches it. Check `$?` on every
   scratch run rather than reading the output and moving on. [until: reviewed 2026-09-06]
-- **A Windows `nvs serve` whose idle cores never end on Ctrl-C is Winsock's `accept` waiting in the
-  kernel.** A non-blocking `accept` on duplicates of one listener checks for a queued connection in
-  user mode and then waits without honouring the mode, so one connection wakes every core and the
-  losers wait for the next one. `ACCEPTING` in `crates/nvs-host/src/net.rs` holds the check and the
-  wait together — reach it through `Accepting::accept`, never the mio listener's own method.
-  [until: test a_herd_of_accepts_on_duplicates_of_one_listener_all_return]
 - **A leak whose "definitely lost" size is `16 + strlen(a literal in the probe)` is a temporary
   abandoned on a throwing edge**, and the allocating stack carrying no `nvs_` frame at all is the
   confirmation. Most such edges are closed by `nvs_ir::lower::Lowering`'s owned-temporaries stack,
