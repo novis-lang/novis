@@ -6831,6 +6831,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   file-scope local and not scoped to its arm. Name each arm for what it caught — `$byZero`,
   `$repeats`, `$tooWide` — which reads better in the `echo` beside it anyway.
   [until: reviewed 2026-09-22]
+- **A number literal with a point beside a `decimal` operand is `E0455`, and the literal is the
+  `float` half.** `decimal $carried = 1.00; $carried + 100.00;` does not compile, because a literal
+  takes its type from a declared target or a parameter and not from the other operand, while
+  `rule:types/arithmetic` gives `decimal ⊕ float` no common type. Declare the constant as its own
+  `decimal` binding, or write `as decimal`; an integer literal needs neither, since `decimal ⊕ int`
+  is a row of that table. [until: reviewed 2026-09-22]
+
+- **An `echo` with several arguments prints the ones before a throw, so a caught call inside one
+  leaves half a line in the blessed output.** `echo $n, ": ", Core\Decimal::pow(1.05, 15), "\n";`
+  inside a `try` printed `15: ` and then the `catch` printed its own line, which `--bless` froze as
+  the example's expected output. Put a call that can throw in its own statement above the `echo`
+  whenever the example catches it. [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 
