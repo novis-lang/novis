@@ -1007,8 +1007,9 @@ as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
   compile error, because the text it would make is escaped again at the sink.
 - Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
-  the way a heredoc's closing marker strips it. A literal backtick is `` \` `` and a literal `{$`
-  is `\{$`.
+  the way a heredoc's closing marker strips it. A literal backtick is `` \` ``, and `\{` is a
+  literal `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
+  the value and `}`.
 - The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
   `"<p>…</p>" as Core\Html\Markup` converts a string written as a literal and nothing else;
   `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
