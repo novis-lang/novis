@@ -491,13 +491,10 @@ as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?
 
 - A literal has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
   in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
-  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape, and
-  `{Page::TITLE}` is printed as written. `<?= expr ?>` is a page's output tag, and inside a literal
-  it is a hole that takes **any** expression: `<?= Page::TITLE ?>`, `<?= Money::format($c) ?>`,
-  `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>`. Spaces around the expression are allowed, a
-  `}` inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes
-  it. A `<?nvs` block inside a literal is a compile error: a literal is one expression, and a loop
-  around markup is written in code mode outside it.
+  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape.
+  `{Page::TITLE}` is therefore printed as written, and the compiler warns (`W1012`), because a
+  page that prints that text is almost never what was meant. The second kind of hole is the
+  output tag, below.
 - Both holes follow one rule. A `string` is escaped, `tainted` or not. A `Core\Html\Markup` is
   written raw. A `secret` value is a compile error, and so is a value with no string form.
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
@@ -523,13 +520,13 @@ class Page {
 tainted string $name = "<b>Ann</b>";
 bool $fresh = true;
 Core\Html\Markup $head = html`<h1><?= Page::TITLE ?> <?= $fresh ? Page::badge() : html`` ?></h1>`;
-Core\Html\Markup $body = html`<p>posted by {$name}, {Page::TITLE}</p>`;
+Core\Html\Markup $body = html`<p>posted by {$name} {not a hole}</p>`;
 echo $head + $body, "\n";
 echo html`<pre>
   kept as written \`</pre>`, "\n";
 ```
 ```output
-<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt;, {Page::TITLE}</p>
+<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt; {not a hole}</p>
 <pre>
   kept as written `</pre>
 ```
@@ -549,6 +546,28 @@ Core\Html\Markup $m = html"<p>x</p>";
 ```
 ```output
 written with backticks
+```
+
+### `<?= expr ?>`: a hole for any expression
+
+`<?= expr ?>` is a page's output tag, and inside a literal it is a hole that takes **any**
+expression: a class constant, a static call, a condition, a nested literal. It is the hole to
+write when the value has no variable in front of it, which is every `Class::` value, since Novis
+has no free functions and no global constants. Spaces around the expression are allowed, a `}`
+inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes it. The
+value is escaped by the same rule as a brace hole. A `<?nvs` block inside a literal is a compile
+error: a literal is one expression, and a loop around markup is written in code mode outside it.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+}
+bool $on = true;
+echo html`<h1><?= Page::TITLE ?> <?= $on ? html`<b>on</b>` : html`<i>off</i>` ?></h1>`, "\n";
+```
+```output
+<h1>News <b>on</b></h1>
 ```
 
 # Widening without `as`
@@ -832,10 +851,17 @@ truthy
 # Parameters
 
 A parameter is `T $name`, with an optional default `= literal`, and the last may be variadic —
-`T ...$rest`, an `array<T>` inside the body. `inout T $name` binds the caller's variable or
-property rather than a copy, and the call writes `inout` again in front of the argument; `&` is
-not a by-reference marker anywhere. A `foreach` value binding may be `inout` too. Arguments may be
-passed by name: `Sum::bump(inout n: $count)`.
+`T ...$rest`, an `array<T>` inside the body. Arguments may be passed by name:
+`Sum::bump(inout n: $count)`.
+
+## `inout`: a parameter that writes back
+
+`inout T $name` binds the caller's variable rather than a copy, so what the method assigns to
+`$name` is what the caller holds afterwards. The call writes `inout` again in front of the
+argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
+change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
+by-reference marker anywhere. A `foreach` value binding may be `inout` too, and a closure has no
+`inout` parameter.
 
 ```nvs
 <?nvs

@@ -2,7 +2,7 @@
 id: programs
 title: Programs, files and names
 summary: what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another
-keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
+keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
 ---
 
 # A program is a file of top-level statements
@@ -130,6 +130,40 @@ ok
 ```
 
 `#[` — with the bracket — opens an attribute (the attributes chapter), not a comment.
+
+# Doc comments: `///`
+
+A comment that opens with exactly three slashes is a doc comment. It documents the declaration
+written directly under it — a class, a constant, a property, a method or an enum case — and the
+toolchain reads it: `nvs meta --json` carries it, `nvs doc` renders it, and the editor's hover shows
+it. The run of `///` lines above one declaration is one comment, and its body is Markdown. Two
+tags are recognised at the start of a line, `@see` and `@example`; any other `@tag` is an error
+(`E0128`), so `@param` and `@return` are not written — the signature already says that.
+
+```nvs
+<?nvs
+/// A price in cents.
+final class Price {
+    /// The lowest price a shop may set.
+    public const int MIN = 0;
+
+    /// Doubles a price.
+    public static function double(int $p): int { return $p * 2; }
+}
+echo Price::double(2), "\n";
+```
+```output
+4
+```
+
+Three things are not doc comments:
+
+- **`/** … */` is an ordinary comment.** Nothing reads it. Written directly above a declaration it
+  is the PHPDoc habit, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
+  write `///` for a doc comment*.
+- **`////` and longer runs** are ordinary comments, so a divider line of slashes documents nothing.
+- **A `///` run with a blank line under it, or one at the end of a file,** documents nothing and is
+  an error (`E0127`); write `//` for a note to the reader.
 
 # Names and casing
 

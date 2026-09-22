@@ -531,7 +531,7 @@ echo $s, "\n";
 `$_` is the pipeline hole and has no meaning here
 ```
 
-# Closures
+# Closures: `fn`
 
 `fn` is the only closure literal, and a closure is the only value a `callable` holds. `fn(params): T => expr` answers the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. Every outer local the body reads is captured **by value when the closure is created**, and `$this` is captured inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`. `Class::m(...)` is not a way to obtain a closure — write `fn(...) => Class::m(...)`.
 
