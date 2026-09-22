@@ -45,6 +45,14 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). Giving one of them a rendering makes it a case and
 changes nothing about the answer.
 
+The third and fourth non-standard requests are `nvs/imports` and `nvs/importEdits`
+(`rule:ide/a-pasted-type-carries-its-use-line`), and they pass the same test: the first is the
+resolution `definition` already applies to a written name, asked over a range instead of a cursor, and the
+second is the `use` line completion already writes for an accepted type, written for several names at
+once. They are non-standard because LSP has no shape for "what did this text mean where it was copied
+from" — a paste is the editor's own operation, and the clipboard is the only channel that fact travels
+on. Neither has `.lspt` vocabulary, for the reason the four wire-held requests above have none.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.

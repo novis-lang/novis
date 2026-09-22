@@ -7,3 +7,8 @@ and it is not that they are useful: their replacement text is already computed, 
 The boundary is exactly that. A quick fix whose replacement a diagnostic already knows may ship; one that
 would need the checker to compute something new is M10's. Both are registered under `source.fixAll.nvs`
 so `editor.codeActionsOnSave` composes them with format-on-save when that arrives.
+
+The third fix admitted under the same boundary is the import an undeclared name's diagnostic carries
+(`rule:ide/an-undeclared-name-offers-its-import`): the checker computes the `use` line and its place
+where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
+nothing of its own.

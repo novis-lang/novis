@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 76 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -322,11 +322,19 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 ([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)). Giving one of them a rendering makes it a case and
 changes nothing about the answer.
 
+The third and fourth non-standard requests are `nvs/imports` and `nvs/importEdits`
+([`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line)), and they pass the same test: the first is the
+resolution `definition` already applies to a written name, asked over a range instead of a cursor, and the
+second is the `use` line completion already writes for an accepted type, written for several names at
+once. They are non-standard because LSP has no shape for "what did this text mean where it was copied
+from" — a paste is the editor's own operation, and the clipboard is the only channel that fact travels
+on. Neither has `.lspt` vocabulary, for the reason the four wire-held requests above have none.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -476,7 +484,12 @@ The boundary is exactly that. A quick fix whose replacement a diagnostic already
 would need the checker to compute something new is M10's. Both are registered under `source.fixAll.nvs`
 so `editor.codeActionsOnSave` composes them with format-on-save when that arrives.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+The third fix admitted under the same boundary is the import an undeclared name's diagnostic carries
+([`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import)): the checker computes the `use` line and its place
+where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
+nothing of its own.
+
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -505,6 +518,82 @@ itself stays layout-only and `nvs fmt --check` fails for exactly one reason. Php
 dialog, with its per-action checkboxes, is the same composition through a different client.
 
 <sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md).</sub>
+
+<a id="ide-an-undeclared-name-offers-its-import"></a>
+
+## An unqualified name that resolves to nothing carries one `use` line per type it could have meant, and the editor offers each as a quick fix
+
+`rule:ide/an-undeclared-name-offers-its-import`
+
+An unqualified class, interface or enum name that resolves to nothing carries one `use` line per type
+it could have meant, and the editor offers each as a quick fix. The checker computes it where it raises
+`E0303`: every type the program declares, and every `Core` type the registry names, whose last segment is
+the written name is a candidate (`nvs_hir::imports::candidates`), and each becomes a suggestion whose
+replacement is `use Qualified\Name;` inserted at the place every `use` line this server writes goes
+(`nvs_hir::imports::import_site`) — after the last `use` the namespace has, failing that after the
+`namespace Name;` line, failing that after the open tag. The editor's code action is the same translation
+of a suggestion it already makes for the casing fix and the legacy-cast fix
+([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)): the checker chose the text, and
+the server computes nothing.
+
+**One candidate is a machine-applicable fix; several are each offered for a person to choose.** The
+checker cannot say which `Request` was meant when two namespaces declare one, and a code action never
+makes a choice ([`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)), so the ambiguous case
+is several actions and the unique case is one that `source.fixAll.nvs` may apply on save. Three names get
+no fix at all: a qualified one, because it is absolute and no import changes what it means
+([`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute)); a short name an existing `use` already resolves to
+something undeclared, because that import is the mistake and a second `use` of the same short name would
+not compile; and one written in a file with no place to put the line — a bracketed namespace with no
+`use` in it, a script with no open tag — because the checker names a place or none, and never invents
+one.
+
+What it spends is a walk over the symbol table and the registry on the checker's error path, and
+nothing on a program that compiles.
+
+<sub>See also [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0201](../decisions/0201.md).</sub>
+
+<a id="ide-a-pasted-type-carries-its-use-line"></a>
+
+## A type name pasted from one file into another brings the `use` line that resolves it, read at copy time from the file it came from
+
+`rule:ide/a-pasted-type-carries-its-use-line`
+
+A type name pasted from one `.nvs` file into another brings the `use` line that makes it resolve there,
+read at copy time from the file it came from. Two requests of Novis's own carry it: `nvs/imports`, asked
+in the source document when text is copied, answers every type name the copied range wrote — the receiver
+of a `::` access, the class after `new`, every name in an annotation — paired with what it resolved to
+through that file's imports and namespace, and the editor keeps the answer on the clipboard beside the
+text under a MIME type of the extension's own. `nvs/importEdits`, asked in the destination when that
+clipboard is pasted, takes those pairs and the paste position and answers the `use` lines the destination
+lacks, as one edit at the place every `use` line this server writes goes
+([`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted)'s place, `nvs_hir::imports`).
+
+**What is carried is what the source resolved, never what the text looks like.** A name is put through
+the same lookup a click follows, with the namespace and the imports in force at the position it was
+written; one that resolves to nothing declared is not carried, because importing it fixes nothing, and a
+qualified name is carried as written and imported nowhere, because it is absolute
+([`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute)). At the destination a name is imported only where it
+would not resolve as it was written — a namespace that already reaches it, or a `use` already in force,
+means no line — and only under a short name nothing there already answers to; a name that cannot be
+imported is left as the paste wrote it, and the checker's own diagnostic on it offers the fix
+([`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import)).
+
+**The paste is the editor's, not a command.** The edit is offered under the `text.updateImports` kind
+the editor's own `editor.pasteAs.preferences` prefers by default, so the import arrives with the paste
+and nothing is added to a menu, a keymap or the settings
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)); a user who wants plain text back takes
+the kind out of that list. A paste that needs no import, a clipboard that carries no answer of the
+extension's, and a server that is not running are all the editor's ordinary paste. The copy-time ask is
+what makes a paste into another window, or after the source was closed or edited, still correct: what
+the text meant is a fact about the file as it was at the copy. Each client owns its own copy of the two
+asks ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+What it spends is one analysis of the source at copy time and one of the destination at paste time, both
+of documents the server already holds, and nothing between the two. The two answers have no `.lspt`
+spelling — a list of name pairs and a text edit — and are held by a Rust test on the wire shapes instead
+([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)).
+
+<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0201](../decisions/0201.md).</sub>
 
 <a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
