@@ -148,18 +148,26 @@ impl Machine {
         });
     }
 
-    /// The server returned `code`, and the process is about to exit.
-    ///
-    /// Answers which lifecycle record that is: a clean end, or a start that
-    /// failed because nothing was ever served.
-    pub(crate) fn ended(&self, code: ExitCode) -> Lifecycle {
-        let exit = u32::from(code != ExitCode::SUCCESS);
-        self.send(Report::Stopped { exit });
-        if exit == 0 || self.served.load(Ordering::Relaxed) {
+    /// Which lifecycle record a server that returned `code` is: a clean end,
+    /// or a start that failed because nothing was ever served.
+    pub(crate) fn lifecycle_of(&self, code: ExitCode) -> Lifecycle {
+        if code == ExitCode::SUCCESS || self.served.load(Ordering::Relaxed) {
             Lifecycle::Stopped
         } else {
             Lifecycle::FailedToStart
         }
+    }
+
+    /// The server returned `code`, and the process is about to exit.
+    ///
+    /// **Everything the process still owes is done before this**, because the
+    /// dispatcher returns on the main thread the moment the last service
+    /// reports `STOPPED`, and the process exits with it — a record written or
+    /// an outcome stored after this report is lost.
+    pub(crate) fn ended(&self, code: ExitCode) {
+        self.send(Report::Stopped {
+            exit: u32::from(code != ExitCode::SUCCESS),
+        });
     }
 
     /// Say again what was last said, which is what an `INTERROGATE` is owed.
@@ -429,15 +437,17 @@ pub(crate) mod platform {
             Some(run) => run(),
             None => ExitCode::FAILURE,
         };
-        let ended = machine.ended(code);
+        // The record and the outcome first, the `STOPPED` report last:
+        // `Machine::ended` owns why that order is the only one that works.
         log(
-            ended,
+            machine.lifecycle_of(code),
             &format!(
                 "the service ended with exit code {}",
                 u32::from(code != ExitCode::SUCCESS)
             ),
         );
         *OUTCOME.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
+        machine.ended(code);
     }
 
     /// The control handler, on a thread of the SCM's: it must return
@@ -634,7 +644,8 @@ mod tests {
             },
         );
         hosted::Reporting::told(&machine, Progress::Stopped);
-        assert_eq!(machine.ended(ExitCode::SUCCESS), Lifecycle::Stopped);
+        assert_eq!(machine.lifecycle_of(ExitCode::SUCCESS), Lifecycle::Stopped);
+        machine.ended(ExitCode::SUCCESS);
         assert_eq!(
             reported(&recording),
             [
@@ -657,7 +668,11 @@ mod tests {
     fn a_boot_that_fails_is_a_failed_start_with_a_specific_exit_code() {
         let (machine, recording) = machine();
         machine.started();
-        assert_eq!(machine.ended(ExitCode::FAILURE), Lifecycle::FailedToStart);
+        assert_eq!(
+            machine.lifecycle_of(ExitCode::FAILURE),
+            Lifecycle::FailedToStart
+        );
+        machine.ended(ExitCode::FAILURE);
         assert_eq!(
             reported(&recording).last(),
             Some(&Report::Stopped { exit: 1 })
@@ -670,7 +685,7 @@ mod tests {
         let (machine, _recording) = machine();
         machine.started();
         Supervisor::told(&machine, State::Ready);
-        assert_eq!(machine.ended(ExitCode::FAILURE), Lifecycle::Stopped);
+        assert_eq!(machine.lifecycle_of(ExitCode::FAILURE), Lifecycle::Stopped);
     }
 
     /// A reload and the fleet's heartbeat have no state in the SCM's set, and
