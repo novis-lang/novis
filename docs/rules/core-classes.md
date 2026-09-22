@@ -420,7 +420,7 @@ The second is the output tag a page already uses: `<?= expr ?>` opens a hole tha
 expression and closes on the first `?>` outside a nested string or literal, so a constant, a static
 call and a nested literal reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
-is an ordinary brace ([ADR 0202](../../decisions/0202.md)). Both holes are escaped by the same rule;
+is an ordinary brace. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
 string is not a page, and PHP prints one as text. A `<?nvs` tag inside a literal is `E0010`, since a
 literal is one expression and a loop around markup is code mode outside it.
