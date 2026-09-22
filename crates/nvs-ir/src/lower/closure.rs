@@ -769,10 +769,12 @@ pub(crate) fn lower_callable(
                 }
             }
         };
-        // From here the callee owns every transferred argument and releases
-        // them on its own throwing edge, so they leave this frame's stack
-        // before the call's fault edge is built.
-        low.forget_transferred_since(mark);
+        // From here the callee owns the receiver and every argument, and
+        // releases them on its own throwing edge as on its normal one. They
+        // were staged as owned rather than transferred, so all of them leave
+        // this frame's stack before the call's fault edge is built; a fault
+        // edge that still found them would release each one a second time.
+        low.forget_temporaries_since(mark);
         let (v, _) = low.emit_fallible(cur, ret, kind, &env);
         v
     };

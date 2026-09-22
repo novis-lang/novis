@@ -1,0 +1,68 @@
+--TEST--
+A call through `Class::method(...)` whose target throws releases each argument exactly once, so the caller's strings, array and object are intact after a thousand caught throws, as they are after a direct call — `rule:types/closure-literal`
+--FILE--
+<?nvs
+final class Refuse {
+    public static function all(string $text, array<int> $list, Box $box): int {
+        throw new LogicError('no');
+    }
+
+    public static function pair(string $a, string $b): int {
+        throw new LogicError('no');
+    }
+
+    public function on(string $text): int {
+        throw new LogicError('no');
+    }
+}
+
+final class Box {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+}
+
+// Every argument is built at run time, so each one is counted: a literal
+// string is never freed and would hide a second release.
+string $text = Core\Str::repeat('t', 64);
+array<int> $list = Core\Arr::fill(8, 7);
+var $box = new Box(Core\Str::repeat('b', 64));
+var $static = Refuse::all(...);
+var $refuse = new Refuse();
+var $method = $refuse->on(...);
+
+// The thunk behind a callable reference hands every argument to its target.
+// The target's own throwing edge releases them, and the thunk's must not.
+int $threw = 0;
+int $round = 0;
+while ($round < 1000) {
+    try {
+        $static($text, $list, $box);
+    } catch (LogicError $e) {
+        $threw = $threw + 1;
+    }
+    try {
+        $method($text);
+    } catch (LogicError $e) {
+        $threw = $threw + 1;
+    }
+    $round = $round + 1;
+}
+
+// The same values through `Core\Arr::sort`, which calls the reference from native code.
+array<string> $words = [Core\Str::repeat('c', 32), Core\Str::repeat('a', 32)];
+try {
+    Core\Arr::sort($words, { comparator: Refuse::pair(...) });
+} catch (LogicError $e) {
+    $threw = $threw + 1;
+}
+
+echo "threw ", $threw, "\n";
+echo Core\Str::length($text), " ", Core\Arr::count($list), " ", $list[7], " ", Core\Str::length($box->label), "\n";
+echo Core\Str::length($words[0]), Core\Str::length($words[1]), "\n";
+--EXPECT--
+threw 2001
+64 8 7 64
+3232
