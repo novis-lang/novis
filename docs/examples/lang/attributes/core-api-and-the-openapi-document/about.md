@@ -2,7 +2,7 @@
 the `#[Core\Route]` on the same method, and away from a route it is not allowed.
 
 Most of the document comes from the code. The path, the parameters, their types and the return type
-are read from the route and the method, and the `/** ... */` comment above the method supplies the
+are read from the route and the method, and the `///` comment above the method supplies the
 summary and the description. `#[Core\Api]` adds the rest: `tags:` groups the operation, `security:`
 names the scheme a client must use, `errors:` lists the error responses, and `example:` shows one
 answer.

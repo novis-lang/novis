@@ -448,13 +448,13 @@ the route `Users::index` declares no access decision
 `nvs build --openapi main.nvs` writes an OpenAPI 3.1 document for the program's route table to
 standard output (the CLI chapter has the command). Each route is an operation: its path captures
 and `#[Query]` parameters become parameters with schemas from their declared types, the return type
-becomes the `200` response, and the method's `/** … */` doc comment supplies the summary (first
+becomes the `200` response, and the method's `///` doc comment supplies the summary (first
 sentence) and description (the rest).
 
 ```nvs
 <?nvs
 class Users {
-    /** Show one user. Looks the user up by id. */
+    /// Show one user. Looks the user up by id.
     #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["users"])]

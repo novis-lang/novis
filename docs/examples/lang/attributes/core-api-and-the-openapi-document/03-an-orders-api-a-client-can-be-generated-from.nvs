@@ -11,7 +11,7 @@ class Order {
 }
 
 class Orders {
-    /** Count the open orders. Returns how many are waiting to be shipped. */
+    /// Count the open orders. Returns how many are waiting to be shipped.
     #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["Orders"], security: ["bearer"])]
@@ -19,7 +19,7 @@ class Orders {
         return 3;
     }
 
-    /** Show one order. Looks the order up by its id. */
+    /// Show one order. Looks the order up by its id.
     #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(

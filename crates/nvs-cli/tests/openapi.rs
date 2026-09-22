@@ -116,10 +116,11 @@ fn a_program_with_a_diagnostic_emits_no_document() {
 ///
 /// The bound is asserted on both sides on purpose — an emitter that wrote a
 /// `summary` for every operation would pass the first half alone, and one that
-/// wrote none would pass the second. The `//`-commented and `/* */`-commented
-/// handlers are the third side: a doc comment is `/** … */` and prose above a
-/// declaration in any other spelling is a note to the next reader of the source,
-/// not text this document may publish.
+/// wrote none would pass the second. The `//`-commented, `/* */`-commented and
+/// `/** */`-commented handlers are the third side: a doc comment is `///`
+/// (`rule:tooling/doc-comment-is-three-slashes`) and prose above a declaration
+/// in any other spelling is a note to the next reader of the source, not text
+/// this document may publish.
 #[test]
 fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
     let (doc, err, ok) = build(&fixture("documented"));
@@ -151,8 +152,13 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
         "a one-sentence comment writes no description:\n{show}"
     );
 
-    // Neither spelling above `create` and `destroy` is a doc comment.
-    for (path, verb) in [("/notes", "post"), ("/notes/{id}", "delete")] {
+    // None of the three spellings above `create`, `destroy` and `restore` is
+    // a doc comment.
+    for (path, verb) in [
+        ("/notes", "post"),
+        ("/notes/{id}", "delete"),
+        ("/notes/{id}", "put"),
+    ] {
         let bare = operation(path, verb);
         assert!(
             bare["summary"].is_null() && bare["description"].is_null(),
@@ -160,8 +166,10 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
         );
     }
     assert!(
-        !doc.contains("not a doc comment") && !doc.contains("note to the next reader"),
-        "and no line-comment text reached the document at all:\n{doc}"
+        !doc.contains("not a doc comment")
+            && !doc.contains("note to the next reader")
+            && !doc.contains("PHPDoc"),
+        "and no ordinary-comment text reached the document at all:\n{doc}"
     );
 }
 

@@ -5,9 +5,8 @@
 // invoice operations.
 
 class Invoices {
-    // The `/** ... */` comment becomes the summary and the description of this
-    // operation. The first sentence is the summary, and the rest is the description.
-    /** Show one invoice. Looks the invoice up by its number. */
+    // The `///` line below is the summary and the description of this operation.
+    /// Show one invoice. Looks the invoice up by its number.
     #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["Invoices"])]

@@ -86,11 +86,10 @@
 //!
 //! The same walk reads one thing that is not an attribute at all: § 1's last
 //! row gives the summary and description to **the declaration's own doc
-//! comment**, so [`doc_comment`] reads the `/** … */` block in front of the
-//! member and [`Route`] carries the two strings it splits into. Here rather
-//! than at the emitter because the row is what crosses out of this crate, and
-//! out of the source text rather than off a token because the lexer keeps no
-//! trivia — [`doc_comment`]'s own comment owns that, including what replaces it.
+//! comment**, so [`doc_comment`] reads the `///` run the parser attached to the
+//! member (`rule:tooling/doc-comment-is-three-slashes`) and [`Route`] carries
+//! the two strings it splits into. Here rather than at the emitter because the
+//! row is what crosses out of this crate.
 //!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
 //! and an `#[Access]` written there is [`check_stray_access`] — `rule:attributes/access-is-a-required-sibling`'s
@@ -101,8 +100,9 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
+use nvs_syntax::DOC_MARKER;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, MethodMember,
+    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, DocComment, ExprKind, MethodMember,
 };
 use rustc_hash::FxHashMap;
 
@@ -683,7 +683,7 @@ pub(crate) fn check_class_routes(
         // § 1's summary and description, read once for the method: one doc
         // comment describes the operation however many verbs it serves, which
         // is `#[Api]`'s arrangement two lines up and for its reason.
-        let doc = doc_comment(member.span, env.src);
+        let doc = doc_comment(member.doc.as_ref(), env.src);
         let returns = declared_return(m, class, env);
         let handler = Handler {
             m,
@@ -1461,35 +1461,34 @@ struct Doc {
     description: Option<String>,
 }
 
-/// The `/** … */` block sitting immediately above a declaration, split by
-/// [`Doc`]'s rule, or `None` where there is none.
+/// The member's attached `///` run, split by [`Doc`]'s rule, or `None` where
+/// there is none.
 ///
-/// **Read out of the source text rather than off a token**, because there is no
-/// token to read: `nvs_syntax`'s lexer preserves no trivia at all — its own
-/// module doc is that contract, and a token stream that carried comments would
-/// make every consumer skip them — and
-/// `rule:ide/one-grammar-one-tree`'s
-/// trivia layer, which is where a declaration's doc comment is meant to come
-/// from once `nvs lsp` needs it for hover, is M10's. Until then this is the one
-/// question asked of a comment anywhere in the compiler, it is asked at a
-/// position the parser already recorded, and it is answered by looking at the
-/// bytes in front of that position.
+/// The run is the one the parser attached
+/// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`), so it is the
+/// comment written above `#[Route]` — where a reader writes it — and not one
+/// wedged between the attributes and `public function`. A `/** … */` block or
+/// a `//` run above the member is an ordinary comment nothing reads, and
+/// documents nothing here either.
+fn doc_comment(doc: Option<&DocComment>, src: &SourceFile) -> Option<Doc> {
+    let lines: Vec<&str> = doc?
+        .lines
+        .iter()
+        .map(|&line| prose(span_text(src, line)))
+        .collect();
+    split_doc(lines.join("\n").trim())
+}
+
+/// One `///` line with its marker off, and the one space after it that a
+/// writer leaves and does not mean.
 ///
-/// `decl` is the member's *whole* span, attributes and modifiers included
-/// ([`nvs_syntax::ast::ClassMember::span`]), so the comment this finds is the
-/// one above `#[Route]` — where a reader writes it — and not one wedged between
-/// the attributes and `public function`.
-fn doc_comment(decl: Span, src: &SourceFile) -> Option<Doc> {
-    let before = src
-        .span_text(Span::new(decl.file, 0, decl.start))?
-        .trim_end();
-    // The nearest `/*` going backwards opens the comment this `*/` closes,
-    // unless the comment's own text quotes a comment opener — which costs a
-    // doc comment nothing but its summary, and is not worth a scanner.
-    let body = before.strip_suffix("*/")?;
-    let open = body.rfind("/*")?;
-    let text = body[open..].strip_prefix("/**")?;
-    split_doc(&undecorate(text))
+/// Exactly one space and never a trim of the front: indentation is Markdown's
+/// own syntax, so an indented example in the description stays one. The
+/// trailing whitespace does go, so a line's invisible tail never reaches the
+/// document.
+fn prose(line: &str) -> &str {
+    let body = line.strip_prefix(DOC_MARKER).unwrap_or(line);
+    body.strip_prefix(' ').unwrap_or(body).trim_end()
 }
 
 /// § 1's response body row: the handler's declared return type, rendered.
@@ -1509,20 +1508,7 @@ fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<Str
     Some(env.interner.describe(ty))
 }
 
-/// A docblock's body as plain text: every line trimmed, and the leading `*`
-/// every continuation line carries by convention dropped with it.
-fn undecorate(raw: &str) -> String {
-    let lines: Vec<&str> = raw
-        .lines()
-        .map(|line| {
-            let line = line.trim();
-            line.strip_prefix('*').unwrap_or(line).trim()
-        })
-        .collect();
-    lines.join("\n").trim().to_owned()
-}
-
-/// § 1's split, over the undecorated text.
+/// § 1's split, over the run's prose.
 ///
 /// The summary ends at the first `.` that a space or the end of the text
 /// follows, or at the first blank line, whichever comes first — the blank line
