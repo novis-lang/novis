@@ -3571,9 +3571,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **An `[[app]]` block in the root `nvs.toml` whose `entry` names a file that is not on disk breaks
   every program in the tree, not only that one.** The whole configuration is resolved before
   anything runs, so a grant written for a proof program that does not exist yet answers `E0605:
-  cannot read …` for whatever example you were actually running. Write the `.nvs` files first and
-  the `[[app]]` blocks after them, and let the grants ride in the commit that adds the last program
-  they name. [until: reviewed 2026-09-21]
+  cannot read …` for whatever example you were actually running. A `--bless` of three examples then
+  reports three failures whose message names a file you have not written. Write the `.nvs` files
+  first and the `[[app]]` blocks after them, and let the grants ride in the commit that adds the
+  last program they name. [until: reviewed 2026-09-21]
 - **`python tools/dossier.py --bless` rebuilds `target/release/nvs.exe` before it runs anything,
   whenever a build input is newer than that binary, and a `#[test]` added to a crate is one.** A
   session that blesses one member's examples, then writes its Rust proof, then blesses the next
@@ -3587,12 +3588,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs run` with `E0605` about that path rather than about the program asked for. Write the grant
   and the file in one edit, copying the `Db-Row` group in `nvs.toml`: one block per example, per
   attack and per bench. [until: reviewed 2026-09-21]
-- **An `[[app]]` block in `nvs.toml` naming a file that is not on disk yet stops *every* program,
-  not only that one.** The whole table is resolved before anything runs, so `nvs run` over an
-  example that does exist answers `E0605: cannot read …/02-a-column-that-has-no-value.nvs` about a
-  sibling, which reads as the program you ran being broken. Write all five of a member's proof
-  programs first and add their five grants after, or add each grant beside the file it names.
-  [until: reviewed 2026-09-21]
 
 - **`tools/try.py` does not split a `--FILE nvs.toml--` section, so a `.nvst` case carrying its own
   configuration compiles that TOML as Novis.** What comes back is a dozen `E0105`/`E0319`
@@ -3600,12 +3595,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the runner not knowing that section. Run a case that carries a config with `target/debug/nvs.exe
   test <case.nvst>` — it runs one file and prints `1 passed` — and keep `try.py` for the cases whose
   only section is `--FILE--`. [until: reviewed 2026-09-21]
-- **An `[[app]]` grant in `nvs.toml` naming a file that is not on disk yet makes *every other*
-  program fail with `E0605`.** The block is keyed on that path and a key naming nothing matches
-  nothing, so the resolver refuses the whole configuration rather than the one entry, and a
-  `--bless` of three examples then reports three failures whose message names a file you have not
-  written. Write all five of a member's programs first and add its grants after, or add each grant
-  in the same edit as the file it names. [until: reviewed 2026-09-21]
 - **`python tools/try.py` cannot run a `.nvst` case that carries a `--FILE nvs.toml--` section.**
   It inlines the `--FILE--` block into one scratch `.nvs` program and leaves every later section
   standing in it as source, so a case that needs a `[db.<name>]` block reports `E0105` and `E0319`
@@ -3613,11 +3602,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `./target/debug/nvs.exe test <path>.nvst`, which is what `verify.py`'s conformance step drives.
   [until: reviewed 2026-09-22]
 
-- **An `[[app]]` block in the root `nvs.toml` naming a file that is not on disk refuses every
-  program, not only that one.** The configuration is read whole before anything runs and a key
-  matching nothing is `E0605`, so a proof's capability grant written ahead of the proof itself
-  breaks every other example in the tree meanwhile. Write the `.nvs` file first, or put a member's
-  grants and its programs in one edit. [until: reviewed 2026-09-22]
 - **A reference chapter is the perf anchor of every feature it documents, so one prose edit stales
   every figure in it at once.** A hand edit adding a section to `docs/reference/lang/20-types.md`
   turned the `dossier: lang:types` floor check red on all 18 of its features with `perf: stale`,
