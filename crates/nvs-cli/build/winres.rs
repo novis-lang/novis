@@ -1,11 +1,12 @@
 //! The compiled Windows resource file `build.rs` links into `nvs.exe`: the
-//! icon Explorer and the taskbar draw, and the version information behind a
+//! icon Explorer and the taskbar draw, the version information behind a
 //! file's *Properties → Details*, Task Manager's process name and the firewall
-//! prompt `nvs serve` raises the first time it listens.
+//! prompt `nvs serve` raises the first time it listens, and the message table
+//! Event Viewer renders a hosted service's records through.
 //!
 //! This writes the `.res` format the resource compiler writes, by hand, and
 //! the MSVC linker takes that file as an ordinary input. The alternative is a
-//! build dependency that finds and runs `rc.exe`; the format is three fixed
+//! build dependency that finds and runs `rc.exe`; the format is four fixed
 //! layouts, and this is a build script for a compiler whose supply chain is
 //! the thing it advertises. `rule:packaging/the-windows-binary-says-what-it-is`
 //! owns what goes in, and `tests/windows_resource.rs` reads it back out of the
@@ -21,6 +22,18 @@ const RT_ICON: u16 = 3;
 const RT_GROUP_ICON: u16 = 14;
 /// `RT_VERSION`: the version information.
 const RT_VERSION: u16 = 16;
+/// `RT_MESSAGETABLE`: the text of every event-log record the service writes.
+const RT_MESSAGETABLE: u16 = 11;
+
+/// The ids of the event-log records `nvs serve` writes under the SCM
+/// (`src/dispatch.rs` on Windows), every one of them rendered as its one
+/// insertion string. `nvs service install` registers the binary as the
+/// source's `EventMessageFile`, and without this table Event Viewer heads
+/// each record with "the description for event id … cannot be found" and
+/// PowerShell's `Message` is empty.
+const MESSAGE_IDS: std::ops::RangeInclusive<u32> = 1..=6;
+/// What every record's text is: its first insertion string, whole.
+const MESSAGE_TEXT: &str = "%1";
 
 /// US English, the language the resource compiler stamps by default, and with
 /// [`CODEPAGE`] the one translation the version information declares.
@@ -72,6 +85,37 @@ pub(crate) fn resource(ico: &[u8], info: &VersionInfo<'_>) -> Option<Vec<u8>> {
     }
     entry(&mut out, RT_GROUP_ICON, 1, 0x1030, LANGUAGE, &group)?;
     entry(&mut out, RT_VERSION, 1, 0x0030, LANGUAGE, &version(info)?)?;
+    entry(&mut out, RT_MESSAGETABLE, 1, 0x0030, LANGUAGE, &messages()?)?;
+    Some(out)
+}
+
+/// The message table: one block covering [`MESSAGE_IDS`], every entry
+/// [`MESSAGE_TEXT`] as UTF-16.
+///
+/// The layout is `MESSAGE_RESOURCE_DATA`: the number of blocks, then each
+/// block's lowest id, highest id and the offset of its first entry from the
+/// start of the data; then the entries, each its own length, a flag saying
+/// the text is UTF-16, and the NUL-terminated text, padded to a 32-bit
+/// boundary.
+fn messages() -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    push_u32(&mut out, 1);
+    push_u32(&mut out, *MESSAGE_IDS.start());
+    push_u32(&mut out, *MESSAGE_IDS.end());
+    // The one block's entries start right after this header: 4 bytes for the
+    // count and 12 for the block.
+    push_u32(&mut out, 16);
+    let mut text = wide(MESSAGE_TEXT);
+    while !text.len().is_multiple_of(4) {
+        text.push(0);
+    }
+    let length = u16::try_from(4 + text.len()).ok()?;
+    for _ in MESSAGE_IDS {
+        push_u16(&mut out, length);
+        // `MESSAGE_RESOURCE_UNICODE`.
+        push_u16(&mut out, 1);
+        out.extend_from_slice(&text);
+    }
     Some(out)
 }
 

@@ -13,6 +13,7 @@ use object::read::pe::{
 };
 
 const RT_ICON: u16 = 3;
+const RT_MESSAGETABLE: u16 = 11;
 const RT_GROUP_ICON: u16 = 14;
 const RT_VERSION: u16 = 16;
 
@@ -208,4 +209,37 @@ fn the_version_information_is_the_manifests_and_the_licenses() {
         copyright.contains(holder),
         "`{copyright}` names `{holder}`, LICENSE's own line"
     );
+}
+
+/// Every event-log record a hosted service writes (`src/dispatch.rs`) is
+/// rendered as its one insertion string: the table covers ids 1 to 6 in one
+/// block, and each entry's text is `%1`, as UTF-16.
+#[test]
+fn the_message_table_renders_every_service_record_as_its_insertion_string() {
+    let tables = of_kind(RT_MESSAGETABLE);
+    let [table] = tables.as_slice() else {
+        panic!(
+            "the binary carries one message table, found {}",
+            tables.len()
+        );
+    };
+    assert_eq!(u32_at(table, 0), 1, "one block");
+    let (low, high, entries) = (u32_at(table, 4), u32_at(table, 8), u32_at(table, 12));
+    assert_eq!((low, high), (1, 6), "the ids the service writes");
+    let mut cursor = entries;
+    for id in low..=high {
+        let length = u16_at(table, cursor);
+        assert_eq!(u16_at(table, cursor + 2), 1, "entry {id} is UTF-16");
+        let text: Vec<u16> = table[cursor + 4..cursor + length]
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .take_while(|unit| *unit != 0)
+            .collect();
+        assert_eq!(
+            String::from_utf16(&text).expect("UTF-16"),
+            "%1",
+            "entry {id}"
+        );
+        cursor += length;
+    }
 }
