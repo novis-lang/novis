@@ -3,7 +3,7 @@
 // what `Core\Test::assertSame` costs when it holds is what such a suite costs.
 // bench: iterations 300000
 // bench: calls 0
-// bench: allocations 1
+// bench: allocations 0
 
 use Core\Test;
 
