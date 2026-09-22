@@ -232,11 +232,13 @@
 # ----------------------------------------------------------------------------------------------
 
 [io]
-# Unset, a `novis` subdirectory of the platform temporary directory, which is what an unconfigured
-# deployment gets. An operator writes this to put temporaries on a particular filesystem — a larger
-# disk, or a tmpfs. `Boot`-class: the orphan sweep runs at `nvs serve` boot over the root it was
-# started with, so moving it under a running server would leave the old one holding entries nothing
-# sweeps.
+# The directory every temporary directory is created in. When this is not set, Novis uses a
+# `novis` subdirectory of the operating system's temporary directory: `$TMPDIR/novis` (usually
+# `/tmp/novis`) on Linux and macOS, `%TEMP%\novis` on Windows. Novis creates that directory on
+# first use, readable by the server's user only. An empty string means the same as not set.
+# Set this to put temporaries on a particular filesystem, such as a larger disk or a tmpfs.
+# `Boot`-class: `nvs serve` removes leftover directories at start, under the root it started with.
+# Changing it while a server runs leaves the old root's leftovers in place; nothing removes them.
 #temp_root = "/var/tmp/novis"
 
 
