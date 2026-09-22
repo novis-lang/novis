@@ -1,0 +1,107 @@
+<?nvs
+// Attack: transactions open walks nobody may interrupt. One walk is opened
+// after its transaction ended, and two thousand more are asked for a second
+// statement. The last one is over ten million rows and is left after a hundred.
+// Every bad call must throw, and nothing here may crash.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// 1. A transaction carried out of the work that owned it opens a walk. The
+// transaction has ended, so the walk must be refused.
+var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+try {
+    $escaped->stream('select id from notes', []);
+    echo "1 the late walk went through\n";
+} catch (Throwable $late) {
+    echo "1 the late walk was refused\n";
+}
+
+// 2. Ten thousand transactions each read a walk to its last row. The connection
+// comes back at the end of every walk, so every transaction can end.
+uint $rows = 0;
+uint $i = 0;
+while ($i < 10000) {
+    $rows = $rows + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        uint $walked = 0;
+        foreach ($tx->stream('select id, text from notes order by id', []) as Core\Db\Row $row) {
+            $walked = $walked + 1;
+        }
+        return $walked;
+    });
+    $i = $i + 1;
+}
+echo '2 rows walked: ', $rows, "\n";
+
+// 3. A second statement in the middle of every walk. The connection is busy
+// until the last row, so all of these are refused and the walk goes on.
+uint $refused = 0;
+$i = 0;
+while ($i < 2000) {
+    $refused = $refused + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        uint $stopped = 0;
+        foreach ($tx->stream('select id from notes order by id', []) as Core\Db\Row $row) {
+            try {
+                $tx->query('select 1 as n', []);
+            } catch (Throwable $busy) {
+                $stopped = $stopped + 1;
+            }
+        }
+        return $stopped;
+    });
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A statement no database knows, opened as a walk. Nothing is held, so the
+// transaction around it still ends.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        foreach ($tx->stream('select from where', []) as Core\Db\Row $row) {
+            echo "4 the broken statement gave a row\n";
+        }
+        echo "4 the broken statement ran\n";
+    });
+} catch (Throwable $error) {
+    echo "4 the broken statement was refused\n";
+}
+
+// 5. Values written to look like the end of one statement and the start of
+// another. Each one is searched for as text, and the table is still there.
+array<string> $attempts = [
+    "buy milk' or '1'='1",
+    "'; drop table notes; --",
+    "' union select id, text from notes --",
+    Core\Str::repeat("'", 10000),
+];
+uint $found = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    uint $seen = 0;
+    foreach ($attempts as string $attempt) {
+        foreach ($tx->stream('select id from notes where text = ?', [$attempt]) as Core\Db\Row $row) {
+            $seen = $seen + 1;
+        }
+    }
+    return $seen;
+});
+echo '5 rows found: ', $found, ', table still there: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 6. A result of ten million rows is left after a hundred. The walk still holds
+// the connection, so the transaction cannot end.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        uint $read = 0;
+        foreach ($tx->stream('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n, hex(zeroblob(200)) as filler from many', []) as Core\Db\Row $row) {
+            $read = $read + 1;
+            if ($read == 100) {
+                echo '6 rows read: ', $read, "\n";
+                break;
+            }
+        }
+    });
+    echo "6 the transaction ended\n";
+} catch (Throwable $busy) {
+    echo "6 the end was refused\n";
+}
+echo '7 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

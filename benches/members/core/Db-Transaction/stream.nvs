@@ -1,6 +1,6 @@
 <?nvs
-// Measures one `select` inside a transaction whose rows are walked one at a
-// time, as a program does when it reads a table before it writes a summary.
+// Measures one `select` inside a transaction that walks its rows one at a time.
+// A program does this when it reads a table before it writes a summary.
 // bench: iterations 10000
 
 class Bench {
