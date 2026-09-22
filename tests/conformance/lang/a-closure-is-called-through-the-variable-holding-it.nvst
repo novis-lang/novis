@@ -2,7 +2,7 @@
 `$fn(...)` calls a closure through the variable holding it, and reaches the same body a `Core` member's callback does — `rule:types/closure-literal` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
-// covers: lang:expressions/closures
+// covers: lang:expressions/closures-fn
 // `rule:types/closure-literal`: `callable` is the only closure type and it carries no
 // parameter list, so a call through one is typed `mixed` and converts on
 // request like any other `mixed` — there is nothing narrower to type it.

@@ -4,7 +4,7 @@
 // of characters long, and calls are nested as deep as the engine allows.
 // Nothing may crash, hang or lose what it captured.
 // hostile: timeout-ms 20000
-// covers: lang:expressions/closures
+// covers: lang:expressions/closures-fn
 
 class Attack
 {
