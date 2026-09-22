@@ -403,7 +403,12 @@ describe("what the extension may depend on", () => {
 
 describe("the colour the extension does not contribute", () => {
   it("ships no colour-customization default and no theme", () => {
-    assert.equal(manifest.contributes.configurationDefaults, undefined);
+    // The one default contributed is the paste preference for Novis documents, which names no
+    // colour: it is what makes a paste apply its `use` lines rather than offer them in a widget
+    // (`rule:ide/a-pasted-type-carries-its-use-line`).
+    assert.deepEqual(manifest.contributes.configurationDefaults, {
+      "[nvs]": { "editor.pasteAs.preferences": ["text.updateImports"] },
+    });
     assert.equal(manifest.contributes.themes, undefined);
     for (const key of ["tokenColorCustomizations", "semanticTokenColorCustomizations", "colors"]) {
       assert.equal(manifestText.includes(key), false, `the manifest contributes ${key}`);

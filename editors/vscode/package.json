@@ -26,6 +26,13 @@
   ],
   "main": "./out/src/extension.js",
   "contributes": {
+    "configurationDefaults": {
+      "[nvs]": {
+        "editor.pasteAs.preferences": [
+          "text.updateImports"
+        ]
+      }
+    },
     "languages": [
       {
         "id": "nvs",

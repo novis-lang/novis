@@ -18,11 +18,13 @@ means no line — and only under a short name nothing there already answers to; 
 imported is left as the paste wrote it, and the checker's own diagnostic on it offers the fix
 (`rule:ide/an-undeclared-name-offers-its-import`).
 
-**The paste is the editor's, not a command.** The edit is offered under the `text.updateImports` kind
-the editor's own `editor.pasteAs.preferences` prefers by default, so the import arrives with the paste
-and nothing is added to a menu, a keymap or the settings
-(`rule:ide/the-extension-builds-no-ui-the-editor-already-has`); a user who wants plain text back takes
-the kind out of that list. A paste that needs no import, a clipboard that carries no answer of the
+**The paste is the editor's, not a command.** The edit is offered under the `text.updateImports` kind,
+and because the editor applies a provider's edit on its own only for a kind its
+`editor.pasteAs.preferences` names — a list that is empty by default — the extension contributes
+`["text.updateImports"]` as that setting's default for Novis documents. So the import arrives with the
+paste and nothing is added to a menu, a keymap or the extension's own settings
+(`rule:ide/the-extension-builds-no-ui-the-editor-already-has`); a user who wants plain text back
+overrides that preference, and the edit is then offered in the editor's paste widget instead. A paste that needs no import, a clipboard that carries no answer of the
 extension's, and a server that is not running are all the editor's ordinary paste. The copy-time ask is
 what makes a paste into another window, or after the source was closed or edited, still correct: what
 the text meant is a fact about the file as it was at the copy. Each client owns its own copy of the two

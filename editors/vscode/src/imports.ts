@@ -15,13 +15,14 @@
 // meant is a fact about the file as it was at the copy. It is also what lets a paste into a second
 // VS Code instance still get its imports.
 //
-// The edit kind sits under `text.updateImports`, which is the kind the editor's own
-// `editor.pasteAs.preferences` prefers by default over a plain-text paste, so the import arrives
-// without a widget, a command or a setting of this extension's own
+// The edit kind sits under `text.updateImports`. The editor applies a provider's paste edit on its own
+// only for a kind its `editor.pasteAs.preferences` names, and that list is empty by default, so
+// `package.json` contributes `["text.updateImports"]` as the default for Novis documents: the import
+// then arrives with the paste, with no widget, command or setting of this extension's own
 // (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). A user who wants plain text back
-// takes the kind out of that preference list; nothing here adds a switch beside it. The kind id and
-// the MIME type reach a user's settings and other extensions' providers, so both are frozen on
-// `rule:ide/contributions-are-frozen-and-only-ever-added`'s terms.
+// overrides that preference in their own settings; nothing here adds a switch beside it. The kind id,
+// the MIME type and the contributed default reach a user's settings and other extensions' providers,
+// so all three are frozen on `rule:ide/contributions-are-frozen-and-only-ever-added`'s terms.
 
 import {
   CancellationToken,
@@ -49,8 +50,8 @@ const EDITS_METHOD = "nvs/importEdits";
 // there — anything else on the clipboard is somebody else's.
 const MIME = "application/vnd.code.nvs.imports";
 
-// The kind the paste edit is offered under. `text.updateImports` is what the editor prefers by
-// default; the last segment is this language's, the way the TypeScript extension's is `jsts`.
+// The kind the paste edit is offered under. `text.updateImports` is what the contributed preference
+// names; the last segment is this language's, the way the TypeScript extension's is `jsts`.
 const KIND = DocumentDropOrPasteEditKind.TextUpdateImports.append("nvs");
 
 // The documents this provider is offered for, which is the language and nothing about the scheme:
