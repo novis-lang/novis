@@ -3,7 +3,7 @@
 
 # Testing
 
-*13 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -553,6 +553,38 @@ both — a path of `.nvst` files, or a program's compiled test table — and rep
 that fits it.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md).</sub>
+
+<a id="testing-a-directory-of-programs-is-one-test-program"></a>
+
+## A directory handed to `nvs test` that holds `.nvs` files is one program requiring every one of them in name order, and a file in it that requires the bootstrap gives it its `autoload` map
+
+`rule:testing/a-directory-of-programs-is-one-test-program`
+
+A directory handed to `nvs test` that holds `.nvs` files is one program: the runner writes an entry
+that requires every `.nvs` file under the directory, subdirectories walked, in name order, and runs
+that program's test table. The entry is never put on disk, its statements never run — no entry's do
+under `nvs test` — and its one job is to bring every file into the compile.
+
+The directory carries its own bootstrap. `autoload` declarations reach the program the way they
+reach any program, through a file the entry requires, so a directory whose tests use the
+application's classes holds one file that requires the application's bootstrap file, and every
+other file in it requires nothing. A directory holding no such file compiles as it is, which is
+right for tests that need no class outside themselves and reports `E0306` for the rest, exactly as
+running the same files by hand would.
+
+- **Name order, not test order.** The order the files are required in decides nothing a reader can
+  see: classes are reported in name order and methods in declaration order, whatever brought them in.
+- **A file is a program, a directory of files is a program, and a directory holding both `.nvs` and
+  `.nvst` files is refused**, since the two suites share no report
+  ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). A directory holding only `.nvst` files is the case tree it always
+  was.
+- **The configuration is folded for the directory.** An `[[app]]` block whose `root` contains it
+  applies; an `entry` glob names a file and matches no directory.
+- **The editor reads the directory the same way.** A plain file under the directory of a file that
+  requires the bootstrap is analysed through that bootstrap's map
+  ([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)).
+
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map). Decided in [0208](../decisions/0208.md).</sub>
 
 <a id="testing-one-slice-is-one-feature"></a>
 

@@ -168,6 +168,10 @@ One subcommand runs two kinds of test, and which one is meant is read off the pa
   `void` instance method carrying `#[Test]` is one test; classes are reported in name order and
   methods in declaration order; a test that asserts nothing fails; `#[Test(skip: "why")]` skips
   with its reason. The `Core\Test` section has the assertions and the attribute's options.
+- **A directory holding `.nvs` files is one program** that requires every one of them, subdirectories
+  included, in name order, and its `#[Test]` methods are run. One file in the directory requires the
+  application's bootstrap file, which gives the whole directory its `autoload` declarations. A
+  directory holding both `.nvs` and `.nvst` files is refused.
 - **Anything else is a `.nvst` case file, or a directory walked for `*.nvst`.** A case is one
   program with its expected output, and the report is a conformance summary
   (`3 passed, 0 failed, 0 skipped`). This is the one place an extension decides anything, so a

@@ -186,7 +186,8 @@
       "status": "shipped",
       "because": [
         "0198",
-        "0207"
+        "0207",
+        "0208"
       ],
       "seeAlso": [
         "ide/an-open-document-is-its-own-entry-point",

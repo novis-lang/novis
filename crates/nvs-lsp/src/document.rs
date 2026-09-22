@@ -16,10 +16,12 @@
 //! place a graph is walked with the buffers in front of it.
 //!
 //! **A file a program autoloads or requires borrows that program's `autoload`
-//! map** (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). An
-//! autoloaded file may not declare one, and a required file usually does not,
-//! so as its own entry point either would resolve none of the names its
-//! program resolves. [`Documents::survey`] finds the programs that declare one,
+//! map, and so does a plain file under the directory of that program's entry**
+//! (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). An autoloaded
+//! file may not declare one, and a required file usually does not, so as its
+//! own entry point either would resolve none of the names its program
+//! resolves; a plain file beside a bootstrap is what `nvs test` runs as part
+//! of a directory. [`Documents::survey`] finds the programs that declare one,
 //! [`Documents::resurvey`] keeps that current, and [`analyse_file`] is the one
 //! place a map is lent.
 //!
@@ -131,6 +133,11 @@ struct Lender {
     /// the files that borrow this map without lying under a root, and whose
     /// edit makes this lender stale when the edited text holds `require`.
     reads: Vec<PathBuf>,
+    /// The directory of its entry, under `canonical_key`. A plain file under
+    /// it — one holding neither `require` nor `autoload` — borrows this map
+    /// too, which is how a directory `nvs test` runs as one program reads in
+    /// the editor as it runs.
+    dir: PathBuf,
     /// The map those declarations built, which says what the program claims
     /// and carries the sites it lends.
     map: AutoloadMap,
@@ -182,10 +189,13 @@ fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
         .collect();
     reads.sort();
     reads.dedup();
+    let key = canonical_key(path);
+    let dir = key.parent().map_or_else(PathBuf::new, Path::to_path_buf);
     Some(Lender {
-        entry: canonical_key(path),
+        entry: key,
         declaring,
         reads,
+        dir,
         map: autoload,
     })
 }
@@ -335,29 +345,48 @@ impl Documents {
     }
 
     /// The program `path` borrows its `autoload` map from: the first, in
-    /// entry-path order, that requires or autoloads it.
+    /// entry-path order, that requires it, autoloads it, or has its entry in a
+    /// directory `path` lies under while `path` holds neither `require` nor
+    /// `autoload`.
     ///
     /// The first and not a union, because two programs sharing a source tree
     /// may give one prefix different roots, and a union of their maps is a map
     /// neither of them runs with. A lender never borrows: it has a map of its
-    /// own, and `nvs check` analyses it through exactly that one.
+    /// own, and `nvs check` analyses it through exactly that one. The
+    /// directory test is the editor's half of a directory run under
+    /// `nvs test`, which requires every file under the directory into one
+    /// program, and it is held to plain files because a file that requires or
+    /// declares anything starts a program of its own.
     fn lender_for(&self, path: &Path) -> Option<&Lender> {
         let key = canonical_key(path);
         if self.lenders.iter().any(|lender| lender.entry == key) {
             return None;
         }
-        self.lenders
-            .iter()
-            .find(|lender| lender.reads.contains(&key) || lender.map.claims(path))
+        let mut plain: Option<bool> = None;
+        self.lenders.iter().find(|lender| {
+            lender.reads.contains(&key)
+                || lender.map.claims(path)
+                || (key.starts_with(&lender.dir)
+                    && *plain.get_or_insert_with(|| {
+                        self.text_of(path).is_some_and(|text| {
+                            !text.contains("require") && !text.contains("autoload")
+                        })
+                    }))
+        })
     }
 
     /// Whether the text of `path` — the open buffer, or the file under it —
     /// holds `keyword`.
     fn holds(&self, path: &Path, keyword: &str) -> bool {
+        self.text_of(path)
+            .is_some_and(|text| text.contains(keyword))
+    }
+
+    /// The text of `path`: the open buffer, or the file under it.
+    fn text_of(&self, path: &Path) -> Option<String> {
         let mut map = SourceMap::new();
         self.overlay(&mut map);
-        map.load(path)
-            .is_ok_and(|id| map.file(id).text().contains(keyword))
+        map.load(path).ok().map(|id| map.file(id).text().to_owned())
     }
 
     /// Records every file `uri`'s last analysis read.

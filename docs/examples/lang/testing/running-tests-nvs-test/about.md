@@ -5,6 +5,10 @@ Tests live wherever a class lives. You can write them beside the code in one fil
 file of their own that loads the code under test. The lines outside a class do not run under
 `nvs test`.
 
+`nvs test tests/` runs every `.nvs` file under a directory as one program, so you do not list the
+files anywhere. Put one file in the directory that requires your application's bootstrap file. Every
+test file then sees the same classes that file loads.
+
 `--filter <text>` runs only the tests whose name contains that text. A test's name is
 `Class::method`, so `--filter CartTest::` runs one class. `--list` prints which tests the program
 declares and where each one is written, without running any of them. `--format json` and

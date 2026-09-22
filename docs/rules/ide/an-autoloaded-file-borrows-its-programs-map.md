@@ -5,10 +5,15 @@ entry point like every open document, an autoloaded file may not write an `autol
 
 The server surveys the tree `nvs.check.scope` selects before its first analysis: a file whose text holds
 `autoload` or `require` is walked as a program, and one whose `require` chain declares anything is a
-**lender**. A file belongs to a lender when the lender's walk read it, or when its path is under a root
-one of the lender's *own* declarations names — wherever that root is, inside the workspace or not. When
-such a file is analysed, the lender's declarations are placed behind the file's own, each still resolving
-against the directory of the file that wrote it, so a name lands on the file the real build lands it on.
+**lender**. A file belongs to a lender when the lender's walk read it, when its path is under a root
+one of the lender's *own* declarations names — wherever that root is, inside the workspace or not — or
+when it lies under the directory of the lender's entry and holds neither `require` nor `autoload`. The
+last is the editor's half of `rule:testing/a-directory-of-programs-is-one-test-program`: a directory
+`nvs test` runs is one program, so a plain test file beside the file that requires the bootstrap is
+analysed through the bootstrap's map, and a file that requires or declares anything is a program of its
+own. When such a file is analysed, the lender's declarations are placed behind the file's own, each still
+resolving against the directory of the file that wrote it, so a name lands on the file the real build
+lands it on.
 
 - **The file's own declarations win.** A prefix both declare is the file's.
 - **A lender never borrows.** A file that declares `autoload` has a map of its own, and the server

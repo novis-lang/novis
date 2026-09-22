@@ -9,8 +9,8 @@ keywords: test, #[Test], nvs test, PHPUnit, TestCase, assertEquals, assertSame, 
 
 Testing is part of the language: `#[Test]` on a method marks it, the compiler collects every
 `#[Test]` in the program into a table while checking it, and `nvs test file.nvs` runs that table.
-There is no base class to extend, no naming convention and no directory scan — any class in the
-program may hold tests.
+There is no base class to extend and no naming convention — any class in the program may hold
+tests. `nvs test tests/` runs every `.nvs` file under a directory as one program.
 
 ```nvs test exit=1
 <?nvs
@@ -55,6 +55,10 @@ otherwise; a skipped test is not a failure.
 - Classes are reported in name order; within a class, tests run in declaration order.
 - The entry file's top-level statements do **not** run under `nvs test`; every file the
   `require`/`autoload` graph reaches is still compiled, so the classes under test are declared.
+- `nvs test <directory>` runs every `.nvs` file under the directory, subdirectories included, as one
+  program, in name order. One file in the directory requires the application's bootstrap file, and
+  that gives the whole directory its `autoload` declarations; the test files themselves require
+  nothing. A directory holding both `.nvs` and `.nvst` files is refused.
 - A test that asserts nothing fails — write `Core\Test::assertDoesNotThrow` when the claim is that
   a call completes.
 

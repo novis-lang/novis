@@ -394,15 +394,19 @@ enum Command {
     ///
     /// One subcommand runs both, because they answer different questions about
     /// the same tree, and which one is meant is read off the path — a `.nvs`
-    /// file is a program whose compiled test table is run, anything else is a
-    /// `.nvst` case file or a directory walked for `*.nvst`. The two are not
-    /// mixed in one invocation: they report differently and share no summary.
+    /// file is a program whose compiled test table is run, a directory holding
+    /// `.nvs` files is one program that requires every one of them in name
+    /// order, and anything else is a `.nvst` case file or a directory walked
+    /// for `*.nvst`. The two are not mixed in one invocation: they report
+    /// differently and share no summary.
     ///
     /// Exits non-zero if any case or any test failed; a skipped one is not a
     /// failure.
-    // `rule:testing/nvst-is-separate` § 1.
+    // `rule:testing/nvst-is-separate` § 1, and
+    // `rule:testing/a-directory-of-programs-is-one-test-program` for the directory.
     Test {
-        /// The case files and directories to run.
+        /// The program or directory of programs to run, or the case files and
+        /// directories.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
         /// Run only the tests whose name contains this text — a `.nvst` case's
@@ -1680,7 +1684,32 @@ fn front_end_granted(
     sink: Sink,
     init: config::Init,
 ) -> Result<Checked, ExitCode> {
+    front_end_in(SourceMap::new(), path, config, strict_docs, sink, init)
+}
+
+/// [`front_end`] for an entry that exists only as `text`: the program a
+/// directory of test files makes, which `nvs test` writes as one `require` per
+/// file and never puts on disk
+/// (`rule:testing/a-directory-of-programs-is-one-test-program`).
+///
+/// `path` is where the entry would sit, so every `require` in `text` resolves
+/// against that directory exactly as a written entry's would.
+fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
+    map.overlay(path, text);
+    front_end_in(map, path, None, false, Sink::Text, config::Init::Never)
+}
+
+/// [`front_end_granted`] over a map the caller prepared — empty for a file on
+/// disk, or holding the one overlay [`front_end_synthesized`] registers.
+fn front_end_in(
+    mut map: SourceMap,
+    path: &std::path::Path,
+    config: Option<&[std::path::PathBuf]>,
+    strict_docs: bool,
+    sink: Sink,
+    init: config::Init,
+) -> Result<Checked, ExitCode> {
     let id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
@@ -2698,13 +2727,24 @@ fn run_test(
     init: config::Init,
 ) -> ExitCode {
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
-    // by a flag: a program is a `.nvs` file and a conformance case is not, so
-    // nothing has to be spelled out at the call site.
-    if paths.iter().any(|path| is_program(path)) {
-        let [path] = paths else {
+    // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
+    // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
+    // conformance case is anything else, and nothing has to be spelled out at
+    // the call site.
+    let programs: Vec<Option<Program>> =
+        match paths.iter().map(|path| Program::named_by(path)).collect() {
+            Ok(programs) => programs,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    if programs.iter().any(Option::is_some) {
+        let [Some(program)] = programs.as_slice() else {
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
             return ExitCode::FAILURE;
         };
+        let path = program.configured();
         // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
         // resolves it above its own compile: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact key is half
         // configuration — § 7's `[opcache]` says where artifacts live and
@@ -2734,7 +2774,7 @@ fn run_test(
         }
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
-        return match front_end(path) {
+        return match program.front_end() {
             Ok(checked) => runner::run(checked, &snapshot, format, filter, update, list),
             Err(code) => code,
         };
@@ -2787,17 +2827,143 @@ fn run_test(
     }
 }
 
-/// Whether `path` names a Novis **program** rather than a `.nvst` case tree,
-/// and no directory, since a directory of programs has no entry point to check.
+/// What `nvs test` compiles when a path names a **program** rather than a
+/// `.nvst` case tree.
 ///
-/// The extension is the whole test, and `.nvs` is the only one that passes it.
-/// A path Novis will happily compile — the extension is a convention rather
-/// than a rule everywhere else — is read as a case tree here, because `nvs
-/// test` has to choose one of two suites from the path alone and a guess that
-/// looked inside the file would make the choice unpredictable.
+/// The extension is the whole test for a file, and `.nvs` is the only one that
+/// passes it. A path Novis will happily compile — the extension is a
+/// convention rather than a rule everywhere else — is read as a case tree
+/// here, because `nvs test` has to choose one of two suites from the path
+/// alone and a guess that looked inside the file would make the choice
+/// unpredictable. A directory is read the same way, off the extensions of the
+/// files under it.
+enum Program {
+    /// A `.nvs` file: the program it starts.
+    File(PathBuf),
+    /// A directory holding `.nvs` files: one program whose entry requires
+    /// every one of them, in name order
+    /// (`rule:testing/a-directory-of-programs-is-one-test-program`).
+    Directory { dir: PathBuf, files: Vec<PathBuf> },
+}
+
+impl Program {
+    /// The program `path` names, or `None` for a `.nvst` case file or a
+    /// directory holding no `.nvs` file.
+    ///
+    /// # Errors
+    ///
+    /// A directory that cannot be read, and one holding both kinds of file:
+    /// the two suites report differently and share no summary, so a tree that
+    /// mixes them is run in two invocations rather than guessed at.
+    fn named_by(path: &std::path::Path) -> Result<Option<Self>, String> {
+        if is_program(path) {
+            return Ok(Some(Self::File(path.to_path_buf())));
+        }
+        if !path.is_dir() {
+            return Ok(None);
+        }
+        let mut files = Vec::new();
+        let mut cases = false;
+        programs_under(path, &mut files, &mut cases)
+            .map_err(|error| format!("{}: {error}", path.display()))?;
+        if files.is_empty() {
+            return Ok(None);
+        }
+        if cases {
+            return Err(format!(
+                "{}: a directory holding both `.nvs` programs and `.nvst` cases is run separately, one kind per invocation",
+                path.display()
+            ));
+        }
+        Ok(Some(Self::Directory {
+            dir: path.to_path_buf(),
+            files,
+        }))
+    }
+
+    /// The path the configuration is folded for: the file, or the directory,
+    /// which is what an `[[app]]` block's `root` covers.
+    fn configured(&self) -> &std::path::Path {
+        match self {
+            Self::File(path) | Self::Directory { dir: path, .. } => path,
+        }
+    }
+
+    /// The checked program.
+    fn front_end(&self) -> Result<Checked, ExitCode> {
+        match self {
+            Self::File(path) => front_end(path),
+            Self::Directory { dir, files } => {
+                // A name no file under the directory carries, so the overlay
+                // never stands in front of a real file's bytes.
+                let mut name = String::from("#tests.nvs");
+                while files
+                    .iter()
+                    .any(|file| file.file_name().is_some_and(|f| f == name.as_str()))
+                {
+                    name.insert(0, '#');
+                }
+                front_end_synthesized(&dir.join(name), &directory_entry(dir, files))
+            }
+        }
+    }
+}
+
+/// Whether `path` carries the `.nvs` extension.
 fn is_program(path: &std::path::Path) -> bool {
     path.extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("nvs"))
+}
+
+/// Collects every `.nvs` file under `dir`, directories walked in name order,
+/// and notes in `cases` whether a `.nvst` case sits among them.
+fn programs_under(
+    dir: &std::path::Path,
+    into: &mut Vec<PathBuf>,
+    cases: &mut bool,
+) -> std::io::Result<()> {
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<std::io::Result<_>>()?;
+    entries.sort();
+    for entry in entries {
+        if entry.is_dir() {
+            programs_under(&entry, into, cases)?;
+        } else if is_program(&entry) {
+            into.push(entry);
+        } else if entry.extension().is_some_and(|ext| ext == "nvst") {
+            *cases = true;
+        }
+    }
+    Ok(())
+}
+
+/// The entry a directory of programs is run through: one `require` per file,
+/// in the order [`programs_under`] found them, each path relative to `dir` and
+/// spelled with `/`, which a literal path accepts on every platform.
+///
+/// Under `nvs test` the entry's statements never run, so the requires only
+/// bring each file into the compile; a file in the directory that requires
+/// the application's bootstrap is what gives the whole directory its
+/// `autoload` map.
+fn directory_entry(dir: &std::path::Path, files: &[PathBuf]) -> String {
+    let mut text = String::from("<?nvs\n");
+    for file in files {
+        let relative = file.strip_prefix(dir).unwrap_or(file);
+        let spelled: Vec<String> = relative
+            .components()
+            .map(|part| {
+                part.as_os_str()
+                    .to_string_lossy()
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'")
+            })
+            .collect();
+        text.push_str("require '");
+        text.push_str(&spelled.join("/"));
+        text.push_str("';\n");
+    }
+    text
 }
 
 /// Where a front end's diagnostics go, and in which rendering.

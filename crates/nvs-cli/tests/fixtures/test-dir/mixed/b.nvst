@@ -1,0 +1,7 @@
+--TEST--
+a case beside a program, so the directory is refused
+--FILE--
+<?nvs
+echo "1";
+--EXPECT--
+1

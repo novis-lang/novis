@@ -1,0 +1,9 @@
+<?nvs
+use Core\Test;
+
+final class MixedTest {
+    #[Test]
+    public function one(): void {
+        Test::assertSame(1, 1);
+    }
+}

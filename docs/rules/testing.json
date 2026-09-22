@@ -336,6 +336,14 @@
       "guardedBy": ["crates/nvs-test/src/lib.rs", "crates/nvs-cli/src/main.rs"]
     },
     {
+      "id": "testing/a-directory-of-programs-is-one-test-program",
+      "title": "A directory handed to `nvs test` that holds `.nvs` files is one program requiring every one of them in name order, and a file in it that requires the bootstrap gives it its `autoload` map",
+      "status": "shipped",
+      "because": ["0208"],
+      "seeAlso": ["testing/nvst-is-separate", "programs/autoload", "ide/an-autoloaded-file-borrows-its-programs-map"],
+      "guardedBy": ["crates/nvs-cli/tests/test_dir.rs"]
+    },
+    {
       "id": "testing/one-slice-is-one-feature",
       "title": "One slice writes all of a feature's proofs together",
       "status": "shipped",

@@ -308,25 +308,58 @@ fn a_require_added_to_a_required_file_lends_the_map_onward() {
     let (dir, root) = application("require-added");
     let helper = "<?nvs\nuse Blog\\Index;\n\nfinal class Helper {\n    \
                   public function make(): Index {\n        return new Index();\n    }\n}\n";
-    dir.write("app/tests/Helper.nvs", helper);
+    dir.write("app/helpers/Helper.nvs", helper);
     let mut documents = Documents::new();
     documents.survey(CheckScope::Workspace, Some(&root));
-    dir.open(&mut documents, "app/tests/Helper.nvs", helper);
+    dir.open(&mut documents, "app/helpers/Helper.nvs", helper);
     dir.open(
         &mut documents,
         "app/tests/ApplicationTest.nvs",
         APPLICATION_TEST,
     );
 
-    let uri = dir.uri("app/tests/Helper.nvs");
+    let uri = dir.uri("app/helpers/Helper.nvs");
     let alone = analyse(&documents, &uri).expect("it is open");
     assert!(codes(&alone).contains(&"E0306"), "{:?}", codes(&alone));
 
-    let edited = format!("<?nvs\nrequire 'Helper.nvs';\n{}", &APPLICATION_TEST[6..]);
+    // The helper sits outside every lender's directory and every root, so
+    // nothing lends to it until this `require` is written.
+    let edited = format!(
+        "<?nvs\nrequire '../helpers/Helper.nvs';\n{}",
+        &APPLICATION_TEST[6..]
+    );
     let test = dir.at("app/tests/ApplicationTest.nvs");
     assert!(documents.change(&dir.uri("app/tests/ApplicationTest.nvs"), 2, edited));
     documents.resurvey(&test);
 
     let lent = analyse(&documents, &uri).expect("it is open");
     assert_eq!(codes(&lent), Vec::<&str>::new());
+}
+
+/// A plain file under the directory of a lender's entry borrows its map,
+/// though nothing requires it and no root claims it: it is what `nvs test`
+/// runs when the directory is named, and the editor reads it the same way. A
+/// file in that directory that requires something is a program of its own
+/// and borrows nothing.
+#[test]
+fn a_plain_file_under_a_lenders_directory_borrows_its_map() {
+    let (dir, root) = application("plain");
+    let plain = "<?nvs\nuse Blog\\Index;\n\nfinal class PlainTest {\n    \
+                 public function run(): Index {\n        return new Index();\n    }\n}\n";
+    dir.write("app/tests/unit/PlainTest.nvs", plain);
+    let own = "<?nvs\nrequire '../src/Index.nvs';\nuse Framework\\Kernel;\n\nnew Kernel();\n";
+    dir.write("app/tests/own.nvs", own);
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    dir.open(&mut documents, "app/tests/unit/PlainTest.nvs", plain);
+    dir.open(&mut documents, "app/tests/own.nvs", own);
+
+    let lent = analyse(&documents, &dir.uri("app/tests/unit/PlainTest.nvs")).expect("it is open");
+    assert_eq!(codes(&lent), Vec::<&str>::new());
+    let read = tails(&lent);
+    assert!(read.contains(&"public/index.nvs".to_owned()), "{read:?}");
+
+    let alone = analyse(&documents, &dir.uri("app/tests/own.nvs")).expect("it is open");
+    assert!(codes(&alone).contains(&"E0306"), "{:?}", codes(&alone));
+    assert!(alone.lent.is_empty());
 }
