@@ -1,0 +1,65 @@
+<?nvs
+// Attack: one count is read a million times. A write changes a hundred thousand
+// rows. A statement with no count of its own is read, and so is a write from a
+// transaction that gave up. The last read happens after the connection is
+// closed. Nothing here may crash.
+// hostile: timeout-ms 60000
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+use Core\Db\Write;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. One count, read a million times. Every read answers the same number, and
+// reading it may not grow the memory.
+var $three = $db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+uint $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $sum = $sum + $three->affected();
+    $i = $i + 1;
+}
+echo '1 read a million times: ', $sum, "\n";
+
+// 2. One statement changes a hundred thousand rows. The count is a whole
+// number, so it must be all of them and not a part.
+var $many = $db->execute('insert into notes (text) select hex(zeroblob(8)) from (with recursive n(i) as (select 1 union all select i + 1 from n where i < 100000) select i from n)', []);
+echo '2 rows written: ', $many->affected(), "\n";
+
+// 3. Statements that have no rows to count: a table is created and a table is
+// dropped. Both answer a number.
+$db->execute('create table spare (id integer primary key)', []);
+var $made = $db->execute('create table spare_two (id integer primary key)', []);
+var $gone = $db->execute('drop table spare', []);
+echo '3 create: ', $made->affected(), ', drop: ', $gone->affected(), "\n";
+
+// 4. The count of a write inside a transaction that was given up. The rows are
+// not in the table, and the write still answers the number it reported.
+var $kept = null;
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        var $write = $tx->execute('insert into notes (text) values (?), (?)', ['never saved', 'never saved either']);
+        echo '4 inside the transaction: ', $write->affected(), "\n";
+        $tx->rollBack('nothing worth keeping');
+    });
+} catch (RolledBack $gaveUp) {
+    echo "4 the work gave up\n";
+}
+
+// 5. A hundred thousand writes, each answering its own count. Every count is
+// its own statement's, so they add up to the rows really written.
+uint $written = 0;
+uint $round = 0;
+while ($round < 100000) {
+    var $one = $db->execute('insert into notes (text) values (?)', ['row']);
+    $written = $written + $one->affected();
+    $round = $round + 1;
+}
+echo '5 counts added up: ', $written, "\n";
+
+// 6. The count is read after the connection is closed. The number was read off
+// the statement when it ran, so the closed connection cannot take it away.
+var $last = $db->execute('delete from notes where text = ?', ['row']);
+$db->close();
+echo '6 after the connection closed: ', $last->affected(), "\n";

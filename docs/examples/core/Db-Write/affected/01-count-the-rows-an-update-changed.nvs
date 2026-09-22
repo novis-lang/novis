@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read how many rows a write changed. `Core\Db\Connection::execute`
+// returns a `Core\Db\Write`, and `affected` is the count on it.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null, done boolean not null)', []);
+$db->execute(
+    'insert into notes (text, done) values (?, ?), (?, ?), (?, ?)',
+    ['buy milk', false, 'call Ana', false, 'book train', true],
+);
+
+var $write = $db->execute('update notes set done = ? where done = ?', [true, false]);
+
+// Two of the three notes were still open, so two rows changed. This prints
+// `2 rows changed`.
+echo $write->affected(), " rows changed\n";
+
+$db->close();

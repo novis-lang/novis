@@ -2135,6 +2135,69 @@ entry = "benches/members/core/Db-Transaction/rollBack.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/01-undo-one-step-and-keep-the-rest.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/02-let-a-function-open-its-own-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/03-keep-the-order-when-the-coupon-fails.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/transaction/01-a-step-that-outlives-its-work-and-levels-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Write`'s programs read the three counts off a statement that has already run, so they
+# open `[db.notes]` by name and ask for nothing else: the write is reached through a connection this
+# grant already covers, and a count is read off the statement rather than out of the database.
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/01-count-the-rows-an-update-changed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/02-find-out-that-nothing-matched.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/03-let-one-worker-take-the-job.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/affected/01-a-count-kept-after-everything-that-made-it-is-gone.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/affected.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

@@ -2623,13 +2623,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   concluding a red floor check is stale, `grep -n failing .loop/logs/<run>-console.log` and read the
   run's own output — the per-suite lines, the failing test names and the assertion are all in it.
   [until: reviewed 2026-09-22]
-- **The interrupted-session sweep files an untracked *directory* under `left`, so the WIP commit
-  calls the cut-off session's own work somebody else's.** `git status --short` collapses an
-  untracked directory to one line, which the sweep cannot stage, so its body reads "2 other
-  path(s) were dirty before this session launched — they are somebody else's work" about
-  directories that session had made minutes earlier. Compare the mtimes under a `left` path
-  against `.loop/interrupted.json`'s `when` before believing it.
-  [until: gone .loop/interrupted.json]
 
 ## Running things
 
@@ -6776,6 +6769,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   parked stream rather than its own subject. Keep one such step, last, and pin the rest from a
   `.nvst` whose final statement is the one that parks the connection.
   [until: reviewed 2026-09-22]
+- **`Core\Db\Rows::count()` counts rows, and a `select count(*)` statement answers one row.** A proof
+  program reading `select count(*) as n` and then `->count()` gets `1` — a number plausible enough to
+  bless and wrong. Read the count out of the column with `->first()` and a typed reader, or select the
+  rows and count those. [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

@@ -1,0 +1,21 @@
+<?nvs
+// Shows what the count is when a write matched no row. It is 0, so a program
+// can tell that the row it meant to change is not there.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+var $write = $db->execute('update notes set text = ? where id = ?', ['buy bread', 99]);
+
+if ($write->affected() == 0) {
+    // This prints `there is no note 99`.
+    echo "there is no note 99\n";
+}
+
+// The note that is there was left alone. This prints `buy milk`.
+foreach ($db->query('select text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->string('text') ?? '', "\n";
+}
+
+$db->close();
