@@ -408,6 +408,11 @@ pub(crate) struct Env<'a> {
     /// the door.
     pub grants: Option<&'a nvs_config::tree::Capabilities>,
     pub src: &'a SourceFile,
+    /// The file's top-level statements, which is where the `use` line an
+    /// undeclared name's fix inserts would go (`nvs_hir::import_site`) — the
+    /// same statements [`ProgramFile::stmts`] hands the passes, kept beside
+    /// [`Self::src`] so a diagnostic raised deep in a body can name the site.
+    pub stmts: &'a [nvs_syntax::ast::Stmt],
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to
     /// read back later — see [`crate::expr_table`]'s own module docs.

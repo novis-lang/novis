@@ -891,11 +891,16 @@ pub(crate) fn check_class_name_const(
                 && !qname.is_reserved_global_interface()
             {
                 env.diags.report(nvs_hir::undeclared_name(
-                    &qname,
-                    span_text(env.src, class.span),
-                    class.span,
-                    ctx.namespace,
+                    nvs_hir::Undeclared {
+                        qname: &qname,
+                        text: span_text(env.src, class.span),
+                        span: class.span,
+                        namespace: ctx.namespace,
+                        stmts: env.stmts,
+                        src: env.src,
+                    },
                     env.symbols,
+                    &nvs_stdlib::registry::type_names(),
                 ));
             }
             let value = crate::defaults::ConstArg::Str(qname.to_string());

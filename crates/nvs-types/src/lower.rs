@@ -897,11 +897,16 @@ fn resolve_name_type(
         }
         None => {
             env.diags.report(nvs_hir::undeclared_name(
-                &qname,
-                text,
-                name.span,
-                ctx.namespace,
+                nvs_hir::Undeclared {
+                    qname: &qname,
+                    text,
+                    span: name.span,
+                    namespace: ctx.namespace,
+                    stmts: env.stmts,
+                    src: env.src,
+                },
                 env.symbols,
+                &nvs_stdlib::registry::type_names(),
             ));
             env.interner.mixed()
         }
@@ -972,6 +977,7 @@ mod tests {
             attributes: &attributes,
             grants: None,
             src: map.file(file),
+            stmts: &stmts,
             interner: &mut interner,
             exprs: &mut exprs,
             routes: &mut crate::routes::RouteTable::default(),

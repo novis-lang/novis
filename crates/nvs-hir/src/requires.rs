@@ -268,7 +268,7 @@ fn walk(
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new(core);
-    let mut members = MemberResolver::new();
+    let mut members = MemberResolver::with_core(core);
     let mut aliases = AliasResolver::new();
 
     let mut loaded: Vec<Loaded> = Vec::new();

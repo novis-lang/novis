@@ -106,7 +106,7 @@ use nvs_syntax::ast::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::hierarchy::{ClassGraph, resolve_ref};
+use crate::hierarchy::{ClassGraph, CoreRoster, resolve_ref};
 use crate::qname::QName;
 use crate::resolve::{name_text, qname_segments};
 use crate::symbol::SymbolTable;
@@ -177,11 +177,15 @@ impl MemberKind {
 /// two-pass shape as [`crate::hierarchy::HierarchyResolver`], for the same
 /// reason: a reference may name a member declared in a file collected later.
 #[derive(Debug)]
-pub struct MemberResolver {
+pub struct MemberResolver<'a> {
     table: MemberTable,
+    /// The `Core` types a fix on an undeclared class side may offer to
+    /// import — [`crate::hierarchy::undeclared_name`]'s `core`. A resolver
+    /// built with [`Self::new`] holds [`CoreRoster::Trusted`] and offers none.
+    core: CoreRoster<'a>,
 }
 
-impl Default for MemberResolver {
+impl Default for MemberResolver<'_> {
     /// A resolver holding only [`crate::errors`]' members.
     ///
     /// Seeded here rather than at each of the two call sites because a
@@ -198,16 +202,29 @@ impl Default for MemberResolver {
         for (name, _) in crate::errors::TREE {
             table.entry(QName::parse(name));
         }
-        Self { table }
+        Self {
+            table,
+            core: CoreRoster::Trusted,
+        }
     }
 }
 
-impl MemberResolver {
+impl<'a> MemberResolver<'a> {
     /// A resolver with nothing collected yet beyond [`crate::errors`]' own
     /// members — see [`Self::default`].
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// [`Self::new`], holding the roster of `Core` types an undeclared class
+    /// side's fix may offer to import.
+    #[must_use]
+    pub fn with_core(core: CoreRoster<'a>) -> Self {
+        Self {
+            core,
+            ..Self::default()
+        }
     }
 
     /// Consumes the resolver, returning the [`MemberTable`] it collected.
@@ -323,6 +340,8 @@ impl MemberResolver {
             symbols,
             graph,
             table: &self.table,
+            stmts,
+            core: self.core.names(),
             refused_toplevel: refused_toplevel_names(stmts, src),
             fn_self: None,
             strict_docs,
@@ -348,6 +367,11 @@ struct Env<'a> {
     symbols: &'a SymbolTable,
     graph: &'a ClassGraph,
     table: &'a MemberTable,
+    /// The file's top-level statements, which is where an undeclared class
+    /// side's `use` line would go (`crate::imports::import_site`).
+    stmts: &'a [Stmt],
+    /// The `Core` types such a fix may offer — [`MemberResolver::with_core`].
+    core: &'a [&'a str],
     /// Every name this file declared as a top-level `function` or `const` —
     /// both already refused by the parser (`E0215`/`E0216`). Calling or
     /// reading one is the same mistake seen from its use site, so `E0320` and
@@ -1342,11 +1366,16 @@ fn check_member_ref(
                 Some(resolved)
             } else {
                 env.diags.report(crate::hierarchy::undeclared_name(
-                    &resolved,
-                    text,
-                    class_name.span,
-                    ctx.namespace,
+                    crate::hierarchy::Undeclared {
+                        qname: &resolved,
+                        text,
+                        span: class_name.span,
+                        namespace: ctx.namespace,
+                        stmts: env.stmts,
+                        src,
+                    },
                     env.symbols,
+                    env.core,
                 ));
                 None
             }

@@ -49,6 +49,7 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::imports::{self, ImportSite};
 use crate::qname::QName;
 use crate::resolve::{name_text, qname_segments};
 use crate::symbol::{SymbolKind, SymbolTable};
@@ -85,6 +86,19 @@ pub enum CoreRoster<'a> {
 }
 
 impl CoreRoster<'_> {
+    /// The names this roster holds, spelled as source writes them, and empty
+    /// for [`Self::Trusted`]: a roster that takes every name on faith can
+    /// list none, which is the right answer for a reader offering one of
+    /// them — a fixture with no stdlib in hand has no `Core\Request` to
+    /// import.
+    #[must_use]
+    pub const fn names(&self) -> &[&str] {
+        match self {
+            Self::Trusted => &[],
+            Self::Names(names) => names,
+        }
+    }
+
     /// Whether this roster says `qname` exists. Matched without regard to
     /// ASCII case, the same comparison [`QName::is_core`] makes on the first
     /// segment, so one roster answers every spelling of a name.
@@ -186,6 +200,12 @@ struct PendingLinks {
     concrete: bool,
     namespace: Vec<String>,
     imports: FxHashMap<String, QName>,
+    /// Where a `use` line goes for a name this declaration's clauses write,
+    /// read while the file's statements were still in hand
+    /// (`crate::imports::site_in`): the undeclared-name diagnostic a clause
+    /// can raise carries the import that would resolve it, and by the time
+    /// [`HierarchyResolver::resolve`] raises one the statements are gone.
+    import_site: Option<ImportSite>,
     extends: Vec<RawRef>,
     implements: Vec<RawRef>,
 }
@@ -197,6 +217,7 @@ impl PendingLinks {
         concrete: bool,
         namespace: Vec<String>,
         imports: FxHashMap<String, QName>,
+        import_site: Option<ImportSite>,
     ) -> Self {
         Self {
             qname,
@@ -204,6 +225,7 @@ impl PendingLinks {
             concrete,
             namespace,
             imports,
+            import_site,
             extends: Vec::new(),
             implements: Vec::new(),
         }
@@ -240,10 +262,19 @@ impl<'a> HierarchyResolver<'a> {
     /// resets the tracked imports for the rest of this call's statement
     /// sequence, matching [`crate::resolve::Resolver::collect_declarations`].
     pub fn collect_links(&mut self, stmts: &[Stmt], src: &SourceFile) {
-        self.collect_in(stmts, src, &[]);
+        self.collect_in(stmts, src, &[], false);
     }
 
-    fn collect_in(&mut self, stmts: &[Stmt], src: &SourceFile, namespace: &[String]) {
+    /// `bracketed` says whether `stmts` is the block of a `namespace Name {}`
+    /// rather than the file, which is what decides where a `use` line for a
+    /// clause's undeclared name would go (`crate::imports::site_in`).
+    fn collect_in(
+        &mut self,
+        stmts: &[Stmt],
+        src: &SourceFile,
+        namespace: &[String],
+        bracketed: bool,
+    ) {
         let mut current_ns: Vec<String> = namespace.to_vec();
         let mut imports: FxHashMap<String, QName> = FxHashMap::default();
 
@@ -254,7 +285,7 @@ impl<'a> HierarchyResolver<'a> {
                         .as_ref()
                         .map_or_else(Vec::new, |n| qname_segments(src, n));
                     match body {
-                        Some(block) => self.collect_in(&block.stmts, src, &new_ns),
+                        Some(block) => self.collect_in(&block.stmts, src, &new_ns, true),
                         None => {
                             current_ns = new_ns;
                             imports.clear();
@@ -272,6 +303,7 @@ impl<'a> HierarchyResolver<'a> {
                         !decl.modifiers.contains(&Modifier::Abstract),
                         current_ns.clone(),
                         imports.clone(),
+                        imports::site_in(stmts, src, stmt.span.start, bracketed),
                     );
                     if let Some(base) = &decl.extends {
                         pending.extends.push(raw_ref(src, base));
@@ -288,6 +320,7 @@ impl<'a> HierarchyResolver<'a> {
                         false,
                         current_ns.clone(),
                         imports.clone(),
+                        imports::site_in(stmts, src, stmt.span.start, bracketed),
                     );
                     for parent in &decl.extends {
                         pending.extends.push(raw_ref(src, parent));
@@ -427,6 +460,50 @@ pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
 /// nothing — built here, once, so that every site reporting it makes the same
 /// `rule:statements/a-qualified-name-is-absolute` distinction rather than a copy per site drifting apart.
 ///
+/// A class/interface/enum reference that resolved to nothing, and what the
+/// diagnostic for it needs to carry the fix.
+///
+/// The statements and the source are the file the name was written in, which
+/// is where its `use` line would go (`crate::imports::import_site`); a caller
+/// that has the site in hand already, or has none to give, reaches
+/// [`undeclared_name_at`] directly.
+#[derive(Clone, Copy, Debug)]
+pub struct Undeclared<'a> {
+    /// What the reference resolved to, and failed to find.
+    pub qname: &'a QName,
+    /// The reference as source wrote it.
+    pub text: &'a str,
+    /// Where it was written.
+    pub span: Span,
+    /// The namespace in force there.
+    pub namespace: &'a [String],
+    /// The top-level statements of the file it was written in.
+    pub stmts: &'a [Stmt],
+    /// That file.
+    pub src: &'a SourceFile,
+}
+
+/// The diagnostic for a class/interface/enum reference that resolved to
+/// nothing, with the `use` line that would resolve it where one is known.
+///
+/// `core` is every `Core` type a caller can name — `nvs_stdlib::registry`'s
+/// roster where the caller holds the stdlib, and nothing where it does not —
+/// and is what lets `Request` offer `use Core\Request;`.
+///
+/// [`undeclared_name_at`] is the rest of this function, given the site.
+#[must_use]
+pub fn undeclared_name(at: Undeclared<'_>, symbols: &SymbolTable, core: &[&str]) -> Diagnostic {
+    undeclared_name_at(
+        at.qname,
+        at.text,
+        at.span,
+        at.namespace,
+        symbols,
+        core,
+        imports::import_site(at.stmts, at.src, at.span.start),
+    )
+}
+
 /// Ordinarily [`nvs_diagnostics::code::E_UNDEFINED_CLASS`]. Where the
 /// reference is the one construct `rule:statements/a-qualified-name-is-absolute` changed the meaning of — a
 /// qualified name inside a namespace, which PHP read as relative — **and**
@@ -435,13 +512,28 @@ pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
 /// absolute spelling. A converted PHP file hits this on its first such name
 /// and is told what to write, rather than being told a class it can see is
 /// missing.
+///
+/// **An unqualified name that resolved through the namespace alone carries a
+/// fix per type it could have meant**: every class, interface or enum in
+/// `symbols` or `core` whose last segment is the written name
+/// ([`crate::imports::candidates`]), each as the `use` line inserted at
+/// `site` (`rule:ide/an-undeclared-name-offers-its-import`). One candidate is
+/// a machine-applicable fix; several are each offered for a person to choose
+/// between, because the checker cannot. A qualified name is absolute
+/// (`rule:statements/a-qualified-name-is-absolute`) and no import changes what
+/// it means; a short name an existing `use` already resolves to something
+/// undeclared is that import's mistake, and a second `use` of the same short
+/// name would not compile — so neither is offered one. With no site there is
+/// no fix, and the diagnostic is what it was.
 #[must_use]
-pub fn undeclared_name(
+pub fn undeclared_name_at(
     qname: &QName,
     text: &str,
     span: Span,
     namespace: &[String],
     symbols: &SymbolTable,
+    core: &[&str],
+    site: Option<ImportSite>,
 ) -> Diagnostic {
     if let Some(relative) = relative_spelling(text, namespace)
         && symbols.contains(&relative)
@@ -458,11 +550,26 @@ pub fn undeclared_name(
             relative.short_name()
         ));
     }
-    Diagnostic::error(
+    let mut diagnostic = Diagnostic::error(
         code::E_UNDEFINED_CLASS,
         format!("`{qname}` is not declared"),
     )
-    .with_primary(span, "no matching declaration")
+    .with_primary(span, "no matching declaration");
+    let through_namespace = !text.contains('\\') && QName::join(namespace, text) == *qname;
+    if let Some(site) = site.filter(|_| through_namespace) {
+        let candidates = imports::candidates(text, symbols, core.iter().copied());
+        let unique = candidates.len() == 1;
+        for candidate in &candidates {
+            let message = format!("import `{candidate}`");
+            let line = site.use_line(candidate);
+            diagnostic = if unique {
+                diagnostic.with_fix(site.span(span.file), line, message)
+            } else {
+                diagnostic.with_unsafe_fix(site.span(span.file), line, message)
+            };
+        }
+    }
+    diagnostic
 }
 
 fn describe_kinds(kinds: &[SymbolKind]) -> String {
@@ -519,12 +626,14 @@ fn resolve_supertype(
             None
         }
         None => {
-            diags.report(undeclared_name(
+            diags.report(undeclared_name_at(
                 &qname,
                 &raw.text,
                 raw.span,
                 &pending.namespace,
                 symbols,
+                core.names(),
+                pending.import_site,
             ));
             None
         }

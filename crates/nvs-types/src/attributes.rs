@@ -300,11 +300,16 @@ fn resolve_shape_alias(
             report_not_a_shape(name, &format!("`{qname}` is not a `type` alias"), env);
         } else {
             env.diags.report(nvs_hir::undeclared_name(
-                qname,
-                span_text(env.src, name.span),
-                name.span,
-                ctx.namespace,
+                nvs_hir::Undeclared {
+                    qname,
+                    text: span_text(env.src, name.span),
+                    span: name.span,
+                    namespace: ctx.namespace,
+                    stmts: env.stmts,
+                    src: env.src,
+                },
                 env.symbols,
+                &nvs_stdlib::registry::type_names(),
             ));
         }
         return None;

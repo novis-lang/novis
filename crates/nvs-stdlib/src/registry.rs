@@ -2967,6 +2967,21 @@ pub fn link_targets() -> Vec<&'static str> {
         .collect()
 }
 
+/// Every `Core` type a program may name where a class, an interface or an
+/// enum goes: the classes, [`DERIVE_INTERFACES`] and the enums.
+///
+/// This is what a front end hands `nvs_hir::undeclared_name` as the roster a
+/// fix may import from: a bare `Request` that resolved to nothing is offered
+/// `use Core\Request;` because this list holds it. It is [`link_targets`]
+/// widened by the enums, which no clause may name and any expression may.
+#[must_use]
+pub fn type_names() -> Vec<&'static str> {
+    link_targets()
+        .into_iter()
+        .chain(ENUMS.iter().map(|core| core.name))
+        .collect()
+}
+
 /// Whether a `Core`-owned class renders as text —
 /// `rule:classes/stringable`'s question, asked here because a `Core` class has no other place to
 /// answer it: it declares no interfaces, so there is no `Stringable` for

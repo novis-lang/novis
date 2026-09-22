@@ -1739,11 +1739,16 @@ pub(crate) fn check_new_target(
                 // has no such class, so the ordinary undeclared-class
                 // diagnostic is exactly the right answer.
                 env.diags.report(nvs_hir::undeclared_name(
-                    &qname,
-                    text,
-                    name.span,
-                    ctx.namespace,
+                    nvs_hir::Undeclared {
+                        qname: &qname,
+                        text,
+                        span: name.span,
+                        namespace: ctx.namespace,
+                        stmts: env.stmts,
+                        src: env.src,
+                    },
                     env.symbols,
+                    &nvs_stdlib::registry::type_names(),
                 ));
                 env.interner.mixed()
             }

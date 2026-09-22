@@ -58,6 +58,7 @@ pub mod aliases;
 pub mod autoload;
 pub mod errors;
 pub mod hierarchy;
+pub mod imports;
 pub mod interfaces;
 pub mod members;
 pub mod qname;
@@ -68,9 +69,11 @@ pub mod symbol;
 pub use aliases::{AliasResolver, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
-    ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, implementors, implements_interface,
-    relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
+    ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, implementors,
+    implements_interface, relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
+    undeclared_name_at,
 };
+pub use imports::{ImportSite, candidates, import_site};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
