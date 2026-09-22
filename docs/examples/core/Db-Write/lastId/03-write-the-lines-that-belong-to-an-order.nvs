@@ -1,0 +1,25 @@
+<?nvs
+// Shows the work a program really does here: an order is written, and the
+// lines of that order are written with the key the database gave it.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null)', []);
+$db->execute('create table orderLines (id integer primary key, orderId int not null, item text not null)', []);
+
+var $order = $db->execute('insert into orders (customer) values (?)', ['Ana']);
+?uint $id = $order->lastId();
+
+if ($id != null) {
+    $db->execute(
+        'insert into orderLines (orderId, item) values (?, ?), (?, ?)',
+        [$id, 'blue mug', $id, 'green mug'],
+    );
+}
+
+// Both lines carry the key of the new order. This prints `order 1: blue mug`
+// and `order 1: green mug`.
+foreach ($db->query('select orderId, item from orderLines order by id', []) as Core\Db\Row $row) {
+    echo 'order ', $row->uint('orderId') ?? 0, ': ', $row->string('item') ?? '', "\n";
+}
+
+$db->close();

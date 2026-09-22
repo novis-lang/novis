@@ -1,0 +1,71 @@
+<?nvs
+// Attack: keys are written at both ends of what a whole number holds, and each
+// one is read back. A key is read a million times, a hundred thousand writes
+// each keep their own, and the last read happens after the connection is
+// closed. Nothing here may crash.
+// hostile: timeout-ms 60000
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+use Core\Db\Write;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. One key, read a million times. Every read answers the same number, and
+// reading it may not grow the memory.
+var $one = $db->execute('insert into notes (text) values (?)', ['buy milk']);
+uint $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    ?uint $key = $one->lastId();
+    if ($key != null) {
+        $sum = $sum + $key;
+    }
+    $i = $i + 1;
+}
+echo '1 read a million times: ', $sum, "\n";
+
+// 2. The largest key a database of this kind accepts. The number must come
+// back whole.
+var $far = $db->execute('insert into notes (id, text) values (?, ?)', [9223372036854775807, 'the last row there is']);
+echo '2 the largest key: ', $far->lastId() ?? 0, "\n";
+
+// 3. A key below zero. A key is a number that is never negative, so a row
+// written with one has no key to report.
+var $below = $db->execute('insert into notes (id, text) values (?, ?)', [-4000000000, 'written under zero']);
+echo '3 a key below zero: ', $below->lastId() == null ? 'no key' : 'a key', "\n";
+
+// 4. A hundred thousand writes are kept, and every key is read again at the
+// end. Each write holds its own key, so each of them is still there to read.
+array<Write> $kept = [];
+uint $round = 0;
+while ($round < 100000) {
+    $kept[] = $db->execute('insert into notes (text) values (?)', ['row']);
+    $round = $round + 1;
+}
+uint $keys = 0;
+foreach ($kept as Write $each) {
+    ?uint $held = $each->lastId();
+    if ($held != null) {
+        $keys = $keys + 1;
+    }
+}
+echo '4 keys kept: ', $keys, "\n";
+
+// 5. The key of a write inside a transaction that was given up. The row is not
+// in the table, and the write still answers the key it reported.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        var $write = $tx->execute('insert into notes (text) values (?)', ['never saved']);
+        echo '5 inside the transaction: ', $write->lastId() == null ? 'no key' : 'a key', "\n";
+        $tx->rollBack('nothing worth keeping');
+    });
+} catch (RolledBack $gaveUp) {
+    echo "5 the work gave up\n";
+}
+
+// 6. The key is read after the connection is closed. The number was read off
+// the statement when it ran, so the closed connection cannot take it away.
+var $last = $db->execute('insert into notes (text) values (?)', ['the very last one']);
+$db->close();
+echo '6 after the connection closed: ', $last->lastId() ?? 0, "\n";

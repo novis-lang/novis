@@ -59,6 +59,31 @@
 //! it is dropped, which is [`crate::tds::TdsRows`]' arrangement and for the reason
 //! [`SqliteConn::state`]'s own comment gives — § 4's `LogicError` is a property
 //! of the API, not of a socket.
+//!
+//! # Known gaps
+//!
+//! 1. **A statement that inserted no row reports the connection's last insert
+//!    key as its own.** [`SqliteRows::last_insert_id`] is
+//!    `sqlite3_last_insert_rowid`, which belongs to the connection: after an
+//!    insert of row 4, an `update`, a `delete` and a `create table` each answer
+//!    `4`, so `Core\Db\Write::lastId` hands back a key no row of that statement
+//!    has. `WRITE_LAST_ID_DOC` promises the opposite — the key read off the
+//!    write that produced it, without `mysqli_insert_id`'s
+//!    stale-after-an-unrelated-statement hazard — and
+//!    `docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs`
+//!    is the proof that fails on it. [`step`]'s fold for `affected` does not
+//!    reach this one: `sqlite3_total_changes` moving says rows changed, not that
+//!    any row was *inserted*, so an `update` that changed rows is where a fold
+//!    built on it would still report the earlier key. Telling an insert from
+//!    the other kinds needs something this driver does not have — the statement
+//!    kind, an update hook firing per changed row, or
+//!    `sqlite3_set_last_insert_rowid` as a sentinel before every statement,
+//!    which is raw FFI through `rusqlite`'s connection handle. Each is a
+//!    decision about this crate's audit surface or about what a write costs per
+//!    row, so it is a record's to make rather than a slice's. What holds today
+//!    is the other half of the promise: a write keeps whatever key it was given
+//!    while later statements run.
+//!    — owner: M10
 
 use std::cell::Cell;
 use std::io;

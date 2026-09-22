@@ -1,0 +1,18 @@
+<?nvs
+// Shows what the key is when the statement inserted no row. There is no new
+// row, so there is no key, and `lastId` is `null`.
+// dossier: known-gap crates/nvs-db/src/sqlite.rs -- on SQLite a statement that inserted no row answers the key of the last insert on the connection instead of `null`
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+var $write = $db->execute('update notes set text = ? where id = ?', ['buy bread', 1]);
+
+if ($write->lastId() == null) {
+    // The update changed a row and inserted none, so there is no new key to
+    // read. This prints `the update handed back no key`.
+    echo "the update handed back no key\n";
+}
+
+$db->close();

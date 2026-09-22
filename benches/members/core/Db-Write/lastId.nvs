@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading the key of a row that was just inserted. A program reads it
+// before it writes the rows that belong to the new one.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, text text not null)', []);
+        var $write = $db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each key is read again and added to the ones before it, so the
+            // loop cannot be left out.
+            ?uint $key = $write->lastId();
+            if ($key != null) {
+                $total = $total + $key;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

@@ -1,0 +1,54 @@
+--TEST--
+`Core\Db\Write::lastId` is the key of the row its own statement inserted: a `?uint` a caller unwraps, the last row's key where one statement inserted several, still that key after later inserts have run, and `null` where the row was written with a key no `uint` holds — `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Write::lastId
+// SQLite runs this for real, so every key below is one a driver reported.
+use Core\Db;
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+// The table was empty, so the first row written is row 1.
+var $one = $db->execute("insert into t (name) values ('ada')", []);
+echo "one ", $one->lastId() ?? 0, "\n";
+
+// One statement, three rows, one key: the last row's. A program that needs all
+// three writes them one at a time.
+var $three = $db->execute("insert into t (name) values ('grace'), ('alan'), ('kay')", []);
+echo "three ", $three->lastId() ?? 0, "\n";
+
+// The key belongs to the write and not to the connection, so the three rows
+// above left the first write answering the key it was given. This is the
+// hazard `mysqli_insert_id` has and this class does not.
+echo "one still ", $one->lastId() ?? 0, "\n";
+
+// A key is a whole number that is never negative, so a row written with a
+// negative key has none to report.
+var $under = $db->execute("insert into t (id, name) values (-5, 'below zero')", []);
+?uint $none = $under->lastId();
+if ($none == null) {
+    echo "below zero no key\n";
+} else {
+    echo "below zero key ", $none, "\n";
+}
+
+// And the row is in the table, whatever its key could be reported as.
+foreach ($db->query("select name from t where id < 0", []) as Core\Db\Row $row) {
+    echo "found ", $row->string("name") ?? "", "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+one 1
+three 4
+one still 1
+below zero no key
+found below zero
