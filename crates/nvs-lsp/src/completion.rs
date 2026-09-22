@@ -528,7 +528,12 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);
     }
-    let Some((access, reach)) = access_in(path).or_else(|| ended_at(analysed, offset)) else {
+    // The access the cursor stands at the end of comes first: `Request::` typed
+    // inside `dump(…)` ends exactly at the cursor while the outer call still
+    // contains it, and the outer one would read the cursor as being in its
+    // arguments. The enclosing access is the answer only where no access ends
+    // here.
+    let Some((access, reach)) = ended_at(analysed, offset).or_else(|| access_in(path)) else {
         return bare(analysed, offset);
     };
     let Some(receiver) = analysed.index.children_of(access).into_iter().next() else {

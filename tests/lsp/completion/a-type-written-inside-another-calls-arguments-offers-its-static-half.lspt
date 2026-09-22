@@ -1,0 +1,13 @@
+--TEST--
+`Type::` written inside another call's arguments, with the editor's closing parenthesis after the cursor, offers that type's static half and not the enclosing call's argument list — `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+use Core\Request;
+use Core\Debug;
+Debug::dump(Request::<|>)
+--REQUEST--
+completion limit=3
+--EXPECT--
+body()  method    tainted string
+bodyStream() method    Core\Request\BodyStream
+bytes() method    tainted bytes
