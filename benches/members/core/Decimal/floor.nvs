@@ -1,0 +1,22 @@
+<?nvs
+// Measures one `Core\Decimal::floor` of an amount down to a whole number,
+// which a program does when the part it cuts off is worth nothing.
+// bench: iterations 1000000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<decimal> $amounts = [96.7837, 65.7075, 3.2242, 12.0009];
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: which amount is cut holds the last round's answer.
+            decimal $cents = Core\Decimal::floor($amounts[$total % 4], 0);
+            $total = $total + ($cents as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";
