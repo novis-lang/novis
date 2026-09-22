@@ -1,0 +1,21 @@
+<?nvs
+// Shows the round trip: bytes go out as text that is safe in an address, and
+// the same bytes come back.
+
+bytes $raw = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+
+// Five bytes become seven characters, and nothing is added at the end. This
+// prints aGVsbG8.
+echo Core\Encoding::toBase64Url($raw), "\n";
+
+// `Core\Encoding::fromBase64Url` reads the text back. This prints hello.
+bytes $back = Core\Encoding::fromBase64Url(Core\Encoding::toBase64Url($raw));
+echo Core\Encoding::decodeText($back, Core\Charset::Utf8), "\n";
+
+// Three bytes fill a group exactly, and these three reach no symbol. So both
+// forms write the same text here. This prints YWJj YWJj.
+bytes $three = Core\Encoding::encodeText("abc", Core\Charset::Utf8);
+echo Core\Encoding::toBase64Url($three), " ", Core\Encoding::toBase64($three), "\n";
+
+// The empty buffer gives the empty string, so this line prints nothing.
+echo Core\Encoding::toBase64Url(Core\Encoding::encodeText("", Core\Charset::Utf8)), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Measures writing a 16-byte identifier as a link slug, which a program does
+// every time it builds a link to one of its own records.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $ids = [
+            Core\Encoding::fromHex("3f9d2b7e5c1a48d0ff00e6a19b4c7d82"),
+            Core\Encoding::fromHex("0102030405060708090a0b0c0d0e0f10"),
+            Core\Encoding::fromHex("ffeeddccbbaa99887766554433221100"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the identifier written holds the count the round
+            // before gave.
+            $total = $total + Core\Str::length(
+                Core\Encoding::toBase64Url($ids[$total % 3]),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
