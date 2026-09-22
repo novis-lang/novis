@@ -1,0 +1,21 @@
+<?nvs
+// Shows the round trip and the padding: bytes go out as text, and the same
+// bytes come back.
+
+bytes $raw = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+
+// Five bytes become eight characters. This prints aGVsbG8=.
+echo Core\Encoding::toBase64($raw), "\n";
+
+// `Core\Encoding::fromBase64` reads the text back. This prints hello.
+bytes $back = Core\Encoding::fromBase64(Core\Encoding::toBase64($raw));
+echo Core\Encoding::decodeText($back, Core\Charset::Utf8), "\n";
+
+// Three bytes fill a group exactly, so nothing is added. This prints YWJj.
+echo Core\Encoding::toBase64(Core\Encoding::encodeText("abc", Core\Charset::Utf8)), "\n";
+
+// One byte leaves most of a group empty, and `=` fills it. This prints YQ==.
+echo Core\Encoding::toBase64(Core\Encoding::encodeText("a", Core\Charset::Utf8)), "\n";
+
+// The empty buffer gives the empty string, so this line prints nothing.
+echo Core\Encoding::toBase64(Core\Encoding::encodeText("", Core\Charset::Utf8)), "\n";

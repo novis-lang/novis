@@ -1,0 +1,18 @@
+<?nvs
+// Shows the everyday use: bytes are sent inside a JSON document, which
+// carries text and never bytes.
+
+bytes $thumbnail = Core\Encoding::fromHex("89504e470d0a1a0a");
+
+// The bytes become a field the document can hold. This prints
+// {"name":"logo.png","data":"iVBORw0KGgo="}.
+array<string> $document = [
+    "name" => "logo.png",
+    "data" => Core\Encoding::toBase64($thumbnail),
+];
+echo Core\Json::encode($document), "\n";
+
+// The other side reads the field back into the same bytes. `Core\Bytes::compare`
+// gives 0 for two buffers that are the same, so this prints 8 0.
+bytes $received = Core\Encoding::fromBase64($document["data"]);
+echo Core\Bytes::length($received), " ", Core\Bytes::compare($received, $thumbnail), "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how much longer the text is than the bytes, which matters wherever
+// something has a size limit.
+
+// Every three bytes become four characters, and `=` fills a short last group.
+// So the length always divides by four. This prints 1 4, 2 4, 3 4, 4 8 and 5 8.
+uint $size = 1;
+while ($size <= 5) {
+    echo $size, " ", Core\Str::length(Core\Encoding::toBase64(Core\Bytes::fill($size, 65))), "\n";
+    $size = $size + 1;
+}
+
+// Over a whole buffer that works out a third longer. A header or a database
+// column with a limit has to allow for it. This prints 300 400.
+bytes $payload = Core\Bytes::fill(300, 65);
+echo Core\Bytes::length($payload), " ", Core\Str::length(Core\Encoding::toBase64($payload)), "\n";
+
+// The alphabet holds two symbols as well as letters and digits. These two
+// bytes need both of them. This prints +/8=.
+echo Core\Encoding::toBase64(Core\Encoding::fromHex("fbff")), "\n";
