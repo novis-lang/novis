@@ -51,6 +51,30 @@ const SECRETS = [
   "",
 ].join("\n");
 
+// A file in a namespace of its own with one import: the shape a selection is copied out of. Lines 4
+// and 5 write `Str`, which the `use` reaches, and `Basket`, which the namespace reaches.
+const SHOP_URI = "file:///shop.nvs";
+const SHOP = [
+  "<?nvs", //                                     0
+  "namespace Shop;", //                           1
+  "", //                                          2
+  "use Core\\Str;", //                            3
+  'var $n = Str::length("a");', //                4
+  "var $b = new Basket();", //                    5
+  "class Basket {}", //                           6
+  "",
+].join("\n");
+
+interface Import {
+  symbol: string;
+  written: string;
+}
+
+interface TextEdit {
+  range: Range;
+  newText: string;
+}
+
 interface Hover {
   contents: { kind: string; value: string };
   range?: Range;
@@ -231,6 +255,35 @@ describe("the requests the client routes to nvs lsp", function () {
     // The literal token and nothing around it: never the `$key` naming it and never the
     // `secret string` declaring it (`rule:ide/redaction-covers-bytes-only`).
     assert.deepEqual(covered, ['"sk-live-abcdef"', '"sk-live-999999"']);
+  });
+
+  it("answers nvs/imports with what a range resolved, and nvs/importEdits with the use lines a paste lacks", async () => {
+    // The two requests behind paste-with-imports (`rule:ide/a-pasted-type-carries-its-use-line`).
+    // Which names a range carries and where a `use` line lands are held by `crates/nvs-lsp/tests/
+    // imports.rs`; what is only visible here is the round trip: a range goes in and `{symbol,
+    // written}` pairs come back, and those pairs go into another document and come back as edits.
+    session.open(SHOP_URI, SHOP);
+    await session.diagnostics(SHOP_URI);
+
+    const carried = await session.request<Import[]>("nvs/imports", {
+      textDocument: { uri: SHOP_URI },
+      range: { start: { line: 4, character: 0 }, end: { line: 5, character: 20 } },
+    });
+    assert.deepEqual(carried, [
+      { symbol: "Core\\Str", written: "Str" },
+      { symbol: "Shop\\Basket", written: "Basket" },
+    ]);
+
+    // Pasted into the cart file: `Str` has no import there and gets one after the open tag, and
+    // `Basket` is imported beside it. Both in one edit, so the group stays together.
+    const edits = await session.request<TextEdit[]>("nvs/importEdits", {
+      textDocument: { uri: CART_URI },
+      position: { line: 18, character: 0 },
+      imports: carried,
+    });
+    assert.equal(edits.length, 1, JSON.stringify(edits));
+    assert.deepEqual(edits[0].range, { start: { line: 0, character: 5 }, end: { line: 0, character: 5 } });
+    assert.equal(edits[0].newText, "\nuse Core\\Str;\nuse Shop\\Basket;");
   });
 
   it("answers an empty list for a document with nothing to conceal", async () => {

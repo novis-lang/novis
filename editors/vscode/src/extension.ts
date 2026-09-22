@@ -43,6 +43,7 @@ import {
 import * as ast from "./ast";
 import { binary, install as installCopies, runnable } from "./binary";
 import * as format from "./format";
+import * as imports from "./imports";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import { Stamp, Watch, stamp } from "./shadow";
@@ -136,6 +137,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The providers are registered from activation because a document with markup in it is often the
   // one the window opened on (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`).
   regions.install(context);
+  // The paste provider, registered from activation for the same reason: a copy made before the
+  // server answers carries no imports, and the editor pastes it as it always did.
+  imports.install(context);
   // The formatter, which is a process rather than a request: it starts `nvs fmt` and needs no
   // server, so it is installed here beside the rest and not in `start`.
   format.install(context);
@@ -258,6 +262,7 @@ async function start(context: ExtensionContext): Promise<void> {
   client = starting;
   redactions.serve(client);
   regions.serve(client);
+  imports.serve(client);
   await retire(previous);
   const detail = copied !== undefined
     ? `${shown} lsp is answering from a copy of the build of ${built(copied.stamp)}. The file may be replaced, and the new build takes over when it is.`
@@ -335,6 +340,8 @@ async function retire(previous: LanguageClient | undefined): Promise<void> {
     // The embedded services go the other way: without a server there is no boundary, and a client
     // that guessed one would be a second lexer.
     regions.serve(undefined);
+    // A copy made while nothing answers carries no imports, and its paste is plain text.
+    imports.serve(undefined);
   }
   try {
     await previous.stop();
