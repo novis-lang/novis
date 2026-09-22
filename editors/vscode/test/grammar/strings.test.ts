@@ -95,6 +95,53 @@ describe("a double-quoted string, which interpolates both spellings", () => {
   });
 });
 
+describe("a markup literal, which interpolates a string's two spellings and one more", () => {
+  const MARKUP = "string.quoted.other.markup.nvs";
+
+  it("opens on the prefix and the backtick together, and closes on a backtick", () => {
+    const openers = spans.filter((s) => s.text === "html`");
+    assert.equal(openers.length, 2, "the fixture holds two literals");
+    for (const opener of openers) {
+      assert.ok(opener.scopes.includes("punctuation.definition.string.begin.nvs"));
+      assert.ok(opener.scopes.includes(MARKUP));
+    }
+    assert.ok(span(spans, "<p>hello ").scopes.includes(MARKUP), "the body is outside the literal");
+  });
+
+  it("reads a bare $name and a {$ slot as a double-quoted string does", () => {
+    assert.ok(span(spans, "$visitor").scopes.includes(VARIABLE));
+    const body = span(spans, "$cart");
+    assert.ok(body.scopes.includes(SLOT), "the complex slot holds no embedded code");
+    assert.ok(body.scopes.includes(MARKUP), "the slot escaped the literal it is in");
+  });
+
+  it("opens a slot on <?= and closes it on ?>, holding code that need not begin with $", () => {
+    const open = span(spans, "<?=");
+    assert.ok(open.scopes.includes("punctuation.section.embedded.begin.nvs"));
+    assert.ok(open.scopes.includes(MARKUP), "the tag slot escaped the literal it is in");
+    // Code mode reads `App::VERSION` as it reads it anywhere: the name, then the accessor.
+    const name = spans.find((s) => s.text.trim() === "App" && s.scopes.includes(SLOT));
+    assert.ok(name, "the class name inside the tag slot is code");
+    assert.ok(name.scopes.includes(MARKUP), "the tag slot escaped the literal it is in");
+    const accessor = spans.find((s) => s.text === "::" && s.scopes.includes(SLOT));
+    assert.ok(accessor?.scopes.includes("punctuation.accessor.nvs"), "`::` in the slot is code");
+    // The file's own `?>` closes code mode; the slot's is the one inside the literal.
+    const close = spans.find((s) => s.text === "?>" && s.scopes.includes(SLOT));
+    assert.ok(close?.scopes.includes("punctuation.section.embedded.end.nvs"), "`?>` ends the slot");
+  });
+
+  it("escapes a backtick, which is the delimiter", () => {
+    assert.ok(span(spans, "\\`").scopes.includes(ESCAPE));
+  });
+
+  it("reads a brace before anything but $, and a ?> outside a slot, as one run of text", () => {
+    verbatim(
+      "<style>.a {color: red}</style>{App::NAME} stays text and so does a ?> outside a slot",
+      MARKUP,
+    );
+  });
+});
+
 describe("the escapes a double-quoted string decodes", () => {
   it("colours each spelling that decodes to something else", () => {
     for (const text of ["\\n", "\\t", '\\"', "\\$", "\\101", "\\x41", "\\u{1F600}"]) {

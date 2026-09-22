@@ -17,4 +17,6 @@ $loud = <<<"LOUD"
 $raw = <<<'RAW'
     a nowdoc interpolates no $never and no {$missing->total}, and \r stays literal
     RAW;
+$markup = html`<p>hello $visitor, a {$cart->total} slot, an <?= App::VERSION ?> slot, a \` backtick</p>`;
+$braced = html`<style>.a {color: red}</style>{App::NAME} stays text and so does a ?> outside a slot`;
 ?>

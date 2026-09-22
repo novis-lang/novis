@@ -52,6 +52,7 @@ const ALLOWED = [
   "string.quoted.double.nvs",
   "string.unquoted.heredoc.nvs",
   "string.unquoted.nowdoc.nvs",
+  "string.quoted.other.markup.nvs",
   "punctuation.definition.string.begin.nvs",
   "punctuation.definition.string.end.nvs",
   "constant.character.escape.nvs",

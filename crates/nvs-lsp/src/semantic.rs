@@ -806,7 +806,10 @@ impl Named<'_> {
     fn expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Variable(span) => self.push(*span, Kind::Variable),
-            ExprKind::Interpolated(parts) => {
+            // A markup literal's holes are a string's, whichever of its two
+            // spellings opened them (`rule:core-classes/html-literal`), so the
+            // same walk colours a `<?= App::VERSION ?>` as it does a `{$name}`.
+            ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
                 for part in parts {
                     if let StringPart::Expr(expr) = part {
                         self.expr(expr);

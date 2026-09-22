@@ -303,8 +303,32 @@
         { "include": "#nowdoc" },
         { "include": "#heredoc" },
         { "include": "#single-quoted" },
-        { "include": "#double-quoted" }
+        { "include": "#double-quoted" },
+        { "include": "#markup-literal" }
       ]
+    },
+    "markup-literal": {
+      "comment": "``html`…` `` (rule:core-classes/html-literal), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap 1), and when it becomes one the HTML services follow that answer rather than this pattern.",
+      "name": "string.quoted.other.markup.nvs",
+      "begin": "(html`)",
+      "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },
+      "end": "(`)",
+      "endCaptures": { "1": { "name": "punctuation.definition.string.end.nvs" } },
+      "patterns": [
+        { "name": "constant.character.escape.nvs", "match": "\\\\[`{]" },
+        { "include": "#escape" },
+        { "include": "#markup-echo-hole" },
+        { "include": "#interpolation" }
+      ]
+    },
+    "markup-echo-hole": {
+      "comment": "`<?= … ?>` inside a markup literal holds an expression that may begin with anything, where `{$…}` must begin with `$`: crates/nvs-syntax/src/lexer.rs opens it in the markup body alone, never in a double-quoted string, so it is offered from #markup-literal and from nowhere else. Its body is `#code` for the same reason a `{$…}` slot's is, and the scope is the slot's own, since to a theme the two are the one thing: Novis inside text.",
+      "name": "meta.embedded.line.nvs",
+      "begin": "(<\\?=)",
+      "beginCaptures": { "1": { "name": "punctuation.section.embedded.begin.nvs" } },
+      "end": "(\\?>)",
+      "endCaptures": { "1": { "name": "punctuation.section.embedded.end.nvs" } },
+      "patterns": [{ "include": "#code" }]
     },
     "single-quoted": {
       "comment": "crates/nvs-syntax/src/lexer.rs:803: `\\\\` and `\\'` are the only escapes here and every other backslash is a backslash, so a `\\n` in one of these is two characters. Colouring it as an escape would claim a newline the literal does not hold.",
