@@ -1,0 +1,22 @@
+<?nvs
+// Measures one `Core\Decimal::ceil` of a cost up to a whole unit, which a
+// program does when a part of something still costs a whole one.
+// bench: iterations 1000000
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<decimal> $costs = [3.8412, 0.0071, 19.9950, 7.5001];
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: which cost is rounded holds the last round's answer.
+            decimal $whole = Core\Decimal::ceil($costs[$total % 4]);
+            $total = $total + ($whole as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";

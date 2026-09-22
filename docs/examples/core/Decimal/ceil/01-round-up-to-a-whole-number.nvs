@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to round a number up to a whole number. `Core\Decimal::ceil` always
+// moves towards the larger number.
+
+array<decimal> $values = [1.00, 1.08, 8.34, -1.08];
+
+foreach ($values as decimal $value) {
+    // This prints 1, 2, 9 and -1. A negative number moves towards zero.
+    echo Core\Decimal::ceil($value), "\n";
+}
+
+// A box holds twelve items, so an order of one hundred fills nine boxes. The
+// last box is only part full, and it is still a whole box. This prints 9.
+decimal $boxes = Core\Decimal::divRound(100, 12, 4, Core\RoundMode::HalfUp);
+echo Core\Decimal::ceil($boxes), "\n";

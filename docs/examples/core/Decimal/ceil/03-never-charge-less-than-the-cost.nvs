@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to price items so a sale never loses money. What each item cost is
+// rounded up to the next whole cent, so the price always covers it.
+
+array<decimal> $costs = [3.8412, 0.0071, 19.9950];
+
+decimal $charged = 0.00;
+foreach ($costs as decimal $cost) {
+    decimal $price = Core\Decimal::ceil($cost, 2);
+    echo $cost, " is charged as ", $price, "\n";
+    $charged = $charged + $price;
+}
+
+// This prints 23.86. `Core\Decimal::floor` would have charged 23.83.
+echo "total charged: ", $charged, "\n";
