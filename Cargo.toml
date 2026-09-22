@@ -945,7 +945,14 @@ fallible-iterator = "0.2"
 # storage class cannot say whether `20260903` was meant as a number or a date.
 # Without this feature `sqlite3_column_decltype` is not exposed at all and the
 # map has nothing to key on.
-rusqlite = { version = "0.40", features = ["bundled", "column_decltype"] }
+# `hooks` is the third and is what lets a write report the key of the row *it*
+# inserted: `sqlite3_update_hook` names the rowid of every row a statement
+# inserts, where `sqlite3_last_insert_rowid` names the connection's last one
+# whoever wrote it. `crates/nvs-db/src/sqlite.rs` § *Which statement inserted a
+# row* is the choice and what it costs. The feature is Rust alone -- it adds no
+# C to the graph, since the amalgamation `bundled` compiles already carries the
+# hook.
+rusqlite = { version = "0.40", features = ["bundled", "column_decltype", "hooks"] }
 
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in nvs-diagnostics (the output format is

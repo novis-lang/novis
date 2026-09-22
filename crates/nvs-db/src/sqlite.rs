@@ -60,34 +60,45 @@
 //! [`SqliteConn::state`]'s own comment gives — § 4's `LogicError` is a property
 //! of the API, not of a socket.
 //!
-//! # Known gaps
+//! # Which statement inserted a row, and what that costs
 //!
-//! 1. **A statement that inserted no row reports the connection's last insert
-//!    key as its own.** [`SqliteRows::last_insert_id`] is
-//!    `sqlite3_last_insert_rowid`, which belongs to the connection: after an
-//!    insert of row 4, an `update`, a `delete` and a `create table` each answer
-//!    `4`, so `Core\Db\Write::lastId` hands back a key no row of that statement
-//!    has. `WRITE_LAST_ID_DOC` promises the opposite — the key read off the
-//!    write that produced it, without `mysqli_insert_id`'s
-//!    stale-after-an-unrelated-statement hazard — and
-//!    `docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs`
-//!    is the proof that fails on it. [`step`]'s fold for `affected` does not
-//!    reach this one: `sqlite3_total_changes` moving says rows changed, not that
-//!    any row was *inserted*, so an `update` that changed rows is where a fold
-//!    built on it would still report the earlier key. Telling an insert from
-//!    the other kinds needs something this driver does not have — the statement
-//!    kind, an update hook firing per changed row, or
-//!    `sqlite3_set_last_insert_rowid` as a sentinel before every statement,
-//!    which is raw FFI through `rusqlite`'s connection handle. Each is a
-//!    decision about this crate's audit surface or about what a write costs per
-//!    row, so it is a record's to make rather than a slice's. What holds today
-//!    is the other half of the promise: a write keeps whatever key it was given
-//!    while later statements run.
-//!    — owner: M10
+//! `sqlite3_last_insert_rowid` belongs to the connection and not to the
+//! statement: after an insert of row 4, an `update`, a `delete` and a `create
+//! table` each answer `4`. That is exactly the `mysqli_insert_id` hazard
+//! `Core\Db\Write::lastId`'s reference card promises this class does not have.
+//! The counts do not reach it either — `sqlite3_total_changes` moving says rows
+//! *changed*, not that any row was inserted, so a fold like [`step`]'s for
+//! `affected` still reports the earlier key for an `update` that changed rows.
+//!
+//! **`sqlite3_update_hook` is what tells an insert from the statements that
+//! follow it, and it is paid per changed row.** The hook names the action and
+//! the rowid of every row a statement inserts, updates or deletes;
+//! [`InsertedRow`] keeps the last insert's, and [`step`] clears it under the
+//! connection's own lock before the statement runs. What survives the statement
+//! is therefore that statement's key or nothing at all, which is the whole of
+//! the promise. A row inserted by a trigger counts as the statement's, and that
+//! is the one place this driver's answer and `sqlite3_last_insert_rowid`'s
+//! differ: SQLite reverts the connection's value when the trigger ends.
+//!
+//! **What it spends**: one indirect call and two borrowed names per row a write
+//! changes, two relaxed stores per row it inserts, and two atomics per open
+//! connection — whether or not the program ever reads `lastId`. Both cheaper
+//! answers spend something the priority ordering ranks above latency, which is
+//! why a per-row cost is the one taken. Reading the statement's *kind* would
+//! mean parsing a dialect this crate does not parse: `WITH … INSERT`, `INSERT
+//! OR REPLACE` and an `update` whose trigger inserts each defeat it, and a key
+//! belonging to no row is worse than a slow one. `sqlite3_set_last_insert_rowid`
+//! as a sentinel around each statement is one call per *statement* rather than
+//! per row, and `rusqlite` does not expose it: it is raw FFI through an `unsafe`
+//! `Connection::handle`, in the crate whose job is to keep the audit surface of
+//! five wire protocols small and under a workspace that forbids `unsafe` rather
+//! than denying it. No sentinel is out of reach of a row either, since every
+//! `i64` is a legal rowid.
 
 use std::cell::Cell;
 use std::io;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nvs_config::tree::Database;
@@ -504,7 +515,7 @@ pub struct SqliteRows<'a> {
     columns: Vec<SqliteColumn>,
     rows: std::vec::IntoIter<Vec<SqliteValue>>,
     affected: u64,
-    last_insert_id: i64,
+    last_insert_id: Option<i64>,
 }
 
 impl SqliteRows<'_> {
@@ -534,9 +545,15 @@ impl SqliteRows<'_> {
         self.affected
     }
 
-    /// `sqlite3_last_insert_rowid` after the statement finished.
+    /// The key of the last row this statement inserted, and `None` where it
+    /// inserted none.
+    ///
+    /// This module's doc § *Which statement inserted a row* owns where the
+    /// answer comes from and what it costs. It is the statement's own key and
+    /// never the connection's, which is the whole of what
+    /// `Core\Db\Write::lastId` promises.
     #[must_use]
-    pub fn last_insert_id(&self) -> i64 {
+    pub fn last_insert_id(&self) -> Option<i64> {
         self.last_insert_id
     }
 }
@@ -677,22 +694,74 @@ fn lost_walk() -> io::Error {
 pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let path = target.path.to_path_buf();
     let capacity = target.statement_cache;
+    let inserted = Arc::new(InsertedRow::default());
+    let filling = Arc::clone(&inserted);
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
         let connection = rusqlite::Connection::open(path)?;
         connection.set_prepared_statement_cache_capacity(capacity);
         connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+        connection.update_hook(Some(
+            move |action, _database: &str, _table: &str, rowid: i64| {
+                if action == rusqlite::hooks::Action::SQLITE_INSERT {
+                    filling.record(rowid);
+                }
+            },
+        ))?;
         Ok(connection)
     })
     .map_err(server_error)?;
 
     Ok(SqliteConn {
         handle: Arc::new(Mutex::new(handle)),
+        inserted,
         state: Cell::new(State::Idle),
         depth: Cell::new(0),
         time_zone: target.time_zone,
         reading: None,
     })
+}
+
+/// The key of the last row a statement inserted, as `sqlite3_update_hook`
+/// reported it.
+///
+/// This module's doc § *Which statement inserted a row* is why the hook and not
+/// one of the two cheaper answers. What is here is the state it fills: one flag
+/// for whether this statement inserted anything at all, and the rowid of the
+/// last row it did.
+///
+/// **Every access is `Relaxed`, and the connection's own `Mutex` is what orders
+/// them.** SQLite calls the hook from inside `sqlite3_step`, on the same pool
+/// thread that is running the statement, so [`step`]'s clear, the hook's stores
+/// and [`step`]'s read are in program order on one thread; two statements on
+/// one connection are ordered by the lock [`step`] holds across all three. A
+/// stronger ordering would buy nothing and would be paid for per changed row.
+#[derive(Debug, Default)]
+pub struct InsertedRow {
+    seen: AtomicBool,
+    rowid: AtomicI64,
+}
+
+impl InsertedRow {
+    /// Forget the previous statement's key. Called with the connection locked
+    /// and before the statement runs, so nothing can fill it in between.
+    fn clear(&self) {
+        self.seen.store(false, Ordering::Relaxed);
+    }
+
+    /// One inserted row, from the hook.
+    fn record(&self, rowid: i64) {
+        self.rowid.store(rowid, Ordering::Relaxed);
+        self.seen.store(true, Ordering::Relaxed);
+    }
+
+    /// The key of the last row the statement that just ran inserted, or `None`
+    /// where it inserted none.
+    fn taken(&self) -> Option<i64> {
+        self.seen
+            .load(Ordering::Relaxed)
+            .then(|| self.rowid.load(Ordering::Relaxed))
+    }
 }
 
 /// The version of the SQLite this binary is linked against, which is what
@@ -739,8 +808,9 @@ impl SqliteConn {
         self.state.set(State::Executing);
 
         let handle = Arc::clone(&self.handle);
+        let inserted = Arc::clone(&self.inserted);
         let owned = sql.to_owned();
-        let read = nvs_host::blocking::run(move || step(&handle, &owned, &params));
+        let read = nvs_host::blocking::run(move || step(&handle, &inserted, &owned, &params));
 
         match read {
             Ok(read) => {
@@ -1256,7 +1326,7 @@ struct Read {
     columns: Vec<SqliteColumn>,
     rows: Vec<Vec<SqliteValue>>,
     affected: u64,
-    last_insert_id: i64,
+    last_insert_id: Option<i64>,
 }
 
 /// Prepare, bind, step to exhaustion, and hand back what is owned.
@@ -1270,6 +1340,7 @@ struct Read {
 /// reason that is not about the protocol.
 fn step(
     handle: &Mutex<rusqlite::Connection>,
+    inserted: &InsertedRow,
     sql: &str,
     params: &[SqliteValue],
 ) -> io::Result<Read> {
@@ -1278,6 +1349,10 @@ fn step(
     // Read before the statement runs, because what `sqlite3_changes` answers
     // afterwards is only this statement's where this statement changed rows.
     let before = guard.total_changes();
+    // The same reasoning one step further: the hook fills this while the
+    // statement runs, so what is left over from the last one is cleared here,
+    // inside the lock that made this statement the connection's only one.
+    inserted.clear();
 
     let columns = describe(&statement);
     let width = columns.len();
@@ -1305,7 +1380,7 @@ fn step(
         } else {
             guard.changes()
         },
-        last_insert_id: guard.last_insert_rowid(),
+        last_insert_id: inserted.taken(),
     })
 }
 
@@ -1842,6 +1917,55 @@ mod tests {
         assert_eq!(deleted.affected(), 3);
     }
 
+    /// **The key a statement reports is the key of a row that statement
+    /// inserted**, which this module's doc § *Which statement inserted a row*
+    /// argues `sqlite3_last_insert_rowid` cannot answer on its own: it belongs
+    /// to the connection, so every statement after an insert would go on
+    /// reporting that insert's key.
+    ///
+    /// The last step is the corner the update hook decides and the connection's
+    /// own value does not: a row a trigger inserted was inserted by the
+    /// statement that fired the trigger, so the statement reports it. SQLite
+    /// reverts its own value when the trigger ends.
+    // covers: Core\Db\Write::lastId
+    #[test]
+    fn a_statement_reports_the_key_of_a_row_it_inserted_and_none_otherwise() {
+        let conn = connect();
+        for schema in [
+            "create table t (id integer primary key, name text not null)",
+            "create table seen (id integer primary key, name text not null)",
+            "create trigger t_seen after update on t begin insert into seen (name) \
+             values (new.name); end",
+        ] {
+            conn.query(schema, Vec::new()).expect("the schema applies");
+        }
+
+        let key = |sql: &str| -> Option<i64> {
+            let mut rows = conn.query(sql, Vec::new()).expect("the statement runs");
+            while rows.next_row().is_some() {}
+            rows.last_insert_id()
+        };
+
+        // 1. The first row written is row 1, and several rows in one statement
+        //    report the last of them.
+        assert_eq!(key("insert into t (name) values ('ada')"), Some(1));
+        assert_eq!(
+            key("insert into t (name) values ('grace'), ('alan'), ('kay')"),
+            Some(4)
+        );
+
+        // 2. A statement that inserted nothing reports nothing, where the
+        //    connection's own value would report row 4 for every one of them.
+        assert_eq!(key("delete from t where id = 3"), None);
+        assert_eq!(key("create table u (id integer primary key)"), None);
+        assert_eq!(key("select name from t"), None);
+
+        // 3. An `update` fires the trigger, so a row was inserted after all,
+        //    and the key is that row's.
+        assert_eq!(key("update t set name = 'ada l.' where id = 1"), Some(1));
+        assert_eq!(key("update t set name = 'k.' where id = 4"), Some(2));
+    }
+
     /// § 4's statement end to end: a schema, a bound insert, and the read back
     /// carrying every storage class it was given.
     #[test]
@@ -1866,7 +1990,7 @@ mod tests {
             )
             .expect("the insert runs");
         assert_eq!(inserted.affected(), 1);
-        assert_eq!(inserted.last_insert_id(), 1);
+        assert_eq!(inserted.last_insert_id(), Some(1));
         drop(inserted);
 
         let mut rows = conn

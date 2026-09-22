@@ -3602,6 +3602,21 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   matching nothing is `E0605`, so a proof's capability grant written ahead of the proof itself
   breaks every other example in the tree meanwhile. Write the `.nvs` file first, or put a member's
   grants and its programs in one edit. [until: reviewed 2026-09-22]
+- **A reference chapter is the perf anchor of every feature it documents, so one prose edit stales
+  every figure in it at once.** A hand edit adding a section to `docs/reference/lang/20-types.md`
+  turned the `dossier: lang:types` floor check red on all 18 of its features with `perf: stale`,
+  which reads like unwritten work and is not: `impl_hash` hashes the whole anchor file, and a
+  `lang:` feature's anchor is the chapter rather than any Rust. Re-measure the group in one call —
+  `python tools/dossier.py --record-perf --group lang:types` — and expect a bench whose declared
+  counts the tree has since improved on to fail there instead of recording.
+  [until: reviewed 2026-09-22]
+
+- **The three `Core\Db\Write` member benches swing about twofold between two runs of one binary
+  minutes apart, so a clock delta on them is not a regression.** Two `--record-perf --force` runs on
+  an idle machine reported `affected` at 71.4 and then 32.2 ns/op, and the `units` column does not
+  divide it out, because the calibration program is measured in the same sweep and takes the same
+  weather as the bench. Read `statements`, `calls` and `allocations` — which did not move — and
+  re-run before believing a clock column on these three. [until: reviewed 2026-09-22]
 
 ## Writing a test case
 

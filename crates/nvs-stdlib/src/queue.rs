@@ -3861,15 +3861,12 @@ fn sqlite_inserted(
     let landed = answered.last_insert_id();
     span.finished(Some(answered.affected()));
     spans.named(block, span);
-    u64::try_from(landed)
-        .ok()
-        .filter(|id| *id != 0)
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "{PUSH}: the insert into `{JOBS_TABLE}` reported no row id, and `0` is how this \
-                 driver spells no row having been inserted on this connection at all"
-            ))
-        })
+    landed.and_then(|id| u64::try_from(id).ok()).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUSH}: the insert into `{JOBS_TABLE}` reported no row id, which this driver \
+                 answers for a statement that inserted no row at all"
+        ))
+    })
 }
 
 /// [`Split::first`] and then [`Split::then`], inside the transaction [`push_in_two`] opened.

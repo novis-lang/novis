@@ -1,7 +1,6 @@
 <?nvs
 // Shows what the key is when the statement inserted no row. There is no new
 // row, so there is no key, and `lastId` is `null`.
-// dossier: known-gap crates/nvs-db/src/sqlite.rs -- on SQLite a statement that inserted no row answers the key of the last insert on the connection instead of `null`
 
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);

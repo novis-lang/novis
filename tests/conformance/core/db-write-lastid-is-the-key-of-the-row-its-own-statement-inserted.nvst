@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Write::lastId` is the key of the row its own statement inserted: a `?uint` a caller unwraps, the last row's key where one statement inserted several, still that key after later inserts have run, and `null` where the row was written with a key no `uint` holds — `rule:core-classes/db-statement-members`, spec § 18
+`Core\Db\Write::lastId` is the key of the row its own statement inserted: a `?uint` a caller unwraps, the last row's key where one statement inserted several, still that key after later inserts have run, `null` for a statement that inserted no row at all, and `null` where the row was written with a key no `uint` holds — `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
 // covers: Core\Db\Write::lastId
@@ -22,6 +22,14 @@ echo "three ", $three->lastId() ?? 0, "\n";
 // above left the first write answering the key it was given. This is the
 // hazard `mysqli_insert_id` has and this class does not.
 echo "one still ", $one->lastId() ?? 0, "\n";
+
+// A statement that inserted no row has no key to report, and reports none.
+// Both of these would answer row 4's key if the key belonged to the connection
+// rather than to the statement.
+var $deleted = $db->execute("delete from t where id = 2", []);
+echo "deleted ", $deleted->lastId() ?? 0, "\n";
+var $made = $db->execute("create table u (id integer primary key)", []);
+echo "made ", $made->lastId() ?? 0, "\n";
 
 // A key is a whole number that is never negative, so a row written with a
 // negative key has none to report.
@@ -50,5 +58,7 @@ path = ":memory:"
 one 1
 three 4
 one still 1
+deleted 0
+made 0
 below zero no key
 found below zero

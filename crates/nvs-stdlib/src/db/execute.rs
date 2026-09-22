@@ -946,8 +946,9 @@ pub(super) fn sqlite_rows(
 /// that changed no rows, so both report `0` and neither reports an absence.
 /// That is what makes `Core\Db\Write::changed` answer on this driver exactly
 /// what `affected` folds, where PostgreSQL keeps the two apart. `lastId` does
-/// keep an absence, `0` being how SQLite spells "no row has ever been inserted
-/// here".
+/// keep an absence: `nvs_db::SqliteRows::last_insert_id` answers `None` for a
+/// statement that inserted no row, and that module's doc § *Which statement
+/// inserted a row* is where the mechanism and its per-row cost are argued.
 ///
 /// The count is the statement's own rather than the connection's, which is
 /// `nvs_db::SqliteRows::affected`'s work and its doc's to argue:
@@ -979,9 +980,13 @@ pub(super) fn sqlite_write(
 
     let written = Written {
         changed: Some(answered.affected()),
-        last_id: u64::try_from(answered.last_insert_id())
-            .ok()
-            .filter(|id| *id != 0),
+        // A key below zero is no `?uint`, so a row written with one carries no
+        // key rather than a number that wrapped around. An absent key is the
+        // driver's own `None` and is not spelled `0` here: `0` is a rowid a row
+        // can be written with, and § 4's field holds it.
+        last_id: answered
+            .last_insert_id()
+            .and_then(|id| u64::try_from(id).ok()),
     };
     span.finished(written.changed);
     let taken = watch.taken(&span);
@@ -1717,11 +1722,11 @@ mod tests {
     /// all § 4 promises; a row written with a negative key has none to report,
     /// since [`sqlite_write`]'s `u64::try_from` is where a `?uint` stops.
     ///
-    /// **What a statement that inserted nothing answers is not asserted here**,
-    /// because it is wrong: `sqlite3_last_insert_rowid` belongs to the
-    /// connection, so an `update` after an insert reports the insert's key.
-    /// `nvs_db::sqlite`'s `# Known gaps` carries it, and the example under
-    /// `docs/examples/core/Db-Write/lastId` is the proof that fails on it.
+    /// **A statement that inserted nothing answers `null`**, which is the half
+    /// `sqlite3_last_insert_rowid` cannot give on its own: that value belongs
+    /// to the connection, so an `update` after an insert reports the insert's
+    /// key. `nvs_db::sqlite`'s doc § *Which statement inserted a row* owns what
+    /// this driver reads instead and what it costs per row.
     ///
     /// The `.nvst` half runs the same statements through a program, where the
     /// `?uint` is unwrapped the way a caller unwraps it.
@@ -1774,6 +1779,25 @@ mod tests {
             last_id("insert into t (id, name) values (-5, 'below zero')"),
             None
         );
+
+        // 4. And the three kinds that insert nothing each answer nothing, where
+        //    the connection's own last-insert-rowid would answer row 4's key.
+        assert_eq!(last_id("insert into t (name) values ('lynn')"), Some(5));
+        for quiet in [
+            "update t set name = 'nobody' where id = 1",
+            "delete from t where id = -5",
+            "create table u (id integer primary key)",
+            "select name from t",
+        ] {
+            assert_eq!(
+                last_id(quiet),
+                None,
+                "`{quiet}` inserted no row and reported a key anyway"
+            );
+        }
+
+        // 5. A statement that inserts again is unaffected by them.
+        assert_eq!(last_id("insert into t (name) values ('mary')"), Some(6));
     }
 
     /// The rewritten text of one set, as [`batch_of`] reads it before comparing

@@ -342,6 +342,7 @@ mod tests {
             handle: Arc::new(Mutex::new(
                 rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
             )),
+            inserted: Arc::default(),
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,

@@ -1048,6 +1048,14 @@ pub struct SqliteConn {
     /// [`nvs_host::blocking::run`] puts on the closure. It is never contended —
     /// [`State`] below gives one request the connection at a time.
     pub(crate) handle: Arc<Mutex<rusqlite::Connection>>,
+    /// The key of the last row the statement that just ran inserted, filled by
+    /// the update hook [`crate::sqlite::open`] registers.
+    ///
+    /// An `Arc` for the same reason the handle is one: the hook's closure is
+    /// `Send + 'static` and outlives every statement, so it cannot borrow this
+    /// connection. [`crate::sqlite::InsertedRow`] and this module's doc
+    /// § *Which statement inserted a row* own what it holds and what it costs.
+    pub(crate) inserted: Arc<crate::sqlite::InsertedRow>,
     /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`]. SQLite carries it for
     /// the same reason the others do even with no wire to be mid-message on:
     /// `rule:core-classes/db-statement-members`'s `LogicError` is a property of the API, not of a socket.
@@ -1286,6 +1294,7 @@ mod tests {
             handle: Arc::new(Mutex::new(
                 rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
             )),
+            inserted: Arc::default(),
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,
