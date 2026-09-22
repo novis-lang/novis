@@ -1,0 +1,18 @@
+<?nvs
+// Shows the round trip: bytes go out as hexadecimal text, and the same bytes
+// come back.
+
+bytes $raw = Core\Encoding::fromHex("deadbeef");
+
+// `Core\Encoding::toHex` writes the text, always in lower case. This prints
+// deadbeef.
+echo Core\Encoding::toHex($raw), "\n";
+
+// Upper case reads back to the same bytes, so this prints deadbeef too.
+echo Core\Encoding::toHex(Core\Encoding::fromHex("DEADBEEF")), "\n";
+
+// Two digits are one byte. This prints 4.
+echo Core\Bytes::length($raw), "\n";
+
+// The empty string gives an empty buffer. This prints 0.
+echo Core\Bytes::length(Core\Encoding::fromHex("")), "\n";

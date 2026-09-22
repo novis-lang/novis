@@ -1,0 +1,75 @@
+<?nvs
+// Attack: text that looks like hexadecimal is handed to a program that turns
+// it into bytes and compares them. Anything that is not a pair of digits
+// should be refused rather than skipped or guessed at. Every error here is
+// caught.
+// hostile: timeout-ms 30000
+
+// 1. Characters that look like digits to a reader and are not: full-width
+// letters, Arabic-Indic digits, and a Roman numeral.
+array<string> $lookalikes = ['ＦＦ', '٤٢', 'ⅾⅾ', 'ﬀ'];
+uint $refused = 0;
+foreach ($lookalikes as string $text) {
+    try {
+        Core\Encoding::fromHex($text);
+    } catch (RuntimeError $notADigit) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, " of 4 lookalikes refused\n";
+
+// 2. Characters hidden between the pairs, where a reader would not see them:
+// a zero byte, a tab, a newline and a zero-width space.
+array<string> $hidden = ["de\u{0}adbeef", "de\tadbeef", "deadbeef\n", "de\u{200b}adbeef"];
+uint $stopped = 0;
+foreach ($hidden as string $text) {
+    try {
+        Core\Encoding::fromHex($text);
+    } catch (RuntimeError $between) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 2: ', $stopped, " of 4 hidden characters refused\n";
+
+// 3. Every printable character in turn as the second digit. Sixteen values
+// are spelled by two cases of six letters and ten digits, so 22 are read.
+uint $accepted = 0;
+uint $octet = 33;
+while ($octet < 127) {
+    string $symbol = Core\Encoding::decodeText(Core\Bytes::fill(1, $octet), Core\Charset::Ascii);
+    try {
+        Core\Encoding::fromHex('a' . $symbol);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $outsideTheDigits) {
+        $octet = $octet;
+    }
+    $octet = $octet + 1;
+}
+echo 'step 3: ', $accepted, " of 94 printable characters are hex digits\n";
+
+// 4. Eight million digits, read in one call. Two digits are one byte, so the
+// answer is four million bytes.
+string $long = Core\Str::repeat('deadbeef', 1000000);
+echo 'step 4: ', Core\Bytes::length(Core\Encoding::fromHex($long)), "\n";
+
+// 5. The same long text with one digit taken off the end. The count is odd
+// now, so it should be refused.
+try {
+    Core\Encoding::fromHex(Core\Str::slice($long, 0, 7999999));
+    echo "step 5: the text was read\n";
+} catch (RuntimeError $odd) {
+    echo 'step 5 stopped: ', $odd->message, "\n";
+}
+
+// 6. One hundred thousand reads in a row, each round choosing its text from
+// the size of the round before.
+array<string> $texts = ['deadbeef', 'DEAD', 'ff', '0011223344'];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Bytes::length(Core\Encoding::fromHex($texts[($total + $round) % 4]));
+    $round = $round + 1;
+}
+echo 'step 6: ', $round, ' texts read, ', $total, " bytes in all\n";
+
+echo "the runtime is still standing\n";

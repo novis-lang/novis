@@ -1,0 +1,20 @@
+<?nvs
+// Shows the everyday use: a file is published with its checksum in
+// hexadecimal, and your program checks the file against it.
+
+// What you downloaded, and the checksum the site printed beside it.
+bytes $download = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+string $published = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+// The checksum of what you have. This prints the same 64 digits.
+bytes $mine = Core\Hash::of($download, Core\Digest::Sha256);
+echo Core\Encoding::toHex($mine), "\n";
+
+// Compare the bytes, not the text: the site may print the digits in upper
+// case. `Core\Bytes::compare` gives 0 here, so both lines print 0.
+echo Core\Bytes::compare($mine, Core\Encoding::fromHex($published)), "\n";
+echo Core\Bytes::compare($mine, Core\Encoding::fromHex(Core\Str::upper($published))), "\n";
+
+// One digit changed is a different file. This prints different.
+string $changed = "3cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+echo (Core\Bytes::compare($mine, Core\Encoding::fromHex($changed)) == 0 ? "same" : "different"), "\n";
