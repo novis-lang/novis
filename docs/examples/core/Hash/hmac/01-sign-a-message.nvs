@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to compute the signature of a message with a secret key.
+
+// `as bytes` converts the text "Jefe" into the bytes of the key.
+bytes $key = "Jefe" as bytes;
+
+// This is a published test value, so you can check the output.
+// This prints 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843.
+bytes $signature = Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha256);
+echo Core\Encoding::toHex($signature), "\n";
+
+// A different key gives a completely different signature for the same message.
+bytes $otherKey = "Joe" as bytes;
+echo Core\Encoding::toHex(Core\Hash::hmac("what do ya want for nothing?", $otherKey, Core\Digest::Sha256)), "\n";

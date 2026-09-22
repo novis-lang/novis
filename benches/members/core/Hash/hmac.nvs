@@ -1,0 +1,24 @@
+<?nvs
+// Measures the SHA-256 signature of a short message, as a program does when it checks a signed cookie.
+// bench: iterations 100000
+// bench: allocations 1
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $messages = ["user=1042", "cart=77", "lang=de"];
+        bytes $key = "a key only the server knows" as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The message signed in each round is chosen by the round before it, so no round
+            // can be left out.
+            bytes $signature = Core\Hash::hmac($messages[($total % 3) as int], $key, Core\Digest::Sha256);
+            $total = $total + Core\Bytes::at($signature, 0) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

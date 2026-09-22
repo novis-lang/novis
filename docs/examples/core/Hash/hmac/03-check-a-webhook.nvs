@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to check that a webhook message really comes from the service that sent it.
+
+class Webhook {
+    // Returns `true` when `$signatureHex` is the SHA-256 signature of `$body` under `$secret`.
+    public static function isGenuine(string $body, string $signatureHex, bytes $secret): bool {
+        bytes $expected = Core\Hash::hmac($body, $secret, Core\Digest::Sha256);
+        // `Core\Hash::equals` takes the same time wherever the two signatures differ.
+        // An attacker cannot guess the signature one byte at a time by measuring it.
+        return Core\Hash::equals($expected, Core\Encoding::fromHex($signatureHex));
+    }
+}
+
+// The payment service and the shop both know this secret.
+bytes $secret = "whsec_shop_payments" as bytes;
+string $body = '{"order":1042,"status":"paid"}';
+
+// The service sends the signature in a header. Here it is computed in the same way.
+string $header = Core\Encoding::toHex(Core\Hash::hmac($body, $secret, Core\Digest::Sha256));
+echo "signature: ", $header, "\n";
+
+// The message as the service sent it. This prints `accepted`.
+echo Webhook::isGenuine($body, $header, $secret) ? "accepted" : "rejected", "\n";
+
+// Somebody changed the status on the way. This prints `rejected`.
+string $forged = '{"order":1042,"status":"refunded"}';
+echo Webhook::isGenuine($forged, $header, $secret) ? "accepted" : "rejected", "\n";

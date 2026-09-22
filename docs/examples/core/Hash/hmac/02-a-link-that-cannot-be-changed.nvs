@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to sign a download link, so a visitor cannot change the file name in it.
+
+class SignedLink {
+    // A real program reads this key from a secret setting. It never writes it in the code.
+    private static function key(): bytes {
+        return "a key only the server knows" as bytes;
+    }
+
+    // Returns the signature of `$path` as text that is safe to put in a URL.
+    public static function sign(string $path): string {
+        bytes $signature = Core\Hash::hmac($path, SignedLink::key(), Core\Digest::Sha256);
+        return Core\Encoding::toBase64Url($signature);
+    }
+
+    // Returns `true` when `$signature` belongs to `$path`.
+    public static function check(string $path, string $signature): bool {
+        bytes $expected = Core\Hash::hmac($path, SignedLink::key(), Core\Digest::Sha256);
+        return Core\Hash::equals($expected, Core\Encoding::fromBase64Url($signature));
+    }
+}
+
+string $signature = SignedLink::sign("/download?file=invoice-17.pdf");
+echo "/download?file=invoice-17.pdf&sig=", $signature, "\n";
+
+// The link as the server made it. This prints `true`.
+echo SignedLink::check("/download?file=invoice-17.pdf", $signature) ? "true" : "false", "\n";
+// A visitor changed 17 to 18. The signature no longer matches, so this prints `false`.
+echo SignedLink::check("/download?file=invoice-18.pdf", $signature) ? "true" : "false", "\n";

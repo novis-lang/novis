@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program signs data with an empty key, a huge key and huge data, and then keeps
+// more signatures than memory can hold. Every signature should be computed. The program
+// must stop at its memory limit with an error.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+class Every
+{
+    // Signs `$data` with `$key` under each of the ten allowed algorithms, and returns
+    // the size of each signature.
+    public static function sizes(string $data, bytes $key): array<uint>
+    {
+        return [
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha224)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha256)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha384)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha512)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha512_224)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha512_256)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha3_224)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha3_256)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha3_384)),
+            Core\Bytes::length(Core\Hash::hmac($data, $key, Core\Digest::Sha3_512)),
+        ];
+    }
+}
+
+// 1. An empty key and empty data, under every allowed algorithm.
+foreach (Every::sizes('', '' as bytes) as uint $size) {
+    echo 'empty: ', $size, " bytes\n";
+}
+
+// 2. A key of 8 million bytes. It is much longer than any algorithm's block, so it is
+// hashed first. Each result still has the normal size.
+bytes $hugeKey = Core\Str::repeat('k', 8000000) as bytes;
+foreach (Every::sizes('data', $hugeKey) as uint $size) {
+    echo 'huge key: ', $size, " bytes\n";
+}
+
+// 3. Data of 16 million characters, signed with a short key.
+string $hugeData = Core\Str::repeat('d', 16000000);
+bytes $key = 'short' as bytes;
+echo 'huge data: ', Core\Bytes::length(Core\Hash::hmac($hugeData, $key, Core\Digest::Sha512)), " bytes\n";
+
+// 4. Each signature is used as the next key, one hundred thousand times. Every signature
+// is freed, so memory use must stay flat.
+bytes $chain = Core\Hash::hmac('start', $key, Core\Digest::Sha256);
+uint $round = 0;
+while ($round < 100000) {
+    $chain = Core\Hash::hmac('next', $chain, Core\Digest::Sha256);
+    $round = $round + 1;
+}
+echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
+
+// 5. Every signature is kept, so nothing can be freed. This step ends the program at
+// its memory limit.
+array<bytes> $kept = [];
+while (true) {
+    $kept[] = Core\Hash::hmac('keep', $chain, Core\Digest::Sha512);
+}
