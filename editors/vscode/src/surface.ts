@@ -20,9 +20,17 @@ import { LanguageStatusSeverity, Range, TreeDataProvider, ViewColumn } from "vsc
 
 import { Node } from "./nodes";
 
-/** What the status item shows right now: the text as the user reads it, and its severity. */
+/**
+ * What the status item shows right now: the text as the user reads it, its detail and its severity.
+ *
+ * The detail is the sentence under the state word, and it is here for the same reason the text is:
+ * it is the only place the client says *why* it is in the state it is in — which binary it found,
+ * why a copy was not started, what a refused server reported — and the host suite has no other way
+ * to read it back.
+ */
 export interface Health {
   readonly text: string;
+  readonly detail: string;
   readonly severity: LanguageStatusSeverity;
 }
 

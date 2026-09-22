@@ -63,6 +63,19 @@ async function until<T>(
   }
 }
 
+/**
+ * What the status item says right now, for a wait that is about to give up on it.
+ *
+ * Every state the client can be in is a sentence in this one place -- a binary it could not find, a
+ * copy that would not start, a server outside its series -- so a timeout that reports it names the
+ * reason rather than leaving a ledger with a deadline and nothing else.
+ */
+function said(reading: Surface): string {
+  return reading.status === undefined
+    ? "the status item was never created"
+    : `${reading.status.text} -- ${reading.status.detail}`;
+}
+
 /** Where each range sits, as `line:from-to` -- the positions and never the bytes under them. */
 function placed(ranges: readonly vscode.Range[]): string {
   return ranges.map((range) => `${range.start.line}:${range.start.character}-${range.end.character}`).join(" ");
@@ -105,7 +118,7 @@ describe("the surfaces", () => {
     // nothing and a client answering are two different sentences in the same place
     // (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
     const status = await until("the status item naming a running server", async () =>
-      reading.status?.text.includes("lsp") === true ? reading.status : undefined);
+      reading.status?.text.includes("lsp") === true ? reading.status : undefined, () => said(reading));
     assert.equal(status.severity, vscode.LanguageStatusSeverity.Information,
                  `the status item says ${status.text}`);
     const version = /nvs lsp (\d+)\.(\d+)\.\d+/.exec(status.text);
@@ -204,7 +217,7 @@ describe("the surfaces", () => {
     // the run is in rather than for a head start it needs.
     const reading = await surface();
     await until("the status item naming a running server", async () =>
-      reading.status?.text.includes("lsp") === true ? true : undefined);
+      reading.status?.text.includes("lsp") === true ? true : undefined, () => said(reading));
     const document = await open("secrets.nvs");
 
     // Two literals, because one proves nothing: a reveal that uncovered the document would pass a
