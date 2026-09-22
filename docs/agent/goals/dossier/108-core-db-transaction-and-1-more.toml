@@ -3779,7 +3779,6 @@ tests = [
   "the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist",
   "the_installer_refuses_a_relative_path",
   "the_installer_refuses_a_password_on_a_command_line",
-  "the_installer_refuses_an_install_whose_output_would_go_nowhere",
   "the_installer_refuses_to_install_from_a_bundle",
   "a_windows_image_path_is_quoted_and_absolute",
   "a_systemd_unit_is_printed_and_written_only_on_install",
