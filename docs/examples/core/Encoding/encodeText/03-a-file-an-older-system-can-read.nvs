@@ -1,0 +1,29 @@
+<?nvs
+// Shows the everyday use: your program keeps text as UTF-8, and it has to
+// hand a file to an accounting system that only reads windows-1252.
+
+array<string> $names = ["Müller", "Größe", "Sørensen", "Ceccherini"];
+
+// Check each name before writing the file. `Core\Charset::Windows1252` covers
+// western European letters, so this prints 4 of 4 names fit.
+uint $fit = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Encoding::encodeText($name, Core\Charset::Windows1252);
+        $fit = $fit + 1;
+    } catch (RuntimeError $noSpelling) {
+        echo "cannot write: ", $name, "\n";
+    }
+}
+echo $fit, " of ", Core\Arr::count($names), " names fit\n";
+
+// Build the line the old system expects. The hex starts with 4dfc6c6c6572,
+// which is Müller: one byte for the ü.
+string $line = Core\Str::join($names, ";");
+bytes $encoded = Core\Encoding::encodeText($line, Core\Charset::Windows1252);
+echo Core\Encoding::toHex($encoded), "\n";
+
+// The same text as UTF-8 takes more room, because each of the four accented
+// letters is two bytes there and one byte here. This prints 32 and 36.
+bytes $asUtf8 = Core\Encoding::encodeText($line, Core\Charset::Utf8);
+echo Core\Bytes::length($encoded), " and ", Core\Bytes::length($asUtf8), "\n";

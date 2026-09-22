@@ -1,0 +1,23 @@
+<?nvs
+// Shows what happens when the encoding has no spelling for one of your
+// characters. The result is an error naming that character, so the bytes never
+// hold a "?" where the text had something else.
+
+// ISO-8859-1 covers western European letters and not the euro sign.
+try {
+    Core\Encoding::encodeText("Preis: 10 €", Core\Charset::Latin1);
+} catch (RuntimeError $noSpelling) {
+    echo "could not write: ", $noSpelling->message, "\n";
+}
+
+// windows-1252 is the same table with the euro sign added, and writes it as
+// the single byte 80. This prints 50726569733a2031302080.
+echo Core\Encoding::toHex(
+    Core\Encoding::encodeText("Preis: 10 €", Core\Charset::Windows1252)
+), "\n";
+
+// UTF-8 can write every character there is. The euro sign takes three bytes
+// there. This prints 50726569733a20313020e282ac.
+echo Core\Encoding::toHex(
+    Core\Encoding::encodeText("Preis: 10 €", Core\Charset::Utf8)
+), "\n";
