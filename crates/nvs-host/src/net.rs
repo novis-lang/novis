@@ -151,6 +151,8 @@ use std::net::SocketAddr;
 // `mio::Poll` is a poller and `std::task::Poll` is an answer; both are spelled
 // `Poll` and this module names them in adjacent functions, so the poller takes
 // the alias — it appears once, in `block_until_ready`.
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
@@ -198,6 +200,10 @@ pub struct NvsStream<S: Source> {
     /// the clock — an idle timeout a write silently cancels. So the entry is
     /// lifted by the interest that filed it and by no other.
     timed: Option<Interest>,
+    /// A flag another thread may raise to end a readable wait already in
+    /// flight, or `None` for a stream nothing cuts short —
+    /// [`Self::cut_at_drain`].
+    cut: Option<Arc<AtomicBool>>,
 }
 
 /// The parking stream over TCP — what an accept loop on a listening port and
@@ -221,6 +227,7 @@ impl<S: Source> NvsStream<S> {
             registered: None,
             deadline: None,
             timed: None,
+            cut: None,
         }
     }
 
@@ -236,6 +243,49 @@ impl<S: Source> NvsStream<S> {
     #[must_use]
     pub fn deadline(&self) -> Option<Instant> {
         self.deadline
+    }
+
+    /// Registers with `drain` a wake that ends this stream's readable wait the
+    /// moment the drain begins, and returns the registration.
+    ///
+    /// A wake is only a hint (`rule:concurrency/the-parking-contract` rule 2):
+    /// the task it makes runnable goes back round its own retry loop, and a
+    /// `read` whose syscall still answers `WouldBlock` parks again on the same
+    /// deadline, none the wiser. A caller blocked in `read` behind a codec —
+    /// `nvs_server::socket`'s WebSocket, parked in `Read::read` under
+    /// `tungstenite` — would therefore never see the drain until its idle wait
+    /// expired. This is the seam that closes that gap: the wake raises a flag
+    /// this stream reads as its wait resumes, and the `read` then returns
+    /// `WouldBlock` in place of parking again — the answer a non-blocking
+    /// codec already hands back untouched, which puts the decision with the
+    /// caller that knows what the drain means for it.
+    ///
+    /// Only the readable wait is cut, and it is cut once: a write in flight
+    /// finishes on its own clock, so a close frame written after the flag was
+    /// read still goes out whole, and the flag is lowered by the wait that
+    /// reads it.
+    ///
+    /// `None` off a task or off a core, where nothing parks and nothing can be
+    /// woken.
+    pub fn cut_at_drain(&mut self, drain: &nvs_runtime::Drain) -> Option<nvs_runtime::DrainWake> {
+        let id = current_task()?;
+        let wake = reactor::with_current(|reactor| reactor.remote_wake(id))?;
+        let flag = Arc::new(AtomicBool::new(false));
+        self.cut = Some(Arc::clone(&flag));
+        drain.wake_at_drain(move || {
+            flag.store(true, Ordering::Release);
+            drop(wake.wake());
+        })
+    }
+
+    /// Whether a registered cut has been raised against a wait on
+    /// `interest`, lowering it — [`Self::cut_at_drain`].
+    fn cut_raised(&self, interest: Interest) -> bool {
+        interest == Interest::READABLE
+            && self
+                .cut
+                .as_ref()
+                .is_some_and(|flag| flag.swap(false, Ordering::AcqRel))
     }
 
     /// Whether this stream currently holds a registration with its core's
@@ -983,6 +1033,15 @@ impl NvsConnection {
         }
     }
 
+    /// [`NvsStream::cut_at_drain`] on whichever family this is.
+    pub fn cut_at_drain(&mut self, drain: &nvs_runtime::Drain) -> Option<nvs_runtime::DrainWake> {
+        match self {
+            Self::Tcp(stream) => stream.cut_at_drain(drain),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.cut_at_drain(drain),
+        }
+    }
+
     /// [`NvsStream::poll_read`] on whichever family this is.
     ///
     /// # Errors
@@ -1281,6 +1340,11 @@ impl<S: Source> NvsStream<S> {
             // wait on the same stream, or by the caller before it got here.
             return Err(timed_out());
         }
+        if self.cut_raised(interest) {
+            // Raised between the caller's last wait and this one, which is a
+            // task the wake found running: the same answer as after a park.
+            return Err(would_block());
+        }
         let parked = match current_task() {
             None => false,
             Some(me) => match reactor::with_current(|reactor| {
@@ -1318,6 +1382,9 @@ impl<S: Source> NvsStream<S> {
                             std::io::ErrorKind::ConnectionAborted,
                             "the task was cancelled",
                         ));
+                    }
+                    if self.cut_raised(interest) {
+                        return Err(would_block());
                     }
                     resumed.suspended()
                 }
@@ -1549,6 +1616,16 @@ fn timed_out() -> io::Error {
     io::Error::new(
         io::ErrorKind::TimedOut,
         "the deadline passed before the socket was ready",
+    )
+}
+
+/// The error a readable wait ends in when a registered cut ended it: the
+/// syscall is not ready, and the caller decides what the drain means for it
+/// ([`NvsStream::cut_at_drain`]).
+fn would_block() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::WouldBlock,
+        "the wait was cut short by the drain",
     )
 }
 

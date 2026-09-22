@@ -251,12 +251,15 @@ impl Body for Answer {
     /// `data:` line, so a client takes the wait and dispatches nothing, and the
     /// wait is drawn for this stream alone (`crate::bounds::reconnect_hint`).
     ///
-    /// **And an event stream past a bound that ends it ends here** — its
-    /// lifetime, or the drain period of a server shutting down — ahead of the
-    /// cell rather than after it: a bound that let one more chunk out would be
-    /// a bound the busiest stream is never held by, which is the half of
+    /// **And an event stream that has met a bound ends here** — its lifetime,
+    /// or the drain of a server shutting down — ahead of the cell rather than
+    /// after it: a bound that let one more chunk out would be a bound the
+    /// busiest stream is never held by, which is the half of
     /// `rule:concurrency/connection-bounds-are-finite` the word *however* is
-    /// doing. Ending the body is the whole close on this door, which has no
+    /// doing. Under a drain a stream with nothing to write ends on the poll
+    /// that finds it idle, and one still writing ends at the drain period's
+    /// end (`rule:concurrency/a-drain-closes-a-connection-cleanly`). Ending
+    /// the body is the whole close on this door, which has no
     /// close frame and needs none: `hyper` writes the terminating chunk, the
     /// peer reads a stream that finished rather than a connection that was
     /// reset, and the hint above is what paces its way back.
@@ -284,6 +287,12 @@ impl Body for Answer {
                         Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
                     }
                     stream::Drained::Pending => {
+                        if let Some(alive) = alive
+                            && alive.drain_begun()
+                        {
+                            alive.ended();
+                            return Poll::Ready(None);
+                        }
                         if alive.as_mut().is_some_and(crate::bounds::EventStream::due) {
                             Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(
                                 nvs_runtime::sse::KEEPALIVE,
@@ -3389,7 +3398,10 @@ mod tests {
     /// Runs one connection's worth of the accept loop against `handler`, sends
     /// `door`'s opening, reads until its answer and closes — the four cases
     /// below differ only in the door they go through and the program they leave
-    /// in its cell.
+    /// in its cell. The loop is ended from the client ([`end_the_loop`]) once
+    /// the answer is in, because the loop's tail begins the drain and a drain
+    /// ends an idle event stream and a parked `receive` at once — which is not
+    /// what any of these cases is about.
     fn upgrade_once<H>(
         handler: impl FnOnce() -> Rc<H> + 'static,
         path: &'static str,
@@ -3427,6 +3439,7 @@ mod tests {
                 .expect("the write failed");
             let mut seen = String::new();
             read_until(&mut socket, &door.needle(), &mut seen);
+            end_the_loop(addr);
             seen
         });
 
@@ -3441,7 +3454,7 @@ mod tests {
                 &wide_open(),
                 &Draining::detached(),
                 |_note| {},
-                || ControlFlow::Break(()),
+                until_the_loop_is_ended(),
             )
             .expect("the accept loop failed");
         });
@@ -3683,6 +3696,9 @@ mod tests {
             peer.send(tungstenite::Message::text("a frame from the peer"))
                 .expect("the frame could not be sent");
             let answer = peer.read().expect("the connection isolate sent nothing");
+            // Only now, because the loop's tail begins the drain and a drain
+            // closes a `receive` waiting on its peer at once.
+            end_the_loop(addr);
             (head, answer.to_text().unwrap_or("not text").to_owned())
         });
 
@@ -3701,7 +3717,7 @@ mod tests {
                 &wide_open(),
                 &Draining::detached(),
                 |_note| {},
-                || ControlFlow::Break(()),
+                until_the_loop_is_ended(),
             )
             .expect("the accept loop failed");
         });
@@ -3983,12 +3999,12 @@ mod tests {
     ///
     /// The isolate is § 3's loop with nothing to say: it waits for a frame that
     /// never comes, which is exactly the connection the bullet is about — one
-    /// doing nothing when its server stops still has to be *told*, and the
-    /// drain period is what it is told after. **What makes the case
-    /// deterministic** is the ordering the drain already has: `keep_serving`
-    /// breaks before this connection's child has run at all, so the bit is set
-    /// before the isolate's first `receive` and the period is measured from
-    /// there.
+    /// doing nothing when its server stops still has to be *told*, and it is
+    /// told at once. **What makes the case deterministic** is the ordering the
+    /// drain already has: `keep_serving` breaks before this connection's child
+    /// has run at all, so the bit is set before the isolate's first `receive`,
+    /// which reads it before it parks. The case that follows begins the drain
+    /// *while* that `receive` is parked.
     ///
     /// The last line into `said` is the other half of the claim. The accept
     /// loop's tail parks until every connection has counted itself out, so a
@@ -4096,6 +4112,125 @@ mod tests {
         assert_eq!(
             said[2], "the accept loop drained and returned",
             "the drain returned before the connection it was draining: {said:?}"
+        );
+    }
+
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` on a WebSocket
+    /// whose program is already parked in `receive` when the drain begins: it
+    /// is woken and closes at once, rather than at its idle wait's end five
+    /// minutes on. The case above begins the drain before the program's first
+    /// `receive`; here the loop is ended from the client ([`end_the_loop`])
+    /// only once the program has said it is about to wait, which is the
+    /// ordering a real shutdown has.
+    ///
+    /// **The program says so on the socket itself**, one frame before its
+    /// `receive`, and the client ends the loop only after reading it: a `send`
+    /// that has returned and a `receive` that parks are one run of the task
+    /// with no park between them, so by the time the loop's tail begins the
+    /// drain the read is parked and the cut is what ends it. Read against the
+    /// clock: the idle bound is the shipped five minutes and the client's
+    /// patience is [`CLIENT_PATIENCE`], so a drain that left the program parked
+    /// fails by the clock rather than passing slowly.
+    #[test]
+    fn a_websocket_parked_on_its_peer_is_closed_the_moment_the_drain_begins() {
+        fn say_ready_then_wait(conn: &mut Ctx) -> String {
+            let Some(peer) = conn.peer() else {
+                return "no peer".to_owned();
+            };
+            if let Err(error) = peer.send(nvs_runtime::PeerFrame::Text("ready".to_owned())) {
+                return format!("send {error}");
+            }
+            match peer.receive() {
+                Ok(Some(_)) => "a frame arrived".to_owned(),
+                Ok(None) => "the loop ended".to_owned(),
+                Err(error) => format!("receive {error}"),
+            }
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            let ready = match peer.read() {
+                Ok(tungstenite::Message::Text(text)) => text.to_string(),
+                other => format!("{other:?}"),
+            };
+            end_the_loop(addr);
+            let began = Instant::now();
+            let closed = match peer.read() {
+                Ok(tungstenite::Message::Close(Some(frame))) => {
+                    Ok((u16::from(frame.code), frame.reason.to_string()))
+                }
+                other => Err(format!("{other:?}")),
+            };
+            (head, ready, closed, began.elapsed())
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                say_ready_then_wait,
+            );
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (head, ready, closed, took) = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols"),
+            "the peer was not answered RFC 6455's handshake: {head}"
+        );
+        assert_eq!(
+            ready, "ready",
+            "the program did not say it was about to wait"
+        );
+        assert_eq!(
+            closed,
+            Ok((1001, nvs_runtime::Closing::ShuttingDown.reason().to_owned())),
+            "the drain did not leave a parked peer RFC 6455's `going away`"
+        );
+        assert!(
+            took < Duration::from_secs(5),
+            "the drain left the program parked on its peer: closed after {took:?}"
+        );
+        let said = said.borrow();
+        assert!(
+            said.iter().any(|line| line == "connection the loop ended"),
+            "the close reached the peer without `receive` answering § 3's \
+             `null`: {said:?}"
         );
     }
 
@@ -9544,16 +9679,20 @@ mod tests {
     /// ends an event stream's body**, and a client reading a stream that
     /// finished reconnects where one reading a reset has nothing to go on.
     ///
-    /// Three readings in order, because the period is the claim and not the
-    /// bit: a stream on a server still serving is open, a stream that has just
-    /// seen the drain is still open — the period starts when the connection
-    /// sees it, which is `crate::socket`'s own rule one door over — and the
-    /// stream ends once the period has run out.
+    /// Three readings in order
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`): a stream on a
+    /// server still serving is open; an event waiting in the cell when the
+    /// drain begins is still written, since a stream that is writing is work
+    /// in progress and the period is its; and a stream with nothing to write
+    /// ends on the poll that finds it idle, without waiting the period out —
+    /// the period here is far longer than the case is allowed to take, so a
+    /// drain that waited it out fails on the reading rather than passing
+    /// slowly.
     #[test]
     fn a_drain_ends_the_body_cleanly_rather_than_resetting_the_connection() {
-        const PERIOD: Duration = Duration::from_millis(20);
+        const PERIOD: Duration = Duration::from_secs(30);
         let draining = Draining::detached();
-        let (_emit, mut body) = an_event_stream_draining(
+        let (mut emit, mut body) = an_event_stream_draining(
             &crate::bounds::Connection {
                 drain: PERIOD,
                 ..crate::bounds::Connection::default()
@@ -9566,13 +9705,43 @@ mod tests {
             "a stream was ended by a server that had not begun draining"
         );
 
+        emit.send(b"in flight".to_vec()).expect("the cell is empty");
         draining.begin();
         assert!(
-            matches!(polled(&mut body), Poll::Pending),
-            "the drain closed a stream at the bit rather than after the period"
+            matches!(polled(&mut body), Poll::Ready(Some(_))),
+            "an event waiting when the drain began was not written"
+        );
+        assert!(
+            matches!(polled(&mut body), Poll::Ready(None)),
+            "a drained stream with nothing to write was kept open"
+        );
+    }
+
+    /// The other half of the same bullet: **a stream that keeps writing is
+    /// bounded by the period**, and ends at the period's end however busy it
+    /// is — an event in the cell past that instant is not written.
+    #[test]
+    fn a_drained_stream_still_writing_ends_at_the_periods_end() {
+        const PERIOD: Duration = Duration::from_millis(20);
+        let draining = Draining::detached();
+        let (mut emit, mut body) = an_event_stream_draining(
+            &crate::bounds::Connection {
+                drain: PERIOD,
+                ..crate::bounds::Connection::default()
+            },
+            &draining,
+        );
+        past_the_opening(&mut body);
+
+        draining.begin();
+        emit.send(b"first".to_vec()).expect("the cell is empty");
+        assert!(
+            matches!(polled(&mut body), Poll::Ready(Some(_))),
+            "a stream writing when the drain began was ended at the bit"
         );
 
         std::thread::sleep(PERIOD * 2);
+        emit.send(b"second".to_vec()).expect("the cell is empty");
         assert!(
             matches!(polled(&mut body), Poll::Ready(None)),
             "a drained stream was still being written past its period"

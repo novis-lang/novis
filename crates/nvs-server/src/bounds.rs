@@ -24,10 +24,10 @@
 //! Which field each door leaves alone is stated where it is left alone, because
 //! an absent bound is the one thing a list of bounds cannot show.
 //! [`Connection::drain`] is a field here without belonging to that bullet — it
-//! is § 7's *third* bullet, the period after which a draining server closes a
-//! connection, and it lives here because it is one more instant the same
-//! framing layer arms a wait by. The bounds § 7 names that are not fields here
-//! are owned elsewhere on purpose:
+//! is § 7's *third* bullet, the period after which a draining server ends an
+//! event stream that is still being written, and it lives here because it is
+//! one more instant the same framing layer arms a wait by. The bounds § 7
+//! names that are not fields here are owned elsewhere on purpose:
 //!
 //! - **Connections per process** is [`Slot`], counted here because the resource
 //!   is the process's rather than a core's, and taken at the moment the socket
@@ -111,10 +111,13 @@ pub struct Connection {
     /// How long one `send` may take before it throws, which is § 3's "throws on
     /// the send timeout rather than waiting forever".
     pub send: Duration,
-    /// § 7's third bullet: how long a connection keeps being served after its
-    /// server has begun draining, before it is closed with
-    /// [`nvs_runtime::Closing::ShuttingDown`]. `crate::socket`'s `receive` owns
-    /// when the period starts and why the close is the connection's own.
+    /// § 7's third bullet: how long an event stream that is still writing
+    /// keeps being written after its server has begun draining, before its
+    /// body is ended. A stream with nothing to write, and a WebSocket whose
+    /// program is waiting on its peer, close the moment they see the drain and
+    /// never wait this out
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`);
+    /// [`EventStream`] owns when the period starts.
     pub drain: Duration,
     /// § 4's per-subscriber delivery queue, restated here so that "every bound"
     /// has one place to be read off. The number is
@@ -154,14 +157,16 @@ impl Default for Connection {
     /// does.
     ///
     /// [`drain`](Connection::drain) is the other number no ADR writes, and a
-    /// second is picked for what the period is *for*: a connection has no
-    /// in-flight request to finish — that is what separates it from the drain
-    /// `rule:http-server/the-server-block-is-boot-class` gives an HTTP connection — so what the period buys is the
-    /// frame already on the wire and the answer to it, which is one round trip
-    /// on any network an origin is proxied over. Longer would hold a deploy
-    /// open for clients that are going to reconnect to the next instance
-    /// anyway, and the connection is served normally throughout it, so the cost
-    /// of the second is a second of shutdown and nothing else.
+    /// second is picked for what the period is *for*: an event stream that is
+    /// writing when its server stops has no request to finish — that is what
+    /// separates it from the drain
+    /// `rule:http-server/the-server-block-is-boot-class` gives an HTTP
+    /// connection — so what the period buys is the event already in the cell
+    /// and the one behind it, which is one round trip on any network an origin
+    /// is proxied over. Longer would hold a deploy open for clients that are
+    /// going to reconnect to the next instance anyway, and a stream with
+    /// nothing to write never waits it out, so the cost of the second is at
+    /// most a second of shutdown and nothing else.
     /// [`reconnect`](Connection::reconnect) is the third number no ADR writes,
     /// and three seconds is taken from the client rather than picked: it is
     /// what a browser's `EventSource` waits with no `retry:` field at all, so
@@ -504,9 +509,11 @@ pub struct EventStream {
     /// `nvs_runtime::Drain` carries.
     draining: Draining,
     /// The drain period this stream is given once it has seen the drain, and
-    /// when that period ends. `crate::socket`'s own `drain_deadline` is this
-    /// field one door over, and owns why the period starts when the connection
-    /// first *sees* the drain rather than when the drain began.
+    /// when that period ends. It starts when the stream first *sees* the drain
+    /// rather than when the drain began: a bit is the whole of what
+    /// `nvs_runtime::Drain` carries, and per stream the instant is a field of
+    /// the object about to act on it. Only a stream that is writing is held to
+    /// it — [`Self::drain_begun`] is what ends one that is not.
     drain: Duration,
     closing_at: Option<Instant>,
 }
@@ -571,6 +578,15 @@ impl EventStream {
         }
         self.closing_at
             .is_some_and(|closing_at| Instant::now() >= closing_at)
+    }
+
+    /// Whether the server this stream is written by has begun draining — read
+    /// by the body's poll where it found nothing to write, which is where a
+    /// stream with nothing to write ends
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
+    #[must_use]
+    pub fn drain_begun(&self) -> bool {
+        self.draining.is_draining()
     }
 
     /// Whether a keep-alive is owed now — [`Heartbeat::due`].

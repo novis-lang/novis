@@ -959,17 +959,22 @@ period, so a client's reconnect logic sees a clean close rather than a reset. Th
 behind both spellings, because there is one thing a stopping process and a reloading one both need.
 
 The drain period is `[server] drain_timeout`, `"30s"` with nothing configured and never unbounded
-([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect)). It bounds a connection that is
-**working** — a request whose head, body or response is moving, or a WebSocket a program is speaking
-on — and it starts when that connection **first sees** the drain, not when the drain began, so a
-connection is given the whole period however late it was accepted.
+([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect)). It bounds **work in progress** — a
+request whose head, body or response is moving — and it starts when that connection **first sees**
+the drain, not when the drain began, so a connection is given the whole period however late it was
+accepted. An event stream that is still writing is bounded the same way by the connection block's
+own, shorter period.
 
-A connection that is **idle between requests closes the moment it sees the drain**, not at the
-period's end. It has nothing to finish, an HTTP/1.1 client already accepts a server closing an idle
-kept-alive connection at any moment, and a stop that waited the period out for it would take the
-whole of `drain_timeout` for a browser's one open connection. The idle wait after a response that
-was moving when the drain began ends the same way, so a stop is bounded by the requests in flight
-and never by the connections that happen to be open.
+**Whatever is idle closes the moment it sees the drain**, on every door: an HTTP connection between
+requests, a WebSocket whose program is waiting for a frame from its peer, and an event stream with
+nothing to write. Nothing idle has anything to finish, and every client already handles the close —
+an HTTP/1.1 client retries on a closed kept-alive connection, a WebSocket peer reads the `going
+away` close and reconnects, and an event stream's client comes back after the wait its `retry:`
+line gave it. A stop that waited a period out for an idle connection would take the whole period
+for a browser's one open connection, or a WebSocket's whole idle wait for a peer that had gone
+quiet. What is not cut is a program between one `receive` and the next: its `send` completes on its
+own clock, and its next `receive` is where it learns the server is going away. So a stop is bounded
+by the work in flight and never by the connections that happen to be open.
 
 A connection is made to see it: **beginning the drain wakes every parked wait**, rather than leaving
 a connection to notice at its own idle timer — which would compose the drain period with
@@ -982,7 +987,7 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md).</sub>
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 

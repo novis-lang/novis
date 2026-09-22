@@ -109,6 +109,12 @@ impl Prefixed {
         self.stream.set_deadline(Some(at));
     }
 
+    /// [`NvsConnection::cut_at_drain`] on the descriptor. The prefix is bytes
+    /// already in memory, and no wait is ever taken on it.
+    fn cut_at_drain(&mut self, drain: &nvs_runtime::Drain) -> Option<nvs_runtime::DrainWake> {
+        self.stream.cut_at_drain(drain)
+    }
+
     /// Whether the prefix still has bytes nobody has read.
     fn buffered(&self) -> bool {
         // Widening: a cursor's position is a `u64` and the buffer is a `Vec`,
@@ -166,10 +172,10 @@ pub struct Framed {
     /// this connection is entitled to end it
     /// ([`nvs_runtime::drain`] owns that distinction).
     draining: Draining,
-    /// When the drain closes this connection, filled in the first time the
-    /// drain above is seen and `None` for every connection on a server still
-    /// accepting.
-    closing_at: Option<Instant>,
+    /// The wake that ends a `receive` parked on the peer the moment the drain
+    /// begins, registered by the first `receive` on the task the program runs
+    /// on and held for the connection's life ([`PeerSocket::receive`]).
+    cut: Option<nvs_runtime::DrainWake>,
 }
 
 impl Framed {
@@ -212,7 +218,7 @@ impl Framed {
             expires_at: Instant::now() + bounds.lifetime,
             slot: Slot::take(bounds.max_open),
             draining,
-            closing_at: None,
+            cut: None,
         }
     }
 
@@ -239,48 +245,29 @@ impl Framed {
         self.close(Closing::AtCapacity);
     }
 
-    /// Bounds the next wait by `window`, by the lifetime where that is sooner,
-    /// and by `until` where *that* is.
+    /// Bounds the next wait by `window`, or by the lifetime where that is
+    /// sooner.
     ///
     /// The lifetime cap is what makes [`Connection::lifetime`] a bound at all:
     /// a connection that speaks every minute would otherwise re-arm the idle
-    /// window forever and never reach its own expiry. `until` is the drain's
-    /// deadline and only a read passes one — a `send` capped by it would
-    /// **throw** at a program on the way out of a shutdown, where § 3 makes a
-    /// send timeout the one failure a program has to see, and telling it the
-    /// server is going away is [`PeerSocket::receive`]'s job rather than a
+    /// window forever and never reach its own expiry. The drain is not an
+    /// instant here: it ends a parked `receive` through the cut
+    /// [`PeerSocket::receive`] registers, and a `send` is never cut — § 3
+    /// makes a send timeout the one failure a program has to see, and telling
+    /// it the server is going away is `receive`'s job rather than a
     /// half-written frame's.
-    fn arm(&mut self, window: std::time::Duration, until: Option<Instant>) {
-        let at = (Instant::now() + window)
-            .min(self.expires_at)
-            .min(until.unwrap_or(self.expires_at));
+    fn arm(&mut self, window: std::time::Duration) {
+        let at = (Instant::now() + window).min(self.expires_at);
         self.socket.get_mut().set_deadline(at);
     }
 
-    /// When this connection is closed for the drain, taken the first time the
-    /// drain is seen and unchanged after that.
-    ///
-    /// `None` until then, which is every connection on a server that is still
-    /// accepting. [`PeerSocket::receive`]'s docs own why the period runs from
-    /// here rather than from the drain itself.
-    fn drain_deadline(&mut self) -> Option<Instant> {
-        if self.closing_at.is_none() && self.draining.is_draining() {
-            self.closing_at = Some(Instant::now() + self.bounds.drain);
-        }
-        self.closing_at
-    }
-
-    /// Which of § 7's three clocks a `TimedOut` was, or `None` for an error
-    /// that is not one.
+    /// Which of § 7's two clocks a `TimedOut` was, or `None` for an error that
+    /// is not one.
     ///
     /// Read off the *deadlines* rather than off which window was armed, because
     /// [`Self::arm`] hands the stream one instant and the stream reports one
     /// kind — so the question "was that the lifetime" is answered by asking the
     /// lifetime, and everything else is the idle window by construction.
-    ///
-    /// The drain is asked first where two are true at once: a peer told its
-    /// connection was too old learns nothing it can act on if the server it
-    /// would reconnect to is the one going away.
     fn expiry(&self, error: &tungstenite::Error) -> Option<Closing> {
         let tungstenite::Error::Io(io) = error else {
             return None;
@@ -288,10 +275,7 @@ impl Framed {
         if io.kind() != std::io::ErrorKind::TimedOut {
             return None;
         }
-        let now = Instant::now();
-        Some(if self.closing_at.is_some_and(|at| now >= at) {
-            Closing::ShuttingDown
-        } else if now >= self.expires_at {
+        Some(if Instant::now() >= self.expires_at {
             Closing::Expired
         } else {
             Closing::Idle
@@ -338,36 +322,38 @@ impl PeerSocket for Framed {
     /// branch records as giving the peer exactly the reset this bullet exists
     /// to replace. And there is no second handle to write a frame through: the
     /// socket moved into the isolate at the `101`, and on one core the only
-    /// task that may touch it is the one holding it. What is left is the shape
-    /// § 7's *other* time bounds already have — a deadline the connection's own
-    /// wait is capped by — so the drain is one more instant in
-    /// [`Framed::arm`]'s minimum, and [`Closing::ShuttingDown`] is one more
-    /// answer in [`Framed::expiry`]'s.
+    /// task that may touch it is the one holding it. So the close is taken
+    /// here, by the program's own `receive`, and it is
+    /// [`Closing::ShuttingDown`].
     ///
-    /// **The period is [`Connection::drain`], and it starts when this
-    /// connection first sees the drain rather than when the drain began.** A
-    /// bit is the whole of what `nvs_runtime::Drain` carries, so an instant
-    /// read off it would be a second thing for a process-wide atomic to hold
-    /// and to be read consistently — where per-connection it is a field of the
-    /// object that is about to act on it. What the two spellings differ by is
-    /// bounded by the wait that was already in flight, which is the gap below
-    /// and not a second one. Until the deadline the connection is served
-    /// normally: frames keep arriving and keep being answered, which is what
-    /// makes this a drain rather than a stop.
+    /// **It is taken the moment the drain is seen, not after a period**
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`): a program in
+    /// `receive` is waiting for its peer and has nothing to finish, so a
+    /// period would hold the stop for a connection doing nothing. What the
+    /// drain does not cut is a program between one `receive` and the next —
+    /// its `send` completes on its own clock, and this call is where it then
+    /// learns the server is going away — so a program mid-step finishes the
+    /// step and a program mid-wait ends at once.
     ///
-    /// **A connection already parked on a read when the drain begins does not
-    /// see it until that read ends**, which is [`Connection::idle`] away at
-    /// worst. Waking it early needs the same seam a topic delivery needs
-    /// (`nvs_runtime::Ctx::deliver`'s known gap): a `Read` parked on the
-    /// reactor ends on its deadline, on readiness or on a cancellation and on
-    /// nothing else, and a wake is only a hint that sends the caller back round
-    /// its own retry loop (`nvs_host::net`'s *Rule 2*). The bound that holds
-    /// today is therefore `idle` and not `drain`, and closing that gap is one
-    /// slice for both readers.
+    /// **A `receive` already parked when the drain begins is woken by it.**
+    /// The first call registers a cut with the server's drain on the task the
+    /// program runs on (`nvs_host::NvsStream::cut_at_drain`): a parked read
+    /// ends on its deadline, on readiness or on a cancellation and on nothing
+    /// else, and a plain wake would only send it back round its retry loop to
+    /// park again. The cut turns that wake into a `WouldBlock` out of the
+    /// read, which the codec returns untouched and the loop below reads the
+    /// bit on. A drain that began before the first call needs no wake: the
+    /// bit is read before the wait is armed.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
+        if self.cut.is_none() {
+            self.cut = self.socket.get_mut().cut_at_drain(self.draining.bit());
+        }
         loop {
-            let closing_at = self.drain_deadline();
-            self.arm(self.bounds.idle, closing_at);
+            if self.draining.is_draining() {
+                self.close(Closing::ShuttingDown);
+                return Ok(None);
+            }
+            self.arm(self.bounds.idle);
             return match self.socket.read() {
                 Ok(Message::Text(text)) => Ok(Some(PeerFrame::Text(text.as_str().to_owned()))),
                 Ok(Message::Binary(bytes)) => Ok(Some(PeerFrame::Binary(bytes.to_vec()))),
@@ -377,6 +363,11 @@ impl PeerSocket for Framed {
                 Ok(Message::Close(_) | Message::Frame(_)) => Ok(None),
                 Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
                     Ok(None)
+                }
+                // The cut ended a parked read: the drain is read at the top of
+                // the loop, which is the one place it is acted on.
+                Err(tungstenite::Error::Io(io)) if io.kind() == std::io::ErrorKind::WouldBlock => {
+                    continue;
                 }
                 Err(error) => match self.expiry(&error) {
                     Some(why) => {
@@ -407,7 +398,7 @@ impl PeerSocket for Framed {
             PeerFrame::Text(text) => Message::Text(text.into()),
             PeerFrame::Binary(bytes) => Message::Binary(bytes.into()),
         };
-        self.arm(self.bounds.send, None);
+        self.arm(self.bounds.send);
         self.socket.send(message).map_err(|error| failed(&error))
     }
 
