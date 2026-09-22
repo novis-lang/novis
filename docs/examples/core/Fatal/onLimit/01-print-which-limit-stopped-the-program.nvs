@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to print which limit stopped the program.
+// dossier: exit 1
+
+// The program asks for a memory limit of 16 MB for itself.
+Core\Config::set('limits.memory', '16M');
+
+// This function runs when a limit stops the program.
+// The array has one key, `limit`. Here its value is `memory`.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "stopped by the ", $report['limit'], " limit\n";
+});
+
+// Each string is 4 MB, so the fourth one goes over the limit.
+array<string> $blocks = [];
+int $count = 0;
+while ($count < 10) {
+    $blocks[] = Core\Str::repeat('x', 4194304);
+    $count = $count + 1;
+    echo "blocks: ", $count, "\n";
+}
+
+// The program stops inside the loop, so this line never runs.
+echo "done\n";

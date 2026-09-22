@@ -1,0 +1,21 @@
+<?nvs
+// Shows a limit function with no parameter. You can leave the parameter out
+// when you do not need to know which limit it was.
+// dossier: exit 1
+
+Core\Config::set('limits.memory', '16M');
+
+Core\Fatal::onLimit(fn (): void => {
+    echo "the page cache is full\n";
+});
+
+// Each page in this cache is 2 MB. The cache has no size limit of its own,
+// so the memory limit stops it, and then the function above runs.
+array<string> $cache = [];
+int $page = 1;
+while ($page <= 100) {
+    $cache["/page/" . $page] = Core\Str::repeat('<p>text</p>', 190650);
+    $page = $page + 1;
+}
+
+echo "all pages are cached\n";

@@ -203,16 +203,111 @@ mod tests {
 
     use nvs_runtime::{
         CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
-        ClassTable, Ctx, ErrorClass, MethodRow, NvsFn, NvsObj, OK, Tag, Value, call,
+        ClassTable, Ctx, ErrorClass, Limit, MethodRow, NvsFn, NvsObj, OK, Tag, Value, call,
     };
 
-    use super::nvs_core_fatal_on_uncaught_throw;
+    use super::{nvs_core_fatal_on_limit, nvs_core_fatal_on_uncaught_throw};
 
     thread_local! {
         /// The payload bits of whatever [`records`] was handed, which is how a
         /// plain `extern "C"` callback reports back to the test that installed
         /// it: a closure with no captured state has nowhere else to put it.
         static SEEN: Cell<u64> = const { Cell::new(0) };
+        /// The payload bits of the closure [`counts`] ran as, [`SEEN`]'s
+        /// reason: which of two registered handlers the ladder called.
+        static RAN: Cell<u64> = const { Cell::new(0) };
+        /// How many times [`counts`] ran, and whether its one argument was an
+        /// array — `rule:errors/on-limit`'s `LimitReport` shape.
+        static CALLS: Cell<u32> = const { Cell::new(0) };
+        static HANDED_ARRAY: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// `rule:errors/on-limit`'s registration, driven through the member itself
+    /// and fired through the ladder: the context takes a reference of its own,
+    /// a second registration replaces the first and gives that reference back,
+    /// nothing runs until a limit is reached, and the ladder then runs the
+    /// *last* handler once — the slot is empty on the way in, which is § 1's
+    /// zero-retry rule.
+    ///
+    /// The refcount is the half no `.nvst` case can see: a replacement that
+    /// forgot the release still behaves correctly from source, and leaks one
+    /// closure per registration for the rest of the request.
+    // covers: Core\Fatal::onLimit
+    #[test]
+    fn on_limit_keeps_the_last_handler_and_runs_it_once() {
+        let mut ctx = Ctx::buffered();
+        let first = closure_of(1, counts);
+        let second = closure_of(1, counts);
+        let first_ptr = first.obj_ptr().expect("a closure is an object");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns a reference to the closure for the whole test"
+        )]
+        let count_of = |ptr| unsafe { NvsObj::refcount_of(ptr) };
+        let before = count_of(first_ptr);
+
+        call(nvs_core_fatal_on_limit, &mut ctx, &[first])
+            .expect("registering answers `void` and cannot fail");
+        assert_eq!(
+            count_of(first_ptr),
+            before + 1,
+            "the context keeps a reference of its own past the call"
+        );
+        call(nvs_core_fatal_on_limit, &mut ctx, &[second])
+            .expect("registering answers `void` and cannot fail");
+        assert_eq!(
+            count_of(first_ptr),
+            before,
+            "a second registration gives the first one's reference back"
+        );
+        assert_eq!(ctx.limit_handler().bits(), second.bits());
+
+        RAN.with(|ran| ran.set(0));
+        CALLS.with(|calls| calls.set(0));
+        HANDED_ARRAY.with(|handed| handed.set(false));
+        ctx.run_limit_handler(Limit::Memory);
+        assert_eq!(CALLS.with(Cell::get), 1, "the ladder runs the handler once");
+        assert_eq!(
+            RAN.with(Cell::get),
+            second.bits(),
+            "the handler that runs is the last one registered"
+        );
+        assert!(
+            HANDED_ARRAY.with(Cell::get),
+            "the handler is handed the report as an array"
+        );
+        assert!(
+            !ctx.has_limit_handler(),
+            "§ 1's zero retries: the registration leaves the slot on the way in"
+        );
+        ctx.run_limit_handler(Limit::Memory);
+        assert_eq!(CALLS.with(Cell::get), 1, "a second breach runs nothing");
+        release(first);
+        release(second);
+    }
+
+    /// The callback [`on_limit_keeps_the_last_handler_and_runs_it_once`]
+    /// registers: note which closure ran and what it was handed, sweep the
+    /// references `call_closure` retained for this callee, and answer `null`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes exactly two live values, each retained \
+                  for this callee to release, and `abi::call` passes the \
+                  address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn counts(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        // Slot 0 is the closure itself and slot 1 the report.
+        let (itself, report) = unsafe { (*args, *args.add(1)) };
+        RAN.with(|ran| ran.set(itself.bits()));
+        CALLS.with(|calls| calls.set(calls.get() + 1));
+        HANDED_ARRAY.with(|handed| handed.set(report.tag() == Some(Tag::Array)));
+        for index in 0..2 {
+            release(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::null();
+        }
+        OK
     }
 
     /// `rule:errors/on-uncaught-throw`'s headline claim, asked as an **identity** rather than as a
@@ -231,6 +326,7 @@ mod tests {
     /// the ladder — so this also pins the boundary between them: the member
     /// takes a reference of its own, and the ladder takes the registration out
     /// of the slot on the way in, which is the whole of § 2's zero-retry rule.
+    // covers: Core\Fatal::onUncaughtThrow
     #[test]
     fn on_uncaught_throw_receives_the_real_throwable() {
         // Spec § 10's root shape, installed the one way a context takes one —

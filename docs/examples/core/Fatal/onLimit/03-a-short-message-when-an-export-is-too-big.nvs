@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to give the user a clear message when an export is too big
+// to build in memory.
+// dossier: exit 1
+
+final class Export
+{
+    // The limit function reads this to say how far the export got.
+    public static int $rows = 0;
+}
+
+Core\Config::set('limits.memory', '16M');
+
+Core\Fatal::onLimit(fn (): void => {
+    echo "The export stopped after ", Export::$rows, " rows because it is too big.\n";
+    echo "Please choose a shorter date range and try again.\n";
+});
+
+// Each row here is 1 MB of text, so the export is soon too big.
+array<string> $lines = [];
+while (Export::$rows < 1000) {
+    $lines[] = Core\Str::repeat('2026-09-22;order;', 61681);
+    Export::$rows = Export::$rows + 1;
+}
+
+echo "The export is ready.\n";

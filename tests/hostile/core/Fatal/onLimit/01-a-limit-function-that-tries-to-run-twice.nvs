@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program registers 100,000 limit functions, and the last one tries
+// to register another one and to throw. Only one function may run, once, and the
+// program must still end at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+Core\Config::set('limits.memory', '16M');
+
+// 1. Each function has its own 1 KB string. A new registration replaces the old
+// one and must free it, so 100,000 of them still fit in 16 MB.
+int $round = 0;
+while ($round < 100000) {
+    string $note = Core\Str::repeat('n', 1024);
+    Core\Fatal::onLimit(fn (): void => {
+        echo 'step 1: a replaced function ran: ', Core\Str::length($note), "\n";
+    });
+    $round = $round + 1;
+}
+echo "step 1: registered 100,000 functions\n";
+
+// 2. The last function registers a new one while it runs, and then throws.
+// The new one must not run, and the error must not reach any `catch`.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo 'step 2: the function ran for the ', $report['limit'], " limit\n";
+    Core\Fatal::onLimit(fn (): void => {
+        echo "step 2: a second function ran\n";
+    });
+    throw new RuntimeError('the limit function failed');
+});
+
+// 3. The program fills its memory inside a `try`. The limit stops it here.
+try {
+    array<string> $blocks = [];
+    while (true) {
+        $blocks[] = Core\Str::repeat('x', 1048576);
+    }
+} catch (Throwable $error) {
+    echo 'step 3: the catch ran: ', $error->message, "\n";
+}
