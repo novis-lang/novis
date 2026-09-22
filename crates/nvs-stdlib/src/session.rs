@@ -139,6 +139,7 @@ pub(crate) const NAME: &str = r"Core\Session";
 /// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "start",

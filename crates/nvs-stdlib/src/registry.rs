@@ -1492,6 +1492,24 @@ pub struct CoreClass {
     /// Its constants, in the spec's own order — empty for a class the spec
     /// gives none, which is most of them.
     pub constants: &'static [CoreConst],
+    /// Its own card, or `None` for a class that landed before classes carried
+    /// one — the same seam [`CoreMethod::doc`] is. A completion list shows
+    /// the card's `short` beside the class's name, which is the one place a
+    /// reader meets a class before its members.
+    pub doc: Option<&'static ClassDoc>,
+}
+
+/// One class's reference documentation — `rule:core-api/reference-card`'s
+/// card for the class itself, above the cards its members carry.
+///
+/// One field, because a class has no signature: what it is for, in one or two
+/// sentences, written for the reader of a completion list who has not opened
+/// the class's page yet. The members say what each of them does; this says
+/// why the class exists.
+#[derive(Clone, Copy, Debug)]
+pub struct ClassDoc {
+    /// What the class is for, in one or two sentences.
+    pub short: &'static str,
 }
 
 impl CoreClass {
@@ -5107,11 +5125,182 @@ mod tests {
         }
     }
 
-    /// Every row, enum and constant carries its `rule:core-api/reference-card` card — the second of
-    /// conventions.md's five edits, and the one nothing at a call site would
-    /// miss. The types keep their `Option` and empty-string spellings for the
-    /// emitter's sake ([`MethodDoc`] owns why), so *this* is where "not
-    /// written yet" stops being a state a member can ship in.
+    /// The classes that landed before a class carried a card of its own, and
+    /// still owe one. A class is deleted from here the session it gains its
+    /// [`ClassDoc`], the test below says so by name, and a class added after
+    /// this list was written is never added to it: it lands with its card, as
+    /// a member does. Goal `core-class-cards` is what empties the list.
+    const CLASSES_STILL_OWING_A_CARD: &[&str] = &[
+        r"Core\Arr",
+        r"Core\Ast",
+        r"Core\Ast\Node",
+        r"Core\Attributes",
+        r"Core\BigInt",
+        r"Core\Budget",
+        r"Core\Bytes",
+        r"Core\Cache",
+        r"Core\Cache\SecretEntry",
+        r"Core\Cache\Store",
+        r"Core\Cap",
+        r"Core\Cldr",
+        r"Core\Cli",
+        r"Core\Cli\Color",
+        r"Core\Cli\Live",
+        r"Core\Cli\Progress",
+        r"Core\Cli\Style",
+        r"Core\Cli\Text",
+        r"Core\Command",
+        r"Core\Compress",
+        r"Core\Compress\Compressor",
+        r"Core\Compress\Decompressor",
+        r"Core\Config",
+        r"Core\Crypto",
+        r"Core\Crypto\KeyPair",
+        r"Core\Crypto\PublicKey",
+        r"Core\Csrf",
+        r"Core\Csv",
+        r"Core\Csv\Rows",
+        r"Core\Db",
+        r"Core\Db\Column",
+        r"Core\Db\Connection",
+        r"Core\Db\InList",
+        r"Core\Db\Plan",
+        r"Core\Db\Plan\Step",
+        r"Core\Db\Row",
+        r"Core\Db\Rows",
+        r"Core\Db\Schema",
+        r"Core\Db\Stream",
+        r"Core\Db\Transaction",
+        r"Core\Db\Write",
+        r"Core\Debug",
+        r"Core\Decimal",
+        r"Core\Encoding",
+        r"Core\Env",
+        r"Core\Fatal",
+        r"Core\Hash",
+        r"Core\Hash\Stream",
+        r"Core\Heap",
+        r"Core\Html",
+        r"Core\Html\Markup",
+        r"Core\Http",
+        r"Core\Http\Chunks",
+        r"Core\Http\Client",
+        r"Core\Http\Event",
+        r"Core\Http\Events",
+        r"Core\Http\Identity",
+        r"Core\Http\Lines",
+        r"Core\Http\Part",
+        r"Core\Http\Response",
+        r"Core\Http\Socket",
+        r"Core\Http\Stream",
+        r"Core\Http\Target",
+        r"Core\Http\TlsInfo",
+        r"Core\IO",
+        r"Core\IO\File",
+        r"Core\IO\Lines",
+        r"Core\IO\Metadata",
+        r"Core\IO\Walk",
+        r"Core\Json",
+        r"Core\Jwe",
+        r"Core\Jwe\Key",
+        r"Core\Jwt",
+        r"Core\Jwt\KeySet",
+        r"Core\Log",
+        r"Core\Mail",
+        r"Core\Math",
+        r"Core\Metrics",
+        r"Core\Mime",
+        r"Core\Net",
+        r"Core\Net\Datagram",
+        r"Core\Net\Datagram\Message",
+        r"Core\Net\Listener",
+        r"Core\Net\Stream",
+        r"Core\ObjectMap",
+        r"Core\ObjectSet",
+        r"Core\Os",
+        r"Core\Out",
+        r"Core\Password",
+        r"Core\Path",
+        r"Core\Process",
+        r"Core\Process\Handle",
+        r"Core\Process\Result",
+        r"Core\Program",
+        r"Core\Queue",
+        r"Core\Queue\Id",
+        r"Core\Queue\Stats",
+        r"Core\Random",
+        r"Core\Random\Seeded",
+        r"Core\RateLimit",
+        r"Core\RateLimit\Decision",
+        r"Core\Reflect",
+        r"Core\Reflect\AttributeInfo",
+        r"Core\Reflect\ClassInfo",
+        r"Core\Reflect\ConstantInfo",
+        r"Core\Reflect\EnumInfo",
+        r"Core\Reflect\MethodInfo",
+        r"Core\Reflect\ParameterInfo",
+        r"Core\Reflect\PropertyInfo",
+        r"Core\Regex",
+        r"Core\Regex\Match",
+        r"Core\Regex\Pattern",
+        r"Core\Request",
+        r"Core\Request\BodyStream",
+        r"Core\Request\Files",
+        r"Core\Request\Mount",
+        r"Core\Request\Part",
+        r"Core\Request\PartContent",
+        r"Core\Response",
+        r"Core\Response\Stream",
+        r"Core\Router",
+        r"Core\Router\Match",
+        r"Core\Script",
+        r"Core\Script\ExitReport",
+        r"Core\Script\Handle",
+        r"Core\Secret",
+        r"Core\Serialize",
+        r"Core\Server",
+        r"Core\Session",
+        r"Core\Signal",
+        r"Core\Signature",
+        r"Core\SignedCookie",
+        r"Core\Socket",
+        r"Core\Socket\Message",
+        r"Core\Sse",
+        r"Core\Sse\Message",
+        r"Core\Storage",
+        r"Core\Str",
+        r"Core\Taint",
+        r"Core\Task",
+        r"Core\Task\Channel",
+        r"Core\Test",
+        r"Core\Test\Response",
+        r"Core\Test\SentRequest",
+        r"Core\Time",
+        r"Core\Time\Date",
+        r"Core\Time\DateTime",
+        r"Core\Time\Duration",
+        r"Core\Time\Instant",
+        r"Core\Time\TimeOfDay",
+        r"Core\Time\Zone",
+        r"Core\Topic",
+        r"Core\Totp",
+        r"Core\Uri",
+        r"Core\Uuid",
+        r"Core\Validate",
+        r"Core\Xml",
+        r"Core\Xml\Node",
+        r"Core\Xml\Reader",
+        r"Core\Xml\Writer",
+        r"Core\Zip",
+    ];
+
+    /// Every row, enum, constant and class carries its
+    /// `rule:core-api/reference-card` card — the second of conventions.md's five
+    /// edits, and the one nothing at a call site would miss. The types keep
+    /// their `Option` and empty-string spellings for the emitter's sake
+    /// ([`MethodDoc`] owns why), so *this* is where "not written yet" stops
+    /// being a state a member can ship in. A class is the one exception, and
+    /// only for the classes [`CLASSES_STILL_OWING_A_CARD`] names.
     ///
     /// A card's own fields are held to the same floor where a floor makes
     /// sense: a `short`, a `ret` and every `desc` are written, and
@@ -5171,6 +5360,23 @@ mod tests {
                     ));
                 }
             }
+            match class.doc {
+                Some(doc) if doc.short.trim().is_empty() => {
+                    missing.push(format!("{}'s card has no `short`", class.name));
+                }
+                Some(_) => {}
+                None if CLASSES_STILL_OWING_A_CARD.contains(&class.name) => {}
+                None => missing.push(format!("{} has no card", class.name)),
+            }
+        }
+        for owed in CLASSES_STILL_OWING_A_CARD {
+            let carded = CLASSES
+                .iter()
+                .any(|class| class.name == *owed && class.doc.is_some());
+            assert!(
+                !carded,
+                "{owed} now carries its card — delete it from `CLASSES_STILL_OWING_A_CARD`"
+            );
         }
         for declared in ENUMS {
             let Some(doc) = declared.doc else {

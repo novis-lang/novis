@@ -170,6 +170,7 @@ const KEY_TY: CoreTy = CoreTy::Instance(KEY_NAME);
 /// `rule:security/jwe-compact-subset`'s two members.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "encrypt",
@@ -282,6 +283,7 @@ const DECRYPT_DOC: MethodDoc = MethodDoc {
 /// key-management algorithm, and nothing to read a key back out with.
 pub(crate) const KEY: CoreClass = CoreClass {
     name: KEY_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "shared",

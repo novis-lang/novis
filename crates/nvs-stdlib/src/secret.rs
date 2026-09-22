@@ -39,6 +39,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 /// `rule:core-classes/secret-reveal`'s escape hatch, one row per qualifiable base.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Secret",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "reveal",

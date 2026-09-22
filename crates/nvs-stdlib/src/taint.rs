@@ -54,6 +54,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 /// `rule:security/launderers-are-sink-named`'s escape hatch, and the one launderer that names no single sink.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Taint",
+    doc: None,
     methods: &[CoreMethod {
         name: "assertTrusted",
         names: &["value", "reason"],

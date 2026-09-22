@@ -172,6 +172,7 @@ pub(crate) const NAME: &str = r"Core\Bytes";
 /// [`crate::registry::CLASSES`], which grows one line per *class*.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "length",

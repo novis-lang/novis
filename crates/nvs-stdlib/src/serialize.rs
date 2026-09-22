@@ -43,6 +43,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamD
 /// PHP's bare `serialize`/`unserialize` spellings do not exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Serialize",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "encode",

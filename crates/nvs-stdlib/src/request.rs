@@ -211,6 +211,7 @@ pub(crate) const NAME: &str = r"Core\Request";
 /// peer sent.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "method",
@@ -986,6 +987,7 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// same arrangement `Core\Request::route()` has with the match.
 pub(crate) const MOUNT: CoreClass = CoreClass {
     name: MOUNT_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1086,6 +1088,7 @@ const BODY_STREAM_CHUNK: usize = 0;
 /// thing it answers with.
 pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     name: BODY_STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["chunk"],
@@ -1134,6 +1137,7 @@ const FILES_PART: usize = 0;
 /// the part rather than on the walk.
 pub(crate) const FILES: CoreClass = CoreClass {
     name: FILES_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["part"],
@@ -1206,6 +1210,7 @@ const PART_ORDINAL: usize = 3;
 /// [`part_parse`], which is the one place the stamp is compared.
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1473,6 +1478,7 @@ const PART_CONTENT_ORDINAL: usize = 1;
 /// multipart parse in front of it.
 pub(crate) const PART_CONTENT: CoreClass = CoreClass {
     name: PART_CONTENT_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["chunk", "ordinal"],

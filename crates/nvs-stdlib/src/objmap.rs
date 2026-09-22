@@ -73,6 +73,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// [`crate::cursor`] owns the mechanism and what the snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

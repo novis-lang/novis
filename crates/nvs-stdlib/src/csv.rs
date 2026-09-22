@@ -216,6 +216,7 @@ pub(crate) const NAME: &str = r"Core\Csv";
 /// `Core\Csv`'s registry rows — spec § 12's second table, whole.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "parse",
@@ -307,6 +308,7 @@ const ROWS_RECORD_AT: usize = 2;
 /// `Core\IO\Lines`: its slots are read, just not through a member of its own.
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["reader", "path", "record"],

@@ -194,6 +194,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
 /// a case becomes a name.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "detect",

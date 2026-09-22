@@ -300,6 +300,7 @@ const DATA: &[CoreTy] = &[CoreTy::Bytes, CoreTy::Str];
 /// `Core\Hash`'s registry rows — § 11's `of`/`hmac`/`equals`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "of",
@@ -443,6 +444,7 @@ pub(crate) const STREAM_NAME: &str = r"Core\Hash\Stream";
 /// than a compression context, and what that spends.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

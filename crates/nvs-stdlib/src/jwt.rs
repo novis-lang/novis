@@ -423,6 +423,7 @@ const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
 /// signed under a shared key.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "sign",
@@ -777,6 +778,7 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
 /// The set a token is verified against, as one row.
 pub(crate) const KEY_SET: CoreClass = CoreClass {
     name: KEY_SET_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "read",
         names: &["jwks"],

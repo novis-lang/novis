@@ -144,6 +144,7 @@ use crate::registry::{
 /// per member.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Arr",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "count",

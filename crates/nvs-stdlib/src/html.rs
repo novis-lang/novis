@@ -151,6 +151,7 @@ use crate::xml::{DEPTH_CEILING, Kind, Parsed};
 /// out of the carrier it answers.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "escape",
@@ -245,6 +246,7 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 /// anything.
 pub(crate) const MARKUP: CoreClass = CoreClass {
     name: MARKUP_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["text"],

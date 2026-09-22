@@ -107,6 +107,7 @@ use crate::registry::{
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Env",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "get",

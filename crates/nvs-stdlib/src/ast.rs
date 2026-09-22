@@ -136,6 +136,7 @@ const OFFSET_SLOT: usize = 4;
 /// `Core\Ast` — one member, because parsing is one question.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "parse",
         names: &["source"],
@@ -186,6 +187,7 @@ const NODE_SLOTS: &[&str] = &["kind", "children", "line", "column", "offset"];
 /// owns.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -265,6 +267,7 @@ macro_rules! productions {
         pub(crate) const PRODUCTIONS: &[CoreClass] = &[
             $(CoreClass {
                 name: concat!(r"Core\Ast\", $kind),
+                doc: None,
                 methods: &[],
                 instance: &[],
                 slots: NODE_SLOTS,

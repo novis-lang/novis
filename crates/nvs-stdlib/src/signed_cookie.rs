@@ -108,6 +108,7 @@ const OPEN: &str = r"Core\SignedCookie::open";
 /// `rule:security/protocol-roster`'s first roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "seal",

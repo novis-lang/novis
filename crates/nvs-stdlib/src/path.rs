@@ -91,6 +91,7 @@ use crate::registry::{
 /// members, plus the `SEPARATOR` constant on [`CONSTANTS`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Path",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "basename",

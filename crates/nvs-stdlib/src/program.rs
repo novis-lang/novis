@@ -64,6 +64,7 @@ const T: CoreTy = CoreTy::Written("T");
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "implementing",

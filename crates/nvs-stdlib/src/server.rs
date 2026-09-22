@@ -34,6 +34,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc};
 /// `Core\Server`'s registry rows — § 15's `isDraining`, and so far nothing else.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Server",
+    doc: None,
     methods: &[CoreMethod {
         name: "isDraining",
         names: &[],

@@ -268,6 +268,7 @@ use crate::registry::{
 /// [`hydrate`] rather than through [`decode_as`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "encode",

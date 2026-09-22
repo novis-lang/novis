@@ -185,6 +185,7 @@ pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 /// above.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "parse",
@@ -270,6 +271,7 @@ const NAMESPACE_SLOT: usize = 5;
 /// out, and is the one that can refuse.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -507,6 +509,7 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
 /// than a mode on [`CLASS`].
 pub(crate) const READER: CoreClass = CoreClass {
     name: READER_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -618,6 +621,7 @@ const SCOPES_SLOT: usize = 6;
 /// document type declaration.
 pub(crate) const WRITER: CoreClass = CoreClass {
     name: WRITER_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

@@ -8,7 +8,8 @@
 //! callable by under `names` (`rule:core-api/shape-rules`
 //! R2) and, for a member whose row carries a
 //! [`MethodDoc`], its reference card under a `doc` key; every constant of the
-//! class beside its members, with its one-sentence card as its `doc`; and,
+//! class beside its members, with its one-sentence card as its `doc`; the
+//! class's own card, its `short` alone, under the class's `doc` key; and,
 //! top-level beside `classes`, every enum in
 //! [`nvs_stdlib::registry::ENUMS`] with its [`EnumDoc`] — top-level because
 //! that roster is, an enum having no owner class in the registry. A consumer
@@ -168,7 +169,8 @@ pub(crate) fn document() -> Value {
 
 /// One class: its name, its type parameters and constructor when it has
 /// them, its members — methods before instance members, each roster in the
-/// spec's own order — and its constants, when it has any.
+/// spec's own order — its constants, when it has any, and its own card under
+/// `doc` when the row carries one.
 fn class_json(class: &CoreClass) -> Value {
     let members: Vec<Value> = class
         .methods
@@ -194,6 +196,11 @@ fn class_json(class: &CoreClass) -> Value {
     }
     out.insert("members".into(), Value::Array(members));
     put_list(&mut out, "constants", class.constants, constant_json);
+    if let Some(doc) = class.doc {
+        let mut card = Map::new();
+        put_str(&mut card, "short", doc.short);
+        out.insert("doc".into(), Value::Object(card));
+    }
     Value::Object(out)
 }
 

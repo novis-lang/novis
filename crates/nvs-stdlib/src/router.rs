@@ -209,6 +209,7 @@ const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 /// § 1 exists to remove.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "url",
@@ -599,6 +600,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// `rule:routing/matching-is-not-dispatching` refuses.
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

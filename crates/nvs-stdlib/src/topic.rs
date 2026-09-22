@@ -208,6 +208,7 @@ pub(crate) const NAME: &str = r"Core\Topic";
 /// being used from a different one.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "subscribe",

@@ -52,6 +52,7 @@ const MEMBER: CoreTy = CoreTy::Text(Qual::Neutral);
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "get",

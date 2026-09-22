@@ -167,6 +167,7 @@ const OPTIONS: &[CoreOption] = &[
 /// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "send",
         names: &["endpoint", "to", "subject", "text"],

@@ -652,6 +652,7 @@ const KEY_FORMAT_DOC: EnumDoc = EnumDoc {
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "generateKey",
@@ -1107,6 +1108,7 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
 /// with it, and those are the calls that matter.
 pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
     name: PUBLIC_KEY_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "read",
         names: &["encoded", "kind", "format"],
@@ -1254,6 +1256,7 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// key. `write` needs none: it answers the slot.
 pub(crate) const KEY_PAIR: CoreClass = CoreClass {
     name: KEY_PAIR_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "read",
         // `$pkcs8` is `secret bytes` because that is what a private key is, and

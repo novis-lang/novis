@@ -205,6 +205,7 @@ const UNTIL_ARG: usize = 2;
 /// `rule:security/protocol-roster`'s fifth and final roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "sign",

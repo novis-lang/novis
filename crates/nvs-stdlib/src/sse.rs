@@ -129,6 +129,7 @@ pub(crate) const NAME: &str = r"Core\Sse";
 /// identical and have nothing to tell apart.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "upgrade",
@@ -438,6 +439,7 @@ const MESSAGE_VALUE: usize = 1;
 /// does.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

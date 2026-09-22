@@ -138,6 +138,7 @@ const LEVEL_DOC: EnumDoc = EnumDoc {
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "write",
         names: &["level", "message", "fields"],

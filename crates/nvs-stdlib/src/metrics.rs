@@ -140,6 +140,7 @@ const VALUE_OPTIONS: &[CoreOption] = &[LABELS];
 /// — there is no reader.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "increment",

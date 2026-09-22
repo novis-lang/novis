@@ -184,6 +184,7 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// value through this class's one slot.
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "nanoseconds",
@@ -988,6 +989,7 @@ pub const ZONE_NAME: &str = r"Core\Time\Zone";
 /// handle ([`crate::instance`] owns why that matters).
 pub const ZONE: CoreClass = CoreClass {
     name: ZONE_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "of",
@@ -1133,6 +1135,7 @@ pub const INSTANT_NAME: &str = r"Core\Time\Instant";
 /// own that trade.
 pub const INSTANT: CoreClass = CoreClass {
     name: INSTANT_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1583,6 +1586,7 @@ const WITH_OPTIONS: &[CoreOption] = &[
 /// asked for in.
 pub const DATETIME: CoreClass = CoreClass {
     name: DATETIME_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -2101,6 +2105,7 @@ pub const TIME_NAME: &str = r"Core\Time";
 /// classes above are members of.
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "now",
@@ -2455,6 +2460,7 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
 /// priority ordering spends memory on simplicity, not the reverse.
 pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "at",
         names: &["y", "m", "d"],
@@ -2751,6 +2757,7 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
 /// that produced it.
 pub const TIME_OF_DAY: CoreClass = CoreClass {
     name: TIME_OF_DAY_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "at",
         names: &["hour", "minute"],

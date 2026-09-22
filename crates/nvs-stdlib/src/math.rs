@@ -61,6 +61,7 @@ use crate::registry::{
 /// reason [`crate::arr::CLASS`] states.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Math",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "abs",

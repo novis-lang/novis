@@ -128,6 +128,7 @@ const CHUNK: usize = 64 * 1024;
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "run",
@@ -291,6 +292,7 @@ const HANDLE_PATH_SLOT: usize = 1;
 /// O(children in flight), charged to the task that spawned them.
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -467,6 +469,7 @@ const SIGNALLED: i32 = -1;
 /// to compute and nothing left to fail.
 pub(crate) const RESULT: CoreClass = CoreClass {
     name: RESULT_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

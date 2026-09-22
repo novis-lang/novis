@@ -78,6 +78,7 @@ const HAS: &str = "has";
 /// `rule:security/optional-capability-degrades`'s one member, and there is deliberately no second.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: HAS,
         names: &["capability"],

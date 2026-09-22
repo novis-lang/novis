@@ -198,6 +198,7 @@ const WITHIN: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 /// saying in its name what it opens.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "connect",
@@ -461,6 +462,7 @@ const LISTEN_LOCAL_DOC: MethodDoc = MethodDoc {
 /// over a descriptor and landed first.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -585,6 +587,7 @@ const STREAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// on `Core\Net`.
 pub(crate) const LISTENER: CoreClass = CoreClass {
     name: LISTENER_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -688,6 +691,7 @@ const LISTENER_CLOSE_DOC: MethodDoc = MethodDoc {
 /// [`nvs_core_net_datagram_send`] asks a second one.
 pub(crate) const DATAGRAM: CoreClass = CoreClass {
     name: DATAGRAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -865,6 +869,7 @@ const DATAGRAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// already in hand by the time one of these exists.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

@@ -74,6 +74,7 @@ pub(crate) const NAME: &str = "Core\\Signal";
 /// why the rest of `pcntl` is not beside it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "onShutdown",
         names: &["handler"],

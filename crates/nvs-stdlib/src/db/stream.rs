@@ -74,6 +74,7 @@ pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::streamAs";
 /// `foreach` reaches.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &[

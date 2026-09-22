@@ -187,6 +187,7 @@ const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
 ///   variadic arguments it renders stay data.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "length",

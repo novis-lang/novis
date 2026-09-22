@@ -142,6 +142,7 @@ const OPTIONS: &[CoreOption] = &[
 /// § 1's two members: the coherent one, and the approximate one.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "consume",
@@ -304,6 +305,7 @@ const SHED_DOC: MethodDoc = MethodDoc {
 /// the same reason and its `->status()` is the precedent.
 pub(crate) const DECISION: CoreClass = CoreClass {
     name: DECISION_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

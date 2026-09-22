@@ -324,6 +324,7 @@ const ENUM_UNSIGNED_SLOT: usize = 3;
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "forClass",
@@ -505,6 +506,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
 /// `Core\Reflect\ClassInfo` — what [`CLASS`]'s member answers with.
 pub(crate) const CLASS_INFO: CoreClass = CoreClass {
     name: CLASS_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1006,6 +1008,7 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
 /// made.
 pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     name: METHOD_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1105,6 +1108,7 @@ const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
 /// [`PROPERTY_INFO`] answers for a declared property.
 pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
     name: PARAMETER_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1173,6 +1177,7 @@ const PARAMETER_TYPE_DOC: MethodDoc = MethodDoc {
 /// be the twin of, and nothing it carries reaches back into the program.
 pub(crate) const ENUM_INFO: CoreClass = CoreClass {
     name: ENUM_INFO_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "of",
         names: &["name"],
@@ -1299,6 +1304,7 @@ const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
 /// where § 2's check is made.
 pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
     name: PROPERTY_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1383,6 +1389,7 @@ const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
 /// back — the same split `properties` and `get` already make.
 pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
     name: CONSTANT_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1466,6 +1473,7 @@ const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
 /// nothing to be judged by.
 pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
     name: ATTRIBUTE_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

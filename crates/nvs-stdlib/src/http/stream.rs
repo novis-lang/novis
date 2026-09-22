@@ -166,6 +166,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
 /// framed yet.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -381,6 +382,7 @@ const SAVE_TO_DOC: MethodDoc = MethodDoc {
 /// `Event::event()` reads as the whole event rather than as the field.
 pub(crate) const EVENT: CoreClass = CoreClass {
     name: EVENT_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -448,6 +450,7 @@ const ID_DOC: MethodDoc = MethodDoc {
 /// [`CoreTy::Iterated`]'s parameter-position-only reason.
 pub(crate) const EVENTS: CoreClass = CoreClass {
     name: EVENTS_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["body", "current", "lastId"],
@@ -457,6 +460,7 @@ pub(crate) const EVENTS: CoreClass = CoreClass {
 /// `lines()`' walk. See [`EVENTS`].
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["body", "current"],
@@ -466,6 +470,7 @@ pub(crate) const LINES: CoreClass = CoreClass {
 /// `chunks()`' walk. See [`EVENTS`].
 pub(crate) const CHUNKS: CoreClass = CoreClass {
     name: CHUNKS_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["body", "current"],

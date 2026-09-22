@@ -1263,7 +1263,11 @@ An implemented `Core` member's reference documentation lives in its registry dec
 it documents: a short description of one or two sentences, a name and description per parameter — and for a
 shape-typed parameter, each key's type and description — a return description, and a list of thrown errors,
 each described. An enum carries a card of its own with one line per case, and a constant carries one
-sentence, since a constant has a value and no signature.
+sentence, since a constant has a value and no signature. **A class carries a card of its own too**: one
+or two sentences saying what the class is for, which is what a completion list shows beside the class's
+name — the one place a reader meets a class before any of its members. A class that landed before
+classes carried one is named in the registry test's list of classes still owing a card, and is deleted
+from that list the session it gains one; a class added since lands with its card, as a member does.
 
 The registry is the one artifact that provably matches shipped behaviour, because it is the data the
 runtime dispatches on; and it already has to carry every parameter's name

@@ -122,6 +122,7 @@ const SECRET: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 /// `rule:security/protocol-roster`'s third roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "code",

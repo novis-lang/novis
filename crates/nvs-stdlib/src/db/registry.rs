@@ -132,6 +132,7 @@ pub(super) const SETTINGS: &[&[CoreField]] = &[
 /// points, in the spec's own order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "connect",
@@ -252,6 +253,7 @@ const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
 
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -612,6 +614,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// a connection that has moved on.
 pub(crate) const TRANSACTION: CoreClass = CoreClass {
     name: TRANSACTION_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1207,6 +1210,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// fit, and it is the one that holds the connection.
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1319,6 +1323,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// out.
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1481,6 +1486,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
 /// arrived.
 pub(crate) const WRITE: CoreClass = CoreClass {
     name: WRITE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1540,6 +1546,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// R11 removes.
 pub(crate) const COLUMN: CoreClass = CoreClass {
     name: COLUMN_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1587,6 +1594,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
 /// bound parameter".
 pub(crate) const IN_LIST: CoreClass = CoreClass {
     name: IN_LIST_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &[VALUES_SLOT],
@@ -1605,6 +1613,7 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// need a connection and this class needs none.
 pub(crate) const SCHEMA: CoreClass = CoreClass {
     name: SCHEMA_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "fromArray",
         names: &["array"],
@@ -1778,6 +1787,7 @@ const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
 /// out rather than computed on demand.
 pub(crate) const PLAN: CoreClass = CoreClass {
     name: PLAN_NAME,
+    doc: None,
     methods: &[],
     instance: &[CoreMethod {
         name: "steps",
@@ -1811,6 +1821,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
 /// does with a step is read its grade, print its reason, or run its SQL.
 pub(crate) const STEP: CoreClass = CoreClass {
     name: STEP_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

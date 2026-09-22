@@ -103,6 +103,7 @@ pub(crate) const NAME: &str = r"Core\Debug";
 /// attribute `dump` to as well.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "dump",

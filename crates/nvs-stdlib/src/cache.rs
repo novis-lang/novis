@@ -184,6 +184,7 @@ pub(crate) const SECRET_ENTRY_NAME: &str = r"Core\Cache\SecretEntry";
 /// § 1's two tiers, as the two members that hand one back.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "local",
@@ -321,6 +322,7 @@ const GET_SECRET_OPTIONS: &[CoreOption] = &[
 /// later.
 pub(crate) const STORE: CoreClass = CoreClass {
     name: STORE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -700,6 +702,7 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// (R16, R18).
 pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
     name: SECRET_ENTRY_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "of",
         names: &["value", "ttl"],

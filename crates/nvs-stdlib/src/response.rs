@@ -292,6 +292,7 @@ pub(crate) const NAME: &str = r"Core\Response";
 
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "html",
@@ -528,6 +529,7 @@ const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
 /// `fetch` or a progress UI that closes itself.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
+    doc: None,
     methods: &[],
     instance: &[CoreMethod {
         name: "write",

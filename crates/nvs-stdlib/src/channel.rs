@@ -116,6 +116,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// that deliberately.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

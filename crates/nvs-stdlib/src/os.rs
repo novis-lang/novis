@@ -52,6 +52,7 @@ pub(crate) const NAME: &str = "Core\\Os";
 /// `Core\Os`'s registry rows — the spec's § 16 row, whole and in its order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "pid",

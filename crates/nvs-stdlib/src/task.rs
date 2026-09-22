@@ -129,6 +129,7 @@ const DEFERRED_OPTIONS: &[CoreOption] = &[CoreOption {
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "all",

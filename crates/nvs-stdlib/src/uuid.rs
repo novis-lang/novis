@@ -140,6 +140,7 @@ pub const NAME: &str = r"Core\Uuid";
 /// two were one predicate and R17 keeps one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "v4",

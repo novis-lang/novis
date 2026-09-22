@@ -392,6 +392,7 @@ pub const NAME: &str = r"Core\Uri";
 /// not a regex — and nothing here is a second thing.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "parse",

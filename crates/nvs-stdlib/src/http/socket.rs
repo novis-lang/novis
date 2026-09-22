@@ -214,6 +214,7 @@ impl Drop for Open {
 /// message is asking a question with one honest answer.
 pub(crate) const SOCKET: CoreClass = CoreClass {
     name: SOCKET_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

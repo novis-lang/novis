@@ -1601,6 +1601,7 @@ const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
 /// has no door to put a check at.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "pluralCategory",

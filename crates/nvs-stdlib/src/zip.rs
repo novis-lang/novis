@@ -121,6 +121,7 @@ const EXTRACT: &str = r"Core\Zip::extract";
 /// the one reader that judges an entry before a program sees it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "entries",

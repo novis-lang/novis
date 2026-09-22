@@ -509,6 +509,7 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "assertSame",
@@ -830,6 +831,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 ///
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -883,6 +885,7 @@ pub(crate) const SENT_REQUEST_NAME: &str = r"Core\Test\SentRequest";
 /// made, so there is nothing on it a program could sensibly write.
 pub(crate) const SENT_REQUEST: CoreClass = CoreClass {
     name: SENT_REQUEST_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

@@ -143,6 +143,7 @@ const MEMBER: &str = r"Core\Http::allowUrl";
 /// `rule:http-server/allow-url-pins-the-address`'s launderer, as the one row `Core\Http` has today.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "allowUrl",
         names: &["url"],
@@ -198,6 +199,7 @@ pub(crate) const TARGET_NAME: &str = r"Core\Http\Target";
 /// make pinning decorative.
 pub(crate) const TARGET: CoreClass = CoreClass {
     name: TARGET_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["url", "addresses"],
@@ -246,6 +248,7 @@ pub(crate) const IDENTITY_FINGERPRINT_SLOT: usize = 2;
 /// per identity, held as long as the value is and released with it.
 pub(crate) const IDENTITY: CoreClass = CoreClass {
     name: IDENTITY_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "read",
         // The chain is `bytes` and unqualified: a certificate is public, and
@@ -1120,6 +1123,7 @@ const PART_BYTES_OPTIONS: &[CoreOption] = &[CoreOption {
 /// while octets a program composed have no name until it writes one.
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "file",
@@ -1530,6 +1534,7 @@ const DEFAULT_SEND_TIMEOUT: Duration = Duration::from_secs(30);
 /// ([`STREAM_OPTIONS`]).
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "get",
@@ -1672,6 +1677,7 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 /// (`rule:http-server/a-reply-reports-its-tls-session`).
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1895,6 +1901,7 @@ const TLS_DOC: MethodDoc = MethodDoc {
 /// `http` trace event's (`rule:observability/trace-events-carry-a-kind`).
 pub(crate) const TLS_INFO: CoreClass = CoreClass {
     name: TLS_INFO_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

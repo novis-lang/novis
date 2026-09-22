@@ -222,6 +222,7 @@ pub(crate) const NAME: &str = r"Core\Socket";
 /// from.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "upgrade",
@@ -474,6 +475,7 @@ const MESSAGE_VALUE: usize = 3;
 /// already had and this row may not add one.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

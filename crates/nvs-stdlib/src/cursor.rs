@@ -74,6 +74,7 @@ const INDEX: usize = 1;
 /// not one of [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["items", "index"],

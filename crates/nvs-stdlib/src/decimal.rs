@@ -83,6 +83,7 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc,
 /// narrowing to.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "divExact",

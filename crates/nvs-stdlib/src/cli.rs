@@ -172,6 +172,7 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// two ways of writing a frame rather than two surfaces.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "arguments",
@@ -778,6 +779,7 @@ const LIVE_DEPTH: usize = 0;
 /// section refuses.
 pub(crate) const LIVE: CoreClass = CoreClass {
     name: LIVE_NAME,
+    doc: None,
     methods: &[],
     instance: &[CoreMethod {
         name: "set",
@@ -887,6 +889,7 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
 /// one is neither — which is why this class has a counter and no `set`.
 pub(crate) const PROGRESS: CoreClass = CoreClass {
     name: PROGRESS_NAME,
+    doc: None,
     methods: &[],
     instance: &[CoreMethod {
         name: "advance",
@@ -1948,6 +1951,7 @@ pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 /// every other stream is rendered from.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "plain",
@@ -2376,6 +2380,7 @@ const INK_RGB: i64 = 1;
 /// them, which a single encoded number would make an arithmetic puzzle.
 pub(crate) const COLOR: CoreClass = CoreClass {
     name: COLOR_NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "index",
@@ -2606,6 +2611,7 @@ const STYLE_OPTIONS: &[CoreOption] = &[
 /// options, R20's immutability for everything after.
 pub(crate) const STYLE: CoreClass = CoreClass {
     name: STYLE_NAME,
+    doc: None,
     methods: &[CoreMethod {
         name: "of",
         names: &[],

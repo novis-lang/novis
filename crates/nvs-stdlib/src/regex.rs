@@ -107,6 +107,7 @@ pub const NAME: &str = r"Core\Regex";
 /// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "compile",
@@ -467,6 +468,7 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 /// stands for is the cache's, shared by every call that names the same pair.
 pub const PATTERN: CoreClass = CoreClass {
     name: PATTERN_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["pattern", "flags"],
@@ -572,6 +574,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// `preg_match` returns it), per match, charged to the request.
 pub const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

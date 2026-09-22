@@ -112,6 +112,7 @@ pub(crate) const SEEDED_NAME: &str = r"Core\Random\Seeded";
 /// § 11's first table.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "int",
@@ -347,6 +348,7 @@ pub(crate) const SEEDED_NEW: CoreMethod = CoreMethod {
 /// into a table of native ones.
 pub(crate) const SEEDED: CoreClass = CoreClass {
     name: SEEDED_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

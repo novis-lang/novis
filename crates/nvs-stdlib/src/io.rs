@@ -81,6 +81,7 @@ pub(crate) const NAME: &str = "Core\\IO";
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "read",
@@ -1329,6 +1330,7 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// half does not exist and why the reading half is not one of these.
 pub(crate) const FILE: CoreClass = CoreClass {
     name: FILE_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1670,6 +1672,7 @@ const LINES_SLOT: usize = 0;
 /// member of its own.
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["lines"],
@@ -1743,6 +1746,7 @@ const WALK_SLOT: usize = 0;
 /// `iterate()`, dispatched by name through [`crate::instance`]'s roster.
 pub(crate) const WALK: CoreClass = CoreClass {
     name: WALK_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["entries"],
@@ -1816,6 +1820,7 @@ const METADATA_IS_DIR_SLOT: usize = 3;
 /// own doc argues it belongs.
 pub(crate) const METADATA: CoreClass = CoreClass {
     name: METADATA_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

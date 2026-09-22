@@ -336,6 +336,7 @@ static SCHEMES: [Scheme; CHARSET.cases.len()] = [
 /// family and its base32 pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "encodeText",

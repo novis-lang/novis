@@ -167,6 +167,7 @@ const LIST_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `Core\Storage`'s four rows — `rule:programs/framework-core-half`'s object storage.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "put",

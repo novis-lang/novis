@@ -103,6 +103,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// member at all ([`crate::registry::CONSTRUCTORS`]).
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

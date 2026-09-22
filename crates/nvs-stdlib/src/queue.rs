@@ -1898,6 +1898,7 @@ const DEFAULT_PURGE_LIMIT: u64 = 1_000;
 /// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "push",
@@ -2511,6 +2512,7 @@ const STATS_DEAD_ATTEMPTS_DOC: MethodDoc = MethodDoc {
 /// handle.
 pub(crate) const ID: CoreClass = CoreClass {
     name: ID_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &[ID_SLOT, ID_QUEUE_SLOT],
@@ -2537,6 +2539,7 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// whole reason a member answers a record instead of answering a number five times.
 pub(crate) const STATS: CoreClass = CoreClass {
     name: STATS_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

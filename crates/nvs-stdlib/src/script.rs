@@ -120,6 +120,7 @@ pub const HANDLE_NAME: &str = r"Core\Script\Handle";
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
+    doc: None,
     methods: &[],
     instance: &[],
     slots: &["pending"],
@@ -139,6 +140,7 @@ const PENDING: usize = 0;
 ///
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Script",
+    doc: None,
     methods: &[
         CoreMethod {
             name: "args",
@@ -290,6 +292,7 @@ const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 /// before the first hook runs" as structure rather than as a rule.
 pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     name: EXIT_REPORT_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

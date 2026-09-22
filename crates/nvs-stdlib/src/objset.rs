@@ -47,6 +47,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {

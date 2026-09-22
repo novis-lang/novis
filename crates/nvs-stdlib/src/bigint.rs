@@ -136,6 +136,7 @@ const MAX_BITS: u64 = 1 << 20;
 /// row's reference card is what documents it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "of",

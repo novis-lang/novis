@@ -174,6 +174,7 @@ pub(crate) const NAME: &str = r"Core\Validate";
 /// hold this class are `examples/collect.nvs` and `conformance_coverage.rs`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "isEmail",

@@ -110,6 +110,7 @@ pub(crate) const NAME: &str = r"Core\Command";
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "help",

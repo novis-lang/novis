@@ -55,6 +55,7 @@ pub(crate) const NAME: &str = "Core\\Budget";
 /// own why there is no fourth and no `$real_usage` boolean beside any of them.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "memoryHeld",

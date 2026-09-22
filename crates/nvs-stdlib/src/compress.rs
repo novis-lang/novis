@@ -192,6 +192,7 @@ const DATA: &[CoreTy] = &[
 /// `Core\Compress`'s registry rows — § 17's whole-buffer pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
+    doc: None,
     methods: &[
         CoreMethod {
             name: "compress",
@@ -370,6 +371,7 @@ pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
 /// either one spends.
 pub(crate) const COMPRESSOR: CoreClass = CoreClass {
     name: COMPRESSOR_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
@@ -439,6 +441,7 @@ pub(crate) const DECOMPRESSOR_NAME: &str = r"Core\Compress\Decompressor";
 /// the opening fixed and no later configuration read can raise them.
 pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
     name: DECOMPRESSOR_NAME,
+    doc: None,
     methods: &[],
     instance: &[
         CoreMethod {
