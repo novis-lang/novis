@@ -176,6 +176,11 @@ pub struct Framed {
     /// begins, registered by the first `receive` on the task the program runs
     /// on and held for the connection's life ([`PeerSocket::receive`]).
     cut: Option<nvs_runtime::DrainWake>,
+    /// The instant from which a `send` throws, filled the first time any
+    /// operation here reads the drain begun: that instant plus
+    /// [`Connection::drain`]. `None` on a server still serving
+    /// ([`PeerSocket::drain_deadline`]).
+    closing_at: Option<Instant>,
 }
 
 impl Framed {
@@ -219,6 +224,7 @@ impl Framed {
             slot: Slot::take(bounds.max_open),
             draining,
             cut: None,
+            closing_at: None,
         }
     }
 
@@ -252,10 +258,10 @@ impl Framed {
     /// a connection that speaks every minute would otherwise re-arm the idle
     /// window forever and never reach its own expiry. The drain is not an
     /// instant here: it ends a parked `receive` through the cut
-    /// [`PeerSocket::receive`] registers, and a `send` is never cut — § 3
-    /// makes a send timeout the one failure a program has to see, and telling
-    /// it the server is going away is `receive`'s job rather than a
-    /// half-written frame's.
+    /// [`PeerSocket::receive`] registers, and a `send` past the drain deadline
+    /// throws before it starts ([`PeerSocket::send`]) — one in flight is never
+    /// cut, because § 3 makes a send timeout the one failure a program has to
+    /// see and a half-written frame tells the peer nothing.
     fn arm(&mut self, window: std::time::Duration) {
         let at = (Instant::now() + window).min(self.expires_at);
         self.socket.get_mut().set_deadline(at);
@@ -387,19 +393,46 @@ impl PeerSocket for Framed {
     /// a program must see, because a peer that stopped reading and a frame that
     /// went out are the same call otherwise.
     ///
+    /// **A `send` begun at or past the drain deadline closes the connection
+    /// with [`Closing::ShuttingDown`] and throws instead**
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`): a program that
+    /// only sends is reached by nothing else, and the period was what it was
+    /// owed. One begun before the deadline is written whole however late it
+    /// finishes.
+    ///
     /// # Errors
     ///
     /// The socket failed, or the send timeout expired — including the case
     /// where it was [`Connection::lifetime`] that expired first, since
     /// [`Framed::arm`] caps every wait by it and a connection past its lifetime
-    /// may not keep writing.
+    /// may not keep writing — or the server is past its drain deadline.
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError> {
+        if self.drain_deadline().is_some_and(|at| Instant::now() >= at) {
+            self.close(Closing::ShuttingDown);
+            return Err(PeerError::new(Closing::ShuttingDown.reason()));
+        }
         let message = match frame {
             PeerFrame::Text(text) => Message::Text(text.into()),
             PeerFrame::Binary(bytes) => Message::Binary(bytes.into()),
         };
         self.arm(self.bounds.send);
         self.socket.send(message).map_err(|error| failed(&error))
+    }
+
+    /// The moment this connection first saw the drain plus
+    /// [`Connection::drain`], taken on the first call that finds the drain
+    /// begun and unchanged after that.
+    fn drain_deadline(&mut self) -> Option<Instant> {
+        if self.closing_at.is_none() && self.draining.is_draining() {
+            self.closing_at = Some(Instant::now() + self.bounds.drain);
+        }
+        self.closing_at
+    }
+
+    /// A wake for the calling task on the server's drain — `nvs_host`'s, which
+    /// is the one that can name the task.
+    fn wake_at_drain(&mut self) -> Option<nvs_runtime::DrainWake> {
+        nvs_host::wake_at_drain(self.draining.bit())
     }
 
     /// Starts RFC 6455's close handshake, ignoring what it fails with.

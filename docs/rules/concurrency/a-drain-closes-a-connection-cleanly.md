@@ -17,8 +17,13 @@ away` close and reconnects, and an event stream's client comes back after the wa
 line gave it. A stop that waited a period out for an idle connection would take the whole period
 for a browser's one open connection, or a WebSocket's whole idle wait for a peer that had gone
 quiet. What is not cut is a program between one `receive` and the next: its `send` completes on its
-own clock, and its next `receive` is where it learns the server is going away. So a stop is bounded
-by the work in flight and never by the connections that happen to be open.
+own clock, and its next `receive` is where it learns the server is going away. A program that only
+sends is work in progress with nothing to finish, so the period is its bound: from the moment the
+connection first saw the drain plus the connection block's period, its next `send` closes the
+connection with `going away` and throws, and a `Core\Time::sleep` on the connection ends at that
+instant at the latest and is woken when the drain begins, so a long sleep does not hide a short
+period. So a stop is bounded by the work in flight and never by the connections that happen to be
+open.
 
 A connection is made to see it: **beginning the drain wakes every parked wait**, rather than leaving
 a connection to notice at its own idle timer — which would compose the drain period with

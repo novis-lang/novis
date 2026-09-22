@@ -4234,6 +4234,119 @@ mod tests {
         );
     }
 
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` on a program
+    /// that only sends: a push feed that sends, sleeps and sends again, with
+    /// no `receive` for the drain to end. The sleep is ten minutes, so a
+    /// drain that only reached the program at the sleep's end fails by the
+    /// clock; what is asserted is that the drain wakes the sleep, the sleep
+    /// then ends at the drain deadline, and the program's next `send` throws
+    /// there and leaves the peer `going away` — with no further update sent,
+    /// since the program was asleep for the whole period.
+    ///
+    /// The loop is ended from the client once the first update is in, so the
+    /// program is asleep when the drain begins: a `send` that has returned and
+    /// a sleep that parks are one run of the task with no park between them.
+    #[test]
+    fn a_send_only_websocket_program_is_ended_at_the_periods_end() {
+        fn push_until_told(conn: &mut Ctx) -> String {
+            let mut sent = 0_usize;
+            loop {
+                let Some(peer) = conn.peer() else {
+                    return "no peer".to_owned();
+                };
+                if let Err(error) = peer.send(nvs_runtime::PeerFrame::Text(format!("tick {sent}")))
+                {
+                    return format!("send {sent} failed: {error}");
+                }
+                sent += 1;
+                nvs_runtime::peer::sleep(conn, Duration::from_secs(600));
+            }
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(upgrade_request("/feed").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            let first = match peer.read() {
+                Ok(tungstenite::Message::Text(text)) => text.to_string(),
+                other => format!("{other:?}"),
+            };
+            end_the_loop(addr);
+            let began = Instant::now();
+            let mut ticks = 0_usize;
+            let closed = loop {
+                match peer.read() {
+                    Ok(tungstenite::Message::Text(_)) => ticks += 1,
+                    Ok(tungstenite::Message::Close(Some(frame))) => {
+                        break Ok((u16::from(frame.code), frame.reason.to_string()));
+                    }
+                    other => break Err(format!("{other:?}")),
+                }
+            };
+            (first, ticks, closed, began.elapsed())
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler =
+                upgrade_leaving(Door::Socket, String::new(), handler_said, push_until_told);
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (first, ticks, closed, took) = client.join().expect("the client thread panicked");
+
+        assert_eq!(first, "tick 0", "the feed did not send its first update");
+        assert_eq!(
+            closed,
+            Ok((1001, nvs_runtime::Closing::ShuttingDown.reason().to_owned())),
+            "a send past the drain deadline did not leave the peer `going away`"
+        );
+        assert_eq!(
+            ticks, 0,
+            "a program asleep for the whole period sent another update"
+        );
+        assert!(
+            took < Duration::from_secs(5),
+            "the drain waited for a ten-minute sleep: closed after {took:?}"
+        );
+        let said = said.borrow();
+        assert!(
+            said.iter()
+                .any(|line| line.starts_with("connection send ") && line.contains("shutting down")),
+            "the program was not ended by its `send` throwing: {said:?}"
+        );
+    }
+
     /// `rule:concurrency/two-doors-one-isolate`:
     /// "the isolate is the same; the door is not". An event stream opens the
     /// same root isolate the three cases above assert of § 1 — its own context,

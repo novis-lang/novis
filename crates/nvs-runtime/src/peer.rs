@@ -406,6 +406,64 @@ pub trait PeerSocket: std::fmt::Debug {
     /// peer is *told* is [`Closing`]'s code, which is the one thing about a
     /// close a program on the other end can act on.
     fn close(&mut self, why: Closing);
+
+    /// The instant from which this connection's server, once it is draining,
+    /// no longer serves the program's step: `send` throws from then on
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`), and a
+    /// [`sleep`] on the connection ends there at the latest. `None` on a
+    /// server still serving, and always for a socket nothing drains.
+    fn drain_deadline(&mut self) -> Option<std::time::Instant> {
+        None
+    }
+
+    /// Registers a wake for the calling task the moment the connection's
+    /// server begins draining, or `None` where nothing will — [`sleep`] holds
+    /// it across a wait so a program asleep learns of the drain at once
+    /// rather than when its sleep ends.
+    fn wake_at_drain(&mut self) -> Option<crate::drain::DrainWake> {
+        None
+    }
+}
+
+/// `Core\Time::sleep` inside a connection isolate: parks for `duration`, or
+/// until the connection's drain deadline where that is sooner, and is woken
+/// early by the drain beginning so the deadline is read then rather than at
+/// the sleep's end.
+///
+/// Under `rule:concurrency/a-drain-closes-a-connection-cleanly` a program
+/// between one `receive` and the next is work in progress and is given the
+/// period; a program that only sends is that program for as long as it runs,
+/// and a sleep is where it spends its time. So the sleep is bounded by the
+/// instant its next `send` will throw at, and cut when the drain begins so a
+/// ten-minute sleep does not hide a one-second period. Every wake is a hint:
+/// the loop re-reads the deadline and the clock, and re-parks past a wake that
+/// changed nothing. Off a connection this is [`Host::sleep`] unchanged.
+///
+/// [`Host::sleep`]: crate::host::Host::sleep
+pub fn sleep(ctx: &mut crate::Ctx, duration: std::time::Duration) -> crate::host::Woken {
+    use crate::host::{Woken, with_current};
+    let end = std::time::Instant::now() + duration;
+    let Some(cut) = ctx.peer().map(PeerSocket::wake_at_drain) else {
+        return with_current(|host| host.sleep(duration)).unwrap_or_else(|| {
+            std::thread::sleep(duration);
+            Woken::Elapsed
+        });
+    };
+    loop {
+        let until = ctx
+            .peer()
+            .and_then(PeerSocket::drain_deadline)
+            .map_or(end, |at| at.min(end));
+        match with_current(|host| host.park(Some(until))) {
+            Some(Woken::Cancelled) => return Woken::Cancelled,
+            Some(Woken::Elapsed) => {}
+            None => std::thread::sleep(until.saturating_duration_since(std::time::Instant::now())),
+        }
+        if std::time::Instant::now() >= until {
+            drop(cut);
+            return Woken::Elapsed;
+        }
+    }
 }
 
 /// Why a connection is being closed, as the code RFC 6455 puts on the wire.

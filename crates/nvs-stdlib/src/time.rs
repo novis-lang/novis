@@ -3524,14 +3524,19 @@ nvs_runtime::nvs_helper! {
     ///
     /// With no host on the thread the wait still has to happen, and blocking is
     /// the right answer: nothing else is running on this core.
+    ///
+    /// **Inside a connection isolate the sleep is the connection's**: it goes
+    /// through [`nvs_runtime::peer::sleep`], which ends it at the connection's
+    /// drain deadline at the latest and wakes it when the drain begins, so a
+    /// program that only sends learns of a shutdown at its next `send` rather
+    /// than when a long sleep ends (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
     fn nvs_core_time_sleep(ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {
             let duration = std::time::Duration::from_nanos(nanos.unsigned_abs());
-            match nvs_runtime::host::with_current(|host| host.sleep(duration)) {
-                Some(Woken::Cancelled) => return Err(ctx.cancel()),
-                Some(Woken::Elapsed) => {}
-                None => std::thread::sleep(duration),
+            match nvs_runtime::peer::sleep(ctx, duration) {
+                Woken::Cancelled => return Err(ctx.cancel()),
+                Woken::Elapsed => {}
             }
         }
         Ok(Value::null())
