@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to read one attribute from every class that implements an
+// interface. Each row holds the object and the attribute found on it.
+
+type Label = {text: string};
+
+interface Report {
+    public function rows(): int;
+}
+
+class SalesReport implements Report {
+    #[Label(text: "Sales")]
+    public function rows(): int { return 12; }
+}
+
+class StockReport implements Report {
+    #[Label(text: "Stock")]
+    public function rows(): int { return 7; }
+}
+
+// The rows are sorted by class name, so `SalesReport` comes first.
+// This prints `Sales: 12` and then `Stock: 7`.
+foreach (Core\Program::implementingWith<Report, Label>("rows") as {instance: Report, attribute: ?Label} $row) {
+    echo $row->attribute?->text ?? "(none)", ": ", $row->instance->rows(), "\n";
+}

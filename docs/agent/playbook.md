@@ -2645,6 +2645,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ledger's "lacks ... nothing appended" reads exactly like unwritten work. Run `python
   tools/dossier.py --emit-goals` and stage `docs/agent/goals/` whole: it appends the goal, renumbers
   the `position: last` tail and leaves the live goal alone. [until: reviewed 2026-09-22]
+- **A `dossier:` floor check naming a feature that owes *every* proof can be a renamed heading rather
+  than unwritten work.** The roster is derived from the reference chapters, so `# Closures` becoming
+  `` # Closures: `fn` `` renamed the feature id and orphaned five proofs a goal had just landed. List
+  the proof trees for the neighbouring ids and `git log -3` the chapter before writing anything: a
+  rename is repaired with `git mv`, the `covers:` markers and one `--record-perf`.
+  [until: reviewed 2026-09-22]
 
 ## Running things
 

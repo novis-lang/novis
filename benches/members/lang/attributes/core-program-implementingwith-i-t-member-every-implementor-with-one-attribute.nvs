@@ -1,0 +1,50 @@
+<?nvs
+// Measures collecting every class that implements an interface, together with
+// one attribute from each. A framework does this once for every menu, route
+// table or list of plug-ins it builds.
+// bench: iterations 100000
+// bench: calls 1
+
+type Label = {text: string};
+
+interface Check {
+    public function name(): string;
+}
+
+class DiskCheck implements Check {
+    #[Label(text: "disk")]
+    public function name(): string {
+        return "disk";
+    }
+}
+
+class MailCheck implements Check {
+    #[Label(text: "mail")]
+    public function name(): string {
+        return "mail";
+    }
+}
+
+class QueueCheck implements Check {
+    public function name(): string {
+        return "queue";
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<{instance: Check, attribute: ?Label}> $rows =
+                Core\Program::implementingWith<Check, Label>("name");
+            // Chained: the row read this round is picked with the total the
+            // round before left behind.
+            $total = $total + Core\Str::length($rows[$total % 3]->instance->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

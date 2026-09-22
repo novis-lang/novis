@@ -2,6 +2,7 @@
 `implementingWith`'s `$member` selects the class's own attributes for the empty name and the constructor's roster for a property or promoted-parameter name, exactly as `Core\Attributes::get<T>`'s two spellings do, `rule:programs/implementing-with`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute
 interface Plugin {
     public function name(): string;
 }

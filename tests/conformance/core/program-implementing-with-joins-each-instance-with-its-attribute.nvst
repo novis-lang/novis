@@ -2,6 +2,7 @@
 `Core\Program::implementingWith<I, T>($member)` answers one `{instance, attribute}` row per implementor in the enumeration's order, with `null` where the class's member carries no matching attribute, `rule:programs/implementing-with`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute
 interface Page {
     public function render(): string;
 }
