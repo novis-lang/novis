@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Str::replaceAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:404`
-2. **`Core\Str::replaceRange`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:417`
-3. **`Core\Str::reverse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:502`
-4. **`Core\Str::slice`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:245`
-5. **`Core\Str::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:341`
-6. **`Core\Str::startsWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:227`
-7. **`Core\Str::trim`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:457`
-8. **`Core\Str::trimEnd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:481`
-9. **`Core\Str::trimStart`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:469`
-10. **`Core\Str::upper`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:533`
-11. **`Core\Str::upperFirst`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:542`
-12. **`Core\Str::wrap`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:511`
+1. **`Core\Str::replaceAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:405`
+2. **`Core\Str::replaceRange`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:418`
+3. **`Core\Str::reverse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:503`
+4. **`Core\Str::slice`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:246`
+5. **`Core\Str::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:342`
+6. **`Core\Str::startsWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:228`
+7. **`Core\Str::trim`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:458`
+8. **`Core\Str::trimEnd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:482`
+9. **`Core\Str::trimStart`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:470`
+10. **`Core\Str::upper`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:534`
+11. **`Core\Str::upperFirst`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:543`
+12. **`Core\Str::wrap`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:512`
 
 ## Running this goal wide
 

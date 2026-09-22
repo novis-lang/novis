@@ -26,20 +26,20 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Reflect\EnumInfo::cases`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1197`
-2. **`Core\Reflect\EnumInfo::isUnsigned`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1218`
-3. **`Core\Reflect\EnumInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1188`
-4. **`Core\Reflect\EnumInfo::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1176`
-5. **`Core\Reflect\EnumInfo::valueOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1206`
-6. **`Core\Reflect\MethodInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1020`
-7. **`Core\Reflect\MethodInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1011`
-8. **`Core\Reflect\MethodInfo::parameterCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1029`
-9. **`Core\Reflect\MethodInfo::parameters`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1041`
-10. **`Core\Reflect\ParameterInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1110`
-11. **`Core\Reflect\ParameterInfo::type`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1119`
-12. **`Core\Reflect\PropertyInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1313`
-13. **`Core\Reflect\PropertyInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1304`
-14. **`Core\Reflect\PropertyInfo::type`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1322`
+1. **`Core\Reflect\EnumInfo::cases`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1202`
+2. **`Core\Reflect\EnumInfo::isUnsigned`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1223`
+3. **`Core\Reflect\EnumInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1193`
+4. **`Core\Reflect\EnumInfo::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1181`
+5. **`Core\Reflect\EnumInfo::valueOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1211`
+6. **`Core\Reflect\MethodInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1023`
+7. **`Core\Reflect\MethodInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1014`
+8. **`Core\Reflect\MethodInfo::parameterCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1032`
+9. **`Core\Reflect\MethodInfo::parameters`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1044`
+10. **`Core\Reflect\ParameterInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1114`
+11. **`Core\Reflect\ParameterInfo::type`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1123`
+12. **`Core\Reflect\PropertyInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1319`
+13. **`Core\Reflect\PropertyInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1310`
+14. **`Core\Reflect\PropertyInfo::type`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1328`
 
 ## Running this goal wide
 

@@ -26,20 +26,20 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Http\Response::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1695`
-2. **`Core\Http\Response::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1713`
-3. **`Core\Http\Response::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1722`
-4. **`Core\Http\Response::jsonAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1704`
-5. **`Core\Http\Response::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1677`
-6. **`Core\Http\Response::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1686`
-7. **`Core\Http\Response::tls`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1731`
-8. **`Core\Http\TlsInfo::cipher`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1909`
-9. **`Core\Http\TlsInfo::expiry`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1954`
-10. **`Core\Http\TlsInfo::issuer`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1945`
-11. **`Core\Http\TlsInfo::peerChain`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1927`
-12. **`Core\Http\TlsInfo::subject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1936`
-13. **`Core\Http\TlsInfo::verified`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1918`
-14. **`Core\Http\TlsInfo::version`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1900`
+1. **`Core\Http\Response::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1701`
+2. **`Core\Http\Response::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1719`
+3. **`Core\Http\Response::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1728`
+4. **`Core\Http\Response::jsonAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1710`
+5. **`Core\Http\Response::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1683`
+6. **`Core\Http\Response::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1692`
+7. **`Core\Http\Response::tls`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1737`
+8. **`Core\Http\TlsInfo::cipher`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1916`
+9. **`Core\Http\TlsInfo::expiry`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1961`
+10. **`Core\Http\TlsInfo::issuer`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1952`
+11. **`Core\Http\TlsInfo::peerChain`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1934`
+12. **`Core\Http\TlsInfo::subject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1943`
+13. **`Core\Http\TlsInfo::verified`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1925`
+14. **`Core\Http\TlsInfo::version`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1907`
 
 ## Running this goal wide
 

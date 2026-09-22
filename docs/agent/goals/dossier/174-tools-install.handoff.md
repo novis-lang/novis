@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:162`
+- [ ] **`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:168`
 - [ ] **`tools:install/the-layout`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:9`
-- [ ] **`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:66`
+- [ ] **`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:72`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

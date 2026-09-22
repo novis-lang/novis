@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Xml\Node::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:311`
-2. **`Core\Xml\Node::children`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:320`
-3. **`Core\Xml\Node::kind`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:275`
-4. **`Core\Xml\Node::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:284`
-5. **`Core\Xml\Node::namespaceUri`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:293`
-6. **`Core\Xml\Node::source`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:329`
-7. **`Core\Xml\Node::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:302`
-8. **`Core\Xml\Reader::depth`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:521`
-9. **`Core\Xml\Reader::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:512`
+1. **`Core\Xml\Node::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:313`
+2. **`Core\Xml\Node::children`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:322`
+3. **`Core\Xml\Node::kind`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:277`
+4. **`Core\Xml\Node::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:286`
+5. **`Core\Xml\Node::namespaceUri`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:295`
+6. **`Core\Xml\Node::source`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:331`
+7. **`Core\Xml\Node::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:304`
+8. **`Core\Xml\Reader::depth`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:524`
+9. **`Core\Xml\Reader::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:515`
 
 ## Running this goal wide
 

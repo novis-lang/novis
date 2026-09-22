@@ -26,17 +26,17 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Encoding::decodeText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:349`
-2. **`Core\Encoding::encodeText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:340`
-3. **`Core\Encoding::fromBase32`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:412`
-4. **`Core\Encoding::fromBase64`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:376`
-5. **`Core\Encoding::fromBase64Url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:394`
-6. **`Core\Encoding::fromHex`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:430`
-7. **`Core\Encoding::isValidText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:358`
-8. **`Core\Encoding::toBase32`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:403`
-9. **`Core\Encoding::toBase64`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:367`
-10. **`Core\Encoding::toBase64Url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:385`
-11. **`Core\Encoding::toHex`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:421`
+1. **`Core\Encoding::decodeText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:350`
+2. **`Core\Encoding::encodeText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:341`
+3. **`Core\Encoding::fromBase32`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:413`
+4. **`Core\Encoding::fromBase64`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:377`
+5. **`Core\Encoding::fromBase64Url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:395`
+6. **`Core\Encoding::fromHex`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:431`
+7. **`Core\Encoding::isValidText`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:359`
+8. **`Core\Encoding::toBase32`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:404`
+9. **`Core\Encoding::toBase64`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:368`
+10. **`Core\Encoding::toBase64Url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:386`
+11. **`Core\Encoding::toHex`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/encoding.rs:422`
 
 ## Running this goal wide
 

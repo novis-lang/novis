@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\ObjectSet::add`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:52`
-2. **`Core\ObjectSet::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:124`
-3. **`Core\ObjectSet::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:79`
-4. **`Core\ObjectSet::diff`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:115`
-5. **`Core\ObjectSet::has`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:61`
-6. **`Core\ObjectSet::intersect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:106`
-7. **`Core\ObjectSet::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:88`
-8. **`Core\ObjectSet::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:70`
-9. **`Core\ObjectSet::union`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:97`
+1. **`Core\ObjectSet::add`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:53`
+2. **`Core\ObjectSet::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:125`
+3. **`Core\ObjectSet::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:80`
+4. **`Core\ObjectSet::diff`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:116`
+5. **`Core\ObjectSet::has`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:62`
+6. **`Core\ObjectSet::intersect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:107`
+7. **`Core\ObjectSet::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:89`
+8. **`Core\ObjectSet::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:71`
+9. **`Core\ObjectSet::union`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:98`
 
 ## Running this goal wide
 

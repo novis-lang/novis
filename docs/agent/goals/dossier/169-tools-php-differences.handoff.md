@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`tools:php-differences/arrays-and-strings`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:183`
+- [ ] **`tools:php-differences/arrays-and-strings`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:184`
 - [ ] **`tools:php-differences/classes`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:147`
-- [ ] **`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:172`
+- [ ] **`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:173`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

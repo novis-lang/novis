@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Math::min`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:83`
-2. **`Core\Math::mod`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:155`
-3. **`Core\Math::round`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:137`
-4. **`Core\Math::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:74`
-5. **`Core\Math::sin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:236`
-6. **`Core\Math::sinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:299`
-7. **`Core\Math::sqrt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:191`
-8. **`Core\Math::tan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:254`
-9. **`Core\Math::tanh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:317`
-10. **`Core\Math::toBase`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:389`
-11. **`Core\Math::toDegrees`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:362`
-12. **`Core\Math::toRadians`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:353`
-13. **`Core\Math::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:128`
+1. **`Core\Math::min`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:84`
+2. **`Core\Math::mod`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:156`
+3. **`Core\Math::round`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:138`
+4. **`Core\Math::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:75`
+5. **`Core\Math::sin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:237`
+6. **`Core\Math::sinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:300`
+7. **`Core\Math::sqrt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:192`
+8. **`Core\Math::tan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:255`
+9. **`Core\Math::tanh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:318`
+10. **`Core\Math::toBase`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:390`
+11. **`Core\Math::toDegrees`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:363`
+12. **`Core\Math::toRadians`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:354`
+13. **`Core\Math::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:129`
 
 ## Running this goal wide
 

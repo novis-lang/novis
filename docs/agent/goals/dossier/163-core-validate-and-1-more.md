@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Validate::isAscii`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:214`
-2. **`Core\Validate::isDomain`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:187`
-3. **`Core\Validate::isEmail`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:178`
-4. **`Core\Validate::isIp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:196`
-5. **`Core\Validate::isMac`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:205`
-6. **`Core\Validate::isPrintable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:223`
-7. **`Core\Xml::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:189`
-8. **`Core\Xml::reader`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:198`
-9. **`Core\Xml::writer`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:207`
+1. **`Core\Validate::isAscii`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:215`
+2. **`Core\Validate::isDomain`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:188`
+3. **`Core\Validate::isEmail`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:179`
+4. **`Core\Validate::isIp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:197`
+5. **`Core\Validate::isMac`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:206`
+6. **`Core\Validate::isPrintable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:224`
+7. **`Core\Xml::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:190`
+8. **`Core\Xml::reader`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:199`
+9. **`Core\Xml::writer`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:208`
 
 ## Running this goal wide
 

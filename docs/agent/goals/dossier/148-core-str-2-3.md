@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Str::graphemes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:372`
-2. **`Core\Str::indexOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:258`
-3. **`Core\Str::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:209`
-4. **`Core\Str::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:332`
-5. **`Core\Str::lastIndexOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:271`
-6. **`Core\Str::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:363`
-7. **`Core\Str::lower`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:524`
-8. **`Core\Str::lowerFirst`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:551`
-9. **`Core\Str::normalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:569`
-10. **`Core\Str::padEnd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:444`
-11. **`Core\Str::padStart`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:431`
-12. **`Core\Str::repeat`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:493`
-13. **`Core\Str::replace`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:390`
+1. **`Core\Str::graphemes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:373`
+2. **`Core\Str::indexOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:259`
+3. **`Core\Str::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:210`
+4. **`Core\Str::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:333`
+5. **`Core\Str::lastIndexOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:272`
+6. **`Core\Str::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:364`
+7. **`Core\Str::lower`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:525`
+8. **`Core\Str::lowerFirst`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:552`
+9. **`Core\Str::normalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:570`
+10. **`Core\Str::padEnd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:445`
+11. **`Core\Str::padStart`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:432`
+12. **`Core\Str::repeat`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:494`
+13. **`Core\Str::replace`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:391`
 
 ## Running this goal wide
 

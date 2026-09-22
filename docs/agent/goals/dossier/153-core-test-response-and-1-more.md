@@ -26,12 +26,12 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Test\Response::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:844`
-2. **`Core\Test\Response::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:835`
-3. **`Core\Test\SentRequest::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:915`
-4. **`Core\Test\SentRequest::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:906`
-5. **`Core\Test\SentRequest::method`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:888`
-6. **`Core\Test\SentRequest::url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:897`
+1. **`Core\Test\Response::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:846`
+2. **`Core\Test\Response::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:837`
+3. **`Core\Test\SentRequest::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:918`
+4. **`Core\Test\SentRequest::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:909`
+5. **`Core\Test\SentRequest::method`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:891`
+6. **`Core\Test\SentRequest::url`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:900`
 
 ## Running this goal wide
 

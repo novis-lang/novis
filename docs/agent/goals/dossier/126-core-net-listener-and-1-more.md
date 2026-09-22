@@ -26,12 +26,12 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Net\Listener::accept`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:590`
-2. **`Core\Net\Listener::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:608`
-3. **`Core\Net\Listener::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:599`
-4. **`Core\Net\Stream::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:487`
-5. **`Core\Net\Stream::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:466`
-6. **`Core\Net\Stream::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:478`
+1. **`Core\Net\Listener::accept`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:593`
+2. **`Core\Net\Listener::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:611`
+3. **`Core\Net\Listener::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:602`
+4. **`Core\Net\Stream::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:489`
+5. **`Core\Net\Stream::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:468`
+6. **`Core\Net\Stream::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:480`
 
 ## Running this goal wide
 

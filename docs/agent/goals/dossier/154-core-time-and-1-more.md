@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Time::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2170`
-2. **`Core\Time::fromEpoch`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2132`
-3. **`Core\Time::fromIso`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2148`
-4. **`Core\Time::monotonic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2114`
-5. **`Core\Time::now`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2105`
-6. **`Core\Time::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2157`
-7. **`Core\Time::sleep`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2123`
-8. **`Core\Time\Date::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2458`
-9. **`Core\Time\Date::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2504`
-10. **`Core\Time\Date::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2468`
-11. **`Core\Time\Date::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2486`
-12. **`Core\Time\Date::plus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2477`
-13. **`Core\Time\Date::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2495`
+1. **`Core\Time::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2175`
+2. **`Core\Time::fromEpoch`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2137`
+3. **`Core\Time::fromIso`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2153`
+4. **`Core\Time::monotonic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2119`
+5. **`Core\Time::now`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2110`
+6. **`Core\Time::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2162`
+7. **`Core\Time::sleep`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2128`
+8. **`Core\Time\Date::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2464`
+9. **`Core\Time\Date::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2510`
+10. **`Core\Time\Date::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2474`
+11. **`Core\Time\Date::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2492`
+12. **`Core\Time\Date::plus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2483`
+13. **`Core\Time\Date::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2501`
 
 ## Running this goal wide
 

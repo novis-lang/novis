@@ -26,23 +26,23 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Time\DateTime::date`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1687`
-2. **`Core\Time\DateTime::dayOfYear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1723`
-3. **`Core\Time\DateTime::difference`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1669`
-4. **`Core\Time\DateTime::endOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1660`
-5. **`Core\Time\DateTime::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1588`
-6. **`Core\Time\DateTime::isLeapYear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1732`
-7. **`Core\Time\DateTime::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1606`
-8. **`Core\Time\DateTime::next`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1615`
-9. **`Core\Time\DateTime::plus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1597`
-10. **`Core\Time\DateTime::previous`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1624`
-11. **`Core\Time\DateTime::startOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1651`
-12. **`Core\Time\DateTime::timeOfDay`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1696`
-13. **`Core\Time\DateTime::toInstant`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1678`
-14. **`Core\Time\DateTime::weekday`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1714`
-15. **`Core\Time\DateTime::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1633`
-16. **`Core\Time\DateTime::withTime`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1642`
-17. **`Core\Time\DateTime::zone`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1705`
+1. **`Core\Time\DateTime::date`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1691`
+2. **`Core\Time\DateTime::dayOfYear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1727`
+3. **`Core\Time\DateTime::difference`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1673`
+4. **`Core\Time\DateTime::endOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1664`
+5. **`Core\Time\DateTime::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1592`
+6. **`Core\Time\DateTime::isLeapYear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1736`
+7. **`Core\Time\DateTime::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1610`
+8. **`Core\Time\DateTime::next`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1619`
+9. **`Core\Time\DateTime::plus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1601`
+10. **`Core\Time\DateTime::previous`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1628`
+11. **`Core\Time\DateTime::startOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1655`
+12. **`Core\Time\DateTime::timeOfDay`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1700`
+13. **`Core\Time\DateTime::toInstant`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1682`
+14. **`Core\Time\DateTime::weekday`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1718`
+15. **`Core\Time\DateTime::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1637`
+16. **`Core\Time\DateTime::withTime`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1646`
+17. **`Core\Time\DateTime::zone`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1709`
 
 ## Running this goal wide
 

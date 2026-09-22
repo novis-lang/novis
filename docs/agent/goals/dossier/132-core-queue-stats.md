@@ -26,11 +26,11 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Queue\Stats::attempts`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2560`
-2. **`Core\Queue\Stats::claimed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2551`
-3. **`Core\Queue\Stats::deadAttempts`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2578`
-4. **`Core\Queue\Stats::deadLettered`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2569`
-5. **`Core\Queue\Stats::pending`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2542`
+1. **`Core\Queue\Stats::attempts`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2563`
+2. **`Core\Queue\Stats::claimed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2554`
+3. **`Core\Queue\Stats::deadAttempts`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2581`
+4. **`Core\Queue\Stats::deadLettered`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2572`
+5. **`Core\Queue\Stats::pending`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2545`
 
 ## Running this goal wide
 

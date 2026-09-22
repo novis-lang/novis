@@ -26,16 +26,16 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Xml\Writer::attribute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:668`
-2. **`Core\Xml\Writer::cdata`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:686`
-3. **`Core\Xml\Writer::comment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:677`
-4. **`Core\Xml\Writer::content`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:659`
-5. **`Core\Xml\Writer::doctype`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:704`
-6. **`Core\Xml\Writer::endDocument`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:632`
-7. **`Core\Xml\Writer::endElement`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:650`
-8. **`Core\Xml\Writer::instruction`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:695`
-9. **`Core\Xml\Writer::startDocument`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:623`
-10. **`Core\Xml\Writer::startElement`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:641`
+1. **`Core\Xml\Writer::attribute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:672`
+2. **`Core\Xml\Writer::cdata`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:690`
+3. **`Core\Xml\Writer::comment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:681`
+4. **`Core\Xml\Writer::content`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:663`
+5. **`Core\Xml\Writer::doctype`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:708`
+6. **`Core\Xml\Writer::endDocument`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:636`
+7. **`Core\Xml\Writer::endElement`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:654`
+8. **`Core\Xml\Writer::instruction`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:699`
+9. **`Core\Xml\Writer::startDocument`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:627`
+10. **`Core\Xml\Writer::startElement`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:645`
 
 ## Running this goal wide
 

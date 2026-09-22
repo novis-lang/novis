@@ -26,12 +26,12 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Html::escape`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:155`
-2. **`Core\Html::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:164`
-3. **`Core\Html::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:190`
-4. **`Core\Html::sanitize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:199`
-5. **`Core\Html::toSource`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:181`
-6. **`Core\Http::allowUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:146`
+1. **`Core\Html::escape`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:156`
+2. **`Core\Html::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:165`
+3. **`Core\Html::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:191`
+4. **`Core\Html::sanitize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:200`
+5. **`Core\Html::toSource`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/html.rs:182`
+6. **`Core\Http::allowUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:147`
 
 ## Running this goal wide
 

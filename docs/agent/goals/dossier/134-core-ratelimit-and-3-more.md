@@ -26,20 +26,20 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\RateLimit::consume`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:146`
-2. **`Core\RateLimit::shed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:172`
-3. **`Core\RateLimit\Decision::allowed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:309`
-4. **`Core\RateLimit\Decision::limit`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:318`
-5. **`Core\RateLimit\Decision::remaining`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:327`
-6. **`Core\RateLimit\Decision::retryAfter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:336`
-7. **`Core\Reflect::forClass`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:328`
-8. **`Core\Reflect::forObject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:340`
-9. **`Core\Reflect::typeOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:352`
-10. **`Core\Reflect\AttributeInfo::field`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1507`
-11. **`Core\Reflect\AttributeInfo::fields`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1498`
-12. **`Core\Reflect\AttributeInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1471`
-13. **`Core\Reflect\AttributeInfo::parameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1489`
-14. **`Core\Reflect\AttributeInfo::target`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1480`
+1. **`Core\RateLimit::consume`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:147`
+2. **`Core\RateLimit::shed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:173`
+3. **`Core\RateLimit\Decision::allowed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:311`
+4. **`Core\RateLimit\Decision::limit`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:320`
+5. **`Core\RateLimit\Decision::remaining`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:329`
+6. **`Core\RateLimit\Decision::retryAfter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/ratelimit.rs:338`
+7. **`Core\Reflect::forClass`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:329`
+8. **`Core\Reflect::forObject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:341`
+9. **`Core\Reflect::typeOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:353`
+10. **`Core\Reflect\AttributeInfo::field`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1515`
+11. **`Core\Reflect\AttributeInfo::fields`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1506`
+12. **`Core\Reflect\AttributeInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1479`
+13. **`Core\Reflect\AttributeInfo::parameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1497`
+14. **`Core\Reflect\AttributeInfo::target`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1488`
 
 ## Running this goal wide
 

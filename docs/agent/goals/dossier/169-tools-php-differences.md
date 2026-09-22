@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`tools:php-differences/arrays-and-strings`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:183`
+1. **`tools:php-differences/arrays-and-strings`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:184`
 2. **`tools:php-differences/classes`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:147`
-3. **`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:172`
+3. **`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:173`
 4. **`tools:php-differences/control-flow`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:123`
 5. **`tools:php-differences/files-tags-and-names`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:49`
 6. **`tools:php-differences/functions-constants-and-scope`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:65`
 7. **`tools:php-differences/operators`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:105`
 8. **`tools:php-differences/the-short-list`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:17`
-9. **`tools:php-differences/the-tools-you-do-not-install`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:246`
-10. **`tools:php-differences/two-spellings-side-by-side`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:261`
+9. **`tools:php-differences/the-tools-you-do-not-install`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:247`
+10. **`tools:php-differences/two-spellings-side-by-side`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:262`
 11. **`tools:php-differences/types-and-conversions`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:85`
-12. **`tools:php-differences/what-parses-but-behaves-differently`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:195`
+12. **`tools:php-differences/what-parses-but-behaves-differently`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:196`
 
 ## Running this goal wide
 

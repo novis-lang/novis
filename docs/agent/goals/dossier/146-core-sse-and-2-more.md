@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Sse::current`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:164`
-2. **`Core\Sse::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:181`
-3. **`Core\Sse::retry`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:216`
-4. **`Core\Sse::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:194`
-5. **`Core\Sse::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:150`
-6. **`Core\Sse::upgrade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:133`
-7. **`Core\Sse\Message::topic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:443`
-8. **`Core\Sse\Message::value`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:452`
-9. **`Core\Storage::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:194`
-10. **`Core\Storage::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:185`
-11. **`Core\Storage::list`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:203`
-12. **`Core\Storage::put`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:171`
+1. **`Core\Sse::current`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:165`
+2. **`Core\Sse::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:182`
+3. **`Core\Sse::retry`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:217`
+4. **`Core\Sse::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:195`
+5. **`Core\Sse::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:151`
+6. **`Core\Sse::upgrade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:134`
+7. **`Core\Sse\Message::topic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:445`
+8. **`Core\Sse\Message::value`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/sse.rs:454`
+9. **`Core\Storage::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:195`
+10. **`Core\Storage::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:186`
+11. **`Core\Storage::list`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:204`
+12. **`Core\Storage::put`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/storage.rs:172`
 
 ## Running this goal wide
 

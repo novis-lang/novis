@@ -26,9 +26,9 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Zip::entries`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:125`
-2. **`Core\Zip::extract`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:151`
-3. **`Core\Zip::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:134`
+1. **`Core\Zip::entries`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:126`
+2. **`Core\Zip::extract`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:152`
+3. **`Core\Zip::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:135`
 
 ## Running this goal wide
 

@@ -26,14 +26,14 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Http\Socket::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:251`
-2. **`Core\Http\Socket::protocol`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:266`
-3. **`Core\Http\Socket::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:219`
-4. **`Core\Http\Socket::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:228`
-5. **`Core\Http\Socket::sendBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:242`
-6. **`Core\Http\Event::data`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:386`
-7. **`Core\Http\Event::id`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:404`
-8. **`Core\Http\Event::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:395`
+1. **`Core\Http\Socket::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:252`
+2. **`Core\Http\Socket::protocol`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:267`
+3. **`Core\Http\Socket::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:220`
+4. **`Core\Http\Socket::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:229`
+5. **`Core\Http\Socket::sendBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/socket.rs:243`
+6. **`Core\Http\Event::data`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:388`
+7. **`Core\Http\Event::id`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:406`
+8. **`Core\Http\Event::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:397`
 
 ## Running this goal wide
 

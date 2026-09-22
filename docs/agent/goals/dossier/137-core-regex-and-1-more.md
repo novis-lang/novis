@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Regex::compile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:111`
-2. **`Core\Regex::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:132`
-3. **`Core\Regex::matchAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:145`
-4. **`Core\Regex::matches`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:120`
-5. **`Core\Regex::quote`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:198`
-6. **`Core\Regex::replace`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:157`
-7. **`Core\Regex::replaceWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:171`
-8. **`Core\Regex::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:185`
-9. **`Core\Regex\Match::group`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:577`
-10. **`Core\Regex\Match::groups`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:586`
-11. **`Core\Regex\Match::offset`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:595`
-12. **`Core\Regex\Match::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:604`
+1. **`Core\Regex::compile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:112`
+2. **`Core\Regex::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:133`
+3. **`Core\Regex::matchAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:146`
+4. **`Core\Regex::matches`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:121`
+5. **`Core\Regex::quote`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:199`
+6. **`Core\Regex::replace`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:158`
+7. **`Core\Regex::replaceWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:172`
+8. **`Core\Regex::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:186`
+9. **`Core\Regex\Match::group`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:580`
+10. **`Core\Regex\Match::groups`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:589`
+11. **`Core\Regex\Match::offset`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:598`
+12. **`Core\Regex\Match::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:607`
 
 ## Running this goal wide
 

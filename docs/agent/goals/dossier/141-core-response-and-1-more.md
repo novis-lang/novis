@@ -26,17 +26,17 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Response::addCookie`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:420`
-2. **`Core\Response::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:332`
-3. **`Core\Response::html`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:296`
-4. **`Core\Response::json`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:312`
-5. **`Core\Response::redirect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:405`
-6. **`Core\Response::sendFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:344`
-7. **`Core\Response::setHeader`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:393`
-8. **`Core\Response::setStatus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:380`
-9. **`Core\Response::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:360`
-10. **`Core\Response::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:321`
-11. **`Core\Response\Stream::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:532`
+1. **`Core\Response::addCookie`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:421`
+2. **`Core\Response::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:333`
+3. **`Core\Response::html`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:297`
+4. **`Core\Response::json`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:313`
+5. **`Core\Response::redirect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:406`
+6. **`Core\Response::sendFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:345`
+7. **`Core\Response::setHeader`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:394`
+8. **`Core\Response::setStatus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:381`
+9. **`Core\Response::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:361`
+10. **`Core\Response::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:322`
+11. **`Core\Response\Stream::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:534`
 
 ## Running this goal wide
 

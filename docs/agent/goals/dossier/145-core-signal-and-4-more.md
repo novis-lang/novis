@@ -26,20 +26,20 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Signal::onShutdown`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signal.rs:77`
-2. **`Core\Signature::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signature.rs:209`
-3. **`Core\Signature::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signature.rs:228`
-4. **`Core\SignedCookie::open`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signed_cookie.rs:124`
-5. **`Core\SignedCookie::seal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signed_cookie.rs:112`
-6. **`Core\Socket::current`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:247`
-7. **`Core\Socket::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:258`
-8. **`Core\Socket::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:275`
-9. **`Core\Socket::sendBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:288`
-10. **`Core\Socket::upgrade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:226`
-11. **`Core\Socket\Message::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:497`
-12. **`Core\Socket\Message::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:488`
-13. **`Core\Socket\Message::topic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:479`
-14. **`Core\Socket\Message::value`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:506`
+1. **`Core\Signal::onShutdown`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signal.rs:78`
+2. **`Core\Signature::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signature.rs:210`
+3. **`Core\Signature::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signature.rs:229`
+4. **`Core\SignedCookie::open`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signed_cookie.rs:125`
+5. **`Core\SignedCookie::seal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/signed_cookie.rs:113`
+6. **`Core\Socket::current`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:248`
+7. **`Core\Socket::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:259`
+8. **`Core\Socket::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:276`
+9. **`Core\Socket::sendBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:289`
+10. **`Core\Socket::upgrade`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:227`
+11. **`Core\Socket\Message::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:499`
+12. **`Core\Socket\Message::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:490`
+13. **`Core\Socket\Message::topic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:481`
+14. **`Core\Socket\Message::value`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:508`
 
 ## Running this goal wide
 

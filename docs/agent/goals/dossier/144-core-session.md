@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Session::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:193`
-2. **`Core\Session::destroy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:214`
-3. **`Core\Session::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:157`
-4. **`Core\Session::getSecret`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:244`
-5. **`Core\Session::regenerate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:202`
-6. **`Core\Session::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:184`
-7. **`Core\Session::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:171`
-8. **`Core\Session::setSecret`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:223`
-9. **`Core\Session::start`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:143`
+1. **`Core\Session::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:194`
+2. **`Core\Session::destroy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:215`
+3. **`Core\Session::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:158`
+4. **`Core\Session::getSecret`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:245`
+5. **`Core\Session::regenerate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:203`
+6. **`Core\Session::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:185`
+7. **`Core\Session::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:172`
+8. **`Core\Session::setSecret`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:224`
+9. **`Core\Session::start`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:144`
 
 ## Running this goal wide
 

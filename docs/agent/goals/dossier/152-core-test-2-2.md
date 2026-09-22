@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Test::assertNull`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:549`
-2. **`Core\Test::assertSame`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:513`
-3. **`Core\Test::assertThrows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:597`
-4. **`Core\Test::assertTrue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:540`
-5. **`Core\Test::double`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:738`
-6. **`Core\Test::expectFailure`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:622`
-7. **`Core\Test::partial`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:754`
-8. **`Core\Test::request`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:662`
-9. **`Core\Test::scriptAnswers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:653`
-10. **`Core\Test::sentHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:701`
-11. **`Core\Test::sentSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:729`
-12. **`Core\Test::serverUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:640`
+1. **`Core\Test::assertNull`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:550`
+2. **`Core\Test::assertSame`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:514`
+3. **`Core\Test::assertThrows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:598`
+4. **`Core\Test::assertTrue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:541`
+5. **`Core\Test::double`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:739`
+6. **`Core\Test::expectFailure`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:623`
+7. **`Core\Test::partial`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:755`
+8. **`Core\Test::request`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:663`
+9. **`Core\Test::scriptAnswers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:654`
+10. **`Core\Test::sentHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:702`
+11. **`Core\Test::sentSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:730`
+12. **`Core\Test::serverUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:641`
 
 ## Running this goal wide
 

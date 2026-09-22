@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Uri::buildQuery`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:462`
-2. **`Core\Uri::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:621`
-3. **`Core\Uri::decodeComponent`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:423`
-4. **`Core\Uri::decodeFormValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:443`
-5. **`Core\Uri::encodeComponent`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:414`
-6. **`Core\Uri::encodeFormValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:434`
-7. **`Core\Uri::fragment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:527`
-8. **`Core\Uri::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:491`
-9. **`Core\Uri::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:396`
-10. **`Core\Uri::parseQuery`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:453`
-11. **`Core\Uri::path`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:509`
-12. **`Core\Uri::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:500`
+1. **`Core\Uri::buildQuery`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:463`
+2. **`Core\Uri::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:622`
+3. **`Core\Uri::decodeComponent`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:424`
+4. **`Core\Uri::decodeFormValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:444`
+5. **`Core\Uri::encodeComponent`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:415`
+6. **`Core\Uri::encodeFormValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:435`
+7. **`Core\Uri::fragment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:528`
+8. **`Core\Uri::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:492`
+9. **`Core\Uri::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:397`
+10. **`Core\Uri::parseQuery`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:454`
+11. **`Core\Uri::path`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:510`
+12. **`Core\Uri::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:501`
 
 ## Running this goal wide
 

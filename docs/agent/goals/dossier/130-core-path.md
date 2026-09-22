@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Path::basename`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:95`
-2. **`Core\Path::dirname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:107`
-3. **`Core\Path::extension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:119`
-4. **`Core\Path::isAbsolute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:170`
-5. **`Core\Path::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:140`
-6. **`Core\Path::normalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:161`
-7. **`Core\Path::relativeTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:179`
-8. **`Core\Path::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:152`
-9. **`Core\Path::withExtension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:128`
+1. **`Core\Path::basename`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:96`
+2. **`Core\Path::dirname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:108`
+3. **`Core\Path::extension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:120`
+4. **`Core\Path::isAbsolute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:171`
+5. **`Core\Path::join`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:141`
+6. **`Core\Path::normalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:162`
+7. **`Core\Path::relativeTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:180`
+8. **`Core\Path::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:153`
+9. **`Core\Path::withExtension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:129`
 
 ## Running this goal wide
 

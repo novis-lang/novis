@@ -13,8 +13,8 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Debug::dump`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:107`
-- [ ] **`Core\Debug::render`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:116`
+- [ ] **`Core\Debug::dump`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:108`
+- [ ] **`Core\Debug::render`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:117`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

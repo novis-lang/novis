@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Reflect\EnumInfo::cases`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1197`
-- [ ] **`Core\Reflect\EnumInfo::isUnsigned`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1218`
-- [ ] **`Core\Reflect\EnumInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1188`
+- [ ] **`Core\Reflect\EnumInfo::cases`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1202`
+- [ ] **`Core\Reflect\EnumInfo::isUnsigned`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1223`
+- [ ] **`Core\Reflect\EnumInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1193`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

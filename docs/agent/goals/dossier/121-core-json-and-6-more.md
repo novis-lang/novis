@@ -26,23 +26,23 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Json::decode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:281`
-2. **`Core\Json::decodeAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:293`
-3. **`Core\Json::encode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:272`
-4. **`Core\Json::isValid`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:305`
-5. **`Core\Jwe::decrypt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:185`
-6. **`Core\Jwe::encrypt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:174`
-7. **`Core\Jwe\Key::own`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:320`
-8. **`Core\Jwe\Key::password`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:298`
-9. **`Core\Jwe\Key::recipient`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:311`
-10. **`Core\Jwe\Key::shared`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:286`
-11. **`Core\Jwt::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:427`
-12. **`Core\Jwt::signObject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:444`
-13. **`Core\Jwt::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:465`
-14. **`Core\Jwt::verifyIssued`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:478`
-15. **`Core\Jwt\KeySet::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:780`
-16. **`Core\Log::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/log.rs:141`
-17. **`Core\Mail::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mail.rs:170`
+1. **`Core\Json::decode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:282`
+2. **`Core\Json::decodeAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:294`
+3. **`Core\Json::encode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:273`
+4. **`Core\Json::isValid`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/json.rs:306`
+5. **`Core\Jwe::decrypt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:186`
+6. **`Core\Jwe::encrypt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:175`
+7. **`Core\Jwe\Key::own`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:322`
+8. **`Core\Jwe\Key::password`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:300`
+9. **`Core\Jwe\Key::recipient`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:313`
+10. **`Core\Jwe\Key::shared`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwe.rs:288`
+11. **`Core\Jwt::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:428`
+12. **`Core\Jwt::signObject`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:445`
+13. **`Core\Jwt::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:466`
+14. **`Core\Jwt::verifyIssued`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:479`
+15. **`Core\Jwt\KeySet::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/jwt.rs:782`
+16. **`Core\Log::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/log.rs:142`
+17. **`Core\Mail::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mail.rs:171`
 
 ## Running this goal wide
 

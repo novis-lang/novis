@@ -26,13 +26,13 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Uuid::fromBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:186`
-2. **`Core\Uuid::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:162`
-3. **`Core\Uuid::toBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:211`
-4. **`Core\Uuid::toString`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:202`
-5. **`Core\Uuid::tryParse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:177`
-6. **`Core\Uuid::v4`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:144`
-7. **`Core\Uuid::v7`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:153`
+1. **`Core\Uuid::fromBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:187`
+2. **`Core\Uuid::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:163`
+3. **`Core\Uuid::toBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:212`
+4. **`Core\Uuid::toString`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:203`
+5. **`Core\Uuid::tryParse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:178`
+6. **`Core\Uuid::v4`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:145`
+7. **`Core\Uuid::v7`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:154`
 
 ## Running this goal wide
 

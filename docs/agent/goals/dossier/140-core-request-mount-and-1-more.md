@@ -26,14 +26,14 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Request\Mount::captures`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1000`
-2. **`Core\Request\Mount::prefix`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:991`
-3. **`Core\Request\Part::content`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1238`
-4. **`Core\Request\Part::contentType`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1229`
-5. **`Core\Request\Part::filename`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1220`
-6. **`Core\Request\Part::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1211`
-7. **`Core\Request\Part::readAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1247`
-8. **`Core\Request\Part::saveTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1256`
+1. **`Core\Request\Mount::captures`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1002`
+2. **`Core\Request\Mount::prefix`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:993`
+3. **`Core\Request\Part::content`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1243`
+4. **`Core\Request\Part::contentType`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1234`
+5. **`Core\Request\Part::filename`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1225`
+6. **`Core\Request\Part::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1216`
+7. **`Core\Request\Part::readAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1252`
+8. **`Core\Request\Part::saveTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1261`
 
 ## Running this goal wide
 

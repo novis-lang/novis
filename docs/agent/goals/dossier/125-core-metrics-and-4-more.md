@@ -26,23 +26,23 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Metrics::gauge`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:166`
-2. **`Core\Metrics::increment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:144`
-3. **`Core\Metrics::observe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:153`
-4. **`Core\Mime::detect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mime.rs:198`
-5. **`Core\Mime::mediaType`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mime.rs:207`
-6. **`Core\Net::bindDatagram`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:227`
-7. **`Core\Net::connect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:202`
-8. **`Core\Net::connectLocal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:240`
-9. **`Core\Net::listen`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:214`
-10. **`Core\Net::listenLocal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:256`
-11. **`Core\Net\Datagram::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:728`
-12. **`Core\Net\Datagram::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:719`
-13. **`Core\Net\Datagram::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:710`
-14. **`Core\Net\Datagram::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:693`
-15. **`Core\Net\Datagram\Message::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:883`
-16. **`Core\Net\Datagram\Message::payload`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:870`
-17. **`Core\Net\Datagram\Message::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:892`
+1. **`Core\Metrics::gauge`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:167`
+2. **`Core\Metrics::increment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:145`
+3. **`Core\Metrics::observe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:154`
+4. **`Core\Mime::detect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mime.rs:199`
+5. **`Core\Mime::mediaType`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/mime.rs:208`
+6. **`Core\Net::bindDatagram`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:228`
+7. **`Core\Net::connect`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:203`
+8. **`Core\Net::connectLocal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:241`
+9. **`Core\Net::listen`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:215`
+10. **`Core\Net::listenLocal`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:257`
+11. **`Core\Net\Datagram::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:732`
+12. **`Core\Net\Datagram::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:723`
+13. **`Core\Net\Datagram::receive`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:714`
+14. **`Core\Net\Datagram::send`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:697`
+15. **`Core\Net\Datagram\Message::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:888`
+16. **`Core\Net\Datagram\Message::payload`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:875`
+17. **`Core\Net\Datagram\Message::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:897`
 
 ## Running this goal wide
 

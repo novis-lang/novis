@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 176 — `var` is a `foreach` binding's type wherever a local allows it — has just started; nothing of it has landed yet.** Goal `plain-comments`'s whole list is this goal's Stage 1 floor.
+**Goal 177 — `var` is a `foreach` binding's type wherever a local allows it — has just started; nothing of it has landed yet.** Goal `plain-comments`'s whole list is this goal's Stage 1 floor.
 
 The design is settled and is the user's, in one sentence: a `foreach` binding may write `var`
 wherever a local declaration may, and means what it means there. The goal file's § *Standing

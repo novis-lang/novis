@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Http\Client::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1570`
-2. **`Core\Http\Client::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1534`
-3. **`Core\Http\Client::head`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1579`
-4. **`Core\Http\Client::openSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1629`
-5. **`Core\Http\Client::patch`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1561`
-6. **`Core\Http\Client::post`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1543`
-7. **`Core\Http\Client::put`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1552`
-8. **`Core\Http\Client::request`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1588`
-9. **`Core\Http\Client::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1608`
-10. **`Core\Http\Identity::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:249`
-11. **`Core\Http\Part::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1136`
-12. **`Core\Http\Part::file`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1124`
+1. **`Core\Http\Client::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1575`
+2. **`Core\Http\Client::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1539`
+3. **`Core\Http\Client::head`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1584`
+4. **`Core\Http\Client::openSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1634`
+5. **`Core\Http\Client::patch`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1566`
+6. **`Core\Http\Client::post`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1548`
+7. **`Core\Http\Client::put`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1557`
+8. **`Core\Http\Client::request`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1593`
+9. **`Core\Http\Client::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1613`
+10. **`Core\Http\Identity::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:252`
+11. **`Core\Http\Part::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1140`
+12. **`Core\Http\Part::file`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http.rs:1128`
 
 ## Running this goal wide
 

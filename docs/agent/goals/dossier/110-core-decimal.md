@@ -26,14 +26,14 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Decimal::allocate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:110`
-2. **`Core\Decimal::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:137`
-3. **`Core\Decimal::divExact`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:87`
-4. **`Core\Decimal::divRound`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:96`
-5. **`Core\Decimal::floor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:128`
-6. **`Core\Decimal::pow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:119`
-7. **`Core\Decimal::round`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:155`
-8. **`Core\Decimal::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:146`
+1. **`Core\Decimal::allocate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:111`
+2. **`Core\Decimal::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:138`
+3. **`Core\Decimal::divExact`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:88`
+4. **`Core\Decimal::divRound`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:97`
+5. **`Core\Decimal::floor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:129`
+6. **`Core\Decimal::pow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:120`
+7. **`Core\Decimal::round`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:156`
+8. **`Core\Decimal::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:147`
 
 ## Running this goal wide
 

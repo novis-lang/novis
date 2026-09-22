@@ -26,13 +26,13 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Http\Stream::chunks`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:216`
-2. **`Core\Http\Stream::events`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:198`
-3. **`Core\Http\Stream::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:180`
-4. **`Core\Http\Stream::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:189`
-5. **`Core\Http\Stream::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:207`
-6. **`Core\Http\Stream::saveTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:225`
-7. **`Core\Http\Stream::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:171`
+1. **`Core\Http\Stream::chunks`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:217`
+2. **`Core\Http\Stream::events`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:199`
+3. **`Core\Http\Stream::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:181`
+4. **`Core\Http\Stream::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:190`
+5. **`Core\Http\Stream::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:208`
+6. **`Core\Http\Stream::saveTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:226`
+7. **`Core\Http\Stream::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:172`
 
 ## Running this goal wide
 

@@ -2,7 +2,7 @@
 milestone: post-parity
 position: last
 ---
-# Loop goal 176 — `var` is a `foreach` binding's type wherever a local allows it
+# Loop goal 177 — `var` is a `foreach` binding's type wherever a local allows it
 
 A `foreach` binding may write `var` where it writes a type today, and everything
 `rule:types/var-inference` says of a `var` local is then true of it: `foreach ($users as var $u)`

@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Decimal::allocate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:110`
-- [ ] **`Core\Decimal::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:137`
-- [ ] **`Core\Decimal::divExact`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:87`
+- [ ] **`Core\Decimal::allocate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:111`
+- [ ] **`Core\Decimal::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:138`
+- [ ] **`Core\Decimal::divExact`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/decimal.rs:88`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

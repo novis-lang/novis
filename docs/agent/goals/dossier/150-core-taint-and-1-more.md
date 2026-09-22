@@ -26,10 +26,10 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Taint::assertTrusted`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/taint.rs:57`
-2. **`Core\Task::afterResponse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:155`
-3. **`Core\Task::all`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:133`
-4. **`Core\Task::map`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:142`
+1. **`Core\Taint::assertTrusted`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/taint.rs:58`
+2. **`Core\Task::afterResponse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:156`
+3. **`Core\Task::all`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:134`
+4. **`Core\Task::map`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:143`
 
 ## Running this goal wide
 

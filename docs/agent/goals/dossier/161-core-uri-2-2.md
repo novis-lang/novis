@@ -26,17 +26,17 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Uri::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:518`
-2. **`Core\Uri::queryParameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:585`
-3. **`Core\Uri::resolve`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:612`
-4. **`Core\Uri::scheme`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:473`
-5. **`Core\Uri::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:630`
-6. **`Core\Uri::toString`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:536`
-7. **`Core\Uri::tryParse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:405`
-8. **`Core\Uri::userInfo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:482`
-9. **`Core\Uri::verifySignature`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:650`
-10. **`Core\Uri::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:545`
-11. **`Core\Uri::withQueryParameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:599`
+1. **`Core\Uri::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:519`
+2. **`Core\Uri::queryParameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:586`
+3. **`Core\Uri::resolve`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:613`
+4. **`Core\Uri::scheme`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:474`
+5. **`Core\Uri::sign`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:631`
+6. **`Core\Uri::toString`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:537`
+7. **`Core\Uri::tryParse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:406`
+8. **`Core\Uri::userInfo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:483`
+9. **`Core\Uri::verifySignature`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:651`
+10. **`Core\Uri::with`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:546`
+11. **`Core\Uri::withQueryParameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:600`
 
 ## Running this goal wide
 

@@ -26,24 +26,24 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Process::run`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:132`
-2. **`Core\Process::spawn`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:151`
-3. **`Core\Process\Handle::kill`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:340`
-4. **`Core\Process\Handle::readStderr`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:305`
-5. **`Core\Process\Handle::readStdout`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:296`
-6. **`Core\Process\Handle::wait`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:331`
-7. **`Core\Process\Handle::writeStdin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:314`
-8. **`Core\Process\Result::exitCode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:472`
-9. **`Core\Process\Result::stderr`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:490`
-10. **`Core\Process\Result::stdout`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:481`
-11. **`Core\Program::id`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/program.rs:77`
-12. **`Core\Program::implementing`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/program.rs:68`
-13. **`Core\Queue::cancel`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2045`
-14. **`Core\Queue::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2076`
-15. **`Core\Queue::purge`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2091`
-16. **`Core\Queue::push`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:1902`
-17. **`Core\Queue::stats`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2058`
-18. **`Core\Queue::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2030`
+1. **`Core\Process::run`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:133`
+2. **`Core\Process::spawn`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:152`
+3. **`Core\Process\Handle::kill`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:342`
+4. **`Core\Process\Handle::readStderr`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:307`
+5. **`Core\Process\Handle::readStdout`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:298`
+6. **`Core\Process\Handle::wait`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:333`
+7. **`Core\Process\Handle::writeStdin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:316`
+8. **`Core\Process\Result::exitCode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:475`
+9. **`Core\Process\Result::stderr`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:493`
+10. **`Core\Process\Result::stdout`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:484`
+11. **`Core\Program::id`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/program.rs:114`
+12. **`Core\Program::implementing`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/program.rs:96`
+13. **`Core\Queue::cancel`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2046`
+14. **`Core\Queue::delete`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2077`
+15. **`Core\Queue::purge`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2092`
+16. **`Core\Queue::push`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:1903`
+17. **`Core\Queue::stats`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2059`
+18. **`Core\Queue::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2031`
 
 ## Running this goal wide
 

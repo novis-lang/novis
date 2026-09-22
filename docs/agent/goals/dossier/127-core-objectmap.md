@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\ObjectMap::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:150`
-2. **`Core\ObjectMap::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:114`
-3. **`Core\ObjectMap::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:87`
-4. **`Core\ObjectMap::has`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:96`
-5. **`Core\ObjectMap::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:123`
-6. **`Core\ObjectMap::keys`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:132`
-7. **`Core\ObjectMap::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:105`
-8. **`Core\ObjectMap::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:78`
-9. **`Core\ObjectMap::values`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:141`
+1. **`Core\ObjectMap::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:151`
+2. **`Core\ObjectMap::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:115`
+3. **`Core\ObjectMap::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:88`
+4. **`Core\ObjectMap::has`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:97`
+5. **`Core\ObjectMap::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:124`
+6. **`Core\ObjectMap::keys`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:133`
+7. **`Core\ObjectMap::remove`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:106`
+8. **`Core\ObjectMap::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:79`
+9. **`Core\ObjectMap::values`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:142`
 
 ## Running this goal wide
 

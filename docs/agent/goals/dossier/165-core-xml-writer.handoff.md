@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Xml\Writer::attribute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:668`
-- [ ] **`Core\Xml\Writer::cdata`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:686`
-- [ ] **`Core\Xml\Writer::comment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:677`
+- [ ] **`Core\Xml\Writer::attribute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:672`
+- [ ] **`Core\Xml\Writer::cdata`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:690`
+- [ ] **`Core\Xml\Writer::comment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:681`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

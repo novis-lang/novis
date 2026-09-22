@@ -26,22 +26,22 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Reflect\ClassInfo::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:585`
-2. **`Core\Reflect\ClassInfo::call`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:618`
-3. **`Core\Reflect\ClassInfo::constant`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:564`
-4. **`Core\Reflect\ClassInfo::constants`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:555`
-5. **`Core\Reflect\ClassInfo::construct`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:637`
-6. **`Core\Reflect\ClassInfo::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:594`
-7. **`Core\Reflect\ClassInfo::hasMethod`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:576`
-8. **`Core\Reflect\ClassInfo::hasProperty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:537`
-9. **`Core\Reflect\ClassInfo::methods`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:546`
-10. **`Core\Reflect\ClassInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:510`
-11. **`Core\Reflect\ClassInfo::properties`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:519`
-12. **`Core\Reflect\ClassInfo::readableProperties`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:528`
-13. **`Core\Reflect\ClassInfo::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:605`
-14. **`Core\Reflect\ConstantInfo::hasValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1406`
-15. **`Core\Reflect\ConstantInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1397`
-16. **`Core\Reflect\ConstantInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1388`
+1. **`Core\Reflect\ClassInfo::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:587`
+2. **`Core\Reflect\ClassInfo::call`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:620`
+3. **`Core\Reflect\ClassInfo::constant`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:566`
+4. **`Core\Reflect\ClassInfo::constants`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:557`
+5. **`Core\Reflect\ClassInfo::construct`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:639`
+6. **`Core\Reflect\ClassInfo::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:596`
+7. **`Core\Reflect\ClassInfo::hasMethod`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:578`
+8. **`Core\Reflect\ClassInfo::hasProperty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:539`
+9. **`Core\Reflect\ClassInfo::methods`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:548`
+10. **`Core\Reflect\ClassInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:512`
+11. **`Core\Reflect\ClassInfo::properties`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:521`
+12. **`Core\Reflect\ClassInfo::readableProperties`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:530`
+13. **`Core\Reflect\ClassInfo::set`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:607`
+14. **`Core\Reflect\ConstantInfo::hasValue`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1413`
+15. **`Core\Reflect\ConstantInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1404`
+16. **`Core\Reflect\ConstantInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1395`
 
 ## Running this goal wide
 

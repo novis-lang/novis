@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Regex::compile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:111`
-- [ ] **`Core\Regex::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:132`
-- [ ] **`Core\Regex::matchAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:145`
+- [ ] **`Core\Regex::compile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:112`
+- [ ] **`Core\Regex::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:133`
+- [ ] **`Core\Regex::matchAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:146`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

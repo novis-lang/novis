@@ -26,11 +26,11 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:162`
+1. **`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:168`
 2. **`tools:install/the-layout`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:9`
-3. **`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:66`
-4. **`tools:install/when-something-is-refused`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:178`
-5. **`tools:install/windows`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:101`
+3. **`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:72`
+4. **`tools:install/when-something-is-refused`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:184`
+5. **`tools:install/windows`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:107`
 
 ## Running this goal wide
 

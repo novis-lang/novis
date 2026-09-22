@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Os::cpuCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:74`
-2. **`Core\Os::hostname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:65`
-3. **`Core\Os::loadAverage`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:92`
-4. **`Core\Os::pid`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:56`
-5. **`Core\Os::residentBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:83`
-6. **`Core\Out::capture`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/out.rs:60`
-7. **`Core\Password::hash`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:205`
-8. **`Core\Password::needsRehash`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:223`
-9. **`Core\Password::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:214`
+1. **`Core\Os::cpuCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:75`
+2. **`Core\Os::hostname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:66`
+3. **`Core\Os::loadAverage`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:93`
+4. **`Core\Os::pid`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:57`
+5. **`Core\Os::residentBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:84`
+6. **`Core\Out::capture`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/out.rs:61`
+7. **`Core\Password::hash`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:206`
+8. **`Core\Password::needsRehash`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:224`
+9. **`Core\Password::verify`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/password.rs:215`
 
 ## Running this goal wide
 

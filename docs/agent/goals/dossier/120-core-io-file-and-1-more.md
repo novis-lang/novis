@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\IO\File::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1416`
-2. **`Core\IO\File::flush`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1395`
-3. **`Core\IO\File::lock`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1404`
-4. **`Core\IO\File::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1334`
-5. **`Core\IO\File::readLine`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1343`
-6. **`Core\IO\File::seek`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1363`
-7. **`Core\IO\File::tell`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1375`
-8. **`Core\IO\File::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1384`
-9. **`Core\IO\File::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1352`
-10. **`Core\IO\Metadata::isDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1848`
-11. **`Core\IO\Metadata::isFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1839`
-12. **`Core\IO\Metadata::modifiedAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1830`
-13. **`Core\IO\Metadata::size`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1821`
+1. **`Core\IO\File::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1418`
+2. **`Core\IO\File::flush`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1397`
+3. **`Core\IO\File::lock`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1406`
+4. **`Core\IO\File::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1336`
+5. **`Core\IO\File::readLine`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1345`
+6. **`Core\IO\File::seek`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1365`
+7. **`Core\IO\File::tell`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1377`
+8. **`Core\IO\File::truncate`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1386`
+9. **`Core\IO\File::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1354`
+10. **`Core\IO\Metadata::isDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1853`
+11. **`Core\IO\Metadata::isFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1844`
+12. **`Core\IO\Metadata::modifiedAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1835`
+13. **`Core\IO\Metadata::size`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1826`
 
 ## Running this goal wide
 

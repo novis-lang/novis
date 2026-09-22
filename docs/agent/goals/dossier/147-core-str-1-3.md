@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Str::after`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:319`
-2. **`Core\Str::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:200`
-3. **`Core\Str::before`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:306`
-4. **`Core\Str::chunk`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:354`
-5. **`Core\Str::codePoints`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:381`
-6. **`Core\Str::compare`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:293`
-7. **`Core\Str::contains`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:218`
-8. **`Core\Str::countOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:284`
-9. **`Core\Str::endsWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:236`
-10. **`Core\Str::fold`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:560`
-11. **`Core\Str::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:599`
-12. **`Core\Str::fromCodePoint`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:581`
-13. **`Core\Str::fromCodePoints`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:590`
+1. **`Core\Str::after`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:320`
+2. **`Core\Str::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:201`
+3. **`Core\Str::before`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:307`
+4. **`Core\Str::chunk`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:355`
+5. **`Core\Str::codePoints`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:382`
+6. **`Core\Str::compare`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:294`
+7. **`Core\Str::contains`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:219`
+8. **`Core\Str::countOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:285`
+9. **`Core\Str::endsWith`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:237`
+10. **`Core\Str::fold`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:561`
+11. **`Core\Str::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:600`
+12. **`Core\Str::fromCodePoint`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:582`
+13. **`Core\Str::fromCodePoints`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:591`
 
 ## Running this goal wide
 

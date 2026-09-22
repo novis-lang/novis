@@ -26,8 +26,8 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Debug::dump`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:107`
-2. **`Core\Debug::render`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:116`
+1. **`Core\Debug::dump`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:108`
+2. **`Core\Debug::render`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/debug.rs:117`
 
 ## Running this goal wide
 

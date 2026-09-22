@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Test::assertNull`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:549`
-- [ ] **`Core\Test::assertSame`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:513`
-- [ ] **`Core\Test::assertThrows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:597`
+- [ ] **`Core\Test::assertNull`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:550`
+- [ ] **`Core\Test::assertSame`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:514`
+- [ ] **`Core\Test::assertThrows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:598`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

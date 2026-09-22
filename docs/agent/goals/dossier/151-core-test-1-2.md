@@ -26,18 +26,18 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Test::advance`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:631`
-2. **`Core\Test::answerHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:680`
-3. **`Core\Test::answerSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:710`
-4. **`Core\Test::assertCalled`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:766`
-5. **`Core\Test::assertCompletes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:789`
-6. **`Core\Test::assertContains`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:571`
-7. **`Core\Test::assertCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:558`
-8. **`Core\Test::assertDoesNotThrow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:610`
-9. **`Core\Test::assertEquals`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:522`
-10. **`Core\Test::assertEqualsDeep`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:531`
-11. **`Core\Test::assertMatchesInline`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:584`
-12. **`Core\Test::assertNeverCalled`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:780`
+1. **`Core\Test::advance`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:632`
+2. **`Core\Test::answerHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:681`
+3. **`Core\Test::answerSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:711`
+4. **`Core\Test::assertCalled`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:767`
+5. **`Core\Test::assertCompletes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:790`
+6. **`Core\Test::assertContains`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:572`
+7. **`Core\Test::assertCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:559`
+8. **`Core\Test::assertDoesNotThrow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:611`
+9. **`Core\Test::assertEquals`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:523`
+10. **`Core\Test::assertEqualsDeep`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:532`
+11. **`Core\Test::assertMatchesInline`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:585`
+12. **`Core\Test::assertNeverCalled`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:781`
 
 ## Running this goal wide
 

@@ -26,16 +26,16 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Request::jsonAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:314`
-2. **`Core\Request::method`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:215`
-3. **`Core\Request::mount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:395`
-4. **`Core\Request::path`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:233`
-5. **`Core\Request::post`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:341`
-6. **`Core\Request::postAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:350`
-7. **`Core\Request::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:242`
-8. **`Core\Request::queryAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:251`
-9. **`Core\Request::route`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:386`
-10. **`Core\Request::scheme`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:368`
+1. **`Core\Request::jsonAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:315`
+2. **`Core\Request::method`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:216`
+3. **`Core\Request::mount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:396`
+4. **`Core\Request::path`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:234`
+5. **`Core\Request::post`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:342`
+6. **`Core\Request::postAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:351`
+7. **`Core\Request::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:243`
+8. **`Core\Request::queryAs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:252`
+9. **`Core\Request::route`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:387`
+10. **`Core\Request::scheme`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:369`
 
 ## Running this goal wide
 

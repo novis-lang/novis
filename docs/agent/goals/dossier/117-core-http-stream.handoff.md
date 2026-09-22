@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Http\Stream::chunks`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:216`
-- [ ] **`Core\Http\Stream::events`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:198`
-- [ ] **`Core\Http\Stream::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:180`
+- [ ] **`Core\Http\Stream::chunks`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:217`
+- [ ] **`Core\Http\Stream::events`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:199`
+- [ ] **`Core\Http\Stream::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/http/stream.rs:181`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

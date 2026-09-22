@@ -26,16 +26,16 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Time\Duration::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:343`
-2. **`Core\Time\Duration::days`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:242`
-3. **`Core\Time\Duration::hours`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:233`
-4. **`Core\Time\Duration::microseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:197`
-5. **`Core\Time\Duration::milliseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:206`
-6. **`Core\Time\Duration::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:316`
-7. **`Core\Time\Duration::minutes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:224`
-8. **`Core\Time\Duration::multipliedBy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:325`
-9. **`Core\Time\Duration::nanoseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:188`
-10. **`Core\Time\Duration::negated`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:334`
+1. **`Core\Time\Duration::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:344`
+2. **`Core\Time\Duration::days`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:243`
+3. **`Core\Time\Duration::hours`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:234`
+4. **`Core\Time\Duration::microseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:198`
+5. **`Core\Time\Duration::milliseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:207`
+6. **`Core\Time\Duration::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:317`
+7. **`Core\Time\Duration::minutes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:225`
+8. **`Core\Time\Duration::multipliedBy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:326`
+9. **`Core\Time\Duration::nanoseconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:189`
+10. **`Core\Time\Duration::negated`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:335`
 
 ## Running this goal wide
 

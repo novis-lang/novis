@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Math::abs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:65`
-2. **`Core\Math::acos`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:272`
-3. **`Core\Math::acosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:335`
-4. **`Core\Math::asin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:263`
-5. **`Core\Math::asinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:326`
-6. **`Core\Math::atan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:281`
-7. **`Core\Math::atan2`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:290`
-8. **`Core\Math::atanh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:344`
-9. **`Core\Math::cbrt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:200`
-10. **`Core\Math::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:110`
-11. **`Core\Math::clamp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:101`
-12. **`Core\Math::cos`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:245`
-13. **`Core\Math::cosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:308`
+1. **`Core\Math::abs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:66`
+2. **`Core\Math::acos`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:273`
+3. **`Core\Math::acosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:336`
+4. **`Core\Math::asin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:264`
+5. **`Core\Math::asinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:327`
+6. **`Core\Math::atan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:282`
+7. **`Core\Math::atan2`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:291`
+8. **`Core\Math::atanh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:345`
+9. **`Core\Math::cbrt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:201`
+10. **`Core\Math::ceil`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:111`
+11. **`Core\Math::clamp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:102`
+12. **`Core\Math::cos`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:246`
+13. **`Core\Math::cosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:309`
 
 ## Running this goal wide
 

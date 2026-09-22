@@ -26,20 +26,20 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Random::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:134`
-2. **`Core\Random::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:125`
-3. **`Core\Random::int`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:116`
-4. **`Core\Random::pick`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:152`
-5. **`Core\Random::sample`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:161`
-6. **`Core\Random::shuffle`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:170`
-7. **`Core\Random::token`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:143`
-8. **`Core\Random\Seeded::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:370`
-9. **`Core\Random\Seeded::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:361`
-10. **`Core\Random\Seeded::int`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:352`
-11. **`Core\Random\Seeded::pick`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:388`
-12. **`Core\Random\Seeded::sample`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:397`
-13. **`Core\Random\Seeded::shuffle`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:406`
-14. **`Core\Random\Seeded::token`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:379`
+1. **`Core\Random::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:135`
+2. **`Core\Random::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:126`
+3. **`Core\Random::int`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:117`
+4. **`Core\Random::pick`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:153`
+5. **`Core\Random::sample`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:162`
+6. **`Core\Random::shuffle`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:171`
+7. **`Core\Random::token`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:144`
+8. **`Core\Random\Seeded::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:372`
+9. **`Core\Random\Seeded::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:363`
+10. **`Core\Random\Seeded::int`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:354`
+11. **`Core\Random\Seeded::pick`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:390`
+12. **`Core\Random\Seeded::sample`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:399`
+13. **`Core\Random\Seeded::shuffle`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:408`
+14. **`Core\Random\Seeded::token`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:381`
 
 ## Running this goal wide
 

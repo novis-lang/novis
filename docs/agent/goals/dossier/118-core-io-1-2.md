@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\IO::append`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:111`
-2. **`Core\IO::canonicalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:308`
-3. **`Core\IO::copy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:220`
-4. **`Core\IO::exists`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:142`
-5. **`Core\IO::isDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:160`
-6. **`Core\IO::isFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:151`
-7. **`Core\IO::isReadable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:169`
-8. **`Core\IO::isWritable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:178`
-9. **`Core\IO::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:350`
-10. **`Core\IO::list`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:268`
-11. **`Core\IO::makeDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:250`
-12. **`Core\IO::modifiedAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:199`
-13. **`Core\IO::move`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:232`
+1. **`Core\IO::append`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:112`
+2. **`Core\IO::canonicalize`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:309`
+3. **`Core\IO::copy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:221`
+4. **`Core\IO::exists`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:143`
+5. **`Core\IO::isDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:161`
+6. **`Core\IO::isFile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:152`
+7. **`Core\IO::isReadable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:170`
+8. **`Core\IO::isWritable`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:179`
+9. **`Core\IO::lines`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:351`
+10. **`Core\IO::list`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:269`
+11. **`Core\IO::makeDir`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:251`
+12. **`Core\IO::modifiedAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:200`
+13. **`Core\IO::move`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:233`
 
 ## Running this goal wide
 

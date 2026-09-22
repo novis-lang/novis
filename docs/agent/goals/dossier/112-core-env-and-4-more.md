@@ -26,22 +26,22 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Env::all`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:120`
-2. **`Core\Env::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:111`
-3. **`Core\Env::mode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:129`
-4. **`Core\Fatal::onLimit`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:46`
-5. **`Core\Fatal::onUncaughtThrow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:58`
-6. **`Core\Hash::equals`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:326`
-7. **`Core\Hash::hmac`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:313`
-8. **`Core\Hash::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:304`
-9. **`Core\Hash::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:335`
-10. **`Core\Hash\Stream::finish`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:457`
-11. **`Core\Hash\Stream::update`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:448`
-12. **`Core\Heap::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:135`
-13. **`Core\Heap::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:144`
-14. **`Core\Heap::peek`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:117`
-15. **`Core\Heap::pop`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:126`
-16. **`Core\Heap::push`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:108`
+1. **`Core\Env::all`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:121`
+2. **`Core\Env::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:112`
+3. **`Core\Env::mode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/env.rs:130`
+4. **`Core\Fatal::onLimit`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:47`
+5. **`Core\Fatal::onUncaughtThrow`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:59`
+6. **`Core\Hash::equals`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:327`
+7. **`Core\Hash::hmac`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:314`
+8. **`Core\Hash::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:305`
+9. **`Core\Hash::stream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:336`
+10. **`Core\Hash\Stream::finish`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:459`
+11. **`Core\Hash\Stream::update`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:450`
+12. **`Core\Heap::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:136`
+13. **`Core\Heap::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:145`
+14. **`Core\Heap::peek`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:118`
+15. **`Core\Heap::pop`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:127`
+16. **`Core\Heap::push`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/heap.rs:109`
 
 ## Running this goal wide
 

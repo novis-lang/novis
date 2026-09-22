@@ -26,17 +26,17 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Request::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:287`
-2. **`Core\Request::bodyStream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:323`
-3. **`Core\Request::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:296`
-4. **`Core\Request::clientIp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:359`
-5. **`Core\Request::cookie`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:278`
-6. **`Core\Request::files`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:332`
-7. **`Core\Request::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:260`
-8. **`Core\Request::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:269`
-9. **`Core\Request::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:377`
-10. **`Core\Request::isHead`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:224`
-11. **`Core\Request::json`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:305`
+1. **`Core\Request::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:288`
+2. **`Core\Request::bodyStream`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:324`
+3. **`Core\Request::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:297`
+4. **`Core\Request::clientIp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:360`
+5. **`Core\Request::cookie`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:279`
+6. **`Core\Request::files`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:333`
+7. **`Core\Request::header`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:261`
+8. **`Core\Request::headers`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:270`
+9. **`Core\Request::host`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:378`
+10. **`Core\Request::isHead`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:225`
+11. **`Core\Request::json`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:306`
 
 ## Running this goal wide
 

@@ -26,19 +26,19 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Math::exp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:218`
-2. **`Core\Math::fdiv`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:164`
-3. **`Core\Math::floor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:119`
-4. **`Core\Math::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:407`
-5. **`Core\Math::fromBase`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:398`
-6. **`Core\Math::gcd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:173`
-7. **`Core\Math::hypot`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:209`
-8. **`Core\Math::intDiv`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:146`
-9. **`Core\Math::isFinite`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:380`
-10. **`Core\Math::isNan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:371`
-11. **`Core\Math::lcm`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:182`
-12. **`Core\Math::log`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:227`
-13. **`Core\Math::max`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:92`
+1. **`Core\Math::exp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:219`
+2. **`Core\Math::fdiv`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:165`
+3. **`Core\Math::floor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:120`
+4. **`Core\Math::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:408`
+5. **`Core\Math::fromBase`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:399`
+6. **`Core\Math::gcd`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:174`
+7. **`Core\Math::hypot`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:210`
+8. **`Core\Math::intDiv`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:147`
+9. **`Core\Math::isFinite`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:381`
+10. **`Core\Math::isNan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:372`
+11. **`Core\Math::lcm`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:183`
+12. **`Core\Math::log`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:228`
+13. **`Core\Math::max`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:93`
 
 ## Running this goal wide
 

@@ -13,9 +13,9 @@ One slice is one feature with all its feature proofs. Take them in this order �
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 
-- [ ] **`Core\Net\Listener::accept`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:590`
-- [ ] **`Core\Net\Listener::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:608`
-- [ ] **`Core\Net\Listener::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:599`
+- [ ] **`Core\Net\Listener::accept`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:593`
+- [ ] **`Core\Net\Listener::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:611`
+- [ ] **`Core\Net\Listener::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:602`
 
 `python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at.
 

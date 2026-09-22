@@ -26,15 +26,15 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`Core\Time\Zone::fixed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1001`
-2. **`Core\Time\Zone::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:992`
-3. **`Core\Time\Zone::offsetAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1020`
-4. **`Core\Time\Zone::system`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1010`
-5. **`Core\Topic::publish`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:224`
-6. **`Core\Topic::subscribe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:212`
-7. **`Core\Topic::unsubscribe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:237`
-8. **`Core\Totp::check`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/totp.rs:138`
-9. **`Core\Totp::code`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/totp.rs:126`
+1. **`Core\Time\Zone::fixed`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1003`
+2. **`Core\Time\Zone::of`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:994`
+3. **`Core\Time\Zone::offsetAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1022`
+4. **`Core\Time\Zone::system`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1012`
+5. **`Core\Topic::publish`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:225`
+6. **`Core\Topic::subscribe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:213`
+7. **`Core\Topic::unsubscribe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/topic.rs:238`
+8. **`Core\Totp::check`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/totp.rs:139`
+9. **`Core\Totp::code`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/totp.rs:127`
 
 ## Running this goal wide
 
