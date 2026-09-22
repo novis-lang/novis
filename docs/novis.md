@@ -107,7 +107,7 @@ Conventions the whole file uses:
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
 | [`Core\Script`](#core-core-script) |  |
 | [`Core\Script\ExitReport`](#core-core-script-exitreport) |  |
-| [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time — and the one thing only the host knows, its identity |
+| [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time, each with one attribute read off it — and the one thing only the host knows, its identity |
 | [`Core\Cli`](#core-core-cli) |  |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Cli\Color`](#core-core-cli-color) |  |
@@ -3036,9 +3036,11 @@ does not resolve a static property
   It has no `$this`.
 - `self` names the declaring class: `new self()`, `self::method()`, `self::CONST`, and as a
   return type. `static` names the class the call was made on — late static binding — for
-  `new static()`, `static::method()` and the return type `static`. A body declared `: static`
-  must return `$this`, `new static(...)` or a `static::` call; returning `new self()` or a named
-  class there is a compile error.
+  `new static()`, `static::method()`, `static::CONST` and the return type `static`. A body
+  declared `: static` must return `$this`, `new static(...)` or a `static::` call; returning
+  `new self()` or a named class there is a compile error.
+- `static::` is not allowed inside a closure body (`E0834`). Read the value into a variable
+  before the closure and use that variable.
 - `parent::method()` calls the parent's version of an overridden method, and
   `parent::constructor(...)` its constructor.
 
@@ -3104,7 +3106,12 @@ echo $f(3) as int, "\n";
 ### Constants and `::class`
 
 A class constant is `public const int NAME = …;`, and like every other binding it writes its type
-(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
+(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. Both give the
+value of the class that declares it. `static::NAME` gives the value of the class the call was made
+on, so a subclass or an implementor that redeclares the constant is seen by an inherited method or
+an interface default method. A redeclaration keeps the constant's type (`E0833`). `static::NAME`
+works for `string`, `int`, `uint`, `bool` and `float` constants (`E0832` for an `array`), and not in
+a default value or an attribute (`E0831`). `Class::class` is the
 class's name as a string, and it stays a `string` — the type that holds a class itself is `class<T>`,
 and the three sites that take one are below.
 
@@ -3413,6 +3420,10 @@ An `interface` declares methods a class must provide. It may also carry:
   type is not usable — write the type.
 - **`static` methods** with a body, reached as `Interface::method()` or `Implementor::method()`,
   and overridable by an implementor.
+
+An interface has no properties. `public string $path;` inside one is an error (`E0254`). A value
+every implementor must supply is a method. A value that is fixed per implementor is a typed
+constant: the implementor overrides it, and a default method reads it as `static::NAME`.
 
 A class implements any number of interfaces, comma-separated, and an interface may `extends`
 another. A class missing a required method is a compile error naming the method and the
@@ -6382,6 +6393,62 @@ route and command tables find theirs too.
   constructor callable with no arguments — dependencies arrive through `I`'s own methods.
 - The instances are built where the call stands, once per evaluation, like any other `new`.
 - An interface nothing implements answers `[]`.
+
+### `Core\Program::implementingWith<I, T>($member)`: every implementor with one attribute
+
+`Core\Program::implementingWith<I, T>($member)` expands, while compiling, to the same array with one
+attribute joined to each class. Every row is `{instance: I, attribute: ?T}`: the instance, and the one
+attribute on that class's own `$member` whose fields satisfy the shape `T` — the same structural match
+`Core\Attributes::get<T>` makes — or `null` when the class carries none. This is how a framework reads
+the attributes of the classes it discovered: inside a loop over `implementing<I>()` the variable is
+typed as `I`, so there is no class name to write into a retrieval, and the compiler does the join
+instead.
+
+- `$member` is a method name, a property or constructor-parameter name, or the empty string for the
+  attributes on the class itself. A name some implementor does not declare is an error naming that
+  class.
+- Two matching attributes on one class are an error naming that class; narrow the shape, or read that
+  class with `Core\Attributes::all<T>`.
+- `T` is a shape, inline or a `type` alias, exactly as for `Core\Attributes::get<T>`.
+
+```nvs
+<?nvs
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "home";
+    }
+}
+
+class Contact implements Page {
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "contact us";
+    }
+}
+
+class Draft implements Page {
+    public function render(): string {
+        return "not routed";
+    }
+}
+
+// Each page beside the path its route declares, so the path is written once.
+foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+    echo $row->attribute?->path ?? "(no route)", " -> ", $row->instance->render(), "\n";
+}
+```
+```output
+/contact -> contact us
+(no route) -> not routed
+/ -> home
+```
 
 <a id="lang-testing"></a>
 ## A.11 Testing
@@ -14875,7 +14942,7 @@ a%20b%26c a+b%26c
 | [`Core\Uri->withQueryParameter`](#core-core-uri-withqueryparameter) | `withQueryParameter(string $name, mixed $value): Core\Uri` |
 | [`Core\Uri->resolve`](#core-core-uri-resolve) | `resolve(string $reference): Core\Uri` |
 | [`Core\Uri->compareTo`](#core-core-uri-compareto) | `compareTo(Core\Uri $other): int` |
-| [`Core\Uri->sign`](#core-core-uri-sign) | `sign(? $settings): Core\Uri` |
+| [`Core\Uri->sign`](#core-core-uri-sign) | `sign({keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): Core\Uri` |
 | [`Core\Uri->verifySignature`](#core-core-uri-verifysignature) | `verifySignature(array<secret bytes> $keys): void` |
 
 <a id="core-core-uri-parse"></a>
@@ -15185,14 +15252,14 @@ Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms �
 #### `Core\Uri->sign`
 
 ```nvs skip
-$uri->sign(? $settings): Core\Uri
+$uri->sign({keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): Core\Uri
 ```
 
 Answers the receiver with the reserved `_sig` query parameter set, over a signature taken across everything `compareTo` normalizes — scheme, userInfo, host, port, path and the query's parameters. Appending, removing or editing any parameter invalidates it; reordering them does not, and neither does a fragment.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` takes, and a token minted at one door does not verify at the other.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
+| `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` takes, and a token minted at one door does not verify at the other.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
 
 **Returns** `Core\Uri` — A new `Uri`, the receiver with `_sig` set — so it composes with `with` and `toString` like every other member here. A receiver already carrying `_sig` has it replaced rather than nested, and the same URL under the same key and lifetime always mints the same token. The token carries the signed form as well as the tag, so it adds about `4/3 × (URL + 40)` characters. A **relative** reference signs without a scheme, host or port, so its token is valid on any origin: `$uri->scheme()` is what says which you are holding.
 
@@ -15273,7 +15340,7 @@ https://example.test/users/7
 |---|---|
 | [`Core\Router::url`](#core-core-router-url) | `url(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlAbsolute`](#core-core-router-urlabsolute) | `urlAbsolute(string $name, array<mixed> $params): string` |
-| [`Core\Router::urlSigned`](#core-core-router-urlsigned) | `urlSigned(string $name, array<mixed> $params, ? $settings): string` |
+| [`Core\Router::urlSigned`](#core-core-router-urlsigned) | `urlSigned(string $name, array<mixed> $params, {keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): string` |
 | [`Core\Router::signedRoute`](#core-core-router-signedroute) | `signedRoute(array<secret bytes> $keys): Core\Router\Match` |
 | [`Core\Router::match`](#core-core-router-match) | `match(Core\Http\Method $method, string $path): ?Core\Router\Match` |
 | [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
@@ -15318,7 +15385,7 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 #### `Core\Router::urlSigned`
 
 ```nvs skip
-Core\Router::urlSigned(string $name, array<mixed> $params, ? $settings): string
+Core\Router::urlSigned(string $name, array<mixed> $params, {keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): string
 ```
 
 `url` with the reserved `_sig` query parameter on the end, over a signature taken across the route's **name** and `$params` — never the path they render to, so the same link still verifies after the module is remounted somewhere else.
@@ -15327,7 +15394,7 @@ Core\Router::urlSigned(string $name, array<mixed> $params, ? $settings): string
 |---|---|---|
 | `$name` | `string` (sink) | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
 | `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
-| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` and `$uri->sign` take, and a token minted at one of those doors does not verify at this one.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
+| `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` and `$uri->sign` take, and a token minted at one of those doors does not verify at this one.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
 
 **Returns** `string` — `url`'s path with `_sig=…` appended, `/users/42?page=2&_sig=…` — laundered for the URL-path sink exactly as `url` is, and carrying the mount prefix the same way. The same name, parameters, ring and lifetime always mint the same token; the token carries the signed form as well as the tag, so it adds about `4/3 × (name + params + 40)` characters.
 
@@ -16067,7 +16134,7 @@ final class CartTest {
 | [`Core\Test::partial`](#core-core-test-partial) | `partial<T>(T $real, object $answers): T` |
 | [`Core\Test::assertCalled`](#core-core-test-assertcalled) | `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string}): void` |
 | [`Core\Test::assertNeverCalled`](#core-core-test-assertnevercalled) | `assertNeverCalled(object $double, method $method, {message?: string}): void` |
-| [`Core\Test::assertCompletes`](#core-core-test-assertcompletes) | `assertCompletes(callable(): mixed $body, ? $settings, {message?: string}): void` |
+| [`Core\Test::assertCompletes`](#core-core-test-assertcompletes) | `assertCompletes(callable(): mixed $body, {within: Core\Time\Duration} $settings, {message?: string}): void` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -16476,7 +16543,7 @@ Asserts that `$method` was never called on `$double` — `assertCalled`'s other 
 #### `Core\Test::assertCompletes`
 
 ```nvs skip
-Core\Test::assertCompletes(callable(): mixed $body, ? $settings, {message?: string}): void
+Core\Test::assertCompletes(callable(): mixed $body, {within: Core\Time\Duration} $settings, {message?: string}): void
 ```
 
 Runs `$body` with the test's clock advanced by `$settings.within`, and asserts that it left nothing still running. Wall-clock time is never read, so a budget written in seconds is spent in microseconds and two runs answer identically.
@@ -16484,7 +16551,7 @@ Runs `$body` with the test's clock advanced by `$settings.within`, and asserts t
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$body` | `callable(): mixed` | The work to run. It is called once, on the test's own task, and whatever it answers is dropped. |
-| `$settings` | `?` | The budget, written as a literal because there is no duration this member could pick for a caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
+| `$settings` | `{within: Core\Time\Duration}` | The budget, written as a literal because there is no duration this member could pick for a caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
 | `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
 
 **Returns** `void` — Nothing. A `$body` that returned having left a task of its own still running throws, naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the one moment it means anything.
@@ -16952,7 +17019,7 @@ The exception that ended the script, for the one ending that has one.
 <a id="core-core-program"></a>
 ### `Core\Program`
 
-Keywords: get_declared_classes, class_implements, implementing, plugin discovery, registry, autoload, enumerate implementors, service locator, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, id
+Keywords: get_declared_classes, class_implements, implementing, implementingWith, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, implementingWith, id
 
 `Core\Program::implementing<T>()` is written with its type argument — `T` is an interface — and expands
 **at compile time** to an array literal of `new` expressions, one per non-abstract class in the program that
@@ -16961,6 +17028,15 @@ instance typed `T`. A class is "in the program" when an `autoload` root reaches 
 file under every declared root for this one query, so a class never named by any `require` is still found.
 Abstract classes and the interface itself are not entries; a class reaching `T` through a parent class or
 through an interface that extends `T` is.
+
+`Core\Program::implementingWith<I, T>($member)` is the same list with one attribute read off each class.
+Every row is `{instance: I, attribute: ?T}`: the instance, and the one attribute on that class's own
+`$member` whose fields satisfy the shape `T`, or `null` when there is none. `$member` is a method name, a
+property name, or the empty string for the attributes on the class itself. This is how a framework finds
+its pages and their routes in one call: `implementingWith<View, {path: string}>("render")` gives each
+page beside the `path` its `#[Core\Route]` carries, so the path is written once. Everything is resolved
+while compiling, and a member some implementor does not declare, or two matching attributes on one
+class, do not compile.
 
 `Core\Program::id()` is the other member, and the only one here that runs. It answers this program's
 identity: `BLAKE3` over every compiled unit's content hash, in program order, folded with the digest of the
@@ -17026,6 +17102,7 @@ id is 64 characters, and stable within the run: yes
 | Member | Signature |
 |---|---|
 | [`Core\Program::implementing`](#core-core-program-implementing) | `implementing<T>(): array<T>` |
+| [`Core\Program::implementingWith`](#core-core-program-implementingwith) | `implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>` |
 | [`Core\Program::id`](#core-core-program-id) | `id(): string` |
 
 <a id="core-core-program-implementing"></a>
@@ -17038,6 +17115,21 @@ Core\Program::implementing<T>(): array<T>
 Expands, at compile time, to an array literal of `new` expressions — one per non-abstract class in the program implementing the interface `T` written as the type argument. Nothing runs at run time, and the type argument is never optional: the call is always `Core\Program::implementing<T>()`.
 
 **Returns** `array<T>` — One fresh instance per implementing class, as an `array<T>`; an empty array when no class implements `T`.
+
+<a id="core-core-program-implementingwith"></a>
+#### `Core\Program::implementingWith`
+
+```nvs skip
+Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>
+```
+
+Expands, at compile time, to `implementing<I>()`'s array with one attribute joined to each class: every row is `{instance: I, attribute: ?T}`, where `attribute` is the one attached literal on that class's own member `$member` — or on the class itself when `$member` is empty — that satisfies the shape `T`, and `null` where there is none. Nothing runs at run time, and both type arguments are written at the call: `Core\Program::implementingWith<View, {path: string}>("render")`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$member` | `string` (default `""`, neutral) | The member whose attributes are read on every class: a method name, a property or constructor-parameter name, or the empty string for the attributes on the class itself. |
+
+**Returns** `array<{instance: I, attribute: ?T}>` — One row per non-abstract class implementing `I`, sorted by fully-qualified name, as an `array<{instance: I, attribute: ?T}>`; an empty array when no class implements `I`. Two matching attributes on one class do not compile.
 
 <a id="core-core-program-id"></a>
 #### `Core\Program::id`
@@ -20872,14 +20964,14 @@ Keywords: sign, verify
 
 | Member | Signature |
 |---|---|
-| [`Core\Signature::sign`](#core-core-signature-sign) | `sign(array<string> $payload, ? $settings): string` |
+| [`Core\Signature::sign`](#core-core-signature-sign) | `sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): string` |
 | [`Core\Signature::verify`](#core-core-signature-verify) | `verify(string $token, array<secret bytes> $keys): array<tainted string>` |
 
 <a id="core-core-signature-sign"></a>
 #### `Core\Signature::sign`
 
 ```nvs skip
-Core\Signature::sign(array<string> $payload, ? $settings): string
+Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): string
 ```
 
 Signs `$payload` under the newest key in `$settings.keys` and answers a token. The payload is canonicalized here — keys sorted, every value written with the tag of its own type — so there is no assembled string for the two sides of a signature to disagree about.
@@ -20887,7 +20979,7 @@ Signs `$payload` under the newest key in `$settings.keys` and answers a token. T
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$payload` | `array<string>` | The claims to sign, by name. Insertion order is not signed and does not come back: a verified payload is in canonical order. |
-| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that `verify` still accepts tokens minted before the last rotation. A ring of one is `[$key]`.; `until` (?Core\Time\Instant) When the signature stops being valid, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed link is a permanent bearer credential. |
+| `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that `verify` still accepts tokens minted before the last rotation. A ring of one is `[$key]`.; `until` (?Core\Time\Instant) When the signature stops being valid, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed link is a permanent bearer credential. |
 
 **Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a query string and a `Set-Cookie` header carry unescaped. About `4/3 × (payload + 40)` characters, and the same token every time for the same inputs, because a signature is deterministic where a seal is not.
 
@@ -24123,7 +24215,7 @@ Keywords: connect, open, inList, quoteIdentifier
 | Member | Signature |
 |---|---|
 | [`Core\Db::connect`](#core-core-db-connect) | `connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection` |
-| [`Core\Db::open`](#core-core-db-open) | `open(? $settings, {shared?: bool}): Core\Db\Connection` |
+| [`Core\Db::open`](#core-core-db-open) | `open({driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection` |
 | [`Core\Db::inList`](#core-core-db-inlist) | `inList(array<mixed> $values): Core\Db\InList` |
 | [`Core\Db::quoteIdentifier`](#core-core-db-quoteidentifier) | `quoteIdentifier(string $name): string` |
 
@@ -24150,14 +24242,14 @@ Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, a
 #### `Core\Db::open`
 
 ```nvs skip
-Core\Db::open(? $settings, {shared?: bool}): Core\Db\Connection
+Core\Db::open({driver: Core\Db\Driver::MySql|Core\Db\Driver::MariaDb|Core\Db\Driver::Postgres|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection
 ```
 
 Opens a connection to a server the program itself names, for the case a `[db.<name>]` block cannot cover — a tenant whose database is a row in another one, or an administration tool a human types a host into. Needs the `db.open` capability for that host, and unlike `connect` the address is checked against the denied ranges in full.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `?` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the literal has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
+| `$settings` | `{driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration}` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the literal has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
 | `{shared: …}` | `bool` (default `true`) | Whether this call may answer with the connection an earlier one opened from the same settings. `false` opens a dedicated connection instead. |
 
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`, closed when the request ends. Two calls with settings that agree in every field answer the same object unless `shared` is `false`.
@@ -27172,6 +27264,7 @@ the end of a file is fine.
 | any name starting with `_` | no identifier starts with `_` | `E0111` |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
 | `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `implements I by $field;` for state | `E0227` |
+| a property inside an `interface` body | a method every implementor writes, or a typed constant the implementor overrides and a default method reads as `static::NAME` | `E0254` |
 | `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |

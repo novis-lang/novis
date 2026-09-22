@@ -607,3 +607,59 @@ route and command tables find theirs too.
   constructor callable with no arguments — dependencies arrive through `I`'s own methods.
 - The instances are built where the call stands, once per evaluation, like any other `new`.
 - An interface nothing implements answers `[]`.
+
+# `Core\Program::implementingWith<I, T>($member)`: every implementor with one attribute
+
+`Core\Program::implementingWith<I, T>($member)` expands, while compiling, to the same array with one
+attribute joined to each class. Every row is `{instance: I, attribute: ?T}`: the instance, and the one
+attribute on that class's own `$member` whose fields satisfy the shape `T` — the same structural match
+`Core\Attributes::get<T>` makes — or `null` when the class carries none. This is how a framework reads
+the attributes of the classes it discovered: inside a loop over `implementing<I>()` the variable is
+typed as `I`, so there is no class name to write into a retrieval, and the compiler does the join
+instead.
+
+- `$member` is a method name, a property or constructor-parameter name, or the empty string for the
+  attributes on the class itself. A name some implementor does not declare is an error naming that
+  class.
+- Two matching attributes on one class are an error naming that class; narrow the shape, or read that
+  class with `Core\Attributes::all<T>`.
+- `T` is a shape, inline or a `type` alias, exactly as for `Core\Attributes::get<T>`.
+
+```nvs
+<?nvs
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "home";
+    }
+}
+
+class Contact implements Page {
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "contact us";
+    }
+}
+
+class Draft implements Page {
+    public function render(): string {
+        return "not routed";
+    }
+}
+
+// Each page beside the path its route declares, so the path is written once.
+foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+    echo $row->attribute?->path ?? "(no route)", " -> ", $row->instance->render(), "\n";
+}
+```
+```output
+/contact -> contact us
+(no route) -> not routed
+/ -> home
+```

@@ -63,6 +63,25 @@
       ]
     },
     {
+      "id": "programs/implementing-with",
+      "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling",
+      "status": "shipped",
+      "because": ["0212"],
+      "divergesFromPhp": "a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes",
+      "seeAlso": [
+        "programs/implementing",
+        "attributes/structural-retrieval",
+        "attributes/retrieval-folds-while-checking"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/program-implementing-with-joins-each-instance-with-its-attribute.nvst",
+        "tests/conformance/core/program-implementing-with-reads-the-class-or-a-property-by-name.nvst",
+        "tests/conformance/reject/program-implementing-with-names-a-member-every-implementor-declares.nvst",
+        "tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst",
+        "crates/nvs-types/src/program.rs"
+      ]
+    },
+    {
       "id": "programs/compile-target",
       "title": "A compile target changes the host context, never the language",
       "status": "designed",

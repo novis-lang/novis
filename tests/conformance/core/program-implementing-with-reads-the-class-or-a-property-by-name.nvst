@@ -1,0 +1,42 @@
+--TEST--
+`implementingWith`'s `$member` selects the class's own attributes for the empty name and the constructor's roster for a property or promoted-parameter name, exactly as `Core\Attributes::get<T>`'s two spellings do, `rule:programs/implementing-with`
+--FILE--
+<?nvs
+interface Plugin {
+    public function name(): string;
+}
+
+#[{priority: 2}]
+class Late implements Plugin {
+    public function constructor(#[{label: "promoted"}] public string $when = "later") {}
+    public function name(): string { return "late"; }
+}
+
+#[{priority: 1}]
+class Early implements Plugin {
+    #[{label: "declared"}]
+    public string $when = "soon";
+    public function name(): string { return "early"; }
+}
+
+class Plain implements Plugin {
+    public string $when = "whenever";
+    public function name(): string { return "plain"; }
+}
+
+// The empty name: the attribute on the class itself.
+foreach (Core\Program::implementingWith<Plugin, {priority: int}>() as {instance: Plugin, attribute: ?{priority: int}} $row) {
+    echo $row->instance->name(), " ", $row->attribute?->priority ?? 0, "\n";
+}
+// A property name: a declared property and a promoted parameter alike.
+foreach (Core\Program::implementingWith<Plugin, {label: string}>("when") as {instance: Plugin, attribute: ?{label: string}} $setting) {
+    echo $setting->instance->name(), " ", $setting->attribute?->label ?? "-", "\n";
+}
+// covers: Core\Program::implementingWith
+--EXPECT--
+early 1
+late 2
+plain 0
+early declared
+late promoted
+plain -

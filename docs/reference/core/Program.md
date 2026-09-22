@@ -1,6 +1,6 @@
 ---
-summary: what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time — and the one thing only the host knows, its identity
-keywords: get_declared_classes, class_implements, implementing, plugin discovery, registry, autoload, enumerate implementors, service locator, program id, build id, deployment fingerprint, cache busting, asset version, revision hash
+summary: what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time, each with one attribute read off it — and the one thing only the host knows, its identity
+keywords: get_declared_classes, class_implements, implementing, implementingWith, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash
 ---
 
 `Core\Program::implementing<T>()` is written with its type argument — `T` is an interface — and expands
@@ -10,6 +10,15 @@ instance typed `T`. A class is "in the program" when an `autoload` root reaches 
 file under every declared root for this one query, so a class never named by any `require` is still found.
 Abstract classes and the interface itself are not entries; a class reaching `T` through a parent class or
 through an interface that extends `T` is.
+
+`Core\Program::implementingWith<I, T>($member)` is the same list with one attribute read off each class.
+Every row is `{instance: I, attribute: ?T}`: the instance, and the one attribute on that class's own
+`$member` whose fields satisfy the shape `T`, or `null` when there is none. `$member` is a method name, a
+property name, or the empty string for the attributes on the class itself. This is how a framework finds
+its pages and their routes in one call: `implementingWith<View, {path: string}>("render")` gives each
+page beside the `path` its `#[Core\Route]` carries, so the path is written once. Everything is resolved
+while compiling, and a member some implementor does not declare, or two matching attributes on one
+class, do not compile.
 
 `Core\Program::id()` is the other member, and the only one here that runs. It answers this program's
 identity: `BLAKE3` over every compiled unit's content hash, in program order, folded with the digest of the

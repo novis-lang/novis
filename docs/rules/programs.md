@@ -3,7 +3,7 @@
 
 # Programs
 
-*6 of 19 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 20 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="programs-audience"></a>
 
@@ -184,6 +184,36 @@ lazy regardless — a discovered class nobody calls is never checked past its de
 reaches codegen.
 
 <sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../decisions/0061.md).</sub>
+
+<a id="programs-implementing-with"></a>
+
+## `Core\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling
+
+`rule:programs/implementing-with`
+
+```php
+function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
+```
+
+[`programs/implementing`](programs.md#programs-implementing)'s enumeration joined with [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)'s retrieval
+in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
+instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
+an empty name, its method for a method name, its property or constructor parameter otherwise, so a
+promoted parameter is read once. `attribute` is the one attached literal satisfying `T`, or `null`.
+
+It exists because the two cannot be composed by a program. A retrieval names its target where it is
+written, and inside a loop over the enumeration the variable is typed as the interface, so no class is
+written anywhere; a framework could enumerate its classes or read their attributes, and not both. The
+compiler holds both lists at the same moment, and the join is one retrieval fold per class — nothing
+about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
+
+The retrieval's refusals are this member's, each naming the class it was made on: a `$member` some
+implementor does not declare is `E0798`, two matching literals on one class are `E0728`, and a `T` that
+is not a shape is `E0729`. A `$member` that is not a string literal names no roster, and every row's
+`attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
+hold unchanged.
+
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0212](../decisions/0212.md).</sub>
 
 <a id="programs-compile-target"></a>
 

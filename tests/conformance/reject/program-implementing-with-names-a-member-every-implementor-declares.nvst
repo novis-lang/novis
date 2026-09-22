@@ -1,0 +1,22 @@
+--TEST--
+`implementingWith`'s `$member` is checked against every implementor's real declarations, and a name one of them lacks is `E0798` naming that class, `rule:programs/implementing-with`
+--FILE--
+<?nvs
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    public function render(): string { return "index"; }
+}
+
+var $rows = Core\Program::implementingWith<Page, {path: string}>("draw");
+echo "after\n";
+// covers: Core\Program::implementingWith
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0798]: `Core\Program::implementingWith` names `draw`, which `Index` does not declare
+   --> case.nvs:10:66
+%A
+error: aborting due to 1 error

@@ -493,7 +493,13 @@ pub(crate) fn infer_static_call(
     if let Some((qname, name, _)) = &resolved
         && crate::program::is_enumeration(qname, name)
     {
-        crate::program::expand(expr, &written, env);
+        // The joined form's type is built from its two written arguments —
+        // no registry row can spell `array<{instance: I, attribute: ?T}>`
+        // as a lowered type — so it answers the type itself.
+        if crate::program::is_joined(name) {
+            return crate::program::expand_with(expr, &written, args, live, scope, ctx, env);
+        }
+        crate::program::expand(expr, &written, live, scope, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
     // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route

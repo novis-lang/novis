@@ -50,7 +50,9 @@
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -60,6 +62,31 @@ pub(crate) const NAME: &str = "Core\\Program";
 /// [`CoreTy::Written`] owns why a variable appearing in no parameter position
 /// has to be supplied there.
 const T: CoreTy = CoreTy::Written("T");
+
+/// `I` — `implementingWith`'s interface, the same type argument `implementing`
+/// calls `T`, renamed because that member's second variable is the shape.
+const I: CoreTy = CoreTy::Written("I");
+
+/// One row of `implementingWith<I, T>`'s answer: the instance and the one
+/// attribute payload satisfying `T`, or `null`.
+///
+/// A shape in a return type, which `a_shape_is_only_ever_a_whole_parameter`
+/// refuses for every other row because no helper can answer with one. This
+/// member is expanded by `nvs_types::program`, which builds every row itself,
+/// so the row spells the shape for the one reason the registry's return types
+/// exist: the card, `nvs meta` and `nvs agent` print what the call answers.
+const ROW: CoreTy = CoreTy::Shape(&[&[
+    CoreField {
+        name: "instance",
+        ty: I,
+        default: None,
+    },
+    CoreField {
+        name: "attribute",
+        ty: CoreTy::Nullable(&T),
+        default: None,
+    },
+]]);
 
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -74,6 +101,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&T),
             symbol: "nvs_core_program_implementing",
             doc: Some(&IMPLEMENTING_DOC),
+        },
+        CoreMethod {
+            name: "implementingWith",
+            names: &["member"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[Const::Str("")],
+            return_ty: CoreTy::Array(&ROW),
+            symbol: "nvs_core_program_implementing_with",
+            doc: Some(&IMPLEMENTING_WITH_DOC),
         },
         CoreMethod {
             name: "id",
@@ -102,6 +138,27 @@ const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Program::implementingWith`'s reference card — `rule:core-api/reference-card`.
+const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Expands, at compile time, to `implementing<I>()`'s array with one attribute joined to \
+            each class: every row is `{instance: I, attribute: ?T}`, where `attribute` is the one \
+            attached literal on that class's own member `$member` — or on the class itself when \
+            `$member` is empty — that satisfies the shape `T`, and `null` where there is none. \
+            Nothing runs at run time, and both type arguments are written at the call: \
+            `Core\\Program::implementingWith<View, {path: string}>(\"render\")`.",
+    params: &[ParamDoc {
+        name: "member",
+        desc: "The member whose attributes are read on every class: a method name, a property or \
+               constructor-parameter name, or the empty string for the attributes on the class \
+               itself.",
+        shape: &[],
+    }],
+    ret: "One row per non-abstract class implementing `I`, sorted by fully-qualified name, as an \
+          `array<{instance: I, attribute: ?T}>`; an empty array when no class implements `I`. Two \
+          matching attributes on one class do not compile.",
+    errors: &[],
+};
+
 /// `Core\Program::id`'s reference card — `rule:core-api/reference-card`.
 const ID_DOC: MethodDoc = MethodDoc {
     short: "This program's identity: `BLAKE3` over every compiled unit's content hash, in program \
@@ -123,7 +180,9 @@ const ID_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "nvs_core_program_implementing" => (expanded_at_compile_time as *const ()).cast(),
+        "nvs_core_program_implementing" | "nvs_core_program_implementing_with" => {
+            (expanded_at_compile_time as *const ()).cast()
+        }
         "nvs_core_program_id" => (nvs_core_program_id as *const ()).cast(),
         _ => return None,
     })
@@ -170,9 +229,9 @@ extern "C" fn expanded_at_compile_time() {
     // it is the last thing a process does before aborting.
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
-        b"nvs: `Core\\Program::implementing` reached a runtime helper - `rule:programs/no-runtime-autoload` \xc2\xa7 3 \
-          expands every one of them in `nvs check`, so this is a bug in `nvs-ir`'s lowering \
-          rather than in the program\n",
+        b"nvs: a `Core\\Program` enumeration reached a runtime helper - `rule:programs/implementing` \
+          expands `implementing` and `implementingWith` in `nvs check`, so this is a bug in \
+          `nvs-ir`'s lowering rather than in the program\n",
     );
     std::process::abort();
 }

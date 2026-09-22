@@ -232,6 +232,18 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, None, env, *cur);
                 }
+                // `rule:programs/implementing-with`'s join: the same list, each
+                // entry beside the attribute payload the checker folded for it.
+                if let Some(ExprInfo::ProgramInstancesWith {
+                    classes,
+                    ctors,
+                    payloads,
+                }) = self.exprs.lookup(expr.span)
+                {
+                    let classes: Vec<String> = classes.iter().map(ToString::to_string).collect();
+                    let (ctors, payloads) = (ctors.clone(), payloads.clone());
+                    return self.lower_program_instances_with(&classes, &ctors, &payloads, env, cur);
+                }
                 // `rule:programs/implementing`'s enumeration, answered in `nvs check` and
                 // recorded as the list of classes rather than as a constant,
                 // because what it expands to allocates. `nvs_stdlib::program`
@@ -3199,24 +3211,120 @@ impl<'a> Lowering<'a> {
     fn lower_program_instances(
         &mut self,
         classes: &[String],
-        ctors: &[Option<String>],
+        ctors: &[Option<ResolvedCall>],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mut entries = Vec::with_capacity(classes.len());
         for (index, class) in classes.iter().enumerate() {
-            let built = self.emit_fallible(
+            let built = self.emit_enumerated_new(
+                class,
+                ctors.get(index).and_then(Option::as_ref),
+                env,
+                cur,
+            );
+            entries.push((index.to_string(), built));
+        }
+        self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
+    }
+
+    /// One enumerated `new C()` — [`Self::lower_new`]'s named half with an
+    /// empty argument list, which is what makes a constructor's optional
+    /// parameters take their defaults: the slots `ctor` carries are what a
+    /// written `new C()` records, and [`Self::lower_call_args`] materializes
+    /// each omitted one exactly as it would there. Transferred and forgotten
+    /// on the same terms as that site's arguments, and for the same reason.
+    fn emit_enumerated_new(
+        &mut self,
+        class: &str,
+        ctor: Option<&ResolvedCall>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let mark = self.temporaries_mark();
+        let staged_refs = self.pending_refs_mark();
+        let args = match ctor {
+            Some(call) => {
+                let sig = ArgSig::of(call);
+                let checked_types = self.checked_types;
+                self.lower_call_args(
+                    &CallArgs::List(Vec::new()),
+                    &sig,
+                    checked_types,
+                    ArgOwnership::Transferred,
+                    env,
+                    cur,
+                )
+                .values
+            }
+            None => Vec::new(),
+        };
+        let ctor = ctor.map(|call| format!("{}::{}", call.class, call.method));
+        self.forget_transferred_since(mark);
+        let (built, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.to_owned(),
+                ctor,
+                args,
+            },
+            env,
+        );
+        self.flush_ref_writebacks(staged_refs, env, *cur);
+        built
+    }
+
+    /// `Core\Program::implementingWith<I, T>($member)` —
+    /// `rule:programs/implementing-with`'s expansion: [`Self::lower_program_instances`]'s
+    /// array, each entry joined with the attribute payload the checker folded
+    /// for that class, as one `{attribute, instance}` shape row per class.
+    ///
+    /// Each row is the synthesized class a written `{attribute: …, instance:
+    /// …}` literal gets ([`super::shape_class_label`]), so a row and a
+    /// hand-written one are one class with one layout. The `attribute` slot
+    /// is recorded as [`Ty::Tagged`] outright: it holds a folded shape object
+    /// for one class and `null` for the next, which is the disagreement
+    /// [`Self::record_shape_class`] degrades to that anyway. Nothing is
+    /// retained — the instance and the payload are fresh producers whose one
+    /// reference the slot takes, exactly as in [`Self::emit_const_shape`].
+    fn lower_program_instances_with(
+        &mut self,
+        classes: &[String],
+        ctors: &[Option<ResolvedCall>],
+        payloads: &[nvs_types::ConstArg],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let fields = vec!["attribute".to_owned(), "instance".to_owned()];
+        let label = super::shape_class_label(&fields);
+        let mut entries = Vec::with_capacity(classes.len());
+        for (index, class) in classes.iter().enumerate() {
+            let instance = self.emit_enumerated_new(
+                class,
+                ctors.get(index).and_then(Option::as_ref),
+                env,
+                cur,
+            );
+            let (attribute, _) = match payloads.get(index) {
+                Some(payload) => self.emit_const_arg(payload, None, env, *cur),
+                None => self.emit(*cur, Ty::Null, InstKind::ConstNull),
+            };
+            let (row, _) = self.emit_fallible(
                 *cur,
                 Ty::Object,
                 InstKind::New {
-                    class: class.clone(),
-                    ctor: ctors.get(index).cloned().flatten(),
+                    class: label.clone(),
+                    ctor: None,
                     args: Vec::new(),
                 },
                 env,
             );
-            entries.push((index.to_string(), built.0));
+            self.emit_field_set(*cur, row, label.clone(), "attribute".to_owned(), attribute);
+            self.emit_field_set(*cur, row, label.clone(), "instance".to_owned(), instance);
+            entries.push((index.to_string(), row));
         }
+        self.record_shape_class(label, fields, vec![Ty::Tagged, Ty::Object]);
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
 

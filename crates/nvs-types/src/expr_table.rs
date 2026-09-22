@@ -1048,13 +1048,33 @@ pub enum ExprInfo {
         /// by fully-qualified name — `nvs_hir::implementors`' answer verbatim,
         /// so the order is the ADR's rather than the filesystem's.
         classes: Vec<QName>,
-        /// Each entry's resolved `constructor` label
-        /// (`"Owner::constructor"`), or `None` where the class declares none
-        /// — the same convention [`ExprInfo::New`]'s `ctor` carries, and
-        /// resolved here for its reason: `nvs-ir` cannot re-walk the hierarchy
-        /// to find the declaring class. One entry per `classes` entry, in the
-        /// same order.
-        ctors: Vec<Option<String>>,
+        /// Each entry's resolved `constructor` call, or `None` where the class
+        /// declares none — [`ExprInfo::New`]'s `ctor` exactly, and resolved
+        /// here for its reason: `nvs-ir` cannot re-walk the hierarchy to find
+        /// the declaring class, and it materializes the defaults an empty
+        /// argument list leaves to the constructor from the call's slots. One
+        /// entry per `classes` entry, in the same order.
+        ctors: Vec<Option<ResolvedCall>>,
+    },
+    /// `Core\Program::implementingWith<I, T>($member)` —
+    /// `rule:programs/implementing-with`'s join of [`Self::ProgramInstances`]
+    /// with one attribute retrieval per class, already answered.
+    ///
+    /// The same list as the enumeration, plus what
+    /// `rule:attributes/retrieval-folds-while-checking`'s `get<T>` folds for
+    /// each class's named member: the one matching payload as a
+    /// [`ConstArg::Shape`], or [`ConstArg::Null`]. `nvs-ir` emits one
+    /// `{instance, attribute}` shape row per entry into one array, so the
+    /// instances are per-request exactly as the enumeration's are and the
+    /// payloads are the constants a `get<T>` call would have been replaced by.
+    ProgramInstancesWith {
+        /// [`Self::ProgramInstances`]'s `classes`.
+        classes: Vec<QName>,
+        /// [`Self::ProgramInstances`]'s `ctors`.
+        ctors: Vec<Option<ResolvedCall>>,
+        /// One entry per `classes` entry, in the same order: that class's
+        /// folded payload, or `null`.
+        payloads: Vec<ConstArg>,
     },
     /// `Core\Router::url`/`urlAbsolute`/`urlSigned` over a **literal** name
     /// that resolved to a declared route —

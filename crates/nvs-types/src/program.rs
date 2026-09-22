@@ -30,22 +30,39 @@
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, SymbolKind};
-use nvs_syntax::ast::Expr;
+use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
+use rustc_hash::FxHashSet;
 
-use crate::Env;
+use crate::defaults::ConstArg;
+use crate::expr::args::check_args_typed;
+use crate::expr::calls::resolved_call;
 use crate::expr::members::class_qname_of;
-use crate::expr_table::ExprInfo;
-use crate::signatures::resolve_method;
-use crate::ty::TypeId;
+use crate::expr_table::{ExprInfo, ResolvedCall};
+use crate::locals::LocalScope;
+use crate::retrieval::{fold_payload, matching, sites_for};
+use crate::signatures::{resolve_method, resolve_property};
+use crate::ty::{ShapeField, Ty, TypeId};
+use crate::{Ctx, Env};
 
 /// The one class this pass answers for.
 const OWNER: &str = r"Core\Program";
 
-/// Whether `owner::member` is the enumeration — the same nominal test
+/// The joined enumeration, `rule:programs/implementing-with`'s member.
+const WITH: &str = "implementingWith";
+
+/// Whether `owner::member` is an enumeration — the same nominal test
 /// [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
-/// rather than against what the call site spelled.
+/// rather than against what the call site spelled. Two members answer:
+/// `implementing`, expanded by [`expand`], and `implementingWith`, expanded by
+/// [`expand_with`].
 pub(crate) fn is_enumeration(owner: &QName, member: &str) -> bool {
-    owner.to_string() == OWNER && member == "implementing"
+    owner.to_string() == OWNER && (member == "implementing" || member == WITH)
+}
+
+/// Whether `member` is the joined form, which [`expand_with`] answers with a
+/// type of its own rather than the registry row's.
+pub(crate) fn is_joined(member: &str) -> bool {
+    member == WITH
 }
 
 /// Resolves one enumeration and records its answer against the call's own
@@ -54,22 +71,200 @@ pub(crate) fn is_enumeration(owner: &QName, member: &str) -> bool {
 ///
 /// Records nothing where the call is refused: a diagnostic has been reported,
 /// and `nvs-ir` never reaches a unit that failed to check.
-pub(crate) fn expand(call: &Expr, written: &[TypeId], env: &mut Env<'_>) {
+pub(crate) fn expand(
+    call: &Expr,
+    written: &[TypeId],
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let Some(want) = written.first().copied() else {
         // The type-argument count is `check_written_type_args`' refusal and
         // has already been made; a second one names the same mistake twice.
         return;
     };
-    let Some(interface) = class_qname_of(want, env.interner).filter(|qname| {
+    let Some(interface) = interface_of(call, "implementing", want, env) else {
+        return;
+    };
+    let classes = nvs_hir::implementors(&interface, env.graph);
+    let Some(ctors) = constructors_of(&classes, &interface, call, live, scope, ctx, env) else {
+        return;
+    };
+    env.exprs
+        .record(call.span, ExprInfo::ProgramInstances { classes, ctors });
+}
+
+/// `rule:programs/implementing-with`: [`expand`]'s list, joined with one
+/// `rule:attributes/retrieval-folds-while-checking` retrieval per class, and
+/// recorded as [`ExprInfo::ProgramInstancesWith`].
+///
+/// Per class the retrieval is exactly what `Core\Attributes::get<T>` would
+/// answer for that class's own declaration of `$member`: the class itself for
+/// an empty name, its method for a method name, its property or constructor
+/// parameter otherwise — [`sites_for`]'s two rosters, joined the same way. A
+/// name no class declares is `E0798` naming the class, and two matches on one
+/// class are `E0728` naming it, both the retrieval's own codes for the same
+/// mistakes. A `$member` that is not a string literal names no roster and
+/// every row's `attribute` is `null`, as `get<T>`'s computed member folds.
+///
+/// Returns the call's type — `array<{instance: I, attribute: ?T}>` over the
+/// written arguments — because no registry row can state it: the row spells
+/// the shape for the card, and its return type is not lowered for this
+/// member. `mixed` where the call was refused.
+pub(crate) fn expand_with(
+    call: &Expr,
+    written: &[TypeId],
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let (Some(want_interface), Some(want_shape)) =
+        (written.first().copied(), written.get(1).copied())
+    else {
+        // The type-argument count is `check_written_type_args`' refusal.
+        return env.interner.mixed();
+    };
+    let Some(interface) = interface_of(call, WITH, want_interface, env) else {
+        return env.interner.mixed();
+    };
+    if !matches!(env.interner.get(want_shape), Ty::Shape(_)) {
+        let found = env.interner.describe(want_shape);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE,
+                format!("`Core\\Program::{WITH}` retrieves a shape, and `{found}` is not one"),
+            )
+            .with_primary(call.span, format!("`{found}` written here"))
+            .with_help(
+                "`rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an \
+                 answer exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so \
+                 the second type argument is an inline `{...}` or a `type` alias naming one",
+            ),
+        );
+        return env.interner.mixed();
+    }
+    let member_arg = match args {
+        CallArgs::List(list) => list.first().map(|arg| &arg.value),
+        _ => None,
+    };
+    let member_name = member_arg.and_then(|value| match &value.kind {
+        ExprKind::Str(span) => Some((
+            value.span,
+            crate::string_lit::cook_string_literal(env.src, *span),
+        )),
+        _ => None,
+    });
+    let computed_member = member_arg.is_some() && member_name.is_none();
+
+    let classes = nvs_hir::implementors(&interface, env.graph);
+    let Some(ctors) = constructors_of(&classes, &interface, call, live, scope, ctx, env) else {
+        return env.interner.mixed();
+    };
+    let mut payloads = Vec::with_capacity(classes.len());
+    for class in &classes {
+        // Which of `sites_for`'s two rosters the name selects on *this* class:
+        // a method's own sites, or the constructor's joined with a property's.
+        let (method, property) = match &member_name {
+            Some((_, name)) if !name.is_empty() => {
+                if resolve_method(class, name, env.signatures, env.graph).is_some() {
+                    (name.clone(), None)
+                } else if resolve_property(class, name, env.signatures, env.graph).is_some() {
+                    ("constructor".to_owned(), Some(name.as_str()))
+                } else {
+                    let span = member_name.as_ref().map_or(call.span, |(span, _)| *span);
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_ATTRIBUTE_MEMBER_NOT_DECLARED,
+                            format!(
+                                "`Core\\Program::{WITH}` names `{name}`, which `{class}` does not \
+                                 declare"
+                            ),
+                        )
+                        .with_primary(span, "no method, parameter or property of that name")
+                        .with_help(format!(
+                            "`rule:programs/implementing-with`: the member is read on every class implementing \
+                             `{interface}`, so it is checked against each one's real declarations — \
+                             name a member `{interface}` declares, or the empty string for the \
+                             class's own attributes"
+                        )),
+                    );
+                    return env.interner.mixed();
+                }
+            }
+            _ => ("constructor".to_owned(), None),
+        };
+        let sites = if computed_member {
+            Vec::new()
+        } else {
+            sites_for(env, class, &method, property)
+        };
+        let matched = matching(&sites, want_shape, env);
+        let value = match matched.len() {
+            0 => ConstArg::Null,
+            1 => match fold_payload(matched[0], env) {
+                Some(value) => value,
+                None => return env.interner.mixed(),
+            },
+            count => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
+                        format!("`{class}::{method}` carries {count} attached literals satisfying this shape"),
+                    )
+                    .with_primary(call.span, "each row's `attribute` holds at most one")
+                    .with_help(format!(
+                        "`rule:programs/implementing-with`: an attached-attribute list is static, so this is \
+                         decided here rather than by a test run — narrow the shape until one literal on \
+                         `{class}` satisfies it, or read that class with `Core\\Attributes::all<T>(…)`"
+                    )),
+                );
+                return env.interner.mixed();
+            }
+        };
+        payloads.push(value);
+    }
+    env.exprs.record(
+        call.span,
+        ExprInfo::ProgramInstancesWith {
+            classes,
+            ctors,
+            payloads,
+        },
+    );
+    let null = env.interner.null();
+    let attribute = env.interner.make_union([want_shape, null]);
+    let row = env.interner.shape(vec![
+        ShapeField {
+            name: "instance".to_owned(),
+            ty: want_interface,
+            required: true,
+        },
+        ShapeField {
+            name: "attribute".to_owned(),
+            ty: attribute,
+            required: true,
+        },
+    ]);
+    env.interner.array(row)
+}
+
+/// The interface a written type argument names, or `None` after reporting
+/// `E0743` — § 3's first refusal, shared by both enumerations.
+fn interface_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Option<QName> {
+    let found = class_qname_of(want, env.interner).filter(|qname| {
         env.symbols
             .get(qname)
             .is_some_and(|sym| sym.kind == SymbolKind::Interface)
-    }) else {
+    });
+    if found.is_none() {
         let found = env.interner.describe(want);
         env.diags.report(
             Diagnostic::error(
                 code::E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE,
-                format!("`Core\\Program::implementing` enumerates an interface, and `{found}` is not one"),
+                format!("`Core\\Program::{member}` enumerates an interface, and `{found}` is not one"),
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
@@ -78,12 +273,29 @@ pub(crate) fn expand(call: &Expr, written: &[TypeId], env: &mut Env<'_>) {
                  an array of anything else is one nothing can be called on",
             ),
         );
-        return;
-    };
+    }
+    found
+}
 
-    let classes = nvs_hir::implementors(&interface, env.graph);
+/// Each class's resolved `constructor` call, or `None` after reporting
+/// `E0744` — § 3's second refusal, shared by both enumerations.
+///
+/// The entry is the one a written `new C()` records ([`ExprInfo::New`]'s
+/// `ctor`): the constructor's signature plus the slots an empty argument list
+/// leaves to its defaults, which `nvs-ir` materializes through its ordinary
+/// argument lowering. A bare label allocated with no arguments at all, which
+/// left every optional parameter unset — a `float $value = 1013.0` read `0`.
+fn constructors_of(
+    classes: &[QName],
+    interface: &QName,
+    call: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<Vec<Option<ResolvedCall>>> {
     let mut ctors = Vec::with_capacity(classes.len());
-    for class in &classes {
+    for class in classes {
         // A class declaring no `constructor` at all is the common case and the
         // one § 3 is written for; `ExprInfo::New`'s own `ctor` is `None` there
         // too, and `nvs-ir` allocates without calling anything.
@@ -113,13 +325,30 @@ pub(crate) fn expand(call: &Expr, written: &[TypeId], env: &mut Env<'_>) {
                      zero-argument `constructor`, or drop its `implements` clause",
                 )),
             );
-            return;
+            return None;
         }
-        ctors.push(Some(format!("{owner}::constructor")));
+        let (_, slots, checked) = check_args_typed(
+            &CallArgs::List(Vec::new()),
+            Some(sig.clone()),
+            call.span,
+            live,
+            scope,
+            ctx,
+            env,
+        );
+        let Some(checked) = checked else {
+            ctors.push(None);
+            continue;
+        };
+        ctors.push(Some(resolved_call(
+            owner,
+            "constructor".to_owned(),
+            &checked,
+            slots,
+            env.signatures,
+        )));
     }
-
-    env.exprs
-        .record(call.span, ExprInfo::ProgramInstances { classes, ctors });
+    Some(ctors)
 }
 
 #[cfg(test)]
@@ -188,10 +417,14 @@ mod tests {
         let names: Vec<String> = classes.iter().map(ToString::to_string).collect();
         // Source order is `Zulu`, `Alpha`; the answer is not.
         assert_eq!(names, ["Alpha", "Zulu"]);
-        assert_eq!(
-            ctors.as_slice(),
-            [Some("Alpha::constructor".to_owned()), None]
-        );
+        let labels: Vec<Option<String>> = ctors
+            .iter()
+            .map(|ctor| {
+                ctor.as_ref()
+                    .map(|call| format!("{}::{}", call.class, call.method))
+            })
+            .collect();
+        assert_eq!(labels, [Some("Alpha::constructor".to_owned()), None]);
     }
 
     /// § 3's "`T` must be an interface type", reported where the type argument
@@ -272,6 +505,78 @@ mod tests {
             classes.iter().map(ToString::to_string).collect::<Vec<_>>(),
             ["Needy"]
         );
-        assert_eq!(ctors.as_slice(), [Some("Needy::constructor".to_owned())]);
+        let [Some(ctor)] = ctors.as_slice() else {
+            panic!("one resolved constructor: {ctors:?}");
+        };
+        assert_eq!(
+            (ctor.class.to_string().as_str(), ctor.method.as_str()),
+            ("Needy", "constructor")
+        );
+        // The optional parameter is one the constructor's own default fills:
+        // the call carries the signature `new Needy()` would carry, and no
+        // written slot, which is what makes the instance carry `1` rather
+        // than an unset slot.
+        assert!(
+            ctor.arg_slots.is_empty(),
+            "nothing was written: {:?}",
+            ctor.arg_slots
+        );
+        assert_eq!(
+            ctor.param_tys.len(),
+            1,
+            "one parameter for the default to fill: {:?}",
+            ctor.param_names
+        );
+    }
+
+    /// `rule:programs/implementing-with`: the joined form records the
+    /// enumeration's list beside one folded payload per class — the matching
+    /// literal as a shape constant, `null` where the class's member carries
+    /// none — in the enumeration's order.
+    // covers: Core\Program::implementingWith
+    #[test]
+    fn program_implementing_with_records_one_payload_per_class() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Module { public function tag(): string; }\n\
+             class Beta implements Module {\n\
+                 #[{order: 2}]\n\
+                 public function tag(): string { return \"b\"; }\n\
+             }\n\
+             class Alpha implements Module {\n\
+                 public function tag(): string { return \"a\"; }\n\
+             }\n\
+             Core\\Program::implementingWith<Module, {order: int}>(\"tag\");\n",
+        );
+        assert!(!diags.has_errors(), "the join was refused: {diags:?}");
+        let Some(ExprInfo::ProgramInstancesWith {
+            classes,
+            ctors,
+            payloads,
+        }) = exprs.lookup(span)
+        else {
+            panic!("the call recorded no join: {:?}", exprs.lookup(span));
+        };
+        assert_eq!(
+            classes.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["Alpha", "Beta"]
+        );
+        assert!(
+            ctors.iter().all(Option::is_none),
+            "no class declares a constructor: {ctors:?}"
+        );
+        let [alpha, beta] = payloads.as_slice() else {
+            panic!("one payload per class: {payloads:?}");
+        };
+        assert!(
+            matches!(alpha, crate::defaults::ConstArg::Null),
+            "a class whose member carries no match folds to `null`: {alpha:?}"
+        );
+        let crate::defaults::ConstArg::Shape(fields) = beta else {
+            panic!("the matched literal folds to a shape: {beta:?}");
+        };
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].0, "order");
+        assert!(matches!(fields[0].1, crate::defaults::ConstArg::Int(2)));
     }
 }

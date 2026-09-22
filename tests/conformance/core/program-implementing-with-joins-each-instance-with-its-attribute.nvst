@@ -1,0 +1,41 @@
+--TEST--
+`Core\Program::implementingWith<I, T>($member)` answers one `{instance, attribute}` row per implementor in the enumeration's order, with `null` where the class's member carries no matching attribute, `rule:programs/implementing-with`
+--FILE--
+<?nvs
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    #[{path: "/"}]
+    public function render(): string { return "index"; }
+}
+
+class About implements Page {
+    public function render(): string { return "about"; }
+}
+
+class Contact implements Page {
+    // Structural: a payload with more fields than the shape still matches it.
+    #[{path: "/contact", title: "Contact"}]
+    public function render(): string { return "contact"; }
+}
+
+abstract class Layout implements Page {}
+
+// Sorted by name; the abstract class is not a row; a class whose member
+// carries nothing matching answers `null`.
+foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+    echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
+}
+// Nothing implements the interface: an empty array.
+interface Widget {
+    public function draw(): string;
+}
+echo Core\Arr::count(Core\Program::implementingWith<Widget, {path: string}>("draw")), "\n";
+// covers: Core\Program::implementingWith
+--EXPECT--
+about none
+contact /contact
+index /
+0

@@ -9,6 +9,7 @@ Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Genera
 |---|---|---|
 | Programs | existing PHP packages, frameworks and code do not run, and no document may imply otherwise | [`programs/no-compatibility-promise`](rules/programs.md#programs-no-compatibility-promise) |
 | Programs | a plugin roster is a compile-time array literal, not a `foreach` over `new $className` | [`programs/implementing`](rules/programs.md#programs-implementing) |
+| Programs | a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes | [`programs/implementing-with`](rules/programs.md#programs-implementing-with) |
 | Programs | there is no `spl_autoload_register`, no `__autoload` and no `new $name` — a name held in a string can never reach a file | [`programs/no-runtime-autoload`](rules/programs.md#programs-no-runtime-autoload) |
 | Programs | the map is a declaration in source rather than a registered loader or a `psr-4` manifest, and it travels with the code instead of with the deployment | [`programs/autoload`](rules/programs.md#programs-autoload) |
 | Programs | PSR-4 imposes this by convention; here it is a diagnostic | [`programs/one-declaration-per-autoloaded-file`](rules/programs.md#programs-one-declaration-per-autoloaded-file) |
@@ -85,6 +86,7 @@ Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Genera
 | Classes | `__get`/`__set` are not recognized by name; observation is a declared `implements` that sees every property, not an ambient fallback that sees only the undefined ones | [`classes/property-observer`](rules/classes.md#classes-property-observer) |
 | Classes | there is no `insteadof`; the only way to pick a winner is an ordinary override that calls the source it wants by name | [`classes/member-conflict-is-an-error`](rules/classes.md#classes-member-conflict-is-an-error) |
 | Classes | `trait`, a class-body `use Trait;` and `insteadof` are not in the grammar at all | [`classes/no-traits`](rules/classes.md#classes-no-traits) |
+| Classes | 8.4 admits a hooked property in an interface; Novis admits no property there at all | [`classes/interfaces-declare-no-state`](rules/classes.md#classes-interfaces-declare-no-state) |
 | Classes | PHP's recursive property-by-property comparison of two same-class objects does not exist; ordering an unorderable pair is a compile error rather than an ambient walk | [`classes/comparable`](rules/classes.md#classes-comparable) |
 | Classes | two objects of different classes are a compile error rather than a comparison PHP answers by falling through its own coercion rules | [`classes/comparable-is-same-class-only`](rules/classes.md#classes-comparable-is-same-class-only) |
 | Classes | `__toString` is not recognized; the capability is `implements Stringable` and its absence is refused where the object is rendered | [`classes/stringable`](rules/classes.md#classes-stringable) |

@@ -96,7 +96,7 @@ const OWNER: &str = "Core\\Attributes";
 /// field names and string literals are read out of *that* source rather than
 /// out of whichever file the retrieval was written in.
 #[derive(Clone, Copy)]
-struct Site<'a> {
+pub(crate) struct Site<'a> {
     src: &'a SourceFile,
     attr: &'a Attribute,
     /// Which [`Scope`] in [`AttributeTable::scopes`] this was written under.
@@ -463,7 +463,7 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
 ///
 /// [`MethodSig::param_names`]: crate::signatures::MethodSig::param_names
 /// [`MethodSig::param_index`]: crate::signatures::MethodSig::param_index
-fn declares_member(class: &QName, method: &str, member: &str, env: &Env<'_>) -> bool {
+pub(crate) fn declares_member(class: &QName, method: &str, member: &str, env: &Env<'_>) -> bool {
     if let Some((_, sig)) = resolve_method(class, method, env.signatures, env.graph)
         && sig.param_names.iter().any(|name| name == member)
     {
@@ -474,7 +474,7 @@ fn declares_member(class: &QName, method: &str, member: &str, env: &Env<'_>) -> 
 
 /// The attach sites `$target` plus `$member` names, joined where § 4's two
 /// spellings overlap — see this module's own docs.
-fn sites_for<'a>(
+pub(crate) fn sites_for<'a>(
     env: &Env<'a>,
     class: &QName,
     method: &str,
@@ -516,7 +516,7 @@ fn sites_for<'a>(
 /// [`Scope`], because a field name, a string literal and a `Mode::Fast` are all
 /// read out of the text they were written in — the retrieval's file and
 /// imports have no bearing on what the payload says.
-fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site<'a>> {
+pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site<'a>> {
     let outer = env.src;
     let table = env.attributes;
     let mut matched = Vec::new();
@@ -537,7 +537,7 @@ fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site
 
 /// One matched payload as the constant § 5 replaces the call with, or `None`
 /// after reporting `E0731` for a value with no constant form.
-fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
+pub(crate) fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
     let outer = env.src;
     env.src = site.src;
     let written = site_ctx(&env.attributes.scopes[site.scope]);

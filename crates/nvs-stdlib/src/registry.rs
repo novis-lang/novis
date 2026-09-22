@@ -1307,7 +1307,24 @@ impl CoreTy {
                     .collect();
                 format!("{{{}}}", fields.join(", "))
             }
-            _ => "?".into(),
+            // Each arm as the grammar writes a shape, arms joined as a union:
+            // a field with a default is one a call site may leave out.
+            Self::Shape(arms) => {
+                let arms: Vec<String> = arms
+                    .iter()
+                    .map(|arm| {
+                        let fields: Vec<String> = arm
+                            .iter()
+                            .map(|field| {
+                                let optional = if field.default.is_some() { "?" } else { "" };
+                                format!("{}{optional}: {}", field.name, field.ty.spelled())
+                            })
+                            .collect();
+                        format!("{{{}}}", fields.join(", "))
+                    })
+                    .collect();
+                arms.join("|")
+            }
         }
     }
 
@@ -1413,6 +1430,13 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
         CoreTy::Options(options) => {
             for option in *options {
                 collect_written(&option.ty, found);
+            }
+        }
+        CoreTy::Shape(arms) => {
+            for arm in *arms {
+                for field in *arm {
+                    collect_written(&field.ty, found);
+                }
             }
         }
         _ => {}
@@ -4099,8 +4123,14 @@ mod tests {
         }
         for class in CLASSES {
             for method in class.members() {
+                // The one row a helper never answers: `nvs_types::program`
+                // expands `implementingWith` and builds each `{instance,
+                // attribute}` row itself, and the row spells the shape so the
+                // card prints what the call answers. See `crate::program::ROW`.
+                let expanded =
+                    class.name == crate::program::NAME && method.name == "implementingWith";
                 assert!(
-                    !nests_one(&method.return_ty),
+                    expanded || !nests_one(&method.return_ty),
                     "{}::{} returns a shape, which has no runtime representation to answer with",
                     class.name,
                     method.name
