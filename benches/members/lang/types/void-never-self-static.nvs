@@ -1,12 +1,10 @@
 <?nvs
-// What a small family of record types costs at its edge: a base class that
-// builds whichever kind was asked for, a chain of calls that each hand the
-// object back, and a call made only for what it does. Each round starts from
-// the running total, so nothing here can be settled ahead of time. The two
-// allocations a round are the object itself: naming the class outright counts
-// exactly the same, so asking for the called class costs nothing extra.
+// Measures what a small family of record types costs. A class builds whichever
+// kind was named, methods return the object, and one method is called only for
+// what it does. Each round starts from the running total, so nothing is
+// computed ahead of time. One object is allocated per round.
 // bench: iterations 200000
-// bench: allocations 2
+// bench: allocations 1
 // bench: calls 5
 
 class Row {
