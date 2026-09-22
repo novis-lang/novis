@@ -1,0 +1,18 @@
+<?nvs
+// Shows what the text looks like: two digits for every byte, always in lower
+// case.
+
+bytes $raw = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+
+// One byte is two digits. This prints 68656c6c6f.
+echo Core\Encoding::toHex($raw), "\n";
+
+// So the text is twice as long as the buffer. This prints 5 10.
+echo Core\Bytes::length($raw), " ", Core\Str::length(Core\Encoding::toHex($raw)), "\n";
+
+// The letters `a` to `f` are written in lower case, whatever case the bytes
+// were read from. This prints ff00ab.
+echo Core\Encoding::toHex(Core\Encoding::fromHex("FF00AB")), "\n";
+
+// The empty buffer gives the empty string, so this line prints nothing.
+echo Core\Encoding::toHex(Core\Encoding::encodeText("", Core\Charset::Utf8)), "\n";

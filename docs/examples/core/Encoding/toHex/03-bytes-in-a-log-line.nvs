@@ -1,0 +1,22 @@
+<?nvs
+// Shows the everyday use: a program is given a file it does not understand,
+// and puts the first bytes in its log so a person can see them.
+
+// A PNG image starts with these eight bytes.
+bytes $pngHeader = Core\Encoding::fromHex("89504e470d0a1a0a");
+
+// What somebody uploaded. This one is a GIF image.
+bytes $upload = Core\Encoding::encodeText("GIF89a and then the pixels", Core\Charset::Ascii);
+
+// This prints the upload is not a PNG.
+if (!Core\Bytes::startsWith($upload, $pngHeader)) {
+    echo "the upload is not a PNG\n";
+}
+
+// The bytes are not text, and a log line has to be readable. The first eight
+// bytes are sixteen digits. This prints starts with 4749463839612061.
+echo "starts with ", Core\Encoding::toHex(Core\Bytes::slice($upload, 0, 8)), "\n";
+
+// The same eight bytes printed as they are. Most of them happen to be letters
+// here. A file of real pixels prints characters nobody can read.
+echo "as characters ", Core\Encoding::decodeText(Core\Bytes::slice($upload, 0, 8), Core\Charset::Ascii), "\n";

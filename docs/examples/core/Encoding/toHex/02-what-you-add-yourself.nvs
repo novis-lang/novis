@@ -1,0 +1,25 @@
+<?nvs
+// Shows what the text does not carry, and how to add what a form wants.
+
+// A colour is three bytes: red, green and blue. A stylesheet wants a `#` in
+// front, and this member does not write one. This prints #2f6f4e.
+bytes $colour = Core\Encoding::fromHex("2f6f4e");
+echo "#", Core\Encoding::toHex($colour), "\n";
+
+// There is nothing between the pairs either. A network address is written with
+// a colon after every byte, so take the digits two at a time.
+string $hex = Core\Encoding::toHex(Core\Encoding::fromHex("001b44113ab7"));
+string $address = "";
+int $i = 0;
+while ($i < Core\Str::length($hex)) {
+    if ($i > 0) {
+        $address = $address . ":";
+    }
+    $address = $address . Core\Str::slice($hex, $i, 2);
+    $i = $i + 2;
+}
+// This prints 00:1b:44:11:3a:b7.
+echo $address, "\n";
+
+// Upper case is one more call. This prints 001B44113AB7.
+echo Core\Str::upper($hex), "\n";
