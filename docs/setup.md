@@ -67,18 +67,20 @@ The primary development platform, and the only one with real setup:
    `rule:testing/perf-two-mechanisms`), `cargo-fuzz` (needs libFuzzer), and the
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
-4. **Windows' own `sudo`, enabled in inline mode.** `nvs service install`, `start` and `stop` talk
-   to the service control manager, which only an elevated process may do, and the live service
-   check is run from an ordinary terminal or an agent session as `sudo nvs service …` — one UAC
-   prompt per call rather than a second, elevated terminal nobody else can see into. Windows 11
-   ships it disabled; this turns it on, through one elevation:
+4. **The live service check's task.** `nvs service install`, `start` and `stop` talk to the service
+   control manager, which only an elevated process may do, and neither a terminal nor an agent
+   session is one. UAC is not weakened for that: `tools/service-live.ps1` registers **one**
+   scheduled task, `novis-service-live`, whose only action is that script, elevated, and which its
+   owner then starts from any shell with no prompt. From the repository root, once — this is the
+   one UAC prompt:
 
    ```powershell
-   Start-Process powershell -Verb RunAs -ArgumentList '-Command','sudo config --enable normal'
+   powershell -NoProfile -ExecutionPolicy Bypass -File tools\service-live.ps1 -Register
    ```
 
-   `sudo config` afterwards prints `normal`. It is not the WSL `sudo` two lines below — that one is
-   the distro's and needs nothing.
+   From then on the same line without `-Register` runs the check — install, start, a request,
+   stop, `sc qc`, the event log, uninstall — and prints what it saw; `-Unregister` takes the task
+   away. The task points at the clone that registered it, so a clone moved runs `-Register` again.
 
 One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/…` mount:
 
