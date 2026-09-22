@@ -417,26 +417,7 @@ impl<'a> Lexer<'a> {
     /// collapses into one useless `InlineHtml` token. [`Self::lex_html`]
     /// reports the casing.
     fn match_open_tag(&self) -> Option<(TokenKind, usize)> {
-        for (spelling, kind) in [
-            ("<?php", TokenKind::OpenTagPhp),
-            (OPEN_TAGS[0], TokenKind::OpenTagNvs),
-        ] {
-            if let Some(head) = self.rest().get(..spelling.len())
-                && head.eq_ignore_ascii_case(spelling)
-            {
-                let after = self
-                    .rest()
-                    .get(spelling.len()..)
-                    .and_then(|s| s.chars().next());
-                if after.is_none_or(|c| c.is_whitespace() || c == '?') {
-                    return Some((kind, spelling.len()));
-                }
-            }
-        }
-        if self.starts_with(OPEN_TAGS[1]) {
-            return Some((TokenKind::OpenTagEcho, OPEN_TAGS[1].len()));
-        }
-        None
+        open_tag_at(self.rest())
     }
 
     // --- code mode ------------------------------------------------------------
@@ -1471,6 +1452,54 @@ impl<'a> Lexer<'a> {
 /// this crate that offers a tag — an editor completing a half-written `<?` —
 /// offers exactly what the lexer accepts.
 pub const OPEN_TAGS: [&str; 2] = ["<?nvs", "<?="];
+
+/// The open tag `rest` begins with, and how many bytes of it there are, or
+/// `None` where `rest` begins with no tag.
+///
+/// `<?php` and `<?nvs` must be followed by whitespace, `?` or the end of the
+/// input, so `<?phpx` is not a tag. Both are recognised without regard to
+/// ASCII case, the way `rule:statements/nvs-is-the-only-open-tag` already
+/// recognises `<?php` purely so the diagnostic can name the fix: a file opening
+/// `<?NVS` must keep lexing as code, or every later line collapses into one
+/// useless `InlineHtml` token. [`Lexer`] reports the casing where it lexes
+/// markup.
+///
+/// This is the one place the test is written. The lexer asks it at every
+/// position of a markup run, and [`first_open_tag`] asks it of a whole text.
+fn open_tag_at(rest: &str) -> Option<(TokenKind, usize)> {
+    for (spelling, kind) in [
+        ("<?php", TokenKind::OpenTagPhp),
+        (OPEN_TAGS[0], TokenKind::OpenTagNvs),
+    ] {
+        if let Some(head) = rest.get(..spelling.len())
+            && head.eq_ignore_ascii_case(spelling)
+        {
+            let after = rest.get(spelling.len()..).and_then(|s| s.chars().next());
+            if after.is_none_or(|c| c.is_whitespace() || c == '?') {
+                return Some((kind, spelling.len()));
+            }
+        }
+    }
+    if rest.starts_with(OPEN_TAGS[1]) {
+        return Some((TokenKind::OpenTagEcho, OPEN_TAGS[1].len()));
+    }
+    None
+}
+
+/// The byte range of the first tag that opens code in `text`, or `None` for a
+/// text that never leaves markup.
+///
+/// Everything before the first tag is markup, so the first position where
+/// [`open_tag_at`] answers is the tag the lexer would produce — this scans the
+/// same text with the same test and never tokenizes. It exists for the readers
+/// that put a line right after the tag: the `use` a checker's fix and an
+/// editor's completion insert into a file with no `use` and no `namespace` of
+/// its own, which is `nvs_hir::imports`'s question.
+#[must_use]
+pub fn first_open_tag(text: &str) -> Option<std::ops::Range<usize>> {
+    text.match_indices("<?")
+        .find_map(|(at, _)| open_tag_at(&text[at..]).map(|(_, len)| at..at + len))
+}
 
 /// Tokenizes an entire file in one call, for tests and for anything that
 /// wants the whole stream rather than pulling it lazily.
