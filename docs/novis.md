@@ -320,9 +320,10 @@ types chapter.
 
 Inside an HTTP request the sink escapes every `string` it is given and writes a `Core\Html\Markup`
 raw, so `<?= $title ?>` cannot emit a tag. A page or a fragment of one built as a value is an
-``html`…` `` literal — trusted text around `{$…}` holes that are escaped — and a method that
-returns one is how a page is composed from parts. The literal is the types chapter's `Markup: the
-html template literal`.
+``html`…` `` literal — trusted text around holes that are escaped — and a method that returns one
+is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside a literal, so what
+outputs in a page outputs in a literal. The literal is the types chapter's `Markup: the html
+template literal`.
 
 Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
 render a loop or a condition around raw HTML:
@@ -997,13 +998,17 @@ as it is, and every hole in it is escaped. It is the way to build a page, or one
 as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
 `Core\Response::html` write raw; a `string` written there is escaped.
 
-- A hole is written as in a double-quoted string: `$name` bare, or `{$…}` with any expression
-  whose **first token is a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}`. A `{`
-  not followed by `$` is text, so a `<style>` or `<script>` block needs no escape. It follows that
-  `{Page::TITLE}` and `{Page::render()}` are text and are printed as written: bind the value to a
-  local first and write `{$title}`.
-- A `string` in a hole is escaped, `tainted` or not. A `Core\Html\Markup` in a hole is written raw.
-  A `secret` value in a hole is a compile error.
+- A literal has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
+  in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
+  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape, and
+  `{Page::TITLE}` is printed as written. `<?= expr ?>` is a page's output tag, and inside a literal
+  it is a hole that takes **any** expression: `<?= Page::TITLE ?>`, `<?= Money::format($c) ?>`,
+  `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>`. Spaces around the expression are allowed, a
+  `}` inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes
+  it. A `<?nvs` block inside a literal is a compile error: a literal is one expression, and a loop
+  around markup is written in code mode outside it.
+- Both holes follow one rule. A `string` is escaped, `tainted` or not. A `Core\Html\Markup` is
+  written raw. A `secret` value is a compile error, and so is a value with no string form.
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
   compile error, because the text it would make is escaped again at the sink.
 - Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
@@ -1025,9 +1030,8 @@ class Page {
     }
 }
 tainted string $name = "<b>Ann</b>";
-string $title = Page::TITLE;
-Core\Html\Markup $badge = Page::badge();
-Core\Html\Markup $head = html`<h1>{$title} {$badge}</h1>`;
+bool $fresh = true;
+Core\Html\Markup $head = html`<h1><?= Page::TITLE ?> <?= $fresh ? Page::badge() : html`` ?></h1>`;
 Core\Html\Markup $body = html`<p>posted by {$name}, {Page::TITLE}</p>`;
 echo $head + $body, "\n";
 echo html`<pre>

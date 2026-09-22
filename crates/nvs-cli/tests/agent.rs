@@ -442,8 +442,8 @@ fn find_html_reaches_the_literal_and_the_markup_class() {
     let (card, _, ok) = agent(&["show", symbol_of(section)]);
     assert!(ok, "the section's symbol resolves");
     assert!(
-        card.contains("first token is a variable"),
-        "the hole grammar is stated at the literal: {card}"
+        card.contains("begin with a variable") && card.contains("<?= expr ?>"),
+        "both hole grammars are stated at the literal: {card}"
     );
 }
 

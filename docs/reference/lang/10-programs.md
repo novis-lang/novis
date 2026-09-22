@@ -89,9 +89,10 @@ types chapter.
 
 Inside an HTTP request the sink escapes every `string` it is given and writes a `Core\Html\Markup`
 raw, so `<?= $title ?>` cannot emit a tag. A page or a fragment of one built as a value is an
-``html`…` `` literal — trusted text around `{$…}` holes that are escaped — and a method that
-returns one is how a page is composed from parts. The literal is the types chapter's `Markup: the
-html template literal`.
+``html`…` `` literal — trusted text around holes that are escaped — and a method that returns one
+is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside a literal, so what
+outputs in a page outputs in a literal. The literal is the types chapter's `Markup: the html
+template literal`.
 
 Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
 render a loop or a condition around raw HTML:
