@@ -296,7 +296,7 @@ pub(crate) enum Target<'a> {
 /// function x(): int … }` — so what resolved is carried alongside the name
 /// rather than guessed from it.
 #[derive(Clone, Copy)]
-enum MemberKind {
+pub(crate) enum MemberKind {
     /// A method, whose name the source writes bare.
     Method,
     /// A property, whose name the source writes with its `$`.
@@ -335,6 +335,17 @@ pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Si
         Target::Constant { class, name } => (*class, Some((*name, MemberKind::Constant))),
         Target::TypeAlias { class, name } => (*class, Some((*name, MemberKind::TypeAlias))),
     };
+    site_of(analysed, class, member)
+}
+
+/// [`site`] by names alone: the type `class` declares, or the member of it
+/// `member` names by its bare name and kind — what a caller holding a name it
+/// read back off the wire, and no resolved call, asks.
+pub(crate) fn site_of<'a>(
+    analysed: &'a Analysed,
+    class: &QName,
+    member: Option<(&str, MemberKind)>,
+) -> Option<Site<'a>> {
     let symbol = analysed.module.symbols.get(class)?;
     let file = analysed.map.file(symbol.decl_span.file);
     let stmt = declared_type(analysed, class).map(|(stmt, _)| stmt);

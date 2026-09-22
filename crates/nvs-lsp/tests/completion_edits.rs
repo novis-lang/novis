@@ -1,11 +1,12 @@
 //! What a completion item does to a buffer, and when a list is offered at all.
 //!
 //! Here rather than under `tests/lsp/completion/` because `nvs_lsp::render`
-//! freezes a label, a kind and a detail — the three fields a client shows — and
-//! everything asserted below is a field a client *acts* on: the text an item
-//! replaces, the `use` line it adds elsewhere, the order a tie is broken in, and
-//! whether a request a trigger character raised is answered. A case may not
-//! invent a rendering for those
+//! freezes the row a client shows — the label, what is written after it, the
+//! kind, the text at the right — and everything asserted below is a field a
+//! client *acts* on or asks for later: the text an item replaces, the `use`
+//! line it adds elsewhere, the order a tie is broken in, whether a request a
+//! trigger character raised is answered, and the card `completionItem/resolve`
+//! fills in. A case may not invent a rendering for those
 //! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`), so a Rust test holds
 //! them, the way `tests/completion.rs` holds a PHP name's `insert_text`.
 //!
@@ -13,11 +14,15 @@
 //! other request: the bytes `nvs/regions` stops reporting as HTML are exactly
 //! the ones completion offers the open tags at.
 
-use lsp_types::{CompletionItem, CompletionTextEdit, InsertTextFormat, Position, Range, TextEdit};
+use lsp_types::{
+    CompletionItem, CompletionTextEdit, Documentation, InsertTextFormat, Position, Range, TextEdit,
+};
 use nvs_diagnostics::{PositionEncoding, SourceMap};
 use nvs_lsp::{
-    CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, completion, regions, uri_of,
+    CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, card, completion, regions,
+    uri_of,
 };
+use nvs_stdlib::registry;
 
 /// What is offered at the end of `source`, which is where a developer types.
 ///
@@ -485,5 +490,172 @@ fn a_half_written_open_tag_is_not_reported_as_html() {
         regions::for_source(map.file(id), PositionEncoding::Utf8).len(),
         1,
         "a processing instruction is markup's own and is not cut"
+    );
+}
+
+/// A class with a `///` run above it and above one of its members, for the
+/// rows and the cards below.
+const DOCUMENTED: &str = "<?nvs\n/// A person who can be greeted.\nclass User {\n    public const int LIMIT = 10;\n    public string $name;\n    /// Greets `$to`.\n    public function greet(string $to): string { return $to; }\n    public function ping(): void {}\n}\nvar $u = new User();\n";
+
+#[test]
+fn a_method_is_accepted_as_a_call() {
+    let items = offered_to(EDITOR, &format!("{DOCUMENTED}$u->"));
+    assert_eq!(
+        accepting(&items, "greet"),
+        (
+            "greet($0)".to_owned(),
+            Some(Client::PARAMETER_HINTS.to_owned())
+        ),
+        "a method with a parameter leaves the cursor inside, with signature help open"
+    );
+    assert_eq!(
+        named(&items, "greet").insert_text_format,
+        Some(InsertTextFormat::SNIPPET)
+    );
+    assert_eq!(
+        accepting(&items, "ping"),
+        ("ping()".to_owned(), None),
+        "a method with no parameter is written whole"
+    );
+    assert_eq!(
+        accepting(&items, "name"),
+        ("name".to_owned(), None),
+        "a property is not a call"
+    );
+    let plain = offered(&format!("{DOCUMENTED}$u->"));
+    assert_eq!(
+        accepting(&plain, "greet"),
+        ("greet()".to_owned(), None),
+        "a client without snippets gets the parentheses as text"
+    );
+    let written = offered_to(EDITOR, &format!("{DOCUMENTED}$u->gre{CURSOR}()"));
+    assert_eq!(
+        accepting(&written, "greet"),
+        ("greet".to_owned(), None),
+        "a `(` already written is not written twice"
+    );
+    let core = offered_to(EDITOR, "<?nvs\nCore\\Str::");
+    assert_eq!(accepting(&core, "length").0, "length($0)");
+}
+
+#[test]
+fn a_row_writes_the_signature_after_the_name_and_the_type_at_the_right() {
+    let items = offered(&format!("{DOCUMENTED}$u->"));
+    let greet = named(&items, "greet");
+    let details = greet
+        .label_details
+        .as_ref()
+        .expect("a method carries label details");
+    assert_eq!(details.detail.as_deref(), Some("(string $to)"));
+    assert_eq!(details.description.as_deref(), Some("string"));
+    assert_eq!(
+        greet.detail.as_deref(),
+        Some("User::greet(string $to): string"),
+        "the detail is the qualified signature a client heads the card with"
+    );
+    let name = named(&items, "name")
+        .label_details
+        .as_ref()
+        .expect("a property carries label details");
+    assert_eq!(
+        (name.detail.as_deref(), name.description.as_deref()),
+        (None, Some("string"))
+    );
+    let statics = offered(&format!("{DOCUMENTED}User::"));
+    let limit = named(&statics, "LIMIT")
+        .label_details
+        .as_ref()
+        .expect("a constant carries label details");
+    assert_eq!(
+        (limit.detail.as_deref(), limit.description.as_deref()),
+        (Some(" = 10"), Some("int"))
+    );
+    let types = offered("<?nvs\nSt");
+    let str = named(&types, "Str");
+    assert_eq!(
+        str.label_details
+            .as_ref()
+            .and_then(|details| details.detail.as_deref()),
+        Some(" [Core]"),
+        "a type offered by a short name says where it is declared"
+    );
+    assert_eq!(str.detail.as_deref(), Some(r"Core\Str"));
+}
+
+/// The card `completionItem/resolve` fills in for the item labelled `label`
+/// at the [`CURSOR`] in `source`, or at its end.
+fn card_of(source: &str, label: &str) -> Option<String> {
+    let cursor = source.find(CURSOR).unwrap_or(source.len());
+    let source = source.replacen(CURSOR, "", 1);
+    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-card.nvs"))
+        .expect("a temp path is UTF-8");
+    let mut documents = Documents::new();
+    documents.open(uri.clone(), 1, source);
+    let analysis = analyse(&documents, &uri).expect("an open document analyses");
+    let index = SymbolIndex::build(&documents, CheckScope::Open, None);
+    let at = u32::try_from(cursor).expect("a test document is short");
+    let items = card::keyed_to(
+        completion::at(
+            &analysis,
+            &index,
+            at,
+            PhpNames::Off,
+            Client::default(),
+            PositionEncoding::Utf8,
+        ),
+        &uri,
+    );
+    let item = card::resolve(&documents, named(&items, label).clone());
+    match item.documentation {
+        Some(Documentation::MarkupContent(content)) => Some(content.value),
+        Some(Documentation::String(text)) => Some(text),
+        None => None,
+    }
+}
+
+#[test]
+fn a_list_carries_keys_and_resolving_an_item_reads_its_card() {
+    let list = offered(&format!("{DOCUMENTED}$u->"));
+    assert!(
+        list.iter().all(|item| item.documentation.is_none()),
+        "no card travels with the list"
+    );
+    assert_eq!(
+        card_of(&format!("{DOCUMENTED}$u->"), "greet").as_deref(),
+        Some("Greets `$to`."),
+        "a member's `///` run is its card"
+    );
+    assert_eq!(
+        card_of(&format!("{DOCUMENTED}$u->"), "ping"),
+        None,
+        "a member nobody documented resolves to no card"
+    );
+    assert_eq!(
+        card_of(&format!("{DOCUMENTED}Us"), "User").as_deref(),
+        Some("A person who can be greeted."),
+        "a type's `///` run is its card"
+    );
+    let length = registry::class(r"Core\Str")
+        .and_then(|class| class.members().find(|row| row.name == "length"))
+        .and_then(|row| row.doc)
+        .expect("Core\\Str::length carries a card");
+    let card = card_of("<?nvs\nCore\\Str::", "length")
+        .expect("a `Core` member resolves to its reference card");
+    assert!(
+        card.starts_with(length.short),
+        "the card opens with the row's `short`"
+    );
+    let order = registry::core_enum(r"Core\Order")
+        .and_then(|core| core.doc)
+        .expect("Core\\Order carries a card");
+    let asc = order
+        .cases
+        .iter()
+        .find(|case| case.name == "Asc")
+        .map_or(order.short, |case| case.desc);
+    assert_eq!(
+        card_of("<?nvs\nCore\\Order::", "Asc").as_deref(),
+        Some(asc),
+        "a case resolves to its own line, or its enum's"
     );
 }

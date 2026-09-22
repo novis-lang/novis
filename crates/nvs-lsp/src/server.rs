@@ -53,8 +53,8 @@ use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
     DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
     GotoTypeDefinition, HoverRequest, InlayHintRequest, References, Request as _,
-    SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare,
-    TypeHierarchySubtypes, TypeHierarchySupertypes,
+    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+    TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
@@ -73,6 +73,7 @@ use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
 use crate::actions;
 use crate::capabilities::initialize_result;
+use crate::card;
 use crate::completion;
 use crate::definition;
 use crate::diagnostics::{Phases, dimming, for_document};
@@ -400,6 +401,10 @@ fn answer(
                 id,
                 completion(documents, index, settings, encoding, &params),
             ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        ResolveCompletionItem::METHOD => match serde_json::from_value::<CompletionItem>(params) {
+            Ok(item) => Response::new_ok(id, card::resolve(documents, item)),
             Err(error) => unreadable(id, &method, &error),
         },
         InlayHintRequest::METHOD => match serde_json::from_value::<InlayHintParams>(params) {
@@ -1090,13 +1095,16 @@ fn completion(
     if triggered && !completion::continues_a_trigger(&analysed, offset) {
         return CompletionResponse::Array(Vec::new());
     }
-    CompletionResponse::Array(completion::at(
-        &analysed,
-        index,
-        offset,
-        settings.php_names,
-        settings.client,
-        encoding,
+    CompletionResponse::Array(card::keyed_to(
+        completion::at(
+            &analysed,
+            index,
+            offset,
+            settings.php_names,
+            settings.client,
+            encoding,
+        ),
+        &params.text_document_position.text_document.uri,
     ))
 }
 

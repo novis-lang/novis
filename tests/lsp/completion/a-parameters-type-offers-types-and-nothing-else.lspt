@@ -11,4 +11,4 @@ function total(int $count, Mon<|>
 --REQUEST--
 completion prefix=Mon
 --EXPECT--
-Money   class     Shop\Money
+Money [Shop] class

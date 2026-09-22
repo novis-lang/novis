@@ -687,6 +687,39 @@
       ]
     },
     {
+      "id": "ide/an-accepted-member-writes-its-call",
+      "title": "Accepting a method writes `name()` with the cursor inside where it takes a parameter, and a property, constant, case or alias writes the name alone",
+      "status": "shipped",
+      "because": [
+        "0203"
+      ],
+      "seeAlso": [
+        "ide/an-accepted-type-writes-what-follows-it",
+        "ide/a-completion-row-reads-as-a-declaration"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/tests/completion_edits.rs"
+      ]
+    },
+    {
+      "id": "ide/a-completion-row-reads-as-a-declaration",
+      "title": "A completion row shows a member's signature after its name and its type at the right, a type its namespace, and the card is read on resolve for one item",
+      "status": "shipped",
+      "because": [
+        "0203"
+      ],
+      "seeAlso": [
+        "ide/the-rendering-has-one-home",
+        "core-api/reference-card"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/tests/completion_edits.rs",
+        "tests/lsp/completion/a-core-class-name-offers-its-static-rows-and-its-constants.lspt",
+        "tests/lsp/completion/a-class-name-offers-the-static-half-and-a-value-offers-the-other.lspt",
+        "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"
+      ]
+    },
+    {
       "id": "ide/keywords-are-offered-where-the-compiler-accepts-them",
       "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
       "status": "shipped",

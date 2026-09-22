@@ -9,5 +9,5 @@ if (true) {
 --REQUEST--
 completion
 --EXPECT--
-greet   method    (): string
+greet() method    string
 name    property  string

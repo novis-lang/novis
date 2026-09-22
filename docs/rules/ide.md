@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 76 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1063,6 +1063,49 @@ this off.
 
 <sub>See also [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/keywords-are-offered-where-the-compiler-accepts-them`](ide.md#ide-keywords-are-offered-where-the-compiler-accepts-them). Decided in [0194](../decisions/0194.md).</sub>
 
+<a id="ide-an-accepted-member-writes-its-call"></a>
+
+## Accepting a method writes `name()` with the cursor inside where it takes a parameter, and a property, constant, case or alias writes the name alone
+
+`rule:ide/an-accepted-member-writes-its-call`
+
+Accepting a method from a member list writes `name()`: the cursor is left between the parentheses, with
+signature help open, where the method declares a parameter, and after them where it declares none. A
+`Core` member declares a parameter where its row has a positional slot or an options bag. The terms are
+[`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it)'s for a name after `new`: a `(` already written after
+the cursor is not written twice, a client without snippet support gets `name()` as plain text, and the
+command runs only on a client that lists it. A property, a constant, an enum case and a type alias write
+the name alone — none of them is a call.
+
+<sub>See also [`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration). Decided in [0203](../decisions/0203.md).</sub>
+
+<a id="ide-a-completion-row-reads-as-a-declaration"></a>
+
+## A completion row shows a member's signature after its name and its type at the right, a type its namespace, and the card is read on resolve for one item
+
+`rule:ide/a-completion-row-reads-as-a-declaration`
+
+A completion row shows what the declaration would: a method as `name(params)` with its return type at
+the right, a property or a type alias as its name with its type at the right, a constant or an enum case
+as `NAME = value` with its type at the right where one is declared, and a type offered by a shorter
+spelling than its qualified name with the namespace it is declared in written after the name, in
+brackets. A type offered by its qualified name gets nothing after it: the label already says where it is.
+These are LSP's `labelDetails` — the `detail` an editor draws directly after the label, the `description`
+it draws at the right — and a row without them, a keyword or a variable, shows its `detail` at the right
+as before. The qualified name of a type and the qualified signature of a member stay the item's `detail`,
+which an editor shows only in the panel beside the list.
+
+**What a row documents is not on the row.** A list names every type in reach and every member of a
+class, and a card on each row would be most of every response, sent on every keystroke and read for one
+row. So every item carries a key under `data` — the qualified name of the type, or the owner and the
+member's name, and the document's URI stamped on by the server — and `completionItem/resolve` reads the
+card for the one item the editor shows: a `Core` member's reference card from its registry row, a `Core`
+class's, enum's, constant's or case's own line from the same registry, a user declaration's `///` run.
+It is the text hovering the declaration shows, rendered once, so a list and a hover never disagree about
+a name. An item nobody documented resolves to itself.
+
+<sub>See also [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0203](../decisions/0203.md).</sub>
+
 <a id="ide-keywords-are-offered-where-the-compiler-accepts-them"></a>
 
 ## A reserved word is offered only where the token before it and the nodes around it let the compiler accept it
@@ -1258,7 +1301,9 @@ freely, its expectation may not be edited to make it pass.
 
 The rendering is canonical and has one home, `nvs_lsp::render`, so no case invents its own spelling:
 diagnostics as `L:C-L:C severity CODE message` sorted by position; a hover as its markdown verbatim; a
-definition as `file:L:C` or `none`; completion as `label kind detail`, sorted by label; semantic tokens as
+definition as `file:L:C` or `none`; completion as the row an editor shows — the label with what is written
+directly after it, the kind, the text at the right ([`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration)) —
+sorted by label; semantic tokens as
 `L:C+len type modifiers`; symbols as an indented outline.
 
 <sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>

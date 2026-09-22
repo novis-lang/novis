@@ -14,5 +14,5 @@ if (true) {
 --REQUEST--
 completion
 --EXPECT--
-LIMIT   constant  int
-reset   method    (): void
+LIMIT = 10 constant  int
+reset() method    void

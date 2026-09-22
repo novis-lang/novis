@@ -20,4 +20,4 @@ class Counter extends Base {
 completion
 --EXPECT--
 $count  property  int
-LIMIT   constant  int
+LIMIT = 10 constant  int

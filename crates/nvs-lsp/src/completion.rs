@@ -300,6 +300,7 @@ use nvs_syntax::ast::{
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::{ExprInfo, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
+use serde_json::{Value, json};
 
 use crate::definition::{
     declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
@@ -358,8 +359,8 @@ pub fn at(
         encoding,
     };
     let mut items = match asked(analysed, &path, offset) {
-        Asked::Member(class, reach) => members_of(analysed, &class, reach),
-        Asked::TypeMember(owner) => type_members_of(analysed, &owner),
+        Asked::Member(class, reach) => members_of(&cursor, &class, reach),
+        Asked::TypeMember(owner) => type_members_of(&cursor, &owner),
         Asked::Namespace(prefix) => followed(
             &cursor,
             After::of(written(&cursor)),
@@ -477,14 +478,14 @@ enum Asked {
 }
 
 /// Every member of `class` that `reach` reaches, whoever declared it.
-fn members_of(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<CompletionItem> {
+fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
     let name = class.to_string();
     if let Some(core) = registry::class(&name) {
-        core_members(core, reach)
+        core_members(cursor, core, reach)
     } else if let Some(core) = registry::core_enum(&name) {
         core_cases(core, reach)
     } else {
-        declared_members(analysed, class, reach)
+        declared_members(cursor, class, reach)
     }
 }
 
@@ -752,7 +753,7 @@ fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
         );
     for (name, kind) in core {
         if let Some(rest) = under_prefix(name, prefix) {
-            found.insert(rest.clone(), item(rest, kind, name.to_owned()));
+            found.insert(rest.clone(), named_type(rest, kind, name.to_owned()));
         }
     }
     for path in symbols.files() {
@@ -761,7 +762,10 @@ fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
                 continue;
             };
             if let Some(rest) = under_prefix(&declared.symbol, prefix) {
-                found.insert(rest.clone(), item(rest, kind, declared.symbol.clone()));
+                found.insert(
+                    rest.clone(),
+                    named_type(rest, kind, declared.symbol.clone()),
+                );
             }
         }
     }
@@ -1634,21 +1638,17 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         };
         let last = symbol.rsplit('\\').next().unwrap_or(&symbol).to_owned();
         let offered = if spelled == Spelled::Qualified {
-            item(symbol.clone(), kind, symbol.clone())
+            type_row(symbol.clone(), kind, symbol.clone())
         } else if reached != symbol || last == symbol {
-            item(reached, kind, symbol.clone())
+            type_row(reached, kind, symbol.clone())
         } else if let Some(site) = site.as_ref().filter(|_| !taken.contains(&last)) {
             CompletionItem {
                 filter_text: Some(format!("{last} {symbol}")),
-                label_details: Some(CompletionItemLabelDetails {
-                    detail: None,
-                    description: Some(symbol.clone()),
-                }),
                 additional_text_edits: Some(vec![importing(file, *site, &symbol, encoding)]),
-                ..item(last, kind, symbol.clone())
+                ..type_row(last, kind, symbol.clone())
             }
         } else {
-            item(symbol.clone(), kind, symbol.clone())
+            type_row(symbol.clone(), kind, symbol.clone())
         };
         found.entry(symbol).or_insert_with(|| tier.ranks(offered));
     }
@@ -1667,7 +1667,7 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
             } else {
                 CompletionItemKind::CLASS
             };
-            Tier::Imported.ranks(item(name.clone(), kind, target))
+            Tier::Imported.ranks(type_row(name.clone(), kind, target))
         });
     }
     found.into_values().collect()
@@ -1991,14 +1991,17 @@ fn owner_written(analysed: &Analysed, offset: BytePos) -> Option<QName> {
 /// each that stands in a type. A `Core` class contributes its constants and a
 /// `Core` enum its cases; neither declares a `type` alias, which is a member of
 /// a written body and the registry holds none.
-fn type_members_of(analysed: &Analysed, owner: &QName) -> Vec<CompletionItem> {
+fn type_members_of(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionItem> {
     let name = owner.to_string();
     if let Some(core) = registry::class(&name) {
-        core.constants.iter().map(core_constant).collect()
+        core.constants
+            .iter()
+            .map(|constant| core_constant(core, constant))
+            .collect()
     } else if let Some(core) = registry::core_enum(&name) {
         core_cases(core, Reach::Static)
     } else {
-        declared_type_members(analysed, owner)
+        declared_type_members(cursor, owner)
     }
 }
 
@@ -2008,8 +2011,8 @@ fn type_members_of(analysed: &Analysed, owner: &QName) -> Vec<CompletionItem> {
 /// The constant arm is [`declared_member`]'s own, so a constant offered here
 /// and the same constant offered after `::` in an expression are one row
 /// spelled once.
-fn declared_type_members(analysed: &Analysed, owner: &QName) -> Vec<CompletionItem> {
-    let Some((stmt, file)) = declared_type(analysed, owner) else {
+fn declared_type_members(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionItem> {
+    let Some((stmt, file)) = declared_type(cursor.analysed, owner) else {
         return Vec::new();
     };
     let (members, cases): (&[ClassMember], &[EnumCase]) = match &stmt.kind {
@@ -2018,18 +2021,22 @@ fn declared_type_members(analysed: &Analysed, owner: &QName) -> Vec<CompletionIt
         StmtKind::EnumDecl(decl) => (&decl.members, &decl.cases),
         _ => return Vec::new(),
     };
+    let owner = owner.to_string();
     members
         .iter()
         .filter_map(|member| match &member.kind {
-            ClassMemberKind::TypeAlias(alias) => Some(item(
+            ClassMemberKind::TypeAlias(alias) => Some(typed_row(
+                &owner,
                 text_of(file, alias.name.span).to_owned(),
                 CompletionItemKind::TYPE_PARAMETER,
                 text_of(file, alias.ty.span).to_owned(),
             )),
-            ClassMemberKind::Const(_) => declared_member(file, member, Reach::Static),
+            ClassMemberKind::Const(_) => {
+                declared_member(cursor, file, &owner, member, Reach::Static)
+            }
             _ => None,
         })
-        .chain(cases.iter().map(|case| enum_case(file, case)))
+        .chain(cases.iter().map(|case| enum_case(file, &owner, case)))
         .collect()
 }
 
@@ -2081,10 +2088,11 @@ fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
 
 /// Every member a user-declared type writes that `reach` reaches, as it wrote
 /// them.
-fn declared_members(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<CompletionItem> {
-    let Some((stmt, file)) = declared_type(analysed, class) else {
+fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
+    let Some((stmt, file)) = declared_type(cursor.analysed, class) else {
         return Vec::new();
     };
+    let owner = class.to_string();
     let members: &[ClassMember] = match &stmt.kind {
         StmtKind::ClassDecl(decl) => &decl.members,
         StmtKind::InterfaceDecl(decl) => &decl.members,
@@ -2096,7 +2104,7 @@ fn declared_members(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Com
                 Reach::Static => decl
                     .cases
                     .iter()
-                    .map(|case| enum_case(file, case))
+                    .map(|case| enum_case(file, &owner, case))
                     .collect(),
                 Reach::Instance => Vec::new(),
             };
@@ -2106,7 +2114,7 @@ fn declared_members(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Com
     };
     members
         .iter()
-        .filter_map(|member| declared_member(file, member, reach))
+        .filter_map(|member| declared_member(cursor, file, &owner, member, reach))
         .collect()
 }
 
@@ -2117,7 +2125,9 @@ fn declared_members(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Com
 /// R20's "no operation is reachable two ways" is the shape a user class follows
 /// too. A class constant is written after `::` and nowhere else.
 fn declared_member(
+    cursor: &Cursor<'_>,
     file: &SourceFile,
+    owner: &str,
     member: &ClassMember,
     reach: Reach,
 ) -> Option<CompletionItem> {
@@ -2126,28 +2136,42 @@ fn declared_member(
         ClassMemberKind::Method(method)
             if method.modifiers.contains(&Modifier::Static) == statics =>
         {
-            Some(item(
-                text_of(file, method.name).to_owned(),
-                CompletionItemKind::METHOD,
-                signature(file, method),
+            let (params, returns) = signature(file, method);
+            let takes = if method.params.is_empty() {
+                Takes::Nothing
+            } else {
+                Takes::Arguments
+            };
+            Some(called(
+                cursor,
+                method_row(
+                    owner,
+                    text_of(file, method.name).to_owned(),
+                    params,
+                    returns,
+                ),
+                takes,
             ))
         }
         ClassMemberKind::Property(property)
             if property.modifiers.contains(&Modifier::Static) == statics =>
         {
-            Some(item(
+            Some(typed_row(
+                owner,
                 property_label(file, property, reach),
                 CompletionItemKind::PROPERTY,
                 text_of(file, property.ty.span).to_owned(),
             ))
         }
-        ClassMemberKind::Const(constant) if statics => Some(item(
+        ClassMemberKind::Const(constant) if statics => Some(valued_row(
+            owner,
             text_of(file, constant.name).to_owned(),
             CompletionItemKind::CONSTANT,
-            constant.ty.as_ref().map_or_else(
-                || text_of(file, constant.value.span).to_owned(),
-                |ty| text_of(file, ty.span).to_owned(),
-            ),
+            Some(text_of(file, constant.value.span).to_owned()),
+            constant
+                .ty
+                .as_ref()
+                .map(|ty| text_of(file, ty.span).to_owned()),
         )),
         _ => None,
     }
@@ -2172,24 +2196,26 @@ fn property_label(file: &SourceFile, property: &PropertyMember, reach: Reach) ->
 /// (`rule:enums/declaration`), and that arithmetic is `nvs_types::enums`' — this
 /// module spells declarations rather than computing them, so an unwritten value
 /// contributes no detail rather than a re-derived one.
-fn enum_case(file: &SourceFile, case: &EnumCase) -> CompletionItem {
-    item(
+fn enum_case(file: &SourceFile, owner: &str, case: &EnumCase) -> CompletionItem {
+    valued_row(
+        owner,
         text_of(file, case.name.span).to_owned(),
         CompletionItemKind::ENUM_MEMBER,
         case.value
             .as_ref()
-            .map(|value| text_of(file, value.span).to_owned())
-            .unwrap_or_default(),
+            .map(|value| text_of(file, value.span).to_owned()),
+        None,
     )
 }
 
-/// One method's parameters and return type, as its declaration writes them —
-/// `(string $name): string`.
+/// One method's parameter list and its return type, as its declaration writes
+/// them — `(string $name)` and `string`, the second `None` where the
+/// declaration wrote none.
 ///
-/// The name is not repeated: it is the label the detail column sits beside.
+/// The name is not repeated: it is the label the parameters are written after.
 /// A parameter whose type was left unwritten contributes its name alone, which
 /// is a declaration the checker has already reported on.
-fn signature(file: &SourceFile, method: &MethodMember) -> String {
+fn signature(file: &SourceFile, method: &MethodMember) -> (String, Option<String>) {
     let params: Vec<String> = method
         .params
         .iter()
@@ -2202,18 +2228,27 @@ fn signature(file: &SourceFile, method: &MethodMember) -> String {
             }
         })
         .collect();
-    match &method.return_type {
-        Some(ty) => format!("({}): {}", params.join(", "), text_of(file, ty.span)),
-        None => format!("({})", params.join(", ")),
-    }
+    (
+        format!("({})", params.join(", ")),
+        method
+            .return_type
+            .as_ref()
+            .map(|ty| text_of(file, ty.span).to_owned()),
+    )
 }
 
-/// One `Core` instance member, spelled from its registry row.
-fn core_member(method: &CoreMethod) -> CompletionItem {
-    item(
-        method.name.to_owned(),
-        CompletionItemKind::METHOD,
-        core_signature(method),
+/// One `Core` member, spelled from its registry row and written as a call.
+fn core_member(cursor: &Cursor<'_>, core: &CoreClass, method: &CoreMethod) -> CompletionItem {
+    let (params, returns) = core_parts(method);
+    let takes = if method.positional().is_empty() && method.options().is_none() {
+        Takes::Nothing
+    } else {
+        Takes::Arguments
+    };
+    called(
+        cursor,
+        method_row(core.name, method.name.to_owned(), params, Some(returns)),
+        takes,
     )
 }
 
@@ -2224,6 +2259,13 @@ fn core_member(method: &CoreMethod) -> CompletionItem {
 /// says where it went. One spelling for both, so the two lists never disagree
 /// about a signature the registry states once.
 fn core_signature(method: &CoreMethod) -> String {
+    let (params, returns) = core_parts(method);
+    format!("{params}: {returns}")
+}
+
+/// A `Core` member's parameter list and its return type, spelled apart —
+/// `(string $s)` and `int` — for the row that writes them in two places.
+fn core_parts(method: &CoreMethod) -> (String, String) {
     let mut params: Vec<String> = method
         .positional()
         .iter()
@@ -2242,19 +2284,30 @@ fn core_signature(method: &CoreMethod) -> String {
     if let Some(options) = method.options() {
         params.push(registry::CoreTy::Options(options).spelled());
     }
-    format!("({}): {}", params.join(", "), method.return_ty.spelled())
+    (
+        format!("({})", params.join(", ")),
+        method.return_ty.spelled(),
+    )
 }
 
 /// Every member of a `Core` class that `reach` reaches, spelled from its
 /// registry rows.
-fn core_members(core: &CoreClass, reach: Reach) -> Vec<CompletionItem> {
+fn core_members(cursor: &Cursor<'_>, core: &CoreClass, reach: Reach) -> Vec<CompletionItem> {
     match reach {
-        Reach::Instance => core.instance.iter().map(core_member).collect(),
+        Reach::Instance => core
+            .instance
+            .iter()
+            .map(|method| core_member(cursor, core, method))
+            .collect(),
         Reach::Static => core
             .methods
             .iter()
-            .map(core_member)
-            .chain(core.constants.iter().map(core_constant))
+            .map(|method| core_member(cursor, core, method))
+            .chain(
+                core.constants
+                    .iter()
+                    .map(|constant| core_constant(core, constant)),
+            )
             .collect(),
     }
 }
@@ -2264,11 +2317,13 @@ fn core_members(core: &CoreClass, reach: Reach) -> Vec<CompletionItem> {
 /// Its declared type and not its value: `nvs_stdlib::registry::CoreConst::value`
 /// is an object for the rows that carry one, allocated at the use site, so a
 /// value column would print an implementation detail beside a literal.
-fn core_constant(constant: &CoreConst) -> CompletionItem {
-    item(
+fn core_constant(core: &CoreClass, constant: &CoreConst) -> CompletionItem {
+    valued_row(
+        core.name,
         constant.name.to_owned(),
         CompletionItemKind::CONSTANT,
-        constant.ty.spelled(),
+        None,
+        Some(constant.ty.spelled()),
     )
 }
 
@@ -2285,22 +2340,25 @@ fn core_cases(core: &CoreEnum, reach: Reach) -> Vec<CompletionItem> {
             .cases
             .iter()
             .map(|(name, value)| {
-                item(
+                valued_row(
+                    core.name,
                     (*name).to_owned(),
                     CompletionItemKind::ENUM_MEMBER,
-                    value.to_string(),
+                    Some(value.to_string()),
+                    None,
                 )
             })
             .collect(),
     }
 }
 
-/// One offered name, with the two fields `crate::render` freezes beside it.
+/// One offered name, with the fields `crate::render` freezes beside it.
 ///
 /// Nothing else is set here. `insert_text` would be the label again, and a
 /// `text_edit` is a range this server has no reason to narrow: what the client
 /// replaces is the word it is already completing. [`followed`] is where a
-/// type's item learns what is written after its name.
+/// type's item learns what is written after its name, and the four row shapes
+/// below are where a name learns what a client shows beside it.
 fn item(label: String, kind: CompletionItemKind, detail: String) -> CompletionItem {
     CompletionItem {
         label,
@@ -2308,6 +2366,96 @@ fn item(label: String, kind: CompletionItemKind, detail: String) -> CompletionIt
         detail: Some(detail),
         ..CompletionItem::default()
     }
+}
+
+/// A type's row where the label already says where it is: the qualified name
+/// as the detail, which [`followed`] reads back to find a constructor, and the
+/// key `crate::card` resolves its description by.
+fn named_type(label: String, kind: CompletionItemKind, symbol: String) -> CompletionItem {
+    CompletionItem {
+        data: Some(json!({ "type": symbol })),
+        ..item(label, kind, symbol)
+    }
+}
+
+/// A type's row offered by a shorter spelling than its qualified name: the
+/// namespace it is declared in is written directly after the label, in
+/// brackets and dimmed, the way an editor shows a name's origin without a
+/// second column. A label that is the qualified name already says so and
+/// gets nothing after it.
+fn type_row(label: String, kind: CompletionItemKind, symbol: String) -> CompletionItem {
+    let namespace = (label != symbol)
+        .then(|| symbol.rsplit_once('\\'))
+        .flatten()
+        .map(|(namespace, _)| format!(" [{namespace}]"));
+    CompletionItem {
+        label_details: namespace.map(|detail| CompletionItemLabelDetails {
+            detail: Some(detail),
+            description: None,
+        }),
+        ..named_type(label, kind, symbol)
+    }
+}
+
+/// A method's row: its parameters written directly after the name, its return
+/// type at the right, and the qualified signature as the detail a client
+/// heads the member's card with.
+fn method_row(
+    owner: &str,
+    name: String,
+    params: String,
+    returns: Option<String>,
+) -> CompletionItem {
+    let detail = match &returns {
+        Some(ty) => format!("{owner}::{name}{params}: {ty}"),
+        None => format!("{owner}::{name}{params}"),
+    };
+    CompletionItem {
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(params),
+            description: returns,
+        }),
+        data: Some(member_key(owner, &name)),
+        ..item(name, CompletionItemKind::METHOD, detail)
+    }
+}
+
+/// A property's or a type alias's row: the name, with its type at the right.
+fn typed_row(owner: &str, label: String, kind: CompletionItemKind, ty: String) -> CompletionItem {
+    CompletionItem {
+        label_details: Some(CompletionItemLabelDetails {
+            detail: None,
+            description: Some(ty.clone()),
+        }),
+        data: Some(member_key(owner, label.trim_start_matches('$'))),
+        ..item(label, kind, ty)
+    }
+}
+
+/// A constant's or an enum case's row: `NAME = value` where the value is
+/// written, its type at the right where one is declared, and whichever of the
+/// two the declaration wrote as the detail.
+fn valued_row(
+    owner: &str,
+    name: String,
+    kind: CompletionItemKind,
+    value: Option<String>,
+    ty: Option<String>,
+) -> CompletionItem {
+    let detail = ty.clone().or_else(|| value.clone()).unwrap_or_default();
+    CompletionItem {
+        label_details: Some(CompletionItemLabelDetails {
+            detail: value.map(|value| format!(" = {value}")),
+            description: ty,
+        }),
+        data: Some(member_key(owner, &name)),
+        ..item(name, kind, detail)
+    }
+}
+
+/// The key `crate::card` resolves a member's documentation by.
+fn member_key(owner: &str, member: &str) -> Value {
+    json!({ "owner": owner, "member": member })
 }
 
 #[cfg(test)]

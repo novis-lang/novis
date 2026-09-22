@@ -16,5 +16,5 @@ if (true) {
 completion
 --EXPECT--
 $count  property  int
-LIMIT   constant  int
-reset   method    (): void
+LIMIT = 10 constant  int
+reset() method    void

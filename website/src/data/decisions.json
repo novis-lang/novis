@@ -1018,6 +1018,12 @@
           "headline": "The compile cache directory has one spelling; `[cache]` is the value cache",
           "body": "`opcache.file_cache_dir` is where compiled programs are cached, and it is the only key that says so. `[cache] dir` used to parse and be read by nobody, so an operator who set it moved nothing and was told nothing; writing it now is an unknown-directive error naming the file and line. `[cache]` holds the settings of `Core\\Cache`'s local and shared tiers and nothing else. Changing the compile cache directory takes a restart; the rest of `[opcache]` is read at the next compile.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0175.md"
+        },
+        {
+          "adr": "0203",
+          "headline": "A completion row reads like the declaration; a description is fetched per row",
+          "body": "A row in the completion list shows a method as `name(params)` with its return type at the right, a constant as `NAME = value`, and a class with its namespace in brackets after the name. The list no longer carries a description for every row: each row carries a small key, and the editor asks for the description of the one row it is showing, the same text hovering the name shows. Accepting a method writes its parentheses. Every `Core` class now carries a one-sentence card.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0203.md"
         }
       ]
     },

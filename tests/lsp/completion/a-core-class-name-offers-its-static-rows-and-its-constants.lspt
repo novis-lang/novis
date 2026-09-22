@@ -8,6 +8,6 @@ if (true) {
 completion
 --EXPECT--
 UTC     constant  Core\Time\Zone
-fixed   method    (Core\Time\Duration $offset): Core\Time\Zone
-of      method    (string $id): Core\Time\Zone
-system  method    (): Core\Time\Zone
+fixed(Core\Time\Duration $offset) method    Core\Time\Zone
+of(string $id) method    Core\Time\Zone
+system() method    Core\Time\Zone

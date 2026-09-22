@@ -13,4 +13,4 @@ class Job {
 --REQUEST--
 completion
 --EXPECT--
-now     method    (): int
+now()   method    int

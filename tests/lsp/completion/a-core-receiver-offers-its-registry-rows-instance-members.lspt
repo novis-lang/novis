@@ -11,6 +11,6 @@ class Runner {
 --REQUEST--
 completion
 --EXPECT--
-exitCode method    (): int
-stderr  method    (): bytes
-stdout  method    (): bytes
+exitCode() method    int
+stderr() method    bytes
+stdout() method    bytes

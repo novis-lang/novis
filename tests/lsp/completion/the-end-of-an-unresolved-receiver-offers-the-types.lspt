@@ -6,4 +6,4 @@ Core\Debug::dump(Request<|>::headers());
 --REQUEST--
 completion prefix=Request limit=1
 --EXPECT--
-Request class     Core\Request
+Request [Core] class

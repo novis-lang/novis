@@ -97,6 +97,7 @@
 
 pub mod actions;
 mod capabilities;
+pub mod card;
 mod case;
 pub mod completion;
 pub mod coverage;

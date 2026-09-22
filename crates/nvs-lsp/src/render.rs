@@ -404,13 +404,23 @@ fn reference(at: &Place) -> ((&str, u32, u32), String) {
     )
 }
 
-/// `label kind detail`, keyed by label.
+/// The row as an editor shows it, keyed by label: the label with what is
+/// written directly after it, the kind, and the text at the row's right — the
+/// item's description where it carries label details, its detail otherwise.
+/// What a client shows only in a panel, the detail behind a description and
+/// the documentation `crate::card` resolves, is not a row and is not here.
 fn completion(item: &CompletionItem) -> (String, String) {
     let kind = or_absent(item.kind.as_ref(), spelled);
-    let detail = item.detail.clone().unwrap_or_default();
+    let (after, right) = match &item.label_details {
+        Some(details) => (
+            details.detail.clone().unwrap_or_default(),
+            details.description.clone().unwrap_or_default(),
+        ),
+        None => (String::new(), item.detail.clone().unwrap_or_default()),
+    };
     let text = format!(
-        "{}{}{detail}",
-        column(&item.label, LABEL_WIDTH),
+        "{}{}{right}",
+        column(&format!("{}{after}", item.label), LABEL_WIDTH),
         column(&kind, KIND_WIDTH)
     );
     (item.label.clone(), text.trim_end().to_owned())

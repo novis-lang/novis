@@ -393,7 +393,7 @@ fn signature(class: &str, call: &ResolvedCall, interner: &TypeInterner) -> (Stri
 /// `MethodDoc::params` runs the positional entries first and then one per
 /// option of a trailing bag, and an option is written as a key rather than as
 /// an argument.
-fn reference_card(member: &CoreMethod, doc: &MethodDoc) -> String {
+pub(crate) fn reference_card(member: &CoreMethod, doc: &MethodDoc) -> String {
     let mut out = String::new();
     if !doc.short.is_empty() {
         out.push_str("\n\n");
@@ -430,7 +430,7 @@ fn reference_card(member: &CoreMethod, doc: &MethodDoc) -> String {
 /// The lines are spans into `text` and carry their markers, which is
 /// `nvs_syntax::ast::DocComment`'s decision: the source is the text, and the
 /// consumer is what decides where the prose starts.
-fn markdown(text: &str, doc: &DocComment) -> String {
+pub(crate) fn markdown(text: &str, doc: &DocComment) -> String {
     doc.lines
         .iter()
         .map(|line| prose(text.get(line.range()).unwrap_or_default()))

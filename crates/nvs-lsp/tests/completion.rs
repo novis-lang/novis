@@ -107,7 +107,7 @@ fn document(tail: &str) -> String {
 /// Its spelling is `nvs_lsp::render`'s and not this file's
 /// (`rule:ide/the-rendering-has-one-home`), so the corpus and this test freeze
 /// one text.
-const MEMBERS: &str = "greet   method    (): string\nname    property  string\n";
+const MEMBERS: &str = "greet() method    string\nname    property  string\n";
 
 /// A member list is what a receiver offers whatever closes the construct it
 /// was written in.
@@ -202,7 +202,7 @@ const OWNER: &str = "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public
 fn completion_after_owner_double_colon_in_type_position_offers_the_alias() {
     assert_eq!(
         rendered(OWNER, after(OWNER, "of(Order::")),
-        "MAX     constant  int\nMeta    typeParameter {total: int}\n"
+        "MAX = 10 constant  int\nMeta    typeParameter {total: int}\n"
     );
     let typing =
         "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public function of(Order::\n}\n";
@@ -231,9 +231,9 @@ fn a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index() {
     let source = format!("{IN_REACH}Nam\n");
     let offered = rendered(&source, after(&source, "Nam"));
     for row in [
-        "Str     class     Core\\Str\n",
-        "User    class     App\\User\n",
-        "Greets  interface App\\Greets\n",
+        "Str [Core] class\n",
+        "User [App] class\n",
+        "Greets [App] interface\n",
         "return  keyword\n",
     ] {
         assert!(
@@ -567,7 +567,12 @@ fn sources() -> Vec<Source> {
 /// this repository, and what the arm may *insert* is bounded by the registry
 /// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
 /// directory is walked and no annotation is read for it.
-const SOURCED: [(&str, &str); 24] = [
+const SOURCED: [(&str, &str); 29] = [
+    ("named_type", "..item("),
+    ("type_row", "..named_type("),
+    ("method_row", "..item("),
+    ("typed_row", "..item("),
+    ("valued_row", "..item("),
     ("at", "asked("),
     ("members_of", "registry::class("),
     ("type_members_of", "registry::class("),

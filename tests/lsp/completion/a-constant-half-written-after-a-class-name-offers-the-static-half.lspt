@@ -16,5 +16,5 @@ echo Config::MA<|>X;
 --REQUEST--
 completion
 --EXPECT--
-MAX     constant  int
-of      method    (): int
+MAX = 10 constant  int
+of()    method    int

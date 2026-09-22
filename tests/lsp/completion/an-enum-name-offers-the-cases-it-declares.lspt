@@ -12,5 +12,5 @@ if (true) {
 --REQUEST--
 completion
 --EXPECT--
-Go      enumMember 20
-Stop    enumMember 10
+Go = 20 enumMember
+Stop = 10 enumMember

@@ -2424,3 +2424,16 @@ chunk and waits until the connection has taken it before it may write the next, 
 cannot make the server buffer an unbounded body. The stream ends with its request; a stream that
 outlives the request is a separate door and is not this one.
 '''
+
+[[entry]]
+adr      = '0203'
+group    = 'tooling'
+digest   = '5d030cad57b4'
+headline = 'A completion row reads like the declaration; a description is fetched per row'
+body     = '''
+A row in the completion list shows a method as `name(params)` with its return type at the right,
+a constant as `NAME = value`, and a class with its namespace in brackets after the name. The
+list no longer carries a description for every row: each row carries a small key, and the editor
+asks for the description of the one row it is showing, the same text hovering the name shows.
+Accepting a method writes its parentheses. Every `Core` class now carries a one-sentence card.
+'''

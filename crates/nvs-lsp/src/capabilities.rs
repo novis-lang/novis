@@ -197,10 +197,13 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             resolve_provider: Some(false),
         }),
         completion_provider: Some(CompletionOptions {
-            // Nothing is resolved lazily: a completion item's detail is the
-            // type the analysis already computed, so there is no second round
-            // trip to save.
-            resolve_provider: Some(false),
+            // What a row shows is on the row — its label, what is written
+            // after it, the type at its right — and what the row documents
+            // is not: a list names every type in reach, and a card on each
+            // would be most of every response, read for one row. So a row
+            // carries a key, and `crate::card` reads its documentation when
+            // the client asks for that one item.
+            resolve_provider: Some(true),
             // The last character of each spelling a list follows and no word
             // character starts: `->`, `::`, a namespace separator, the `$` of
             // a variable — which a client's word pattern does not read as a

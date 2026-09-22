@@ -13,4 +13,4 @@ var $b = new P<|>
 --REQUEST--
 completion prefix=P
 --EXPECT--
-PricedBook class     Shop\PricedBook
+PricedBook [Shop] class

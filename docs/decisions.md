@@ -1483,6 +1483,14 @@ told nothing; writing it now is an unknown-directive error naming the file and l
 the settings of `Core\Cache`'s local and shared tiers and nothing else. Changing the compile cache
 directory takes a restart; the rest of `[opcache]` is read at the next compile.
 
+**A completion row reads like the declaration; a description is fetched per row**
+
+A row in the completion list shows a method as `name(params)` with its return type at the right, a
+constant as `NAME = value`, and a class with its namespace in brackets after the name. The list no
+longer carries a description for every row: each row carries a small key, and the editor asks for
+the description of the one row it is showing, the same text hovering the name shows. Accepting a
+method writes its parentheses. Every `Core` class now carries a one-sentence card.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

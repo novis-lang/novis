@@ -10,4 +10,4 @@ class User {}
 --REQUEST--
 completion prefix=Str limit=1
 --EXPECT--
-Str     class     Core\Str
+Str [Core] class

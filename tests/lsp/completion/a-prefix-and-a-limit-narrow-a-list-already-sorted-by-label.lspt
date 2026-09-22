@@ -14,5 +14,5 @@ if (true) {
 --REQUEST--
 completion prefix=c limit=2
 --EXPECT--
-charge  method    (uint $cents): void
-close   method    (): void
+charge(uint $cents) method    void
+close() method    void
