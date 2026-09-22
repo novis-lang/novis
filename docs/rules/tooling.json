@@ -703,7 +703,8 @@
       "title": "A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one",
       "status": "designed",
       "because": [
-        "0137"
+        "0137",
+        "0213"
       ],
       "divergesFromPhp": "there is no `/** */` docblock; the PHPDoc shape is an ordinary comment nothing reads",
       "seeAlso": [

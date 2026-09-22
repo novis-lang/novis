@@ -905,12 +905,20 @@ to *Novis* source only: a `Core` member is Rust and documents itself in the regi
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)), so it never carries one. There is no module-level doc spelling either — a
 file's declarations are its surface, and the class is the unit.
 
+**A `/** … */` block directly above a declaration is warned about**, `W1011`: it is the PHPDoc habit, it
+documents nothing here, and a program that carries one on every class compiles clean and loses its whole
+documentation without a word. The trigger is narrow — a block opening with `/**` and a body, across no blank
+line from the declaration or from the `///` run above it — so a divider block, a block above a statement and
+`/**/` stay silent, and the help is the one-token fix: *write `///` for a doc comment*. It is a warning and not
+a refusal because the program is correct; only its documentation is missing.
+
 A trivium's classification never reaches the checker, so no program output moves; what a compile spends is
-one variant test per line comment in the lexer, and nothing on any request path. A doc comment rendered
+one variant test per line comment in the lexer, one `/**` test per block comment, and nothing on any
+request path. A doc comment rendered
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and reuses that check rather than growing a second one.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0213](../decisions/0213.md).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 

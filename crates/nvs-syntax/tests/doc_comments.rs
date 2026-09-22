@@ -305,3 +305,93 @@ fn a_doc_comment_attached_to_nothing_is_refused() {
         assert_eq!(text(&map, spans[0]), refused);
     }
 }
+
+/// Every span this parse warned [`code::W_DOC_BLOCK_BEFORE_A_DECLARATION`] at.
+fn docblocks(diags: &Diagnostics) -> Vec<Span> {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::W_DOC_BLOCK_BEFORE_A_DECLARATION))
+        .filter_map(Diagnostic::primary_span)
+        .collect()
+}
+
+/// The PHPDoc habit: a `/** … */` block directly above a class, a constant, a
+/// property or a method is an ordinary comment that documents
+/// nothing, and `rule:tooling/doc-comment-is-three-slashes` says so with a
+/// warning at the block — once per block, on the compile path, which records
+/// no other ordinary comment. The program is still accepted.
+#[test]
+fn a_php_docblock_directly_above_a_declaration_warns() {
+    let src = "<?nvs\n\
+        /** A price in cents. */\n\
+        final class Price {\n\
+        \x20   /** The lowest price. */\n\
+        \x20   public const int MIN = 0;\n\
+        \x20   /**\n\
+        \x20    * Doubles a price.\n\
+        \x20    */\n\
+        \x20   public static function double(int $p): int { return $p * 2; }\n\
+        \x20   /** The name. */\n\
+        \x20   public string $name = \"\";\n\
+        }\n";
+    let (map, _, diags) = parse(src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let warned: Vec<&str> = docblocks(&diags)
+        .into_iter()
+        .map(|span| text(&map, span))
+        .collect();
+    assert_eq!(
+        warned,
+        [
+            "/** A price in cents. */",
+            "/** The lowest price. */",
+            "/**\n     * Doubles a price.\n     */",
+            "/** The name. */",
+        ]
+    );
+    let notes = diags
+        .iter()
+        .find(|d| d.code == Some(code::W_DOC_BLOCK_BEFORE_A_DECLARATION))
+        .map(|d| d.notes.join("\n"))
+        .unwrap_or_default();
+    assert!(
+        notes.contains("write `///`"),
+        "the help names the fix: {notes}"
+    );
+}
+
+/// The warning is about the shape above a declaration and nothing else: a
+/// block a blank line away, a `/* … */` block, an empty `/**/`, a block above
+/// a statement, and a block above a `///` run that is itself separated from
+/// the declaration are all silent.
+#[test]
+fn a_docblock_that_is_not_directly_above_a_declaration_is_silent() {
+    for src in [
+        "<?nvs\n/** Separated. */\n\nclass Page {}\n",
+        "<?nvs\n/* Plain. */\nclass Page {}\n",
+        "<?nvs\n/**/\nclass Page {}\n",
+        "<?nvs\n/** Above a statement. */\necho \"hi\";\n",
+        "<?nvs\n/** Above a note. */\n// a note\nclass Page {}\n",
+    ] {
+        let (_, _, diags) = parse(src);
+        assert!(
+            docblocks(&diags).is_empty(),
+            "no warning for {src:?}: {diags:?}"
+        );
+    }
+}
+
+/// A block directly above a `///` run is directly above the declaration the
+/// run documents, so the habit is named even where the author has already
+/// half-switched — and the run still attaches.
+#[test]
+fn a_docblock_above_an_attached_run_warns_and_the_run_still_attaches() {
+    let src = "<?nvs\n/** Old. */\n/// New.\nclass Page {}\n";
+    let (map, _, diags) = parse(src);
+    assert!(unattached(&diags).is_empty(), "{diags:?}");
+    let warned: Vec<&str> = docblocks(&diags)
+        .into_iter()
+        .map(|span| text(&map, span))
+        .collect();
+    assert_eq!(warned, ["/** Old. */"]);
+}

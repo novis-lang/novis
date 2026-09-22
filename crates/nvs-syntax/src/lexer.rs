@@ -276,11 +276,60 @@ impl<'a> Lexer<'a> {
     /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`) — so the
     /// compile path has to see one, while it still pays nothing for the
     /// whitespace and ordinary comments only a formatter needs.
+    ///
+    /// One [`TriviaKind::BlockComment`] is recorded the same way: a block that
+    /// opens with `/**`, the PHPDoc shape. It is still an ordinary comment
+    /// (`rule:tooling/doc-comment-is-three-slashes`), and it is kept so the
+    /// parser can say so where one sits directly above a declaration
+    /// (`W1011`). `/**/` is an empty block, not that shape.
     fn push_trivia(&mut self, kind: TriviaKind, start: BytePos) {
-        if self.collect_trivia || kind == TriviaKind::DocComment {
+        let kept = match kind {
+            TriviaKind::DocComment => true,
+            TriviaKind::BlockComment => self.docblock_shaped(start),
+            TriviaKind::Whitespace | TriviaKind::LineComment => false,
+        };
+        if self.collect_trivia || kept {
             self.trivia
                 .push(Trivia::new(kind, self.mk_span(start, self.pos)));
         }
+    }
+
+    /// Whether the block comment that begins at `start` opens with `/**` and
+    /// has a body — the PHPDoc shape the parser warns about above a
+    /// declaration. `/**/` opens the same way and is an empty comment.
+    fn docblock_shaped(&self, start: BytePos) -> bool {
+        let text = &self.text[start as usize..self.pos as usize];
+        text.starts_with("/**") && !text.starts_with("/**/")
+    }
+
+    /// At a `{` inside a markup literal: the length of the text that is the
+    /// template habit `{Page::TITLE}` — a name, `::`, then up to and including
+    /// the `}` that closes it on the same line — or `None` when the brace is
+    /// followed by anything else. With no `}` before the line ends the length
+    /// is the brace alone. The brace and everything after it stay text either
+    /// way; this only says where the warning points.
+    fn brace_before_class_path(&self) -> Option<u32> {
+        let rest = &self.rest()[1..];
+        let bytes = rest.as_bytes();
+        let first = *bytes.first()?;
+        if !(first.is_ascii_alphabetic() || first == b'_' || first == b'\\') {
+            return None;
+        }
+        let mut i = 1;
+        while i < bytes.len()
+            && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b'\\')
+        {
+            i += 1;
+        }
+        if !rest[i..].starts_with("::") {
+            return None;
+        }
+        let close = rest[i..].find(['}', '\n', '`']).map(|k| i + k);
+        let len = match close {
+            Some(end) if bytes[end] == b'}' => end + 2,
+            _ => 1,
+        };
+        Some(u32::try_from(len).expect("a markup literal is shorter than 4 GiB"))
     }
 
     // --- cursor -------------------------------------------------------------
@@ -1385,6 +1434,30 @@ impl<'a> Lexer<'a> {
                 }
                 if is_markup && self.starts_with("<?=") {
                     break;
+                }
+                if is_markup
+                    && self.peek() == Some('{')
+                    && let Some(len) = self.brace_before_class_path()
+                {
+                    // A brace hole begins with `$`, so this brace is text and
+                    // the page prints `{Page::TITLE}` as written — the one
+                    // template habit that runs and ships the wrong string.
+                    // Said once, at the brace, and the bytes stay text
+                    // (`rule:core-classes/html-literal`).
+                    let span = self.mk_span(self.pos, self.pos + len);
+                    let inner = &self.text[self.pos as usize + 1..(self.pos + len) as usize];
+                    let inner = inner.strip_suffix('}').unwrap_or(inner);
+                    diags.report(
+                        Diagnostic::warning(
+                            code::W_MARKUP_BRACE_BEFORE_A_CLASS_PATH,
+                            "this brace opens no hole",
+                        )
+                        .with_primary(span, "text, written to the page as it is")
+                        .with_help(format!(
+                            "a brace hole begins with `$`; write `<?= {inner} ?>` for any \
+                             expression, or `\\{{` for a brace that is meant to stay"
+                        )),
+                    );
                 }
                 if is_markup && let Some((_, len)) = self.match_open_tag() {
                     // A code block has no meaning inside a value: the literal is

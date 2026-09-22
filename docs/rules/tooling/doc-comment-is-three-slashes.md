@@ -18,7 +18,15 @@ to *Novis* source only: a `Core` member is Rust and documents itself in the regi
 (`rule:core-api/reference-card`), so it never carries one. There is no module-level doc spelling either — a
 file's declarations are its surface, and the class is the unit.
 
+**A `/** … */` block directly above a declaration is warned about**, `W1011`: it is the PHPDoc habit, it
+documents nothing here, and a program that carries one on every class compiles clean and loses its whole
+documentation without a word. The trigger is narrow — a block opening with `/**` and a body, across no blank
+line from the declaration or from the `///` run above it — so a divider block, a block above a statement and
+`/**/` stay silent, and the help is the one-token fix: *write `///` for a doc comment*. It is a warning and not
+a refusal because the program is correct; only its documentation is missing.
+
 A trivium's classification never reaches the checker, so no program output moves; what a compile spends is
-one variant test per line comment in the lexer, and nothing on any request path. A doc comment rendered
+one variant test per line comment in the lexer, one `/**` test per block comment, and nothing on any
+request path. A doc comment rendered
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 (`rule:security/bidi-boundaries`), and reuses that check rather than growing a second one.

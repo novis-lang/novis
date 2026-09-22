@@ -12,7 +12,9 @@ echo html`<p>{not a hole} {{ }}</p>`, "\n";
 
 // A hole must begin with `$`, so a static call is text exactly as it is in a
 // double-quoted string — PHP's limitation, kept rather than grown into a
-// second interpolation grammar. A local is how such a value reaches a hole.
+// second interpolation grammar. The compiler warns at the brace (`W1012`),
+// since a page printing this text is the template habit gone wrong; the
+// bytes stay text, and `<?= … ?>` is the hole that takes the call.
 var $amount = "12.50";
 echo html`<p>{Money::format($amount)} is {$amount}</p>`, "\n";
 

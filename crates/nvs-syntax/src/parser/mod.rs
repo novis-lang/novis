@@ -120,6 +120,10 @@ pub struct Parser<'src, 'd> {
     /// the doc comments the lexer kept, and what is left documented nothing
     /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`).
     docs_attached: Vec<BytePos>,
+    /// The start of every `/** … */` block already warned about as sitting
+    /// directly above a declaration, so a production that takes one
+    /// declaration's run more than once reports the block once.
+    docblocks_reported: Vec<BytePos>,
     /// The left side of the `|>` whose right side is being parsed, waiting for
     /// the `$_` that will become it — see [`Self::parse_pipe`], which parks it
     /// here and restores the enclosing one afterwards, and [`Self::parse_hole`],
@@ -227,6 +231,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             depth: 0,
             depth_exceeded: false,
             docs_attached: Vec::new(),
+            docblocks_reported: Vec::new(),
             pipe_hole: None,
             pipe_rhs_depth: 0,
             in_constructor: false,
@@ -291,6 +296,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             lines.push(trivium.span);
             next = trivium.span.start;
         }
+        self.warn_docblock_above(next);
         let (&first, &last) = (lines.last()?, lines.first()?);
         lines.reverse();
         self.docs_attached.push(first.start);
@@ -300,6 +306,50 @@ impl<'src, 'd> Parser<'src, 'd> {
             lines,
             tags,
         })
+    }
+
+    /// Warns about a `/** … */` block sitting directly above `next` — a
+    /// declaration's first token, or the `///` run above it — across no blank
+    /// line. That is the PHPDoc habit, and here it is an ordinary comment that
+    /// documents nothing (`rule:tooling/doc-comment-is-three-slashes`); the
+    /// warning is what tells a reader whose `nvs check` says `no errors` that
+    /// their documentation is being dropped.
+    ///
+    /// Read off the source text between the block and `next`, as attachment
+    /// is, so the compile path — which records a `/**` block and no other
+    /// ordinary comment — and the trivia path answer identically. Reported
+    /// once per block: a production may take one declaration's run twice.
+    fn warn_docblock_above(&mut self, next: BytePos) {
+        let text = self.file.text();
+        let Some(span) = self
+            .lexer
+            .trivia()
+            .iter()
+            .rev()
+            .find(|trivium| trivium.kind == TriviaKind::BlockComment && trivium.span.end <= next)
+            .map(|trivium| trivium.span)
+        else {
+            return;
+        };
+        let body = text
+            .get(span.start as usize..span.end as usize)
+            .unwrap_or("");
+        let docblock = body.starts_with("/**") && !body.starts_with("/**/");
+        if !docblock
+            || !doc_run_joins(text, span.end, next)
+            || self.docblocks_reported.contains(&span.start)
+        {
+            return;
+        }
+        self.docblocks_reported.push(span.start);
+        self.diags.report(
+            Diagnostic::warning(
+                code::W_DOC_BLOCK_BEFORE_A_DECLARATION,
+                "this `/** … */` block documents nothing",
+            )
+            .with_primary(span, "an ordinary comment")
+            .with_help("`/** … */` is an ordinary comment; write `///` for a doc comment"),
+        );
     }
 
     /// The `@see` and `@example` lines of a run, reporting every other `@tag`

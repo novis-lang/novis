@@ -285,7 +285,8 @@
       "status": "shipped",
       "because": [
         "0169",
-        "0202"
+        "0202",
+        "0213"
       ],
       "divergesFromPhp": "there is no template literal in PHP; the nearest thing is `<?= ?>` in an inline-HTML region, and this is that rule available in expression position",
       "seeAlso": [

@@ -416,6 +416,10 @@ close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all 
 interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a literal brace.
+A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
+page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string, where the
+habit is PHP's own, says nothing.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or literal, so a constant, a static
 call and a nested literal reach the page without a local — `<?= App::VERSION ?>`,
@@ -457,7 +461,7 @@ segments could only ever be plain text, which needs no trust, because
 string is already accepted everywhere the carrier is. A third carrier is measured against that
 predicate rather than against the count.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 

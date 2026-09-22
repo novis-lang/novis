@@ -3957,6 +3957,26 @@ pub mod code {
     /// a boot record that says the address policy is in force when what is
     /// in force is the proxy's.
     pub const W_PROXY_RESOLVES_THE_DESTINATION: Code = Code::new("W1010");
+    /// A `/** … */` block directly above a declaration, across no blank line
+    /// (`rule:tooling/doc-comment-is-three-slashes`). The block is an ordinary
+    /// comment and documents nothing — `nvs meta`, `nvs doc` and the editor's
+    /// hover all read `///` alone — and that shape is the PHPDoc habit, so
+    /// it is always a mistake here and never a note to the reader. A warning
+    /// rather than a refusal because the program is correct; what is wrong is
+    /// that its documentation is silently dropped, which is exactly what a
+    /// reader who only sees `nvs check` say `no errors` cannot discover. The
+    /// help names the one-token fix.
+    pub const W_DOC_BLOCK_BEFORE_A_DECLARATION: Code = Code::new("W1011");
+    /// `{` directly followed by a class path — `{Page::TITLE}`,
+    /// `{Money::format($c)}` — inside a markup literal
+    /// (`rule:core-classes/html-literal`). A brace hole begins with `$`, so
+    /// this is text and is written to the page as written; the shape is a
+    /// template habit, and a page that prints `{Page::TITLE}` is a program
+    /// that runs and ships the wrong string. A warning rather than a refusal
+    /// because the grammar is unchanged and the bytes may be what was meant;
+    /// the help names `<?= Page::TITLE ?>`, the hole that takes the
+    /// expression, and `\{` for a literal brace that wants to stay.
+    pub const W_MARKUP_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012");
 }
 
 #[cfg(test)]

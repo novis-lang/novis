@@ -27,6 +27,10 @@ close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all 
 interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a literal brace.
+A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
+page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string, where the
+habit is PHP's own, says nothing.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or literal, so a constant, a static
 call and a nested literal reach the page without a local — `<?= App::VERSION ?>`,
