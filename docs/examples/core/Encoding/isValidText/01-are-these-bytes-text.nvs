@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to test whether bytes are text before you read them.
+
+array<bytes> $buffers = [
+    // "hello" written as UTF-8.
+    Core\Encoding::fromHex("68656c6c6f"),
+    // The same five bytes, with one byte that no UTF-8 character starts with.
+    Core\Encoding::fromHex("68656cff6f"),
+];
+
+// The test returns `true` or `false` and never throws an error.
+// This prints yes and then no.
+foreach ($buffers as bytes $buffer) {
+    if (Core\Encoding::isValidText($buffer, Core\Charset::Utf8)) {
+        echo "yes\n";
+    } else {
+        echo "no\n";
+    }
+}

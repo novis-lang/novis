@@ -1473,20 +1473,6 @@ mod tests {
         assert_eq!(decode_exact(jis, &[0x82, 0xa0, 0x82]), Err(2));
     }
 
-    /// `isValidText`'s two ends: an encoding that reads every octet, and one
-    /// that does not.
-    #[test]
-    fn validity_is_the_decode_question_without_the_throw() {
-        for octet in 0u8..=0xff {
-            assert!(
-                decode_exact(charset("Latin1"), &[octet]).is_ok(),
-                "{octet:#04x}"
-            );
-        }
-        assert!(decode_exact(charset("Utf8"), &[0xff]).is_err());
-        assert!(decode_exact(charset("Utf8"), "ok".as_bytes()).is_ok());
-    }
-
     /// `fromBase32` reached the way a program reaches it: the three things a
     /// reader may change about the text without changing the octets, and the
     /// four it may not.
@@ -2257,6 +2243,88 @@ mod tests {
                 subject.release();
             }
         }
+    }
+
+    /// `isValidText` reached the way a program reaches it rather than through
+    /// [`decode_exact`] alone, so the argument walk and the answer's tag are
+    /// pinned together with the verdict. Every case also asserts that nothing
+    /// is left pending, because a member that threw where it owes a `false`
+    /// still satisfies a test that only reads the value it answered. The
+    /// sweep counts over the whole octet range rather than naming a byte:
+    /// `Latin1` is total, so a member that grew a hole in it fails here while
+    /// every hand-picked row still passes.
+    // covers: Core\Encoding::isValidText
+    #[test]
+    fn validity_answers_a_bool_for_every_buffer_and_never_refuses() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        // A case's position in `CHARSET` is the integer a program passes, per
+        // `charset_of` — the same roster identity `CHARSET` documents.
+        let case = |name: &str| {
+            let index = CHARSET
+                .cases
+                .iter()
+                .position(|(case, _)| *case == name)
+                .expect("a declared case");
+            Value::int(i64::try_from(index).expect("a case index fits an `i64`"))
+        };
+        let asked = |ctx: &mut nvs_runtime::Ctx, octets: &[u8], charset: &str| {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let answered = nvs_runtime::call(
+                nvs_core_encoding_is_valid_text,
+                ctx,
+                &[subject, case(charset)],
+            )
+            .expect("the member answers rather than refusing");
+            assert!(
+                ctx.take_pending().is_none(),
+                "{charset} over {octets:?} left a refusal behind"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built, and the \
+                          member borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            answered.as_bool().expect("a `bool` answer")
+        };
+
+        // The empty buffer is text in every charset, and each refusal
+        // `decodeText` has a case for is a `false` here: a byte no sequence
+        // starts with, a buffer that ends mid-character, and a UTF-16 unit
+        // with no pair.
+        for (octets, charset, valid) in [
+            (&b""[..], "Utf8", true),
+            (b"nvs".as_slice(), "Ascii", true),
+            (&[0xc3, 0xa9][..], "Utf8", true),
+            (&[0xff][..], "Utf8", false),
+            (&[0x61, 0xc3, 0xa9, 0xff][..], "Utf8", false),
+            (&[0xc3][..], "Utf8", false),
+            (&[0x80][..], "Ascii", false),
+            (&[0x61, 0x00][..], "Utf16Le", true),
+            (&[0x61, 0x00, 0x3d, 0xd8][..], "Utf16Le", false),
+            (&[0x61, 0x00, 0x3d][..], "Utf16Le", false),
+        ] {
+            assert_eq!(
+                asked(&mut ctx, octets, charset),
+                valid,
+                "{charset} over {octets:?}"
+            );
+        }
+
+        // ISO-8859-1 gives all 256 octets a meaning, so the member answers
+        // `true` for every one of them; UTF-8 reads exactly the 128 below
+        // `0x80` on their own.
+        let mut latin1 = 0_usize;
+        let mut utf8 = 0_usize;
+        for octet in 0..=u8::MAX {
+            latin1 += usize::from(asked(&mut ctx, &[octet], "Latin1"));
+            utf8 += usize::from(asked(&mut ctx, &[octet], "Utf8"));
+        }
+        assert_eq!(latin1, 256, "ISO-8859-1 reads every octet alone");
+        assert_eq!(utf8, 128, "UTF-8 reads the ASCII octets alone");
     }
 
     #[test]

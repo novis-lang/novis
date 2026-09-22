@@ -1,0 +1,29 @@
+<?nvs
+// Measures testing one short field of bytes for valid text, as a program does
+// for every field that arrives from outside.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $fields = [
+            Core\Encoding::fromHex("4f726465722031303432"),
+            Core\Encoding::fromHex("c3a974616c6f6e"),
+            Core\Encoding::fromHex("4f7264657220c3"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the next field tested is chosen by this round's answer.
+            if (Core\Encoding::isValidText($fields[($total % 3) as int], Core\Charset::Utf8)) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

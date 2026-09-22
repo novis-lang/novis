@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find the encoding a file was written in, by testing the bytes
+// against each encoding your program accepts.
+
+// One line of an export. It is not valid UTF-8, so something else wrote it.
+bytes $line = Core\Encoding::fromHex("4dfc6c6c6572");
+
+// The encodings this program accepts, the most likely one first.
+array<Core\Charset> $accepted = [Core\Charset::Utf8, Core\Charset::Windows1252];
+
+foreach ($accepted as Core\Charset $charset) {
+    // Stop at the first encoding that reads the whole line. This prints
+    // Müller.
+    if (Core\Encoding::isValidText($line, $charset)) {
+        echo Core\Encoding::decodeText($line, $charset), "\n";
+        break;
+    }
+}

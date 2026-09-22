@@ -1,0 +1,84 @@
+<?nvs
+// Attack: bytes that are not text are handed to the test a program uses as its
+// gate. Each one should be answered with false, so the program keeps the bytes
+// out. This method never throws an error, so every step runs and the runtime
+// should be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. The byte pair C0 AF, which has the shape of "/" written one byte too
+// long. A program that let it through could have a path check walked around.
+if (Core\Encoding::isValidText(Core\Encoding::fromHex('c0af'), Core\Charset::Utf8)) {
+    echo "step 1: the bytes were called text\n";
+} else {
+    echo "step 1: the bytes were not called text\n";
+}
+
+// 2. The three bytes ED A0 80. They spell a number that only UTF-16 uses to
+// build a pair, and that is not a character on its own.
+if (Core\Encoding::isValidText(Core\Encoding::fromHex('eda080'), Core\Charset::Utf8)) {
+    echo "step 2: the bytes were called text\n";
+} else {
+    echo "step 2: the bytes were not called text\n";
+}
+
+// 3. Characters cut in half at the end of the buffer. Each one starts a
+// character that needs more bytes than the buffer has.
+array<string> $cut = ['c3', 'e282', 'f09f98'];
+uint $refused = 0;
+foreach ($cut as string $hex) {
+    if (!Core\Encoding::isValidText(Core\Encoding::fromHex($hex), Core\Charset::Utf8)) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 3: ', $refused, " of 3 cut characters were not called text\n";
+
+// 4. The same three cut characters, checked against ISO-8859-1. Every byte is
+// a character in that encoding, so the answer says nothing about UTF-8.
+uint $latin = 0;
+foreach ($cut as string $hex) {
+    if (Core\Encoding::isValidText(Core\Encoding::fromHex($hex), Core\Charset::Latin1)) {
+        $latin = $latin + 1;
+    }
+}
+echo 'step 4: ', $latin, " of 3 are text in ISO-8859-1\n";
+
+// 5. Every one of the 256 single bytes, checked as UTF-8. Only the 128 below
+// 0x80 are characters on their own, so exactly half should be text.
+uint $alone = 0;
+uint $octet = 0;
+while ($octet < 256) {
+    if (Core\Encoding::isValidText(Core\Bytes::fill(1, $octet), Core\Charset::Utf8)) {
+        $alone = $alone + 1;
+    }
+    $octet = $octet + 1;
+}
+echo 'step 5: ', $alone, " of 256 single bytes are UTF-8 on their own\n";
+
+// 6. Eight million bytes of valid text with one bad byte at the very end. The
+// answer has to be false, so the whole buffer is read and not only its start.
+bytes $long = Core\Bytes::repeat(Core\Encoding::fromHex('c3a9'), 4000000);
+bytes $spoiled = Core\Bytes::join([$long, Core\Encoding::fromHex('ff')]);
+if (Core\Encoding::isValidText($spoiled, Core\Charset::Utf8)) {
+    echo "step 6: eight million bytes and one bad byte were called text\n";
+} else {
+    echo "step 6: the bad byte at the end was found\n";
+}
+
+// 7. One hundred thousand checks in a row, each one choosing the next buffer.
+// Memory held for one check must be free again before the next one.
+array<bytes> $buffers = [
+    Core\Encoding::fromHex('4f726465722031303432'),
+    Core\Encoding::fromHex('c3a974616c6f6e'),
+    Core\Encoding::fromHex('4f7264657220c3'),
+];
+uint $seen = 0;
+uint $round = 0;
+while ($round < 100000) {
+    if (Core\Encoding::isValidText($buffers[($seen % 3) as int], Core\Charset::Utf8)) {
+        $seen = $seen + 1;
+    } else {
+        $seen = $seen + 2;
+    }
+    $round = $round + 1;
+}
+echo 'step 7: ', $seen, " after one hundred thousand checks\n";
