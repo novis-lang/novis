@@ -13,12 +13,7 @@
 import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 import { Session } from "../protocol/session";
-
-/** The extension under test, per `rule:ide/the-extension-runs-where-the-binary-is`. */
-const ID = "novis-lang.nvs";
-
-/** How long a server start or an activation is given before it counts as not having happened. */
-const DEADLINE = 20_000;
+import { ID, fixture, open, until } from "./editor";
 
 /** One span of `_workbench.captureSyntaxTokens`: the text it covers, and its scopes, space separated. */
 interface Span {
@@ -33,33 +28,20 @@ interface Token {
   modifiers: string[];
 }
 
-function fixture(name: string): vscode.Uri {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  assert.equal(folders.length, 1, "the fixture copy is the whole workspace");
-  return vscode.Uri.joinPath(folders[0].uri, name);
-}
-
-async function open(name: string): Promise<vscode.TextDocument> {
-  const document = await vscode.workspace.openTextDocument(fixture(name));
-  await vscode.window.showTextDocument(document);
-  return document;
-}
-
-// Activation and a server start are the editor's to schedule, so both are waited for rather than
-// assumed to have finished by the time the call that triggers them returns. A deadline is what turns
-// "it never happened" into a failure naming what was waited for instead of a suite that hangs.
-async function until<T>(what: string, attempt: () => Thenable<T | undefined>): Promise<T> {
-  const giveUp = Date.now() + DEADLINE;
-  for (;;) {
-    const answer = await attempt();
-    if (answer !== undefined) {
-      return answer;
-    }
-    if (Date.now() > giveUp) {
-      throw new Error(`${what} did not happen within ${DEADLINE}ms`);
-    }
-    await new Promise((wake) => setTimeout(wake, 100));
+/**
+ * What an editor that has not activated this extension is showing, for a wait about to give up.
+ *
+ * The three states that end this wait short are all here: an editor with nothing open, one holding a
+ * document some other extension claimed, and one holding a Novis document under an extension that
+ * stayed asleep anyway. A ledger carrying a bare deadline cannot be told which of them it was.
+ */
+function activation(extension: vscode.Extension<unknown>): string {
+  const document = vscode.window.activeTextEditor?.document;
+  if (document === undefined) {
+    return "no editor is showing a document";
   }
+  return `the editor holds ${document.uri.path.split("/").pop()} as language `
+    + `\`${document.languageId}\`, and ${ID} is ${extension.isActive ? "active" : "asleep"}`;
 }
 
 async function captured(uri: vscode.Uri): Promise<Span[]> {
@@ -117,7 +99,8 @@ describe("colour", () => {
     assert.equal(extension.isActive, false, `${ID} activated on a .php file`);
 
     await open("app.nvs");
-    await until(`${ID} activating on a .nvs file`, async () => extension.isActive || undefined);
+    await until(`${ID} activating on a .nvs file`, async () => extension.isActive || undefined,
+                () => activation(extension));
   });
 
   it("colours a file from the grammar before the server answers", async () => {
@@ -140,10 +123,19 @@ describe("colour", () => {
     // lands in the throwaway profile's own settings file and nowhere else.
     await vscode.workspace.getConfiguration().update("nvs.lsp.enable", true, vscode.ConfigurationTarget.Global);
     const document = await open("app.nvs");
+    // The two ways this wait ends short read the same from outside it and mean different things: no
+    // provider is registered at all, which is a client that never spawned a server, and a provider
+    // that answered an empty set, which is a server that answered the wrong document. The last
+    // answer is kept so the failure can say which.
+    let last = "the token provider was never asked";
     const answer = await until("nvs lsp answering semantic tokens", async () => {
       const tokens = await semantic(document);
+      last = tokens === undefined
+        ? "no semantic token provider is registered for this document"
+        : `the provider answered ${tokens.data.length / 5} token(s)`;
       return tokens !== undefined && tokens.data.length > 0 ? tokens : undefined;
-    });
+    }, () => `${last}, with nvs.lsp.enable `
+             + `${vscode.workspace.getConfiguration("nvs").get<boolean>("lsp.enable")}`);
 
     const legend = await vscode.commands.executeCommand<vscode.SemanticTokensLegend | undefined>(
       "vscode.provideDocumentSemanticTokensLegend", document.uri);

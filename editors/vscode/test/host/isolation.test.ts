@@ -10,8 +10,7 @@ import * as assert from "node:assert/strict";
 import { isAbsolute, relative, resolve } from "node:path";
 import * as vscode from "vscode";
 
-/** The extension under test, per `rule:ide/the-extension-runs-where-the-binary-is`. */
-const ID = "novis-lang.nvs";
+import { ID } from "./editor";
 
 /** The value `scripts/host.mjs` passed in, or a failure naming the launcher this suite needs. */
 function expected(name: string): string {

@@ -24,8 +24,7 @@
 import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 
-/** How long the editor is given to apply a paste edit before it counts as not having applied one. */
-const DEADLINE = 20_000;
+import { shown, until } from "./editor";
 
 /** The kind `src/imports.ts` offers its edit under, and the kind the contributed preference names. */
 const KIND = vscode.DocumentDropOrPasteEditKind.TextUpdateImports.append("nvs");
@@ -35,34 +34,6 @@ const MARK = "// the paste edit was applied\n";
 
 /** The text the clipboard carries, which is what an ordinary paste would put there on its own. */
 const PASTED = "echo 'pasted';";
-
-function fixture(name: string): vscode.Uri {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  assert.equal(folders.length, 1, "the fixture copy is the whole workspace");
-  return vscode.Uri.joinPath(folders[0].uri, name);
-}
-
-/** Open a fixture and show it, which is the editor a paste acts on. */
-async function open(name: string): Promise<vscode.TextEditor> {
-  const document = await vscode.workspace.openTextDocument(fixture(name));
-  return vscode.window.showTextDocument(document);
-}
-
-// A paste is the editor's to schedule, so it is waited for rather than assumed to have finished by the
-// time the command that triggers it returns. `seen` is what the failure says was there instead: the
-// driver's sweep is the one place this suite runs where nobody can open the editor to look.
-async function until(what: string, attempt: () => boolean, seen: () => string): Promise<void> {
-  const giveUp = Date.now() + DEADLINE;
-  for (;;) {
-    if (attempt()) {
-      return;
-    }
-    if (Date.now() > giveUp) {
-      throw new Error(`${what} did not happen within ${DEADLINE}ms -- instead: ${seen()}`);
-    }
-    await new Promise((wake) => setTimeout(wake, 100));
-  }
-}
 
 /** What `editor.pasteAs.preferences` resolves to for one language, as this editor reads it. */
 function preferences(languageId: string): unknown {
@@ -78,7 +49,7 @@ describe("a paste into a Novis document", () => {
     assert.deepEqual(preferences("plaintext"), [],
                      "the preference is set for every language, so it says nothing about Novis");
 
-    const editor = await open("hello.nvs");
+    const editor = await shown("hello.nvs");
     const offered = vscode.languages.registerDocumentPasteEditProvider({ language: "nvs" }, {
       async provideDocumentPasteEdits(
         document: vscode.TextDocument,
@@ -103,9 +74,9 @@ describe("a paste into a Novis document", () => {
       // Both halves, in one wait. The text alone arriving is the ordinary paste, which is exactly what
       // an empty preference list leaves behind, so waiting for the text would pass on the defect this
       // test is here for.
-      await until("the pasted text arriving with the provider's edit applied", () => {
+      await until("the pasted text arriving with the provider's edit applied", async () => {
         const now = editor.document.getText();
-        return now.includes(PASTED) && now.startsWith(MARK);
+        return now.includes(PASTED) && now.startsWith(MARK) ? true : undefined;
       }, () => {
         const now = editor.document.getText();
         return now.includes(PASTED)

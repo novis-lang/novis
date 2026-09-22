@@ -2639,6 +2639,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   [until: reviewed 2026-09-22]
 - **`nvs check` on a scratch file outside any program reads this repository's `nvs.toml` and aborts on its `[db]` block.** The block's `tls_ca_file` names `tests/db/ca.crt`, which is absent, so `E0605` stops the run before the file is looked at. Ask `nvs ast <file>` for a parse question, or hand `nvs check --config` a configuration with no `[db]`. [until: reviewed 2027-03-31]
 - **A node added to `nvs_syntax::walk` changes what `nvs fmt` prints and what `Core\Ast::parse` returns.** The formatter's indenter reads the index built from the walk, so one child under a method — an attribute payload — moved the indentation of twenty-one corpus files. An editor answer that needs a span the walk lacks walks the AST itself, as `nvs_lsp::definition::payload_path` does. [until: gone crates/nvs-fmt/src/indent.rs:fn arm_starts]
+- **The floor check `dossier: the chain already names every emitted goal` turns red on its own the
+  session a reference chapter grows a heading.** A heading under `docs/reference/` *is* a feature
+  (`rule:testing/roster-is-derived`), so features nobody planned become owed and unclaimed, and the
+  ledger's "lacks ... nothing appended" reads exactly like unwritten work. Run `python
+  tools/dossier.py --emit-goals` and stage `docs/agent/goals/` whole: it appends the goal, renumbers
+  the `position: last` tail and leaves the live goal alone. [until: reviewed 2026-09-22]
 
 ## Running things
 

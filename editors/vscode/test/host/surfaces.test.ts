@@ -15,53 +15,11 @@ import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 
 import { Drawn, Surface } from "../../src/surface";
-
-/** The extension under test, per `rule:ide/the-extension-runs-where-the-binary-is`. */
-const ID = "novis-lang.nvs";
-
-/** How long a server start, a task or a first draw is given before it counts as not having happened. */
-const DEADLINE = 20_000;
+import { ID, open, until } from "./editor";
 
 /** One of `secrets.nvs`'s two literals, which is how a concealed range is told from its neighbour. */
 const FIRST = "sk-live-7c9f4d2b8a1e";
 const SECOND = "correct horse battery staple";
-
-function fixture(name: string): vscode.Uri {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  assert.equal(folders.length, 1, "the fixture copy is the whole workspace");
-  return vscode.Uri.joinPath(folders[0].uri, name);
-}
-
-async function open(name: string): Promise<vscode.TextDocument> {
-  const document = await vscode.workspace.openTextDocument(fixture(name));
-  await vscode.window.showTextDocument(document);
-  return document;
-}
-
-// A start, a task and a draw are all the editor's to schedule, so each is waited for rather than
-// assumed to have finished by the time the call that triggers it returns. A deadline is what turns "it
-// never happened" into a failure naming what was waited for instead of a suite that hangs. `seen`
-// is what the failure says was there instead: a wait that ends on the bare deadline tells the
-// reader of a ledger nothing about which of the states it did not reach the editor was in, and the
-// driver's sweep is the one place this suite runs where nobody can open the editor to look.
-async function until<T>(
-  what: string,
-  attempt: () => Thenable<T | undefined>,
-  seen?: () => string,
-): Promise<T> {
-  const giveUp = Date.now() + DEADLINE;
-  for (;;) {
-    const answer = await attempt();
-    if (answer !== undefined) {
-      return answer;
-    }
-    if (Date.now() > giveUp) {
-      const instead = seen === undefined ? "" : ` -- instead: ${seen()}`;
-      throw new Error(`${what} did not happen within ${DEADLINE}ms${instead}`);
-    }
-    await new Promise((wake) => setTimeout(wake, 100));
-  }
-}
 
 /**
  * What the status item says right now, for a wait that is about to give up on it.
@@ -190,8 +148,8 @@ describe("the surfaces", () => {
     // (`rule:ide/the-ast-panel-shells-out-to-the-cli`). A stump would satisfy "a tree appeared", so
     // what is asserted is the recovered statements themselves.
     const roots = await until("the AST panel drawing a tree", async () => {
-      const shown = await reading.ast.getChildren(undefined);
-      return shown !== null && shown !== undefined && shown.length > 0 ? shown : undefined;
+      const tree = await reading.ast.getChildren(undefined);
+      return tree !== null && tree !== undefined && tree.length > 0 ? tree : undefined;
     });
     assert.deepEqual(roots.map((node) => node.kind), ["File"]);
 

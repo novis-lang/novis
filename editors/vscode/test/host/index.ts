@@ -1,6 +1,11 @@
 // What `runTests` calls once the extension host is up: every `*.test.js` beside this file, under
 // Mocha's `spec` reporter.
 //
+// The glob names `*.test.js` and not `*.js` so that a module the suites share can sit beside them
+// without being loaded as a suite of its own: `editor.ts` is that module, and widening this to the
+// whole directory would have Mocha run a file that declares no `describe` and report it as a suite
+// with nothing in it.
+//
 // The report is written to `.vscode-test/host-report.txt` rather than trusted to stdout. Inside the
 // extension host, `console.log` reaches the editor's own output channels and only sometimes the
 // terminal that launched it, so `scripts/host.mjs` prints this file instead and the acceptance check
