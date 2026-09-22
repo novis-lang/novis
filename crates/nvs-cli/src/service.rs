@@ -1537,7 +1537,9 @@ pub(crate) mod registration {
             account: String,
             start: StartMode,
             depends_on: Vec<String>,
-            description: String,
+            /// What an administrator reads beside the name, where the operator
+            /// wrote one. Nothing is generated in its place.
+            description: Option<String>,
         },
         /// Ask for `SERVICE_CONTROL_PRESHUTDOWN`, and for the time a drain
         /// needs.
@@ -1668,14 +1670,29 @@ pub(crate) mod registration {
         Manager(std::io::Error),
     }
 
-    /// § 4's default identity: the virtual account the SCM creates and owns,
-    /// with a per-service SID, no password to rotate or leak and no interactive
-    /// logon. `--account` replaces it with a domain identity for a deployment
-    /// that needs one, and `LocalSystem` is never the default.
+    /// The identity a service runs as: [`LOCAL_SYSTEM`], the local system
+    /// account every hand-registered Windows service gets, unless `--account`
+    /// names another (`rule:packaging/a-service-runs-as-a-virtual-account`).
+    /// `SYSTEM` and `NT AUTHORITY\SYSTEM` are that same account under the
+    /// names an operator types, and are stored as the SCM spells it.
     fn account_of(plan: &Plan) -> String {
-        plan.account
-            .clone()
-            .unwrap_or_else(|| format!("NT SERVICE\\{}", plan.name))
+        match &plan.account {
+            Some(account) if !is_local_system(account) => account.clone(),
+            _ => LOCAL_SYSTEM.to_owned(),
+        }
+    }
+
+    /// The account the SCM already trusts with everything, which is why an
+    /// install grants it nothing and an uninstall revokes nothing from it.
+    pub(crate) const LOCAL_SYSTEM: &str = "LocalSystem";
+
+    /// Whether `account` names [`LOCAL_SYSTEM`] under any of its spellings.
+    pub(crate) fn is_local_system(account: &str) -> bool {
+        let account = account.trim();
+        account.eq_ignore_ascii_case(LOCAL_SYSTEM)
+            || account.eq_ignore_ascii_case("SYSTEM")
+            || account.eq_ignore_ascii_case(r"NT AUTHORITY\SYSTEM")
+            || account.eq_ignore_ascii_case(r".\LocalSystem")
     }
 
     /// § 4's grant list, closed: read on every configuration file the argv
@@ -1722,10 +1739,7 @@ pub(crate) mod registration {
                         account: account.clone(),
                         start: registration.start,
                         depends_on: registration.depends_on.clone(),
-                        description: registration
-                            .description
-                            .clone()
-                            .unwrap_or_else(|| format!("Novis service {}", plan.name)),
+                        description: registration.description.clone(),
                     },
                     Action::Preshutdown {
                         name: plan.name.clone(),
@@ -1737,16 +1751,20 @@ pub(crate) mod registration {
                         reset: FAILURE_RESET,
                     },
                 ];
-                for (path, write) in granted(
-                    &plan.argv,
-                    registration.log_file.as_deref(),
-                    registration.cache_directory.as_deref(),
-                ) {
-                    out.push(Action::Grant {
-                        account: account.clone(),
-                        path,
-                        write,
-                    });
+                // The system account holds every one of these already, so the
+                // grants are for an account the operator named.
+                if !is_local_system(&account) {
+                    for (path, write) in granted(
+                        &plan.argv,
+                        registration.log_file.as_deref(),
+                        registration.cache_directory.as_deref(),
+                    ) {
+                        out.push(Action::Grant {
+                            account: account.clone(),
+                            path,
+                            write,
+                        });
+                    }
                 }
                 // Last, and after the grants: it is the destination a failure
                 // to start is reported to, so it is registered while the
@@ -1796,15 +1814,17 @@ pub(crate) mod registration {
                     name: stored.name.clone(),
                     control: Control::Stop,
                 }];
-                for (path, _) in granted(
-                    &stored.argv,
-                    stored.log_file.as_deref(),
-                    stored.cache_directory.as_deref(),
-                ) {
-                    out.push(Action::Revoke {
-                        account: stored.account.clone(),
-                        path,
-                    });
+                if !is_local_system(&stored.account) {
+                    for (path, _) in granted(
+                        &stored.argv,
+                        stored.log_file.as_deref(),
+                        stored.cache_directory.as_deref(),
+                    ) {
+                        out.push(Action::Revoke {
+                            account: stored.account.clone(),
+                            path,
+                        });
+                    }
                 }
                 out.push(Action::RemoveEventSource {
                     name: stored.name.clone(),
@@ -1863,8 +1883,11 @@ pub(crate) mod registration {
                 } else {
                     format!(", after {}", depends_on.join(", "))
                 };
+                let described = description
+                    .as_deref()
+                    .map_or_else(String::new, |text| format!(", description `{text}`"));
                 format!(
-                    "register `{name}` as {account}, {} start, description `{description}`, \
+                    "register `{name}` as {account}, {} start{described}, \
                      ImagePath {image_path}{depends}",
                     start.word()
                 )
@@ -2345,8 +2368,15 @@ pub(crate) mod registration {
                         start,
                         depends_on,
                         description,
-                    } => register(name, image_path, account, *start, depends_on, description)
-                        .map(|()| None),
+                    } => register(
+                        name,
+                        image_path,
+                        account,
+                        *start,
+                        depends_on,
+                        description.as_deref(),
+                    )
+                    .map(|()| None),
                     Action::Preshutdown { name, timeout } => {
                         preshutdown(name, *timeout).map(|()| None)
                     }
@@ -2560,7 +2590,7 @@ pub(crate) mod registration {
             account: &str,
             start: StartMode,
             depends_on: &[String],
-            description: &str,
+            description: Option<&str>,
         ) -> std::io::Result<()> {
             let database = manager(SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)?;
             let wide_name = wide(name);
@@ -2619,22 +2649,26 @@ pub(crate) mod registration {
         fn describe_registration(
             handle: &Handle,
             start: StartMode,
-            description: &str,
+            description: Option<&str>,
         ) -> std::io::Result<()> {
-            let mut wide_description = wide(description);
-            let info = SERVICE_DESCRIPTIONW {
-                lpDescription: wide_description.as_mut_ptr(),
-            };
-            // SAFETY: the structure and the string it points at are locals
-            // that outlive the call, at the info level that names the
-            // structure.
-            ok(unsafe {
-                ChangeServiceConfig2W(
-                    handle.0,
-                    SERVICE_CONFIG_DESCRIPTION,
-                    std::ptr::from_ref(&info).cast(),
-                )
-            })?;
+            // Only where the operator wrote one: a service nobody described
+            // shows no description, rather than a line nobody asked for.
+            if let Some(description) = description {
+                let mut wide_description = wide(description);
+                let info = SERVICE_DESCRIPTIONW {
+                    lpDescription: wide_description.as_mut_ptr(),
+                };
+                // SAFETY: the structure and the string it points at are locals
+                // that outlive the call, at the info level that names the
+                // structure.
+                ok(unsafe {
+                    ChangeServiceConfig2W(
+                        handle.0,
+                        SERVICE_CONFIG_DESCRIPTION,
+                        std::ptr::from_ref(&info).cast(),
+                    )
+                })?;
+            }
             if start.enabled() {
                 let info = SERVICE_DELAYED_AUTO_START_INFO {
                     fDelayedAutostart: BOOL::from(matches!(start, StartMode::Delayed)),
@@ -3227,7 +3261,14 @@ pub(crate) fn install(
         )
     });
     match performed {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(()) => {
+            // Said once the manager holds it, because a command that changed
+            // the machine and printed nothing reads as one that did not run.
+            if !options.dry_run {
+                println!("installed service `{name}`; `nvs service start {name}` starts it");
+            }
+            ExitCode::SUCCESS
+        }
         Err(refused) => report(refused, &mut sources),
     }
 }
@@ -3249,7 +3290,12 @@ pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCo
         registration::uninstall(&stored, site, dry_run, &mut std::io::stdout())
     });
     match performed {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(()) => {
+            if !dry_run {
+                println!("uninstalled service `{name}`");
+            }
+            ExitCode::SUCCESS
+        }
         Err(refused) => report(refused, &mut sources),
     }
 }
@@ -4041,11 +4087,40 @@ mod tests {
         // The encoder's output and not a second rendering of it: § 3 has that
         // one string be the only record of what the service runs.
         assert_eq!(registered.0, &image_path(&checked));
-        assert_eq!(registered.1, "NT SERVICE\\web");
+        assert_eq!(registered.1, registration::LOCAL_SYSTEM);
         assert_eq!(registered.2, registration::StartMode::Automatic);
-        assert!(registered.3.contains("web"), "{}", registered.3);
+        // The description is the operator's or nothing: none is generated.
+        assert_eq!(registered.3, &registration().description);
+        // And the system account, which already holds every right, is granted
+        // nothing.
+        assert!(
+            !actions
+                .iter()
+                .any(|action| matches!(action, registration::Action::Grant { .. })),
+            "the system account was granted something it already has"
+        );
+        for spelling in ["SYSTEM", "LocalSystem", "NT AUTHORITY\\SYSTEM"] {
+            let mut named = request(&argv);
+            named.account = Some(spelling);
+            let system = plan(&named, &host()).expect("a plan");
+            assert!(
+                registration::install_actions(
+                    registration::Platform::Windows,
+                    &system,
+                    &registration(),
+                    &root
+                )
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    registration::Action::Register { account, .. }
+                        if account == registration::LOCAL_SYSTEM
+                )),
+                "`{spelling}` was not read as the system account"
+            );
+        }
 
-        // `--account` replaces the virtual account and nothing else about the
+        // `--account` replaces the system account and nothing else about the
         // registration.
         let mut named = request(&argv);
         named.account = Some("EXAMPLE\\nvs-web");
@@ -4261,13 +4336,17 @@ mod tests {
     #[test]
     fn service_uninstall_leaves_no_key_no_event_source_no_unit_and_no_acl() {
         let argv = argv();
-        let checked = plan(&request(&argv), &host()).expect("a plan");
+        // A named account, because the default system account is granted
+        // nothing and so has nothing to revoke.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let checked = plan(&named, &host()).expect("a plan");
         let root = unit_root("uninstall");
         let options = registration();
         let stored = registration::Stored {
             name: "web".to_owned(),
             argv: argv.clone(),
-            account: "NT SERVICE\\web".to_owned(),
+            account: "EXAMPLE\\nvs-web".to_owned(),
             log_file: options.log_file.clone(),
             cache_directory: options.cache_directory.clone(),
         };
@@ -4520,8 +4599,12 @@ mod tests {
             manager,
         };
         let argv = argv();
+        // A named account, so the install has grants to undo: the default
+        // system account is granted nothing.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
         let refused = registration::install(
-            &request(&argv),
+            &named,
             &host(),
             &registration(),
             &site,

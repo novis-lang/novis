@@ -1741,21 +1741,24 @@ nothing may depend on them, and `nvs service run` ignores them.
 
 <a id="packaging-a-service-runs-as-a-virtual-account"></a>
 
-## A service's default identity is the per-service virtual account `NT SERVICE\<name>`, and `LocalSystem` is never the default  *(designed — not yet in the compiler)*
+## A service's default identity is the local system account, and `--account` names any other, the per-service virtual account included  *(designed — not yet in the compiler)*
 
 `rule:packaging/a-service-runs-as-a-virtual-account`
 
-The default identity is `NT SERVICE\<name>` — a virtual account the SCM creates and owns, with a
-per-service SID, no password to rotate or leak, and no interactive logon. Install grants that SID read
-on the config, read/write on the cache and log directories, and nothing further; the account can read
-its configuration and write its cache and log, and cannot write its own binary. A cache or log directory
-that is not there is created by the install, because the account holds nothing on the parent and so
-could never create it itself. An uninstall revokes the same entries, and reads a path that is no longer
-there as already revoked.
+The default identity is `LocalSystem`, the local system account every hand-registered Windows service
+gets, so an operator who installs with no `--account` sees the same log-on tab `sc create` gives them.
+`SYSTEM` and `NT AUTHORITY\SYSTEM` are accepted as that account's other names and stored as the SCM
+spells it. It holds every right already, so an install grants it nothing and an uninstall revokes
+nothing from it.
 
-`--account` takes a domain identity for a deployment that needs one, with the password prompted rather
-than taken from the command line ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). `LocalSystem` is never the
-default and must be written out as `--account SYSTEM`.
+`--account` takes another identity: `NT SERVICE\<name>`, the per-service virtual account the SCM
+creates and owns, with a per-service SID, no password to rotate or leak and no interactive logon; or a
+domain account, with the password prompted rather than taken from the command line
+([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). For those, install grants the account read on the config
+and read/write on the cache and log directories, and nothing further; a cache or log directory that is
+not there is created by the install, because such an account holds nothing on the parent and so could
+never create it itself. An uninstall revokes the same entries, and reads a path that is no longer
+there as already revoked.
 
 <sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md).</sub>
 

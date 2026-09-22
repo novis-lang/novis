@@ -1039,8 +1039,8 @@ enum ServiceCommand {
         // `docs/decisions/0093.md` § 2.
         #[arg(long, value_name = "PATH")]
         log_file: Option<PathBuf>,
-        /// The account the service runs as. The default is a per-service
-        /// virtual account, which has no password to rotate or leak.
+        /// The account the service runs as. The default is the local system
+        /// account, `LocalSystem`; `SYSTEM` names the same account.
         // `docs/decisions/0093.md` § 4.
         #[arg(long, value_name = "ACCOUNT")]
         account: Option<String>,
@@ -1132,8 +1132,8 @@ struct ServiceInstall {
     // `docs/decisions/0093.md` § 2.
     #[arg(long, value_name = "PATH")]
     log_file: Option<PathBuf>,
-    /// The account the service runs as. The default is a per-service virtual
-    /// account, which has no password to rotate or leak.
+    /// The account the service runs as. The default is the local system
+    /// account, `LocalSystem`; `SYSTEM` names the same account.
     // `docs/decisions/0093.md` § 4.
     #[arg(long, value_name = "ACCOUNT")]
     account: Option<String>,
