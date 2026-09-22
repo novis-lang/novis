@@ -1,5 +1,5 @@
 --TEST--
-`Status::Draft` and `Config::MAX` are one production, so the checker's recorded resolution is what colours the case's own half and leaves the constant's silent, `rule:ide/semantic-tokens-carry-the-qualifiers`, `rule:enums/no-class-machinery`
+`Status::Draft` and `Config::MAX` are one production, so the checker's recorded resolution is what colours the case's own half and leaves the constant's silent — and what colours the name in front of each as the enum or the class it resolved to, `rule:ide/semantic-tokens-carry-the-qualifiers`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 enum Status: int {
@@ -15,5 +15,7 @@ semanticTokens
 3:10+5 enumMember
 5:7+6 class
 6:5+6 variable
+6:14+6 enum
 6:22+5 enumMember
 7:5+4 variable
+7:12+6 class

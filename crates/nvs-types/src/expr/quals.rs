@@ -1296,16 +1296,20 @@ pub(crate) fn reject_secret_published_argument(
 /// user qualifier, and a constant reached through a class expression that is
 /// not statically known, which `resolve_class_expr` has already refused for
 /// its own reasons.
-pub(crate) fn reject_secret_attribute_constant(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+pub(crate) fn reject_secret_attribute_constant(
+    expr: &Expr,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> bool {
     let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
-        return;
+        return false;
     };
     let Some(qname) = super::members::resolve_class_expr(class, ctx, env) else {
-        return;
+        return false;
     };
     let constant = span_text(env.src, *name).to_owned();
     if !env.consts.is_secret(&qname, &constant, env.graph) {
-        return;
+        return false;
     }
     env.diags.report(
         Diagnostic::error(
@@ -1323,4 +1327,5 @@ pub(crate) fn reject_secret_attribute_constant(expr: &Expr, ctx: &Ctx<'_>, env: 
              run time, and the attribute carries the name of where to read it from",
         ),
     );
+    true
 }

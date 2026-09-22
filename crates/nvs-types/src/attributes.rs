@@ -103,14 +103,22 @@ fn check_groups(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 }
 
 fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let mut constant = true;
+    let mut payload = Payload {
+        constant: true,
+        clean: true,
+    };
     for field in &attr.fields {
-        constant &= check_value(&field.value, ctx, env);
+        payload = payload.and(check_value(&field.value, ctx, env));
     }
+    let constant = payload.constant;
     let Some(name) = &attr.name else {
         // `rule:attributes/attach-sites-and-forms`'s bare form names no shape to check against, so the
         // literal is checked as a well-formed literal and nothing more —
-        // which the constant walk above has just done.
+        // which the constant walk above has just done — and its values are
+        // then inferred so that what each names is on record.
+        if constant && payload.clean {
+            infer_fields(&attr.fields, ctx, env);
+        }
         return;
     };
     // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are the one exemption to
@@ -123,6 +131,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // cannot place one `Name` two different ways.
     let text = span_text(env.src, name.span).to_owned();
     let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
+    env.exprs.record_attribute_name(name.span, qname.clone());
     if crate::derive::ATTRIBUTES
         .iter()
         .any(|want| qname == nvs_hir::QName::parse(want))
@@ -172,6 +181,11 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 // declares — so they are asked by the per-class walk that
                 // holds those, exactly as `#[Route]`'s own path checks are.
                 check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
+            } else if payload.clean {
+                // A recognized name with no roster — `#[Json\Field]`,
+                // `#[TestWith]` — has its payload read by its own pass, which
+                // reads the literal and records nothing about the values.
+                infer_fields(&attr.fields, ctx, env);
             }
         }
         return;
@@ -195,6 +209,51 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let actual = check_object_literal(&attr.fields, None, &mut live, &scope, ctx, env);
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
+    }
+}
+
+/// What [`check_value`] found out about one value, or a whole payload: whether
+/// it is a compile-time constant, and whether it is **clean** — no `secret`
+/// constant refused inside it.
+///
+/// Two flags rather than one, because they gate different things. A payload
+/// that is not constant is not checked against any shape; a payload that is
+/// constant and not clean still is, so the author sees what the value failed
+/// to satisfy — and is not *inferred* afterwards, because the ordinary
+/// inference of a refused value reports a second refusal for the same bytes
+/// (`E0824` for a `secret` inside an array literal) after `E0727` has already
+/// said the one thing that matters.
+#[derive(Clone, Copy)]
+struct Payload {
+    constant: bool,
+    clean: bool,
+}
+
+impl Payload {
+    /// Both findings, over this and one more value.
+    const fn and(self, other: Self) -> Self {
+        Self {
+            constant: self.constant && other.constant,
+            clean: self.clean && other.clean,
+        }
+    }
+}
+
+/// Every value of a payload no roster and no shape places, inferred over an
+/// empty scope so that what each names is recorded: `Status::Live` in a bare
+/// `#[{state: Status::Live}]` is an enum case an editor can follow, exactly as
+/// it is in a payload a roster reads through [`check_roster`].
+///
+/// Nothing is placed and nothing new is reported for a constant that resolves:
+/// [`check_value`] has proved every value here constant and clean, and a
+/// constant infers over no scope at all. What a name that resolves to nothing
+/// gets is the ordinary `E0303`, which is the answer every other position
+/// gives it.
+fn infer_fields(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let mut live = FxHashSet::default();
+    let scope = LocalScope::new();
+    for field in fields {
+        check_expr(&field.value, None, &mut live, &scope, ctx, env);
     }
 }
 
@@ -351,8 +410,9 @@ fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
 /// attribute — a payload with two bad fields is two diagnostics, in source
 /// order, because each is its own mistake. Answers whether this value (and
 /// every value nested inside it) is a constant, which is what tells
-/// [`check_attribute`] the literal is worth checking against a shape.
-fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
+/// [`check_attribute`] the literal is worth checking against a shape, and
+/// whether it is clean ([`Payload`]).
+fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Payload {
     if is_constant(expr) {
         // `rule:security/secret-sinks-refuse`'s payload sink, asked of every value this walk reaches
         // and not only of a payload's top level: a `secret` constant nested
@@ -360,32 +420,32 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
         // constant pool. It answers for a `Class::CONST` and for nothing
         // else — see [`crate::expr::reject_secret_attribute_constant`] for
         // why one expression kind is the whole of it.
-        crate::expr::reject_secret_attribute_constant(expr, ctx, env);
+        let mut found = Payload {
+            constant: true,
+            clean: !crate::expr::reject_secret_attribute_constant(expr, ctx, env),
+        };
         // A container's own elements are values in their own right, so a
         // constant-shaped container is descended into rather than trusted.
-        return match &expr.kind {
+        match &expr.kind {
             ExprKind::ArrayLiteral(items) => {
-                let mut ok = true;
                 for ArrayItem { key, value, .. } in items {
                     if let Some(key) = key {
-                        ok &= check_value(key, ctx, env);
+                        found = found.and(check_value(key, ctx, env));
                     }
-                    ok &= check_value(value, ctx, env);
+                    found = found.and(check_value(value, ctx, env));
                 }
-                ok
             }
             ExprKind::ObjectLiteral(fields) => {
-                let mut ok = true;
                 for field in fields {
-                    ok &= check_value(&field.value, ctx, env);
+                    found = found.and(check_value(&field.value, ctx, env));
                 }
-                ok
             }
             ExprKind::Paren(inner) | ExprKind::Unary { expr: inner, .. } => {
-                check_value(inner, ctx, env)
+                found = found.and(check_value(inner, ctx, env));
             }
-            _ => true,
-        };
+            _ => {}
+        }
+        return found;
     }
     env.diags.report(
         Diagnostic::error(
@@ -399,7 +459,10 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
              a call or a `new` could be evaluated",
         ),
     );
-    false
+    Payload {
+        constant: false,
+        clean: true,
+    }
 }
 
 /// The closed list of shapes `rule:attributes/payload-is-a-compile-time-constant` admits. Closed on purpose: an

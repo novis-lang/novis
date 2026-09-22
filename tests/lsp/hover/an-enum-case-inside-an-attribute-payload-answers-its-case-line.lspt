@@ -1,0 +1,21 @@
+--TEST--
+a payload value is checked like any other expression, so an enum case inside `#[...]` answers the same line it answers in a body, `rule:attributes/payload-is-a-compile-time-constant`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Route(path: "/", method: Core\Http\Method::G<|>et)]
+    #[Core\Access(allow: Core\Audience::Everyone)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Http\Method::Get
+```
+
+Reads a resource; safe, so no CSRF check applies.

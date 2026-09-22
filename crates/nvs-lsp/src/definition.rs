@@ -77,8 +77,8 @@ use lsp_types::Range;
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, DocComment, EnumCase, MethodMember, Param, PropertyHook,
-    PropertyHookBody, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+    AttributeGroup, ClassMember, ClassMemberKind, DocComment, EnumCase, Expr, MethodMember, Param,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, Type, TypeAtom, TypeKind,
 };
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 use rustc_hash::FxHashMap;
@@ -114,6 +114,7 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
         range: range_at(file, declared.span, encoding),
     })
 }
+
 
 /// Where the **type** of the expression at `offset` is declared.
 ///
@@ -531,34 +532,178 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// clause off the hierarchy graph ([`clause_at`]), an `Owner::Name` in type
 /// position ([`type_member_at`]), and a `use` line ([`import_at`]).
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
-    let path = analysed.index.at(offset);
-    let nodes = path.nodes();
-    nodes
+    let nodes: Vec<Span> = analysed
+        .index
+        .at(offset)
+        .nodes()
         .iter()
-        .enumerate()
-        .find_map(|(depth, node)| {
-            let info = analysed.exprs.lookup(node.span)?;
-            let inside = depth.checked_sub(1).map(|inner| nodes[inner].span);
-            match (info, inside) {
-                (ExprInfo::EnumCase { enum_, .. }, Some(qualifier)) => {
-                    Some((Target::Type(enum_), qualifier))
-                }
-                // `$x is Shape` writes a type where no other expression does,
-                // so the name is reached through the interner rather than off
-                // the record: the entry carries the type it lowered, and the
-                // class inside it is the declaration to open. A test against
-                // anything but one class — a scalar, a union — names no single
-                // declaration and falls through to the node above.
-                (ExprInfo::TypeTest { tested }, _) => Some((
-                    Target::Type(class_named_by(&analysed.interner, *tested)?),
-                    node.span,
-                )),
-                _ => Some((target_of(info)?, node.span)),
-            }
-        })
+        .map(|node| node.span)
+        .collect();
+    resolved_in(analysed, &nodes)
+        .or_else(|| resolved_in(analysed, &payload_path(analysed, offset)))
         .or_else(|| clause_at(analysed, offset))
         .or_else(|| type_member_at(analysed, offset))
+        .or_else(|| attribute_at(analysed, offset))
         .or_else(|| import_at(analysed, offset))
+}
+
+/// The nearest of `nodes` — innermost first — that the checker recorded a
+/// name for, and the span to underline.
+///
+/// The one walk [`named_at`] makes, over whichever spans hold the cursor: the
+/// index's own path, or the payload path the index does not hold.
+fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>, Span)> {
+    nodes.iter().enumerate().find_map(|(depth, node)| {
+        let info = analysed.exprs.lookup(*node)?;
+        let inside = depth.checked_sub(1).map(|inner| nodes[inner]);
+        match (info, inside) {
+            (ExprInfo::EnumCase { enum_, .. }, Some(qualifier)) => {
+                Some((Target::Type(enum_), qualifier))
+            }
+            // `$x is Shape` writes a type where no other expression does,
+            // so the name is reached through the interner rather than off
+            // the record: the entry carries the type it lowered, and the
+            // class inside it is the declaration to open. A test against
+            // anything but one class — a scalar, a union — names no single
+            // declaration and falls through to the node above.
+            (ExprInfo::TypeTest { tested }, _) => Some((
+                Target::Type(class_named_by(&analysed.interner, *tested)?),
+                *node,
+            )),
+            _ => Some((target_of(info)?, *node)),
+        }
+    })
+}
+
+/// Every attribute payload expression of the entry document that covers
+/// `offset`, innermost first.
+///
+/// The spans the index does not hold: `nvs_syntax::walk` keeps an attribute a
+/// property of the declaration it is attached to and reaches no payload value,
+/// so a cursor inside `#[Route(method: Core\Http\Method::Get)]` lands in the
+/// method and in nothing under it. Read off the declarations' own attribute
+/// lists instead — every attach site `rule:attributes/attach-sites-and-forms`
+/// names — and descended through `nvs_syntax::visit::each_child_expr`, so the
+/// path is the one the index would answer if it held the payload, and
+/// [`resolved_in`] reads it the same way.
+pub(crate) fn payload_path(analysed: &Analysed, offset: BytePos) -> Vec<Span> {
+    let Some(entry) = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)
+    else {
+        return Vec::new();
+    };
+    let mut groups = Vec::new();
+    attribute_groups_in(&entry.stmts, offset, &mut groups);
+    let mut path = Vec::new();
+    for group in groups {
+        for attribute in &group.attributes {
+            for field in &attribute.fields {
+                if covers(field.value.span, offset) {
+                    descend(&field.value, offset, &mut path);
+                }
+            }
+        }
+    }
+    path.reverse();
+    path
+}
+
+/// Every attribute group written on a declaration in `stmts` whose span
+/// holds `offset`, at every attach site: the declaration's own, each
+/// member's, each parameter's and each property hook's.
+fn attribute_groups_in<'a>(stmts: &'a [Stmt], offset: BytePos, out: &mut Vec<&'a AttributeGroup>) {
+    for stmt in stmts {
+        if !covers(stmt.span, offset) {
+            continue;
+        }
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(decl) => {
+                if let Some(body) = &decl.body {
+                    attribute_groups_in(&body.stmts, offset, out);
+                }
+            }
+            StmtKind::ClassDecl(decl) => {
+                out.extend(&decl.attributes);
+                member_groups(&decl.members, out);
+            }
+            StmtKind::InterfaceDecl(decl) => {
+                out.extend(&decl.attributes);
+                member_groups(&decl.members, out);
+            }
+            StmtKind::EnumDecl(decl) => {
+                out.extend(&decl.attributes);
+                for case in &decl.cases {
+                    out.extend(&case.attributes);
+                }
+                member_groups(&decl.members, out);
+            }
+            StmtKind::TopLevelFunction(function) => {
+                out.extend(&function.attributes);
+                param_groups(&function.params, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The attribute groups of one body's members, on [`attribute_groups_in`]'s
+/// terms.
+fn member_groups<'a>(members: &'a [ClassMember], out: &mut Vec<&'a AttributeGroup>) {
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(property) => {
+                out.extend(&property.attributes);
+                for hook in property.hooks.iter().flatten() {
+                    out.extend(&hook.attributes);
+                    if let Some(param) = &hook.param {
+                        out.extend(&param.attributes);
+                    }
+                }
+            }
+            ClassMemberKind::Const(constant) => out.extend(&constant.attributes),
+            ClassMemberKind::Method(method) => {
+                out.extend(&method.attributes);
+                param_groups(&method.params, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The attribute groups of one parameter list.
+fn param_groups<'a>(params: &'a [Param], out: &mut Vec<&'a AttributeGroup>) {
+    for param in params {
+        out.extend(&param.attributes);
+    }
+}
+
+/// `expr` and, under it, every expression holding `offset`, outermost first.
+fn descend(expr: &Expr, offset: BytePos, path: &mut Vec<Span>) {
+    path.push(expr.span);
+    nvs_syntax::visit::each_child_expr(expr, &mut |child| {
+        if covers(child.span, offset) {
+            descend(child, offset, path);
+        }
+    });
+}
+
+/// The type the name of an attribute at `offset` in the entry document
+/// resolved to, and the span the source wrote that name at.
+///
+/// Read off the checker's own record: an attribute's name is no expression, so
+/// no node of the index carries it, and `nvs_types::attributes` recorded what
+/// it resolved to at the one place it resolved it. A compiler attribute is a
+/// `Core` name with no declaration, which is what the stub tree answers for; a
+/// userland one is the `type` alias it names.
+pub(crate) fn attribute_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    analysed
+        .exprs
+        .attribute_names()
+        .filter(|(span, _)| span.file == analysed.entry)
+        .find(|(span, _)| covers(*span, offset))
+        .map(|(span, name)| (Target::Type(name), span))
 }
 
 /// The type a `use` line of the entry document imports at `offset`, and the

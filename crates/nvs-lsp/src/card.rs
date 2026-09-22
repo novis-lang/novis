@@ -19,9 +19,12 @@
 //! declaration's `///` run. One renderer for both requests, so what a list
 //! says about a name and what hovering it says never disagree.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use lsp_types::{CompletionItem, Documentation, MarkupContent, MarkupKind, Uri};
 use nvs_hir::QName;
 use nvs_stdlib::registry;
+use nvs_types::derive;
 use serde_json::{Map, Value};
 
 use crate::definition::{MemberKind, site_of};
@@ -93,12 +96,136 @@ fn card_of(documents: &Documents, key: &Map<String, Value>) -> Option<String> {
     (!card.is_empty()).then(|| card.to_owned())
 }
 
-/// A `Core` class's or enum's own line, where its registry row carries one.
+/// A `Core` class's, enum's or compiler attribute's own line, where its
+/// registry row carries one.
 fn core_type(name: &str) -> Option<String> {
     if let Some(class) = registry::class(name) {
         return class.doc.map(|doc| doc.short.to_owned());
     }
-    registry::core_enum(name).and_then(|core| core.doc.map(|doc| doc.short.to_owned()))
+    if let Some(core) = registry::core_enum(name) {
+        return core.doc.map(|doc| doc.short.to_owned());
+    }
+    derive::attribute_doc(name).map(|doc| doc.short.to_owned())
+}
+
+/// The hover for a `Core` class, enum or compiler attribute: its declaration
+/// line as a code block, then its card — a class's line, an enum's line and
+/// one line per documented case, an attribute's line and where it is written.
+/// `None` for a name none of the three rosters holds.
+///
+/// The same lines [`core_type`] shows on a completion row, with the
+/// declaration in front of them: a hover is read in place of opening the
+/// declaration, so it starts with what the declaration would have said.
+pub(crate) fn core_type_hover(name: &str) -> Option<String> {
+    if let Some(class) = registry::class(name) {
+        let mut out = format!("```nvs\nclass {name}\n```");
+        if let Some(doc) = class.doc {
+            out.push_str("\n\n");
+            out.push_str(doc.short);
+        }
+        return Some(out);
+    }
+    if let Some(core) = registry::core_enum(name) {
+        let mut out = format!("```nvs\nenum {name}\n```");
+        if let Some(doc) = core.doc {
+            out.push_str("\n\n");
+            out.push_str(doc.short);
+            if !doc.cases.is_empty() {
+                out.push_str("\n\n**Cases**\n");
+                for case in doc.cases {
+                    out.push_str(&format!("\n- `{}` — {}", case.name, case.desc));
+                }
+            }
+        }
+        return Some(out);
+    }
+    let doc = derive::attribute_doc(name)?;
+    Some(format!(
+        "```nvs\n{}\n```\n\n{}\n\nWritten above {}.",
+        doc.spelled(),
+        doc.short,
+        doc.site
+    ))
+}
+
+/// The hover for a `Core` constant or enum case: `Owner::NAME` as a code
+/// block, then the constant's sentence or the case's line — and for a case
+/// nobody described on its own, its enum's line. `None` for a member no `Core`
+/// class or enum declares.
+pub(crate) fn core_member_hover(owner: &str, member: &str) -> Option<String> {
+    let line = format!("```nvs\n{owner}::{member}\n```");
+    let desc = if let Some(class) = registry::class(owner) {
+        class.constant(member)?.desc
+    } else {
+        let core = registry::core_enum(owner)?;
+        core.cases.iter().find(|(case, _)| *case == member)?;
+        core.doc.map_or("", |doc| {
+            doc.cases
+                .iter()
+                .find(|case| case.name == member)
+                .map_or(doc.short, |case| case.desc)
+        })
+    };
+    Some(if desc.is_empty() {
+        line
+    } else {
+        format!("{line}\n\n{desc}")
+    })
+}
+
+/// What a `Core` namespace holds, for a cursor on one segment of a written
+/// name: the classes, enums, interfaces and attributes directly under it, each
+/// with its line, and the namespaces under it. `None` for a namespace nothing
+/// is under, which is every namespace outside `Core`.
+///
+/// A namespace has no declaration to open and no card of its own, so this is
+/// the one answer a cursor on `Http` in `Core\Http\Method` has, and it is what
+/// the completion list under `Core\Http\` offers, read the same way
+/// (`crate::completion`'s `under`).
+pub(crate) fn namespace_card(namespace: &str) -> Option<String> {
+    let mut members: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut nested: BTreeSet<&str> = BTreeSet::new();
+    let classes = registry::CLASSES
+        .iter()
+        .map(|class| (class.name, class.doc.map_or("", |doc| doc.short)));
+    let enums = registry::ENUMS
+        .iter()
+        .map(|core| (core.name, core.doc.map_or("", |doc| doc.short)));
+    let interfaces = registry::DERIVE_INTERFACES.iter().map(|name| (*name, ""));
+    let attributes = derive::ATTRIBUTE_DOCS
+        .iter()
+        .map(|doc| (doc.name, doc.short));
+    for (name, short) in classes.chain(enums).chain(interfaces).chain(attributes) {
+        let Some(rest) = name
+            .strip_prefix(namespace)
+            .and_then(|rest| rest.strip_prefix('\\'))
+        else {
+            continue;
+        };
+        match rest.split_once('\\') {
+            Some((head, _)) => {
+                nested.insert(head);
+            }
+            None => {
+                members.insert(rest, short);
+            }
+        }
+    }
+    if members.is_empty() && nested.is_empty() {
+        return None;
+    }
+    let mut out = format!("```nvs\nnamespace {namespace}\n```\n");
+    for (name, short) in members {
+        if short.is_empty() {
+            out.push_str(&format!("\n- `{name}`"));
+        } else {
+            out.push_str(&format!("\n- `{name}` — {short}"));
+        }
+    }
+    for name in nested {
+        out.push_str(&format!("\n- `{name}\\` — a namespace"));
+    }
+    Some(out)
 }
 
 /// A `Core` member's reference card, a constant's sentence, or a case's line

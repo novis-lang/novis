@@ -1,0 +1,12 @@
+--TEST--
+a `Core` class is declared in Rust and has no `///` run, so the class half of a member access answers the class's own card — its declaration line, and under it whatever its registry row carries, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $count = Core\S<|>tr::length("héllo");
+echo $count;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+class Core\Str
+```

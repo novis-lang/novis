@@ -136,9 +136,9 @@ use lsp_types::{SemanticToken, SemanticTokenModifier, SemanticTokenType};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_stdlib::registry;
 use nvs_syntax::ast::{
-    Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement, DestructureTarget, Expr,
-    ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param, PropertyHook,
-    PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type,
+    AttributeGroup, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
+    DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -429,7 +429,31 @@ impl Named<'_> {
             | Target::TypeAlias { class, .. } => *class,
             Target::Method(call) => &call.class,
         };
-        if registry::class(&class.to_string()).is_some() {
+        let name = class.to_string();
+        if registry::class(&name).is_some() || registry::core_enum(&name).is_some() {
+            Modifier::DefaultLibrary.bit()
+        } else {
+            0
+        }
+    }
+
+    /// [`Modifier::DefaultLibrary`] if the checker resolved the attribute name
+    /// written at `span` to one of `Core`'s, and no modifier at all otherwise.
+    ///
+    /// Off the checker's record of attribute names rather than the expression
+    /// table, because a name is no expression: `nvs_types::attributes` records
+    /// what each resolved to at the one place it resolves one.
+    fn library_of_attribute(&self, span: Span) -> u32 {
+        let core = self
+            .analysed
+            .and_then(|analysed| {
+                analysed
+                    .exprs
+                    .attribute_names()
+                    .find(|(written, _)| *written == span)
+            })
+            .is_some_and(|(_, name)| name.is_core());
+        if core {
             Modifier::DefaultLibrary.bit()
         } else {
             0
@@ -646,6 +670,7 @@ impl Named<'_> {
                 }
             }
             StmtKind::ClassDecl(decl) => {
+                self.attributes(&decl.attributes);
                 self.name(&decl.name, Kind::Class);
                 self.opt_name(decl.extends.as_ref(), Kind::Class);
                 for clause in &decl.implements {
@@ -660,6 +685,7 @@ impl Named<'_> {
                 self.members(&decl.members);
             }
             StmtKind::InterfaceDecl(decl) => {
+                self.attributes(&decl.attributes);
                 self.name(&decl.name, Kind::Interface);
                 for extended in &decl.extends {
                     self.name(extended, Kind::Interface);
@@ -667,11 +693,13 @@ impl Named<'_> {
                 self.members(&decl.members);
             }
             StmtKind::EnumDecl(decl) => {
+                self.attributes(&decl.attributes);
                 self.name(&decl.name, Kind::Enum);
                 for implemented in &decl.implements {
                     self.name(implemented, Kind::Interface);
                 }
                 for case in &decl.cases {
+                    self.attributes(&case.attributes);
                     self.name(&case.name, Kind::EnumMember);
                     self.opt_expr(case.value.as_ref());
                 }
@@ -702,6 +730,26 @@ impl Named<'_> {
         }
     }
 
+    /// Walks every attribute in `groups`: the name as the type it names,
+    /// carrying `defaultLibrary` where the checker resolved it to one of
+    /// `Core`'s, each field's name as a property and each value as the
+    /// expression it is — so `Core\Http\Method::Get` inside a payload is
+    /// coloured as it is in a body.
+    fn attributes(&mut self, groups: &[AttributeGroup]) {
+        for group in groups {
+            for attribute in &group.attributes {
+                if let Some(name) = &attribute.name {
+                    let library = self.library_of_attribute(name.span);
+                    self.name_with(name, Kind::Type, library);
+                }
+                for field in &attribute.fields {
+                    self.push(field.name, Kind::Property);
+                    self.expr(&field.value);
+                }
+            }
+        }
+    }
+
     /// Walks a class, interface or enum body.
     fn members(&mut self, members: &[ClassMember]) {
         for member in members {
@@ -713,6 +761,7 @@ impl Named<'_> {
                     // entry at this span the way it has one for a parameter.
                     // The word is written on the line either way; every
                     // *access* to it carries the modifier.
+                    self.attributes(&property.attributes);
                     self.push(property.name, Kind::Property);
                     self.opt_expr(property.default.as_ref());
                     for hook in property.hooks.iter().flatten() {
@@ -721,7 +770,10 @@ impl Named<'_> {
                 }
                 // The legend names no kind for a class constant, so only its
                 // value is walked.
-                ClassMemberKind::Const(declared) => self.expr(&declared.value),
+                ClassMemberKind::Const(declared) => {
+                    self.attributes(&declared.attributes);
+                    self.expr(&declared.value);
+                }
                 // A `type` alias a body owns is a type, coloured as the
                 // file-scope form is: the two declaration sites declare one
                 // kind of name (`rule:types/type-alias`), and a reader telling
@@ -729,6 +781,7 @@ impl Named<'_> {
                 // colour is for.
                 ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
                 ClassMemberKind::Method(method) => {
+                    self.attributes(&method.attributes);
                     self.push(method.name, Kind::Method);
                     self.params(&method.params);
                     if let Some(body) = &method.body {
@@ -742,6 +795,7 @@ impl Named<'_> {
 
     /// Walks one property hook's parameter and body.
     fn hook(&mut self, hook: &PropertyHook) {
+        self.attributes(&hook.attributes);
         if let Some(param) = &hook.param {
             self.param(param);
         }
@@ -766,6 +820,7 @@ impl Named<'_> {
     /// the reader is looking at, and what they are looking at is a parameter
     /// list.
     fn param(&mut self, param: &Param) {
+        self.attributes(&param.attributes);
         let quals = self.qualifiers_declared(param.ty.as_ref());
         self.push_with(param.name, Kind::Parameter, quals);
         self.opt_expr(param.default.as_ref());
@@ -896,9 +951,12 @@ impl Named<'_> {
             // which of the two productions this is; the module doc above says
             // why nothing here decides that for itself.
             ExprKind::ClassConstAccess { class, name } => {
-                self.expr(class);
+                let library = self.library_at(expr.span);
                 if self.is_enum_case(expr.span) {
+                    self.receiver_as(class, Kind::Enum, library);
                     self.push(*name, Kind::EnumMember);
+                } else {
+                    self.receiver(class, library);
                 }
             }
             // `Foo::class` names a class and yields a string; the `class`
@@ -965,8 +1023,14 @@ impl Named<'_> {
     /// declares no body to reach through one. Anything else — `self`, a
     /// variable holding a class reference — is walked as the expression it is.
     fn receiver(&mut self, class: &Expr, modifiers: u32) {
+        self.receiver_as(class, Kind::Class, modifiers);
+    }
+
+    /// [`Self::receiver`] with the kind a bare name is: the enum in front of
+    /// a case, which the checker's table has already told from a class.
+    fn receiver_as(&mut self, class: &Expr, kind: Kind, modifiers: u32) {
         match &class.kind {
-            ExprKind::ConstFetch(name) => self.name_with(name, Kind::Class, modifiers),
+            ExprKind::ConstFetch(name) => self.name_with(name, kind, modifiers),
             _ => self.expr(class),
         }
     }

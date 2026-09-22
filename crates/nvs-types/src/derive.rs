@@ -71,6 +71,327 @@ pub const ATTRIBUTES: &[&str] = [
 ]
 .as_slice();
 
+/// One compiler attribute's reference card: what the attribute is for, in one
+/// sentence, the declaration it is written above, and the shape its payload
+/// satisfies, spelled the way a userland attribute declares one
+/// (`rule:attributes/attach-sites-and-forms`).
+///
+/// The registry side of [`ATTRIBUTES`]. A recognized name is matched nominally
+/// and its payload is checked by the pass that owns it, so nothing in this
+/// crate holds that payload as a shape a reader could look at — this table is
+/// where an editor's hover, a stub file and `nvs stubs` read one.
+/// `every_attribute_carries_a_card` holds it against [`ATTRIBUTES`] and, for
+/// every attribute whose pass declares an option roster, against that roster,
+/// so a field cannot be documented here that no pass admits or admitted and
+/// left out.
+///
+/// `short` and `site` are read by somebody who looked the attribute up in an
+/// editor and has never seen this repository, so each is written to
+/// `AGENTS.md` § *Text an end user reads*.
+#[derive(Clone, Copy, Debug)]
+pub struct AttributeDoc {
+    /// The fully-qualified name, spelled as [`ATTRIBUTES`] spells it.
+    pub name: &'static str,
+    /// The payload's fields, in the order the owning rule writes them.
+    pub fields: &'static [AttributeField],
+    /// What the attribute does, in one or two sentences.
+    pub short: &'static str,
+    /// The declaration it is written above — `a method`, `a class`, `a
+    /// parameter` — as the object of "written above".
+    pub site: &'static str,
+}
+
+/// One field of a compiler attribute's payload.
+#[derive(Clone, Copy, Debug)]
+pub struct AttributeField {
+    /// The field's name, as a payload writes it on the left of the `:`.
+    pub name: &'static str,
+    /// Its type, spelled as a program writes it — `string`, `bool`,
+    /// `Core\Http\Method`, `mixed`.
+    pub ty: &'static str,
+    /// Whether a payload must write it.
+    pub required: bool,
+}
+
+impl AttributeDoc {
+    /// The last segment of [`Self::name`] — `Route`, `Derive`.
+    #[must_use]
+    pub fn short_name(&self) -> &'static str {
+        self.name.rsplit('\\').next().unwrap_or(self.name)
+    }
+
+    /// The payload as a shape type — `{path: string, method: Core\Http\Method,
+    /// name?: string}` — which is what a stub declares the attribute as, and
+    /// `object` for an attribute whose fields are not fixed.
+    #[must_use]
+    pub fn shape(&self) -> String {
+        if self.fields.is_empty() {
+            return "{}".to_owned();
+        }
+        let fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|field| {
+                let optional = if field.required { "" } else { "?" };
+                format!("{}{optional}: {}", field.name, field.ty)
+            })
+            .collect();
+        format!("{{{}}}", fields.join(", "))
+    }
+
+    /// The attribute as a program writes it, with each field at its type —
+    /// `#[Core\Route(path: string, method: Core\Http\Method, name?: string)]`,
+    /// and `#[Core\Query]` for one that carries nothing.
+    #[must_use]
+    pub fn spelled(&self) -> String {
+        if self.fields.is_empty() {
+            return format!("#[{}]", self.name);
+        }
+        let fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|field| {
+                let optional = if field.required { "" } else { "?" };
+                format!("{}{optional}: {}", field.name, field.ty)
+            })
+            .collect();
+        format!("#[{}({})]", self.name, fields.join(", "))
+    }
+}
+
+/// The card of the attribute `name` names, fully qualified, or `None` for a
+/// name that is not one of [`ATTRIBUTES`].
+#[must_use]
+pub fn attribute_doc(name: &str) -> Option<&'static AttributeDoc> {
+    ATTRIBUTE_DOCS.iter().find(|doc| doc.name == name)
+}
+
+/// One [`AttributeDoc`] per entry of [`ATTRIBUTES`], in that roster's order.
+pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
+    AttributeDoc {
+        name: DERIVE,
+        fields: &[],
+        short: "Generates the JSON encoder and decoder for this class. Every public property \
+                becomes a key.",
+        site: "a class",
+    },
+    AttributeDoc {
+        name: FIELD,
+        fields: &[
+            AttributeField {
+                name: "name",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "skip",
+                ty: "bool",
+                required: false,
+            },
+        ],
+        short: "Changes how one property is written in JSON: the key it is written under, or \
+                whether it is left out.",
+        site: "a property",
+    },
+    AttributeDoc {
+        name: DB_DERIVE,
+        fields: &[],
+        short: "Generates the row decoder for this class, so a query can return instances of it.",
+        site: "a class",
+    },
+    AttributeDoc {
+        name: DB_FIELD,
+        fields: &[
+            AttributeField {
+                name: "name",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "skip",
+                ty: "bool",
+                required: false,
+            },
+        ],
+        short: "Changes how one property is read from a row: the column it is read from, or \
+                whether it is left out.",
+        site: "a property",
+    },
+    AttributeDoc {
+        name: TEST,
+        fields: &[
+            AttributeField {
+                name: "skip",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "at",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "seed",
+                ty: "int",
+                required: false,
+            },
+            AttributeField {
+                name: "db",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "server",
+                ty: "bool",
+                required: false,
+            },
+            AttributeField {
+                name: "retries",
+                ty: "int",
+                required: false,
+            },
+            AttributeField {
+                name: "because",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Says that this method is a test. `nvs test` runs it and reports the result.",
+        site: "a method",
+    },
+    AttributeDoc {
+        name: FIXTURE,
+        fields: &[],
+        short: "Says that this static method builds a value. A test receives that value by \
+                declaring a parameter of the method's return type.",
+        site: "a static method",
+    },
+    AttributeDoc {
+        name: TEST_WITH,
+        fields: &[],
+        short: "Gives one row of arguments to the test method below it. The fields are the \
+                method's own parameters, and the method runs once per row.",
+        site: "a test method",
+    },
+    AttributeDoc {
+        name: COMMAND,
+        fields: &[
+            AttributeField {
+                name: "name",
+                ty: "string",
+                required: true,
+            },
+            AttributeField {
+                name: "about",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Says that this static method is a command line command. `name` is what a user \
+                types, and `about` is the sentence `--help` prints.",
+        site: "a static method",
+    },
+    AttributeDoc {
+        name: OPTION,
+        fields: &[
+            AttributeField {
+                name: "short",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "long",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "about",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Says that this parameter is a command line option, written as `--name value`. \
+                A parameter without it is a positional argument.",
+        site: "a parameter of a command",
+    },
+    AttributeDoc {
+        name: ROUTE,
+        fields: &[
+            AttributeField {
+                name: "path",
+                ty: "string",
+                required: true,
+            },
+            AttributeField {
+                name: "method",
+                ty: r"Core\Http\Method",
+                required: true,
+            },
+            AttributeField {
+                name: "name",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Declares the HTTP path and method this method handles. Write it twice to \
+                handle two methods.",
+        site: "a method",
+    },
+    AttributeDoc {
+        name: QUERY,
+        fields: &[],
+        short: "Says that this parameter is read from the query string, under the parameter's \
+                own name and converted to its type.",
+        site: "a parameter of a route",
+    },
+    AttributeDoc {
+        name: ACCESS,
+        fields: &[
+            AttributeField {
+                name: "allow",
+                ty: "mixed",
+                required: true,
+            },
+            AttributeField {
+                name: "csrf",
+                ty: "bool",
+                required: false,
+            },
+        ],
+        short: "Says who may call this route. Every route needs one, and `csrf: false` turns \
+                the CSRF check off for this route.",
+        site: "a method with a route",
+    },
+    AttributeDoc {
+        name: API,
+        fields: &[
+            AttributeField {
+                name: "tags",
+                ty: "mixed",
+                required: false,
+            },
+            AttributeField {
+                name: "errors",
+                ty: "mixed",
+                required: false,
+            },
+            AttributeField {
+                name: "security",
+                ty: "mixed",
+                required: false,
+            },
+            AttributeField {
+                name: "example",
+                ty: "mixed",
+                required: false,
+            },
+        ],
+        short: "Adds documentation to a route for the generated OpenAPI file. It changes nothing \
+                about what the route does.",
+        site: "a method with a route",
+    },
+];
+
 /// `#[Json\Derive]` — `rule:core-classes/derive-attribute`'s opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
 

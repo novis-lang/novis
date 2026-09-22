@@ -1,0 +1,14 @@
+--TEST--
+a `Core` enum case answers the case's own line from the enum's card, under the case spelled as a program writes it, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $verb = Core\Http\Method::Po<|>st;
+echo $verb;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Http\Method::Post
+```
+
+Submits data and may change state; the first of the CSRF-covered tail.

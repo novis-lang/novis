@@ -1,0 +1,25 @@
+--TEST--
+a `Core` enum in front of a case answers the enum's own card — its declaration line, its sentence and one line per case, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $verb = Core\Http\Met<|>hod::Get;
+echo $verb;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+enum Core\Http\Method
+```
+
+The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
+
+**Cases**
+
+- `Get` — Reads a resource; safe, so no CSRF check applies.
+- `Head` — `Get` without a response body; safe.
+- `Options` — Asks what a resource supports; safe.
+- `Trace` — Echoes the request back; safe.
+- `Post` — Submits data and may change state; the first of the CSRF-covered tail.
+- `Put` — Replaces a resource; CSRF-covered.
+- `Patch` — Changes a resource in place; CSRF-covered.
+- `Delete` — Removes a resource; CSRF-covered.

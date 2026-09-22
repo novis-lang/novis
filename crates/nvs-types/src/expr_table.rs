@@ -1242,6 +1242,7 @@ pub struct ExprTypeTable {
     callable_values: FxHashMap<Span, TypeId>,
     callable_markers: Vec<(TypeId, String)>,
     callable_conformance: FxHashMap<Span, Vec<String>>,
+    attribute_names: Vec<(Span, QName)>,
 }
 
 /// One local variable, as the body that declared it left it.
@@ -1356,6 +1357,24 @@ impl ExprTypeTable {
         self.by_span
             .get(&span)
             .map(|id| &self.entries[id.0 as usize])
+    }
+
+    /// Records what the name of one `#[Name(...)]` resolved to, at the span
+    /// the name was written.
+    ///
+    /// A name is no expression, so it has no entry of its own; this is the
+    /// one record an editor reads an attribute's target off, and
+    /// [`crate::attributes`] writes it at the one place the name is resolved.
+    pub(crate) fn record_attribute_name(&mut self, span: Span, name: QName) {
+        self.attribute_names.push((span, name));
+    }
+
+    /// Every attribute name the checker resolved, with the span it was written
+    /// at, in the order the walk reached them.
+    pub fn attribute_names(&self) -> impl Iterator<Item = (Span, &QName)> {
+        self.attribute_names
+            .iter()
+            .map(|(span, name)| (*span, name))
     }
 
     /// Takes one finished body's local scope, keyed by the body's own span.

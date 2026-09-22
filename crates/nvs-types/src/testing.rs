@@ -227,7 +227,7 @@ impl OptionTy {
 /// `rule:testing/test-attribute`'s option shape, in the order that section writes it. Every
 /// one is optional, so this roster says which names are admitted and at what
 /// type — never which are required.
-const OPTIONS: &[(&str, OptionTy)] = &[
+pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     ("skip", OptionTy::Str),
     ("at", OptionTy::Str),
     ("seed", OptionTy::Int),

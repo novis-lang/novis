@@ -1,0 +1,14 @@
+--TEST--
+a `Core` constant has a value and no signature, so hovering one answers the one sentence its registry row carries, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $turn = Core\Math::P<|>I * 2.0;
+echo $turn;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Math::PI
+```
+
+The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest `float` — PHP's `M_PI`.

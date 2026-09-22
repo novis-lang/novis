@@ -1,0 +1,23 @@
+--TEST--
+a compiler attribute's name is no expression and no declaration, so hovering it answers the card the checker's roster carries for it — the attribute as it is written, what it does and what it is written above, `rule:core-classes/derive-attribute`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Everyone)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+#[Core\Route(path: string, method: Core\Http\Method, name?: string)]
+```
+
+Declares the HTTP path and method this method handles. Write it twice to handle two methods.
+
+Written above a method.

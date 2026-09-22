@@ -77,14 +77,15 @@ use lsp_types::{
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
     ParameterLabel, SignatureHelp, SignatureInformation,
 };
-use nvs_diagnostics::{BytePos, PositionEncoding};
-use nvs_hir::SymbolKind;
+use nvs_diagnostics::{BytePos, PositionEncoding, Span};
+use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
 use nvs_syntax::ast::DocComment;
 use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
-use crate::definition::{Target, site, target_of, text_of};
+use crate::card::{core_member_hover, core_type_hover, namespace_card};
+use crate::definition::{Target, attribute_at, payload_path, site, target_of, text_of};
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -95,17 +96,16 @@ use crate::position::range_at;
 /// registry row behind it, and no type recorded for the node itself.
 #[must_use]
 pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> Option<Hover> {
-    let (value, node) = analysed.index.at(offset).nodes().iter().find_map(|node| {
-        let info = analysed.exprs.lookup(node.span)?;
-        let value = target_of(info)
-            .and_then(|target| {
-                core(analysed, &target)
-                    .or_else(|| run(analysed, &target))
-                    .or_else(|| enclosing_run(analysed, &target))
-            })
-            .or_else(|| declared(analysed, info))?;
-        Some((value, node.span))
-    })?;
+    let nodes: Vec<Span> = analysed
+        .index
+        .at(offset)
+        .nodes()
+        .iter()
+        .map(|node| node.span)
+        .collect();
+    let (value, node) = answer_in(analysed, &nodes, offset)
+        .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
+        .or_else(|| attribute(analysed, offset))?;
     // A run of bare `///` markers is a run with nothing in it, and it takes the
     // same answer as no run at all rather than opening a popup on whitespace.
     if value.trim().is_empty() {
@@ -323,14 +323,146 @@ fn declared(analysed: &Analysed, info: &ExprInfo) -> Option<String> {
     Some(format!("```nvs\n{}\n```", analysed.interner.describe(ty)))
 }
 
-/// A `Core` member's row and reference card, or `None` for every other target.
+/// The nearest of `nodes` — innermost first — that documents or types
+/// anything, and the span to underline.
+///
+/// The one walk [`at`] makes, over whichever spans hold the cursor: the
+/// index's own path, or the attribute payload path the index does not hold
+/// (`crate::definition::payload_path`).
+fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(String, Span)> {
+    let text = analysed.map.file(analysed.entry).text();
+    // The cursor is on the receiver's own name when the innermost span is a
+    // bare name and not the access resolved around it.
+    let innermost = nodes.first().copied();
+    nodes.iter().find_map(|node| {
+        let info = analysed.exprs.lookup(*node)?;
+        let receiver = innermost.is_some_and(|inner| {
+            inner != *node
+                && text
+                    .get(inner.range())
+                    .is_some_and(|written| written.bytes().all(is_name_byte))
+        });
+        let value = target_of(info)
+            .and_then(|target| {
+                written(analysed, &target, *node, offset, receiver)
+                    .or_else(|| core(analysed, &target))
+                    .or_else(|| run(analysed, &target))
+                    .or_else(|| enclosing_run(analysed, &target))
+            })
+            .or_else(|| declared(analysed, info))?;
+        Some((value, *node))
+    })
+}
+
+/// Whether `byte` is one a qualified name is written with.
+fn is_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'\\'
+}
+
+/// The card of the attribute whose name the cursor is on, and that name's
+/// span.
+///
+/// A name is no node of the index, so this is asked after the walk over the
+/// nodes found nothing, off the checker's own record of what the name resolved
+/// to ([`attribute_at`]). A compiler attribute answers its card; a userland
+/// one answers the `///` run above the alias it names, where one is written.
+fn attribute(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (target, span) = attribute_at(analysed, offset)?;
+    let value = written(analysed, &target, span, offset, false)
+        .or_else(|| core(analysed, &target))
+        .or_else(|| run(analysed, &target))?;
+    Some((value, span))
+}
+
+/// The answer for a cursor on the **written** name inside `node` rather than
+/// on what the node resolved to: the namespace's card for a segment in front
+/// of the last — `Core\Http` in `Core\Http\Method::Get` — and, with `receiver`
+/// set, the class's own card for the class half of a member access, which is
+/// what a cursor on `Str` in `Core\Str::length` is pointing at. `None` leaves
+/// the node to the arms that read what it resolved to.
+///
+/// The written segments are aligned to the tail of the resolved name, because
+/// a program writes the short spelling under a `use` and the checker recorded
+/// the whole one: `Http\Method` under `use Core\Http;` is the last two
+/// segments of `Core\Http\Method`. A spelling that is not a tail — an aliased
+/// import — answers nothing here rather than a namespace it never named.
+fn written(
+    analysed: &Analysed,
+    target: &Target<'_>,
+    node: Span,
+    offset: BytePos,
+    receiver: bool,
+) -> Option<String> {
+    let class = class_of(target);
+    let text = analysed.map.file(analysed.entry).text();
+    let (name, start) = name_around(text, node, offset)?;
+    let written = name.split('\\').count();
+    let resolved = class.segments();
+    if written > resolved.len() {
+        return None;
+    }
+    let skip = resolved.len() - written;
+    let segment = name
+        .get(..usize::try_from(offset - start).ok()?)
+        .map_or(0, |before| before.matches('\\').count());
+    if segment + 1 < written {
+        return namespace_card(&resolved[..=skip + segment].join("\\"));
+    }
+    if !receiver {
+        return None;
+    }
+    core_type_hover(&class.to_string()).or_else(|| run(analysed, &Target::Type(class)))
+}
+
+/// The class a target is on: the declaring class of a member, or the type
+/// itself.
+fn class_of<'a>(target: &Target<'a>) -> &'a QName {
+    match target {
+        Target::Type(class)
+        | Target::Property { class, .. }
+        | Target::Constant { class, .. }
+        | Target::TypeAlias { class, .. } => class,
+        Target::Method(call) => &call.class,
+    }
+}
+
+/// The run of name characters around `offset` inside `node` — a qualified
+/// name, a member name, a keyword — and where it starts. `None` for a cursor
+/// on anything else: an operator, a string, whitespace.
+fn name_around(text: &str, node: Span, offset: BytePos) -> Option<(&str, BytePos)> {
+    let inside = text.get(node.range())?;
+    let bytes = inside.as_bytes();
+    let at = usize::try_from(offset.checked_sub(node.start)?).ok()?;
+    let is_name = |index: usize| bytes.get(index).is_some_and(|byte| is_name_byte(*byte));
+    let mut start = at;
+    while start > 0 && is_name(start - 1) {
+        start -= 1;
+    }
+    let mut end = at;
+    while is_name(end) {
+        end += 1;
+    }
+    if start == end {
+        return None;
+    }
+    let name = inside.get(start..end)?;
+    Some((name, node.start + u32::try_from(start).ok()?))
+}
+
+/// A `Core` target's card, or `None` for every other target: a member's row
+/// and reference card, a class's, enum's or attribute's card
+/// ([`core_type_hover`]), a constant's sentence or a case's line
+/// ([`core_member_hover`]).
 ///
 /// The row is [`signature`]'s, which is also what signature help shows for a
 /// method a program declared: one renderer, so the two answers cannot come to
 /// disagree about how a parameter list is spelled.
 fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
-    let Target::Method(call) = target else {
-        return None;
+    let call = match target {
+        Target::Method(call) => call,
+        Target::Type(class) => return core_type_hover(&class.to_string()),
+        Target::Constant { class, name } => return core_member_hover(&class.to_string(), name),
+        Target::Property { .. } | Target::TypeAlias { .. } => return None,
     };
     let member = registry_row(call)?;
     let mut value = format!(

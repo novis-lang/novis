@@ -1,0 +1,26 @@
+--TEST--
+a namespace has no declaration and no card, so a cursor on a segment in front of the type answers what the namespace holds — the classes and enums directly under it, each with its line where its row carries one, `rule:core-api/reserved-namespace`
+--FILE--
+<?nvs
+var $verb = Core\Ht<|>tp\Method::Get;
+echo $verb;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+namespace Core\Http
+```
+
+- `Chunks`
+- `Client`
+- `Event`
+- `Events`
+- `Identity`
+- `Lines`
+- `Method` — The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
+- `Part`
+- `Response`
+- `Socket`
+- `Stream`
+- `Target`
+- `TlsInfo`

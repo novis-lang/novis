@@ -1,0 +1,18 @@
+--TEST--
+the enum in front of a `Core` case is coloured as an enum carrying `defaultLibrary`, and an enum the program declares carries nothing, which only the checker's resolution can tell apart, `rule:ide/semantic-tokens-carry-the-qualifiers`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+}
+var $state = Status::Draft;
+var $verb = Core\Http\Method::Get;
+--REQUEST--
+semanticTokens types=enum,enumMember
+--EXPECT--
+2:6+6 enum
+3:10+5 enumMember
+5:14+6 enum
+5:22+5 enumMember
+6:13+16 enum defaultLibrary
+6:31+3 enumMember
