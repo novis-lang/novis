@@ -2623,6 +2623,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   concluding a red floor check is stale, `grep -n failing .loop/logs/<run>-console.log` and read the
   run's own output — the per-suite lines, the failing test names and the assertion are all in it.
   [until: reviewed 2026-09-22]
+- **The interrupted-session sweep files an untracked *directory* under `left`, so the WIP commit
+  calls the cut-off session's own work somebody else's.** `git status --short` collapses an
+  untracked directory to one line, which the sweep cannot stage, so its body reads "2 other
+  path(s) were dirty before this session launched — they are somebody else's work" about
+  directories that session had made minutes earlier. Compare the mtimes under a `left` path
+  against `.loop/interrupted.json`'s `when` before believing it.
+  [until: gone .loop/interrupted.json]
 
 ## Running things
 
@@ -6762,6 +6769,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ADR section number to a reader who has never seen this repository. Read a blessed output before
   keeping it, and where a message is not written for a stranger, print a fixed sentence and show the
   fact from the value instead — the plan's `grade()` here. [until: reviewed 2026-09-22]
+- **A `Core\Db` proof program cannot get a second database flow, so one file may abandon at most
+  one walk.** Two `Core\Db::connect('notes')` calls on a `:memory:` block answer the *same*
+  connection — the second finds the first's tables — so the busy `LogicError`'s advice to "open a
+  second connection" is unreachable from a proof, and every step after an abandoned walk meets the
+  parked stream rather than its own subject. Keep one such step, last, and pin the rest from a
+  `.nvst` whose final statement is the one that parks the connection.
+  [until: reviewed 2026-09-22]
 
 ## Splitting a file that got too big
 

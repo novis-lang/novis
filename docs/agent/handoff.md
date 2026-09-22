@@ -2,48 +2,54 @@
 
 ## State
 
-Goal `core-db-transaction-and-1-more`: 4 of the 8 `Core\Db\Transaction` members carry their feature
-proofs. `execute`, `executeMany`, `query` and `queryAs` are complete, gated and measured, and each
-one's deterministic counts land on `Core\Db\Connection`'s own to the third decimal — 92.045
-allocations for both `query`s, 132.067 and 34.004 statements for both `queryAs`s — which is what one
-shared body predicts (`rule:classes/no-traits`). Only the advisory clock differs.
+Goal `core-db-transaction-and-1-more`: 7 of the 8 `Core\Db\Transaction` members carry their feature
+proofs. `execute`, `executeMany`, `query`, `queryAs`, `stream`, `streamAs` and `rollBack` are
+complete, gated and measured; `python tools/dossier.py --gate --group 'Core\Db\Transaction'` names
+only `transaction`. The three `Core\Db\Write` members are the rest of the goal.
 
-What is provable from Rust is still the scope guard alone: no `-p nvs-stdlib` test can build an
-`nvs_db::Connection`. `query`'s case drives `crate::db::execute::queried_rows` and pins that the
-guard answers *before* the statement's own `timeout` is read, with the option refusal asserted
-separately so the order is the claim. `queryAs`'s is agreement over the registry:
-`crate::registry::WRITTEN_CLASS_MEMBERS` carries every written member under both receivers, which is
-what puts three constants ahead of the receiver the body reads at `args[3]`.
+The streaming pair's deterministic counts say what the hydration costs on top of the walk: 18.00
+statements and 87.72 allocations for `stream`, 33.00 and 117.69 for `streamAs`, over the same 17.00
+calls and within 600 bytes of each other. `rollBack` is 7.00 statements and 47.06 allocations, and
+its `ns/op` is the only figure in the group that is a third of its siblings', because it runs one
+statement and gives up rather than reading rows.
 
-Every proof program needs an `[[app]]` block in the root `nvs.toml` granting
-`db.connect = ["notes"]`, and each block's `entry` must exist on disk: a block naming a file that is
-not there is `E0605` on *every* program run, not just that one.
+`target/release/nvs.exe` is current with the tree, which is what the goal's own dossier check reads
+before it judges anything — the acceptance failure after session 0028 was that binary being stale
+and nothing else.
 
-A buffered read is not held to the request's memory ceiling — the `Db-Connection/query` attack marks
-that gap on `crates/nvs-stdlib/src/db/mod.rs`, and half a million hydrated objects measured 318 MB
-peak under this tree's 256M limit, so the `queryAs` attack's flood step asserts survival only.
-Nothing is blocked.
+What only a `.nvst` can pin here is the connection the walk holds. A proof program cannot get a
+second database flow (see the playbook bullet), so an attack abandons at most one walk and that
+step is last; a `fromRow` that throws, and the give-up caught inside the work that still does not
+commit, are pinned from `tests/conformance/` instead.
 
 ## Next group
 
-**Stage: feature proofs for `Core\Db\Transaction`'s streaming members** — one file set:
-`crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/bind.rs`, the root `nvs.toml`, and
-the four proof trees under `core/Db-Transaction/`. Each slice is one member with all of
-`rule:testing/feature-proofs`' artefacts. What these two own that the buffered pair did not is § 4's
-connection-busy rule: a stream holds the very connection the `COMMIT` has to go out on, so a second
-statement through the same transaction is a `LogicError` rather than a queued statement — that is
-the claim their `.nvst` cases and attacks are written around.
+**Stage: feature proofs for the last `Core\Db\Transaction` member and the `Core\Db\Write` trio** —
+one file set: `crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/bind.rs`, the root
+`nvs.toml`, and the proof trees under `core/Db-Transaction/transaction/` and `core/Db-Write/`. What
+`transaction` owns that no member above it does is the nesting rule: a transaction opened inside a
+transaction is one unit of work and not two, which is what its `.nvst` and its attack are written
+around. `Core\Db\Write`'s three readers share one receiver and one statement, so their examples and
+their bench are cheapest written together after it.
 
-- [ ] **`Core\Db\Transaction::stream`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/db/registry.rs:686`
-- [ ] **`Core\Db\Transaction::streamAs`** — owes examples, hostile, perf, tests; the written-class
-      half, so its Rust case has the `args[3..]` slice the roster case already pins.
-      `crates/nvs-stdlib/src/db/registry.rs:705`
-- [ ] **`Core\Db\Transaction::rollBack`** — owes examples, hostile, perf, tests; this is the member
-      the driver's acceptance check names. `crates/nvs-stdlib/src/db/registry.rs:724`
+- [ ] **`Core\Db\Transaction::transaction`** — owes examples, hostile, perf, tests. The registry row
+      is `TRANSACTION_ROW`, shared with `Core\Db\Connection`, at
+      `crates/nvs-stdlib/src/db/registry.rs:722`; the body it names is
+      `crates/nvs-stdlib/src/db/transaction.rs:505`. `rule:core-classes/db-transactions` and
+      `rule:testing/feature-proofs`.
+- [ ] **`Core\Db\Write::affected`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1486`. `rule:testing/feature-proofs`.
+- [ ] **`Core\Db\Write::changed`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1495`. `rule:testing/feature-proofs`.
+- [ ] **`Core\Db\Write::lastId`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:1504`. `rule:testing/feature-proofs`.
 
 ## Backlog
 
-- `Core\Db\Transaction::transaction` is the group's eighth member and owes everything — a nested
-  transaction is a savepoint on SQLite (`tests/conformance/core/db-a-sqlite-transaction-nests-as-a-savepoint.nvst`).
-- A buffered read outruns the request's memory ceiling: `crates/nvs-stdlib/src/db/mod.rs` § *Known gaps*.
+- A reason of a hundred million characters reaches the memory ceiling, and the `FATAL` reports the
+  bytes *held* rather than the allocation that was refused — `crates/nvs-stdlib/src/db/mod.rs`'s
+  `# Known gaps` is where that belongs if it is worth a line.
+- `Core\Db\Stream` registers no members, so an abandoned walk cannot be released before the request
+  ends; the three `about.md` files under `core/Db-Transaction/` say so, and nothing else does.
+- `benches/members/core/Db-Transaction/queryAs.nvs`'s top comment is a 28-word sentence; goal
+  `plain-comments` owns the landed files.
