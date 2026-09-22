@@ -2,42 +2,75 @@
 
 ## State
 
-Goal `core-db-transaction-and-1-more` is **met**. `Core\Db\Transaction` (8 features) and
-`Core\Db\Write` (3) both verify green — gate, examples and attacks — `owners.py --closes` and
-`playbook.py --closes` name nothing for it, `python tools/verify.py` is 14 of 14 green and `--doc`
-resolves every link. No perf figure anywhere in the tree is stale: a figure is keyed on the
-*implementing* file's text with `mod tests` cut off, and a `Core` member's implementing file is its
-registry row's, so a change under `db/execute.rs` re-measures nothing.
+**Every `Core` name now hovers to its card and jumps to a generated stub**: three commits, built on
+branch `core-stubs` in the worktree `.agent-tmp/worktrees/core-stubs`, rebased onto `main` past the
+server chapter and fast-forwarded on 2026-09-22 by the user's word, verified green by one `python
+tools/verify.py` and the extension's headless tier. ADR 0214 is the record (0213 landed on `main`
+from another session while this one ran) and `rule:ide/the-stub-tree-is-where-core-is-declared` the
+rule.
 
-The floor's rulebook check was red for something this goal never touched. `agent.rs`'s citation
-stripper spelled its own example with a topic and a name, and `tools/rules.py --check` reads such a
-token as a citation wherever it stands — the playbook bullet above owns the repair.
+What landed, by commit: (1) `nvs_lsp::card` renders every `Core` target's card and hover routes
+`Target::Type`/`Target::Constant` through it, a namespace segment hovers to what it contains, the
+checker records what an attribute's name resolved to and infers every payload value, the server walks
+attribute payloads itself (`definition::payload_path`), the thirteen compiler attributes carry a card
+(`nvs_types::derive::ATTRIBUTE_DOCS`), semantic tokens colour the name before `::` and attribute
+names; (2) `nvs_lsp::stubs` generates the tree with a line table, `definition::at`/`type_at` fall back
+to it, `nvs.stubs.dir` reaches the server and the extension fills it from its own storage, a stub
+document is published with no diagnostics, `nvs stubs --out <dir>`; (3) `build.rs` compiles the 56
+reference intros in as `CoreClass::intro`, shown by the class hover and the stub header.
 
-**What a caller reads for `lastId` is now pinned on the two drivers nobody had pinned.** The
-`Core\Db\Write` instance is built by `write_object` rather than by a literal inside the member, and
-the SQL Server arm reports `Written::keyless`, so both are things a case can build without a
-connection — this crate can build no `nvs_db::Connection`. Both cases read the slots back through
-`write_count`, the body all three of the class's readers share.
+**No live editor run was made.** What to click in VS Code, once the branch is merged and the extension
+rebuilt, to confirm each behaviour — every one is frozen as a `.lspt` case, so what is unconfirmed is
+the client, not the answer:
+
+- **Class:** in `var $n = Core\Str::length("a");` hover `Str` — a `class Core\Str` block, then the
+  intro page's text. Ctrl+click `length` — `stubs/Core/Str.nvs` opens at `public static function
+  length`, read-only on disk, with no squiggles.
+- **Enum case:** in `Core\Http\Method::Get` hover `Get` — `Core\Http\Method::Get` and "Reads a
+  resource; safe…"; hover `Method` — the enum's card with all eight cases; ctrl+click `Get` — the
+  case's line in `Core/Http/Method.nvs`.
+- **Attribute:** above a method write `#[Core\Route(path: "/", method: Core\Http\Method::Get)]`;
+  hover `Route` — the attribute as it is written and what it does; ctrl+click `Route` —
+  `Core/Route.nvs` at `type Route = {…}`; hover `Get` inside the payload — the case line.
+- **Namespace:** hover `Http` in `Core\Http\Method` — `namespace Core\Http` and the thirteen names
+  under it. Ctrl+click on it still opens `Method`.
+
+**Where the tree is written on this machine.** By the extension: under its global storage,
+`%APPDATA%\Code\User\globalStorage\novis-lang.nvs\stubs\0.0.1\` (the extension's own version names
+the directory; the server's stamp inside it decides whether the files are rewritten). By a bare
+`nvs lsp`: `%LOCALAPPDATA%\novis\stubs\0.0.1\`. Neither exists yet. `nvs stubs --out` wrote a copy
+to `D:\mwl\.agent-tmp\core-stubs\tree` for inspection; the unit test and the `.lspt` runner write
+under `%TEMP%` and remove what they wrote.
+
+**Registry docs that read badly in a stub**, for the user to decide whether a rewrite goal joins the
+chain: 120 of the 125 stub files contain "rather than", and most cards explain a design choice
+before they say what the member does. The clearest: `Core\Http\Method`'s line ("eight of them, safe
+ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT`
+is deliberately absent"), `Core\Order`'s cases ("`rsort`, `arsort` and `krsort` as one option rather
+than three names"), and the **Throws** line of `Core\Cli::ask`. The rule for what a stub reader
+needs is `AGENTS.md` § *Text an end user reads*; nothing in this work rewrote a card.
 
 ## Next group
 
-**Goal `core-debug`, whose generated handoff replaces this file the moment the driver switches** —
-one file set: `crates/nvs-stdlib/src/debug.rs`. Take them from that goal's own brief, not from here;
-these two are its first group, with the anchors it names.
-
-- [ ] **`Core\Debug::dump` owes every feature proof** — `about.md`, tests from both sides, three
-      examples, one bench, one attack. `rule:testing/feature-proofs`, at
-      `crates/nvs-stdlib/src/debug.rs:107`.
-- [ ] **`Core\Debug::render` owes every feature proof**, and shares `dump`'s file and most of its
-      shapes. `rule:testing/feature-proofs`, at `crates/nvs-stdlib/src/debug.rs:116`.
+Nothing is scheduled from this work. The one thing the user may want first is the live run above; a
+goal is worth adding only if the cards are to be rewritten in the plain voice.
 
 ## Backlog
 
-- `postgres_write` reads the key only after it has drained the rows, and nothing asserts that order
-  from this side: `nvs-stdlib` can build no `PgConn`. The driver's half is pinned in `nvs_db::pg`.
-- A buffered read is not held to the request's memory ceiling — known gap 1 of `nvs_stdlib::db`
-  (`crates/nvs-stdlib/src/db/mod.rs:286`), deferred to a milestone ahead and marked on the attack
-  that found it.
-- `Core\Db\Write::lastId` is proven from Rust on four drivers by unit case and by SQLite's real
-  engine; the live-server half over PostgreSQL, MySQL, MariaDB and SQL Server is
-  `tools/db-matrix.py`'s and runs nowhere in the floor.
+- **Read-only is on disk only.** VS Code shows the read-only badge for such a file only under
+  `files.readonlyFromPermissions: true`; otherwise a save into a stub fails with the editor's own
+  message, and the file is written over at the next stamp change.
+- **`nvs_syntax::walk`'s module doc claims an attribute's nested expressions are children of the
+  declaration; they are not, and making them so reformats the corpus** (ADR 0214 § *Alternatives
+  rejected*). The doc sentence is left as it was; fixing it is a one-line docs slice.
+- **A generic `Core` class is spelled without its type parameters in its stub** (`final class
+  ObjectMap`), and a method's `T` is written as a bare name the parser reads as a class; an options
+  bag with a reserved-word key (`default`) and a shape of callables are spelled `object`. Every stub
+  parses (`every_stub_parses`), and the card beneath still names every key.
+- **The extension names the stub directory by its own version, not the server's**, since the server's
+  is known only after `initialize`; the stamp inside the directory makes that a namespace and nothing
+  more.
+- `an-import-answers-none.lspt` was left as it is: its import resolves to nothing, and that still
+  answers `none`. The `Core` import case is `an-import-of-a-core-type-answers-its-stub.lspt`.
+- `Core\Str` and every other class still owe a `ClassDoc` `short` — goal `core-class-cards` — so a
+  class hover shows the intro alone where a page exists, and the declaration line alone where none.

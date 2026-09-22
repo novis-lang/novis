@@ -9,6 +9,12 @@ That pair is why this layer is built at M4B rather than M10: `rule:security/tain
 an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
 verified as "the token carries the modifier", never as a colour.
 
+The name in front of a `::` is coloured as what it resolved to — `enum` before a case, `class` before
+a constant, a static call or a static property — carrying `defaultLibrary` for a `Core` enum exactly as
+for a `Core` class. An attribute's name is a `type` token, since it names the shape its payload
+satisfies, with `defaultLibrary` for a compiler attribute; its payload is coloured as the expressions
+it holds, so `Core\Http\Method::Get` inside `#[...]` reads as it does in a body.
+
 The legend the client registers must equal the legend the server declares. A mismatch silently colours
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.

@@ -14,6 +14,13 @@ runtime dispatches on; and it already has to carry every parameter's name
 else would create the duplicate that name guard exists to prevent. **Every row carries its card** — a
 member without one fails the crate's tests, so a member lands documented or does not land.
 
+**A compiler attribute carries a card too**, beside the checker's roster of recognized names: one
+sentence saying what it does, the declaration it is written above, and its payload's fields at their
+types — the card a hover on `#[Core\Route]`, the attribute's stub and a completion row all read. And a
+class's hand-written intro page under `docs/reference/core/` is compiled in at build time and shown
+under the class's own card by a hover and at the head of its stub; the page stays the website's, and
+nothing about it is copied into Rust by hand.
+
 Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
 surface available, so anything beyond the reference card stays in the website's pages. The cost is static
 strings in the binary — per process, not per request, on the order of a few hundred bytes per documented

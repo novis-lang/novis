@@ -2637,6 +2637,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   way out and is whole-file, which would stop checking those too — write the token with no topic and
   no name, since the regex needs both, and keep the marker for a file that is only about the format.
   [until: reviewed 2026-09-22]
+- **`nvs check` on a scratch file outside any program reads this repository's `nvs.toml` and aborts on its `[db]` block.** The block's `tls_ca_file` names `tests/db/ca.crt`, which is absent, so `E0605` stops the run before the file is looked at. Ask `nvs ast <file>` for a parse question, or hand `nvs check --config` a configuration with no `[db]`. [until: reviewed 2027-03-31]
+- **A node added to `nvs_syntax::walk` changes what `nvs fmt` prints and what `Core\Ast::parse` returns.** The formatter's indenter reads the index built from the walk, so one child under a method — an attribute payload — moved the indentation of twenty-one corpus files. An editor answer that needs a span the walk lacks walks the AST itself, as `nvs_lsp::definition::payload_path` does. [until: gone crates/nvs-fmt/src/indent.rs:fn arm_starts]
 
 ## Running things
 

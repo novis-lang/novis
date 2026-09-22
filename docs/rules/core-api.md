@@ -1275,13 +1275,20 @@ runtime dispatches on; and it already has to carry every parameter's name
 else would create the duplicate that name guard exists to prevent. **Every row carries its card** — a
 member without one fails the crate's tests, so a member lands documented or does not land.
 
+**A compiler attribute carries a card too**, beside the checker's roster of recognized names: one
+sentence saying what it does, the declaration it is written above, and its payload's fields at their
+types — the card a hover on `#[Core\Route]`, the attribute's stub and a completion row all read. And a
+class's hand-written intro page under `docs/reference/core/` is compiled in at build time and shown
+under the class's own card by a hover and at the head of its stub; the page stays the website's, and
+nothing about it is copied into Rust by hand.
+
 Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
 surface available, so anything beyond the reference card stays in the website's pages. The cost is static
 strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
 member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
 cares.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md).</sub>
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
 
 <a id="core-api-removals"></a>
 

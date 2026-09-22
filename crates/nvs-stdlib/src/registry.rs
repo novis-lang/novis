@@ -1536,6 +1536,15 @@ pub struct ClassDoc {
     pub short: &'static str,
 }
 
+/// The hand-written intro pages under `docs/reference/core/`, compiled in by
+/// `build.rs` as `(class, body)` rows — the one place the pages are read, so a
+/// page is compiled in the day it is written and never copied into Rust by
+/// hand. [`CoreClass::intro`] reads it; `tools/reference.py` and the website
+/// keep reading the `.md` files.
+mod intros {
+    include!(concat!(env!("OUT_DIR"), "/intros.rs"));
+}
+
 impl CoreClass {
     /// Looks one of this class's constants up by name.
     #[must_use]
@@ -1543,6 +1552,23 @@ impl CoreClass {
         self.constants.iter().find(|found| found.name == name)
     }
 
+    /// This class's intro page — `docs/reference/core/<Class>.md` below its
+    /// front matter — or `None` for a class nobody has written one for.
+    ///
+    /// Shown under the card's `short` by a class hover and at the head of the
+    /// class's stub. It is prose in the repository's own voice, rendered as it
+    /// is written: the page is the website's, and rewriting one is the page's
+    /// business rather than a renderer's.
+    #[must_use]
+    pub fn intro(&self) -> Option<&'static str> {
+        intros::INTROS
+            .iter()
+            .find(|(name, _)| *name == self.name)
+            .map(|(_, text)| *text)
+    }
+}
+
+impl CoreClass {
     /// Every member this class declares, static then instance — what a
     /// consumer that only cares about "the code behind a name" iterates, so
     /// neither roster can be forgotten at one of them.
@@ -6208,5 +6234,36 @@ mod tests {
         assert!(class(r"Core\Arr").is_some());
         assert!(class(r"Core\Nope").is_none());
         assert!(class("Arr").is_none());
+    }
+
+    /// Every page under `docs/reference/core/` names a class the registry
+    /// holds. A page for a class the registry does not know is one nobody can
+    /// reach from a name, and it is reported here rather than deleted.
+    #[test]
+    fn every_intro_page_names_a_registry_class() {
+        let orphans: Vec<&str> = intros::INTROS
+            .iter()
+            .filter(|(name, _)| class(name).is_none())
+            .map(|(name, _)| *name)
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "pages naming no registry class: {orphans:?}"
+        );
+        assert!(
+            !intros::INTROS.is_empty(),
+            "the reference tree has pages, and none was compiled in"
+        );
+    }
+
+    /// The page's front matter is cut and its body is kept whole.
+    #[test]
+    fn an_intro_starts_below_its_front_matter() {
+        let intro = class(r"Core\Str")
+            .and_then(CoreClass::intro)
+            .expect("`Core\\Str` has a page");
+        assert!(!intro.starts_with("---"));
+        assert!(!intro.contains("keywords:"));
+        assert!(intro.contains("`Core\\Str`"));
     }
 }

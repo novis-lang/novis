@@ -123,6 +123,10 @@ pub(crate) fn core_type_hover(name: &str) -> Option<String> {
             out.push_str("\n\n");
             out.push_str(doc.short);
         }
+        if let Some(intro) = class.intro() {
+            out.push_str("\n\n");
+            out.push_str(intro);
+        }
         return Some(out);
     }
     if let Some(core) = registry::core_enum(name) {

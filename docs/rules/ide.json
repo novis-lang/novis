@@ -199,6 +199,26 @@
       ]
     },
     {
+      "id": "ide/the-stub-tree-is-where-core-is-declared",
+      "title": "A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed",
+      "status": "shipped",
+      "because": [
+        "0214"
+      ],
+      "divergesFromPhp": "PhpStorm ships a hand-maintained stub tree for PHP's built-ins; here the stubs are generated from the registry the runtime dispatches on, so a stub cannot say what the binary does not do",
+      "seeAlso": [
+        "ide/one-server-two-thin-clients",
+        "ide/the-index-answers-the-cursor",
+        "core-api/reference-card",
+        "core-api/reserved-namespace"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/src/stubs.rs",
+        "tests/lsp/definition/a-core-method-answers-its-stub.lspt",
+        "tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt"
+      ]
+    },
+    {
       "id": "ide/the-request-set-is-closed",
       "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
       "status": "designed",
@@ -569,7 +589,8 @@
       "status": "designed",
       "because": [
         "0099",
-        "0101"
+        "0101",
+        "0214"
       ],
       "divergesFromPhp": "no PHP tool shows a value's taint at its use sites; here `tainted` and `secret` travel as token modifiers to every use, not only the declaration",
       "seeAlso": [

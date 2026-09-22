@@ -1,5 +1,5 @@
 --TEST--
-a `Core` class has no declaration in any source file, so `new` on one jumps to the generated stub on the line the class is declared, `rule:ide/the-stub-tree-is-where-core-is-declared`
+a `Core` class has no declaration in any source file, so `new` on one jumps to the generated stub on the line the class is declared, below the card and the intro page compiled in for it, `rule:ide/the-stub-tree-is-where-core-is-declared`
 --FILE--
 <?nvs
 var $set = new Core\Object<|>Set();
@@ -7,4 +7,4 @@ echo "made";
 --REQUEST--
 definition
 --EXPECT--
-stubs/Core/ObjectSet.nvs:7:13
+stubs/Core/ObjectSet.nvs:56:13

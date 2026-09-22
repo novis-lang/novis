@@ -370,6 +370,12 @@ fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>) {
     let mut writer = Writer::open(class.name);
     let mut lines = Vec::new();
     let mut card = class.doc.map_or(String::new(), |doc| doc.short.to_owned());
+    if let Some(intro) = class.intro() {
+        if !card.is_empty() {
+            card.push_str("\n\n");
+        }
+        card.push_str(intro);
+    }
     if let Some(doc) = derive::attribute_doc(class.name) {
         // The class is also an attribute, and this file is where both are
         // declared: the attribute's card joins the class's.

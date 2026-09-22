@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -274,6 +274,38 @@ declares it, or the entry that requires it, is open too. `nvs check` never borro
 a program starts from, and a program has one map.
 
 <sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0207](../decisions/0207.md), [0208](../decisions/0208.md).</sub>
+
+<a id="ide-the-stub-tree-is-where-core-is-declared"></a>
+
+## A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed
+
+`rule:ide/the-stub-tree-is-where-core-is-declared`
+
+A `Core` class, enum, interface or compiler attribute is declared in a generated stub file, and a jump
+to one opens that file on the line of the declaration. The server writes one `.nvs` file per name, at
+the name's namespace path, under the directory `nvs.stubs.dir` names — or under this account's cache
+directory when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
+writes the same tree from the same generator for any other reader. The tree is written once per
+render and again when a file is missing; nothing repairs a file in place.
+
+A stub is a declaration with its real signature and an empty body: a class with each method, constant
+and constructor, an enum with its cases, an attribute as the shape-typed `type` alias a userland
+attribute already is, each under the same reference card hover shows ([`core-api/reference-card`](core-api.md#core-api-reference-card)),
+and a header saying the file is generated and edits are lost. Registry prose is rendered as it is
+written. Every file is made read-only on disk, and the server publishes no diagnostics for a document
+under the tree: the bodies are empty and do not type-check, the `namespace Core` line is one user
+source may not write ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), and nothing in a stub is the reader's to
+fix. Hover, definition and semantic tokens inside a stub answer as in any document.
+
+Where a name is in a stub comes from the render's own line table, `(qualified name, member) → line`,
+never from parsing a stub. A definition falls back to it only for a name the graph holds no
+declaration for, so a program's own class is never answered with a stub. In a `.lspt` case the tree is
+written under the case's own directory and a location in it is spelled `stubs/Core/Str.nvs:L:C`, the
+way a `--FILE lib/user.nvs--` section's is. Real files rather than virtual documents, because a `file:`
+location works unchanged in every client and a cursor inside a stub keeps every answer
+([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 
@@ -863,11 +895,17 @@ That pair is why this layer is built at M4B rather than M10: [`security/tainted-
 an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
 verified as "the token carries the modifier", never as a colour.
 
+The name in front of a `::` is coloured as what it resolved to — `enum` before a case, `class` before
+a constant, a static call or a static property — carrying `defaultLibrary` for a `Core` enum exactly as
+for a `Core` class. An attribute's name is a `type` token, since it names the shape its payload
+satisfies, with `defaultLibrary` for a compiler attribute; its payload is coloured as the expressions
+it holds, so `Core\Http\Method::Get` inside `#[...]` reads as it does in a body.
+
 The legend the client registers must equal the legend the server declares. A mismatch silently colours
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0214](../decisions/0214.md).</sub>
 
 <a id="ide-novis-ships-names-not-colours"></a>
 

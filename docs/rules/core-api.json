@@ -632,7 +632,7 @@
       "id": "core-api/reference-card",
       "title": "An implemented `Core` member carries its reference card in the registry declaration beside its code",
       "status": "shipped",
-      "because": ["0117", "0011", "0051", "0063", "0203"],
+      "because": ["0117", "0011", "0051", "0063", "0203", "0214"],
       "seeAlso": ["core-api/field-wise-precedence", "core-api/parameters-are-callable-by-name", "core-api/shape-parameter"],
       "guardedBy": [
         "crates/nvs-stdlib/src/registry.rs",
