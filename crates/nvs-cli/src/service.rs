@@ -4734,6 +4734,14 @@ mod tests {
     /// signals' own (`crate::stop`).
     #[test]
     fn service_run_turns_a_stop_into_a_drain_with_advancing_checkpoints() {
+        // The stop below enters `crate::stop::deliver_to`, which reports
+        // `STOPPING=1` to the manager this process installed — a sink another
+        // case owns and reads — so this case takes its turn with the others
+        // that stop this process.
+        let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+
         // The numbers are matched on both platforms and defined by one, so on
         // the one that defines them they are held to it.
         #[cfg(windows)]

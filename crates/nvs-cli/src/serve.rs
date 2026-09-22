@@ -3781,7 +3781,7 @@ mod tests {
     /// never a reset, and nothing written after the head that was already sent.
     #[test]
     fn a_terminating_signal_drains_serve_and_every_connection_closes_cleanly() {
-        let _in_turn = ONE_STOP_AT_A_TIME
+        let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         crate::stop::on_termination().expect("this process's terminating signals arm");
@@ -3890,13 +3890,6 @@ mod tests {
         );
         closed.expect("the drained connection ended in a reset rather than a clean close");
     }
-
-    /// The two cases that stop this process take it in turn.
-    ///
-    /// The drain is one bit for the whole binary and the service manager is one
-    /// installed sink beside it, so two cases delivering a stop at once would
-    /// each be reading the other's report.
-    static ONE_STOP_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// A directory of this case's own holding `files`, and what [`table_for`]
     /// answers for a start over its `nvs.toml` that names `named` — or no file,
@@ -4063,7 +4056,7 @@ mod tests {
     /// a case made in the right order.
     #[test]
     fn sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping() {
-        let _in_turn = ONE_STOP_AT_A_TIME
+        let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (told, sent) = crate::service::recording();

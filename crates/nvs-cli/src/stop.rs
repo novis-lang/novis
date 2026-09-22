@@ -85,6 +85,18 @@ pub(crate) fn deliver_to(draining: &nvs_server::Draining) {
     crate::service::Notify::process().state(crate::service::State::Stopping);
 }
 
+/// Every case that stops this process takes it in turn.
+///
+/// The drain is one bit for the whole binary and the service manager is one
+/// installed sink beside it — [`crate::service::Notify::install`] is a
+/// `OnceLock` the first case to call it owns for the binary's life — so two
+/// cases delivering a stop at once would each be reading the other's report.
+/// It lives here rather than in one module's `mod tests` because the cases
+/// reaching [`deliver_to`] are spread over three modules, and one of them
+/// arrives through [`crate::service`]'s SCM controls rather than by calling it.
+#[cfg(test)]
+pub(crate) static ONE_STOP_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(unix)]
 mod platform {
     use std::ffi::c_int;
