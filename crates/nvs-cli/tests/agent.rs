@@ -530,6 +530,48 @@ fn find_with_no_match_prints_nothing_and_says_what_was_searched() {
         err.contains("chapter"),
         "the message names the chapters as the next place to look: {err}"
     );
+    assert!(
+        err.contains("a keyword may be written under a heading that does not name it"),
+        "the message says why an empty result is not an absence: {err}"
+    );
+}
+
+/// A syntactic form is not a `Core` member, so a heading is the only way `find`
+/// can reach it — and a form with no heading reads, to an agent, as a feature
+/// that does not exist. Every form here is one that was, or could have been,
+/// concluded absent that way; each must answer `find` with a section line.
+#[test]
+fn every_syntactic_form_is_reachable_through_a_heading() {
+    let forms = [
+        "doc-comments",
+        "inout",
+        "tainted",
+        "secret",
+        "lateinit",
+        "readonly",
+        "match",
+        "require",
+        "autoload",
+        "spawn",
+        "implements",
+        "class-t",
+        "html",
+        "any-expression",
+        "closures-fn",
+        "enum",
+        "is",
+        "yield",
+        "clone",
+    ];
+    let mut missing = Vec::new();
+    for form in forms {
+        let (out, _, ok) = agent(&["find", form]);
+        assert!(ok, "`nvs agent find {form}` succeeds");
+        if !out.lines().any(|line| line.contains("  section: ")) {
+            missing.push(form);
+        }
+    }
+    assert!(missing.is_empty(), "forms with no heading: {missing:?}");
 }
 
 /// A fresh empty directory named for the test that owns it, so two tests never

@@ -134,6 +134,7 @@ const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/tools/10-cli.md"),
     include_str!("../../../docs/reference/tools/15-install.md"),
     include_str!("../../../docs/reference/tools/20-config.md"),
+    include_str!("../../../docs/reference/tools/25-server.md"),
     include_str!("../../../docs/reference/tools/30-php-differences.md"),
     include_str!("../../../docs/reference/tools/40-editor.md"),
     include_str!("../../../docs/reference/tools/50-agents.md"),
@@ -606,7 +607,7 @@ pub(crate) fn find(query: &str) -> ExitCode {
     if out.is_empty() {
         eprintln!("nothing matches `{query}`: no `Core` symbol and no chapter heading has it.");
         eprintln!(
-            "`nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
+            "a keyword may be written under a heading that does not name it: `nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
         );
     }
     print!("{out}");

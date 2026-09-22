@@ -38,7 +38,7 @@ Conventions the whole file uses:
 
 ### Part A — The language
 
-- A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
+- A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
@@ -222,9 +222,10 @@ Conventions the whole file uses:
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
-- C.4 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
-- C.5 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
-- C.6 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
+- C.5 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
+- C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
+- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
 
@@ -235,7 +236,7 @@ Conventions the whole file uses:
 <a id="lang-programs"></a>
 ## A.1 Programs, files and names
 
-Keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
+Keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
 
 ### A program is a file of top-level statements
 
@@ -361,6 +362,40 @@ ok
 ```
 
 `#[` — with the bracket — opens an attribute (the attributes chapter), not a comment.
+
+### Doc comments: `///`
+
+A comment that opens with exactly three slashes is a doc comment. It documents the declaration
+written directly under it — a class, a constant, a property, a method or an enum case — and the
+toolchain reads it: `nvs meta --json` carries it, `nvs doc` renders it, and the editor's hover shows
+it. The run of `///` lines above one declaration is one comment, and its body is Markdown. Two
+tags are recognised at the start of a line, `@see` and `@example`; any other `@tag` is an error
+(`E0128`), so `@param` and `@return` are not written — the signature already says that.
+
+```nvs
+<?nvs
+/// A price in cents.
+final class Price {
+    /// The lowest price a shop may set.
+    public const int MIN = 0;
+
+    /// Doubles a price.
+    public static function double(int $p): int { return $p * 2; }
+}
+echo Price::double(2), "\n";
+```
+```output
+4
+```
+
+Three things are not doc comments:
+
+- **`/** … */` is an ordinary comment.** Nothing reads it. Written directly above a declaration it
+  is the PHPDoc habit, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
+  write `///` for a doc comment*.
+- **`////` and longer runs** are ordinary comments, so a divider line of slashes documents nothing.
+- **A `///` run with a blank line under it, or one at the end of a file,** documents nothing and is
+  an error (`E0127`); write `//` for a note to the reader.
 
 ### Names and casing
 
@@ -1000,13 +1035,10 @@ as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?
 
 - A literal has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
   in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
-  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape, and
-  `{Page::TITLE}` is printed as written. `<?= expr ?>` is a page's output tag, and inside a literal
-  it is a hole that takes **any** expression: `<?= Page::TITLE ?>`, `<?= Money::format($c) ?>`,
-  `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>`. Spaces around the expression are allowed, a
-  `}` inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes
-  it. A `<?nvs` block inside a literal is a compile error: a literal is one expression, and a loop
-  around markup is written in code mode outside it.
+  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape.
+  `{Page::TITLE}` is therefore printed as written, and the compiler warns (`W1012`), because a
+  page that prints that text is almost never what was meant. The second kind of hole is the
+  output tag, below.
 - Both holes follow one rule. A `string` is escaped, `tainted` or not. A `Core\Html\Markup` is
   written raw. A `secret` value is a compile error, and so is a value with no string form.
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
@@ -1032,13 +1064,13 @@ class Page {
 tainted string $name = "<b>Ann</b>";
 bool $fresh = true;
 Core\Html\Markup $head = html`<h1><?= Page::TITLE ?> <?= $fresh ? Page::badge() : html`` ?></h1>`;
-Core\Html\Markup $body = html`<p>posted by {$name}, {Page::TITLE}</p>`;
+Core\Html\Markup $body = html`<p>posted by {$name} {not a hole}</p>`;
 echo $head + $body, "\n";
 echo html`<pre>
   kept as written \`</pre>`, "\n";
 ```
 ```output
-<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt;, {Page::TITLE}</p>
+<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt; {not a hole}</p>
 <pre>
   kept as written `</pre>
 ```
@@ -1058,6 +1090,28 @@ Core\Html\Markup $m = html"<p>x</p>";
 ```
 ```output
 written with backticks
+```
+
+##### `<?= expr ?>`: a hole for any expression
+
+`<?= expr ?>` is a page's output tag, and inside a literal it is a hole that takes **any**
+expression: a class constant, a static call, a condition, a nested literal. It is the hole to
+write when the value has no variable in front of it, which is every `Class::` value, since Novis
+has no free functions and no global constants. Spaces around the expression are allowed, a `}`
+inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes it. The
+value is escaped by the same rule as a brace hole. A `<?nvs` block inside a literal is a compile
+error: a literal is one expression, and a loop around markup is written in code mode outside it.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+}
+bool $on = true;
+echo html`<h1><?= Page::TITLE ?> <?= $on ? html`<b>on</b>` : html`<i>off</i>` ?></h1>`, "\n";
+```
+```output
+<h1>News <b>on</b></h1>
 ```
 
 ### Widening without `as`
@@ -1341,10 +1395,17 @@ truthy
 ### Parameters
 
 A parameter is `T $name`, with an optional default `= literal`, and the last may be variadic —
-`T ...$rest`, an `array<T>` inside the body. `inout T $name` binds the caller's variable or
-property rather than a copy, and the call writes `inout` again in front of the argument; `&` is
-not a by-reference marker anywhere. A `foreach` value binding may be `inout` too. Arguments may be
-passed by name: `Sum::bump(inout n: $count)`.
+`T ...$rest`, an `array<T>` inside the body. Arguments may be passed by name:
+`Sum::bump(inout n: $count)`.
+
+#### `inout`: a parameter that writes back
+
+`inout T $name` binds the caller's variable rather than a copy, so what the method assigns to
+`$name` is what the caller holds afterwards. The call writes `inout` again in front of the
+argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
+change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
+by-reference marker anywhere. A `foreach` value binding may be `inout` too, and a closure has no
+`inout` parameter.
 
 ```nvs
 <?nvs
@@ -2096,7 +2157,7 @@ echo $s, "\n";
 `$_` is the pipeline hole and has no meaning here
 ```
 
-### Closures
+### Closures: `fn`
 
 `fn` is the only closure literal, and a closure is the only value a `callable` holds. `fn(params): T => expr` answers the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. Every outer local the body reads is captured **by value when the closure is created**, and `$this` is captured inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`. `Class::m(...)` is not a way to obtain a closure — write `fn(...) => Class::m(...)`.
 
@@ -25983,10 +26044,13 @@ spelled as a subcommand.
 **Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
 this binary.
 
-**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs ctl`,
-`nvs service`, `nvs fmt` and `nvs doc` are in the binary and answer `--help`, but their sections
-here are unwritten. `nvs lsp` and `nvs lsp-test` are in [the editor chapter](#tools-editor).
-`nvs --help` lists every subcommand this build carries.
+**In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
+[the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
+[the editor chapter](#tools-editor).
+
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt` and `nvs doc` are in
+the binary and answer `--help`, but their sections here are unwritten. `nvs --help` lists every
+subcommand this build carries.
 
 ### Files, extensions and tags
 
@@ -27113,8 +27177,212 @@ long-running host — at a reload, or only at boot.
 overrode, and `--toml` prints the resolved tree as one document. Both are described with the other
 subcommands in the `nvs` command chapter.
 
+<a id="tools-server"></a>
+## C.4 The HTTP server
+
+Keywords: nvs serve, server, HTTP, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+
+### nvs serve
+
+    nvs serve [<file>] [--listen <host:port> | --port <n>] [--config <path>]...
+
+`nvs serve` runs an application until the process is stopped. It answers HTTP requests on every
+core, runs the `[[schedule]]` entries on the core that ticks, and drains the `[queue]` workers
+beside them; a configuration that writes neither starts neither. Every file it serves is compiled
+before the socket is bound, so a program with a diagnostic never answers a request, and every
+request runs in an isolate that shares nothing with any other request.
+
+The development server and the production origin are the same command. In production it sits
+behind a proxy on loopback or a Unix socket; nothing a proxy does earlier — TLS, compression,
+rate limiting — is in it.
+
+What is served depends on the file named and on whether the configuration writes a mount table:
+
+| Start | What is served |
+|---|---|
+| `nvs serve app.nvs`, no `[[server.mount]]` written | `app.nvs` at `/`, its own directory as the mount root |
+| `nvs serve`, mounts written | every mount in the table, under the global configuration |
+| `nvs serve app.nvs`, mounts written | the table, and `app.nvs` must be one of its entries; the `[[app]]` blocks matching it apply to every mount |
+| `nvs serve`, no mounts written | refused: nothing was named |
+
+`--listen` replaces `[server] listen` for this run, and `--port` keeps the host the file chose and
+replaces the port; the two are not combined. `--config` reads a configuration file instead of
+`./nvs.toml` (the configuration chapter). With nothing written anywhere the server listens on
+`127.0.0.1:8000`.
+
+### The `[server]` block
+
+```toml
+[server]
+root               = "/srv/app"           # every mount path resolves inside this; required with a mount table
+listen             = ["127.0.0.1:8000"]   # "host:port" entries, or an absolute path for a Unix socket
+socket_mode        = "0660"               # Unix-socket entries only
+dispatch           = "entry"              # "entry" or "path"; development defaults to "path"
+static             = false                # serve files under the mount root; development defaults to true
+trusted_proxies    = []                   # empty: forwarding headers are never read
+health_path        = ""                   # "" is off
+max_in_flight      = 1024                 # requests in flight before a 503
+workers            = 4                    # accept cores; unset is the machine's parallelism
+header_timeout     = "10s"                # idle waits, each finite with nothing written
+body_idle_timeout  = "30s"
+write_idle_timeout = "30s"
+keepalive_timeout  = "75s"
+drain_timeout      = "30s"                # how long working connections are served after a stop begins
+```
+
+Every key here is read once, at start: changing one needs a restart, and `nvs ctl reload` says so.
+`listen` is one flat list. An entry that begins with a path separator is a Unix socket, which is
+Unix-only and is the transport to prefer behind a proxy; `socket_mode` is who may connect to it.
+On Windows the server listens on TCP.
+
+`dispatch` and `static` are the two keys the mode selects a default for, and no request may
+change either. `workers` is how many cores accept; every core holds its own handle on every
+listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs. The
+four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
+bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with
+`max_open`, `max_frame`, `max_message`, `idle_timeout`, `max_lifetime` and `send_timeout`, all
+finite with nothing written.
+
+### Mounts: which file answers a request
+
+A mount maps a URL onto one entry file under `[server] root`. It matches on `prefix`, on `host`,
+or on both, and names either `entry` (one file) or `scan` (a glob):
+
+```toml
+[server]
+root = "/srv/www"
+
+[[server.mount]]
+scan   = "*/public/index.nvs"             # one mount per match; * captures one path segment
+prefix = "/{1:lower}"                     # {1} is the first capture; :lower is the only transform
+origin = "https://{1:lower}.example.com"  # what Core\Router::urlAbsolute prepends here
+
+[[server.mount]]
+prefix = "/admin"
+entry  = "Backoffice/public/index.nvs"    # an explicit mount overrides a scanned one at the same key
+
+[[server.mount]]
+host   = "shop.example.com"               # compared without regard to case
+entry  = "Shop/public/index.nvs"
+```
+
+- A `scan` expands against the disk when the server starts and again on `nvs ctl reload`, into
+  ordinary mounts. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
+  beginning with a dot. `{n}` is the nth capture as the directory spells it, `{n:lower}` the same
+  in lower case, so a directory named `Blog` is served at `/blog` while `Core\Request::mount()`
+  still reports `Blog`. Any other brace is an error at start and under `nvs config check`.
+- `root` is required whenever a mount is written, and every resolved path must lie inside it.
+  A relative `root` resolves against the file it is written in.
+- Two explicit mounts at one key are an error. A scan that matched no file refuses the start.
+- A mount routes and nothing else: it has no `mode`, no limits and no capabilities. Those are the
+  `[[app]]` block's, keyed on the entry file's path (the configuration chapter), and the two
+  usually name the same directory.
+
+#### How a request resolves
+
+```
+1. longest match:  host mounts by prefix  ->  host-less mounts by prefix  ->  404
+2. strip the prefix
+3. static = true   and the rest names an existing non-.nvs file under the mount root  -> serve it
+4. dispatch = "path" and the rest names an existing .nvs file under the mount root    -> run it
+5. otherwise                                                                          -> run the mount's entry
+```
+
+In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
+entry. In development the sequence is `try_files $uri /index.nvs`, the shape a PHP application
+already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
+the file on disk only in case is a file that is not there, on every platform. A trailing slash is
+never added or removed: `/users` and `/users/` are two URLs. `HEAD` runs as `GET` with the body
+discarded.
+
+`health_path`, when set, is matched ahead of every mount: `200` with an empty body while the
+process accepts, `503` while it drains, no dependency checked and nothing logged.
+
+#### Static files
+
+With `static = true`, step 3 serves the exact file and nothing else: no directory listing,
+`index.html` as the only default document, the type from a fixed extension table and
+`application/octet-stream` for an unknown one. Freshness is `Cache-Control: no-cache` with one
+strong `ETag`; one `Range` is honoured and anything else is a `416`. A `.nvs` file is never served
+as source, under any setting, from any mount. This is a development convenience and a fallback,
+not a CDN: there is no `max-age` and no precompressed lookup.
+
+### What a program reads about its door
+
+The matched prefix is stripped before the program runs, so `Core\Request::path()` is the
+remainder and one compiled program serves at `/`, at `/shop` or at `{1}` with no change.
+`Core\Request::mount()` returns the rest: `prefix()` is what was stripped, `captures()` the glob
+captures of the mount that matched, in order, `tainted` because which mount answers is the
+client's choice. It is never `null` — a program served without a mount table reads `""` and an
+empty array — and outside a request it throws.
+
+```nvs skip
+<?nvs
+// Mounted by `scan = "*/public/index.nvs"` at `prefix = "/{1:lower}"`, so
+// `/acme/orders` arrives here with `path()` equal to `/orders`.
+Core\Request\Mount $mount = Core\Request::mount();
+tainted string $tenant = $mount->captures()[0];
+echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
+```
+
+`Core\Router::url` puts the same prefix in front of every link it builds, so a link is never
+assembled from a route's declared path by hand, and `Core\Router::urlAbsolute` prepends the
+mount's `origin`, falling back to the `[[app]]` block's. A program run from the command line is
+mounted nowhere: the prefix is empty and nothing else changes.
+
+### Behind a proxy: `trusted_proxies`
+
+With `trusted_proxies` empty — the default — no forwarding header is believed:
+`Core\Request::clientIp()` is the socket peer, and `X-Forwarded-For` is only readable through
+`Core\Request::header`, `tainted`. Listing the proxy's addresses turns the walk on: `clientIp()`
+is the rightmost `X-Forwarded-For` entry that is not itself trusted, and a trusted
+`X-Forwarded-Proto` sets the scheme the program sees and whether HSTS is sent. `clientIp()` is
+`?tainted string`: a hop that withheld the address gives `null`, never a placeholder. A Unix-socket
+listener is trusted without being listed, since the operating system decides who may connect to
+it. A production server whose every listener is loopback or a socket and whose
+`trusted_proxies` is empty logs one warning at start.
+
+### Stopping and reloading: the drain
+
+A stop — `Ctrl-C`, `nvs service stop`, the service manager — and a `nvs ctl reload` both drain.
+Nothing new is taken, and a request whose head, body or response is moving is given
+`drain_timeout` from the moment its connection sees the drain. Whatever is idle closes at once: a
+kept-alive connection between requests, a WebSocket waiting for its peer (closed with `going
+away`), an event stream with nothing to write. A program may read the same bit through
+`Core\Server::isDraining()`, which is `false` off the server.
+
+### nvs ctl
+
+    nvs ctl reload [--socket <path>]
+    nvs ctl config [--socket <path>]
+    nvs ctl status [--socket <path>]
+
+`nvs ctl` reaches a running server over its control socket, `[control] socket` in the
+configuration — a path on Unix, `\\.\pipe\nvs-control` on Windows, `false` to have none. Its owner
+and mode are the whole of who may use it; there is no token and no TCP form. `reload` re-reads the
+configuration tree, applies what can change while running, prints what it applied and names each
+key that needs a restart; a mount `scan` expands again. `config` prints what the process is
+holding, each key with the file it came from. `status` reports how many requests are in flight and
+whether the process is draining. `--socket` names one server where several run on a host.
+
+### nvs service
+
+    nvs service install | uninstall | start | stop | status | run | unit [--config <path>]...
+
+`nvs service install` stores this binary and its arguments with the platform's service manager —
+systemd on Linux, the Service Control Manager on Windows — and grants the account it runs as what
+it needs, and no more. `uninstall` removes every trace. `start`, `stop` and `status` speak to the
+manager; `stop` is answered with a drain, and `status` adds what `nvs ctl status` would say.
+`unit` prints the definition that `install` would store, and stores nothing. `run` runs the stored
+arguments in the foreground, the way the manager would have started them.
+
+`serve` with no file is accepted by `install` only where the named configuration mounts at least
+one entry on disk (`E0630`), because a server with nothing to serve exits at once, and a manager
+reports that as a crash loop. The installation chapter has where the binary, the configuration and
+the logs go and which folder permissions are checked.
+
 <a id="tools-php-differences"></a>
-## C.4 Coming from PHP: every difference, and what to write instead
+## C.5 Coming from PHP: every difference, and what to write instead
 
 Keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
 
@@ -27436,7 +27704,7 @@ E0211
 ```
 
 <a id="tools-editor"></a>
-## C.5 The editor: nvs lsp, nvs lsp-test and the VS Code extension
+## C.6 The editor: nvs lsp, nvs lsp-test and the VS Code extension
 
 Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
 
@@ -27809,7 +28077,7 @@ written against it keeps working when the surface behind it lands, and until the
 analysed as it arrives.
 
 <a id="tools-agents"></a>
-## C.6 Coding agents: nvs agent, and what nvs agent init installs
+## C.7 Coding agents: nvs agent, and what nvs agent init installs
 
 Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 

@@ -38,10 +38,13 @@ spelled as a subcommand.
 **Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
 this binary.
 
-**Not in this chapter yet:** `nvs serve`, `nvs queue`, `nvs schema`, `nvs tmp`, `nvs ctl`,
-`nvs service`, `nvs fmt` and `nvs doc` are in the binary and answer `--help`, but their sections
-here are unwritten. `nvs lsp` and `nvs lsp-test` are in [the editor chapter](#tools-editor).
-`nvs --help` lists every subcommand this build carries.
+**In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
+[the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
+[the editor chapter](#tools-editor).
+
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt` and `nvs doc` are in
+the binary and answer `--help`, but their sections here are unwritten. `nvs --help` lists every
+subcommand this build carries.
 
 # Files, extensions and tags
 
