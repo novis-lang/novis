@@ -676,6 +676,10 @@ An `interface` declares methods a class must provide. It may also carry:
 - **`static` methods** with a body, reached as `Interface::method()` or `Implementor::method()`,
   and overridable by an implementor.
 
+An interface has no properties. `public string $path;` inside one is an error (`E0254`). A value
+every implementor must supply is a method. A value that is fixed per implementor is a typed
+constant: the implementor overrides it, and a default method reads it as `static::NAME`.
+
 A class implements any number of interfaces, comma-separated, and an interface may `extends`
 another. A class missing a required method is a compile error naming the method and the
 interface.

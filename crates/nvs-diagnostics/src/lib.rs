@@ -545,6 +545,13 @@ pub mod code {
     /// converted program never changes meaning silently over it, because the
     /// refused word does not compile.
     pub const E_INSTANCEOF_IS_NOT_AN_OPERATOR: Code = Code::new("E0253");
+    /// A property declared inside an `interface` body. An interface declares
+    /// behaviour and constants and no state
+    /// (`rule:classes/interfaces-declare-no-state`): the body grammar is the
+    /// class's, so the declaration parses, and it is refused where it is
+    /// written rather than dropped by the layout pass — which is what left a
+    /// clean `nvs check` followed by a codegen failure on the first read.
+    pub const E_INTERFACE_PROPERTY_UNSUPPORTED: Code = Code::new("E0254");
     /// `return $value;` inside a `constructor`, which PHP 8.6 deprecates and
     /// this refuses (`rule:php-migration/a-constructor-return-carries-no-value`).
     /// The object under construction is the result and nothing else can be. A

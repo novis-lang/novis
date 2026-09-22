@@ -688,6 +688,28 @@ impl<'src, 'd> Parser<'src, 'd> {
             Vec::new()
         };
         let members = self.parse_class_body();
+        // `rule:classes/interfaces-declare-no-state`: the body grammar is the
+        // class's, so a property parses here, and here is where it is refused
+        // — at the declaration, the way an enum body refuses a method — rather
+        // than by `nvs_types::layout`, which carries no property for an
+        // interface and would leave the first read to fail in codegen.
+        for member in &members {
+            if matches!(member.kind, ClassMemberKind::Property(_)) {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_INTERFACE_PROPERTY_UNSUPPORTED,
+                        "an interface declares no property",
+                    )
+                    .with_primary(member.span, "declared inside an interface")
+                    .with_help(
+                        "`rule:classes/interfaces-declare-no-state`: require a method every \
+                         implementor writes, or declare a typed constant the implementor \
+                         overrides and read it as `static::NAME` from a default method; shared \
+                         state is `implements I by $field;` (`rule:classes/delegation-by-field`)",
+                    ),
+                );
+            }
+        }
         let span = start.to(self.last_span);
         Stmt {
             span,

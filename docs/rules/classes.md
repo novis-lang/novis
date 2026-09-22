@@ -3,7 +3,7 @@
 
 # Classes
 
-*1 of 38 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 39 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -542,6 +542,27 @@ The precedent is Java 9's private interface methods, and the addition is small: 
 call a member, not what an interface may hold. Interfaces still declare no state.
 
 <sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
+
+<a id="classes-interfaces-declare-no-state"></a>
+
+## An interface declares no property: one written there is `E0254`, and the value comes from a method or a constant
+
+`rule:classes/interfaces-declare-no-state`
+
+An interface declares no property. Its body is parsed by the class-body grammar, so
+`public string $path;` inside one parses, and it is refused where it is written as `E0254` — at the
+declaration, the way an enum body refuses a method — rather than by the layout pass, which carries no
+property for an interface and would otherwise leave the first read to fail in codegen behind a clean
+`nvs check`.
+
+The two things such a property is reached for are already in the interface. A value every implementor
+supplies is a bodiless method. A value that is a constant per implementor is a typed constant the
+implementor overrides, read as `static::NAME` from a default method, which
+[`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) binds to the implementor's class. Shared state is
+`implements I by $field;` ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)), never a slot the interface owns: an
+interface names a contract, and its implementors hold the values.
+
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0210](../decisions/0210.md).</sub>
 
 <a id="classes-delegation-by-field"></a>
 

@@ -156,6 +156,7 @@ the end of a file is fine.
 | any name starting with `_` | no identifier starts with `_` | `E0111` |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
 | `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `implements I by $field;` for state | `E0227` |
+| a property inside an `interface` body | a method every implementor writes, or a typed constant the implementor overrides and a default method reads as `static::NAME` | `E0254` |
 | `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |

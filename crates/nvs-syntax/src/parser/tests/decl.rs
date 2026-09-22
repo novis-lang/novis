@@ -247,6 +247,41 @@ fn an_enum_case_named_with_a_keyword_parses() {
     );
 }
 
+/// A property inside an `interface` body is refused where it is written
+/// (`rule:classes/interfaces-declare-no-state`), once per property, and the
+/// members beside it still parse: the refusal is a diagnostic on a body the
+/// grammar accepted, not a recovery.
+// covers: lang:classes/interfaces
+#[test]
+fn an_interface_property_is_refused_and_the_rest_of_the_body_parses() {
+    let (s, diags) = parse_stmt_with_diags(
+        "interface View { public string $path; public const string NAME = \"v\"; \
+         public function render(): string; }",
+    );
+    let StmtKind::InterfaceDecl(i) = s.kind else {
+        panic!("expected an interface decl: {s:?}");
+    };
+    assert_eq!(
+        i.members.len(),
+        3,
+        "the body lost a member: {:?}",
+        i.members
+    );
+    let refused = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_INTERFACE_PROPERTY_UNSUPPORTED))
+        .count();
+    assert_eq!(refused, 1, "one property, one refusal: {diags:?}");
+
+    let (_, diags) = parse_stmt_with_diags("interface Named { public function name(): string; }");
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_INTERFACE_PROPERTY_UNSUPPORTED)),
+        "a body with no property drew the refusal: {diags:?}"
+    );
+}
+
 /// PHP's `case Hearts = 1;` body, answered the way `trait` and `(int)$x`
 /// already are: one `E02xx` code on the keyword, naming the spelling that
 /// works. The count is half the assertion — this shape used to produce a

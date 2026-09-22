@@ -1,0 +1,17 @@
+--TEST--
+an interface declares no property; the refusal is at the declaration and names the method and the constant that replace it, `rule:classes/interfaces-declare-no-state`
+--FILE--
+<?nvs
+interface View {
+    public string $path;
+    public function render(): string;
+}
+echo "after\n";
+// covers: lang:classes/interfaces
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0254]: an interface declares no property
+  --> case.nvs:3:5
+%A
+error: aborting due to 1 error
