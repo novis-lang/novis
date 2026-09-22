@@ -424,10 +424,195 @@ nvs_runtime::nvs_helper! {
     /// makes a valid host rather than an error, so this is `Production` and not
     /// a throw.
     fn nvs_core_env_mode(ctx, _args: [0]) {
-        let mode = match ctx.config() {
-            Some(config) => config.mode(),
-            None => nvs_config::mode::PRODUCTION.to_string(),
+        let ordinal = match ctx.config() {
+            Some(config) => mode_ordinal(&config.mode()),
+            None => mode_ordinal(nvs_config::mode::PRODUCTION),
         };
-        Ok(Value::int(mode_ordinal(&mode)))
+        Ok(Value::int(ordinal))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value, call};
+
+    use super::{mode_ordinal, nvs_core_env_all, nvs_core_env_get, nvs_core_env_mode};
+
+    /// `Core\Env::all`'s answer, in the order the member reported it.
+    fn all(ctx: &mut Ctx) -> Vec<(String, String)> {
+        let answered = call(nvs_core_env_all, ctx, &[]).expect("`all` refuses nothing");
+        assert!(ctx.take_pending().is_none(), "`all` left a refusal behind");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the array the member built, and the \
+                      handle releases it"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(answered.array_ptr().expect("`all` answers an array")) };
+        array
+            .keys()
+            .iter()
+            .map(|key| {
+                let value = array.get(key).expect("a key `all` has just reported");
+                let text = String::from_utf8(
+                    value
+                        .as_str_bytes()
+                        .expect("`all` answers one `string` per entry")
+                        .to_vec(),
+                )
+                .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
+                (
+                    String::from_utf8(key.clone()).expect("`all` keys by a UTF-8 name"),
+                    text,
+                )
+            })
+            .collect()
+    }
+
+    /// `Core\Env::get`'s answer for `name`, or `None` where it answered `null`.
+    fn get(ctx: &mut Ctx, name: &str) -> Option<String> {
+        let argument = Value::str(NvsStr::new(name.as_bytes()));
+        let answered = call(nvs_core_env_get, ctx, &[argument]).expect("`get` answers");
+        assert!(
+            ctx.take_pending().is_none(),
+            "`get` refused {name:?}, which only a value that is not text may make it do"
+        );
+        let out = answered.as_str_bytes().map(|bytes| {
+            String::from_utf8(bytes.to_vec())
+                .expect("`rule:types/bytes` guarantees a `string` is UTF-8")
+        });
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the argument it built and the answer the \
+                      member built, and the member borrowed rather than consumed \
+                      the first"
+        )]
+        unsafe {
+            answered.release();
+            argument.release();
+        }
+        out
+    }
+
+    /// `all` is the environment's text half in name order, and nothing else:
+    /// every name the platform reports with a UTF-8 name and value is in it,
+    /// every entry it reports is the platform's own value for that name, and
+    /// each name sorts after the one before it.
+    ///
+    /// The `.nvst` cases can only pin the few variables they set themselves,
+    /// because the rest belong to the machine. This side asks about the whole
+    /// environment the test binary runs in, so a member that dropped, reordered
+    /// or rewrote an entry nobody named still fails here.
+    // covers: Core\Env::all
+    #[test]
+    fn all_is_the_whole_text_environment_in_name_order() {
+        let mut ctx = Ctx::buffered();
+        let reported = all(&mut ctx);
+
+        for pair in reported.windows(2) {
+            assert!(
+                pair[0].0.as_bytes() < pair[1].0.as_bytes(),
+                "{:?} is reported before {:?}",
+                pair[0].0,
+                pair[1].0
+            );
+        }
+        for (name, value) in &reported {
+            let platform = nvs_runtime::environment::var(name)
+                .unwrap_or_else(|| panic!("`all` reported {name:?}, which the platform does not"));
+            assert_eq!(platform.to_str(), Some(value.as_str()), "{name:?}");
+        }
+        for (name, value) in nvs_runtime::environment::vars() {
+            if let (Some(name), Some(_)) = (name.to_str(), value.to_str()) {
+                assert!(
+                    reported.iter().any(|(reported, _)| reported == name),
+                    "`all` left out {name:?}, whose name and value are both text"
+                );
+            }
+        }
+
+        assert_eq!(
+            all(&mut ctx),
+            reported,
+            "two calls in one run answer differently"
+        );
+    }
+
+    /// `get` agrees with `all` on every name `all` reports, and answers `null`
+    /// without refusing for the two kinds of name nothing can have set: one the
+    /// platform cannot hold at all, and one nobody exported.
+    ///
+    /// The three unholdable names are the door's own answer and not a throw,
+    /// because a throw is reserved for a value that is not text.
+    // covers: Core\Env::get
+    #[test]
+    fn get_agrees_with_all_and_answers_null_for_a_name_nothing_set() {
+        let mut ctx = Ctx::buffered();
+        let reported = all(&mut ctx);
+        let mut agreed = 0_usize;
+        for (name, value) in &reported {
+            assert_eq!(
+                get(&mut ctx, name).as_deref(),
+                Some(value.as_str()),
+                "{name:?}"
+            );
+            agreed += 1;
+        }
+        assert_eq!(agreed, reported.len());
+
+        for name in ["", "NVS=SPLIT", "NVS\0NUL", "NVS_ENV_A_NAME_NOBODY_EXPORTS"] {
+            assert_eq!(get(&mut ctx, name), None, "{name:?}");
+        }
+    }
+
+    /// `mode` answers `Production` until a configuration says otherwise, and
+    /// reads the configuration and never a variable.
+    ///
+    /// A context nobody configured, a configuration that names no mode and one
+    /// that misspells it all answer `Production`, the restrictive end. Only a
+    /// written `development` answers `Development`.
+    // covers: Core\Env::mode
+    #[test]
+    fn mode_is_production_until_the_configuration_says_development() {
+        let asked = |ctx: &mut Ctx| {
+            let answered = call(nvs_core_env_mode, ctx, &[]).expect("`mode` refuses nothing");
+            assert!(ctx.take_pending().is_none(), "`mode` left a refusal behind");
+            answered.as_int().expect("an enum answers as its ordinal")
+        };
+        let configured = |written: &str| {
+            let table: toml::Table = written.parse().expect("the fixture is valid TOML");
+            let config = toml::Value::Table(table.clone())
+                .try_into()
+                .expect("the fixture deserializes into the tree it is written for");
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(Arc::new(nvs_config::Snapshot {
+                config,
+                table,
+                ..nvs_config::Snapshot::default()
+            }));
+            ctx
+        };
+
+        assert_eq!(
+            asked(&mut Ctx::buffered()),
+            0,
+            "nobody configured this context"
+        );
+        assert_eq!(asked(&mut configured("")), 0, "the file names no mode");
+        assert_eq!(
+            asked(&mut configured("[mode]\ndefault = \"development\"\n")),
+            1
+        );
+        assert_eq!(
+            asked(&mut configured("[mode]\ndefault = \"production\"\n")),
+            0
+        );
+        assert_eq!(
+            mode_ordinal("staging"),
+            0,
+            "a misspelled mode loosens nothing"
+        );
     }
 }

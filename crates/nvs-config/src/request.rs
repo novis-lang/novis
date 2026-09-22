@@ -195,10 +195,13 @@ impl Request {
     /// key and knows nothing about the `[[app]]` block, so a request inside an application that
     /// selected its own mode (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) would be told the host's instead of its own. The order
     /// is the flip this request made (§ 4), then [`started`](Self::started).
+    ///
+    /// Borrowed wherever the answer is already text in the snapshot or the overlay, so asking
+    /// allocates nothing: `Core\Env::mode` returns an enum, and a program asks it per request.
     #[must_use]
-    pub fn mode(&self) -> String {
+    pub fn mode(&self) -> Cow<'_, str> {
         match self.overlay.get(mode::KEY) {
-            Some(flipped) => flipped.clone(),
+            Some(flipped) => Cow::Borrowed(flipped),
             None => self.started(),
         }
     }
@@ -208,13 +211,15 @@ impl Request {
     /// The `[[app]]` block's where one matched, since an application's mode is its own (`rule:config/a-mount-routes-and-an-app-block-sets-policy`
     /// ), then the global `mode.default`, then `production`, which is § 5's row for a host that
     /// wrote nothing at all.
-    fn started(&self) -> String {
+    fn started(&self) -> Cow<'_, str> {
         if let Some(app) = &self.base.mode {
-            return app.clone();
+            return Cow::Borrowed(app);
         }
-        value_at(&self.base.table, mode::KEY)
-            .and_then(as_text)
-            .unwrap_or_else(|| mode::PRODUCTION.to_string())
+        match value_at(&self.base.table, mode::KEY) {
+            Some(toml::Value::String(text)) => Cow::Borrowed(text),
+            Some(other) => as_text(other).map_or(Cow::Borrowed(mode::PRODUCTION), Cow::Owned),
+            None => Cow::Borrowed(mode::PRODUCTION),
+        }
     }
 
     /// `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling: `[mode] ceiling` where the tree states one, else the mode the host
@@ -229,7 +234,7 @@ impl Request {
         if let Some(stated) = value_at(&self.base.table, "mode.ceiling").and_then(as_text) {
             return stated;
         }
-        self.started()
+        self.started().into_owned()
     }
 
     /// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, asked of what this request would be left holding.

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how an error message depends on the mode. A developer sees the details.
+// A visitor on a real deployment sees a short message.
+
+class Orders {
+    // Returns the text to show when saving an order failed.
+    public static function failureText(RuntimeError $error): string {
+        if (Core\Env::mode() == Core\Env\Mode::Development) {
+            return "Saving the order failed: " . $error->message;
+        }
+        return "Sorry, we could not save your order. Please try again.";
+    }
+}
+
+try {
+    throw new RuntimeError("the table orders is locked");
+} catch (RuntimeError $error) {
+    // The mode is `Production` here, so this prints the short message.
+    echo Orders::failureText($error), "\n";
+}

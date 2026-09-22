@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to print which mode the program runs in.
+
+// `match` gives one text for each of the two modes.
+string $name = match (Core\Env::mode()) {
+    Core\Env\Mode::Production => "production",
+    Core\Env\Mode::Development => "development",
+};
+
+// Nothing is configured here, so the mode is `Production` and this prints `production`.
+echo "mode: ", $name, "\n";

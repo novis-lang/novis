@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a program tries to switch itself into development mode, where errors show
+// more details. Nothing here allows that, so the mode must stay `Production`.
+
+// 1. The program asks for development mode. The mode cannot go past its ceiling,
+// so the change is not allowed.
+echo 'development allowed: ', Core\Config::set('mode', 'development') ? 'yes' : 'no', "\n";
+
+// 2. The program asks for modes that do not exist, and for a name of one million
+// characters. None of them is a mode, so each change is not allowed.
+array<string> $names = ['staging', 'DEVELOPMENT', ' development', "development\0", Core\Str::repeat('d', 1000000)];
+foreach ($names as string $name) {
+    echo 'strange mode allowed: ', Core\Config::set('mode', $name) ? 'yes' : 'no', "\n";
+}
+
+// 3. The mode is read one million times. Every answer must be `Production`.
+uint $development = 0;
+uint $round = 0;
+while ($round < 1000000) {
+    if (Core\Env::mode() == Core\Env\Mode::Development) {
+        $development = $development + 1;
+    }
+    $round = $round + 1;
+}
+echo 'answers that said development: ', $development, "\n";
