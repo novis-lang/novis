@@ -2,31 +2,33 @@
 
 ## State
 
-Goal `core-env-and-4-more`, 3 of its 16 features taken. `Core\Env::all`, `get` and `mode` each carry
-`about.md`, three examples with blessed `.out` files, an attack, a bench and a Rust `// covers:` test
-(`crates/nvs-stdlib/src/env.rs`'s `mod tests`). What they still owe is the perf figure alone, which
-`python tools/dossier.py --record-perf` writes against a release build; the last goal recorded its
-members' figures in one commit at its end, and this one does the same.
+Goal `core-env-and-4-more`, 5 of its 16 features taken. `Core\Env::all`, `get` and `mode`, and
+`Core\Fatal::onLimit` and `onUncaughtThrow`, each carry `about.md`, three examples with blessed
+`.out` files, an attack, a bench declaring `allocations 0` and a Rust `// covers:` test. The only
+proof they still owe is the perf figure. `python tools/dossier.py --record-perf` writes it against a
+release build, and this goal records all of them in one commit at its end.
 
-The `mode` bench found one allocation per call: `nvs_config::Request::mode` answered a `String`. It
-now answers a `Cow<'_, str>` borrowed from the overlay or the snapshot, and the bench declares
-`allocations 0`, which pins it.
+The `onLimit` proofs found one bug, scheduled rather than fixed: a `cpu_time` narrowed by
+`Core\Config::set` is accepted and never enforced. It is goal `limit-handler-reach`'s new stage 3,
+with a check naming the case that will pin it. `owners.py --check` refuses a goal as a gap's owner
+and no open milestone's plan covers limits, so it is not a `# Known gaps` entry. No proof carries a
+marker for it, because the examples end on the memory limit, which is enforced.
 
 ## Next group
 
-**`Core\Fatal`'s two members** — one file set: `crates/nvs-stdlib/src/fatal.rs`, plus the three proof
-trees under `core/Fatal/`. Both register a handler that runs after the program has stopped, so an
-example has to end the program (a limit or an uncaught throw) to show anything, and the attack must
-say `// hostile: ends-early`. `rule:errors/on-limit` and `rule:errors/on-uncaught-throw` own them.
+**`Core\Hash`'s three static members** — one file set: `crates/nvs-stdlib/src/hash.rs`, plus the
+proof trees under `core/Hash/`. `rule:testing/feature-proofs` owns what each owes, and the examples
+should use a real digest the reader can check (`Core\Hash::of` over a known input). `equals` is
+the constant-time comparison, so its attack should time nothing and compare very long and
+empty inputs.
 
-- [ ] **`Core\Fatal::onLimit`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:47`
-- [ ] **`Core\Fatal::onUncaughtThrow`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/fatal.rs:59`
+- [ ] **`Core\Hash::of`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:305`
+- [ ] **`Core\Hash::hmac`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:314`
+- [ ] **`Core\Hash::equals`** — `rule:testing/feature-proofs`; examples, hostile, perf, tests. `crates/nvs-stdlib/src/hash.rs:327`
 
 ## Backlog
 
-- The perf figures for all 16 of this goal's members, recorded once at the goal's end with
-  `python tools/dossier.py --record-perf` — `benches/members/README.md`.
-- `Core\Env::get`'s throw on a value that is not UTF-8 is pinned by no test, because setting such a
-  variable needs `std::env::set_var` in a test binary that reads the environment on other threads —
-  `crates/nvs-stdlib/src/env.rs`'s module doc.
-- Then `Core\Hash` (`crates/nvs-stdlib/src/hash.rs:305`) and `Core\Heap` (`crates/nvs-stdlib/src/heap.rs:109`).
+- `Core\Hash::stream`, `Core\Hash\Stream::update` and `finish` — the group after this one, same file (`crates/nvs-stdlib/src/hash.rs:336`).
+- `Core\Heap`'s five members — the last group of this goal (`crates/nvs-stdlib/src/heap.rs:109`).
+- Every taken feature's perf figure — `python tools/dossier.py --record-perf` at the goal's end.
+- The runtime-narrowed `cpu_time` that is never enforced — goal `limit-handler-reach`, stage 3 (`docs/agent/goals/172-limit-handler-reach.md`).
