@@ -232,7 +232,7 @@ that requires an edited `B.nvs` is stale until touched, which reads as the serve
 graph is already in hand from the analysis that produced `A`'s diagnostics, so this is a reverse index
 rather than new work.
 
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0198](../decisions/0198.md), [0206](../decisions/0206.md).</sub>
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0198](../decisions/0198.md), [0207](../decisions/0207.md).</sub>
 
 <a id="ide-an-autoloaded-file-borrows-its-programs-map"></a>
 
@@ -268,7 +268,7 @@ Under `nvs.check.scope = open` only the open documents are surveyed, so a map is
 declares it, or the entry that requires it, is open too. `nvs check` never borrows: it is handed the file
 a program starts from, and a program has one map.
 
-<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0206](../decisions/0206.md).</sub>
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0207](../decisions/0207.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 

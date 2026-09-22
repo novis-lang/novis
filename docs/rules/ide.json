@@ -169,7 +169,7 @@
       "because": [
         "0099",
         "0198",
-        "0206"
+        "0207"
       ],
       "seeAlso": [
         "ide/the-server-is-synchronous",
@@ -186,7 +186,7 @@
       "status": "shipped",
       "because": [
         "0198",
-        "0206"
+        "0207"
       ],
       "seeAlso": [
         "ide/an-open-document-is-its-own-entry-point",
