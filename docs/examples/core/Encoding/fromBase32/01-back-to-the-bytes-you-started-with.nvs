@@ -1,0 +1,16 @@
+<?nvs
+// Shows the round trip: bytes go out as base32 text, and the same bytes come
+// back.
+
+bytes $key = Core\Encoding::fromHex("68656c6c6f");
+
+// `Core\Encoding::toBase32` writes the text. This prints NBSWY3DP.
+string $written = Core\Encoding::toBase32($key);
+echo $written, "\n";
+
+// `Core\Encoding::fromBase32` reads it back. This prints 68656c6c6f, the hex
+// we started with.
+echo Core\Encoding::toHex(Core\Encoding::fromBase32($written)), "\n";
+
+// The empty string gives an empty buffer. This prints 0.
+echo Core\Bytes::length(Core\Encoding::fromBase32("")), "\n";
