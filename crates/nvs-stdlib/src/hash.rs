@@ -655,40 +655,70 @@ fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8
 // The algorithms
 // ============================================================================
 
+/// One digest's octets, held inline: the widest of [`DIGEST`]'s fifteen is 64
+/// octets, so no digest or MAC needs the heap before the one [`NvsStr`] a
+/// member returns it in. That keeps `of` and `hmac` at one allocation per call.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Octets {
+    buf: [u8; 64],
+    len: usize,
+}
+
+impl Octets {
+    /// `octets`, copied in. Every caller hands over a digest of at most 64
+    /// octets, which the slice index enforces.
+    fn of(octets: &[u8]) -> Self {
+        let mut buf = [0_u8; 64];
+        buf[..octets.len()].copy_from_slice(octets);
+        Self {
+            buf,
+            len: octets.len(),
+        }
+    }
+}
+
+impl std::ops::Deref for Octets {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.buf[..self.len]
+    }
+}
+
 /// `data` under `kind`, as the digest's own octets.
 ///
 /// Total: there is no input any of these fifteen refuses, and none of them has
 /// a size limit short of the address space.
-fn digest_of(kind: DigestKind, data: &[u8]) -> Vec<u8> {
+fn digest_of(kind: DigestKind, data: &[u8]) -> Octets {
     match kind {
         // Big-endian, so that `toHex` of the result reads the way PHP's
         // `hash("crc32b", …)` prints it — see this module's own docs.
         DigestKind::Crc32 => {
             let mut hasher = crc32fast::Hasher::new();
             hasher.update(data);
-            hasher.finalize().to_be_bytes().to_vec()
+            Octets::of(&hasher.finalize().to_be_bytes())
         }
-        DigestKind::Md5 => md5::Md5::digest(data).to_vec(),
-        DigestKind::Sha1 => sha1::Sha1::digest(data).to_vec(),
-        DigestKind::Sha256 => sha2::Sha256::digest(data).to_vec(),
-        DigestKind::Sha384 => sha2::Sha384::digest(data).to_vec(),
-        DigestKind::Sha512 => sha2::Sha512::digest(data).to_vec(),
-        DigestKind::Sha224 => sha2::Sha224::digest(data).to_vec(),
-        DigestKind::Sha512_224 => sha2::Sha512_224::digest(data).to_vec(),
-        DigestKind::Sha512_256 => sha2::Sha512_256::digest(data).to_vec(),
-        DigestKind::Sha3_224 => sha3::Sha3_224::digest(data).to_vec(),
-        DigestKind::Sha3_256 => sha3::Sha3_256::digest(data).to_vec(),
-        DigestKind::Sha3_384 => sha3::Sha3_384::digest(data).to_vec(),
-        DigestKind::Sha3_512 => sha3::Sha3_512::digest(data).to_vec(),
+        DigestKind::Md5 => Octets::of(&md5::Md5::digest(data)),
+        DigestKind::Sha1 => Octets::of(&sha1::Sha1::digest(data)),
+        DigestKind::Sha256 => Octets::of(&sha2::Sha256::digest(data)),
+        DigestKind::Sha384 => Octets::of(&sha2::Sha384::digest(data)),
+        DigestKind::Sha512 => Octets::of(&sha2::Sha512::digest(data)),
+        DigestKind::Sha224 => Octets::of(&sha2::Sha224::digest(data)),
+        DigestKind::Sha512_224 => Octets::of(&sha2::Sha512_224::digest(data)),
+        DigestKind::Sha512_256 => Octets::of(&sha2::Sha512_256::digest(data)),
+        DigestKind::Sha3_224 => Octets::of(&sha3::Sha3_224::digest(data)),
+        DigestKind::Sha3_256 => Octets::of(&sha3::Sha3_256::digest(data)),
+        DigestKind::Sha3_384 => Octets::of(&sha3::Sha3_384::digest(data)),
+        DigestKind::Sha3_512 => Octets::of(&sha3::Sha3_512::digest(data)),
         // Big-endian for `Crc32`'s reason, and the same four octets wide, so
         // the two checksums differ in polynomial and in nothing else a program
         // can see.
-        DigestKind::Crc32c => crc32c::crc32c(data).to_be_bytes().to_vec(),
+        DigestKind::Crc32c => Octets::of(&crc32c::crc32c(data).to_be_bytes()),
         // Not through `digest 0.10`: BLAKE3 implements those traits only under
         // its `traits-preview` feature, and the free function is the whole API
         // this needs. Its extendable output is taken at the default 32 octets,
         // which is what every other implementation calls "the" BLAKE3 hash.
-        DigestKind::Blake3 => blake3::hash(data).as_bytes().to_vec(),
+        DigestKind::Blake3 => Octets::of(blake3::hash(data).as_bytes()),
     }
 }
 
@@ -700,7 +730,7 @@ fn digest_of(kind: DigestKind, data: &[u8]) -> Vec<u8> {
 /// braces on purpose: the type is the guarantee a *program* gets, and this is
 /// the guarantee the runtime keeps if a future caller reaches the helper by
 /// another route.
-fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
     use hmac::Mac as _;
 
     /// One algorithm's HMAC, written once. A macro rather than a generic
@@ -718,7 +748,7 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
             let mut mac = <hmac::Hmac<$digest>>::new_from_slice(key)
                 .expect("HMAC accepts a key of any length (RFC 2104 § 2)");
             mac.update(data);
-            mac.finalize().into_bytes().to_vec()
+            Octets::of(&mac.finalize().into_bytes())
         }};
     }
 
@@ -999,6 +1029,7 @@ mod tests {
     /// Each algorithm against a published vector for it, in hex — the check
     /// that dispatch reaches what its case names, which no `.nvst` case can
     /// make for all fifteen without pinning the same constants twice.
+    // covers: Core\Hash::of
     #[test]
     fn every_digest_matches_its_published_vector() {
         fn hex(octets: &[u8]) -> String {
@@ -1090,11 +1121,12 @@ mod tests {
     /// other six are the same message and key through PHP 8.5's `hash_hmac`,
     /// which reproduces all four of the RFC's own on this machine and is
     /// therefore an oracle for the six it extends to.
+    // covers: Core\Hash::hmac
     #[test]
     fn hmac_matches_rfc_4231_and_refuses_a_weak_digest() {
         let (key, data) = (&b"Jefe"[..], &b"what do ya want for nothing?"[..]);
         let hex =
-            |octets: Vec<u8>| -> String { octets.iter().map(|b| format!("{b:02x}")).collect() };
+            |octets: Octets| -> String { octets.iter().map(|b| format!("{b:02x}")).collect() };
 
         assert_eq!(
             hex(hmac_of(DigestKind::Sha256, key, data).unwrap()),
@@ -1181,13 +1213,49 @@ mod tests {
         }
     }
 
-    /// A length mismatch is `false` rather than a panic or a partial compare —
-    /// see [`nvs_core_hash_equals`] for why the lengths are not hidden.
+    /// The member answers by content and length: a length mismatch is `false`
+    /// rather than a panic or a partial compare — see [`nvs_core_hash_equals`]
+    /// for why the lengths are not hidden — and a difference in the last octet
+    /// counts as much as one in the first.
+    // covers: Core\Hash::equals
     #[test]
     fn equality_is_by_content_and_length() {
-        assert!(bool::from(b"abc".ct_eq(b"abc")));
-        assert!(!bool::from(b"abc"[..].ct_eq(&b"abd"[..])));
-        assert!(!bool::from(b"abc"[..].ct_eq(&b"ab"[..])));
-        assert!(bool::from(b""[..].ct_eq(&b""[..])));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let long = [0x5a_u8; 4096];
+        let mut last_differs = long;
+        last_differs[4095] = 0x5b;
+        let table: [(&[u8], &[u8], bool); 7] = [
+            (b"abc", b"abc", true),
+            (b"abc", b"abd", false),
+            (b"abc", b"ab", false),
+            (b"", b"", true),
+            (b"", b"\x00", false),
+            (&long, &long, true),
+            (&long, &last_differs, false),
+        ];
+
+        let mut agreed = 0_usize;
+        for (left, right, want) in table {
+            let args = [
+                Value::bytes(NvsStr::new(left)),
+                Value::bytes(NvsStr::new(right)),
+            ];
+            let answer = nvs_runtime::call(nvs_core_hash_equals, &mut ctx, &args)
+                .expect("`equals` is total over two `bytes`")
+                .as_bool();
+            assert_eq!(answer, Some(want), "{left:?} against {right:?}");
+            agreed += 1;
+            for value in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this test owns the one reference it built for each \
+                              operand, and `equals` borrowed rather than consumed it"
+                )]
+                unsafe {
+                    value.release();
+                }
+            }
+        }
+        assert_eq!(agreed, table.len());
     }
 }

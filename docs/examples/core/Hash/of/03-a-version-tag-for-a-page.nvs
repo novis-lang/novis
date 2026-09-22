@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to make a version tag for a page, so a browser can tell when the page has changed.
+
+class PageVersion {
+    // Returns the first 16 hex digits of the page's SHA-256 digest.
+    public static function of(string $body): string {
+        string $hex = Core\Encoding::toHex(Core\Hash::of($body, Core\Digest::Sha256));
+        return Core\Str::slice($hex, 0, 16);
+    }
+}
+
+string $before = PageVersion::of("<h1>Price: 20 EUR</h1>");
+string $same = PageVersion::of("<h1>Price: 20 EUR</h1>");
+string $after = PageVersion::of("<h1>Price: 25 EUR</h1>");
+
+// The same page always gets the same tag. This prints `true`.
+echo $before == $same ? "true" : "false", "\n";
+// A changed page gets a new tag, so the browser loads it again. This prints `true`.
+echo $before != $after ? "true" : "false", "\n";
+echo $before, "\n", $after, "\n";

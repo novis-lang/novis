@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to compute the SHA-256 digest of a short text.
+
+// `Core\Hash::of` returns 32 bytes. `Core\Encoding::toHex` turns them into 64 hex digits.
+bytes $digest = Core\Hash::of("hello", Core\Digest::Sha256);
+// This prints 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.
+echo Core\Encoding::toHex($digest), "\n";
+
+// One changed letter gives a completely different digest.
+echo Core\Encoding::toHex(Core\Hash::of("hellO", Core\Digest::Sha256)), "\n";
