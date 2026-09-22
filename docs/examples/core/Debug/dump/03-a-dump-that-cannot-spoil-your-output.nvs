@@ -1,0 +1,15 @@
+<?nvs
+// Shows why a `Core\Debug::dump` is safe to leave in a program whose output
+// another program reads. The dump goes to standard error. Standard output
+// stays valid JSON.
+
+array<string> $report = [
+    "status" => "ok",
+    "region" => "eu-central",
+];
+
+// This line goes to standard error only. A command such as
+// `nvs run report.nvs | jq` still works, because the JSON below is untouched.
+Core\Debug::dump($report);
+
+echo Core\Json::encode($report), "\n";

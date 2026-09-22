@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program tries to drown the channel a dump writes to. It spreads
+// two hundred thousand values into one call. It dumps values far too big to
+// print, then dumps a hundred thousand times in a row. The runtime should
+// still be standing at the end.
+// hostile: timeout-ms 60000
+
+// Step 1: one call with two hundred thousand arguments. A dump that held its
+// arguments on the stack would come apart here.
+array<int> $many = [];
+int $n = 0;
+while ($n < 200000) {
+    $many[] = $n;
+    $n = $n + 1;
+}
+Core\Debug::dump(...$many);
+echo 'step 1: ', Core\Arr::count($many), " values in one call\n";
+
+// Step 2: one array of a million elements as a single value. The rendering
+// must cut it short instead of writing a line per element.
+array<int> $wide = [];
+int $built = 0;
+while ($built < 1000000) {
+    $wide[] = $built;
+    $built = $built + 1;
+}
+Core\Debug::dump($wide);
+echo 'step 2: ', Core\Arr::count($wide), " elements in one value\n";
+
+// Step 3: a string of twenty million bytes, with a tab and a null byte in it.
+string $long = Core\Str::repeat("a\tb\x00c", 4000000);
+Core\Debug::dump($long);
+echo 'step 3: ', Core\Str::length($long), " bytes in one value\n";
+
+// Step 4: a hundred thousand dumps in a row, each of a value built from the
+// one before it.
+int $round = 0;
+int $carried = 1;
+while ($round < 100000) {
+    Core\Debug::dump($round, $carried, 'flood');
+    $carried = $carried + $round;
+    $round = $round + 1;
+}
+echo 'step 4: ', $round, " dumps in a row\n";
+
+echo "the runtime is still standing\n";

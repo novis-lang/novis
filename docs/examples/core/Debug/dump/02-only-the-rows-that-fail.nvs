@@ -1,0 +1,27 @@
+<?nvs
+// Shows a `Core\Debug::dump` inside a loop. It writes only the rows that fail
+// a check, so you see the bad data without printing all of it.
+
+// Three rows from a file the program is importing. The second one has no
+// email address.
+array<array<string>> $rows = [
+    ["Ada Lovelace", "ada@example.com"],
+    ["Grace Hopper", ""],
+    ["Alan Turing", "alan@example.com"],
+];
+
+int $line = 0;
+int $imported = 0;
+
+foreach ($rows as array<string> $row) {
+    $line = $line + 1;
+    if (Core\Str::length($row[1]) == 0) {
+        // One call takes several values. The line number and the row are
+        // written to standard error together.
+        Core\Debug::dump($line, $row);
+        continue;
+    }
+    $imported = $imported + 1;
+}
+
+echo "imported ", $imported, " of ", Core\Arr::count($rows), "\n";

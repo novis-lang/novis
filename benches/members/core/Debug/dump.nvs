@@ -1,0 +1,21 @@
+<?nvs
+// Measures one `Core\Debug::dump` of a small value, which is what a program
+// writes while somebody is looking for a fault in it.
+// bench: iterations 50000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value dumped is the one the round before it made.
+            Core\Debug::dump($total);
+            $total = $total + ($i % 7) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
