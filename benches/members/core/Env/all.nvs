@@ -1,0 +1,21 @@
+<?nvs
+// Measures reading every environment variable into one array. A program does this when it
+// starts and collects its settings.
+// bench: iterations 5000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the size of the array it read, so no round can be left out.
+            $total = $total + Core\Arr::count(Core\Env::all());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// The number of variables is different on each computer, so this prints only whether any were read.
+echo Bench::run(5000) > 0 ? "read\n" : "empty\n";

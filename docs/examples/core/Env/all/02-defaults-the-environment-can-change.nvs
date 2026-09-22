@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to start from default settings and let the environment change some of them.
+
+array<tainted string> $settings = [
+    "SHOP_PORT" => "8080",
+    "SHOP_LANGUAGE" => "en",
+];
+
+// Every variable whose name starts with `SHOP_` replaces the default of the same name.
+foreach (Core\Env::all() as string $name => tainted string $value) {
+    if (Core\Str::startsWith($name, "SHOP_")) {
+        $settings[$name] = $value;
+    }
+}
+
+// No variable on this computer starts with `SHOP_`, so this prints the defaults.
+foreach ($settings as string $name => tainted string $value) {
+    echo $name, " = ", $value, "\n";
+}

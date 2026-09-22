@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `Core\Env::all` returns the variables sorted by name.
+
+var $all = Core\Env::all();
+
+// This loop compares each name with the one before it.
+// `Core\Str::compare` gives a number above 0 when the first name sorts after the second.
+string $previous = "";
+int $outOfOrder = 0;
+foreach ($all as string $name => tainted string $value) {
+    if (Core\Str::compare($previous, $name) > 0) {
+        $outOfOrder = $outOfOrder + 1;
+    }
+    $previous = $name;
+}
+
+// The array is sorted, so this prints `0`.
+echo "names out of order: ", $outOfOrder, "\n";

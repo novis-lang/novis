@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program tries to change the environment through the array it was given.
+// Then it keeps one copy of the environment per round until nothing is left. The
+// environment must not change. The program must stop at its memory limit with an error.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '32M');
+
+// 1. Every value in the array is replaced with a text of one million characters.
+// The array is a copy, so a second call must return the old values.
+string $huge = Core\Str::repeat('x', 1000000);
+var $all = Core\Env::all();
+foreach ($all as string $name => tainted string $value) {
+    $all[$name] = $huge;
+}
+int $changed = 0;
+foreach (Core\Env::all() as string $name => tainted string $value) {
+    if ($value == $huge) {
+        $changed = $changed + 1;
+    }
+}
+echo 'values changed in the environment: ', $changed, "\n";
+
+// 2. The array is emptied and a new key is added. `Core\Env::get` must not see the key.
+$all = [];
+$all['NVS_HOSTILE_ADDED'] = $huge;
+echo 'added key visible: ', Core\Env::get('NVS_HOSTILE_ADDED') == null ? 'no' : 'yes', "\n";
+
+// 3. The environment is read ten thousand times and each copy is freed.
+// Memory use must stay flat.
+uint $entries = 0;
+uint $round = 0;
+while ($round < 10000) {
+    $entries = $entries + Core\Arr::count(Core\Env::all());
+    $round = $round + 1;
+}
+echo 'rounds done: ', $round, "\n";
+
+// 4. Every copy of the environment is kept, so nothing can be freed. This step ends
+// the program at its memory limit.
+array<array<tainted string>> $kept = [];
+while (true) {
+    $kept[] = Core\Env::all();
+}
