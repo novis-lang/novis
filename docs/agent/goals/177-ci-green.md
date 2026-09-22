@@ -2,7 +2,7 @@
 milestone: post-parity
 position: last
 ---
-# Loop goal 176 — CI is green on `main`, for the commit the run stands on
+# Loop goal 177 — CI is green on `main`, for the commit the run stands on
 
 M0's acceptance is "green on all three platforms in CI", and the closure goals added the extension,
 database-matrix and ThreadSanitizer legs. Once this goal is green, the latest `ci.yml` run on `main`

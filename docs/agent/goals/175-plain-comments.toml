@@ -1,7 +1,7 @@
-# Goal 174 -- every landed comment reads plainly
+# Goal 175 -- every landed comment reads plainly
 # The acceptance test, as data.
 #
-# `174-plain-comments.md` is the prose. One home each.
+# `175-plain-comments.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 

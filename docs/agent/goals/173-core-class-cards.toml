@@ -1,0 +1,110 @@
+# Goal 173 -- every Core class carries its card
+# The acceptance test, as data.
+#
+# `173-core-class-cards.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No fixture of this goal's own: what it proves is a registry list being empty, and the floor's
+  # own `exact` checks carry the fixtures. goal-switch.py unions the previous goal's list into
+  # this one.
+]
+
+[context]
+
+modules = [
+  # The field, the card type and the list this goal drains -- `CoreClass::doc`, `ClassDoc`,
+  # `CLASSES_STILL_OWING_A_CARD` and the test that holds them together.
+  "crates/nvs-stdlib/src/registry.rs",
+  # What prints the list without a build, and is this goal's own acceptance check.
+  "tools/class-cards.py",
+  # The reader: what a completion list shows for a class once its card exists.
+  "crates/nvs-lsp/src/card.rs",
+  # A worked example of a class with member cards, small enough to read whole -- the card const
+  # goes directly above its `CLASS` row, in the same shape.
+  "crates/nvs-stdlib/src/json.rs",
+]
+
+# The card rule the class card is one more line of, and the voice every card is written in.
+rules = ["core-api/reference-card", "ide/a-completion-row-reads-as-a-declaration"]
+
+adrs = []
+
+shapes = ["A commit message", "A `Core` member — the five edits"]
+
+milestones = []
+
+playbook = [
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > another agent',
+  'Writing a test case > a -p*',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `173-core-class-cards.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "..."` labels, which may group several prose stages under one
+# acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record that put the field, the list and the reader in place.
+rules = []
+adrs = ["0203"]
+
+# The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
+# appended behind: a generated goal runs that goal's whole acceptance list as its
+# floor, so it needs the same containers and the same WSL target. Regenerated,
+# never hand-edited.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carried in from the goal ahead of this one drives a database and a cache, so the
+# daemon this table names is preflighted before this goal's first session.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the cards. Goal prose stage 2.
+#
+# Two checks: the registry test holds the list and the cards together every session, and the
+# script says whether the list is empty, which is the goal.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the cards"
+name = "every registry row, class included, carries its card, and no carded class is still listed as owing one"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_registry_row_carries_a_reference_card",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the cards"
+name = "no Core class still owes a card"
+argv = ["python", "tools/class-cards.py", "--check"]
+want = ["every Core class carries its card"]

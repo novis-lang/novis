@@ -216,19 +216,25 @@ def apply_renumber(chain, mapping, dry_run):
 
     # The rename goes through a temporary name because the map is a permutation: 21 -> 7 and 7 -> 9
     # both want the same directory, and either order overwrites one of them going straight across.
+    # A goal's files sit in its own folder -- `goals/` for a hand-written one, `goals/dossier/`
+    # for one the emitter wrote -- and a rename keeps each where it is: the folder is what says
+    # who edits the goal (`generated`), and the number is the only thing moving.
     pairs = []
     for old, new in moves.items():
         g = by_num[old]
+        folder = rel(g.folder)
         for suffix in (".md", ".toml", ".handoff.md"):
-            if (GOALS / f"{g.stem}{suffix}").is_file():
-                pairs.append((f"{g.stem}{suffix}", f"{new}-{g.slug}{suffix}"))
-    for src, dst in pairs:
-        git("mv", f"docs/agent/goals/{src}", f"docs/agent/goals/__renumber__{dst}")
-    for _, dst in pairs:
-        git("mv", f"docs/agent/goals/__renumber__{dst}", f"docs/agent/goals/{dst}")
+            if (g.folder / f"{g.stem}{suffix}").is_file():
+                pairs.append((f"{folder}/{g.stem}{suffix}",
+                              f"{folder}/__renumber__{new}-{g.slug}{suffix}",
+                              f"{folder}/{new}-{g.slug}{suffix}"))
+    for src, via, _ in pairs:
+        git("mv", src, via)
+    for _, via, dst in pairs:
+        git("mv", via, dst)
 
     for old, new in moves.items():
-        rewrite_headers(goalsmod.Goal(new, by_num[old].slug), new)
+        rewrite_headers(goalsmod.Goal(new, by_num[old].slug, by_num[old].folder), new)
 
     rewritten = []
     # The live copies are copies of the live goal and hold the same link targets, so they are
