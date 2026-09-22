@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to find the three cheapest offers in a list of shipping offers.
+
+class Offer {
+    public string $carrier;
+    public int $cents;
+
+    public function constructor(string $carrier, int $cents) {
+        $this->carrier = $carrier;
+        $this->cents = $cents;
+    }
+}
+
+// The comparator puts the lower price first.
+var $offers = new Core\Heap<Offer>(fn (Offer $a, Offer $b): int => $a->cents - $b->cents);
+$offers->push(new Offer("Express", 1490));
+$offers->push(new Offer("Standard", 590));
+$offers->push(new Offer("Economy", 390));
+$offers->push(new Offer("Same day", 2990));
+$offers->push(new Offer("Pickup point", 450));
+
+// Each `pop` takes the cheapest offer that is left. This prints Economy, Pickup point and Standard.
+int $shown = 0;
+while ($shown < 3) {
+    var $offer = $offers->pop();
+    echo $offer->carrier, ": ", $offer->cents, " cents\n";
+    $shown = $shown + 1;
+}

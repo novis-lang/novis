@@ -1,0 +1,29 @@
+<?nvs
+// Measures taking the smallest number from a heap of 1000 numbers and adding it back with a later time.
+// A scheduler does this with a job that repeats, so each round is one `pop` and one `push`.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Heap<int> $heap = new Core\Heap<int>();
+        int $n = 0;
+        while ($n < 1000) {
+            $heap->push(($n * 7919) % 1000);
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The job that is due next is taken out and planned again for a later time.
+            int $due = $heap->pop();
+            $heap->push($due + 1000);
+            $total = $total + ($due % 7) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

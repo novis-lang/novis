@@ -1,0 +1,114 @@
+<?nvs
+// Attack: a comparator takes values out of the same heap while `pop` reorders it.
+// Other steps call `pop` on an empty heap and empty a very large heap.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    public static ?Core\Heap<int> $heap = null;
+    public static uint $calls = 0;
+
+    // Takes a value out of the heap it is ordering, the first 5 times it is called.
+    public static function shrinks(int $a, int $b): int
+    {
+        Attack::$calls = Attack::$calls + 1;
+        var $heap = Attack::$heap;
+        if ($heap != null) {
+            if (Attack::$calls < 5 && !$heap->isEmpty()) {
+                $heap->pop();
+            }
+        }
+        return $a - $b;
+    }
+
+    // Throws on its tenth call.
+    public static function refuses(string $a, string $b): int
+    {
+        Attack::$calls = Attack::$calls + 1;
+        if (Attack::$calls == 10) {
+            throw new LogicError('no');
+        }
+        return Core\Str::compare($a, $b);
+    }
+}
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. `pop` on an empty heap, 10000 times. Each call throws a `RuntimeError`, and each is caught.
+var $empty = new Core\Heap<int>();
+uint $caught = 0;
+int $i = 0;
+while ($i < 10000) {
+    try {
+        $empty->pop();
+    } catch (RuntimeError $nothing) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 1: ', $caught, ' errors caught', "\n";
+
+// 2. While `pop` reorders the heap, the comparator takes more values out. The heap
+// must not be left with a gap that a later `pop` reads.
+Attack::$calls = 100;
+var $reentrant = new Core\Heap<int>(Attack::shrinks(...));
+array<int> $mixed = [8, 3, 9, 1, 7, 2, 6, 4, 5, 10, 11, 12];
+foreach ($mixed as int $n) {
+    $reentrant->push($n);
+}
+Attack::$heap = $reentrant;
+Attack::$calls = 0;
+try {
+    while (!$reentrant->isEmpty()) {
+        $reentrant->pop();
+    }
+    echo 'step 2: emptied', "\n";
+} catch (Throwable $stopped) {
+    echo 'step 2: threw', "\n";
+}
+Attack::$heap = null;
+
+// 3. The comparator throws while `pop` reorders a heap of texts. The error is caught,
+// the text `pop` had already taken is freed, and the rest can still be emptied.
+Attack::$calls = 100;
+var $refusing = new Core\Heap<string>(Attack::refuses(...));
+foreach ($mixed as int $n) {
+    $refusing->push(Core\Str::repeat('z', ($n * 1000) as uint));
+}
+Attack::$calls = 0;
+try {
+    while (!$refusing->isEmpty()) {
+        $refusing->pop();
+    }
+} catch (LogicError $refused) {
+    echo 'step 3: threw with ', $refusing->count(), ' values left', "\n";
+}
+Attack::$calls = 100;
+while (!$refusing->isEmpty()) {
+    $refusing->pop();
+}
+
+// 4. 100000 long texts go in and all come out again. Each text is freed as it comes out.
+var $texts = new Core\Heap<string>();
+$i = 0;
+while ($i < 100000) {
+    $texts->push(Core\Str::format('%08d', ($i * 7919) % 100000) . Core\Str::repeat('y', 200));
+    $i = $i + 1;
+}
+while (!$texts->isEmpty()) {
+    $texts->pop();
+}
+echo 'step 4: emptied', "\n";
+
+// 5. Each round adds two texts and takes one out, and keeps it. This step ends the
+// program at its memory limit.
+var $growing = new Core\Heap<string>();
+array<string> $kept = [];
+while (true) {
+    $growing->push(Core\Str::repeat('a', 500));
+    $growing->push(Core\Str::repeat('b', 500));
+    $kept[] = $growing->pop();
+}
