@@ -1,0 +1,24 @@
+<?nvs
+// Measures registering an error function. A program does this once at its start,
+// and a framework may do it again for each part of the work.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $first = fn (Throwable $e): void => { echo "first\n"; };
+        var $second = fn (Throwable $e): void => { echo "second\n"; };
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round registers the other function, so no round can be left out.
+            Core\Fatal::onUncaughtThrow($total % 2 == 0 ? $first : $second);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

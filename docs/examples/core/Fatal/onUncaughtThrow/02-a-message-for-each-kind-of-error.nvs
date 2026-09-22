@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to give each kind of error its own message.
+// dossier: exit 1
+
+class NotFound extends RuntimeError {}
+
+// `is` checks the class of the error. `NotFound` gets a short message.
+// Every other error prints its own message.
+Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    if ($e is NotFound) {
+        echo "not found: ", $e->message, "\n";
+    } else {
+        echo "unexpected error: ", $e->message, "\n";
+    }
+});
+
+class Users {
+    public static function find(int $id): string {
+        if ($id != 1) {
+            throw new NotFound("user " . $id);
+        }
+        return "ada";
+    }
+}
+
+echo Users::find(1), "\n";
+
+// There is no user 42, so this prints `not found: user 42`.
+echo Users::find(42), "\n";

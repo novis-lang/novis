@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a command line tool can show a short message to its users
+// and the full details only to a developer.
+// dossier: exit 1
+
+Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    if (Core\Env::mode() == Core\Env\Mode::Development) {
+        echo "error: ", $e->message, "\n";
+    } else {
+        echo "Sorry, the invoice could not be created. Please contact support.\n";
+    }
+});
+
+class Invoices {
+    public static function create(string $customer, int $cents): string {
+        if ($cents <= 0) {
+            throw new LogicError("an invoice for " . $customer . " needs a positive amount");
+        }
+        return "invoice for " . $customer . ": " . $cents . " cents";
+    }
+}
+
+echo Invoices::create("Shop Ltd", 12900), "\n";
+
+// This amount is not positive, so the error ends the program.
+// The mode is `Production` here, so the short message is printed.
+echo Invoices::create("Shop Ltd", 0), "\n";

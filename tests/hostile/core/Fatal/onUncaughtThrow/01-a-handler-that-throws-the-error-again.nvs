@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program registers 100,000 error functions, and the last one registers
+// another one and throws the error it was given again. Only one function may run,
+// once, and the program must end with the first error.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// 1. Each function has its own 1 KB string. A new registration replaces the old
+// one and must free it.
+int $round = 0;
+while ($round < 100000) {
+    string $note = Core\Str::repeat('n', 1024);
+    Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+        echo 'step 1: a replaced function ran: ', Core\Str::length($note), "\n";
+    });
+    $round = $round + 1;
+}
+echo "step 1: registered 100,000 functions\n";
+
+// 2. The last function registers a new one and throws the same error again.
+// The new one must not run, and the program must not start over.
+Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    echo 'step 2: the function ran for: ', Core\Str::length($e->message), " characters\n";
+    Core\Fatal::onUncaughtThrow(fn (Throwable $again): void => {
+        echo "step 2: a second function ran\n";
+    });
+    throw $e;
+});
+
+class Nest
+{
+    public static function to(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new RuntimeError(Core\Str::repeat('x', 100000));
+        }
+        Nest::to($depth - 1);
+    }
+}
+
+// 3. Nothing catches this error. It is thrown 300 calls deep, and it ends the program.
+Nest::to(300);

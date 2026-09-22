@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to print the message of an error that nothing caught.
+// dossier: exit 1
+
+// This function gets the error object. `$e->message` is the text the error was created with.
+Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    echo "the program stopped: ", $e->message, "\n";
+});
+
+echo "reading settings\n";
+
+// Nothing catches this error, so the function above runs and the program ends.
+throw new RuntimeError("the file settings.json is missing");
