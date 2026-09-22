@@ -1,12 +1,15 @@
-//! A file a program autoloads is analysed through that program's `autoload` map.
+//! A file a program autoloads or requires is analysed through that program's
+//! `autoload` map.
 //!
 //! `rule:ide/an-open-document-is-its-own-entry-point` makes the open document
 //! the entry of its own walk, and `rule:programs/autoload` forbids an
 //! autoloaded file an `autoload` of its own. Put together, a class file opened
-//! in an editor has no map to resolve `use Framework\Kernel;` through, and what
-//! these cases hold is that it borrows the one its program declares: which
-//! program that is, that the borrowed half never reports anything, and that an
-//! edit to the declaring file reaches the documents that borrowed from it.
+//! in an editor has no map to resolve `use Framework\Kernel;` through, and
+//! neither has a test file its program requires by hand. What these cases hold
+//! is that each borrows the one its program declares: which program that is,
+//! that the borrowed half never reports anything, and that an edit to the
+//! declaring file, or a `require` written into a required one, reaches the
+//! documents that borrow from it.
 //!
 //! The fixtures are on disk, on `tests/index.rs`'s terms: a root is a directory
 //! and a survey walks one. The framework sits *outside* the workspace root on
@@ -72,12 +75,25 @@ const INDEX: &str = "<?nvs\nnamespace Blog;\n\nuse Framework\\Kernel;\n\nclass I
 const KERNEL: &str = "<?nvs\nnamespace Framework;\n\nclass Kernel {\n    \
                       public function constructor() {}\n}\n";
 
+/// The test program's entry point: it requires each test file by hand and
+/// then the bootstrap file, and declares nothing itself.
+const TESTS: &str = "<?nvs\nrequire 'ApplicationTest.nvs';\nrequire '../public/index.nvs';\n";
+
+/// A test file the program requires. It lies under no root, so nothing
+/// autoloads it, and it names classes both roots hold.
+const APPLICATION_TEST: &str = "<?nvs\nuse Blog\\Index;\nuse Framework\\Kernel;\n\n\
+                                final class ApplicationTest {\n    \
+                                public function run(): void {\n        new Index();\n        \
+                                new Kernel();\n    }\n}\n";
+
 /// The application as a developer has it on disk, and the workspace root an
 /// editor would name for it.
 fn application(name: &str) -> (TempDir, PathBuf) {
     let dir = TempDir::new(name);
     dir.write("app/public/index.nvs", BOOT);
     dir.write("app/src/Index.nvs", INDEX);
+    dir.write("app/tests/index.nvs", TESTS);
+    dir.write("app/tests/ApplicationTest.nvs", APPLICATION_TEST);
     dir.write("Framework/src/Kernel.nvs", KERNEL);
     let root = dir.at("app");
     (dir, root)
@@ -254,4 +270,63 @@ fn the_first_program_in_path_order_is_the_one_that_lends() {
     let read = tails(&analysed);
     assert!(read.contains(&"lib-a/Thing.nvs".to_owned()), "{read:?}");
     assert!(!read.contains(&"lib-b/Thing.nvs".to_owned()), "{read:?}");
+}
+
+/// A file a program requires borrows the map that program's chain declares,
+/// though no root claims it and the entry that requires it declares nothing:
+/// the test file resolves both roots' classes, and the entry itself, a lender,
+/// borrows from nobody.
+#[test]
+fn a_required_file_borrows_the_map_of_the_program_that_requires_it() {
+    let (dir, root) = application("required");
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    dir.open(
+        &mut documents,
+        "app/tests/ApplicationTest.nvs",
+        APPLICATION_TEST,
+    );
+    dir.open(&mut documents, "app/tests/index.nvs", TESTS);
+
+    let test = analyse(&documents, &dir.uri("app/tests/ApplicationTest.nvs")).expect("it is open");
+    assert_eq!(codes(&test), Vec::<&str>::new());
+    let read = tails(&test);
+    assert!(read.contains(&"src/Kernel.nvs".to_owned()), "{read:?}");
+    assert!(read.contains(&"src/Index.nvs".to_owned()), "{read:?}");
+    assert!(read.contains(&"public/index.nvs".to_owned()), "{read:?}");
+
+    let entry = analyse(&documents, &dir.uri("app/tests/index.nvs")).expect("it is open");
+    assert_eq!(codes(&entry), Vec::<&str>::new());
+    assert!(entry.lent.is_empty());
+}
+
+/// A `require` written into a required file reaches the file it names: the
+/// lender's walk is repeated, and the new file borrows the map at its next
+/// analysis.
+#[test]
+fn a_require_added_to_a_required_file_lends_the_map_onward() {
+    let (dir, root) = application("require-added");
+    let helper = "<?nvs\nuse Blog\\Index;\n\nfinal class Helper {\n    \
+                  public function make(): Index {\n        return new Index();\n    }\n}\n";
+    dir.write("app/tests/Helper.nvs", helper);
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    dir.open(&mut documents, "app/tests/Helper.nvs", helper);
+    dir.open(
+        &mut documents,
+        "app/tests/ApplicationTest.nvs",
+        APPLICATION_TEST,
+    );
+
+    let uri = dir.uri("app/tests/Helper.nvs");
+    let alone = analyse(&documents, &uri).expect("it is open");
+    assert!(codes(&alone).contains(&"E0306"), "{:?}", codes(&alone));
+
+    let edited = format!("<?nvs\nrequire 'Helper.nvs';\n{}", &APPLICATION_TEST[6..]);
+    let test = dir.at("app/tests/ApplicationTest.nvs");
+    assert!(documents.change(&dir.uri("app/tests/ApplicationTest.nvs"), 2, edited));
+    documents.resurvey(&test);
+
+    let lent = analyse(&documents, &uri).expect("it is open");
+    assert_eq!(codes(&lent), Vec::<&str>::new());
 }

@@ -168,7 +168,8 @@
       "status": "designed",
       "because": [
         "0099",
-        "0198"
+        "0198",
+        "0206"
       ],
       "seeAlso": [
         "ide/the-server-is-synchronous",
@@ -181,10 +182,11 @@
     },
     {
       "id": "ide/an-autoloaded-file-borrows-its-programs-map",
-      "title": "A file a program autoloads is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
+      "title": "A file a program autoloads or requires is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
       "status": "shipped",
       "because": [
-        "0198"
+        "0198",
+        "0206"
       ],
       "seeAlso": [
         "ide/an-open-document-is-its-own-entry-point",

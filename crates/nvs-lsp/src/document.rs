@@ -15,9 +15,10 @@
 //! read is. This module decides *what* is overlaid, and [`analyse`] is the one
 //! place a graph is walked with the buffers in front of it.
 //!
-//! **A file a program autoloads borrows that program's `autoload` map**
-//! (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). It may not declare
-//! one, so as its own entry point it would resolve none of the names its
+//! **A file a program autoloads or requires borrows that program's `autoload`
+//! map** (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). An
+//! autoloaded file may not declare one, and a required file usually does not,
+//! so as its own entry point either would resolve none of the names its
 //! program resolves. [`Documents::survey`] finds the programs that declare one,
 //! [`Documents::resurvey`] keeps that current, and [`analyse_file`] is the one
 //! place a map is lent.
@@ -112,12 +113,13 @@ pub struct Documents {
     lenders: Vec<Lender>,
 }
 
-/// One program that declares `autoload`, as the files it autoloads borrow it.
+/// One program that declares `autoload`, as the files it autoloads or requires
+/// borrow it.
 ///
 /// `rule:ide/an-open-document-is-its-own-entry-point` is why this exists: a
-/// file a program autoloads is analysed as an entry point, may not write an
-/// `autoload` itself, and so has no map unless it is lent the one that reaches
-/// it.
+/// file a program autoloads or requires is analysed as an entry point, does not
+/// write an `autoload` itself, and so has no map unless it is lent the one
+/// that reaches it.
 #[derive(Debug)]
 struct Lender {
     /// The file the walk started from, under `canonical_key`.
@@ -125,6 +127,10 @@ struct Lender {
     /// Every file of its `require` chain that wrote a declaration, under
     /// `canonical_key` — the files whose edit makes this lender stale.
     declaring: Vec<PathBuf>,
+    /// Every other file its `require` chain read, under `canonical_key` —
+    /// the files that borrow this map without lying under a root, and whose
+    /// edit makes this lender stale when the edited text holds `require`.
+    reads: Vec<PathBuf>,
     /// The map those declarations built, which says what the program claims
     /// and carries the sites it lends.
     map: AutoloadMap,
@@ -133,22 +139,25 @@ struct Lender {
 /// `path` as a [`Lender`], or `None` for a file whose program declares no
 /// `autoload`.
 ///
-/// The text is searched for the keyword before anything is parsed, so a
-/// workspace pays one read per file and one walk per bootstrap file. That walk
-/// is `nvs check`'s name resolution without the type phase, and it reads every
-/// file the program reaches. Its diagnostics are dropped: they are published
-/// when the file itself is analysed.
+/// The text is searched for `autoload` and `require` before anything is
+/// parsed, so a workspace pays one read per file and one walk per file that
+/// starts a chain: a program whose declaration sits in a file it requires
+/// holds neither keyword's declaration itself, and only the walk finds it.
+/// That walk is `nvs check`'s name resolution without the type phase, and it
+/// reads every file the program reaches. Its diagnostics are dropped: they are
+/// published when the file itself is analysed.
 fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
     let mut map = SourceMap::new();
     documents.overlay(&mut map);
     let entry = map.load(path).ok()?;
-    if !map.file(entry).text().contains("autoload") {
+    let text = map.file(entry).text();
+    if !text.contains("autoload") && !text.contains("require") {
         return None;
     }
 
     let mut diags = Diagnostics::new();
     let stmts = parse(map.file(entry), &mut diags).stmts;
-    let (_, _, autoload) = resolve_program(
+    let (_, loaded, autoload) = resolve_program(
         entry,
         stmts,
         &mut map,
@@ -166,9 +175,17 @@ fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
         .collect();
     declaring.sort();
     declaring.dedup();
+    let mut reads: Vec<PathBuf> = loaded
+        .iter()
+        .skip(1)
+        .filter_map(|file| map.file(file.id).path().map(canonical_key))
+        .collect();
+    reads.sort();
+    reads.dedup();
     Some(Lender {
         entry: canonical_key(path),
         declaring,
+        reads,
         map: autoload,
     })
 }
@@ -281,16 +298,26 @@ impl Documents {
     }
 
     /// [`survey`](Self::survey), for the one file that changed: `changed`
-    /// itself and every lender whose declarations it wrote are walked again,
+    /// itself, every lender whose declarations it wrote, and — when its text
+    /// holds `require` — every lender whose walk read it, are walked again,
     /// and no other file is read.
     ///
-    /// An edit to a file that declares nothing costs one search of its text.
+    /// The `require` test is what keeps an edit to a required class cheap:
+    /// only a `require` can change what a lender reads, so a file holding none
+    /// costs one search of its text. A file that stops holding the keyword
+    /// leaves the lender's read set stale until its next walk, which lends a
+    /// map to a file no longer required and nothing else.
     pub fn resurvey(&mut self, changed: &Path) {
         let key = canonical_key(changed);
+        let requires = self.holds(changed, "require");
         let mut entries: Vec<PathBuf> = self
             .lenders
             .iter()
-            .filter(|lender| lender.entry == key || lender.declaring.contains(&key))
+            .filter(|lender| {
+                lender.entry == key
+                    || lender.declaring.contains(&key)
+                    || (requires && lender.reads.contains(&key))
+            })
             .map(|lender| lender.entry.clone())
             .collect();
         entries.push(key);
@@ -308,17 +335,29 @@ impl Documents {
     }
 
     /// The program `path` borrows its `autoload` map from: the first, in
-    /// entry-path order, that autoloads it.
+    /// entry-path order, that requires or autoloads it.
     ///
     /// The first and not a union, because two programs sharing a source tree
     /// may give one prefix different roots, and a union of their maps is a map
-    /// neither of them runs with. A program never lends to its own entry, which
-    /// already has every declaration it would be lent.
+    /// neither of them runs with. A lender never borrows: it has a map of its
+    /// own, and `nvs check` analyses it through exactly that one.
     fn lender_for(&self, path: &Path) -> Option<&Lender> {
         let key = canonical_key(path);
+        if self.lenders.iter().any(|lender| lender.entry == key) {
+            return None;
+        }
         self.lenders
             .iter()
-            .find(|lender| lender.entry != key && lender.map.claims(path))
+            .find(|lender| lender.reads.contains(&key) || lender.map.claims(path))
+    }
+
+    /// Whether the text of `path` — the open buffer, or the file under it —
+    /// holds `keyword`.
+    fn holds(&self, path: &Path, keyword: &str) -> bool {
+        let mut map = SourceMap::new();
+        self.overlay(&mut map);
+        map.load(path)
+            .is_ok_and(|id| map.file(id).text().contains(keyword))
     }
 
     /// Records every file `uri`'s last analysis read.
@@ -572,9 +611,9 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     check_declarations(&stmts, map.file(entry), &mut diags);
     let core = nvs_stdlib::registry::link_targets();
     // The one place this walk is not `nvs check`'s, which is always handed the
-    // file a program starts from. A file some program autoloads has no map of
-    // its own to resolve a name through, so it borrows that program's
-    // (`rule:ide/an-open-document-is-its-own-entry-point`).
+    // file a program starts from. A file some program autoloads or requires
+    // has no map of its own to resolve a name through, so it borrows that
+    // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
     let lender = documents.lender_for(path);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring.clone());
     let (module, loaded, _autoload) = resolve_program_borrowing(

@@ -7,7 +7,7 @@ resolved exactly as `nvs check` resolves it, with open buffers overlaid on what 
 edited in one tab and used in another resolves to the unsaved text. Diagnostics are published only for
 **open** documents — publishing for a file nobody opened is workspace-wide analysis, which is M10's.
 Go-to-definition may still land in a closed file; the editor opens it. The one thing such a walk takes
-from outside its own graph is the `autoload` map of the program that autoloads the document
+from outside its own graph is the `autoload` map of the program that autoloads or requires the document
 (`rule:ide/an-autoloaded-file-borrows-its-programs-map`).
 
 Editing one document re-analyses every open document whose graph contains it. Otherwise an open `A.nvs`
