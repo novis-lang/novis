@@ -1353,6 +1353,8 @@ class Renderer:
         self.max_result_lines = opts.max_result_lines
         self.max_input_lines = opts.max_input_lines
         self.max_line_chars = opts.max_line_chars
+        #: The `init` event carries no effort, so the one this driver passed is what is shown.
+        self.effort = opts.effort
         self.tool_names: dict[str, str] = {}
         #: The last assistant text printed. The `result` event repeats the session's final message
         #: verbatim, and printing both is how a wrap-up summary reached the console twice.
@@ -1480,11 +1482,16 @@ class Renderer:
 
         if kind == "system":
             if e.get("subtype") == "init":
+                # `--model` takes an alias; this is what it resolved to, which CLI build ran it
+                # and at what effort -- the facts a run's behaviour changes with when nothing in
+                # the tree did.
                 say(
-                    f"   [init] model={e.get('model')} cwd={e.get('cwd')} "
-                    f"session={e.get('session_id')}",
-                    C.GRAY,
+                    f"   [init] claude {e.get('claude_code_version') or '?'}, "
+                    f"model {e.get('model') or '?'}, "
+                    f"effort {self.effort or 'model default'}",
+                    C.CYAN,
                 )
+                say(f"   [init] cwd={e.get('cwd')} session={e.get('session_id')}", C.GRAY)
                 if e.get("tools"):
                     self.wrapped("tools: " + ", ".join(e["tools"]), "   [init] ", C.GRAY, 2)
             else:
