@@ -275,6 +275,47 @@ marked `~`: it is the machine, not the code.
 | `Core\Encoding::toBase64` | 3.00 | 0.00 | 4.00 | 154.0 |  |  | calls 0 | 166623f92f63 |
 | `Core\Encoding::toBase64Url` | 3.00 | 0.00 | 4.00 | 110.0 |  |  | calls 0 | 166623f92f63 |
 | `Core\Encoding::toHex` | 3.00 | 0.00 | 4.00 | 194.0 |  |  | calls 0 | 166623f92f63 |
+| `Core\Env::all` | 3.00 | 0.00 | 484.00 | 63423.0 |  |  | calls 0 | 6f6ded3023be |
+| `Core\Env::get` | 4.00 | 0.00 | 2.50 | 5288.0 |  |  | calls 0 | 6f6ded3023be |
+| `Core\Env::mode` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Fatal::onLimit` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Fatal::onUncaughtThrow` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Hash::equals` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Hash::hmac` | 4.00 | 0.00 | 1.00 | 64.0 |  |  | allocations 1, calls 0 | 6f6ded3023be |
+| `Core\Hash::of` | 4.00 | 0.00 | 1.00 | 64.0 |  |  | allocations 1, calls 0 | 6f6ded3023be |
+| `Core\Hash::stream` | 4.00 | 0.00 | 5.00 | 432.0 |  |  | calls 0 | 6f6ded3023be |
+| `Core\Hash\Stream::finish` | 5.00 | 0.00 | 6.00 | 496.0 |  |  | calls 0 | 6f6ded3023be |
+| `Core\Hash\Stream::update` | 3.00 | 0.00 | 0.00 | 41.9 |  |  | calls 0 | 6f6ded3023be |
+| `Core\Heap::count` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Heap::isEmpty` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Heap::peek` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Heap::pop` | 5.01 | 0.00 | 0.00 | 0.2 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Heap::push` | 5.00 | 0.00 | 0.01 | 32.9 |  |  | allocations 0, calls 0 | 6f6ded3023be |
+| `Core\Html::escape` | 3.00 | 0.00 | 4.00 | 128.0 |  |  | calls 0 | 1cfa80b24a75 |
+| `Core\Html::join` | 3.00 | 0.00 | 5.00 | 195.0 |  |  | calls 0 | 1cfa80b24a75 |
+| `Core\Html::parse` | 4.00 | 0.00 | 88.00 | 13475.0 |  |  |  | 1cfa80b24a75 |
+| `Core\Html::sanitize` | 3.00 | 0.00 | 50.00 | 9659.7 |  |  |  | 1cfa80b24a75 |
+| `Core\Html::toSource` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | calls 0, allocations 0 | 1cfa80b24a75 |
+| `Core\Http::allowUrl` | 5.00 | 0.00 | 12.00 | 540.0 |  |  |  | ed7383271ab3 |
+| `Core\Http\Client::delete` | 5.00 | 0.00 | 14.00 | 871.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::get` | 5.00 | 0.00 | 15.00 | 883.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::head` | 5.00 | 0.00 | 14.00 | 871.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::openSocket` | 7.00 | 0.00 | 10.00 | 475.3 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::patch` | 5.00 | 0.00 | 29.00 | 1807.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::post` | 5.00 | 0.00 | 29.00 | 1817.0 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::put` | 5.00 | 0.00 | 29.75 | 1811.5 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::request` | 6.00 | 0.00 | 15.00 | 876.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::stream` | 5.00 | 0.00 | 26.00 | 1897.3 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Identity::read` | 5.00 | 0.00 | 38.01 | 21658.6 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Part::bytes` | 5.00 | 0.00 | 4.00 | 244.5 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Part::file` | 5.00 | 0.00 | 11.00 | 954.0 |  | +234.000 | calls 0 | ed7383271ab3 |
+| `Core\Http\Response::bytes` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | ed7383271ab3 |
+| `Core\Http\Response::header` | 4.00 | 0.00 | 1.00 | 4.0 |  | +0.002 | calls 0 | ed7383271ab3 |
+| `Core\Http\Response::headers` | 3.00 | 0.00 | 2.50 | 178.0 |  | +0.002 | calls 0 | ed7383271ab3 |
+| `Core\Http\Response::jsonAs` | 4.00 | 0.00 | 12.00 | 566.0 |  | +0.002 |  | ed7383271ab3 |
+| `Core\Http\Response::status` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | allocations 0, calls 0 | ed7383271ab3 |
+| `Core\Http\Response::text` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity linear, allocations 0 | ed7383271ab3 |
+| `Core\Http\Response::tls` | 5.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | allocations 0, calls 0 | ed7383271ab3 |
 | `Core\Program::implementingWith` | 9.00 | 0.00 | 11.00 | 624.0 |  |  | calls 0 | e3e47a73d7e1 |
 | `Core\Str::length` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 6ccf3ae687b8 |
 | `Core\Task\Channel::close` | 5.00 | 0.00 | 3.00 | 288.0 |  |  |  | 6ccf3ae687b8 |
@@ -348,15 +389,15 @@ marked `~`: it is the machine, not the code.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 30.00 | 1.00 | 32.00 | 964.0 |  |  |  | 021b2d4828d6 |
 | `lang:iteration/the-two-interfaces` | 45.00 | 18.00 | 1.00 | 64.0 |  |  |  | 13ea917d2276 |
 | `lang:iteration/what-foreach-walks` | 19.00 | 0.00 | 0.00 | 0.0 |  |  |  | 13ea917d2276 |
-| `lang:programs/a-complete-program-annotated` | 11.00 | 0.00 | 6.00 | 440.0 |  |  |  | 519bdf015e69 |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | 519bdf015e69 |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | calls 1, allocations 0 | 519bdf015e69 |
-| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  |  | 519bdf015e69 |
-| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | 519bdf015e69 |
-| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | 388cafaf1c7a |
-| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | 519bdf015e69 |
-| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | allocations 0 | 519bdf015e69 |
-| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | calls 1, allocations 0 | 519bdf015e69 |
+| `lang:programs/a-complete-program-annotated` | 11.00 | 0.00 | 6.00 | 440.0 |  |  |  | ed7383271ab3 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ed7383271ab3 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | calls 1, allocations 0 | ed7383271ab3 |
+| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  |  | ed7383271ab3 |
+| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ed7383271ab3 |
+| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ed7383271ab3 |
+| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ed7383271ab3 |
+| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | allocations 0 | ed7383271ab3 |
+| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | calls 1, allocations 0 | ed7383271ab3 |
 | `lang:statements/break-and-continue` | 29.41 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | 3b1c13496da8 |
 | `lang:statements/catch-as-an-expression` | 6.33 | 1.33 | 5.33 | 345.6 |  |  |  | 3b1c13496da8 |
 | `lang:statements/echo-print-unset-exit-yield` | 6.00 | 0.00 | 1.00 | 1.0 |  |  | calls 0 | 3b1c13496da8 |
@@ -420,13 +461,18 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Crypto\KeyPair::publicKey` | Core\Crypto\KeyPair | 6.5x its group's median of 4374.5 units |
 | `Core\Db\Connection::stream` | Core\Db\Connection | 5.7x its group's median of 6532.7 units |
 | `Core\Db\Connection::streamAs` | Core\Db\Connection | 5.6x its group's median of 6532.7 units |
+| `Core\Env::all` | Core\Env | 9.8x its group's median of 1100.4 units |
+| `Core\Heap::pop` | Core\Heap | 15.5x its group's median of 15.6 units |
+| `Core\Html::parse` | Core\Html | 23.1x its group's median of 47.9 units |
+| `Core\Html::sanitize` | Core\Html | 17.6x its group's median of 47.9 units |
+| `Core\Http\Response::jsonAs` | Core\Http\Response | 13.5x its group's median of 11.3 units |
 | `lang:expressions/assignment` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 4.000 |
 | `lang:expressions/calls` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 1.000; declares `calls 4` per op and did 3.000 |
 | `lang:expressions/closures` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 3.000 |
 | `lang:expressions/closures-fn` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 3.000 |
 | `lang:iteration/core-collections-are-iterable` | lang:iteration | 5.6x its group's median of 151.6 units |
-| `lang:programs/a-complete-program-annotated` | lang:programs | 81.4x its group's median of 0.9 units |
-| `lang:programs/code-mode-and-html-mode` | lang:programs | 7.4x its group's median of 0.9 units |
+| `lang:programs/a-complete-program-annotated` | lang:programs | 57.1x its group's median of 1.4 units |
+| `lang:programs/code-mode-and-html-mode` | lang:programs | 10.0x its group's median of 1.4 units |
 | `lang:statements/catch-as-an-expression` | lang:statements | 7.2x its group's median of 6.2 units |
 | `lang:statements/echo-print-unset-exit-yield` | lang:statements | 7.4x its group's median of 6.2 units |
 | `lang:statements/foreach` | lang:statements | 5.3x its group's median of 6.2 units |
@@ -690,6 +736,47 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Encoding::toBase64` | 99.1 | 107.7 | 29.264 |  |  | 166623f92f63 | 86028199fdbd |
 | `Core\Encoding::toBase64Url` | 87.4 | 88.5 | 25.812 |  |  | 166623f92f63 | 86028199fdbd |
 | `Core\Encoding::toHex` | 103.9 | 105.3 | 30.696 |  |  | 166623f92f63 | 86028199fdbd |
+| `Core\Env::all` | 29183.6 | 31764.5 | 10732.633 |  |  | 6f6ded3023be | 39d3f168b9a7 |
+| `Core\Env::get` | 2992.1 | 3327.2 | 1100.363 |  |  | 6f6ded3023be | 39d3f168b9a7 |
+| `Core\Env::mode` | 35.5 | 37.2 | 13.044 |  |  | 6f6ded3023be | 39d3f168b9a7 |
+| `Core\Fatal::onLimit` | 14.2 | 18.9 | 5.226 |  |  | 6f6ded3023be | da38e34635b1 |
+| `Core\Fatal::onUncaughtThrow` | 13.7 | 15.4 | 5.043 |  |  | 6f6ded3023be | da38e34635b1 |
+| `Core\Hash::equals` | 151.0 | 154.0 | 55.525 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Hash::hmac` | 199.2 | 205.2 | 73.263 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Hash::of` | 95.8 | 99.1 | 35.245 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Hash::stream` | 174.3 | 176.0 | 64.084 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Hash\Stream::finish` | 212.7 | 231.4 | 78.230 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Hash\Stream::update` | 50.7 | 54.1 | 18.654 |  |  | 6f6ded3023be | fdc232d5f751 |
+| `Core\Heap::count` | 22.1 | 23.2 | 8.122 |  |  | 6f6ded3023be | 1b18a3bfa299 |
+| `Core\Heap::isEmpty` | 22.4 | 24.6 | 8.255 |  |  | 6f6ded3023be | 1b18a3bfa299 |
+| `Core\Heap::peek` | 42.3 | 46.4 | 15.562 |  |  | 6f6ded3023be | 1b18a3bfa299 |
+| `Core\Heap::pop` | 657.0 | 691.9 | 241.614 |  |  | 6f6ded3023be | 1b18a3bfa299 |
+| `Core\Heap::push` | 102.9 | 111.9 | 37.846 |  |  | 6f6ded3023be | 1b18a3bfa299 |
+| `Core\Html::escape` | 147.1 | 150.6 | 45.110 | -5.7% |  | 1cfa80b24a75 | 11ed547a511a |
+| `Core\Html::join` | 156.1 | 159.4 | 47.869 | -5.3% |  | 1cfa80b24a75 | 11ed547a511a |
+| `Core\Html::parse` | 3600.6 | 3672.7 | 1104.440 | -8.9% |  | 1cfa80b24a75 | 11ed547a511a |
+| `Core\Html::sanitize` | 2749.6 | 2823.4 | 843.400 | -9.2% |  | 1cfa80b24a75 | 11ed547a511a |
+| `Core\Html::toSource` | 30.6 | 33.6 | 9.397 | +0.9% ~ |  | 1cfa80b24a75 | 11ed547a511a |
+| `Core\Http::allowUrl` | 372.9 | 373.9 | 125.656 | -1.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::delete` | 544.1 | 718.5 | 183.381 | +19.4% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::get` | 588.5 | 620.3 | 198.313 | +18.4% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::head` | 501.2 | 546.9 | 168.903 | +2.3% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::openSocket` | 420.6 | 471.7 | 141.738 | +10.8% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::patch` | 1128.6 | 1146.4 | 380.351 | +7.0% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::post` | 1233.7 | 1244.4 | 415.765 | -3.2% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::put` | 1141.0 | 1185.3 | 384.516 | +3.1% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::request` | 492.9 | 546.8 | 166.095 | -2.4% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::stream` | 1058.7 | 1186.2 | 356.797 | -15.9% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Identity::read` | 12857.2 | 13141.4 | 4332.980 | +6.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Part::bytes` | 132.0 | 140.0 | 44.500 | +0.8% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Part::file` | 33307.9 | 33681.1 | 11224.981 | +5.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::bytes` | 33.4 | 35.2 | 11.251 | +9.2% | x1000 → 1.07x | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::header` | 73.6 | 86.2 | 24.801 | +5.1% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::headers` | 105.0 | 109.1 | 35.369 | +14.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::jsonAs` | 452.4 | 456.6 | 152.447 | +10.3% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::status` | 27.7 | 30.4 | 9.344 | +21.4% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::text` | 32.1 | 34.5 | 10.801 | +8.9% | x1000 → 40.07x | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::tls` | 24.1 | 26.8 | 8.127 | -8.6% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
 | `Core\Program::implementingWith` | 354.9 | 397.3 | 111.145 |  |  | e3e47a73d7e1 | aeec9743b8e1 |
 | `Core\Str::length` | 20.9 | 22.9 | 7.709 | -70.0% | x10 → 1.18x | 6ccf3ae687b8 | d70a134c21db |
 | `Core\Task\Channel::close` | 90.7 | 92.2 | 33.482 | -3.9% |  | 6ccf3ae687b8 | c1980eb271aa |
@@ -763,15 +850,15 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 715.9 | 761.0 | 243.184 |  |  | 021b2d4828d6 | 229354d66e11 |
 | `lang:iteration/the-two-interfaces` | 485.1 | 509.1 | 151.550 |  |  | 13ea917d2276 | 229354d66e11 |
 | `lang:iteration/what-foreach-walks` | 63.5 | 64.8 | 21.971 |  |  | 13ea917d2276 | 229354d66e11 |
-| `lang:programs/a-complete-program-annotated` | 260.2 | 341.6 | 75.915 | +5.2% ~ |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.6 | 2.9 | 0.763 | -10.2% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 0.0 | 7.6 | 0.000 | -100.0% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/code-mode-and-html-mode` | 23.6 | 27.8 | 6.879 | -36.3% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/comments` | 2.8 | 3.1 | 0.803 | -16.3% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/doc-comments` | 2.6 | 2.8 | 0.933 |  |  | 388cafaf1c7a | 78c6b1be007f |
-| `lang:programs/names-and-casing` | 2.5 | 3.2 | 0.737 | -83.5% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/namespaces-and-use` | 5.8 | 6.1 | 1.682 | -73.4% |  | 519bdf015e69 | 78c6b1be007f |
-| `lang:programs/require-run-another-file-in-this-frame` | 5.2 | 9.6 | 1.510 | -98.3% |  | 519bdf015e69 | 78c6b1be007f |
+| `lang:programs/a-complete-program-annotated` | 247.8 | 257.8 | 77.650 | -4.8% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.8 | 3.1 | 0.889 | +8.5% ~ |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.3 | 9.0 | 1.360 |  |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/code-mode-and-html-mode` | 43.3 | 47.1 | 13.557 | +83.5% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/comments` | 3.1 | 3.2 | 0.974 | +12.9% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/doc-comments` | 2.6 | 2.7 | 0.826 | -0.2% ~ |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/names-and-casing` | 2.5 | 2.7 | 0.792 | +0.1% ~ |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/namespaces-and-use` | 5.7 | 6.3 | 1.791 | -0.9% ~ |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/require-run-another-file-in-this-frame` | 14.1 | 22.6 | 4.420 | +172.5% |  | ed7383271ab3 | 848f67caac54 |
 | `lang:statements/break-and-continue` | 45.5 | 51.1 | 14.572 | +12.5% |  | 3b1c13496da8 | 1d1c9d6aaeae |
 | `lang:statements/catch-as-an-expression` | 138.4 | 144.8 | 44.307 | +13.4% |  | 3b1c13496da8 | 1d1c9d6aaeae |
 | `lang:statements/echo-print-unset-exit-yield` | 142.9 | 145.8 | 45.740 | -66.7% |  | 3b1c13496da8 | 1d1c9d6aaeae |
