@@ -477,21 +477,33 @@ const ID_DOC: MethodDoc = MethodDoc {
 /// [`CoreTy::Iterated`]'s parameter-position-only reason.
 pub(crate) const EVENTS: CoreClass = CoreClass {
     name: EVENTS_NAME,
-    doc: None,
+    doc: Some(&EVENTS_CARD),
     methods: &[],
     instance: &[],
     slots: &["body", "current", "lastId"],
     constants: &[],
 };
 
+/// `Core\Http\Events`' own card — `rule:core-api/reference-card`.
+const EVENTS_CARD: ClassDoc = ClassDoc {
+    short: "The server-sent events of a streamed reply's body, in the order they arrived. A \
+            `foreach` over `Core\\Http\\Stream::events()` gives each one as a `Core\\Http\\Event`.",
+};
+
 /// `lines()`' walk. See [`EVENTS`].
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
-    doc: None,
+    doc: Some(&LINES_CARD),
     methods: &[],
     instance: &[],
     slots: &["body", "current"],
     constants: &[],
+};
+
+/// `Core\Http\Lines`' own card — `rule:core-api/reference-card`.
+const LINES_CARD: ClassDoc = ClassDoc {
+    short: "The lines of a streamed reply's body, in the order they arrived. A `foreach` over \
+            `Core\\Http\\Stream::lines()` gives each line as a `tainted string`.",
 };
 
 /// `chunks()`' walk. See [`EVENTS`].
@@ -1660,5 +1672,66 @@ mod tests {
         assert_eq!(headers("Set-Cookie"), ["a=1", "b=2"]);
         assert_eq!(headers("X-TRACE"), ["one"]);
         assert!(headers("etag").is_empty());
+    }
+
+    /// `saveTo()` is refused twice before a byte reaches disk: by a stream whose
+    /// body another reader already took, naming that reader, and by a context
+    /// that grants no `fs.write`, naming `saveTo`. The second refusal comes after
+    /// the body is taken, so the stream records `saveTo` as its reader and no
+    /// file exists at the path. A member that created the file before asking
+    /// the door would leave an empty one behind for a later reader to trust.
+    // covers: Core\Http\Stream::saveTo
+    #[test]
+    fn save_to_refuses_a_taken_body_and_a_path_it_may_not_write() {
+        let path = std::env::temp_dir().join("nvs-http-stream-save-to-refused.bin");
+        let _ = std::fs::remove_file(&path);
+        let target = Value::str(super::NvsStr::new(path.to_string_lossy().as_bytes()));
+        let mut ctx = Ctx::buffered();
+
+        let taken = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                Value::null(),
+                Value::null(),
+                Value::str(super::NvsStr::new(b"lines")),
+            ],
+        );
+        let again = nvs_runtime::call(
+            super::nvs_core_http_stream_save_to,
+            &mut ctx,
+            &[taken, target, Value::uint(1024)],
+        );
+        assert!(again.is_err(), "a second reader saved the body");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message
+                .contains("Core\\Http\\Stream::saveTo(): this stream's body was read by `lines()`"),
+            "{message}"
+        );
+
+        let fresh = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                Value::null(),
+                Value::uint(41),
+                Value::null(),
+            ],
+        );
+        let denied = nvs_runtime::call(
+            super::nvs_core_http_stream_save_to,
+            &mut ctx,
+            &[fresh, target, Value::uint(1024)],
+        );
+        assert!(denied.is_err(), "a context with no `fs.write` wrote a file");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(message.contains("saveTo"), "{message}");
+        assert!(message.contains("fs.write"), "{message}");
+        assert!(!path.exists(), "a refused save left a file behind");
+
+        let stream = fresh.obj_ptr().expect("a stream is an object");
+        assert_eq!(crate::instance::slot(stream, 2).tag(), Some(Tag::Null));
+        assert_eq!(crate::instance::slot(stream, 3).as_text(), Some("saveTo"));
     }
 }

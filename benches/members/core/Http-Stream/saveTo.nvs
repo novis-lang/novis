@@ -1,0 +1,27 @@
+<?nvs
+// Saves the body of a streamed reply to a file, as a program does when it downloads a report.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies come from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://files.example.com/a.csv", 200, {body: Core\Str::repeat("a", 64)});
+        Core\Test::answerHttp("https://files.example.com/b.csv", 200, {body: Core\Str::repeat("b", 96)});
+        array<string> $urls = ["https://files.example.com/a.csv", "https://files.example.com/b.csv"];
+        string $dir = Core\IO::temporaryDir();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // A body can be read only once, and a file is never replaced, so each round opens a new stream and writes a new file.
+            // The reply in each round depends on the round before, so no round can be left out.
+            string $path = Core\Path::join($dir, Core\Str::format("%d.csv", $i));
+            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            $download->saveTo($path, 1000);
+            $total = $total + Core\IO::size($path);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to save the body of a streamed reply to a file.
+
+// This server sends a small CSV report.
+Core\Test::answerHttp("https://reports.example.com/sales.csv", 200, {body: "day,total\nmon,120\ntue,95\n"});
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "sales.csv");
+Core\Http\Stream $report = Core\Http\Client::stream(Core\Http\Method::Get, "https://reports.example.com/sales.csv");
+
+// `saveTo` writes the body to `$path`. The second value is the largest size you accept, in bytes.
+$report->saveTo($path, 1000000);
+
+// This prints "saved 25 bytes" and then the three lines of the file.
+echo "saved ", Core\IO::size($path), " bytes\n";
+echo Core\IO::read($path);
