@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check if a path is a folder, using the result of `Core\IO::stat`.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "photos");
+Core\IO::makeDir($dir);
+string $photo = Core\Path::join($dir, "beach.jpg");
+Core\IO::write($photo, "not a real photo");
+
+// "photos" is a folder. This prints "photos: true".
+echo "photos: ", Core\IO::stat($dir)->isDir() ? "true" : "false", "\n";
+
+// "beach.jpg" is a file, so it is not a folder. This prints "beach.jpg: false".
+echo "beach.jpg: ", Core\IO::stat($photo)->isDir() ? "true" : "false", "\n";

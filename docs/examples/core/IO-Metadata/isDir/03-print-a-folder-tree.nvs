@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a program prints every file and folder under a folder, with the folders indented.
+
+class Tree {
+    // The method prints each name. When a name is a folder, the method calls itself for it.
+    public static function show(string $dir, string $indent): void {
+        foreach (Core\Arr::sort(Core\IO::list($dir)) as string $name) {
+            string $path = Core\Path::join($dir, $name);
+            if (Core\IO::stat($path)->isDir()) {
+                echo $indent, $name, "/", "\n";
+                Tree::show($path, $indent . "  ");
+            } else {
+                echo $indent, $name, "\n";
+            }
+        }
+    }
+}
+
+string $root = Core\Path::join(Core\IO::temporaryDir(), "shop");
+Core\IO::makeDir(Core\Path::join($root, "src/Order"));
+Core\IO::write(Core\Path::join($root, "nvs.toml"), "");
+Core\IO::write(Core\Path::join($root, "src/main.nvs"), "");
+Core\IO::write(Core\Path::join($root, "src/Order/Invoice.nvs"), "");
+
+// This prints 5 lines, one for each name. A folder name ends with "/".
+Tree::show($root, "");

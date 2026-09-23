@@ -1,0 +1,27 @@
+<?nvs
+// Checks if a result of `stat` is a folder, as a program does when it walks a folder tree.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result asked in each round depends on the round before.
+            if ($infos[($total % 2) as int]->isDir()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+string $dir = Core\IO::temporaryDir();
+string $path = Core\Path::join($dir, "is-dir.dat");
+Core\IO::write($path, "x");
+array<Core\IO\Metadata> $infos = [Core\IO::stat($path), Core\IO::stat($dir)];
+echo Bench::run($infos, 400000), "\n";
