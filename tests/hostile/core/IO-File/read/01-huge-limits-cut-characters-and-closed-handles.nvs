@@ -1,8 +1,9 @@
 <?nvs
 // Attack: a program reads with a huge limit and with a limit of 0. It reads text where the limit
 // cuts characters, a file that ends inside a character, and handles that cannot read.
-// Each step must work or throw an error, and must not crash.
+// Each step must work or throw an error. The last one must stop the program cleanly.
 // hostile: timeout-ms 60000
+// hostile: ends-early
 
 string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read');
 Core\IO::makeDir($dir);
@@ -91,3 +92,18 @@ if ($thrown != 1000) {
     throw new LogicError('a closed handle was read without an error');
 }
 echo 'step 6: done', "\n";
+
+// 7. A read asks for 4 TB from a file of 32 MB. This program may use 16 MB,
+// so `read` must stop the program at its memory limit.
+string $megabyte = Core\Str::repeat('x', 1048576);
+Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+$i = 0;
+while ($i < 32) {
+    $out->write($megabyte);
+    $i = $i + 1;
+}
+$out->close();
+Core\IO\File $huge = Core\IO::open($path, Core\IO\FileMode::Read);
+echo 'step 7: reading', "\n";
+$huge->read(4000000000000);
+echo 'step 7: not reached', "\n";

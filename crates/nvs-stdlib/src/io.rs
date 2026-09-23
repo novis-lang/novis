@@ -1306,6 +1306,12 @@ const FILE_PATH_SLOT: usize = 1;
 /// a footprint one.
 const LINE_CHUNK: usize = 8 * 1024;
 
+/// How much [`nvs_core_io_file_read`] reads before it asks the request whether
+/// it can afford the answer so far. A read past the memory limit therefore holds
+/// at most this much more than the limit allowed before it is refused. A larger
+/// `$max` costs one more read per chunk and nothing else.
+const READ_CHUNK: u64 = 64 * 1024;
+
 /// `Core\IO\File`'s class card — `rule:core-api/reference-card`.
 const FILE_CARD: ClassDoc = ClassDoc {
     short: "An open file. `Core\\IO::open` returns one. It reads and writes a part of the file at a \
@@ -2315,6 +2321,17 @@ nvs_runtime::nvs_helper! {
     /// charge a megabyte to the request, and `Read::take` is what makes the
     /// argument a ceiling rather than a size.
     ///
+    /// # Decision: a read is bounded by the request's memory
+    ///
+    /// `$max` is the program's number, so a huge one on a huge file would grow
+    /// a Rust buffer the request's balance does not see to the size of the file.
+    /// The read is taken [`READ_CHUNK`] bytes at a time, and after each chunk
+    /// [`nvs_runtime::affordable`] is asked for the answer so far: a read past
+    /// the memory limit ends the request as that limit's `FATAL` while the
+    /// buffer is within one chunk of it. **What it spends:** nothing more than
+    /// the single read did; a read of more than one chunk costs one more
+    /// syscall per chunk.
+    ///
     /// # Decision: a read ends on a whole character, and a refused read does
     /// not move the handle
     ///
@@ -2348,9 +2365,21 @@ nvs_runtime::nvs_helper! {
         };
         let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("read", &path))?;
         let mut octets = Vec::new();
-        file.take(max)
-            .read_to_end(&mut octets)
-            .map_err(|err| failed(&err))?;
+        loop {
+            let chunk = (max - octets.len() as u64).min(READ_CHUNK);
+            if chunk == 0 {
+                break;
+            }
+            let read = (&mut *file)
+                .take(chunk)
+                .read_to_end(&mut octets)
+                .map_err(|err| failed(&err))?;
+            nvs_runtime::affordable(Some(octets.len()), "Core\\IO\\File::read")?;
+            // A chunk that came back short is the end of the file.
+            if (read as u64) < chunk {
+                break;
+            }
+        }
         // Only a ceiling that was reached can have cut a character: fewer bytes
         // than `$max` means the file ended, and a character it ends inside is
         // not text.
@@ -5227,7 +5256,9 @@ mod tests {
     /// `Core\IO\File::read` ends on a whole character: a `$max` that falls inside `é` returns
     /// the text before it and leaves `é` for the next read, a `$max` smaller than the next
     /// character throws without moving the handle, and bytes that are not UTF-8 throw
-    /// without moving it either. The end of the file is the empty string, every time.
+    /// without moving it either. The end of the file is the empty string, every time. A
+    /// read larger than the request can afford is refused by the member itself, before its
+    /// buffer holds the file.
     // covers: Core\IO\File::read
     #[test]
     fn core_io_file_read_never_cuts_a_character_and_a_refused_read_does_not_move() {
@@ -5264,6 +5295,29 @@ mod tests {
         assert_eq!(read_on(&mut ctx, file, 2).as_deref(), Ok("ok"));
         on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
         let_go(file);
+
+        std::fs::write(&path, "x".repeat(4 << 20)).expect("a file of four megabytes");
+        let file = handle_on(&mut ctx, &path);
+        ctx.set_memory_limit(1 << 20);
+        let over = read_on(&mut ctx, file, u64::MAX).expect_err("the file is past the limit");
+        assert!(over.contains("exceeded its memory limit"), "{over}");
+        // The buffer is not on the balance, so where the handle stopped is what shows the
+        // member asked in time: a member that read the whole file first stands at its end.
+        // `tell` is itself refused past the limit, so the descriptor is asked directly.
+        let (key, _) = handle_of(file, "tell").expect("a handle `open` built");
+        let at = ctx
+            .open_file_mut(key)
+            .expect("the handle is still open")
+            .stream_position()
+            .expect("an open file has a position");
+        assert!(
+            at <= (1 << 20) + READ_CHUNK,
+            "the member read {at} bytes it could not afford"
+        );
+        // A request past its limit reaches no member, `close` included; ending it closes
+        // the descriptor.
+        let_go(file);
+        drop(ctx);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -5411,6 +5465,147 @@ mod tests {
             std::fs::read_to_string(&path).as_deref().ok(),
             Some("café au lait")
         );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::tell` on `handle`: the position it returned, or the message its
+    /// refusal left in `ctx`.
+    fn tell_on(ctx: &mut nvs_runtime::Ctx, handle: Value) -> Result<u64, String> {
+        let answered = nvs_runtime::call(nvs_core_io_file_tell, ctx, &[handle]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        match answered {
+            Ok(at) => Ok(at.as_uint().expect("`tell` returns a uint")),
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        }
+    }
+
+    /// `Core\IO\File::seek` counts from the start of the file whatever the handle's position
+    /// was, so a read after it starts at that byte. An offset past the end is allowed: a read
+    /// there returns the empty string, and a write there leaves zeroes in the gap. A closed
+    /// handle throws.
+    // covers: Core\IO\File::seek
+    #[test]
+    fn core_io_file_seek_counts_from_the_start_and_may_pass_the_end() {
+        let path = scratch("file-seek.txt");
+        std::fs::write(&path, "café au lait").expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(6)])
+            .expect("a position inside the file");
+        assert_eq!(read_on(&mut ctx, file, 2).as_deref(), Ok("au"));
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(0)])
+            .expect("the start of the file");
+        assert_eq!(read_on(&mut ctx, file, 3).as_deref(), Ok("caf"));
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(20)])
+            .expect("a position past the end");
+        assert_eq!(read_on(&mut ctx, file, 5).as_deref(), Ok(""));
+        assert_eq!(write_on(&mut ctx, file, "!"), Ok(1));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(0)])
+            .expect_err("a closed handle has no position");
+        assert!(
+            closed.contains(r"Core\IO\File::seek: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+        let written = std::fs::read(&path).expect("the file is still there");
+        assert_eq!(written.len(), 21);
+        assert_eq!(&written[..13], "café au lait".as_bytes());
+        assert!(written[13..20].iter().all(|byte| *byte == 0), "{written:?}");
+        assert_eq!(written[20], b'!');
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::tell` returns bytes from the start of the file: 0 on a new handle, the
+    /// byte count of what `read` and `write` touched after them, and exactly what `seek` set,
+    /// past the end included. A closed handle throws.
+    // covers: Core\IO\File::tell
+    #[test]
+    fn core_io_file_tell_counts_bytes_from_the_start_and_agrees_with_seek() {
+        let path = scratch("file-tell.txt");
+        std::fs::write(&path, "café au lait").expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        assert_eq!(tell_on(&mut ctx, file), Ok(0));
+        assert_eq!(read_on(&mut ctx, file, 5).as_deref(), Ok("café"));
+        assert_eq!(tell_on(&mut ctx, file), Ok(5));
+        assert_eq!(write_on(&mut ctx, file, "-"), Ok(1));
+        assert_eq!(tell_on(&mut ctx, file), Ok(6));
+        for at in [0, 13, u64::from(u32::MAX) + 1] {
+            on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(at)])
+                .expect("any offset from the start");
+            assert_eq!(tell_on(&mut ctx, file), Ok(at));
+        }
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = tell_on(&mut ctx, file).expect_err("a closed handle has no position");
+        assert!(
+            closed.contains(r"Core\IO\File::tell: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::truncate` sets the length in both directions: a smaller size drops the
+    /// tail and a larger one adds zeroes. The handle's position does not move, even when the
+    /// new end is before it. A handle opened only for reading throws and leaves the file as
+    /// it was, and a closed handle throws.
+    // covers: Core\IO\File::truncate
+    #[test]
+    fn core_io_file_truncate_sets_a_length_and_leaves_the_position() {
+        let path = scratch("file-truncate.txt");
+        std::fs::write(&path, "café au lait").expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(10)])
+            .expect("a position inside the file");
+        on_handle(&mut ctx, nvs_core_io_file_truncate, file, &[Value::uint(5)])
+            .expect("a shorter length");
+        assert_eq!(
+            std::fs::read(&path).ok().as_deref(),
+            Some("café".as_bytes())
+        );
+        assert_eq!(tell_on(&mut ctx, file), Ok(10));
+        on_handle(&mut ctx, nvs_core_io_file_truncate, file, &[Value::uint(8)])
+            .expect("a longer length");
+        assert_eq!(
+            std::fs::read(&path).ok().as_deref(),
+            Some(&b"caf\xc3\xa9\0\0\0"[..])
+        );
+        on_handle(&mut ctx, nvs_core_io_file_truncate, file, &[Value::uint(0)])
+            .expect("an empty file");
+        assert_eq!(std::fs::read(&path).map(|bytes| bytes.len()).ok(), Some(0));
+        assert_eq!(tell_on(&mut ctx, file), Ok(10));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = on_handle(&mut ctx, nvs_core_io_file_truncate, file, &[Value::uint(0)])
+            .expect_err("a closed handle resizes nothing");
+        assert!(
+            closed.contains(r"Core\IO\File::truncate: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+
+        std::fs::write(&path, "kept").expect("a scratch file");
+        let args = [
+            Value::str(NvsStr::new(spelled(&path).as_bytes())),
+            Value::int(0),
+        ];
+        let reader = nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a file opens");
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        let refused = on_handle(
+            &mut ctx,
+            nvs_core_io_file_truncate,
+            reader,
+            &[Value::uint(0)],
+        )
+        .expect_err("a reader cannot resize");
+        assert!(refused.contains(r"Core\IO\File::truncate"), "{refused}");
+        on_handle(&mut ctx, nvs_core_io_file_close, reader, &[]).expect("an open handle closes");
+        let_go(reader);
+        assert_eq!(std::fs::read_to_string(&path).as_deref().ok(), Some("kept"));
         let _ = std::fs::remove_file(&path);
     }
 }

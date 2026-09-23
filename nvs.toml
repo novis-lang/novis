@@ -640,10 +640,17 @@ root = "tests/hostile/core/IO-File"
 read = true
 write = true
 
-# Its last step reads one line larger than this limit, so the limit is small enough
-# for a file of 32 MB to cross it. The `fs` grants arrive from the block above.
+# Their last steps read one line, and one `read`, larger than this limit, so the limit
+# is small enough for a file of 32 MB to cross it. The `fs` grants arrive from the
+# block above.
 [[app]]
 entry = "tests/hostile/core/IO-File/readLine/01-empty-lines-cut-line-breaks-and-a-line-with-no-end.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+entry = "tests/hostile/core/IO-File/read/01-huge-limits-cut-characters-and-closed-handles.nvs"
 
 [app.limits]
 memory = "16M"
