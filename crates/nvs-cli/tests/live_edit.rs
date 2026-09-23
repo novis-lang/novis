@@ -861,3 +861,124 @@ fn an_idle_server_takes_an_edit_within_revalidate_freq_and_settle() {
         server.said()
     );
 }
+
+/// An entry file that requires `heavy.nvs` and `lib.nvs`, then prints a space
+/// and `word`. Like [`warned`], each compile of it writes one warning that
+/// quotes `marker`.
+fn requiring_lib(marker: &str, word: &str) -> String {
+    format!(
+        "<?nvs\nrequire './heavy.nvs';\nrequire './lib.nvs';\nclass Word {{\n    /** {marker} */\n    public static function say(): string {{ return ' {word}'; }}\n}}\necho Word::say();\n"
+    )
+}
+
+/// A file with many small functions and nothing else. Compiling it takes
+/// seconds on a debug build, and most of that time comes after the warnings
+/// are written.
+fn heavy() -> String {
+    let mut text = String::from("<?nvs\nclass Heavy {\n");
+    for i in 0..2000 {
+        text.push_str(&format!(
+            "    public static function f{i}(int $x): int {{ int $y = $x * {i} + 3; if ($y > 10) {{ $y = $y - {i}; }} return $y + {i}; }}\n"
+        ));
+    }
+    text.push_str("}\n");
+    text
+}
+
+/// A program is copied in two steps, and the pause between them is shorter
+/// than `settle`. The program is compiled once, from both new files, and no
+/// request gets the new entry file with the old `lib.nvs`.
+#[test]
+fn a_copy_that_pauses_less_than_settle_is_compiled_once_from_the_finished_tree() {
+    let server = Server::start(
+        "paused",
+        &[
+            ("nvs.toml", &checking_every_100ms("1s")),
+            ("app.nvs", &requiring_lib("Compiled first.", "first")),
+            ("heavy.nvs", "<?nvs\n"),
+            ("lib.nvs", &printing("one")),
+        ],
+    );
+    server.awaits_body("/", "one first");
+
+    server.write("app.nvs", &requiring_lib("Compiled second.", "second"));
+    thread::sleep(Duration::from_millis(300));
+    server.write("lib.nvs", &printing("two"));
+    let started = Instant::now();
+    loop {
+        let answer = server.get("/");
+        if answer.body == "two second" {
+            break;
+        }
+        assert_eq!(answer.body, "one first", "a request got half of the copy");
+        assert!(
+            started.elapsed() <= BOUND,
+            "the copy was not swapped in within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+    assert_eq!(
+        server.said().matches("Compiled second.").count(),
+        1,
+        "the copy was compiled more than once: {}",
+        server.said()
+    );
+}
+
+/// `lib.nvs` is written while the background check compiles a new entry file,
+/// after the compile has read the old `lib.nvs`. That compile is thrown away,
+/// and the next one reads both new files. No request gets the new entry file
+/// with the old `lib.nvs`.
+///
+/// `heavy.nvs` makes the compile slow, and the warning tells this case when
+/// the compile has read every file. `file_cache` is off, so no earlier run can
+/// make the compile fast.
+#[test]
+fn a_file_that_changes_during_a_compile_discards_that_compile() {
+    let config = format!("{}file_cache = false\n", checking_every_100ms("100ms"));
+    let server = Server::start(
+        "moved",
+        &[
+            ("nvs.toml", &config),
+            ("app.nvs", &requiring_lib("Compiled first.", "first")),
+            ("heavy.nvs", &heavy()),
+            ("lib.nvs", &printing("one")),
+        ],
+    );
+    server.awaits_body("/", "one first");
+
+    server.write("app.nvs", &requiring_lib("Compiled second.", "second"));
+    let started = Instant::now();
+    while !server.said().contains("Compiled second.") {
+        assert!(
+            started.elapsed() <= BOUND,
+            "the edit was not compiled within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+    server.write("lib.nvs", &printing("two"));
+    loop {
+        let answer = server.get("/");
+        if answer.body == "two second" {
+            break;
+        }
+        assert_eq!(
+            answer.body, "one first",
+            "a request got the compile that `lib.nvs` moved under"
+        );
+        assert!(
+            started.elapsed() <= BOUND,
+            "the edit was not swapped in within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+    assert_eq!(
+        server.said().matches("Compiled second.").count(),
+        2,
+        "the edit was not compiled once more after `lib.nvs` moved: {}",
+        server.said()
+    );
+}

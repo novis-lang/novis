@@ -633,7 +633,7 @@ impl Compiler {
             return answer;
         }
         match self.look(path, &written, known) {
-            Ok(observed) => self.take(path, &written, known, &observed),
+            Ok(observed) => self.take(path, &written, known, &observed, false),
             Err(answer) => answer,
         }
     }
@@ -667,7 +667,7 @@ impl Compiler {
                 soonest = Some(soonest.map_or(wait, |soonest| soonest.min(wait)));
                 continue;
             }
-            let _ = self.take(&path, &written, Some(entry), &observed);
+            let _ = self.take(&path, &written, Some(entry), &observed, true);
         }
         soonest
     }
@@ -706,13 +706,15 @@ impl Compiler {
 
     /// Steps 3 to 5 for what [`Self::look`] observed: answer it from the table,
     /// or compile it, then move the pointer on success and record the failure
-    /// on one.
+    /// on one. `background` is the check [`Self::revalidate`] runs, which
+    /// discards a compile the tree moved under ([`Self::moved`]).
     fn take(
         &self,
         path: &str,
         written: &Path,
         known: Option<PathEntry>,
         observed: &Observed,
+        background: bool,
     ) -> Answer {
         // What step 4 below compares against: the pointer as the caller found
         // it, read once so that everything after it — the `stat`, the hash and
@@ -763,6 +765,16 @@ impl Compiler {
         // next check of this content spells while nothing it read has moved,
         // and is how it is answered rather than recompiled.
         let (outcome, trace) = self.compile(path, written, observed.content_hash);
+        // A tree that moved while the compile ran may have been read half old
+        // and half new, which is a program nobody wrote. The background check
+        // throws such a compile away and records nothing, so its next pass
+        // looks again and compiles the tree once it is quiet. A request only
+        // compiles a path with nothing else to serve, so it keeps what it read.
+        if background && self.moved(written, observed.content_hash, &trace) {
+            self.release(&key, &flight);
+            drop(landing);
+            return Err(format!("`{path}` changed while it was compiled"));
+        }
         let state = match outcome {
             Ok(compiled) => CompileState::Ready(compiled),
             Err(message) => CompileState::Failed(message),
@@ -970,6 +982,31 @@ impl Compiler {
             for (listed, stamp) in trace.listed.iter_mut().zip(dirs) {
                 listed.stamp = stamp;
             }
+        }
+    }
+
+    /// Whether the tree behind a compile of `written` at `content` moved while
+    /// that compile ran: the entry file no longer holds `content`, or a file,
+    /// probe or listed directory in `trace` no longer holds what the compile
+    /// found there ([`describes_the_disk`]).
+    ///
+    /// **What it costs:** one read of the entry file, and the `stat`s of one
+    /// check of the trace, per background compile.
+    fn moved(&self, written: &Path, content: Digest, trace: &Trace) -> bool {
+        let entry_holds =
+            std::fs::read(written).is_ok_and(|source| content_hash(&source) == content);
+        !entry_holds
+            || describes_the_disk(trace, self.revalidation.validate, SystemTime::now()).is_none()
+    }
+
+    /// Takes `flight`'s placeholder out of the table, where it is still there,
+    /// for a compile that publishes nothing. A caller waiting on it then finds
+    /// nothing under the key and compiles the content itself.
+    fn release(&self, key: &UnitKey, flight: &Arc<Flight>) {
+        let mut units = exclusive(&self.units);
+        if matches!(units.get(key), Some(CompileState::Compiling(held)) if Arc::ptr_eq(held, flight))
+        {
+            units.remove(key);
         }
     }
 

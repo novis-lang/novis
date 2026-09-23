@@ -35,7 +35,6 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** All of it but two steps: a file that moves while the compile runs does not yet
-discard that compile, and the entry path is not resolved through its links around a compile. The
-quiet time is measured from the newest modification time among the files the program's last
-compile read.
+**What is on disk.** All of it but one step: the entry path is not resolved through its links around
+a compile. The quiet time is measured from the newest modification time among the files the
+program's last compile read.
