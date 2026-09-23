@@ -98,6 +98,13 @@ files = [
 modules = [
   "crates/nvs-stdlib/src/http/socket.rs",
   "crates/nvs-stdlib/src/http/stream.rs",
+  # `Core\Http` — `rule:http-server/allow-url-pins-the-address`'s outbound door, which is one
+  # member: the launderer every outbound URL has to pass through, and the pinned
+  # `Core\Http\Target` it answers with.
+  "crates/nvs-stdlib/src/http.rs",
+  # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
+  # against.
+  "crates/nvs-stdlib/src/registry.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
