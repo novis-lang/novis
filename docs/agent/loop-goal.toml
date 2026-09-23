@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "crates/nvs-stdlib/src/http.rs",
+  # `rule:security/capability-question-is-grant-and-scope`'s capability question: a grant, a
+  # scope, and the `bool` the two of them answer.
+  "crates/nvs-config/src/capability.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
