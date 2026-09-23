@@ -105,6 +105,9 @@ modules = [
   # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
   # against.
   "crates/nvs-stdlib/src/registry.rs",
+  # The outbound transport: one HTTP/1.1 exchange over `nvs_host`'s parking stream, under one
+  # deadline that covers every hop, every attempt and every backoff between them.
+  "crates/nvs-stdlib/src/http/transport.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
