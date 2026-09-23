@@ -1,0 +1,260 @@
+//! `rule:config/an-edit-reaches-the-next-request-without-a-restart`, from outside
+//! the process: the built `nvs serve` over a program in a directory of its own,
+//! an edit to that directory, and the answer a request gets afterwards.
+//!
+//! Every case goes through [`Server`]. It starts the binary this test was built
+//! beside on a port the platform chose, reads the port back from the
+//! `listening on` line, and answers each request over a fresh HTTP/1.0
+//! connection, so the body ends where the connection does and no framing is
+//! parsed. An edit is observed by polling: [`Server::awaits`] asks until the
+//! answer is the one wanted or [`BOUND`] runs out, and the failure message says
+//! what the last answer was. The bound is far above what the rule allows an
+//! idle server — `revalidate_freq` plus `settle` — so a pass is never a race
+//! against a slow machine, and a fail means the edit never arrived.
+//!
+//! The program lives under `CARGO_TARGET_TMPDIR`, inside the build directory,
+//! and is removed when its [`Server`] is dropped.
+
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+/// How long an edit has to reach a request before the case fails.
+const BOUND: Duration = Duration::from_secs(30);
+
+/// How long `nvs serve` has to compile its program and bind its port.
+const BOOT: Duration = Duration::from_secs(60);
+
+/// The time between two requests of one poll.
+const POLL: Duration = Duration::from_millis(50);
+
+/// `[mode] default` written out, so a case about production does not depend on
+/// what a configuration with nothing in it starts in.
+const PRODUCTION: &str = "[mode]\ndefault = \"production\"\n";
+
+/// One answer: the status code and the body, as text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Answer {
+    status: u16,
+    body: String,
+}
+
+/// A running `nvs serve` over a program in its own directory.
+///
+/// Dropping it stops the process and removes the directory.
+struct Server {
+    child: Child,
+    addr: SocketAddr,
+    dir: PathBuf,
+    stderr: Arc<Mutex<String>>,
+}
+
+impl Server {
+    /// Writes `files` — each a path relative to the program's directory and its
+    /// text — into a fresh directory named for `case`, and starts `nvs serve
+    /// app.nvs` there, on a free loopback port.
+    ///
+    /// The server runs with that directory as its working directory, so an
+    /// `nvs.toml` among `files` is the configuration it reads.
+    ///
+    /// # Panics
+    ///
+    /// When the process cannot start, or does not print its `listening on`
+    /// line within [`BOOT`]; the message carries what it wrote to standard
+    /// error.
+    fn start(case: &str, files: &[(&str, &str)]) -> Self {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("live-edit-{case}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the case's directory is created");
+        for (path, text) in files {
+            write_file(&dir.join(path), text);
+        }
+
+        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+            .current_dir(&dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside starts");
+
+        // Both pipes are read to their end on a thread of their own, so a
+        // server that writes a lot never blocks on a full pipe.
+        let stderr = Arc::new(Mutex::new(String::new()));
+        let err_pipe = child.stderr.take().expect("standard error is piped");
+        let collected = Arc::clone(&stderr);
+        thread::spawn(move || {
+            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
+                let mut all = collected.lock().expect("no reader panicked");
+                all.push_str(&line);
+                all.push('\n');
+            }
+        });
+        let out_pipe = child.stdout.take().expect("standard output is piped");
+        let (sent, bound) = mpsc::channel();
+        thread::spawn(move || {
+            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
+                if let Some(rest) = line.strip_prefix("listening on http://") {
+                    let addr = rest
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned();
+                    let _ = sent.send(addr);
+                }
+            }
+        });
+
+        let Ok(addr) = bound.recv_timeout(BOOT) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            let said = stderr.lock().expect("no reader panicked").clone();
+            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
+        };
+        let addr = addr
+            .parse()
+            .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}"));
+        Self {
+            child,
+            addr,
+            dir,
+            stderr,
+        }
+    }
+
+    /// One `GET` of `path`, on a connection of its own.
+    ///
+    /// # Panics
+    ///
+    /// When the server does not answer, or answers something that is not HTTP.
+    fn get(&self, path: &str) -> Answer {
+        let mut stream = TcpStream::connect(self.addr)
+            .unwrap_or_else(|error| panic!("{} does not answer: {error}", self.addr));
+        stream
+            .set_read_timeout(Some(BOUND))
+            .expect("a read timeout is set");
+        write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n")
+            .expect("the request is sent");
+        let mut raw = Vec::new();
+        stream
+            .read_to_end(&mut raw)
+            .unwrap_or_else(|error| panic!("the answer to `{path}` was cut off: {error}"));
+        let text = String::from_utf8_lossy(&raw);
+        let (head, body) = text
+            .split_once("\r\n\r\n")
+            .unwrap_or_else(|| panic!("the answer to `{path}` has no header block: {text}"));
+        let status = head
+            .split_whitespace()
+            .nth(1)
+            .and_then(|code| code.parse().ok())
+            .unwrap_or_else(|| panic!("the answer to `{path}` has no status: {head}"));
+        Answer {
+            status,
+            body: body.to_owned(),
+        }
+    }
+
+    /// Polls `path` until `wanted` holds of its answer, and returns that answer.
+    ///
+    /// # Panics
+    ///
+    /// When [`BOUND`] runs out first. The message names `what` was awaited, the
+    /// last answer and what the server wrote to standard error.
+    fn awaits(&self, path: &str, what: &str, wanted: impl Fn(&Answer) -> bool) -> Answer {
+        let started = Instant::now();
+        loop {
+            let answer = self.get(path);
+            if wanted(&answer) {
+                return answer;
+            }
+            if started.elapsed() > BOUND {
+                let said = self.stderr.lock().expect("no reader panicked").clone();
+                panic!(
+                    "{what} did not happen within {BOUND:?}; the last answer was {answer:?}, \
+                     and the server wrote: {said}"
+                );
+            }
+            thread::sleep(POLL);
+        }
+    }
+
+    /// Polls `path` until it answers `200` with exactly `body`.
+    fn awaits_body(&self, path: &str, body: &str) -> Answer {
+        self.awaits(path, &format!("`{path}` answering `{body}`"), |answer| {
+            answer.status == 200 && answer.body == body
+        })
+    }
+
+    /// Writes `text` to `path`, relative to the program's directory, creating
+    /// any directory it needs.
+    fn write(&self, path: &str, text: &str) {
+        write_file(&self.dir.join(path), text);
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// Writes `text` to `path`, creating any directory it needs.
+fn write_file(path: &Path, text: &str) {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("the file's directory is created");
+    }
+    std::fs::write(path, text).unwrap_or_else(|error| {
+        panic!("`{}` could not be written: {error}", path.display());
+    });
+}
+
+/// A program that prints `word` and nothing else.
+fn printing(word: &str) -> String {
+    format!("<?nvs\necho \"{word}\";\n")
+}
+
+/// The entry file is the one file today's resolve-time check has always seen,
+/// so this case holds the harness to the half of the rule that is on disk.
+#[test]
+fn an_edit_to_the_entry_file_reaches_the_next_request_in_production() {
+    let server = Server::start(
+        "entry",
+        &[("nvs.toml", PRODUCTION), ("app.nvs", &printing("before"))],
+    );
+    server.awaits_body("/", "before");
+
+    server.write("app.nvs", &printing("after"));
+    server.awaits_body("/", "after");
+}
+
+/// A broken entry file fails every request that reaches it, and the fix that
+/// follows is served without a restart.
+#[test]
+fn a_broken_edit_fails_requests_and_its_fix_recovers_them() {
+    let server = Server::start(
+        "broken",
+        &[("nvs.toml", PRODUCTION), ("app.nvs", &printing("good"))],
+    );
+    server.awaits_body("/", "good");
+
+    server.write("app.nvs", "<?nvs\necho \"broken\"\n");
+    let failed = server.awaits("/", "the broken edit failing `/`", |answer| {
+        answer.status != 200
+    });
+    assert!(
+        !failed.body.contains("good"),
+        "the last good version is never served in place of a broken one: {failed:?}"
+    );
+
+    server.write("app.nvs", &printing("fixed"));
+    server.awaits_body("/", "fixed");
+}
