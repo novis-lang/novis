@@ -1,22 +1,22 @@
 <?nvs
-// `[opcache]` says when this process looks again at a source file it has
-// already compiled — never, when the timestamp moves, or when the contents
-// hash differently — and how often it is allowed to look at all.
+// Shows the settings that control how a running server notices a changed source file.
 
-echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";
-echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written — the cap this build ships with)', "\n";
+// `validate` is how the server checks a file. `mtime` compares the time the file
+// was last changed, and `hash` reads the whole file. The default is `mtime`.
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(not written, so the default)', "\n";
 
-// Stopping the re-check is how code carries on running past the fix that was
-// shipped for it, so it is not a decision a program makes for itself.
-echo 'stop re-checking my files: ', Core\Config::set('opcache.validate', 'never') ? 'accepted' : 'refused', "\n";
+// `revalidate_freq` is how often the server checks. `settle` is how long the
+// files must stay unchanged before the server compiles them again.
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(not written, so the default)', "\n";
+echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(not written, so the default)', "\n";
 
-// And asking for a check every time turns one hot path into a storm of disk
-// checks the whole deployment pays for, which is the other direction of the
-// same key and refused just as flatly.
-echo 'check on every request:    ', Core\Config::set('opcache.revalidate_freq', '0') ? 'accepted' : 'refused', "\n";
+// Only the person who runs the server may change these settings.
+// A program cannot, so each call below returns `false`.
+echo 'check by hash:          ', Core\Config::set('opcache.validate', 'hash') ? 'allowed' : 'not allowed', "\n";
+echo 'check on every request: ', Core\Config::set('opcache.revalidate_freq', '0') ? 'allowed' : 'not allowed', "\n";
+echo 'compile at once:        ', Core\Config::set('opcache.settle', '0s') ? 'allowed' : 'not allowed', "\n";
 
-// The run mode picks where a host that wrote neither of them starts: production
-// never re-checks, development watches timestamps. A program cannot reach the
-// mode either, and a value written in the file would win over it anyway.
-echo 'flip the mode instead:     ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
-echo 'validate is still:         ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";
+// The default of `settle` depends on the run mode. It is `1s` in production
+// and `100ms` in development. A program cannot change the mode either.
+echo 'change the mode:        ', Core\Config::set('mode.default', 'development') ? 'allowed' : 'not allowed', "\n";
+echo 'settle is still:        ', Core\Config::get('opcache.settle') ?? '(not written, so the default)', "\n";

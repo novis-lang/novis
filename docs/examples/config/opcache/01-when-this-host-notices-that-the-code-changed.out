@@ -1,6 +1,8 @@
-validate:        (nothing written — the mode this host started in picks it)
-revalidate_freq: (nothing written — the cap this build ships with)
-stop re-checking my files: refused
-check on every request:    refused
-flip the mode instead:     refused
-validate is still:         (nothing written — the mode this host started in picks it)
+validate:        (not written, so the default)
+revalidate_freq: (not written, so the default)
+settle:          (not written, so the default)
+check by hash:          not allowed
+check on every request: not allowed
+compile at once:        not allowed
+change the mode:        not allowed
+settle is still:        (not written, so the default)

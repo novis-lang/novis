@@ -1,18 +1,13 @@
-When this process looks at a source file it has already compiled.
+Controls how a running server notices that a source file changed.
 
-Novis compiles what it runs and keeps the result. This block says whether it ever checks the file
-behind that result again — never, whenever the timestamp moves, or whenever the contents hash
-differently — and how often it is allowed to check at all.
+Novis compiles your code and keeps the result. The server checks the files behind that result in the
+background, so a changed file reaches the next request without a restart. `validate` is how it checks:
+`mtime` compares the time each file was last changed, and `hash` reads each whole file. `mtime` is
+the default. `revalidate_freq` is how often it checks. `settle` is how long the files must stay
+unchanged before the server compiles them again.
 
-**In plain words:** the first key decides how a deployment learns that its code changed, and the
-second one keeps that learning from costing a disk check on every request.
+The default of `settle` depends on the run mode: `1s` in production and `100ms` in development. A
+value written in the file is used in both modes.
 
-Neither is a program's to choose. A request that could stop the re-check would be pinning the version
-of the code it likes past the fix that was shipped for it, and one that could ask for a check every
-time would be turning a hot path into a storm the whole deployment pays for.
-
-What a host starts at, having written neither, is picked by the run mode: production never re-checks,
-development watches timestamps. That is a starting point and nothing more — a value written in the
-file wins over the mode beside it.
-
-The example prints what this checkout re-checks and is turned away trying to change it.
+**Good to know:** a program cannot change any of these settings. Only the person who runs the server
+may change them.
