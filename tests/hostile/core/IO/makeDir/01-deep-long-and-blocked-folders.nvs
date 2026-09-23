@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program creates a very deep folder, folders with bad names, and folders where a file
+// is in the way. `makeDir` must create the folder or throw an `IOError`, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+
+// 1. A folder two hundred levels deep. It may be created or throw an `IOError`,
+// for example when the path is longer than the system allows.
+try {
+    Core\IO::makeDir(Core\Path::join($dir, Core\Str::repeat('deep/', 200)));
+} catch (IOError $tooDeep) {
+}
+echo 'step 1: done', "\n";
+
+// 2. The same folder made two thousand times. Every call after the first must succeed.
+string $same = Core\Path::join($dir, 'same');
+uint $round = 0;
+while ($round < 2000) {
+    Core\IO::makeDir($same);
+    $round = $round + 1;
+}
+if (!Core\IO::isDir($same)) {
+    throw new LogicError('the folder is not there');
+}
+echo 'step 2: done', "\n";
+
+// 3. A folder under a file. It must throw an `IOError`, and the file must not change.
+string $file = Core\Path::join($dir, 'file.txt');
+Core\IO::write($file, 'x');
+try {
+    Core\IO::makeDir(Core\Path::join($file, 'a', 'b'));
+    throw new LogicError('a folder was made inside a file');
+} catch (IOError $blocked) {
+}
+if (Core\IO::read($file) != 'x') {
+    throw new LogicError('a refused call changed the file');
+}
+echo 'step 3: done', "\n";
+
+// 4. Bad names. Each must throw an `IOError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    $file,
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::makeDir($badPath);
+        throw new LogicError('a folder was made at a bad name');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 4: done', "\n";

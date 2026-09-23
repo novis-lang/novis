@@ -692,10 +692,15 @@ pub fn rename(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fau
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, checked before anything is created for [`write()`]'s reason, or [`io_failure`]'s
-/// `IOError` when the creation itself fails — a component that exists and is not a directory, or a
-/// permission the process lacks.
+/// `IOError` when the creation itself fails — an empty path, a component that exists and is not a
+/// directory, or a permission the process lacks. The empty path is refused here because
+/// `create_dir_all` answers `Ok` for it and no directory exists afterwards.
 pub fn create_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
     require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    if path.as_os_str().is_empty() {
+        let err = std::io::Error::from(std::io::ErrorKind::NotFound);
+        return Err(io_failure(member, path, &err));
+    }
     std::fs::create_dir_all(path).map_err(|err| io_failure(member, path, &err))
 }
 

@@ -1,0 +1,33 @@
+--TEST--
+Core\IO::makeDir throws IOError for an empty path, because no directory exists there afterwards, and still accepts a directory that is already there — `rule:security/capability-check-at-the-door`
+--FILE--
+<?nvs
+// The contract is that the directory exists after the call. An empty path
+// names no directory, so the call throws `IOError`. The grant is unscoped
+// because a grant scoped to "." already refuses "" with a `RuntimeError`.
+try {
+    Core\IO::makeDir("");
+    echo "empty: made\n";
+} catch (IOError $e) {
+    echo "empty: IOError\n";
+}
+if (Core\IO::isDir("")) {
+    echo "empty: a directory\n";
+} else {
+    echo "empty: not a directory\n";
+}
+
+// The accepted side: a directory already there is success, twice.
+Core\IO::makeDir("sub");
+Core\IO::makeDir("sub");
+if (Core\IO::isDir("sub")) {
+    echo "sub: a directory\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+empty: IOError
+empty: not a directory
+sub: a directory
