@@ -6330,6 +6330,99 @@ mod tests {
         }
     }
 
+    /// A `Core\Http\TlsInfo` holding one freshly generated certificate for
+    /// `api.example.com`, filled the way `tls_info` fills one from a handshake:
+    /// the version, the suite, whether the call verified, and the chain as DER.
+    /// The caller owns it.
+    fn tls_info_for_example_host(verified: bool) -> Value {
+        let issued = rcgen::generate_simple_self_signed(vec!["api.example.com".to_owned()])
+            .expect("the certificate could not be generated");
+        let mut chain = NvsArray::new();
+        chain.append(Value::bytes(NvsStr::new(issued.cert.der())));
+        crate::instance::build(
+            &super::TLS_INFO,
+            [
+                Value::str(NvsStr::new(b"TLSv1.3")),
+                Value::str(NvsStr::new(b"TLS13_AES_128_GCM_SHA256")),
+                Value::bool(verified),
+                Value::array(chain),
+            ],
+        )
+    }
+
+    /// `Core\Http\Response::tls` answers `null` for a reply a real origin sent
+    /// over plain `http`, and for a reply holding a session answers that same
+    /// `Core\Http\TlsInfo` with a reference of the caller's own: reading it twice
+    /// and releasing each read leaves the response's own reference standing.
+    // covers: Core\Http\Response::tls
+    #[test]
+    fn response_tls_is_null_over_plain_http_and_the_held_session_otherwise() {
+        let mut ctx = Ctx::buffered();
+        let (_, plain) = answered_once(
+            "get",
+            "GET",
+            "/",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        );
+        let none = nvs_runtime::call(super::nvs_core_http_response_tls, &mut ctx, &[plain])
+            .expect("`tls` never throws");
+        assert_eq!(
+            none.tag(),
+            Some(nvs_runtime::Tag::Null),
+            "a reply over plain http reports no session"
+        );
+
+        let session = tls_info_for_example_host(true);
+        let object = session.obj_ptr().expect("the session is an instance");
+        let secure = crate::instance::build(
+            &RESPONSE,
+            [Value::int(200), Value::null(), Value::null(), session],
+        );
+        for _ in 0..2 {
+            let read = nvs_runtime::call(super::nvs_core_http_response_tls, &mut ctx, &[secure])
+                .expect("`tls` never throws");
+            assert_eq!(read.obj_ptr(), Some(object), "the session the reply holds");
+            #[expect(
+                unsafe_code,
+                reason = "the object is live: the response holds a reference to it"
+            )]
+            let (held, verified) = unsafe {
+                (
+                    nvs_runtime::NvsObj::refcount_of(object),
+                    crate::instance::slot(object, super::TLS_VERIFIED_SLOT).as_bool(),
+                )
+            };
+            assert_eq!(held, 2, "the response's reference and this read's");
+            assert_eq!(
+                verified,
+                Some(true),
+                "the session is the one the reply was built with"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the reference `tls` answered with"
+            )]
+            unsafe {
+                read.release();
+            }
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the object is live: the response still holds its reference"
+        )]
+        let held = unsafe { nvs_runtime::NvsObj::refcount_of(object) };
+        assert_eq!(held, 1, "every read released what it took");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns both responses, and neither is its caller's"
+        )]
+        unsafe {
+            plain.release();
+            secure.release();
+        }
+    }
+
     /// `Core\Http\Part::file` keeps the path and never the octets. The part it
     /// builds for a granted file holds the path, an empty data slot and the
     /// path's last component as its `filename`, and a written `filename` and

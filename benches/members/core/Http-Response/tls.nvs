@@ -1,0 +1,29 @@
+<?nvs
+// Checks whether a reply came over TLS, as a program does before it trusts a reply.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://api.example.com/secure", 200, {});
+        Core\Test::answerHttp("http://api.example.com/plain", 200, {});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://api.example.com/secure"),
+            Core\Http\Client::get("http://api.example.com/plain"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reply in each round depends on the round before, so no round can be left out.
+            if ($replies[(($total + $i) % 2) as int]->tls() == null) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

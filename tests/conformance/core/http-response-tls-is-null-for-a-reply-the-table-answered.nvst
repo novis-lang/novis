@@ -2,6 +2,7 @@
 A reply a test's answer table served reports no TLS session, whichever scheme its URL wrote, and every `Core\Http\TlsInfo` member sits behind the one check that answer forces — `rule:http-server/a-reply-reports-its-tls-session`, `rule:testing/an-outbound-call-is-answered-from-a-table`
 --FILE--
 <?nvs
+// covers: Core\Http\Response::tls
 // The claim is *an edge*: an outbound call in a test ends at the answer table,
 // so nothing was negotiated with anyone and `tls()` is `null` — for an `https`
 // URL exactly as for an `http` one, because neither of them reached a socket.

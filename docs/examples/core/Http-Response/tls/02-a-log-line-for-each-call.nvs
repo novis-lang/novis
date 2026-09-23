@@ -1,0 +1,26 @@
+<?nvs
+// Shows a log line for each request that names the TLS version of the connection.
+
+class CallLog {
+    // Returns one log line with the address, the status code and the TLS version.
+    // The version is `none` when the reply did not come over TLS.
+    public static function line(string $url, Core\Http\Response $response): string {
+        ?Core\Http\TlsInfo $info = $response->tls();
+        string $version = "none";
+        if ($info != null) {
+            $version = $info->version();
+        }
+        return $url . " " . $response->status() . " tls=" . $version;
+    }
+}
+
+// Two fixed replies, so the example runs without a network.
+Core\Test::answerHttp("https://shop.example.com/cart", 200, {});
+Core\Test::answerHttp("http://shop.example.com/old-page", 404, {});
+
+// Fixed replies do not use a connection, so both lines end with `tls=none`.
+// A reply from a real `https` server shows a version such as `TLSv1.3`.
+array<string> $urls = ["https://shop.example.com/cart", "http://shop.example.com/old-page"];
+foreach ($urls as string $url) {
+    echo CallLog::line($url, Core\Http\Client::get($url)), "\n";
+}

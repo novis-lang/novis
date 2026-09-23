@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to check whether a reply came over an encrypted TLS connection.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network. A fixed reply does not use any connection.
+Core\Test::answerHttp("https://api.example.com/health", 200, {body: "ok"});
+
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/health");
+
+// `tls()` returns a `Core\Http\TlsInfo` when the reply came over TLS, and `null`
+// when it did not. This reply is a fixed reply, so this prints `no TLS`.
+?Core\Http\TlsInfo $info = $response->tls();
+if ($info == null) {
+    echo "no TLS\n";
+} else {
+    echo "TLS version: ", $info->version(), "\n";
+}

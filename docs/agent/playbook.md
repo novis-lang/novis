@@ -3654,6 +3654,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing, so writing the grant for a proof tree before its first file exists makes the examples you
   are about to run fail on the config, not on themselves. Create the directory's first file before
   (or in the same step as) the block that grants it. [until: reviewed 2026-09-23]
+- **`verify.py`'s `extension` leg failing with `"tsc" ... nicht gefunden` (tsc not found) is a missing
+  `editors/vscode/node_modules`, not the change under test.** The directory is git-ignored, so nothing
+  in the tree restores it once it is gone, and the leg runs whenever the Core registry moves. Run `npm ci
+  --no-audit --no-fund` in `editors/vscode` (it reads the committed lockfile) and re-run `verify.py`.
+  [until: reviewed 2026-09-23]
 
 ## Writing a test case
 
