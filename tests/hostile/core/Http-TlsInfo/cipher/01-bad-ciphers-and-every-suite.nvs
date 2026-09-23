@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a program tries to build TLS connections with cipher names that are wrong,
+// then reads `cipher()` many times on every cipher. Every wrong name must throw an
+// error, every read must return the name that was given, and nothing may crash or leak.
+
+// 1. Wrong cipher names must throw a `LogicError`. Some are TLS 1.2 names used with
+//    TLS 1.3, some are misspelled, and one is a text of one megabyte.
+array<string> $bad = [
+    '', '0x1301', 'tls_aes_128_gcm_sha256', 'TLS_AES_128_GCM_SHA256 ', 'TLS_NULL_WITH_NULL_NULL',
+    'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256', "TLS_AES_128_GCM_SHA256\0",
+    Core\Str::repeat('TLS_AES_128_GCM_SHA256', 50000),
+];
+uint $refused = 0;
+foreach ($bad as string $cipher) {
+    try {
+        Core\Test::tlsSession({ version: 'TLSv1.3', cipher: $cipher });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+}
+// 2. A TLS 1.3 name used with TLS 1.2 must also throw a `LogicError`.
+try {
+    Core\Test::tlsSession({ version: 'TLSv1.2', cipher: 'TLS_AES_256_GCM_SHA384' });
+} catch (LogicError $e) {
+    $refused = $refused + 1;
+}
+if ($refused != 9) {
+    throw new LogicError('a wrong cipher name was accepted');
+}
+echo 'step 1 and 2: ', $refused, "\n";
+
+// 3. One connection for every cipher this build supports. `cipher()` is read a
+//    thousand times on each one and must return the name that was given.
+array<string> $newer = ['TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256'];
+array<string> $older = [
+    'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384', 'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256',
+    'TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256', 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',
+    'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', 'TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256',
+];
+array<Core\Http\TlsInfo> $sessions = [];
+array<string> $given = [];
+foreach ($newer as string $cipher) {
+    $sessions[] = Core\Test::tlsSession({ version: 'TLSv1.3', cipher: $cipher });
+    $given[] = $cipher;
+}
+foreach ($older as string $cipher) {
+    $sessions[] = Core\Test::tlsSession({ version: 'TLSv1.2', cipher: $cipher });
+    $given[] = $cipher;
+}
+uint $same = 0;
+uint $at = 0;
+foreach ($sessions as Core\Http\TlsInfo $session) {
+    uint $round = 0;
+    while ($round < 1000) {
+        if ($session->cipher() == $given[$at as int]) {
+            $same = $same + 1;
+        }
+        $round = $round + 1;
+    }
+    $at = $at + 1;
+}
+if ($same != 9000) {
+    throw new LogicError('a connection returned the wrong cipher');
+}
+echo 'step 3: ', $same, "\n";
+
+// 4. The cipher names are kept after every connection is gone.
+array<string> $kept = [];
+foreach ($sessions as Core\Http\TlsInfo $session) {
+    $kept[] = $session->cipher();
+}
+$sessions = [];
+echo 'step 4: ', Core\Arr::count($kept), "\n";

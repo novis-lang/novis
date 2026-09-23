@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program tries to build TLS connections with versions that do not exist,
+// then reads `version()` many times on many connections. Every bad version must throw
+// an error, every read must return the right version, and nothing may crash or leak.
+
+// 1. Versions that are not `TLSv1.3` or `TLSv1.2` must throw a `LogicError`.
+//    One of them is a text of one megabyte.
+array<string> $bad = [
+    '', 'TLSv1.1', 'TLSv1.0', 'SSLv3', 'tlsv1.3', 'TLSv1.3 ', ' TLSv1.2', 'TLSv1.4',
+    "TLSv1.3\0", Core\Str::repeat('TLSv1.3', 150000),
+];
+uint $refused = 0;
+foreach ($bad as string $version) {
+    try {
+        Core\Test::tlsSession({ version: $version });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+}
+if ($refused != 10) {
+    throw new LogicError('a version that does not exist was accepted');
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Two hundred connections are kept, and `version()` is read a thousand times on each one.
+array<Core\Http\TlsInfo> $sessions = [];
+uint $i = 0;
+while ($i < 200) {
+    string $wanted = 'TLSv1.3';
+    if ($i % 2 == 1) {
+        $wanted = 'TLSv1.2';
+    }
+    $sessions[] = Core\Test::tlsSession({ version: $wanted });
+    $i = $i + 1;
+}
+uint $newest = 0;
+foreach ($sessions as Core\Http\TlsInfo $session) {
+    uint $round = 0;
+    while ($round < 1000) {
+        if ($session->version() == 'TLSv1.3') {
+            $newest = $newest + 1;
+        }
+        $round = $round + 1;
+    }
+}
+if ($newest != 100000) {
+    throw new LogicError('a connection returned the wrong version');
+}
+echo 'step 2: ', $newest, "\n";
+
+// 3. The versions are kept after every connection is gone.
+array<string> $kept = [];
+foreach ($sessions as Core\Http\TlsInfo $session) {
+    $kept[] = $session->version();
+}
+$sessions = [];
+uint $older = 0;
+foreach ($kept as string $name) {
+    if ($name == 'TLSv1.2') {
+        $older = $older + 1;
+    }
+}
+echo 'step 3: ', $older, "\n";

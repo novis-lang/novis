@@ -131,7 +131,7 @@ use nvs_syntax::duration;
 use rand::RngExt;
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -1685,7 +1685,7 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 /// (`rule:http-server/a-reply-reports-its-tls-session`).
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
-    doc: None,
+    doc: Some(&RESPONSE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1888,6 +1888,12 @@ const TLS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Http\Response`'s own card — `rule:core-api/reference-card`.
+const RESPONSE_CARD: ClassDoc = ClassDoc {
+    short: "The reply to an outbound HTTP call: its status code, its headers, its body, and the \
+            TLS connection it came over. `Core\\Http\\Client::get()` returns one.",
+};
+
 // ---------------------------------------------------------- the session reported
 
 /// `Core\Http\TlsInfo` — what one reply's session settled, and whether it
@@ -1909,7 +1915,7 @@ const TLS_DOC: MethodDoc = MethodDoc {
 /// `http` trace event's (`rule:observability/trace-events-carry-a-kind`).
 pub(crate) const TLS_INFO: CoreClass = CoreClass {
     name: TLS_INFO_NAME,
-    doc: None,
+    doc: Some(&TLS_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1978,6 +1984,13 @@ pub(crate) const TLS_INFO: CoreClass = CoreClass {
     ],
     slots: &["version", "cipher", "verified", "chain"],
     constants: &[],
+};
+
+/// `Core\Http\TlsInfo`'s own card — `rule:core-api/reference-card`.
+const TLS_INFO_CARD: ClassDoc = ClassDoc {
+    short: "The details of the TLS connection a reply came over: the TLS version, the cipher, the \
+            server's certificates, and whether they were checked. `Core\\Http\\Response::tls()` \
+            returns one.",
 };
 
 /// [`TLS_INFO`]'s version slot, by index — the layout its `slots` names.
@@ -6462,6 +6475,115 @@ mod tests {
             plain.release();
             secure.release();
         }
+    }
+
+    /// `Core\Http\TlsInfo::version` and `::cipher` read back what the session
+    /// settled on, spelled as `nvs_host::tls` writes it: every suite this build
+    /// negotiates, under both versions, reads back unchanged and paired with
+    /// its own version. A receiver that is not an object is a fatal, not a
+    /// string.
+    // covers: Core\Http\TlsInfo::version
+    // covers: Core\Http\TlsInfo::cipher
+    #[test]
+    fn tls_info_version_and_cipher_read_back_every_suite_under_its_own_version() {
+        let mut ctx = Ctx::buffered();
+        let now = std::time::SystemTime::now();
+        let read = |ctx: &mut Ctx, member, info: Value| {
+            let text = nvs_runtime::call(member, ctx, &[info]).expect("a reader never throws");
+            let owned = text.as_text().expect("the reading is text").to_owned();
+            #[expect(unsafe_code, reason = "this frame owns the reading")]
+            unsafe {
+                text.release();
+            }
+            owned
+        };
+        for (version, cipher) in [
+            ("TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+            ("TLSv1.3", "TLS_AES_256_GCM_SHA384"),
+            ("TLSv1.3", "TLS_CHACHA20_POLY1305_SHA256"),
+            ("TLSv1.2", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"),
+            ("TLSv1.2", "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"),
+            ("TLSv1.2", "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"),
+            ("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
+        ] {
+            let session = nvs_host::tls::described(&nvs_host::tls::Description {
+                version: Some(version),
+                cipher: Some(cipher),
+                subject: "CN=api.example.com",
+                issuer: "CN=Example Test CA",
+                expiry: now + std::time::Duration::from_secs(86_400),
+                now,
+            })
+            .expect("a suite this build negotiates");
+            let info = super::tls_info_of(&session, true);
+            assert_eq!(
+                read(&mut ctx, super::nvs_core_http_tls_info_version, info),
+                version
+            );
+            assert_eq!(
+                read(&mut ctx, super::nvs_core_http_tls_info_cipher, info),
+                cipher
+            );
+            #[expect(unsafe_code, reason = "this frame owns the session")]
+            unsafe {
+                info.release();
+            }
+        }
+
+        for member in [
+            super::nvs_core_http_tls_info_version,
+            super::nvs_core_http_tls_info_cipher,
+        ] {
+            assert!(
+                nvs_runtime::call(member, &mut ctx, &[Value::null()]).is_err(),
+                "`null` is not a session"
+            );
+        }
+    }
+
+    /// `Core\Http\TlsInfo::verified` reads back the flag the session was filled
+    /// with, from a handshake's slot and from a described session alike, and
+    /// the flag is each session's own: one described chain read under both
+    /// flags answers both. A receiver that is not an object is a fatal, not a
+    /// `bool`.
+    // covers: Core\Http\TlsInfo::verified
+    #[test]
+    fn tls_info_verified_reads_the_flag_each_session_was_filled_with() {
+        let mut ctx = Ctx::buffered();
+        let now = std::time::SystemTime::now();
+        let described = nvs_host::tls::described(&nvs_host::tls::Description {
+            version: None,
+            cipher: None,
+            subject: "CN=api.example.com",
+            issuer: "CN=Example Test CA",
+            expiry: now + std::time::Duration::from_secs(86_400),
+            now,
+        })
+        .expect("the default session");
+        for verified in [true, false] {
+            for info in [
+                tls_info_for_example_host(verified),
+                super::tls_info_of(&described, verified),
+            ] {
+                let read =
+                    nvs_runtime::call(super::nvs_core_http_tls_info_verified, &mut ctx, &[info])
+                        .expect("`verified` never throws");
+                assert_eq!(read.as_bool(), Some(verified));
+                #[expect(unsafe_code, reason = "this frame owns the session")]
+                unsafe {
+                    info.release();
+                }
+            }
+        }
+        assert!(
+            nvs_runtime::call(
+                super::nvs_core_http_tls_info_verified,
+                &mut ctx,
+                &[Value::null()]
+            )
+            .is_err(),
+            "`null` is not a session"
+        );
     }
 
     /// `Core\Http\Part::file` keeps the path and never the octets. The part it

@@ -19,8 +19,8 @@ namespace Core\Http
 - `Lines`
 - `Method` — The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
 - `Part`
-- `Response`
+- `Response` — The reply to an outbound HTTP call: its status code, its headers, its body, and the TLS connection it came over. `Core\Http\Client::get()` returns one.
 - `Socket`
 - `Stream`
 - `Target`
-- `TlsInfo`
+- `TlsInfo` — The details of the TLS connection a reply came over: the TLS version, the cipher, the server's certificates, and whether they were checked. `Core\Http\Response::tls()` returns one.

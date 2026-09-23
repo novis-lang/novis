@@ -1,0 +1,28 @@
+<?nvs
+// Reads the cipher of a connection, as a program does when it checks a list of approved ciphers.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Two TLS connections built for a test, so nothing is sent over a network.
+        array<Core\Http\TlsInfo> $sessions = [
+            Core\Test::tlsSession({cipher: "TLS_AES_256_GCM_SHA384"}),
+            Core\Test::tlsSession({version: "TLSv1.2", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The connection in each round depends on the round before, so no round can be left out.
+            // A match adds 2, so the next round still reads the other connection.
+            if ($sessions[(($total + $i) % 2) as int]->cipher() == "TLS_AES_256_GCM_SHA384") {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
