@@ -298,12 +298,13 @@ window for N listed directories — tens, not thousands — spent by the backgro
 compiled build and the wasm target the question does not arise; resolution happens once, at build
 time.
 
-**The `autoload` half is on disk; the discovery query's is not.** The resolver records the trace —
-every path probed, in order, misses included (`nvs_hir::autoload::ProbeTrace`) — and the in-memory
-unit table keys on its digest beside the content hash and the environment, then re-asks those paths
-under the gate the content `stat` rides, so a file written where one of them missed sends that unit
-to a compile (`nvs_cli::script`). That check still runs inside a resolve. A discovery query's listed directories are not collected at all, and nothing
-hashes the discovered names.
+**What is on disk.** Both halves, checked from the resolve. The resolver records the trace — every
+path probed, in order, misses included, and every directory a discovery scan listed with the names it
+could act on (`nvs_hir::autoload::ProbeTrace`). A `discover` glob lists its base directory and probes
+the root it builds for each match. The in-memory unit table keys on the trace's digest beside the
+program digest and the environment, and re-asks those paths under the gate the content `stat` rides:
+a file written where a probe missed, or a listed directory whose names changed, sends that unit to a
+compile (`nvs_cli::script`). That check still runs inside a resolve, not in the background.
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 

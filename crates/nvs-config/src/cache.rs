@@ -273,9 +273,32 @@ impl ProbeHash {
 /// a whole front end. The trace is O(names × roots) and is released with the map it rode out on
 /// (`rule:programs/memory-priority`); nothing of it is held here.
 pub fn probe_hash(probed: &[PathBuf]) -> ProbeHash {
+    discovery_hash(probed, &[])
+}
+
+/// [`probe_hash`], with every directory a discovery scan listed folded in after the probes: the
+/// directory, then the sorted names it held, or nothing to list (`nvs_hir::autoload::Listing`).
+///
+/// So a listing whose names did not change hashes the same, and a module added under a scanned
+/// directory is another key. With no listing the digest is [`probe_hash`]'s; with one, a length no
+/// path can have separates the two halves, so no probe list can hash as a listing.
+///
+/// Cost: [`probe_hash`]'s, plus one pass over the listed names, once per compile.
+pub fn discovery_hash(probed: &[PathBuf], listed: &[(PathBuf, Option<Vec<String>>)]) -> ProbeHash {
     let mut hasher = blake3::Hasher::new();
     for path in probed {
         feed(&mut hasher, path.as_os_str().to_string_lossy().as_bytes());
+    }
+    if !listed.is_empty() {
+        hasher.update(&u64::MAX.to_le_bytes());
+    }
+    for (dir, names) in listed {
+        feed(&mut hasher, dir.as_os_str().to_string_lossy().as_bytes());
+        let count = names.as_ref().map_or(0, |names| names.len() as u64 + 1);
+        hasher.update(&count.to_le_bytes());
+        for name in names.iter().flatten() {
+            feed(&mut hasher, name.as_bytes());
+        }
     }
     ProbeHash(Some(Digest(*hasher.finalize().as_bytes())))
 }

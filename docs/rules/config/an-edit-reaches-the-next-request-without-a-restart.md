@@ -36,6 +36,6 @@ trigger a recompile — only the program's own files changing do. The cost is on
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
 **What is on disk.** The resolve-time form of this rule: the key is the whole program, and a check
-looks at every file the compile read, every path it missed and every `autoload` probe, but it runs
-inside the resolve, on the request path. A discovery query's directories are not checked. The
+looks at every file the compile read, every path it missed, every `autoload` probe and every
+directory a discovery query listed, but it runs inside the resolve, on the request path. The
 background check, `settle` and the link re-resolve are not on disk.

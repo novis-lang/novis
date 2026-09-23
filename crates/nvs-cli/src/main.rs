@@ -1755,10 +1755,14 @@ struct Looked {
     /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`). Empty when
     /// the run stopped before the graph walk.
     probed: Vec<std::path::PathBuf>,
+    /// Every directory a discovery scan listed, with the names it held — a
+    /// `discover` glob's base and every directory `implementing` walked.
+    listed: Vec<nvs_hir::autoload::Listing>,
 }
 
 impl Looked {
-    /// Copies out of `map` and `autoload` what the run read, missed and probed.
+    /// Copies out of `map` and `autoload` what the run read, missed, probed and
+    /// listed.
     fn take(&mut self, map: &SourceMap, autoload: Option<&nvs_hir::AutoloadMap>) {
         self.read = map
             .files()
@@ -1769,6 +1773,7 @@ impl Looked {
             .collect();
         self.missed = map.missed().to_vec();
         self.probed = autoload.map_or_else(Vec::new, |map| map.probe_trace().probed().to_vec());
+        self.listed = autoload.map_or_else(Vec::new, |map| map.probe_trace().listed().to_vec());
     }
 }
 

@@ -160,7 +160,8 @@ use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLoc
 use std::time::{Instant, SystemTime};
 
 use nvs_config::cache::{
-    Digest, EnvHash, ProbeHash, Revalidation, UnitKey, Validate, content_hash, env_hash, probe_hash,
+    Digest, EnvHash, ProbeHash, Revalidation, UnitKey, Validate, content_hash, discovery_hash,
+    env_hash,
 };
 use nvs_config::tree::Config;
 use nvs_runtime::script::{Program, Resolver};
@@ -225,15 +226,17 @@ struct Stamp {
 /// stopped, so that the edit fixing it is noticed.
 ///
 /// **What it spends:** per unit, one path, one stamp and one digest for each
-/// file the program read or missed, and one path and one bool for each
-/// `autoload` probe. O(the program's files), never O(edits).
+/// file the program read or missed, one path and one bool for each `autoload`
+/// probe, and one path, one stamp and the listed names for each directory a
+/// discovery scan listed. O(the program's files), never O(edits).
 #[derive(Clone, Debug)]
 struct Trace {
     /// The whole-program digest the unit is published under: the on-disk
     /// artifact cache's [`crate::cache::program_digest`] for a compile that
     /// reached the backend, and [`failed_program`]'s fold for one that did not.
     program: Digest,
-    /// The other key field, [`probe_hash`] over the probed paths below.
+    /// The other key field, [`discovery_hash`] over the probed paths and the
+    /// listings below.
     probes: ProbeHash,
     /// Every path the `autoload` resolution probed, in probe order, with
     /// whether it existed
@@ -255,6 +258,23 @@ struct Trace {
     /// [`Compiler::paths`] already watches, and every path it looked for and
     /// did not find.
     files: Vec<Read>,
+    /// Every directory a discovery scan listed
+    /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`): a
+    /// `discover` glob's base, and every directory `implementing` walked.
+    listed: Vec<Listed>,
+}
+
+/// One directory a discovery scan listed, and what it held.
+#[derive(Clone, Debug)]
+struct Listed {
+    dir: PathBuf,
+    /// What `validate = "mtime"` compares against, with [`Read::stamp`]'s
+    /// meaning: `None` re-lists the directory on the next check.
+    stamp: Option<Stamp>,
+    /// [`nvs_hir::autoload::listed_names`] as the compile saw it. A directory
+    /// is re-listed when its stamp moves, and only a change here moves the
+    /// unit, so a file the scan passes over recompiles nothing.
+    names: Option<Vec<String>>,
 }
 
 /// One file a compile read, or one path it looked for and found nothing at.
@@ -717,10 +737,10 @@ impl Compiler {
     /// leaving one place that takes units out of the table is what keeps the
     /// sweep's accounting readable.
     ///
-    /// **What it costs:** one `stat` per file the program read or missed, one
-    /// `exists` per probed path, and a read only for a file whose stamp moved
-    /// (or every file, under `validate = "hash"`) — per revalidation window that
-    /// reaches step 2.
+    /// **What it costs:** one `stat` per file the program read or missed and per
+    /// directory a discovery scan listed, one `exists` per probed path, and a
+    /// read or a listing only for a path whose stamp moved (or every one, under
+    /// `validate = "hash"`) — per revalidation window that reaches step 2.
     fn revalidate_trace(&self, path: &Path, content: Digest) {
         let entry = (path.to_path_buf(), content);
         let validate = self.revalidation.validate;
@@ -734,22 +754,33 @@ impl Compiler {
                 .answers
                 .iter()
                 .any(|(probed, existed)| probed.exists() != *existed);
-            let stamps: Option<Vec<Option<Stamp>>> = if probes_moved {
+            /// One stamp to keep per file, or per listed directory, in order.
+            type Stamps = Vec<Option<Stamp>>;
+            let stamps: Option<(Stamps, Stamps)> = if probes_moved {
                 None
             } else {
                 trace
                     .files
                     .iter()
                     .map(|read| unmoved(read, validate, checked))
-                    .collect()
+                    .collect::<Option<Vec<_>>>()
+                    .zip(
+                        trace
+                            .listed
+                            .iter()
+                            .map(|listed| unlisted(listed, validate, checked))
+                            .collect::<Option<Vec<_>>>(),
+                    )
             };
-            let restamped = stamps.map(|stamps| {
+            let restamped = stamps.map(|(files, dirs)| {
                 let changed = trace
                     .files
                     .iter()
-                    .zip(&stamps)
-                    .any(|(read, stamp)| read.stamp != *stamp);
-                changed.then_some(stamps)
+                    .map(|read| read.stamp)
+                    .zip(&files)
+                    .chain(trace.listed.iter().map(|listed| listed.stamp).zip(&dirs))
+                    .any(|(was, now)| was != *now);
+                changed.then_some((files, dirs))
             });
             (trace.program, restamped)
         };
@@ -757,14 +788,17 @@ impl Compiler {
             None => {
                 exclusive(&self.traces).remove(&entry);
             }
-            Some(Some(stamps)) => {
+            Some(Some((files, dirs))) => {
                 // Only onto the generation that was checked: a compile that
                 // landed in between recorded stamps of its own.
                 if let Some(trace) = exclusive(&self.traces).get_mut(&entry)
                     && trace.program == program
                 {
-                    for (read, stamp) in trace.files.iter_mut().zip(stamps) {
+                    for (read, stamp) in trace.files.iter_mut().zip(files) {
                         read.stamp = stamp;
+                    }
+                    for (listed, stamp) in trace.listed.iter_mut().zip(dirs) {
+                        listed.stamp = stamp;
                     }
                 }
             }
@@ -924,7 +958,22 @@ impl Compiler {
                 digest: None,
             }))
             .collect();
-        let probes = probe_hash(&looked.probed);
+        let listed: Vec<Listed> = looked
+            .listed
+            .into_iter()
+            .map(|listing| Listed {
+                stamp: vouching(stamp_of(&listing.dir), started),
+                dir: listing.dir,
+                names: listing.names,
+            })
+            .collect();
+        let probes = discovery_hash(
+            &looked.probed,
+            &listed
+                .iter()
+                .map(|listed| (listed.dir.clone(), listed.names.clone()))
+                .collect::<Vec<_>>(),
+        );
         let Ok(checked) = checked else {
             let program = failed_program(content, &reads);
             return (
@@ -936,6 +985,7 @@ impl Compiler {
                     probes,
                     answers,
                     files: reads,
+                    listed,
                 },
             );
         };
@@ -967,6 +1017,7 @@ impl Compiler {
                 probes,
                 answers,
                 files: reads,
+                listed,
             },
         )
     }
@@ -1050,6 +1101,17 @@ fn unmoved(read: &Read, validate: Validate, checked: SystemTime) -> Option<Optio
     }
     let source = std::fs::read(&read.path).ok()?;
     (content_hash(&source) == digest).then(|| vouching(stamp, checked))
+}
+
+/// [`unmoved`] for a directory a discovery scan listed: under `mtime` a stamp
+/// that matches answers without a listing, and otherwise the directory is
+/// listed again through the scan's own filter. Only the names decide.
+fn unlisted(listed: &Listed, validate: Validate, checked: SystemTime) -> Option<Option<Stamp>> {
+    let stamp = stamp_of(&listed.dir);
+    if validate == Validate::Mtime && stamp.is_some() && stamp == listed.stamp {
+        return Some(stamp);
+    }
+    (nvs_hir::autoload::listed_names(&listed.dir) == listed.names).then(|| vouching(stamp, checked))
 }
 
 /// A read guard on one of [`Compiler`]'s two maps: the hit path, and the one

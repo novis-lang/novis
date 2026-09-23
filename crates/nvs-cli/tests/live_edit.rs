@@ -351,6 +351,46 @@ fn a_file_that_shadows_an_autoload_probe_miss_takes_over_without_a_restart() {
     server.awaits_body("/", "src");
 }
 
+/// A module written into a directory under the root that already holds one
+/// joins what `implementing` returns. Nothing names the new class and no file
+/// the program read changes, so only the listing of that directory can bring
+/// it to a request.
+#[test]
+fn a_new_module_under_a_discovery_directory_joins_implementing_without_a_restart() {
+    let server = Server::start(
+        "discovery",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", IMPLEMENTING),
+            ("src/Said.nvs", SAID),
+            ("src/One.nvs", &module("", "One", "one")),
+            ("src/Plugins/Two.nvs", &module("\\Plugins", "Two", "two")),
+        ],
+    );
+    server.awaits_body("/", "one;two;");
+
+    server.write(
+        "src/Plugins/Three.nvs",
+        &module("\\Plugins", "Three", "three"),
+    );
+    server.awaits_body("/", "one;three;two;");
+}
+
+/// An entry file that maps `App` to `./src` and prints what `say` returns for
+/// every class implementing `App\Said`, in the order `implementing` gives them.
+const IMPLEMENTING: &str = "<?nvs\nautoload 'App' from './src';\nforeach (Core\\Program::implementing<App\\Said>() as App\\Said $it) {\n    echo $it->say(), \";\";\n}\n";
+
+/// The file that declares `App\Said`.
+const SAID: &str = "<?nvs\nnamespace App;\ninterface Said { public function say(): string; }\n";
+
+/// The file that declares `App<namespace>\<name>`, implementing `App\Said` with
+/// a `say` that returns `word`.
+fn module(namespace: &str, name: &str, word: &str) -> String {
+    format!(
+        "<?nvs\nnamespace App{namespace};\nclass {name} implements App\\Said {{ public function say(): string {{ return '{word}'; }} }}\n"
+    )
+}
+
 /// An entry file that maps `App` to `roots` and prints what `App\<name>::say`
 /// returns.
 fn saying(name: &str, roots: &[&str]) -> String {

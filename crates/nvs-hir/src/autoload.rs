@@ -183,12 +183,20 @@ pub struct AutoloadMap {
 /// anything the first compile hashed. The probed-and-missed path is the only
 /// record that the answer was ever a question.
 ///
-/// What it holds: one [`PathBuf`] per root probed per autoloaded name —
-/// O(names × roots) for the length of one resolution, released with the map
+/// A discovery scan is the other way a directory's contents become part of the
+/// answer: a `discover` glob lists its base directory, and
+/// [`AutoloadMap::enumerate_recording`] lists every directory under every root.
+/// Adding a module there changes the answer with no probed path to notice it,
+/// so each directory listed is kept too, with the names it held.
+///
+/// What it holds: one [`PathBuf`] per root probed per autoloaded name, and one
+/// [`Listing`] per directory a scan listed — O(names × roots + directories)
+/// for the length of one resolution, released with the map
 /// (`rule:programs/memory-priority`).
 #[derive(Clone, Debug, Default)]
 pub struct ProbeTrace {
     probed: Vec<PathBuf>,
+    listed: Vec<Listing>,
 }
 
 impl ProbeTrace {
@@ -198,10 +206,34 @@ impl ProbeTrace {
     /// probe of a name it has already asked about, which is what bounds the
     /// length and what makes the order a function of the program rather than of
     /// how many times something asked.
+    ///
+    /// A `discover` glob adds the root it builds for each directory it matches,
+    /// so a module whose root appears later is noticed.
     #[must_use]
     pub fn probed(&self) -> &[PathBuf] {
         &self.probed
     }
+
+    /// Every directory a discovery scan listed, in the order it listed them.
+    #[must_use]
+    pub fn listed(&self) -> &[Listing] {
+        &self.listed
+    }
+}
+
+/// One directory a discovery scan listed, and what it found there
+/// (`rule:packaging/autoload-probes-fold-into-the-cache-key`).
+///
+/// `names` is only the entries the scan can act on — see [`listed_names`] — so
+/// a `README.md` written beside the modules changes the directory and not the
+/// answer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Listing {
+    /// The directory, as the scan named it.
+    pub dir: PathBuf,
+    /// [`listed_names`] of `dir` when it was listed, and `None` for a directory
+    /// there was nothing to list.
+    pub names: Option<Vec<String>>,
 }
 
 /// What one [`AutoloadMap::resolve`] call did: the file it landed on, if
@@ -294,6 +326,8 @@ impl AutoloadMap {
             let expanded = discover(&site.base_dir, glob, site.span, sink);
             if !is_borrowed {
                 map.skipped.extend(expanded.skipped);
+                map.trace.probed.extend(expanded.candidates);
+                map.trace.listed.extend(expanded.listed);
             }
             for (name, root) in expanded.found {
                 let segments = vec![name.clone()];
@@ -447,11 +481,25 @@ impl AutoloadMap {
     /// holds a `.git`, a `README.md` and a `vendor`.
     #[must_use]
     pub fn enumerate(&self) -> Vec<(QName, PathBuf)> {
+        self.enumerate_into(&mut Vec::new())
+    }
+
+    /// [`Self::enumerate`], keeping every directory it listed in this map's
+    /// [`ProbeTrace`] — the graph walk's scan, for the reason
+    /// [`Self::resolve_recording`] is the graph walk's resolve.
+    pub fn enumerate_recording(&mut self) -> Vec<(QName, PathBuf)> {
+        let mut listed = Vec::new();
+        let found = self.enumerate_into(&mut listed);
+        self.trace.listed.extend(listed);
+        found
+    }
+
+    fn enumerate_into(&self, listed: &mut Vec<Listing>) -> Vec<(QName, PathBuf)> {
         let mut found: Vec<(QName, PathBuf)> = Vec::new();
         let mut walked: FxHashSet<PathBuf> = FxHashSet::default();
         for entry in &self.entries {
             for root in &entry.roots {
-                collect_declared(root, &entry.segments, &mut found, &mut walked);
+                collect_declared(root, &entry.segments, &mut found, &mut walked, listed);
             }
         }
         // Stable, so a name found under two roots keeps the first probe's
@@ -558,54 +606,94 @@ impl AutoloadMap {
 /// back up its own tree costs one skipped directory rather than an unbounded
 /// walk. The root is a path the program wrote; everything under it is
 /// whatever the deployment put there, which is not the same guarantee.
+///
+/// Every directory visited is added to `listed`, a root that does not exist
+/// included, since creating it changes the answer too.
 fn collect_declared(
     dir: &Path,
     prefix: &[String],
     out: &mut Vec<(QName, PathBuf)>,
     walked: &mut FxHashSet<PathBuf>,
+    listed: &mut Vec<Listing>,
 ) {
     if !walked.insert(crate::requires::canonicalize(dir).unwrap_or_else(|| dir.to_path_buf())) {
         return;
     }
     // A root that does not exist reads as a root declaring nothing, the same
     // answer `canonical` leaves a probe under it with.
-    let Some(entries) = listing(dir) else {
+    let entries = listing(dir);
+    listed.push(Listing {
+        dir: dir.to_path_buf(),
+        names: entries.as_deref().map(names_of),
+    });
+    let Some(entries) = entries else {
         return;
     };
 
     for (path, is_directory) in entries {
-        let name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
         if is_directory {
+            let name = entry_name(&path);
             if is_namespace_segment(&name) {
                 let mut nested = prefix.to_vec();
                 nested.push(name);
-                collect_declared(&path, &nested, out, walked);
+                collect_declared(&path, &nested, out, walked, listed);
             }
-            continue;
-        }
-        if path.extension().and_then(|ext| ext.to_str()) != Some(SOURCE_EXTENSION) {
             continue;
         }
         // The on-disk spelling is the name here, so there is nothing for
         // `spelled_exactly` to check: this direction reads the name off the
         // filesystem instead of asking the filesystem for one.
-        let Some(stem) = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .map(str::to_owned)
-        else {
+        let Some(stem) = declared_stem(&path) else {
             continue;
         };
-        if !is_namespace_segment(&stem) {
-            continue;
-        }
         let canonical = crate::requires::canonicalize(&path).unwrap_or(path);
         out.push((QName::join(prefix, &stem), canonical));
     }
+}
+
+/// The last component of `path`, as text.
+fn entry_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// The name a source file under a root declares, or `None` for a file that is
+/// not a `.nvs` file or whose stem cannot name a namespace segment.
+fn declared_stem(path: &Path) -> Option<String> {
+    if path.extension().and_then(|ext| ext.to_str()) != Some(SOURCE_EXTENSION) {
+        return None;
+    }
+    let stem = path.file_stem()?.to_str()?;
+    is_namespace_segment(stem).then(|| stem.to_owned())
+}
+
+/// The names in `entries` a discovery scan can act on, sorted: every directory
+/// that can name a namespace segment, and every `.nvs` file that can name a
+/// declaration.
+fn names_of(entries: &[(PathBuf, bool)]) -> Vec<String> {
+    let mut names: Vec<String> = entries
+        .iter()
+        .filter(|(path, is_directory)| {
+            if *is_directory {
+                is_namespace_segment(&entry_name(path))
+            } else {
+                declared_stem(path).is_some()
+            }
+        })
+        .map(|(path, _)| entry_name(path))
+        .collect();
+    names.sort();
+    names
+}
+
+/// What a discovery scan would record for `dir` if it listed it now — the
+/// [`Listing::names`] a later check compares against, read through the same
+/// filter, so the two can only differ where the answer can.
+#[must_use]
+pub fn listed_names(dir: &Path) -> Option<Vec<String>> {
+    listing(dir).as_deref().map(names_of)
 }
 
 /// One directory's entries as this module reads them — `(path, whether it is a
@@ -736,6 +824,12 @@ struct Discovered {
     /// Each directory passed over in silence, with the reason, sorted by
     /// path.
     skipped: Vec<(PathBuf, &'static str)>,
+    /// The base directory the glob listed, when its shape let it list one.
+    listed: Vec<Listing>,
+    /// The root built for each matched directory whose glob has segments after
+    /// the `*`, found or not: creating `Shop/src` under `'*/src'` adds a module
+    /// without changing what the base directory lists.
+    candidates: Vec<PathBuf>,
 }
 
 /// Expands `autoload discover '<glob>'` into its `(prefix, root)` pairs.
@@ -769,7 +863,15 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     for part in &parts[..star] {
         scanned.push(part);
     }
-    let Some(entries) = listing(&scanned) else {
+    let entries = listing(&scanned);
+    let mut out = Discovered {
+        listed: vec![Listing {
+            dir: scanned.clone(),
+            names: entries.as_deref().map(names_of),
+        }],
+        ..Discovered::default()
+    };
+    let Some(entries) = entries else {
         diags.report(
             Diagnostic::error(
                 code::E_AUTOLOAD_GLOB_SHAPE,
@@ -777,10 +879,9 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
             )
             .with_primary(span, "no directory to discover modules in"),
         );
-        return Discovered::default();
+        return out;
     };
 
-    let mut out = Discovered::default();
     for (path, is_directory) in entries {
         // The `*` matches a *directory*; a plain file sitting beside them can
         // never become a root — the `is_dir` test below already refused it —
@@ -809,6 +910,9 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
         for part in &parts[star + 1..] {
             root.push(part);
         }
+        if star + 1 < parts.len() {
+            out.candidates.push(root.clone());
+        }
         if !is_dir(&root) {
             out.skipped
                 .push((root, "the glob's remaining segments name no directory"));
@@ -822,6 +926,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     // machine — as does anything `--autoload-map` prints.
     out.found.sort_by(|a, b| a.0.cmp(&b.0));
     out.skipped.sort_by(|a, b| a.0.cmp(&b.0));
+    out.candidates.sort();
     out
 }
 

@@ -456,9 +456,11 @@ fn walk(
         //
         // Each file arrives under the name `AutoloadMap::resolve` would have
         // found it by, so `check_file_shape` holds a scanned file to exactly
-        // the rule a probed one already answers to.
+        // the rule a probed one already answers to. The scan records every
+        // directory it listed, for the reason the resolve below records what it
+        // probed: a module added to one of them changes the program.
         if let Some(site) = scan.take() {
-            for (name, path) in built.enumerate() {
+            for (name, path) in built.enumerate_recording() {
                 if !done.insert(path.clone()) {
                     continue;
                 }
@@ -2733,6 +2735,59 @@ class Unreached {}
                 r"Framework\Http\Router".to_owned(),
             ],
         );
+    }
+
+    /// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s discovery
+    /// half: the recording scan keeps every directory it listed, each with the
+    /// names it could act on, and the plain scan keeps nothing.
+    #[test]
+    fn the_recording_scan_keeps_every_directory_it_listed() {
+        let dir = TempDir::new("autoload-enumerate-listed");
+        for sub in ["src/Http", "src/.git"] {
+            fs::create_dir_all(dir.path.join(sub)).expect("create root");
+        }
+        dir.write("src/Core.nvs", "<?nvs\n");
+        dir.write("src/README.md", "not a declaration\n");
+        dir.write("src/Http/Router.nvs", "<?nvs\n");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let mut autoload = AutoloadMap::build(
+            &[site(&dir, id, prefix("Framework", &["./src", "./gone"]))],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let _ = autoload.enumerate();
+        assert!(autoload.probe_trace().listed().is_empty());
+
+        let _ = autoload.enumerate_recording();
+        let listed: Vec<(String, Option<Vec<String>>)> = autoload
+            .probe_trace()
+            .listed()
+            .iter()
+            .map(|listing| {
+                let name = listing.dir.file_name().unwrap_or_default();
+                (name.to_string_lossy().into_owned(), listing.names.clone())
+            })
+            .collect();
+        let names = |names: &[&str]| Some(names.iter().map(|n| (*n).to_owned()).collect());
+        assert_eq!(
+            listed,
+            vec![
+                ("src".to_owned(), names(&["Core.nvs", "Http"])),
+                ("Http".to_owned(), names(&["Router.nvs"])),
+                ("gone".to_owned(), None),
+            ],
+        );
+        for listing in autoload.probe_trace().listed() {
+            assert_eq!(
+                crate::autoload::listed_names(&listing.dir),
+                listing.names,
+                "a listing taken again through the same filter agrees",
+            );
+        }
     }
 
     /// `rule:programs/implementing`'s opt-in, asserted as the difference it makes: one
