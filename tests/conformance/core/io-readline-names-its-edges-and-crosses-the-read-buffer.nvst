@@ -2,6 +2,7 @@
 `Core\IO\File::readLine` at its boundaries: an empty file has no lines, a lone terminator is one empty line, an interior empty line is a line, and a line longer than the buffer one read fills is still one line — spec § 14
 --FILE--
 <?nvs
+// covers: Core\IO\File::readLine
 // An empty file: the very first question gets the absence, so a program walking
 // a file never has to ask whether there is one before it starts.
 Core\IO\File $blank = Core\IO::open("blank.txt", Core\IO\FileMode::Write);

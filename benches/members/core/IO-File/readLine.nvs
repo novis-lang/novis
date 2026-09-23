@@ -1,0 +1,27 @@
+<?nvs
+// Reads an open file one line at a time, as a program does when it reads a log or a CSV file.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), "read-line.txt");
+        Core\IO::write($path, Core\Str::repeat("order 1042 shipped\n", 1000));
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+        ?string $line = null;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $line = $file->readLine();
+            if ($line == null) {
+                $file->seek(0);
+            } else {
+                $total = $total + Core\Str::length($line);
+            }
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "done" : "nothing was read", "\n";

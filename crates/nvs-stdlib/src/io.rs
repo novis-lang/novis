@@ -1498,6 +1498,11 @@ const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
             desc: "The handle has already been closed.",
         },
         ErrorDoc {
+            error: "RuntimeError",
+            desc: "The line is not valid UTF-8. The handle does not move, so the next call reads \
+                   the same line.",
+        },
+        ErrorDoc {
             error: "IOError",
             desc: "The read itself failed, or the handle was not opened for reading.",
         },
@@ -2406,6 +2411,20 @@ nvs_runtime::nvs_helper! {
     /// correct caller then writes the same `rtrim`, which is the shape `rule:core-api/shape-rules`
     /// R5 refuses: the end of the file is `null` and nothing else has to be
     /// looked for.
+    ///
+    /// # Decision: a line is bounded by the request's memory, and a refused
+    /// line does not move the handle
+    ///
+    /// A line has no length of its own, so a file with no terminator in it is
+    /// one line as long as the file. The line is gathered in a Rust buffer the
+    /// request's balance does not see, so each chunk asks
+    /// [`nvs_runtime::affordable`] for the line so far before it is added: a
+    /// line past the memory limit ends the request as that limit's `FATAL`
+    /// while the buffer is still within it, not after it has grown to the size
+    /// of the file. A line that is not UTF-8 throws, and every byte this call
+    /// took — terminator included — is given back first, the same promise
+    /// [`nvs_core_io_file_read`] makes, so a caller that recovers is where it
+    /// was.
     fn nvs_core_io_file_read_line(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "readLine")?;
         let failed = |err: &std::io::Error| {
@@ -2421,20 +2440,24 @@ nvs_runtime::nvs_helper! {
 
         let mut line = Vec::new();
         let mut buffer = [0u8; LINE_CHUNK];
+        // Every byte this call has taken off the handle, terminator included,
+        // so a line that is not text can be given back whole.
+        let mut taken = 0usize;
         loop {
             let read = file.read(&mut buffer).map_err(|err| failed(&err))?;
             if read == 0 {
                 // The end of the file. A last line with no terminator is still
                 // a line; nothing at all is the absence R5 spells `null`.
-                return if line.is_empty() {
-                    Ok(Value::null())
-                } else {
-                    text_of(&line, "Core\\IO\\File::readLine")
-                };
+                if line.is_empty() {
+                    return Ok(Value::null());
+                }
+                break;
             }
+            nvs_runtime::affordable(Some(line.len() + read), "Core\\IO\\File::readLine")?;
             let chunk = &buffer[..read];
             let Some(at) = chunk.iter().position(|byte| *byte == b'\n' || *byte == b'\r') else {
                 line.extend_from_slice(chunk);
+                taken += read;
                 continue;
             };
             line.extend_from_slice(&chunk[..at]);
@@ -2447,12 +2470,17 @@ nvs_runtime::nvs_helper! {
                     // whether this is a `\r\n` cluster or a lone `\r`, and the
                     // byte is given back when it is neither.
                     let mut next = [0u8; 1];
-                    if file.read(&mut next).map_err(|err| failed(&err))? == 1 && next[0] != b'\n' {
-                        file.seek(std::io::SeekFrom::Current(-1))
-                            .map_err(|err| failed(&err))?;
+                    if file.read(&mut next).map_err(|err| failed(&err))? == 1 {
+                        if next[0] == b'\n' {
+                            taken += 1;
+                        } else {
+                            file.seek(std::io::SeekFrom::Current(-1))
+                                .map_err(|err| failed(&err))?;
+                        }
                     }
                 }
             }
+            taken += consumed;
             // What of the chunk lies past the terminator, given back so that the
             // handle ends this call exactly where the line ended. It is at most
             // `LINE_CHUNK`, which is why the conversion cannot fail.
@@ -2462,8 +2490,15 @@ nvs_runtime::nvs_helper! {
                 file.seek(std::io::SeekFrom::Current(-tail))
                     .map_err(|err| failed(&err))?;
             }
-            return text_of(&line, "Core\\IO\\File::readLine");
+            break;
         }
+        text_of(&line, "Core\\IO\\File::readLine").or_else(|refused| {
+            let back = i64::try_from(taken)
+                .expect("a line the request's memory held fits an `i64`");
+            file.seek(std::io::SeekFrom::Current(-back))
+                .map_err(|err| failed(&err))?;
+            Err(refused)
+        })
     }
 }
 
@@ -5229,6 +5264,153 @@ mod tests {
         assert_eq!(read_on(&mut ctx, file, 2).as_deref(), Ok("ok"));
         on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
         let_go(file);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::readLine` on `handle`: the line it returned, `None` at the end of the
+    /// file, or the message its refusal left in `ctx`.
+    fn read_line_on(ctx: &mut nvs_runtime::Ctx, handle: Value) -> Result<Option<String>, String> {
+        let answered = nvs_runtime::call(nvs_core_io_file_read_line, ctx, &[handle]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        match answered {
+            Ok(line) if line.tag() == Some(Tag::Null) => Ok(None),
+            Ok(line) => {
+                let owned = line
+                    .as_text()
+                    .expect("`readLine` returns a string")
+                    .to_owned();
+                #[expect(unsafe_code, reason = "the case owns the string `readLine` returned")]
+                unsafe {
+                    line.release();
+                }
+                Ok(Some(owned))
+            }
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        }
+    }
+
+    /// `Core\IO\File::readLine` takes a `\r\n` whose `\r` ends one chunk and whose `\n`
+    /// starts the next as one terminator, and gives back the byte after a lone `\r` there. A
+    /// line that is not UTF-8 throws and leaves the handle at its start, and a line longer
+    /// than the request can afford is refused by the member itself, before its buffer holds
+    /// the file.
+    // covers: Core\IO\File::readLine
+    #[test]
+    fn core_io_file_read_line_crosses_a_chunk_and_a_refused_line_does_not_move() {
+        let path = scratch("file-read-line.txt");
+        let before = "x".repeat(LINE_CHUNK - 1);
+        std::fs::write(&path, format!("{before}\r\nnext\r{before}\ry\r")).expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some(before.clone())));
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("next".to_owned())));
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some(before.clone())));
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("y".to_owned())));
+        for _ in 0..2 {
+            assert_eq!(read_line_on(&mut ctx, file), Ok(None));
+        }
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = read_line_on(&mut ctx, file).expect_err("a closed handle reads nothing");
+        assert!(
+            closed.contains(r"Core\IO\File::readLine: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+
+        std::fs::write(&path, b"ok\xff\r\nok").expect("a file that is not text");
+        let file = handle_on(&mut ctx, &path);
+        for _ in 0..2 {
+            let refused = read_line_on(&mut ctx, file).expect_err("0xFF is never UTF-8");
+            assert!(refused.contains("not valid UTF-8"), "{refused}");
+        }
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(5)])
+            .expect("a position inside the file");
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("ok".to_owned())));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let_go(file);
+
+        std::fs::write(&path, "x".repeat(4 << 20)).expect("a line of four megabytes");
+        let file = handle_on(&mut ctx, &path);
+        ctx.set_memory_limit(1 << 20);
+        let over = read_line_on(&mut ctx, file).expect_err("the line is past the limit");
+        assert!(over.contains("exceeded its memory limit"), "{over}");
+        // The buffer is not on the balance, so where the handle stopped is what shows the
+        // member asked in time: a member that read the whole line first stands at its end.
+        // `tell` is itself refused past the limit, so the descriptor is asked directly.
+        let (key, _) = handle_of(file, "tell").expect("a handle `open` built");
+        let at = ctx
+            .open_file_mut(key)
+            .expect("the handle is still open")
+            .stream_position()
+            .expect("an open file has a position");
+        assert!(
+            at <= 1 << 20,
+            "the member read {at} bytes of a line it could not afford"
+        );
+        // A request past its limit reaches no member, `close` included; ending it closes
+        // the descriptor.
+        let_go(file);
+        drop(ctx);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::write($data)` on `handle`: the count it returned, or the message its
+    /// refusal left in `ctx`.
+    fn write_on(ctx: &mut nvs_runtime::Ctx, handle: Value, data: &str) -> Result<u64, String> {
+        let text = Value::str(NvsStr::new(data.as_bytes()));
+        let answered = nvs_runtime::call(nvs_core_io_file_write, ctx, &[handle, text]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        #[expect(unsafe_code, reason = "the case owns the string it built")]
+        unsafe {
+            text.release();
+        }
+        match answered {
+            Ok(count) => Ok(count.as_uint().expect("`write` returns a uint")),
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        }
+    }
+
+    /// `Core\IO\File::write` returns every byte of `$data`, not every character, and an empty
+    /// write returns 0 and moves nothing. A handle opened only for reading throws and leaves
+    /// the file as it was, and a closed handle throws.
+    // covers: Core\IO\File::write
+    #[test]
+    fn core_io_file_write_counts_bytes_and_refuses_a_handle_that_cannot_write() {
+        let path = scratch("file-write.txt");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        assert_eq!(write_on(&mut ctx, file, "café"), Ok(5));
+        assert_eq!(write_on(&mut ctx, file, ""), Ok(0));
+        assert_eq!(write_on(&mut ctx, file, " au lait"), Ok(8));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = write_on(&mut ctx, file, "x").expect_err("a closed handle writes nothing");
+        assert!(
+            closed.contains(r"Core\IO\File::write: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+        assert_eq!(
+            std::fs::read_to_string(&path).as_deref().ok(),
+            Some("café au lait")
+        );
+
+        let args = [
+            Value::str(NvsStr::new(spelled(&path).as_bytes())),
+            Value::int(0),
+        ];
+        let reader = nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a file opens");
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        let refused = write_on(&mut ctx, reader, "lost").expect_err("a reader cannot write");
+        assert!(refused.contains(r"Core\IO\File::write"), "{refused}");
+        on_handle(&mut ctx, nvs_core_io_file_close, reader, &[]).expect("an open handle closes");
+        let_go(reader);
+        assert_eq!(
+            std::fs::read_to_string(&path).as_deref().ok(),
+            Some("café au lait")
+        );
         let _ = std::fs::remove_file(&path);
     }
 }

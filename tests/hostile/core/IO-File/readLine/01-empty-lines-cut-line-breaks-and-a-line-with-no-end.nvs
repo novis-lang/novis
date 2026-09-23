@@ -1,0 +1,111 @@
+<?nvs
+// Attack: a program reads many empty lines and line breaks on the edge of each read.
+// Then it reads a line that is not text, and one line larger than its memory limit.
+// Each step must work or throw an error. The last one must stop the program cleanly.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read-line');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+
+// 1. A file of 100000 empty lines. Each one must be an empty string, and then `null`.
+Core\IO::write($path, Core\Str::repeat("\n", 100000));
+Core\IO\File $empty = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $lines = 0;
+?string $line = $empty->readLine();
+while ($line != null) {
+    if (Core\Str::length($line) != 0) {
+        throw new LogicError('an empty line had text in it');
+    }
+    $lines = $lines + 1;
+    $line = $empty->readLine();
+}
+$empty->close();
+if ($lines != 100000) {
+    throw new LogicError('empty lines were lost');
+}
+echo 'step 1: done', "\n";
+
+// 2. `readLine` reads 8192 bytes at a time. Every line here puts its `\r` on byte 8192,
+// once as `\r\n` and once as a lone `\r`. No line and no byte may be lost.
+string $long = Core\Str::repeat('x', 8191);
+Core\IO::write($path, Core\Str::repeat($long . "\r\n" . $long . "\r", 100));
+Core\IO\File $edge = Core\IO::open($path, Core\IO\FileMode::Read);
+$lines = 0;
+$line = $edge->readLine();
+while ($line != null) {
+    if (Core\Str::length($line) != 8191) {
+        throw new LogicError('a line on the edge of a read has the wrong length');
+    }
+    $lines = $lines + 1;
+    $line = $edge->readLine();
+}
+$edge->close();
+if ($lines != 200) {
+    throw new LogicError('a line break on the edge of a read was lost');
+}
+echo 'step 2: done', "\n";
+
+// 3. "x" is written over the first byte of "é", so the first line is not text.
+// Each read of it must throw a `RuntimeError`, 1000 times, and the position must not move.
+Core\IO::write($path, "abé\nnext\n");
+Core\IO\File $broken = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$broken->seek(2);
+$broken->write('x');
+$broken->seek(0);
+uint $thrown = 0;
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        $broken->readLine();
+    } catch (RuntimeError $notText) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000 || $broken->tell() != 0) {
+    throw new LogicError('a line that is not text was read or skipped');
+}
+$broken->close();
+echo 'step 3: done', "\n";
+
+// 4. A handle that can only write is read. This must throw an `IOError`.
+Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+try {
+    $writer->readLine();
+} catch (IOError $refused) {
+}
+$writer->close();
+echo 'step 4: done', "\n";
+
+// 5. A closed handle is read 1000 times. Each `readLine` must throw a `RuntimeError`.
+$thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $writer->readLine();
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle was read without an error');
+}
+echo 'step 5: done', "\n";
+
+// 6. A file of 32 MB with no line break is one line of 32 MB. This program may use
+// 16 MB, so `readLine` must stop the program at its memory limit.
+string $megabyte = Core\Str::repeat('x', 1048576);
+Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+$i = 0;
+while ($i < 32) {
+    $out->write($megabyte);
+    $i = $i + 1;
+}
+$out->close();
+Core\IO\File $huge = Core\IO::open($path, Core\IO\FileMode::Read);
+echo 'step 6: reading', "\n";
+$huge->readLine();
+echo 'step 6: not reached', "\n";

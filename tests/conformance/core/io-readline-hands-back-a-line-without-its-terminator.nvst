@@ -2,6 +2,7 @@
 `Core\IO\File::readLine` walks a handle a line at a time, agreeing with `Core\IO::lines` about what a line is, and `flush` is a promise about the operating system rather than about the disk — spec § 14
 --FILE--
 <?nvs
+// covers: Core\IO\File::readLine
 // Three terminators in one file, because a text file arriving from somewhere
 // else is the ordinary case: `\n`, `\r\n` and a lone `\r` all end a line, and
 // `Core\Str::lines` is the one place that decides so.

@@ -1,0 +1,61 @@
+--TEST--
+`Core\IO\File::readLine` throws on a line that is not UTF-8 and leaves the handle at the line's start, and a `\r\n` whose `\r` is the last byte of one read is still one terminator — `rule:types/bytes`
+--FILE--
+<?nvs
+// covers: Core\IO\File::readLine
+Core\IO\File $out = Core\IO::open("broken.txt", Core\IO\FileMode::Write);
+$out->write("abé\nnext\n");
+$out->close();
+
+// `é` is two bytes. Writing "x" over its first byte leaves a byte that is not
+// UTF-8, so the first line is no longer text.
+Core\IO\File $edit = Core\IO::open("broken.txt", Core\IO\FileMode::ReadWrite);
+$edit->seek(2);
+$edit->write("x");
+$edit->seek(0);
+
+// The line throws twice, and the handle stays at its start both times.
+uint $i = 0;
+while ($i < 2) {
+    try {
+        $edit->readLine();
+        echo "not reached\n";
+    } catch (RuntimeError $e) {
+        echo "not text: ", $e->message, "\n";
+    }
+    echo "still at ", $edit->tell() as string, "\n";
+    $i = $i + 1;
+}
+
+// A program can skip the line itself and read on.
+$edit->seek(5);
+echo "then: [", $edit->readLine() ?? "<end>", "]\n";
+$edit->close();
+
+// `readLine` reads 8192 bytes at a time. Here the `\r` of a `\r\n` is byte 8192,
+// so the `\n` arrives in the next read. It is one terminator, and the handle
+// stands after both bytes.
+Core\IO\File $wide = Core\IO::open("edge.txt", Core\IO\FileMode::Write);
+$wide->write(Core\Str::repeat("x", 8191));
+$wide->write("\r\nz\r");
+$wide->close();
+Core\IO\File $walk = Core\IO::open("edge.txt", Core\IO\FileMode::Read);
+echo "long: ", Core\Str::length($walk->readLine() ?? "") as string, "\n";
+echo "at ", $walk->tell() as string, "\n";
+echo "next: [", $walk->readLine() ?? "<end>", "]\n";
+echo "last: [", $walk->readLine() ?? "<end>", "]\n";
+$walk->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+not text: Core\IO\File::readLine: what was read is not valid UTF-8, so it is not a `string` — byte 3 is where it stops being text
+still at 0
+not text: Core\IO\File::readLine: what was read is not valid UTF-8, so it is not a `string` — byte 3 is where it stops being text
+still at 0
+then: [next]
+long: 8191
+at 8193
+next: [z]
+last: [<end>]

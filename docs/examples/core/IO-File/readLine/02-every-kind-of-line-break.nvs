@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `readLine` ends a line at `\n`, at `\r\n` and at `\r`.
+// Files from Linux, Windows and old Mac systems are read the same way.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "mixed.txt");
+// Three different line breaks. The last line has no line break at all.
+Core\IO::write($path, "one\ntwo\r\nthree\rfour");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+// This prints each line in brackets. No line contains its line break,
+// and the last line is a line too.
+?string $line = $file->readLine();
+while ($line != null) {
+    echo "[", $line, "]\n";
+    $line = $file->readLine();
+}
+$file->close();

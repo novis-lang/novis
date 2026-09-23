@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to find the error lines in a log file. The program reads one line
+// at a time, so a large log file never has to fit in memory.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "app.log");
+string $quiet = Core\Str::repeat("INFO order saved\n", 5000);
+Core\IO::write($path, $quiet . "ERROR payment timed out\n" . $quiet . "ERROR disk is full\n");
+
+Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $number = 0;
+uint $errors = 0;
+?string $line = $log->readLine();
+while ($line != null) {
+    $number = $number + 1;
+    // This prints the line number and the text of each error line.
+    if (Core\Str::startsWith($line, "ERROR")) {
+        echo "line ", $number, ": ", $line, "\n";
+        $errors = $errors + 1;
+    }
+    $line = $log->readLine();
+}
+$log->close();
+echo "errors: ", $errors, "\n";
