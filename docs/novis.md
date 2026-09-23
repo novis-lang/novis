@@ -11935,7 +11935,7 @@ Reads the next line and moves the handle past it — `fgets`. The terminator is 
 
 **Returns** `?string` — The line without its terminator, or `null` at the end of the file — which is R5's spelling of an absence, and the reason this member needs no separate `eof`. A last line with no terminator on it is still a line.
 
-**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The read itself failed, or the handle was not opened for reading.
+**Throws** `RuntimeError` — The handle has already been closed.; `RuntimeError` — The line is not valid UTF-8. The handle does not move, so the next call reads the same line.; `IOError` — The read itself failed, or the handle was not opened for reading.
 
 <a id="core-core-io-file-write"></a>
 #### `Core\IO\File->write`
