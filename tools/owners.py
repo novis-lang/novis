@@ -518,7 +518,9 @@ def classify(found: list[dict]) -> dict:
     what is wrong with a gap and what a reader does about it differ per kind, and a gate that
     reported one failure for six causes would send every one of them looking for a typo.
     """
-    chain = {g.slug: g for g in goalsmod.load()}
+    # A side goal owns a gap exactly as a chain goal does: it runs under the same rules, and its
+    # end gate asks `--closes` of its slug.
+    chain = {g.slug: g for g in [*goalsmod.load(), *goalsmod.load_side()]}
     plan = milestones()
     out = {"goal": [], "milestone": [], "past": [], "unowned": [],
            "untagged": [], "broken": [], "retired": []}

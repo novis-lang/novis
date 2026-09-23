@@ -48,6 +48,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the plan's one API; never reimplemented here
+import goals as goalsmod  # noqa: E402  -- side goals have one reader and it is there
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
@@ -318,6 +319,10 @@ def run_milestones(status_text, plan_text):
         emit(f"  LIVE: goal `{live['slug']}`, {live['num']} of {total}, inside {where}")
         emit("        docs/agent/goals/ is the schedule: every earlier goal has passed,")
         emit("        every later one is not started.")
+    side = [g.slug for g in goalsmod.load_side() if not g.retired]
+    if side:
+        emit(f"  SIDE: {', '.join(f'`{s}`' for s in side)} -- off the chain; each runs only under")
+        emit("        `loop.py --side <slug>`, and `python tools/side.py --status` says where it stands.")
     emit()
 
     # The cell is markdown, so `done\*` carries M4's footnote marker escaped. The goals in it are

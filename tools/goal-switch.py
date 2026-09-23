@@ -219,6 +219,50 @@ def union_list(new_text, field, extra):
     return new_text[:m.end(1)] + tail + added + new_text[m.end(1):]
 
 
+class CarryError(Exception):
+    """Why `carry` refused: one line, said by `main` as `die` and by `tools/side.py` as its own."""
+
+
+def carry(new_text, live_text, live_name, stage=FLOOR_STAGE, carried_only=False):
+    """`new_text` with `live_text`'s checks inserted at its marker as the floor, and the list of
+    blocks that went in. Raises `CarryError` for a goal with no marker or no list key to union into.
+
+    `carried_only` takes only the checks `live_text` itself already carries at `stage`, which is
+    the floor a side goal runs over: the live goal's own checks are unfinished work, and carried
+    into a side run they would hold it red on somebody else's goal (`tools/side.py`). With it off,
+    this is the chain switch -- the previous goal went green, so all of it is the floor.
+
+    An empty floor is returned rather than refused: `main` refuses it for a switch, and a side goal
+    carried into a goal whose floor is still empty has nothing to carry and nothing wrong."""
+    if MARKER not in new_text:
+        raise CarryError(f"it has no marker line. Add it where the floor belongs:\n    {MARKER}")
+    blocks_in = check_blocks(live_text)
+    if carried_only:
+        blocks_in = [b for b in blocks_in
+                     if any(STAGE_LINE.match(ln) and f'"{stage}"' in ln for ln in b)]
+    every = [relabel(unbannered(b), stage) for b in blocks_in]
+    floor = dedupe(every)
+    live_spec = tomllib.loads(live_text)
+    for field, carried in (("files", live_spec.get("files", [])),
+                           ("skip", live_spec.get("valgrind", {}).get("skip", []))):
+        merged = union_list(new_text, field, carried)
+        if merged is None:
+            raise CarryError(f"it has no `{field} = [...]` for the {len(carried)} "
+                             f"entr{'y' if len(carried) == 1 else 'ies'} {live_name} carries. "
+                             f"Add the key -- an empty list is enough -- and run this again.")
+        new_text = merged
+    if not floor:
+        return new_text, floor, 0
+    banner = (
+        f"# {len(floor)} check(s) carried from {live_name} by tools/goal-switch.py.\n"
+        f"# They are the previous goal's acceptance list VERBATIM, relabelled to stage "
+        f'"{stage}".\n'
+        "# Do not edit them to make something pass: a floor that has been adjusted is not a floor.\n"
+    )
+    body = banner + "\n" + "\n\n".join("\n".join(b) for b in floor) + "\n"
+    return new_text.replace(MARKER, MARKER + "\n\n" + body, 1), floor, len(every) - len(floor)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -226,6 +270,9 @@ def main():
     ap.add_argument("new_goal", help="the staged goal TOML to carry the floor into")
     ap.add_argument("--live", default=str(LIVE), help="the goal being replaced")
     ap.add_argument("--stage", default=FLOOR_STAGE, help=f"stage label for the floor (default {FLOOR_STAGE!r})")
+    ap.add_argument("--carried-only", action="store_true",
+                    help="carry only the checks the live goal already carries at the floor stage "
+                         "-- a side goal's floor (tools/side.py)")
     ap.add_argument("--dry-run", action="store_true", help="say what would change, write nothing")
     opts = ap.parse_args()
 
@@ -239,35 +286,15 @@ def main():
     new_text = new_path.read_text(encoding="utf-8")
     live_text = live_path.read_text(encoding="utf-8")
 
-    if MARKER not in new_text:
-        return die(f"{new_path} has no marker line. Add it where the floor belongs:\n    {MARKER}")
-
-    every = [relabel(unbannered(b), opts.stage) for b in check_blocks(live_text)]
-    floor = dedupe(every)
-    if not floor:
+    if not check_blocks(live_text):
         return die(f"{live_path} holds no [[check]] block -- refusing to write an empty floor")
-
-    live_spec = tomllib.loads(live_text)
-    for field, carried in (("files", live_spec.get("files", [])),
-                           ("skip", live_spec.get("valgrind", {}).get("skip", []))):
-        merged = union_list(new_text, field, carried)
-        if merged is None:
-            return die(f"{new_path} has no `{field} = [...]` for the previous goal's "
-                       f"{len(carried)} entr{'y' if len(carried) == 1 else 'ies'} to be carried "
-                       f"into. Add the key -- an empty list is enough -- and run this again.")
-        new_text = merged
-
-    banner = (
-        f"# {len(floor)} check(s) carried from {rel_to_root(live_path)} by tools/goal-switch.py.\n"
-        f"# They are the previous goal's acceptance list VERBATIM, relabelled to stage "
-        f'"{opts.stage}".\n'
-        "# Do not edit them to make something pass: a floor that has been adjusted is not a floor.\n"
-    )
-    body = banner + "\n" + "\n\n".join("\n".join(b) for b in floor) + "\n"
-    out = new_text.replace(MARKER, MARKER + "\n\n" + body, 1)
+    try:
+        out, floor, dropped = carry(new_text, live_text, rel_to_root(live_path), opts.stage,
+                                    opts.carried_only)
+    except CarryError as e:
+        return die(f"{new_path}: {e}")
 
     already = len(check_blocks(new_text))
-    dropped = len(every) - len(floor)
     print(f"goal-switch: {len(floor)} floor check(s) from {live_path.name} "
           f"-> {new_path.name} (which already had {already})"
           + (f"; {dropped} duplicate(s) carried once" if dropped else ""))

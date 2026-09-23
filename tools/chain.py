@@ -1007,6 +1007,36 @@ def cmd_check(chain):
                 notes.append(f"{rel(path)}: still carries TODO markers -- a scaffold nobody has "
                              f"filled in yet")
 
+    # Side goals: never walked, so no number and no floor of their own on disk, but the same
+    # three files and a list `loop.py --side` can run (goals/README.md § *Side goals*).
+    problems.extend(goalsmod.side_errors())
+    for g in goalsmod.load_side():
+        if g.retired:
+            continue
+        h1 = goalsmod.FRONT_RE.sub("", g.md.read_text(encoding="utf-8"),
+                                   count=1).lstrip("\n").split("\n", 1)[0]
+        if not h1.startswith("# Side goal "):
+            problems.append(f"{rel(g.md)}: its H1 is {h1[:60]!r}; a side goal's opens "
+                            f"`# Side goal — `")
+        body = g.toml.read_text(encoding="utf-8")
+        if MARKER not in body:
+            problems.append(f"{rel(g.toml)}: no goal-switch marker line, so main's floor has "
+                            f"nowhere to go. Add:\n      {MARKER}")
+        for need in ("files", "skip"):
+            if not re.search(rf"^\s*{need}\s*=\s*\[", body, re.M):
+                problems.append(f"{rel(g.toml)}: no `{need} = [...]` -- main's floor is unioned "
+                                f"into it")
+        if "[[check]]" not in body:
+            problems.append(f"{rel(g.toml)}: holds no `[[check]]`, so nothing can turn it green")
+        fail = loop.spec_error(g.toml)
+        if fail:
+            problems.append(f"{rel(g.toml)}: the driver cannot run this list -- {fail}")
+        bad, said = orientmod.manifest_findings(g.toml)
+        problems.extend(bad)
+        notes.extend(said)
+        if not g.handoff.read_text(encoding="utf-8").startswith("# Handoff"):
+            notes.append(f"{rel(g.handoff)}: does not start with `# Handoff`")
+
     tail = goalsmod.pinned_tail(chain)
     for g in chain:
         if g.md.is_file() and g.pinned_last and g not in tail and g.num > live:

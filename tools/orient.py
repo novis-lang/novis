@@ -96,6 +96,11 @@ SPEC_DIR = ROOT / "docs" / "spec"
 GOAL_TOML = AGENT / "loop-goal.toml"
 GOAL_MD = AGENT / "loop-goal.md"
 HANDOFF = AGENT / "handoff.md"
+import goals as goalsmod  # noqa: E402  -- which goal this pack is for has one home
+#: A side run's pack is built from its own three files where they sit (`goals.SIDE_ENV`).
+SIDE = goalsmod.side_goal()
+if SIDE:
+    GOAL_TOML, GOAL_MD, HANDOFF = SIDE.toml, SIDE.md, SIDE.handoff
 PLAYBOOK = AGENT / "playbook.md"
 CONVENTIONS = AGENT / "conventions.md"
 RUNNING = ROOT / ".loop" / "running"

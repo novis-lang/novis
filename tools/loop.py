@@ -66,6 +66,7 @@ import machine  # noqa: E402  -- same directory; how wide anything runs has one 
 import proctree  # noqa: E402  -- same directory; a session's whole process tree, frozen and thawed
 import relink  # noqa: E402  -- same directory; freeing the release binary an editor is running
 import respawn  # noqa: E402  -- same directory; the process that starts this file again
+import side as sidemod  # noqa: E402  -- same directory; what a side run is, and how it lands
 import verify_keys  # noqa: E402  -- same directory; how much of a `.rs` file a reader reads
 import written  # noqa: E402  -- same directory; how a tool reports what it wrote, and why
 
@@ -73,6 +74,12 @@ ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
 GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
+#: The side goal this run works on, or None for a chain run. A side run reads that goal's own
+#: `.md` and `.toml` where a chain run reads the installed pair, so every reader below follows it
+#: without knowing; `tools/side.py` is what a side run is and how it lands.
+SIDE = goalsmod.side_goal()
+if SIDE:
+    GOAL_MD, GOAL_TOML = SIDE.md, SIDE.toml
 #: The chain, and there is only one: the goals directory itself, walked in numeric order. Not a
 #: flag and never was two -- every goal this project has lives there, and a run walking no chain is
 #: a run that stops at the first goal to go green and waits for a person, the same program with an
@@ -4228,8 +4235,19 @@ def load_goal():
 
     Raises `GoalError` for a list that parses but cannot be run; both callers handle it exactly as
     they handle a `TOMLDecodeError`, and `validate_spec` says why the checking happens here.
+
+    A side run's list is its own `.toml` with main's carried floor inserted at the marker, and its
+    own WSL target; `tools/side.py` § *What a side run is checked against* says why.
     """
-    return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+    if not SIDE:
+        return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+    try:
+        text = sidemod.effective_spec(GOAL_TOML, ROOT / sidemod.LIVE_GOAL)
+    except Exception as e:  # goal-switch's CarryError, loaded by path and so not nameable here
+        raise GoalError(f"main's floor could not be carried into it -- {e}") from e
+    goal = Goal(tomllib.loads(text))
+    goal.wsl_target = sidemod.wsl_target(goal.wsl_target, SIDE.slug)
+    return goal
 
 
 def goal_title(chain=None):
@@ -4246,11 +4264,13 @@ def goal_title(chain=None):
     try:
         for line in GOAL_MD.read_text(encoding="utf-8").splitlines():
             if line.startswith("# "):
-                title = re.sub(r"^Loop goal \d+\s*[—-]\s*", "", line[2:].strip())
+                title = re.sub(r"^(Loop goal \d+|Side goal)\s*[—-]\s*", "", line[2:].strip())
                 break
     except OSError:
         pass
     title = title or f"{rel_to_root(GOAL_MD)} has no heading"
+    if SIDE:
+        return f"side goal {SIDE.slug}{TICKER.sep}{title}"
     if chain is not None and chain.current is not None:
         return (f"goal {chain.current.slug} {chain.current.num}/{len(chain.goals)}"
                 f"{TICKER.sep}{title}")
@@ -4889,6 +4909,27 @@ class Chain:
                 return (f"chain: `docker compose cp {source} {dest}` failed -- {compose_error(r)}. "
                         f"The live goal's checks need that file on disk.")
         return ""
+
+
+class SideChain(Chain):
+    """What a side run walks in place of the chain: its one goal, already installed.
+
+    A side goal is run where it sits, so there is nothing to switch into and nothing to refresh,
+    and reaching it ends in `land_side` rather than `install_next`. `bring_up_services` is the
+    chain's own, reading the side goal's `[docker]` through the redirected `GOAL_TOML`."""
+
+    def __init__(self):
+        fail = spec_error(SIDE.toml)
+        if fail:
+            raise ChainError(f"side goal `{SIDE.slug}` names {rel_to_root(SIDE.toml)}, whose "
+                             f"acceptance list this driver cannot run -- {fail}")
+        self.goals, self.index = [SIDE], 0
+
+    def refresh(self):
+        return ""
+
+    def install_next(self):
+        return f"side goal `{SIDE.slug}` is the whole of a side run; there is no goal to switch to"
 
 
 def compose_error(r):
@@ -6119,6 +6160,14 @@ def run_cli():
                     help="sessions only; never look for drift or spend a session on the loop itself")
     ap.add_argument("--optimize-only", action="store_true",
                     help="run one optimization pass now, against the tree as it stands, and exit")
+    ap.add_argument("--side", metavar="SLUG",
+                    help="run the side goal named SLUG under docs/agent/goals/side/ and nothing "
+                         "else, in its own "
+                         "worktree, and land it on main when it is green (tools/side.py). Typed in "
+                         "the main tree; never walks the chain and never runs an optimization pass")
+    ap.add_argument("--land", action="store_true",
+                    help="with --side: start no session -- verify the side branch over main and "
+                         "land it if green, then end")
     opts = ap.parse_args()
 
     if opts.full_output:
@@ -6127,6 +6176,21 @@ def run_cli():
         opts.max_sessions = UNCAPPED
 
     enable_ansi()
+
+    if opts.land and not (opts.side or SIDE):
+        say("--land lands a side goal, and needs --side <slug>", C.RED)
+        return 2
+    if opts.side and not SIDE:
+        # Typed in the main tree: `launch_side` makes the worktree and runs every turn inside it,
+        # where `goals.SIDE_ENV` is set and this branch is never taken again.
+        return launch_side(opts)
+    if SIDE:
+        if opts.optimize_only or opts.chain_install:
+            say("a side run never runs an optimization pass or installs a chain goal", C.RED)
+            return 2
+        # A pass edits `tools/` for the chain run's sake, and a side branch that carried one would
+        # land it on main as a side effect.
+        opts.no_optimize = True
 
     if opts.optimize_only:
         # Before the goal is loaded, and deliberately so: a pass is what fixes a loop whose own
@@ -6240,7 +6304,7 @@ def run_cli():
     # that walked none would stop at the first goal to go green. Built before `claim_run` so a goal
     # file with a typo in it costs a line and cannot leave `.loop/running` behind on a refusal.
     try:
-        chain = Chain()
+        chain = SideChain() if SIDE else Chain()
     except ChainError as e:
         say(str(e), C.RED)
         return 2
@@ -6330,6 +6394,12 @@ def first_turn(chain, goal):
             goal = load_goal()
         except (tomllib.TOMLDecodeError, GoalError) as e:
             return f"{rel_to_root(GOAL_TOML)}: {e}", goal
+    elif SIDE:
+        say(f"side goal `{SIDE.slug}`: running in {ROOT.as_posix()} on branch "
+            f"{sidemod.branch(SIDE.slug)}", C.CYAN)
+        fail = preflight(chain.current.preflight)
+        if fail:
+            return fail, goal
     else:
         say(f"chain: resuming at goal `{chain.current.slug}`, "
             f"{chain.current.num} of {len(chain.goals)}", C.CYAN)
@@ -6642,7 +6712,7 @@ def drive(opts, goal, chain, run):
         # After the wall rather than before it, because this is the last instant before a session
         # starts and a hold is a promise about the tree, not about the clock. A hold queued during
         # a five-hour usage wait is therefore honoured when the window reopens, not slept through.
-        held = hold_pause()
+        held = hold_pause() or merge_yield()
         if held:
             reason, kind = held, "asked"
             break
@@ -6669,7 +6739,7 @@ def drive(opts, goal, chain, run):
         # whether a new session is starting or a dropped one is being picked back up.
         TOUCH.start(carry=bool(rejoined))
         cli_exit, log, session_id, limit, api_error, dropped, operator = run_session(
-            run_id, index, prompt_text, opts, renderer, resume=rejoined)
+            run_id, index, side_preamble() + prompt_text, opts, renderer, resume=rejoined)
         step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "
              f"claude exit {cli_exit}"
              + (f", {renderer.tokens()}" if renderer.tokens() else ""), C.CYAN)
@@ -6878,6 +6948,10 @@ def drive(opts, goal, chain, run):
             done = chain.current.slug
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
+            if SIDE:
+                # A side run has no next goal: it lands, and `turn` hands that to `land_side`.
+                reason, kind = f"side goal `{done}` is green -- landing it on main", "side-land"
+                break
             # The goal that just passed may have been the one that writes the rest of the chain.
             grew = chain.refresh()
             if grew:
@@ -7022,7 +7096,8 @@ def drive(opts, goal, chain, run):
 #: The two verdicts deliberately outside it are the two that a hold would insult. `asked` is `s` or
 #: `.loop/stop`: someone said end the run, and holding would be arguing with them. `chain-complete`
 #: has nothing left to walk, so there is no session to start when the hold lifts.
-HOLD_KINDS = frozenset({"blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall"})
+HOLD_KINDS = frozenset({"blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall",
+                        "side-conflict"})
 
 #: What an optimization pass may commit. Everything outside this is reverted, unread: the pass is
 #: the loop working on itself, and `crates/`, `tests/` and `examples/` are the work, not the loop.
@@ -7659,7 +7734,8 @@ def open_run(opts, run):
 def finish(run, kind, reason):
     """The run ends here. Says why, once, in the ledger and on the console; returns the exit code."""
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")
-    verdict(kind != "budget", reason if kind == "budget" else f"the run ended for good: {reason}")
+    done = kind in ("budget", "side-landed")
+    verdict(not done, reason if done else f"the run ended for good: {reason}")
     say("")
     say(f"run done: {run.served} session(s)", C.CYAN)
     return 0
@@ -7689,6 +7765,239 @@ def again(run):
     return respawn.AGAIN
 
 
+def merge_yield():
+    """Wait here while a side run lands on `main`. Returns "" when it has, or the reason to stop.
+
+    Called at the boundary where a chain run touches nothing -- before a session starts, beside
+    `hold_pause` -- and answered by writing `.loop/yielded`, which is what lets the side run move
+    `main` (`tools/side.py` § *The handshake*). A side run never yields: it does not touch `main`
+    until it lands, and two side runs take `merge.lock` in turn."""
+    if SIDE:
+        return ""
+    asked = sidemod.merge_requested(ROOT)
+    if not asked:
+        return ""
+    slug = asked[1] or "?"
+    sidemod.write_marker(ROOT / sidemod.YIELDED, slug=slug)
+    step(f"side goal `{slug}` is landing on main -- waiting before the next session", C.YELLOW)
+    TICKER.set(phase="yielded", detail=f"side goal {slug} is landing on main")
+    began = time.monotonic()
+    try:
+        while sidemod.merge_requested(ROOT):
+            CONTROL.poll()
+            stop = CONTROL.stop_reason()
+            if stop:
+                return stop
+            time.sleep(1)
+    finally:
+        (ROOT / sidemod.YIELDED).unlink(missing_ok=True)
+    spent = hms(time.monotonic() - began)
+    step(f"yielded {spent} -- side goal `{slug}` is done with main", C.GREEN)
+    ledger(f"       yielded {spent} to side goal `{slug}` landing on main")
+    return ""
+
+
+def side_preamble():
+    """What a side session is told ahead of `session-prompt.md`, or "" in a chain run.
+
+    The prompt and the orientation pack speak of `loop-goal.*` and `handoff.md`, and every tool a
+    session runs already reads the side goal's files instead (`goals.SIDE_ENV`). What only a
+    sentence can carry is what not to touch, and why a landing did not happen last time."""
+    if not SIDE:
+        return ""
+    rel = f"docs/agent/goals/side/{SIDE.slug}"
+    note = ""
+    landing = ROOT / sidemod.LANDING
+    if landing.is_file():
+        note = ("\n**The last landing did not land, and this session fixes that first:** "
+                + landing.read_text(encoding="utf-8").strip() + "\n")
+    return (f"# Side goal `{SIDE.slug}`\n\n"
+            f"This session belongs to a **side run**: one goal, in its own worktree on branch "
+            f"`{sidemod.branch(SIDE.slug)}`. Your goal is `{rel}.md`, its acceptance list "
+            f"`{rel}.toml`, and your handoff `{rel}.handoff.md` -- `session.py --wrap` writes it "
+            f"there, and `orient.py`, `brief.py` and `loop.py --goal-only` already read these "
+            f"three wherever the prompt below says `loop-goal.*` or `handoff.md`. Every rule "
+            f"below applies unchanged, with four more:\n\n"
+            f"- Do not edit `docs/agent/loop-goal.md`, `docs/agent/loop-goal.toml`, "
+            f"`docs/agent/handoff.md`, the plan's status block, or any other goal's files. They "
+            f"belong to the chain run on `main`.\n"
+            f"- Never rebase, merge, push or switch branch. The driver lands this branch on "
+            f"`main` itself once the goal is green, and retires the goal as it does.\n"
+            f"- The goal's list runs over main's carried floor too, so a check you did not write "
+            f"can hold it red. Fix the code, never the floor check.\n"
+            f"- A decision record takes the next free number on `main` "
+            f"(`git -C {sidemod.main_root().as_posix()} ls-tree main docs/decisions/`), which "
+            f"may be ahead of this branch.\n"
+            f"{note}\n---\n\n")
+
+
+def landed(run, kind, reason):
+    """The exit code for what `land_side` answered: the run ends when it landed or was told to
+    stop, and carries on with another session when `main` does not pass over the branch."""
+    if kind == "side-red":
+        ledger(f"## landing held -- {reason}")
+        verdict(False, f"{reason}\n       The run carries on: the next session is told why.")
+        return again(run)
+    return finish(run, kind, reason)
+
+
+def land_side(run):
+    """Land the side goal on `main`, in `tools/side.py` § *Landing*'s order. Returns `(kind,
+    reason)`: `side-landed`, `side-red` when main's tree does not pass over the rebased branch,
+    `side-conflict` when the rebase does not apply, or `asked` for a stop that came while waiting.
+
+    The verify runs with no lock held, since it takes minutes and the chain run keeps working
+    meanwhile. So the lock is taken after it and `main` is compared with the commit the verify
+    ran over: moved, and the rebase and verify run again, so only a verified tree ever lands."""
+    slug, wt = SIDE.slug, ROOT
+    main = sidemod.main_root()
+    landing = ROOT / sidemod.LANDING
+    while True:
+        stop = CONTROL.stop_reason()
+        if stop:
+            return "asked", stop
+        dirty = sidemod.main_dirty(wt)
+        if dirty:
+            return "side-red", (f"the worktree has uncommitted changes to {len(dirty)} tracked "
+                                f"file(s) ({', '.join(dirty[:5])}); commit or revert them")
+        base = sidemod.git(main, "rev-parse", "main")
+        step(f"landing: rebasing {sidemod.branch(slug)} onto main at {base[:10]}", C.CYAN)
+        TICKER.set(phase="landing", detail="rebasing onto main")
+        try:
+            sidemod.git(wt, "rebase", base)
+        except RuntimeError as e:
+            sidemod.git(wt, "rebase", "--abort", check=False)
+            return "side-conflict", (f"{sidemod.branch(slug)} does not rebase onto main cleanly. "
+                                     f"Rebase it by hand in {wt.as_posix()} and resolve it; the "
+                                     f"next green sweep lands it. {e}")
+        fail = landing_verify()
+        if fail:
+            landing.write_text(fail + "\n", encoding="utf-8", newline="\n")
+            return "side-red", fail
+        landing.unlink(missing_ok=True)
+
+        step("landing: verified over main -- asking the chain run for main", C.CYAN)
+        TICKER.set(phase="landing", detail="waiting for main")
+        waited = time.monotonic()
+        while not sidemod.write_marker(main / sidemod.MERGE_LOCK, slug=slug):
+            CONTROL.poll()
+            stop = CONTROL.stop_reason()
+            if stop:
+                return "asked", stop
+            time.sleep(sidemod.POLL_SECONDS)  # another side run is landing
+        try:
+            said = ""
+            while True:
+                quiet = sidemod.main_quiet(main)
+                dirty = [] if not quiet else sidemod.main_dirty(main)
+                if quiet and not dirty:
+                    break
+                why = (f"main has uncommitted changes to {', '.join(dirty[:3])}" if dirty
+                       else "the chain run has not reached a boundary yet")
+                if why != said:
+                    step(f"landing: waiting -- {why}", C.YELLOW)
+                    said = why
+                TICKER.set(detail=f"{why}{TICKER.sep}{hms(time.monotonic() - waited)}")
+                for _ in range(sidemod.POLL_SECONDS * 4):
+                    CONTROL.poll()
+                    stop = CONTROL.stop_reason()
+                    if stop:
+                        return "asked", stop
+                    time.sleep(0.25)
+            if sidemod.git(main, "rev-parse", "main") != base:
+                step("landing: main moved during the verify -- rebasing and verifying again",
+                     C.YELLOW)
+                continue
+            # Read before the retire deletes the `.toml` it comes from; the launcher removes it.
+            try:
+                wsl = load_goal().wsl_target
+            except (OSError, tomllib.TOMLDecodeError, GoalError):
+                wsl = ""
+            before = sidemod.git(wt, "rev-parse", "HEAD")
+            try:
+                carried = sidemod.carry_into_live(SIDE.toml, wt / sidemod.LIVE_GOAL)
+                sidemod.git(wt, "rm", "-q", "--", str(SIDE.toml), str(SIDE.handoff))
+                sidemod.git(wt, "add", "--", str(wt / sidemod.LIVE_GOAL))
+                message = wt / ".agent-tmp" / "side-landing-commit.txt"
+                message.parent.mkdir(parents=True, exist_ok=True)
+                message.write_text(
+                    f"docs(loop): side goal `{slug}` lands on main, and its {carried} check(s) "
+                    f"join the floor\n\nThe side goal's `.toml` and `.handoff.md` are retired; its "
+                    f"`.md` stays under docs/agent/goals/side/.\n", encoding="utf-8", newline="\n")
+                sidemod.git(wt, "commit", "-q", "-F", str(message))
+                sidemod.git(main, "merge", "--ff-only", "-q", sidemod.branch(slug))
+            except (OSError, RuntimeError) as e:
+                # Nothing reached `main`: put the branch back as the verify saw it, and ask.
+                sidemod.git(wt, "reset", "-q", "--hard", before, check=False)
+                return "side-conflict", (f"landing failed after the verify, and main is "
+                                         f"unchanged: {e}")
+            head = sidemod.git(main, "rev-parse", "--short", "main")
+        finally:
+            (main / sidemod.MERGE_LOCK).unlink(missing_ok=True)
+        sidemod.write_marker(ROOT / sidemod.LANDED, slug=slug, head=head, wsl=wsl)
+        return "side-landed", (f"side goal `{slug}` landed on main at {head}, with {carried} "
+                               f"check(s) added to the floor")
+
+
+def landing_verify():
+    """`verify.py`, then the whole acceptance list with the floor gate open, over the rebased
+    branch. Returns "" when both are green, or one line saying which was red and where."""
+    step("landing: verify.py over the rebased branch", C.CYAN)
+    TICKER.set(detail="verify.py")
+    r = capture(sys.executable, [str(ROOT / "tools" / "verify.py")], timeout=7200)
+    if r.code != 0:
+        text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
+        last = next((ln.strip() for ln in reversed(text.split("\n")) if ln.strip()), "")
+        return f"verify.py is red over the branch rebased onto main: {last}"
+    dirty = sidemod.main_dirty(ROOT)
+    if dirty:
+        return (f"verify.py changed {len(dirty)} tracked file(s) ({', '.join(dirty[:5])}); "
+                f"commit what it wrote")
+    try:
+        goal = load_goal()
+    except (OSError, tomllib.TOMLDecodeError, GoalError) as e:
+        return f"the acceptance list does not load after the rebase: {e}"
+    goal.floor_gate = True
+    step("landing: the acceptance list, floor gate open", C.CYAN)
+    fail = goal.check(verbose=True)
+    ledger(f"       landing cost: {goal.summary()}")
+    return f"the acceptance list is red over the branch rebased onto main: {fail}" if fail else ""
+
+
+def launch_side(opts):
+    """`--side <slug>` typed in the main tree: prepare the worktree, run the side run in it, and
+    remove it once it has landed. `tools/side.py` § *The run* says why the launcher is a separate
+    process from every turn."""
+    slug = opts.side
+    main = sidemod.main_root()
+    if main.resolve() != ROOT.resolve():
+        say(f"--side runs from the main tree ({main.as_posix()}), not from a worktree", C.RED)
+        return 2
+    goal = goalsmod.SideGoal(slug)
+    if goal.retired and goal.md.is_file():
+        say(f"side goal `{slug}` is retired -- it has landed already", C.YELLOW)
+        return 2
+    wt, why = sidemod.prepare(slug, main, disk.free_gb(ROOT), opts.min_free_gb)
+    if not wt:
+        say(f"side goal `{slug}`: {why}", C.RED)
+        return 2
+    say(f"side goal `{slug}`: running in {wt.relative_to(main).as_posix()} on branch "
+        f"{sidemod.branch(slug)}", C.CYAN)
+    os.environ[goalsmod.SIDE_ENV] = slug
+    code = respawn.run(wt / "tools" / "loop.py", sys.argv[1:], cwd=wt)
+    marker = wt / sidemod.LANDED
+    if not marker.is_file():
+        return code
+    fields = dict(line.split(":", 1) for line in marker.read_text(encoding="utf-8").splitlines()
+                  if ":" in line)
+    left = sidemod.cleanup(slug, main, fields.get("wsl", "").strip())
+    for what in left:
+        say(f"side goal `{slug}` landed, but could not remove {what}", C.YELLOW)
+    if not left:
+        say(f"side goal `{slug}` landed; its worktree, branch and WSL target are removed", C.GREEN)
+    return code
+
+
 def turn(opts, goal, chain, run):
     """One turn of the run: a session, and the boundary behind it. Returns the process's exit
     code, which is `respawn.AGAIN` exactly when the run goes on.
@@ -7699,12 +8008,23 @@ def turn(opts, goal, chain, run):
     LOGDIR.mkdir(parents=True, exist_ok=True)
     CONSOLE.open_run(LOGDIR / f"{run.run_id}-console.log")
     CONTROL.enable()
+    if SIDE and opts.land:
+        # By hand, with no session to send a red result to: whatever the answer, it is the end.
+        # Ahead of `open_run`, whose warm-up build exists for a session that is not coming.
+        kind, reason = land_side(run)
+        finish(run, kind, reason)
+        return 0 if kind == "side-landed" else 1
     if run.fresh:
         open_run(opts, run)
     if run.served >= opts.max_sessions:
         return finish(run, "budget", f"hit --max-sessions ({opts.max_sessions})")
 
     kind, reason = drive(opts, goal, chain, run)
+
+    if kind == "side-land":
+        kind, reason = land_side(run)
+        if kind in ("side-landed", "side-red", "asked"):
+            return landed(run, kind, reason)
 
     if kind == SERVED:
         run.last_hand = []

@@ -78,6 +78,7 @@ RUNNING = ROOT / ".loop" / "running"
 # rather than restating them.
 KEEP_RUNS = 5  # .loop/logs: how many loop runs keep their session logs
 SCRATCH_DAYS = 2  # .agent-tmp: older than this belongs to no session that is still running
+WORKTREES = "worktrees"  # .agent-tmp/worktrees: git worktrees, never swept (`prune_scratch`)
 KEEP_INCREMENTAL = 2  # target/*/incremental: cache generations kept per crate
 MIN_FREE_GB = 10  # below this, tools/loop.py will not start a run
 GRACE_HOURS = 2  # target/: nothing written more recently than this is swept, whatever cargo says
@@ -212,12 +213,18 @@ def prune_scratch(days=SCRATCH_DAYS, dry_run=False):
     By age and not wholesale: the driver sweeps between sessions, but a person may be reading a
     verify log the session that just exited wrote, and that log is minutes old, not days. A
     directory is as old as its newest file (`newest`), so a `proof/` run still being written is
-    kept for as long as anything in it is."""
+    kept for as long as anything in it is.
+
+    `worktrees/` is never swept and never walked: a git worktree is somebody's branch, idle or
+    not, and is removed with `git worktree remove` by whoever made it -- `tools/side.py` for a side
+    run. Walking it would also stat every file of a second `target/` after every session."""
     if not SCRATCH.is_dir():
         return 0
     cutoff = time.time() - days * 86400
     freed = 0
     for p in list(SCRATCH.iterdir()):
+        if p.name == WORKTREES:
+            continue
         seen = newest(p)
         if seen and seen < cutoff:
             freed += rm(p, dry_run)

@@ -26,17 +26,34 @@ The one fact with nowhere to derive itself from is the **milestone**, which a re
 has to answer because `plan.py` derives every `Carried by` cell from it. It is YAML front matter at
 the top of the `.md`, the shape every record under `docs/decisions/` already uses.
 
+**A side goal is not on the chain.** It is `side/<slug>.md` plus, until it is retired, a sibling
+`<slug>.toml` and `<slug>.handoff.md` -- the same three files and the same shapes, with no number,
+because nothing walks to it: a run reaches one only through `loop.py --side <slug>`, in a worktree of
+its own, and `tools/side.py` owns how that run lands. `load` never returns one, so a side goal cannot
+move a chain number or be installed by a switch; `load_side` and `side_goal` are its two readers.
+`docs/agent/goals/README.md` § *Side goals* is the contract.
+
 This module reads and never writes. `tools/chain.py` is the editor.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GOALS = ROOT / "docs" / "agent" / "goals"
+#: Where side goals live. Walked by `load_side` and skipped by `load`.
+SIDE = GOALS / "side"
+#: Set to a side goal's slug in every process of a side run -- the driver, its sessions and every
+#: tool they start -- so each of them reads that goal's files where a chain run reads the installed
+#: `docs/agent/loop-goal.*` and `docs/agent/handoff.md`. `side_goal` is its one reader.
+SIDE_ENV = "NOVIS_SIDE_GOAL"
+#: `restart-free.md` -> "restart-free". A dot is not a slug character, so `<slug>.handoff.md` never
+#: matches and a side goal is discovered by exactly one file, as a chain goal is.
+SIDE_RE = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 
 #: Where the run stands, as the number of the goal it has installed -- the number a person says out
 #: loud, not a position into a list. It was an index into `chain.toml` for as long as the order
@@ -161,10 +178,81 @@ def load():
     """
     found = []
     for path in GOALS.rglob("*.md"):
+        if SIDE in path.parents:
+            continue
         m = NAME_RE.match(path.name)
         if m:
             found.append(Goal(int(m.group(1)), m.group(2), path.parent))
     return sorted(found, key=lambda g: g.num)
+
+
+class SideGoal(Goal):
+    """A goal no chain walks: `side/<slug>.md` and its two siblings, with no number.
+
+    `num` is 0 so every caller that prints a position can tell a side goal from a chain entry, and
+    the stem is the slug alone because there is no position to put in front of it."""
+
+    def __init__(self, slug):
+        super().__init__(0, slug, SIDE)
+
+    @property
+    def stem(self):
+        return self.slug
+
+    @property
+    def title(self):
+        """The `.md`'s H1, less the `# Side goal — ` it opens with."""
+        text = FRONT_RE.sub("", self.md.read_text(encoding="utf-8"), count=1).lstrip("\n")
+        return re.sub(r"^#\s*Side goal\s*[—-]\s*", "", text.split("\n", 1)[0]).strip()
+
+    def __repr__(self):
+        return f"<SideGoal {self.slug}>"
+
+
+def load_side():
+    """Every side goal on disk, retired ones included, in slug order."""
+    if not SIDE.is_dir():
+        return []
+    return sorted((SideGoal(m.group(1)) for p in SIDE.iterdir()
+                   if p.is_file() and (m := SIDE_RE.match(p.name))), key=lambda g: g.slug)
+
+
+def side_goal():
+    """The side goal this process belongs to, or None in a chain run and outside any run.
+
+    Read from `SIDE_ENV`, which `loop.py --side` sets once and every child inherits. A slug that
+    names no file is None too, and the driver refuses that at its door with the path it looked
+    for."""
+    slug = os.environ.get(SIDE_ENV, "").strip()
+    if not slug or not SIDE_RE.match(f"{slug}.md"):
+        return None
+    goal = SideGoal(slug)
+    return goal if goal.md.is_file() else None
+
+
+def side_errors():
+    """Every reason `side/` is not a set of side goals, one line each; empty when it is.
+
+    A numbered file there would be skipped by `load` and walked by nobody, so it is refused rather
+    than ignored; a live side goal missing a sibling could not be run; anything else in the
+    directory is a file no reader knows about."""
+    if not SIDE.is_dir():
+        return []
+    known, errors = set(), []
+    for goal in load_side():
+        known.update(p.name for p in (goal.md, goal.toml, goal.handoff))
+        if goal.toml.is_file() != goal.handoff.is_file():
+            have, lack = ((goal.toml, goal.handoff) if goal.toml.is_file()
+                          else (goal.handoff, goal.toml))
+            errors.append(f"side goal `{goal.slug}` has {rel(have)} but not {rel(lack)} -- a live "
+                          f"side goal has both and a retired one has neither")
+    for path in sorted(SIDE.iterdir()):
+        if path.name in known:
+            continue
+        why = ("a numbered goal belongs on the chain, not under side/" if NAME_RE.match(path.name)
+               else "not a side goal's .md, .toml or .handoff.md")
+        errors.append(f"{rel(path)}: {why}")
+    return errors
 
 
 def pinned_tail(chain):

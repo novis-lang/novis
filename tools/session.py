@@ -161,6 +161,12 @@ import orient  # noqa: E402  -- its ANCHOR_RE is what the next pack expands, so 
 import playbook as playbookmod  # noqa: E402  -- bullet parsing has one home and it is not here
 import goals as goalsmod  # noqa: E402  -- which goal is live has one home and it is not here
 
+#: The side goal this wrap belongs to, or None in a chain run. Its handoff is the goal's own
+#: `.handoff.md` (`goals.SIDE_ENV`), and it writes no plan section (`validate`).
+SIDE = goalsmod.side_goal()
+if SIDE:
+    HANDOFF = SIDE.handoff
+
 #: `check-links.py` cannot be imported by name -- a hyphen is not an identifier -- and renaming it
 #: would change a command that CI, `verify.py`'s docstring and the playbook all already spell. So
 #: it is loaded by path. Every rule about what a link is and where it resolves lives there.
@@ -517,6 +523,12 @@ def validate(sections: list[Section]) -> list[str]:
     ceiling = planmod.field_ceiling()
 
     for s in [x for kind in ORDER for x in sections if x.kind == kind]:
+        if SIDE and s.kind in ("plan", "plan-edit", "milestone"):
+            # The plan's status block and the milestone files are the chain run's state, and a
+            # side branch that rewrote them would overwrite main's when it lands.
+            errors.append(f"`## {s.kind}: {s.arg}` -- a side run does not write the plan; say "
+                          f"what it changed in the handoff, and the landing commit carries it")
+            continue
         if s.kind == "plan":
             if s.arg.lower() not in names:
                 errors.append(
@@ -1019,13 +1031,14 @@ def manifest_findings() -> list[str]:
     costs less than a link check, and there is no earlier session to blame it on -- the wrap that
     retires a bullet prunes the lines that named it, so a selector reaching nothing here was
     written or unwritten by this session."""
-    goal = goalsmod.find(goalsmod.load(), goalsmod.live())
+    goal = SIDE or goalsmod.find(goalsmod.load(), goalsmod.live())
     if goal is None or goal.retired:
         return []
     # Both copies: the goal's own file is what the floor's `chain.py --check` reads, and the
     # installed `loop-goal.toml` is what the pack and the driver's sweep read -- a session edits
-    # the latter in place, so the two can disagree.
-    manifests = [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])
+    # the latter in place, so the two can disagree. A side goal has one copy, and both name it.
+    manifests = list(dict.fromkeys(
+        [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])))
     problems: list[str] = []
     for toml in manifests:
         found, _notes = orient.manifest_findings(toml)
@@ -1049,10 +1062,11 @@ def named_test_findings() -> list[str]:
     how the driver reads cargo's output and how cargo's own filter selects: a check naming
     `..._are_refused` is met by `fn ..._are_refused_naming_both`. A CONTINUE is not gated: a test
     not yet written is what the stages ahead of it are for."""
-    goal = goalsmod.find(goalsmod.load(), goalsmod.live())
+    goal = SIDE or goalsmod.find(goalsmod.load(), goalsmod.live())
     if goal is None or goal.retired:
         return []
-    manifests = [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])
+    manifests = list(dict.fromkeys(
+        [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])))
     on_disk = playbookmod.test_names()
     missing: list[tuple[str, str]] = []
     for toml in manifests:
@@ -1746,8 +1760,10 @@ def template() -> int:
     else it reports is something the fill-in got wrong.
     """
     c = counts()
-    edits = stale_edits()
-    if edits:
+    edits = [] if SIDE else stale_edits()
+    if SIDE:
+        pass  # a side run writes no plan section, and `validate` refuses one
+    elif edits:
         # Every count the tree has moved past, already written as an applicable edit. This is the
         # one section a counted goal's session always needs and always used to derive by hand.
         # Nothing but the pairs goes in these sections: `parse_edits` refuses text in front of a
@@ -1806,8 +1822,10 @@ def template() -> int:
     # The docs this wrap writes, committed by this wrap. It is pre-filled because leaving it to
     # be remembered did not work: 9 of 19 sessions in one run ended with a hand-rolled `git add`
     # of exactly these three paths, after the wrap had already written all three.
-    say(f"## commit: {' '.join([rel_path(PLAN), rel_path(PLAYBOOK), rel_path(HANDOFF)])}")
-    say("docs(agent): what the plan and the handoff now say")
+    docs = [PLAYBOOK, HANDOFF] if SIDE else [PLAN, PLAYBOOK, HANDOFF]
+    say(f"## commit: {' '.join(rel_path(p) for p in docs)}")
+    say("docs(agent): what the handoff now says" if SIDE
+        else "docs(agent): what the plan and the handoff now say")
     say("")
     say("Drop a path this wrap does not write. Anything it does write that no `## commit:`")
     say("names joins the last one regardless, so the docs cannot be left dirty.")
