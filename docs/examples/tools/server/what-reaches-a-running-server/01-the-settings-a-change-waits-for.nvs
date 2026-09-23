@@ -1,0 +1,14 @@
+<?nvs
+// Shows the settings that decide when a running server uses a changed file.
+
+// The server checks the files of a program once in this time. Nothing sets it
+// here, so `Core\Config::get` returns `null` and the server uses `"2s"`.
+echo 'check the files every: ', Core\Config::get('opcache.revalidate_freq') ?? 'not set', "\n";
+
+// After a change, the server waits until no file has changed for this long.
+// When nothing sets it, the wait is `"1s"` in production and `"100ms"` in development.
+echo 'wait for no change:    ', Core\Config::get('opcache.settle') ?? 'not set', "\n";
+
+// A program can read these settings, but it cannot change them.
+// `Core\Config::set` returns `false` here.
+echo 'change the wait:       ', Core\Config::set('opcache.settle', '0ms') ? 'yes' : 'no', "\n";

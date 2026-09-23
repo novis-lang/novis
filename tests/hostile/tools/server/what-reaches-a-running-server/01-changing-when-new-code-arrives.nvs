@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a request tries to change when the server uses new code, and which
+// keys need a restart. Only the person who runs the server may set these, so
+// every attempt below should fail.
+
+// 1. Compile the program again after every file that a deploy writes.
+echo 'settle 0ms:           ', Core\Config::set('opcache.settle', '0ms') ? 'accepted' : 'refused', "\n";
+
+// 2. Wait so long that a fix never arrives.
+echo 'settle 100 years:     ', Core\Config::set('opcache.settle', '876000h') ? 'accepted' : 'refused', "\n";
+
+// 3. Check the files on every request.
+echo 'revalidate_freq 0:    ', Core\Config::set('opcache.revalidate_freq', '0') ? 'accepted' : 'refused', "\n";
+
+// 4. Stop checking the files at all.
+echo 'validate never:       ', Core\Config::set('opcache.validate', 'never') ? 'accepted' : 'refused', "\n";
+
+// 5. Change the three keys that need a restart.
+echo 'listen:               ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
+echo 'socket_mode:          ', Core\Config::set('server.socket_mode', '0777') ? 'accepted' : 'refused', "\n";
+echo 'workers:              ', Core\Config::set('server.workers', '100000') ? 'accepted' : 'refused', "\n";
+
+// 6. Nothing is set, so both settings are still `null`.
+echo 'settle is still:      ', Core\Config::get('opcache.settle') ?? 'not set', "\n";
+echo 'revalidate_freq is:   ', Core\Config::get('opcache.revalidate_freq') ?? 'not set', "\n";

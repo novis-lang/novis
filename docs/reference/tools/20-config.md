@@ -425,7 +425,7 @@ user = "app"
 password_file = "/run/secrets/mail-password"
 ```
 
-The value is read at boot, and again at each `nvs ctl reload`, never per request. It never appears
+The value is read at boot, and again each time the configuration is applied, never per request. It never appears
 in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
 from, so an audit can act on the file without the credential passing through the audit.
 `Core\Config::get("db.main.password")` answers the value, not the path — the `_file` sibling is how
@@ -526,8 +526,9 @@ restored: 128M
 
 Every directive has a **class** that says who may change it: `Runtime` (the file states a default
 and a request may move it up to its ceiling), `RuntimeTighten` (a request may only narrow it),
-`System` (the file alone). The `apply` column says when a change to the file takes effect on a
-long-running host — at a reload, or only at boot.
+`System` (the file alone). The `apply` column says whether a running server applies a change to
+the file by itself, or only at its next start. Only `[server] listen`, `socket_mode` and `workers`
+wait for the next start (the server chapter, § *What reaches a running server*).
 
 <!-- generated: directives -->
 

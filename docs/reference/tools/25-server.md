@@ -1,8 +1,8 @@
 ---
 id: server
 title: The HTTP server
-summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, the drain, `nvs ctl` and `nvs service`
-keywords: nvs serve, server, HTTP, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service`
+keywords: nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 ---
 
 # nvs serve
@@ -53,8 +53,9 @@ keepalive_timeout  = "75s"
 drain_timeout      = "30s"                # how long working connections are served after a stop begins
 ```
 
-Every key here is read once, at start: changing one needs a restart, and `nvs ctl reload` says so.
-`listen` is one flat list. An entry that begins with a path separator is a Unix socket, which is
+A running server applies a change to any key here by itself, except `listen`, `socket_mode` and
+`workers`. A change to one of those three takes effect at the next start (§ *What reaches a running
+server*). `listen` is one flat list. An entry that begins with a path separator is a Unix socket, which is
 Unix-only and is the transport to prefer behind a proxy; `socket_mode` is who may connect to it.
 On Windows the server listens on TCP.
 
@@ -89,8 +90,8 @@ host   = "shop.example.com"               # compared without regard to case
 entry  = "Shop/public/index.nvs"
 ```
 
-- A `scan` expands against the disk when the server starts and again on `nvs ctl reload`, into
-  ordinary mounts. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
+- A `scan` expands against the disk into ordinary mounts when the server starts. It expands again
+  when a scanned directory changes, and when a reload changes `root` or a mount. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
   beginning with a dot. `{n}` is the nth capture as the directory spells it, `{n:lower}` the same
   in lower case, so a directory named `Blog` is served at `/blog` while `Core\Request::mount()`
   still reports `Blog`. Any other brace is an error at start and under `nvs config check`.
@@ -175,6 +176,67 @@ it. A production server whose every listener is loopback or a socket and whose
 
 <!-- src: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` -->
 
+# What reaches a running server
+
+A running server takes a change without a restart, except a change to three keys.
+
+**A code change.** The server checks every file a program has loaded once per `[opcache]
+revalidate_freq`, off the request path. When a file changed, the server waits until no file of the
+program has changed for `[opcache] settle`: `1s` in production, `100ms` in development. Then it
+compiles the whole program again, and the next request runs the new code. A request that is already
+running finishes on the code it started with. A file added where the program looks for one, or a
+file removed, is a change too. This works in every mode, and a deploy has no step to run after it.
+
+A change that does not compile fails the requests that reach it, with its diagnostic. The server
+does not serve the last version that compiled in its place. When the file is fixed, the next check
+finds the fix.
+
+**A configuration change.** The server checks its own configuration files every two seconds. A
+saved file is applied the same way `nvs ctl reload` applies it: the whole tree is read and checked
+first, and only then does the next request see it. A file that does not check is logged once, with
+its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
+
+**Three keys need a restart**: `[server] listen`, `[server] socket_mode` and `[server] workers`. A
+port below 1024 needs a privilege the server gave up after it opened the socket. `socket_mode` is
+applied only when a socket is opened, and `workers` sets how many cores accept requests. A changed one
+takes effect at the next start. Until then, the reload names it and logs it once with the running
+value and the new one, and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these
+three lines with `restart required`:
+
+```toml
+[server]
+#listen = ["127.0.0.1:8000"]          # default; restart required
+#socket_mode = "0660"                 # default; restart required
+#workers = 4                          # default: one per core; restart required
+
+[opcache]
+#revalidate_freq = "2s"               # how often the server checks the files a program loaded
+#settle = "1s"                        # how long they must stay unchanged before a compile
+```
+
+## Deploying
+
+Copying files into place is safe, even when the copy takes a few seconds. The server compiles only
+after the program's files have stopped changing for `settle`. If a file changes while it compiles,
+it throws that compile away and starts again.
+
+An upload that can pause for longer than `settle`, over a slow link or with a large archive, goes
+into a new directory. When the upload is complete, switch a link such as `current` to it. The server
+resolves the link at the start of each compile and again at the end, so it never builds one program
+from two releases. Under `nvs serve <file>` the next compile after the switch reads the new release,
+and static files still come from the release the server started with. A `[[server.mount]]` table
+resolves its links when the server starts, so a switch reaches it at the next start.
+
+## What no compiler can check
+
+The compiler checks that the new code agrees with itself. It cannot check data that the old code
+wrote and the new code reads: cache entries, sessions, queued jobs and database rows. Requests that
+started before a change finish on the old code, so for a short time both versions write. Write the
+new code so that it reads what the old code wrote. For example, a job that gains a field needs a
+default for the jobs queued without it.
+
+<!-- src: `rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/a-broken-edit-fails-the-requests-that-resolve-it`, `rule:config/the-config-is-an-immutable-snapshot`, `rule:config/reloadability-is-its-own-field`, `rule:config/a-reload-names-what-it-could-not-apply` -->
+
 # Stopping and reloading: the drain
 
 A stop — `Ctrl-C`, `nvs service stop`, the service manager — and a `nvs ctl reload` both drain.
@@ -197,8 +259,8 @@ configuration — a path on Unix, `\\.\pipe\nvs-control` on Windows, `false` to 
 and mode are the whole of who may use it; there is no token and no TCP form. `reload` re-reads the
 configuration tree, applies what can change while running, prints what it applied and names each
 key that needs a restart; a mount `scan` expands again. `config` prints what the process is
-holding, each key with the file it came from. `status` reports how many requests are in flight and
-whether the process is draining. `--socket` names one server where several run on a host. A
+holding, each key with the file it came from. `status` reports how many requests are in flight,
+whether the process is draining, and each restart key whose change is waiting for the next start. `--socket` names one server where several run on a host. A
 changed `[control] socket` moves the socket without a restart: the new one answers before the old
 one closes.
 
