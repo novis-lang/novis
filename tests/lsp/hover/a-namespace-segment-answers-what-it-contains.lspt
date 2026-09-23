@@ -14,9 +14,9 @@ namespace Core\Http
 - `Chunks` — The pieces of a streamed reply's body, in the order they arrived. A `foreach` over `Core\Http\Stream::chunks()` gives each piece as `tainted bytes`.
 - `Client`
 - `Event` — One server-sent event: its data, its name and its id. A `foreach` over `Core\Http\Stream::events()` gives one for each event the server finished sending.
-- `Events`
+- `Events` — The server-sent events of a streamed reply's body, in the order they arrived. A `foreach` over `Core\Http\Stream::events()` gives each one as a `Core\Http\Event`.
 - `Identity`
-- `Lines`
+- `Lines` — The lines of a streamed reply's body, in the order they arrived. A `foreach` over `Core\Http\Stream::lines()` gives each line as a `tainted string`.
 - `Method` — The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
 - `Part`
 - `Response` — The reply to an outbound HTTP call: its status code, its headers, its body, and the TLS connection it came over. `Core\Http\Client::get()` returns one.
