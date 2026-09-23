@@ -14,10 +14,25 @@
 //! the same `rule:config/a-reload-names-what-it-could-not-apply` report. Nothing
 //! here decides what a `Boot` key does — [`nvs_config::Current::publish`] carries
 //! the running value back over the incoming tree, and what it reports is what
-//! [`Process::unapplied`] then remembers on the process's behalf. It is also
-//! where a service manager is told a reload is happening and then that it is
-//! over ([`crate::service::State`]), for the same reason: one function, so one
-//! pair of transitions however the reload was asked for.
+//! [`Process::pending`] then remembers on the process's behalf, each key with
+//! the value in force and the value written. It is also where a service manager
+//! is told a reload is happening and then that it is over
+//! ([`crate::service::State`]), for the same reason: one function, so one pair
+//! of transitions however the reload was asked for. One lock covers the whole
+//! of it, so two reloads never interleave two snapshots.
+//!
+//! **The server checks its own configuration files** —
+//! `rule:config/the-config-is-an-immutable-snapshot`'s last paragraph. [`check`]
+//! starts one thread that, every [`CHECK`], takes the stamp (`mtime` and size)
+//! of every path the serving tree was read from or probed
+//! ([`Snapshot::files`] and [`Snapshot::probed`]). A stamp that moved and then
+//! holds for one more check is a saved file, and [`Process::noticed`] resolves
+//! the tree again and publishes it through the same steps a pushed reload runs.
+//! A tree equal to the one serving publishes nothing, so a file saved with the
+//! same content does not start a new generation. A refusal is logged once per
+//! rendered diagnostic, so a broken file is reported when it is saved and not
+//! every two seconds after. A tree whose roots are the shipped defaults read no
+//! file, and this check has nothing to stat.
 //!
 //! **A reload re-reads the tree; it never writes one.** The boot may have been
 //! asked to create a default `nvs.toml` ([`crate::config::Init`]), and a control
@@ -35,21 +50,27 @@
 //! compiler is keying on the published environment before the answer is written.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one of these per process,
-//! holding the roots as written and the last report's ignored keys, which is a
-//! list of `&'static str`. A reload holds one snapshot's worth of tree while it
-//! resolves and drops the previous one when the new one is published; requests
-//! already running keep theirs, which is
+//! holding the roots as written, the pending restart keys with their two values,
+//! and the last refusal the check logged. A reload holds one snapshot's worth of
+//! tree while it resolves and drops the previous one when the new one is
+//! published; requests already running keep theirs, which is
 //! `rule:config/the-config-is-an-immutable-snapshot`'s own promise and bounds
-//! that hold at O(in-flight).
+//! that hold at O(in-flight). The check is one thread per process, asleep
+//! between passes, and one `stat` per configuration file per [`CHECK`]. No
+//! request makes one.
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::time::{Duration, SystemTime};
 
-use nvs_config::snapshot::{Current, Snapshot};
+use nvs_config::resolve::Origin;
+use nvs_config::snapshot::{Current, Snapshot, value_at};
+use nvs_config::{Apply, DIRECTIVES};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
-use nvs_server::control::{Controlled, Report};
+use nvs_server::control::{Controlled, Pending, Report};
 use nvs_server::{Admission, Ceiling, Draining};
 
 use crate::script::Compiler;
@@ -98,10 +119,24 @@ pub(crate) struct Process {
     /// `Type=notify` unit is owed, from the one function every spelling of a
     /// reload ends in.
     notify: Notify,
-    /// The `Boot` keys the last reload reported and left unapplied. Empty until
-    /// one has happened, which is the honest answer: a process that has never
-    /// reloaded has ignored nothing.
-    unapplied: Mutex<Vec<&'static str>>,
+    /// Held for the whole of a reload, pushed or noticed, so the two publish
+    /// one at a time.
+    reloading: Mutex<()>,
+    /// The `Boot` keys the last reload reported and left unapplied, each with
+    /// its two values. Empty until one has happened, which is the honest
+    /// answer: a process that has never reloaded has ignored nothing.
+    pending: Mutex<Vec<Pending>>,
+    /// The refusal [`Process::noticed`] last logged, rendered. A publish
+    /// clears it.
+    refused: Mutex<Option<String>>,
+}
+
+/// A tree resolved from the files as they stand now, with what a refusal of
+/// it is rendered against.
+struct Tree {
+    next: Arc<Snapshot>,
+    origins: BTreeMap<String, Origin>,
+    sources: SourceMap,
 }
 
 impl Process {
@@ -123,19 +158,18 @@ impl Process {
             admission,
             draining,
             notify,
-            unapplied: Mutex::new(Vec::new()),
+            reloading: Mutex::new(()),
+            pending: Mutex::new(Vec::new()),
+            refused: Mutex::new(None),
         }
     }
 
-    /// The reload itself, which is everything except saying that one is
-    /// happening.
+    /// The tree the roots resolve to now.
     ///
     /// # Errors
     ///
-    /// The tree as it now stands does not resolve, or the publish refused it.
-    /// Either way this process is still serving the tree it had, which is what
-    /// makes the `READY=1` its caller sends next true.
-    fn published(&self) -> Result<Report, String> {
+    /// The tree does not resolve, rendered.
+    fn resolved(&self) -> Result<Tree, String> {
         let mut sources = SourceMap::new();
         let (next, origins) = crate::config::boot_origins(
             &self.roots,
@@ -144,6 +178,26 @@ impl Process {
             crate::config::Init::Never,
         )
         .map_err(|refusal| rendered(&refusal, &sources))?;
+        Ok(Tree {
+            next,
+            origins,
+            sources,
+        })
+    }
+
+    /// The reload itself, from a resolved tree, which is everything except
+    /// saying that one is happening.
+    ///
+    /// # Errors
+    ///
+    /// The publish refused the tree. This process is still serving the tree it
+    /// had, which is what makes the `READY=1` its caller sends next true.
+    fn published(&self, tree: Tree) -> Result<Report, String> {
+        let Tree {
+            next,
+            origins,
+            sources,
+        } = tree;
         // Asked of the incoming tree before the publish, so a `[limits]` memory
         // setting the admission arithmetic cannot read refuses the reload the
         // way it refuses a boot, and leaves the running tree serving.
@@ -153,16 +207,40 @@ impl Process {
         // so the clone is the branch that never runs: a tree just resolved is
         // held by nobody else.
         let next = Arc::try_unwrap(next).unwrap_or_else(|held| Snapshot::clone(&held));
+        // The written value of every restart key, taken before the publish
+        // carries the running value back over it.
+        let written: Vec<(&'static str, String)> = DIRECTIVES
+            .iter()
+            .filter(|row| row.apply == Apply::Boot)
+            .map(|row| (row.key, shown(value_at(&next.table, row.key))))
+            .collect();
         let report = nvs_config::control::reload(&self.current, next, self.compiler.held())
             .map_err(|refusal| rendered(&refusal, &sources))?;
-        *self
-            .unapplied
-            .lock()
-            .expect("the unapplied list is only ever taken here") = report.ignored.clone();
         // After the publish, from the tree that is now serving: the report's
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
         let serving = self.current.load();
+        let pending: Vec<Pending> = report
+            .ignored
+            .iter()
+            .map(|key| Pending {
+                key,
+                running: shown(value_at(&serving.table, key)),
+                written: written
+                    .iter()
+                    .find(|(row, _)| row == key)
+                    .map_or_else(|| shown(None), |(_, value)| value.clone()),
+            })
+            .collect();
+        // Logged once for each written value: a key already pending with the
+        // same written value was logged by the reload that first saw it.
+        let seen = std::mem::replace(&mut *lock(&self.pending), pending.clone());
+        let config = nvs_config::Request::new(Arc::clone(&serving));
+        let mut writer = LogWriter::resolve(Some(&config));
+        for fresh in pending.iter().filter(|entry| !seen.contains(entry)) {
+            drop(writer.write(&restart_pending(fresh)));
+        }
+        *lock(&self.refused) = None;
         self.compiler
             .rekey(nvs_config::cache::env_hash(&serving.config));
         self.compiler.reconfigure(&serving.config);
@@ -178,6 +256,55 @@ impl Process {
             self.admission.resize(&ceiling);
         }
         Ok(report)
+    }
+
+    /// The configuration check's reload: `changed` are the paths whose stamps
+    /// moved and then held.
+    ///
+    /// A tree equal to the one serving publishes nothing, and clears the
+    /// pending restart keys: every one of them is back at its running value.
+    /// A refusal is logged
+    /// unless it is the same rendered diagnostic this check logged last, which
+    /// is a file saved again with the same fault.
+    fn noticed(&self, changed: &[PathBuf]) {
+        let _one = lock(&self.reloading);
+        if self.draining.is_draining() {
+            return;
+        }
+        let outcome = match self.resolved() {
+            // Every restart key the files hold is the running value again,
+            // so nothing is pending any more.
+            Ok(tree) if same_tree(&tree.next, &self.current.load()) => {
+                lock(&self.pending).clear();
+                return;
+            }
+            Ok(tree) => {
+                self.notify.state(State::Reloading);
+                let outcome = self.published(tree);
+                self.notify.state(State::Ready);
+                outcome
+            }
+            Err(refusal) => Err(refusal),
+        };
+        if let Err(refusal) = &outcome {
+            let mut last = lock(&self.refused);
+            if last.as_deref() == Some(refusal.as_str()) {
+                return;
+            }
+            *last = Some(refusal.clone());
+        }
+        self.logged(&outcome, changed);
+    }
+
+    /// Every path the serving tree was read from or probed, with its stamp now.
+    fn stamps(&self) -> Vec<(PathBuf, Stamp)> {
+        let serving = self.current.load();
+        serving
+            .files
+            .iter()
+            .chain(&serving.probed)
+            .map(|path| (path.clone(), stamp(path)))
+            .collect()
     }
 
     /// Writes what the reload did where `[log] target` says —
@@ -199,16 +326,17 @@ impl Process {
     /// full disk under the log target is not a reason to fail the reload that
     /// already happened, and the answer the operator is holding says what it did
     /// regardless.
-    fn logged(&self, outcome: &Result<Report, String>) {
+    fn logged(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
         let config = nvs_config::Request::new(self.current.load());
-        drop(LogWriter::resolve(Some(&config)).write(&record(outcome)));
+        drop(LogWriter::resolve(Some(&config)).write(&record(outcome, changed)));
     }
 }
 
 impl Controlled for Process {
     fn reload(&self) -> Result<Report, String> {
+        let _one = lock(&self.reloading);
         self.notify.state(State::Reloading);
-        let outcome = self.published();
+        let outcome = self.resolved().and_then(|tree| self.published(tree));
         // `READY=1` whatever that outcome was, and `State::Reloading` owns why:
         // a refused reload leaves this process serving the tree it already had,
         // so a manager left in `reloading` over one would be reporting a state
@@ -216,7 +344,7 @@ impl Controlled for Process {
         self.notify.state(State::Ready);
         // After the state, and from the tree now in force: a record written
         // before the publish settled could name a target the reload replaced.
-        self.logged(&outcome);
+        self.logged(&outcome, &[]);
         outcome
     }
 
@@ -225,10 +353,11 @@ impl Controlled for Process {
     }
 
     fn unapplied(&self) -> Vec<&'static str> {
-        self.unapplied
-            .lock()
-            .expect("the unapplied list is only ever taken here")
-            .clone()
+        lock(&self.pending).iter().map(|entry| entry.key).collect()
+    }
+
+    fn pending(&self) -> Vec<Pending> {
+        lock(&self.pending).clone()
     }
 
     fn in_flight(&self) -> usize {
@@ -238,6 +367,111 @@ impl Controlled for Process {
     fn draining(&self) -> bool {
         self.draining.is_draining()
     }
+}
+
+/// How often the configuration check takes every stamp. Fixed and not a
+/// directive: no operator needs to tune how quickly a saved file is noticed.
+pub(crate) const CHECK: Duration = Duration::from_secs(2);
+
+/// A path's modification time and size, or `None` where it is absent.
+type Stamp = Option<(SystemTime, u64)>;
+
+/// The stamp of `path` now.
+fn stamp(path: &Path) -> Stamp {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.modified().ok()?, meta.len()))
+}
+
+/// Starts the configuration check: one thread that, every [`CHECK`], takes
+/// the stamp of every path the serving tree read or probed, and hands a change
+/// that held for one more check to [`Process::noticed`].
+///
+/// The thread is detached, like the control endpoint's: it has no end of its
+/// own, and the process ending is what stops it. A pass that panics is caught,
+/// and the next pass runs as usual. A thread that cannot be started is
+/// reported once, and then a saved file waits for `nvs ctl reload`.
+pub(crate) fn check(process: &Arc<Process>) {
+    let process = Arc::clone(process);
+    let spawned = std::thread::Builder::new()
+        .name("nvs-config-check".to_owned())
+        .spawn(move || {
+            let mut seen = process.stamps();
+            let mut moved: Option<Vec<(PathBuf, Stamp)>> = None;
+            loop {
+                std::thread::sleep(CHECK);
+                let now = process.stamps();
+                if now == seen {
+                    moved = None;
+                    continue;
+                }
+                // A file still being written moves again before the next pass,
+                // so only a stamp that held for a whole pass is read.
+                if moved.as_ref() != Some(&now) {
+                    moved = Some(now);
+                    continue;
+                }
+                let changed: Vec<PathBuf> = now
+                    .iter()
+                    .filter(|entry| !seen.contains(entry))
+                    .map(|(path, _)| path.clone())
+                    .collect();
+                moved = None;
+                // The stamps taken before the tree is read again: a save that
+                // lands while it is read moves one of them, and the next pass
+                // reads the tree once more.
+                seen = now;
+                drop(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                    || {
+                        process.noticed(&changed);
+                    },
+                )));
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("warning: the configuration files will not be checked for changes: {error}");
+    }
+}
+
+/// Whether `next` is the tree `serving` already is: the same keys and values,
+/// each written in the same file, from the same files. A publish of it would
+/// change nothing but the generation, which empties the process cache.
+fn same_tree(next: &Snapshot, serving: &Snapshot) -> bool {
+    next.table == serving.table
+        && next.roster == serving.roster
+        && next.blocks == serving.blocks
+        && next.files == serving.files
+        && next.probed == serving.probed
+        && next.secrets == serving.secrets
+        && next.origins.len() == serving.origins.len()
+        && next
+            .origins
+            .iter()
+            .zip(&serving.origins)
+            .all(|((key, origin), (was, then))| key == was && origin.path == then.path)
+}
+
+/// A value as TOML, or `not written`.
+fn shown(value: Option<&toml::Value>) -> String {
+    value.map_or_else(|| "not written".to_string(), ToString::to_string)
+}
+
+/// `mutex`, taken whether or not a holder panicked: every value behind these
+/// locks is whole after each statement that writes it.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// One restart key the files changed, as the record the reload that first saw
+/// its written value writes: `Warn`, with the key and both values in fields.
+fn restart_pending(entry: &Pending) -> Record {
+    let mut record = Record::at(Level::Warn);
+    record.envelope.message = Some(Rendered::new("configuration restart pending"));
+    record.envelope.fields = vec![
+        ("key".to_string(), text(entry.key)),
+        ("running".to_string(), text(&entry.running)),
+        ("written".to_string(), text(&entry.written)),
+    ];
+    record
 }
 
 /// The reload's outcome as one record — what [`Process::logged`] writes.
@@ -255,12 +489,26 @@ impl Controlled for Process {
 ///
 /// A refusal's rendered diagnostic is a field for the same reason — it is many
 /// lines with a span in it, and a message is a line.
-fn record(outcome: &Result<Report, String>) -> Record {
+///
+/// A reload the configuration check started also names the files whose stamps
+/// moved, in a `changed` field. A pushed reload has none.
+fn record(outcome: &Result<Report, String>, changed: &[PathBuf]) -> Record {
     match outcome {
         Ok(report) => {
             let mut record = Record::at(Level::Info);
             record.envelope.message = Some(Rendered::new("configuration reloaded"));
-            record.envelope.fields = vec![
+            if !changed.is_empty() {
+                record.envelope.fields.push((
+                    "changed".to_string(),
+                    Node::Sequence(
+                        changed
+                            .iter()
+                            .map(|path| text(&path.display().to_string()))
+                            .collect(),
+                    ),
+                ));
+            }
+            record.envelope.fields.extend([
                 (
                     "applied".to_string(),
                     names(report.applied.iter().map(String::as_str)),
@@ -272,12 +520,14 @@ fn record(outcome: &Result<Report, String>) -> Record {
                         u64::try_from(report.invalidated).unwrap_or(u64::MAX),
                     )),
                 ),
-            ];
+            ]);
             record
         }
         Err(refusal) => {
             let mut record = Record::at(Level::Error);
-            record.envelope.message = Some(Rendered::new("configuration reload refused"));
+            record.envelope.message = Some(Rendered::new(
+                "configuration reload refused; the running configuration is unchanged",
+            ));
             record.envelope.fields = vec![("refusal".to_string(), text(refusal))];
             record
         }
@@ -324,11 +574,14 @@ mod tests {
     /// naming the three answers its report carries, each in a field.
     #[test]
     fn a_reload_that_landed_is_one_info_record_naming_what_it_did() {
-        let written = record(&Ok(Report {
-            applied: vec!["server.workers".to_string()],
-            ignored: vec!["server.listen"],
-            invalidated: 12,
-        }));
+        let written = record(
+            &Ok(Report {
+                applied: vec!["server.workers".to_string()],
+                ignored: vec!["server.listen"],
+                invalidated: 12,
+            }),
+            &[],
+        );
         assert_eq!(written.envelope.level, Level::Info);
         let named: Vec<&str> = written
             .envelope
@@ -349,11 +602,52 @@ mod tests {
     #[test]
     fn a_refused_reload_is_one_error_record_carrying_the_diagnostic_in_a_field() {
         let refusal = "E0601: the tree does not deserialize\n  --> nvs.toml:4:1";
-        let written = record(&Err(refusal.to_string()));
+        let written = record(&Err(refusal.to_string()), &[]);
         assert_eq!(written.envelope.level, Level::Error);
         assert_eq!(
             written.envelope.fields,
             vec![("refusal".to_string(), text(refusal))]
+        );
+    }
+
+    /// A reload the configuration check started names the files whose stamps
+    /// moved, before the three answers a pushed reload's record carries.
+    #[test]
+    fn a_noticed_reload_names_the_files_that_changed() {
+        let written = record(
+            &Ok(Report {
+                applied: vec!["limits.memory".to_string()],
+                ignored: Vec::new(),
+                invalidated: 0,
+            }),
+            &[PathBuf::from("/etc/nvs/nvs.toml")],
+        );
+        let named: Vec<&str> = written
+            .envelope
+            .fields
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        assert_eq!(named, ["changed", "applied", "ignored", "invalidated"]);
+    }
+
+    /// A pending restart key is one `Warn` record with the key and both
+    /// values, each in a field.
+    #[test]
+    fn a_pending_restart_key_is_one_warn_record_with_both_values() {
+        let written = restart_pending(&Pending {
+            key: "server.workers",
+            running: "4".to_string(),
+            written: "2".to_string(),
+        });
+        assert_eq!(written.envelope.level, Level::Warn);
+        assert_eq!(
+            written.envelope.fields,
+            vec![
+                ("key".to_string(), text("server.workers")),
+                ("running".to_string(), text("4")),
+                ("written".to_string(), text("2")),
+            ]
         );
     }
 }

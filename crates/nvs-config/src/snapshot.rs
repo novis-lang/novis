@@ -103,6 +103,9 @@ pub struct Snapshot {
     pub roster: Option<toml::Value>,
     /// Every file the tree was read from, in the order § 3 read them.
     pub files: Vec<PathBuf>,
+    /// Every path the tree looked at without reading it as a file —
+    /// [`Resolved::probed`](crate::resolve::Resolved::probed).
+    pub probed: Vec<PathBuf>,
     /// Every override, in the order they happened: the tree's own first (`rule:config/later-wins-and-every-override-is-recorded`), then each
     /// block's over what it replaced. Both carry both origins, because both came from one merge.
     ///
@@ -182,6 +185,7 @@ impl Snapshot {
             blocks: Vec::new(),
             roster: None,
             files: resolved.files.clone(),
+            probed: resolved.probed.clone(),
             overrides: resolved.overrides.clone(),
             origins: resolved.origins.clone(),
             warnings: resolved.warnings.clone(),
@@ -397,7 +401,7 @@ impl Current {
 ///
 /// Shared with [`request`](crate::request), which asks the same question of a published snapshot
 /// on behalf of `Core\Config::get`.
-pub(crate) fn value_at<'t>(table: &'t toml::Table, key: &str) -> Option<&'t toml::Value> {
+pub fn value_at<'t>(table: &'t toml::Table, key: &str) -> Option<&'t toml::Value> {
     let mut segments = key.split('.');
     let mut value = table.get(segments.next()?)?;
     for segment in segments {

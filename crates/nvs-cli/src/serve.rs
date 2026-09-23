@@ -520,6 +520,9 @@ pub(crate) fn run(
         told.clone(),
     ));
     crate::control::install(Arc::clone(&host));
+    // A saved configuration file reaches this process without anybody pushing
+    // it — `rule:config/the-config-is-an-immutable-snapshot`.
+    crate::control::check(&host);
     if let Some(endpoint) = controlling {
         println!("control endpoint on {}", endpoint.name().display());
         if let Err(error) = std::thread::Builder::new()

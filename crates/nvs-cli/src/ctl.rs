@@ -71,7 +71,8 @@ pub(crate) fn config(config: &[PathBuf], socket: Option<&Path>) -> ExitCode {
     run(config, socket, "GET", "/config")
 }
 
-/// `nvs ctl status`: how many requests are in flight, and whether the process is draining.
+/// `nvs ctl status`: how many requests are in flight, whether the process is draining, and each
+/// restart key the files change with its running and written value.
 pub(crate) fn status(config: &[PathBuf], socket: Option<&Path>) -> ExitCode {
     run(config, socket, "GET", "/status")
 }

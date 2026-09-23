@@ -592,10 +592,20 @@ contribute; validate the assembled registry; then compute `env_hash` and publish
 tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
 the swap and leaves the previous snapshot serving.
 
-Cost: one `Arc` clone at request start and **no syscall** — unlike source revalidation, configuration
-is never polled from the request path; a reload is pushed by the operator. Two snapshots live during
-a swap, plus one per in-flight request still holding an older one — kilobytes each, bounded by
-concurrency, never by reloads performed.
+**The server checks its own configuration files.** Every two seconds, one thread off the request
+path takes the stamp (`mtime` and size) of every path the serving tree read or probed: each root,
+each include, each included directory and each optional include that was absent. A stamp that moved
+and then holds for one more check is a saved file, and the tree is resolved and published by the
+same steps `nvs ctl reload` runs, under the same lock, so a noticed reload and a pushed one never
+interleave two snapshots. A tree equal to the one serving publishes nothing. A tree that does not
+validate is logged once for each distinct refusal, with its file and line, and the running
+configuration stays. `nvs ctl reload` remains, to apply a change at once. A server whose roots are
+the shipped defaults read no file, and has nothing to check.
+
+Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
+configuration path every two seconds on the checking thread. Two snapshots live during a swap, plus
+one per in-flight request still holding an older one — kilobytes each, bounded by concurrency, never
+by reloads performed.
 
 <sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md).</sub>
 
@@ -951,6 +961,11 @@ it applied a change it did not. The report and the carry are one operation — t
 still holds the *running* value of each named key, so the change exists nowhere but the report until
 a restart. A changed `Boot` key is therefore absent from the applied list rather than present in
 both.
+
+A pending restart is loud. The reload that first sees a written value of a `Boot` key logs the key
+with its running value and its written value, once for that written value and not once per reload.
+`nvs ctl status` lists every pending key, one per line with both values, until the process restarts.
+A file changed back to the running value clears the entry.
 
 The unit count follows [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key): a changed `env_hash`
 invalidates every unit and an unchanged one invalidates none. What a reload cannot catch is an

@@ -99,11 +99,30 @@ pub trait Controlled {
     /// remembering what it reported.
     fn unapplied(&self) -> Vec<&'static str>;
 
+    /// The restart keys the files now change, each with the value in force and the value
+    /// written, which `GET /status` lists one per line. A file changed back to the running value
+    /// removes its key. A process that has never reloaded has none.
+    fn pending(&self) -> Vec<Pending> {
+        Vec::new()
+    }
+
     /// Requests in flight across this process right now.
     fn in_flight(&self) -> usize;
 
     /// Whether the drain has begun — `rule:concurrency/a-drain-closes-a-connection-cleanly`.
     fn draining(&self) -> bool;
+}
+
+/// A restart key the configuration files change and this process does not apply until it
+/// restarts — `rule:config/a-reload-names-what-it-could-not-apply`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pending {
+    /// The dotted key, `server.workers`.
+    pub key: &'static str,
+    /// The value in force, as TOML, or `not written`.
+    pub running: String,
+    /// The value the files now hold, written the same way.
+    pub written: String,
 }
 
 /// What a request arriving on the control endpoint asked for — `rule:config/one-local-control-socket`.
@@ -212,11 +231,20 @@ impl Operation {
             Self::Config => {
                 Ok(Audit::of_snapshot(&host.snapshot(), &host.unapplied()).render(true))
             }
-            Self::Status => Ok(format!(
-                "in_flight: {}\ndraining: {}\n",
-                host.in_flight(),
-                host.draining(),
-            )),
+            Self::Status => {
+                let mut body = format!(
+                    "in_flight: {}\ndraining: {}\n",
+                    host.in_flight(),
+                    host.draining(),
+                );
+                for pending in host.pending() {
+                    body.push_str(&format!(
+                        "restart pending: {} (running {}, written {})\n",
+                        pending.key, pending.running, pending.written
+                    ));
+                }
+                Ok(body)
+            }
         }
     }
 }
@@ -393,7 +421,7 @@ mod tests {
     use nvs_config::trust::Untrusted;
 
     use super::{
-        Address, Answer, Controlled, Denied, Operation, Refusal, Report, SETTLE, VERSION,
+        Address, Answer, Controlled, Denied, Operation, Pending, Refusal, Report, SETTLE, VERSION,
         VERSION_HEADER, answer, answer_connection, bind, boundary, reload, same_build,
     };
 
@@ -641,6 +669,7 @@ mod tests {
     struct Process {
         current: Current,
         unapplied: Vec<&'static str>,
+        pending: Vec<Pending>,
         in_flight: usize,
         draining: bool,
         refuse: Option<String>,
@@ -652,6 +681,7 @@ mod tests {
             Self {
                 current: Current::new(Arc::new(traced(document, written_in))),
                 unapplied: Vec::new(),
+                pending: Vec::new(),
                 in_flight: 0,
                 draining: false,
                 refuse: None,
@@ -677,6 +707,10 @@ mod tests {
 
         fn unapplied(&self) -> Vec<&'static str> {
             self.unapplied.clone()
+        }
+
+        fn pending(&self) -> Vec<Pending> {
+            self.pending.clone()
         }
 
         fn in_flight(&self) -> usize {
@@ -794,6 +828,22 @@ mod tests {
             body(answer("GET", "/status", &process)),
             "in_flight: 1\ndraining: true\n",
             "a stop in progress says so, and says how much of it is left",
+        );
+    }
+
+    /// `status` lists every restart key the files change, one per line, with the value in force
+    /// and the value written — ADR 0219 § 5's pending list.
+    #[test]
+    fn a_status_request_lists_every_pending_restart_key_with_both_values() {
+        let mut process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
+        process.pending = vec![Pending {
+            key: "server.workers",
+            running: "4".to_string(),
+            written: "2".to_string(),
+        }];
+        assert_eq!(
+            body(answer("GET", "/status", &process)),
+            "in_flight: 0\ndraining: false\nrestart pending: server.workers (running 4, written 2)\n",
         );
     }
 

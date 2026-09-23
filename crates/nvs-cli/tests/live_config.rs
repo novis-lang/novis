@@ -5,7 +5,8 @@
 //! Every case goes through [`Server`], which is `live_edit.rs`'s harness with
 //! a control endpoint added. Its `nvs.toml` always names `[control] socket`, so
 //! [`Server::reload`] can rewrite the file and ask the running process to read
-//! it again. A reload is observed by polling: [`Server::awaits`] asks until the
+//! it again. [`Server::save`] rewrites the file and asks nothing, because the
+//! server checks its own files. A reload is observed by polling: [`Server::awaits`] asks until the
 //! answer is the one wanted or [`BOUND`] runs out, and the failure message says
 //! what the last answer was.
 //!
@@ -290,6 +291,35 @@ impl Server {
             &controlled(&self.socket, config),
         );
         self.ctl("reload")
+    }
+
+    /// Rewrites `nvs.toml` as [`Server::reload`] does, and runs nothing. The
+    /// server checks its own configuration files, so it reads the file itself.
+    fn save(&self, config: &str) {
+        write_file(
+            &self.dir.join("nvs.toml"),
+            &controlled(&self.socket, config),
+        );
+    }
+
+    /// Waits until standard error contains `text`, and returns all of it.
+    ///
+    /// # Panics
+    ///
+    /// When [`BOUND`] runs out first.
+    fn logs(&self, text: &str) -> String {
+        let started = Instant::now();
+        loop {
+            let said = self.said();
+            if said.contains(text) {
+                return said;
+            }
+            assert!(
+                started.elapsed() < BOUND,
+                "`{text}` was not logged within {BOUND:?}; the server wrote: {said}"
+            );
+            thread::sleep(POLL);
+        }
     }
 
     /// Runs `nvs ctl <request>` against this server and returns what it
@@ -1269,4 +1299,127 @@ fn a_rotated_csrf_key_refuses_the_old_token_at_the_door() {
         "a token signed with the rewritten file's key passing",
         200,
     );
+}
+
+/// How many times `text` appears in `said`.
+fn times(said: &str, text: &str) -> usize {
+    said.matches(text).count()
+}
+
+/// The server checks its own configuration files: a saved `nvs.toml` reaches
+/// the next response with no `nvs ctl reload`, and the record the check writes
+/// names the file that changed.
+#[test]
+fn a_saved_configuration_file_is_applied_without_a_reload() {
+    let server = Server::start(
+        "saved",
+        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("no-referrer")
+    });
+
+    server.save("[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    server.awaits("/", "the saved `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("same-origin")
+    });
+}
+
+/// A file cut off in the middle of a line does not parse. The check logs it
+/// once, with the file and the line, and the running configuration keeps
+/// serving. The complete file is then applied as usual.
+#[test]
+fn a_half_written_configuration_file_is_logged_and_the_running_one_kept() {
+    const REFUSED: &str = "configuration reload refused";
+    let server = Server::start(
+        "half",
+        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("no-referrer")
+    });
+
+    server.save("[http.headers]\nreferrer_policy = \"same-ori");
+    let said = server.logs(REFUSED);
+    assert!(
+        said.contains("nvs.toml"),
+        "the refusal does not name the file: {said}"
+    );
+    let kept = server.get("/");
+    assert_eq!(
+        kept.header("referrer-policy"),
+        Some("no-referrer"),
+        "a file that does not parse changed the running configuration: {kept:?}"
+    );
+    // Three more checks of the same file log nothing more.
+    thread::sleep(Duration::from_secs(6));
+    assert_eq!(
+        times(&server.said(), REFUSED),
+        1,
+        "one broken file was logged more than once: {}",
+        server.said()
+    );
+
+    server.save("[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    server.awaits("/", "the completed file's `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("same-origin")
+    });
+}
+
+/// A changed restart key is logged once, with the value in force and the
+/// value written, and `nvs ctl status` lists it until the file is changed
+/// back. A later save that changes another key does not log it again.
+#[test]
+fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
+    const PENDING: &str = "configuration restart pending";
+    let server = Server::start("pending", "", &[("app.nvs", PLAIN)]);
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+    let status = server.ctl("status");
+    assert!(
+        !status.contains("restart pending"),
+        "a server nobody changed has a pending restart: {status}"
+    );
+
+    server.save("[server]\nworkers = 1\n");
+    let said = server.logs(PENDING);
+    assert!(
+        said.contains("not written"),
+        "the record does not give the running value: {said}"
+    );
+    let status = server.ctl("status");
+    let line = status
+        .lines()
+        .find(|line| line.starts_with("restart pending: server"))
+        .unwrap_or_else(|| panic!("`nvs ctl status` does not list the key: {status}"));
+    assert!(
+        line.contains("running not written") && line.contains("workers = 1"),
+        "the pending line does not give both values: {line}"
+    );
+
+    server.save("[server]\nworkers = 1\n\n[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    server.awaits("/", "the saved `Referrer-Policy`", |answer| {
+        answer.header("referrer-policy") == Some("same-origin")
+    });
+    assert_eq!(
+        times(&server.said(), PENDING),
+        1,
+        "one written value was logged more than once: {}",
+        server.said()
+    );
+
+    server.save("[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    let started = Instant::now();
+    loop {
+        let status = server.ctl("status");
+        if !status.contains("restart pending") {
+            break;
+        }
+        assert!(
+            started.elapsed() < BOUND,
+            "a key changed back is still pending: {status}"
+        );
+        thread::sleep(POLL);
+    }
 }

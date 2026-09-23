@@ -418,6 +418,7 @@
       ],
       "guardedBy": [
         "crates/nvs-config/tests/snapshot.rs",
+        "crates/nvs-cli/tests/live_config.rs",
         "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst"
       ]
     },
@@ -663,7 +664,8 @@
       ],
       "guardedBy": [
         "crates/nvs-server/src/control.rs",
-        "crates/nvs-config/tests/snapshot.rs"
+        "crates/nvs-config/tests/snapshot.rs",
+        "crates/nvs-cli/tests/live_config.rs"
       ]
     },
     {

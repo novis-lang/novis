@@ -379,6 +379,27 @@ fn a_dir_include_is_sorted_shallow_and_toml_only() {
     );
 }
 
+/// A running server checks every path the tree looked at, and not only the files it read: an
+/// included directory, so a file added to it is seen, and an absent optional include, so one
+/// that appears is seen.
+#[test]
+fn an_included_directory_and_an_absent_optional_include_are_probed() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\ndir = \"conf.d\"\n\n[[include]]\npath = \"local.toml\"\noptional = true\n",
+        ),
+        ("etc/conf.d/10-limits.toml", ""),
+    ]);
+
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    assert_eq!(
+        resolved.files,
+        vec![p("etc/nvs.toml"), p("etc/conf.d/10-limits.toml")]
+    );
+    assert_eq!(resolved.probed, vec![p("etc/conf.d"), p("etc/local.toml")]);
+}
+
 /// § 4, both sides of the split named together: `key = [...]` is one value and is replaced
 /// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
 /// accumulate, because two of them in one file already mean two.

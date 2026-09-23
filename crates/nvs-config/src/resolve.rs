@@ -201,6 +201,11 @@ pub struct Resolved {
     pub config: Config,
     /// Every file the tree reached, in the order § 3 read them. This is what the boot log prints.
     pub files: Vec<PathBuf>,
+    /// Every path the tree looked at without reading it as a file: each `[[include]] dir` it
+    /// listed, and each `optional` include that was absent. A running server checks these beside
+    /// [`files`](Resolved::files), so a file added to an included directory, or an optional include
+    /// that appears, is noticed like an edit.
+    pub probed: Vec<PathBuf>,
     /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
@@ -435,7 +440,7 @@ fn read_into(
     let base = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     chain.push(path.to_path_buf());
     for include in &file.include {
-        for target in include_targets(include, &base, path, files)? {
+        for target in include_targets(include, &base, path, files, &mut merge.probed)? {
             read_into(merge, &target, sources, files, chain, depth + 1)?;
         }
     }
@@ -448,11 +453,14 @@ fn read_into(
 /// `path` is one file; `dir` is every `*.toml` **directly** inside, ascending by byte order of
 /// filename and not recursing — the sort is here rather than left to the reader because § 3 makes
 /// order decide the answer, and a capability grant settled by directory-entry order is not a design.
+///
+/// A directory it lists and an optional file it finds absent are pushed onto `probed`.
 fn include_targets(
     include: &crate::tree::Include,
     base: &Path,
     written_in: &Path,
     files: &dyn Files,
+    probed: &mut Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, Diagnostic> {
     let optional = include.optional.unwrap_or(false);
     match (&include.path, &include.dir) {
@@ -465,6 +473,7 @@ fn include_targets(
                     // appear in, which is the only place a promise about a file that does not
                     // exist yet can be kept.
                     trust_slot(&target, files)?;
+                    probed.push(target);
                     return Ok(Vec::new());
                 }
                 return Err(
@@ -480,6 +489,7 @@ fn include_targets(
             if !files.exists(&target) {
                 if optional {
                     trust_slot(&target, files)?;
+                    probed.push(target);
                     return Ok(Vec::new());
                 }
                 return Err(
@@ -500,6 +510,7 @@ fn include_targets(
                 .filter(|entry| entry.extension().is_some_and(|ext| ext == "toml"))
                 .collect();
             entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+            probed.push(target);
             Ok(entries)
         }
         _ => Err(Diagnostic::error(
@@ -591,6 +602,7 @@ struct Merge {
     origins: BTreeMap<String, Origin>,
     overrides: Vec<Override>,
     files: Vec<PathBuf>,
+    probed: Vec<PathBuf>,
 }
 
 impl Merge {
@@ -623,6 +635,7 @@ impl Merge {
         Ok(Resolved {
             config,
             files: self.files,
+            probed: self.probed,
             overrides: self.overrides,
             warnings: Vec::new(),
             table: self.table,
