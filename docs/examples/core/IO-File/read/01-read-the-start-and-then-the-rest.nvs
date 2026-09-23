@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the first part of a file, and then the rest.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "note.txt");
+Core\IO::write($path, "Hello, world!");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+// `read(5)` reads the first 5 bytes. This prints "Hello".
+echo $file->read(5), "\n";
+
+// The next `read` starts where the first one stopped. This prints ", world!".
+echo $file->read(100), "\n";
+
+// The file has no more bytes, so `read` returns an empty string. This prints 0.
+echo Core\Str::length($file->read(100)), "\n";
+$file->close();

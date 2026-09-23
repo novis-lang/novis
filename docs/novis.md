@@ -11920,9 +11920,9 @@ Reads up to `$max` bytes from where the handle is, and moves it past them — `f
 |---|---|---|
 | `$max` | `uint` | The most bytes to read. Fewer are returned when the file ends first. |
 
-**Returns** `string` — The bytes read, as a `string`. An empty string means the end of the file, which is the one answer `read` gives that is not an error and not data.
+**Returns** `string` — The bytes read, as a `string`. The text always ends with a whole character: when `$max` ends inside a character, that character stays in the file for the next read. An empty string means the end of the file, which is the one answer `read` gives that is not an error and not data.
 
-**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The read itself failed, or the handle was not opened for reading.
+**Throws** `RuntimeError` — The handle has already been closed.; `RuntimeError` — The bytes are not valid UTF-8, or the next character is longer than `$max`. The handle does not move, so the next read starts at the same byte.; `IOError` — The read itself failed, or the handle was not opened for reading.
 
 <a id="core-core-io-file-readline"></a>
 #### `Core\IO\File->readLine`

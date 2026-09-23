@@ -1,0 +1,41 @@
+--TEST--
+`Core\IO\File::read` ends on a whole character: a `$max` inside `é` returns the text before it and leaves `é` for the next read, and a read that throws leaves the handle where it was — `rule:types/bytes`
+--FILE--
+<?nvs
+// covers: Core\IO\File::read
+Core\IO\File $out = Core\IO::open("menu.txt", Core\IO\FileMode::Write);
+$out->write("café crème");
+$out->close();
+
+// `é` is two bytes. A ceiling of 4 bytes ends inside it, so the answer is "caf"
+// and the handle stays in front of `é`.
+Core\IO\File $in = Core\IO::open("menu.txt", Core\IO\FileMode::Read);
+echo "[", $in->read(4), "] at ", $in->tell() as string, "\n";
+
+// One byte cannot hold `é`. The read throws, and the handle does not move.
+try {
+    $in->read(1);
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "too short: ", $e->message, "\n";
+}
+echo "still at ", $in->tell() as string, "\n";
+
+// Chunks of 3 bytes read the rest of the text with nothing lost.
+string $rest = "";
+string $chunk = $in->read(3);
+while (Core\Str::length($chunk) > 0) {
+    $rest = $rest . "[" . $chunk . "]";
+    $chunk = $in->read(3);
+}
+echo $rest, "\n";
+$in->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+[caf] at 3
+too short: Core\IO\File::read: the character here is longer than the 1 byte(s) asked for, so nothing was read — menu.txt
+still at 3
+[é ][cr][èm][e]

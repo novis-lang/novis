@@ -3,6 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\IO\File::close
+// covers: Core\IO\File::read
 // The declaration is the assertion. PHP's `fopen` answers a `resource`, which
 // is an integer with a type tag every function taking one has to re-check at
 // run time; here the type is checked before the program runs, and what is left

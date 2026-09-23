@@ -1,0 +1,93 @@
+<?nvs
+// Attack: a program reads with a huge limit and with a limit of 0. It reads text where the limit
+// cuts characters, a file that ends inside a character, and handles that cannot read.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+Core\IO::write($path, 'twelve bytes');
+
+// 1. A read asks for 4 TB from a file of 12 bytes. It must return the 12 bytes only.
+Core\IO\File $small = Core\IO::open($path, Core\IO\FileMode::Read);
+if (Core\Str::length($small->read(4000000000000)) != 12) {
+    throw new LogicError('a huge limit read the wrong number of bytes');
+}
+$small->close();
+echo 'step 1: done', "\n";
+
+// 2. A read of 0 bytes runs 100000 times. Each one returns an empty string.
+Core\IO\File $zero = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Str::length($zero->read(0)) != 0) {
+        throw new LogicError('a read of 0 bytes returned text');
+    }
+    $i = $i + 1;
+}
+$zero->close();
+echo 'step 2: done', "\n";
+
+// 3. A file of 200000 "é" is read 3 bytes at a time, so every read ends inside a character.
+// No character may be lost.
+Core\IO::write($path, Core\Str::repeat('é', 200000));
+Core\IO\File $cut = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $characters = 0;
+string $part = $cut->read(3);
+while (Core\Str::length($part) > 0) {
+    $characters = $characters + Core\Str::length($part);
+    $part = $cut->read(3);
+}
+$cut->close();
+if ($characters != 200000) {
+    throw new LogicError('a cut character was lost');
+}
+echo 'step 3: done', "\n";
+
+// 4. The file is shortened so that it ends inside "é". Each read of the end must throw
+// a `RuntimeError`, 1000 times, and the position must not move.
+Core\IO::write($path, 'café');
+Core\IO\File $broken = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$broken->truncate(4);
+$broken->seek(3);
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $broken->read(100);
+    } catch (RuntimeError $notText) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000 || $broken->tell() != 3) {
+    throw new LogicError('a broken character was read or skipped');
+}
+$broken->close();
+echo 'step 4: done', "\n";
+
+// 5. A handle that can only write is read. This must throw an `IOError`.
+Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+try {
+    $writer->read(10);
+} catch (IOError $refused) {
+}
+$writer->close();
+echo 'step 5: done', "\n";
+
+// 6. A closed handle is read 1000 times. Each `read` must throw a `RuntimeError`.
+$thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $writer->read(10);
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle was read without an error');
+}
+echo 'step 6: done', "\n";

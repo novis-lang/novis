@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `read` never cuts a character in two.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "cafe.txt");
+Core\IO::write($path, "café");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+// "é" uses 2 bytes, so "café" has 5 bytes. 4 bytes end inside "é".
+// So `read(4)` returns "caf", and "é" stays in the file.
+echo $file->read(4), "\n";
+
+// The next `read` starts with "é". This prints "é".
+echo $file->read(4), "\n";
+$file->close();

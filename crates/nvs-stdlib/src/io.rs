@@ -1462,12 +1462,19 @@ const FILE_READ_DOC: MethodDoc = MethodDoc {
         desc: "The most bytes to read. Fewer are returned when the file ends first.",
         shape: &[],
     }],
-    ret: "The bytes read, as a `string`. An empty string means the end of the file, which is the \
-          one answer `read` gives that is not an error and not data.",
+    ret: "The bytes read, as a `string`. The text always ends with a whole character: when `$max` \
+          ends inside a character, that character stays in the file for the next read. An empty \
+          string means the end of the file, which is the one answer `read` gives that is not an \
+          error and not data.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The bytes are not valid UTF-8, or the next character is longer than `$max`. \
+                   The handle does not move, so the next read starts at the same byte.",
         },
         ErrorDoc {
             error: "IOError",
@@ -2302,6 +2309,22 @@ nvs_runtime::nvs_helper! {
     /// asking for a megabyte from a file with nine bytes left in it should not
     /// charge a megabyte to the request, and `Read::take` is what makes the
     /// argument a ceiling rather than a size.
+    ///
+    /// # Decision: a read ends on a whole character, and a refused read does
+    /// not move the handle
+    ///
+    /// The answer is a `string`, which is well-formed UTF-8 by `NvsStr`'s own
+    /// invariant, while `$max` counts bytes and knows nothing of where a
+    /// character ends. A read of fixed-size chunks over any text that is not
+    /// ASCII therefore lands inside a character sooner or later. When it does,
+    /// and the text before the cut is whole, that text is the answer and the
+    /// cut character's first bytes — at most three — are given back by seeking,
+    /// so the next read starts with them: the answer is up to three bytes
+    /// short of `$max` while the file goes on, which the card already allows,
+    /// since only the empty string means the end. When nothing whole fits
+    /// under `$max`, or the octets are not UTF-8 at all, the read throws and
+    /// the handle is put back where it was, so no byte is skipped and a caller
+    /// that recovers reads the same bytes again.
     fn nvs_core_io_file_read(ctx, args: [2]) {
         let (key, path) = handle_of(args[0], "read")?;
         let max = args[1].as_uint().ok_or_else(|| {
@@ -2311,18 +2334,49 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let mut octets = Vec::new();
-        {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("read", &path))?;
-            file.take(max).read_to_end(&mut octets)
-        }
-        .map_err(|err| {
+        let failed = |err: &std::io::Error| {
             nvs_runtime::capability::io_failure(
                 "Core\\IO\\File::read",
                 Path::new(path.as_text().unwrap_or("?")),
-                &err,
+                err,
             )
-        })?;
+        };
+        let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("read", &path))?;
+        let mut octets = Vec::new();
+        file.take(max)
+            .read_to_end(&mut octets)
+            .map_err(|err| failed(&err))?;
+        // Only a ceiling that was reached can have cut a character: fewer bytes
+        // than `$max` means the file ended, and a character it ends inside is
+        // not text.
+        let reached = octets.len() as u64 == max;
+        let whole = match std::str::from_utf8(&octets) {
+            Ok(_) => octets.len(),
+            Err(err) if err.error_len().is_none() && reached && err.valid_up_to() > 0 => {
+                err.valid_up_to()
+            }
+            Err(err) => {
+                let read = i64::try_from(octets.len())
+                    .expect("a read the request's memory held fits an `i64`");
+                file.seek(std::io::SeekFrom::Current(-read))
+                    .map_err(|err| failed(&err))?;
+                if err.error_len().is_none() && reached {
+                    return Err(Fault::thrown(format!(
+                        "{FILE_NAME}::read: the character here is longer than the {max} byte(s) \
+                         asked for, so nothing was read — {}",
+                        path.as_text().unwrap_or("?")
+                    )));
+                }
+                return text_of(&octets, "Core\\IO\\File::read");
+            }
+        };
+        let cut = i64::try_from(octets.len() - whole)
+            .expect("a cut character is at most three bytes");
+        if cut > 0 {
+            file.seek(std::io::SeekFrom::Current(-cut))
+                .map_err(|err| failed(&err))?;
+            octets.truncate(whole);
+        }
         text_of(&octets, "Core\\IO\\File::read")
     }
 }
@@ -5114,5 +5168,67 @@ mod tests {
         }
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(&other);
+    }
+
+    /// `Core\IO\File::read(max)` on `handle`: the text it returned, or the message its
+    /// refusal left in `ctx`.
+    fn read_on(ctx: &mut nvs_runtime::Ctx, handle: Value, max: u64) -> Result<String, String> {
+        let args = [handle, Value::uint(max)];
+        let answered = nvs_runtime::call(nvs_core_io_file_read, ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        match answered {
+            Ok(text) => {
+                let owned = text.as_text().expect("`read` returns a string").to_owned();
+                #[expect(unsafe_code, reason = "the case owns the string `read` returned")]
+                unsafe {
+                    text.release();
+                }
+                Ok(owned)
+            }
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        }
+    }
+
+    /// `Core\IO\File::read` ends on a whole character: a `$max` that falls inside `é` returns
+    /// the text before it and leaves `é` for the next read, a `$max` smaller than the next
+    /// character throws without moving the handle, and bytes that are not UTF-8 throw
+    /// without moving it either. The end of the file is the empty string, every time.
+    // covers: Core\IO\File::read
+    #[test]
+    fn core_io_file_read_never_cuts_a_character_and_a_refused_read_does_not_move() {
+        let path = scratch("file-read.txt");
+        std::fs::write(&path, "café au lait").expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+
+        assert_eq!(read_on(&mut ctx, file, 4).as_deref(), Ok("caf"));
+        let short = read_on(&mut ctx, file, 1).expect_err("`é` is two bytes");
+        assert!(
+            short.contains(r"Core\IO\File::read: the character here is longer than the 1 byte(s)"),
+            "{short}"
+        );
+        assert_eq!(read_on(&mut ctx, file, 2).as_deref(), Ok("é"));
+        assert_eq!(read_on(&mut ctx, file, 100).as_deref(), Ok(" au lait"));
+        for _ in 0..2 {
+            assert_eq!(read_on(&mut ctx, file, 100).as_deref(), Ok(""));
+        }
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = read_on(&mut ctx, file, 1).expect_err("a closed handle reads nothing");
+        assert!(
+            closed.contains(r"Core\IO\File::read: this handle is closed"),
+            "{closed}"
+        );
+        let_go(file);
+
+        std::fs::write(&path, b"ok\xffok").expect("a file that is not text");
+        let file = handle_on(&mut ctx, &path);
+        for _ in 0..2 {
+            let refused = read_on(&mut ctx, file, 100).expect_err("0xFF is never UTF-8");
+            assert!(refused.contains("not valid UTF-8"), "{refused}");
+        }
+        assert_eq!(read_on(&mut ctx, file, 2).as_deref(), Ok("ok"));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let_go(file);
+        let _ = std::fs::remove_file(&path);
     }
 }

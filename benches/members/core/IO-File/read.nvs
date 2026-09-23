@@ -1,0 +1,26 @@
+<?nvs
+// Reads an open file 64 bytes at a time, as a program does when it reads a large file in parts.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), "read.txt");
+        Core\IO::write($path, Core\Str::repeat("order 1042 shipped\n", 1000));
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+        string $part = "";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $part = $file->read(64);
+            if (Core\Str::length($part) == 0) {
+                $file->seek(0);
+            }
+            $total = $total + Core\Str::length($part);
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "done" : "nothing was read", "\n";
