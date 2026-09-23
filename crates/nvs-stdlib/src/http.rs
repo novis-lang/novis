@@ -5328,6 +5328,121 @@ mod tests {
     const REACHABLE: &str =
         "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n";
 
+    /// One exchange with a loopback origin that answers `reply`: the request
+    /// head the origin read, the status and the body the member answered with.
+    ///
+    /// The head is read off the wire, so a test asserts the verb that was sent
+    /// rather than the name of the member that sent it.
+    fn exchanged_once(
+        member: &str,
+        verb: &str,
+        path: &str,
+        reply: &'static [u8],
+    ) -> (String, Option<i64>, Vec<u8>) {
+        use std::io::{Read, Write};
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client's connection");
+            let mut head = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            while !head.windows(4).any(|end| end == b"\r\n\r\n") {
+                match stream.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => head.extend_from_slice(&buffer[..read]),
+                }
+            }
+            stream.write_all(reply).expect("the reply is written");
+            stream.flush().ok();
+            String::from_utf8_lossy(&head).into_owned()
+        });
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        let url = Value::str(NvsStr::new(format!("http://{at}{path}").as_bytes()));
+        let args = asking(url);
+        let answer = super::request(&mut ctx, &args, member, verb).expect("the origin's answer");
+        let head = served.join().expect("the origin thread");
+
+        let object = answer.obj_ptr().expect("the answer is an instance");
+        let status = crate::instance::slot(object, STATUS_SLOT).as_int();
+        let body = crate::instance::slot(object, BODY_SLOT)
+            .as_bytes()
+            .expect("the body slot is `bytes`")
+            .to_vec();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            answer.release();
+        }
+        (head, status, body)
+    }
+
+    /// `Core\Http\Client::delete` writes `DELETE` on the request line with the
+    /// URL's own path, and a `204` with no body answers a response whose status
+    /// is that code and whose body is empty rather than absent.
+    // covers: Core\Http\Client::delete
+    #[test]
+    fn delete_sends_the_delete_verb_and_reads_a_204_with_no_body() {
+        let (head, status, body) = exchanged_once(
+            "delete",
+            "DELETE",
+            "/orders/3",
+            b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n",
+        );
+        assert!(
+            head.starts_with("DELETE /orders/3 HTTP/1.1\r\n"),
+            "the request line carries the verb and the path: {head:?}"
+        );
+        assert_eq!(status, Some(204));
+        assert!(body.is_empty(), "a reply with no body is an empty body");
+    }
+
+    /// `Core\Http\Client::get` writes `GET` with the path and the query string
+    /// the URL carries, and reads the body the origin framed with a length.
+    // covers: Core\Http\Client::get
+    #[test]
+    fn get_sends_the_path_and_query_and_reads_the_whole_body() {
+        let (head, status, body) = exchanged_once(
+            "get",
+            "GET",
+            "/rates?base=EUR",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"USD\":1.1}",
+        );
+        assert!(
+            head.starts_with("GET /rates?base=EUR HTTP/1.1\r\n"),
+            "the request line carries the verb, the path and the query: {head:?}"
+        );
+        assert_eq!(status, Some(200));
+        assert_eq!(body, b"{\"USD\":1.1}");
+    }
+
+    /// `Core\Http\Client::head` writes `HEAD`, and a `Content-Length` on the
+    /// reply describes a body that is never sent: the response's body is
+    /// empty, and reading it does not wait for bytes that will not come.
+    // covers: Core\Http\Client::head
+    #[test]
+    fn head_sends_the_head_verb_and_reads_no_body_whatever_the_length_says() {
+        let (head, status, body) = exchanged_once(
+            "head",
+            "HEAD",
+            "/report.pdf",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 52000\r\nConnection: close\r\n\r\n",
+        );
+        assert!(
+            head.starts_with("HEAD /report.pdf HTTP/1.1\r\n"),
+            "the request line carries the verb and the path: {head:?}"
+        );
+        assert_eq!(status, Some(200));
+        assert!(body.is_empty(), "a `HEAD` reply has no body");
+    }
+
     /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s refusal,
     /// where it has to land: before the socket. A listener is bound on the
     /// address the URL names, the deployment grants that address and no

@@ -1,0 +1,3 @@
+not removed: Core\Http\Client::delete refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not removed: Core\Http\Client::delete refuses 172.16.0.9: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+removed: 0, failed: 2

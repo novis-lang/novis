@@ -1,0 +1,86 @@
+<?nvs
+// Attack: `DELETE` requests try to reach this server's own network, or to add a second
+// request inside a header. Every one must throw an error before anything is sent. The
+// last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each URL hides an internal address in a different way. Each call must throw a
+//    `RuntimeError`. If one is sent, the `LogicError` below stops the program early.
+array<string> $hidden = [
+    'http://127.0.0.1/users/1',
+    'http://203.0.113.10@127.0.0.1/users/1',
+    'http://10.0.0.7#@203.0.113.10/users/1',
+    'HTTP://127.0.0.1:80/users/1',
+    'http://0.0.0.0/users/1',
+    'http://[::1]/users/1',
+    'http://[::ffff:127.0.0.1]/users/1',
+    'http://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://[fe80::1%25eth0]/users/1',
+    'http://172.16.0.1/users/1',
+    'http://192.168.1.1/users/1',
+    'file:///etc/passwd',
+    'gopher://127.0.0.1:6379/',
+    '',
+];
+uint $refused = 0;
+foreach ($hidden as string $url) {
+    try {
+        Core\Http\Response $sent = Core\Http\Client::delete($url, { deadline: 2s });
+        throw new LogicError(Core\Str::format('a request to an internal address was sent: %s', $url));
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Each header tries to start a second request with a line break. Each call must
+//    throw a `RuntimeError` about the header. Any other error is a failure.
+array<string> $injected = [
+    'X-Trace' => "one\r\nDELETE /admin HTTP/1.1",
+    'X-Line' => "one\nHost: 127.0.0.1",
+    'X-Null' => "one\x00two",
+    "X-Name\r\nX-Other" => 'value',
+];
+foreach ($injected as string $name => string $value) {
+    try {
+        Core\Http\Response $split = Core\Http\Client::delete('https://203.0.113.10/users/1', { deadline: 2s, headers: [$name => $value] });
+        throw new LogicError('a header with a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a header')) {
+            throw new LogicError(Core\Str::format('the header was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 2: refused', "\n";
+
+// 3. A header value of one million characters ends with a line break. It is tried
+//    one hundred times with a very large retry count. The memory in use must not grow.
+string $long = Core\Str::repeat('a', 1000000) . "\r\n";
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Http\Response $big = Core\Http\Client::delete('https://203.0.113.10/users/1', { deadline: 2s, retryAttempts: 1000000, headers: ['X-Big' => $long] });
+        throw new LogicError('a one-million-character header was sent');
+    } catch (RuntimeError $error) {
+        $i = $i + 1;
+    }
+}
+echo 'step 3: ', $i, "\n";
+
+// 4. Every refused URL is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://10.0.0.%d/', $n % 250) . Core\Str::repeat('b', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::delete($address);
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}

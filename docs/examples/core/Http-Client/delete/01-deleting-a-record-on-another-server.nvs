@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to ask another server to delete a record, and what happens when the
+// address is inside your own network.
+
+// `Core\Http\Client::delete` sends a `DELETE` request and returns a `Core\Http\Response`.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::delete("http://10.0.0.7/orders/1042");
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

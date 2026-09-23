@@ -150,6 +150,24 @@ entry = "benches/members/core/Http/allowUrl.nvs"
 [app.capabilities.net]
 connect = ["203.0.113.10"]
 
+# `Core\Http\Client`'s examples and attacks get the same grant as `allowUrl`'s
+# above: every host, with the address table left whole. None of them may open a
+# connection, because a figure or an output that depends on a network is not a
+# proof. Each call is refused before a socket is opened, by the address table, an
+# option's bounds or a header with a control byte. The benches need no grant:
+# they are answered from `Core\Test::answerHttp`'s table.
+[[app]]
+root = "docs/examples/core/Http-Client"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http-Client"
+
+[app.capabilities.net]
+connect = true
+
 # `examples/net-echo.nvs` binds a port and then dials it, and ADR 0162 § 8 is
 # why that is three keys rather than one. `net.listen` is the bind, matched
 # against the endpoint exactly; `net.connect` is the dial, matched against the

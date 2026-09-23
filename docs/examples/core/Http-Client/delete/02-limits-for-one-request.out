@@ -1,0 +1,2 @@
+Core\Http\Client::delete: `deadline` must be a positive duration, and this one is 0ns
+Core\Http\Client::delete: `retryAttempts` counts the first attempt too, so the smallest it can be is 1
