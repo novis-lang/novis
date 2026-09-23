@@ -2137,6 +2137,12 @@ fn tunnel_head(stream: &mut NvsTcp) -> Result<Vec<u8>, String> {
 /// writes the empty field, so the two are two keys rather than one key that is a
 /// prefix of the other.
 ///
+/// **And so is the process's client** ([`nvs_host::tls::generation`]): a
+/// reload that replaced `[http.client.tls]` has said which anchors the next
+/// connection is judged by, and a socket opened under the old ones never
+/// serves a call made after it. The old sockets stay idle until the pool's own
+/// idle bound closes them.
+///
 /// **The address field is a name where there is no address**: under
 /// `resolve = "proxy"` nothing here ever learned one, so what a connection is
 /// filed under is the same `host:port` its `CONNECT` asked for
@@ -2152,12 +2158,13 @@ fn pool_key(
 ) -> String {
     let scheme = if parts.tls { "https" } else { "http" };
     format!(
-        "{scheme}|{host}|{socket}|{identity}|{policy}|{proxy}",
+        "{scheme}|{host}|{socket}|{identity}|{policy}|{proxy}|{client}",
         host = parts.host,
         socket = reached_at(parts, at),
         identity = identity.unwrap_or_default(),
         policy = policy_key(policy),
-        proxy = through.map_or("", |proxy| proxy.url.as_str())
+        proxy = through.map_or("", |proxy| proxy.url.as_str()),
+        client = nvs_host::tls::generation()
     )
 }
 

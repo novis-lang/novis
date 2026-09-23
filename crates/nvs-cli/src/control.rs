@@ -200,6 +200,19 @@ enum Recache {
     Keep,
 }
 
+/// What a reload does to the outbound TLS client, decided before the publish.
+enum Retrust {
+    /// The client `[http.client.tls]` builds, installed after the publish.
+    /// `nvs_host::tls::install` keeps the running one when the two are the same.
+    Swap(nvs_host::tls::Client),
+    /// The block did not build and is the one the running client was built
+    /// from, so nothing changes.
+    Stay,
+    /// The block did not build and differs from the running one, so the key
+    /// keeps its running value.
+    Keep,
+}
+
 /// A tree resolved from the files as they stand now, with what a refusal of
 /// it is rendered against.
 struct Tree {
@@ -324,6 +337,29 @@ impl Process {
         }
     }
 
+    /// What `next` does to the outbound TLS client. The client is built here,
+    /// before the publish, so a bundle that does not parse is known in time to
+    /// keep the key's running value. It is built on every reload, not only
+    /// when the block changed, so a bundle replaced in place reaches the next
+    /// connection too.
+    fn trusting(&self, next: &Snapshot) -> Retrust {
+        let written = crate::config::policy_of(next);
+        match nvs_host::tls::Client::build(&written) {
+            Ok(client) => Retrust::Swap(client),
+            Err(why) => {
+                let running = self.current.load();
+                let unchanged = crate::config::policy_of(&running) == written;
+                let config = nvs_config::Request::new(running);
+                drop(LogWriter::resolve(Some(&config)).write(&untrusted(&why.to_string())));
+                if unchanged {
+                    Retrust::Stay
+                } else {
+                    Retrust::Keep
+                }
+            }
+        }
+    }
+
     /// The source map the origins of the snapshot numbered `generation` point
     /// into, where the last reload published that snapshot, and `None`
     /// otherwise.
@@ -385,12 +421,16 @@ impl Process {
             .moving(&next)
             .map_err(|refusal| rendered(&refusal, &sources))?;
         let recache = self.caching(&next);
+        let retrust = self.trusting(&next);
         let mut keep: Vec<&str> = Vec::new();
         if matches!(moved, Move::Keep) {
             keep.push("control.socket");
         }
         if matches!(recache, Recache::Keep) {
             keep.push("opcache.file_cache_dir");
+        }
+        if matches!(retrust, Retrust::Keep) {
+            keep.push("http.client.tls");
         }
         // The publish takes a snapshot by value and this one was built for it,
         // so the clone is the branch that never runs: a tree just resolved is
@@ -451,6 +491,11 @@ impl Process {
             .rekey(nvs_config::cache::env_hash(&serving.config));
         if let Recache::Swap(cache) = recache {
             self.compiler.recache(cache);
+        }
+        // A handshake already running keeps the client it started with, and a
+        // pooled connection it made is filed under the old client's generation.
+        if let Retrust::Swap(client) = retrust {
+            nvs_host::tls::install(client);
         }
         self.compiler.reconfigure(&serving.config);
         // `rule:http-server/admission-is-arithmetic-not-a-number` over the tree
@@ -727,6 +772,19 @@ fn uncached(written: &str, reason: &str) -> Record {
     record.envelope.fields = vec![
         ("key".to_string(), text("opcache.file_cache_dir")),
         ("written".to_string(), text(written)),
+        ("reason".to_string(), text(reason)),
+    ];
+    record
+}
+
+/// An `[http.client.tls]` block that did not build, as the record
+/// [`Process::trusting`] writes: `Warn`, with the key and the reason, which
+/// names the file.
+fn untrusted(reason: &str) -> Record {
+    let mut record = Record::at(Level::Warn);
+    record.envelope.message = Some(Rendered::new("configuration key not applied"));
+    record.envelope.fields = vec![
+        ("key".to_string(), text("http.client.tls")),
         ("reason".to_string(), text(reason)),
     ];
     record

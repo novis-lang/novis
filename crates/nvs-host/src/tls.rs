@@ -113,7 +113,9 @@
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
 //! at boot by [`configure`] or on first use from the compiled-in set, and shared
 //! by every session after it — the whole Mozilla anchor set, a few hundred
-//! kilobytes, O(1) in requests served. A key log adds one open file descriptor
+//! kilobytes, O(1) in requests served. A reload that changes `[http.client.tls]`
+//! builds a second one and [`install`]s it, and the two live together only until
+//! the last session on the old one ends. A key log adds one open file descriptor
 //! and one lock acquisition per secret written, on a host that has already said
 //! it is being debugged. A call that names one of [`CallPolicy`]'s keys adds one
 //! more `ClientConfig` — its own parsed anchors, or a verifier over the set the
@@ -146,7 +148,7 @@ use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
@@ -954,38 +956,76 @@ fn upgraded<T: Read + Write>(
     })
 }
 
-/// The process's one outbound client configuration.
+/// The process's one outbound client, and `None` until [`configure`] or
+/// [`install`] put one in place.
 ///
-/// Set by [`configure`] at boot and, failing that, built from the compiled-in
-/// anchors on first use — which is what makes a program with no `nvs.toml`, and
-/// every test in the tree, still get a verifying client.
-static DEFAULT: OnceLock<Arc<ClientConfig>> = OnceLock::new();
+/// A lock rather than a `OnceLock`, because a reload replaces the client
+/// (`rule:config/reloadability-is-its-own-field`). A handshake holds the read
+/// lock for one `Arc` clone and nothing after it, so a session that started
+/// before a reload finishes on the client it started with, and the old client
+/// is freed when the last such session ends.
+static INSTALLED: RwLock<Option<Installed>> = RwLock::new(None);
 
-/// The process-wide client configuration, built on first use.
+/// The configuration built from the compiled-in anchors on first use, in a
+/// process nothing configured — which is what makes a program with no
+/// `nvs.toml`, and every test in the tree, still get a verifying client.
+static FALLBACK: OnceLock<Arc<ClientConfig>> = OnceLock::new();
+
+/// [`INSTALLED`]'s value: the client, and which one it is.
+struct Installed {
+    client: Client,
+    /// `1` for the client a boot installed, one more for each replacement
+    /// that changed something, and `0` is [`FALLBACK`]. [`generation`] is
+    /// the reader.
+    generation: u64,
+}
+
+/// [`INSTALLED`], read whether or not a writer panicked: every write is one
+/// assignment, so no holder can leave it half written.
+fn installed() -> std::sync::RwLockReadGuard<'static, Option<Installed>> {
+    INSTALLED.read().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The process-wide client configuration.
 ///
 /// One root store for the process and not one per session: parsing the whole
 /// anchor set per outbound call would be priority 3 spent on a constant.
-/// `ClientConfig` is `Send + Sync` and is only ever read after this, so sharing
-/// it across cores costs an `Arc` clone and no lock.
+/// `ClientConfig` is `Send + Sync` and is only ever read once built, so sharing
+/// it across cores costs an `Arc` clone and one uncontended read lock.
 fn anchors() -> Arc<ClientConfig> {
-    Arc::clone(DEFAULT.get_or_init(|| Arc::new(config_over(root_store()))))
+    let held = installed();
+    match held.as_ref() {
+        Some(installed) => Arc::clone(&installed.client.config),
+        None => Arc::clone(FALLBACK.get_or_init(|| Arc::new(config_over(root_store())))),
+    }
 }
 
-/// The anchor set [`configure`] resolved, kept beside the configuration built
-/// over it.
+/// The anchor set the installed client was built over, or the compiled-in set
+/// where nothing is installed.
 ///
 /// A `ClientConfig` does not answer what it verifies against, and a call that
 /// raises its own version floor, or skips only the name, still builds its chain
 /// against **the operator's** anchors rather than the compiled-in ones. This is
-/// where that set is read back from. Unset until a boot names one, which is the
-/// process that read no configuration file at all and whose anchors are
-/// [`root_store`]'s — the same set [`anchors`] falls back to, so the two cannot
-/// disagree about what "the configured anchors" are.
-static CONFIGURED: OnceLock<Arc<RootCertStore>> = OnceLock::new();
-
-/// [`CONFIGURED`], or the compiled-in set where no boot named one.
+/// where that set is read back from. The fallback is [`root_store`]'s, the
+/// same set [`anchors`] falls back to, so the two cannot disagree about what
+/// "the configured anchors" are.
 fn configured_store() -> Arc<RootCertStore> {
-    CONFIGURED.get().map_or_else(root_store, Arc::clone)
+    installed()
+        .as_ref()
+        .map_or_else(root_store, |installed| Arc::clone(&installed.client.roots))
+}
+
+/// Which client a handshake starting now is built from: `0` before anything
+/// was installed, and a larger number after each [`install`] that changed the
+/// anchors, the version floor or the key log.
+///
+/// A connection pool files a connection under this, so a socket opened under
+/// the old anchors never serves a call made after a reload replaced them.
+#[must_use]
+pub fn generation() -> u64 {
+    installed()
+        .as_ref()
+        .map_or(0, |installed| installed.generation)
 }
 
 /// The `roots` entry naming the compiled-in Mozilla set rather than a file.
@@ -1002,8 +1042,8 @@ pub const BUNDLED: &str = "bundled";
 /// Plain strings and a path rather than `nvs_config`'s block, because nothing
 /// in `src/` reads a configuration file — this crate carries `nvs-config` as a
 /// dev dependency alone, and this struct is the seam that keeps it that way.
-/// Whoever boots the process reads the block and fills this in.
-#[derive(Clone, Debug, Default)]
+/// Whoever boots or reloads the process reads the block and fills this in.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ClientPolicy {
     /// The trust anchors, in the order they were written. [`BUNDLED`] is the
     /// compiled-in Mozilla set and every other entry is a PEM file that
@@ -1083,50 +1123,120 @@ impl CallPolicy {
     }
 }
 
-/// Builds the process's one outbound client configuration from `policy` and
-/// installs it, so every [`NvsTls::over`] after this verifies against it.
+/// A [`ClientPolicy`] built into a client and not installed yet.
 ///
-/// Called once, at boot, before any request runs. The anchors are parsed here
-/// rather than on the first outbound call for the reason [`anchors`] gives —
-/// the whole set is a constant, and a deployment learns that its bundle does
-/// not parse while an operator is reading boot output rather than inside
-/// somebody's request.
+/// A reload builds one before it publishes, so a bundle that does not parse is
+/// known while the running client can still be kept, and [`install`]s it after.
+#[derive(Clone)]
+pub struct Client {
+    config: Arc<ClientConfig>,
+    roots: Arc<RootCertStore>,
+    min_version: Option<String>,
+    keylog: Option<PathBuf>,
+}
+
+impl std::fmt::Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("anchors", &self.roots.roots.len())
+            .field("min_version", &self.min_version)
+            .field("keylog", &self.keylog)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Client {
+    /// Parses the anchors `policy` names and builds the client over them.
+    ///
+    /// The anchors are parsed here rather than on the first outbound call for
+    /// the reason [`anchors`] gives — the whole set is a constant, and a
+    /// deployment learns that its bundle does not parse while an operator is
+    /// reading boot or reload output rather than inside somebody's request.
+    ///
+    /// # Errors
+    ///
+    /// `NotFound`/`InvalidData` for a `roots` entry that cannot be opened or
+    /// holds no certificate, `InvalidInput` for a `min_version` this build does
+    /// not speak, and whatever opening the key log reported — each of which
+    /// names the file it is about, because the operator's next move is to open
+    /// that file.
+    pub fn build(policy: &ClientPolicy) -> io::Result<Self> {
+        let roots = Arc::new(store_for(&policy.roots)?);
+        let config = Arc::new(built_over(policy, Arc::clone(&roots))?);
+        Ok(Self {
+            config,
+            roots,
+            min_version: policy.min_version.clone(),
+            keylog: policy.keylog.clone(),
+        })
+    }
+
+    /// Whether a handshake under `self` would be judged as one under `other`
+    /// is: the same anchors, the same version floor and the same key log.
+    ///
+    /// The anchors are compared, not the paths that named them, so a bundle
+    /// replaced in place is a change and an unrelated reload is not.
+    fn same_as(&self, other: &Self) -> bool {
+        self.roots.roots == other.roots.roots
+            && self.min_version == other.min_version
+            && self.keylog == other.keylog
+    }
+}
+
+/// Builds the process's one outbound client from `policy` and installs it, so
+/// every [`NvsTls::over`] after this verifies against it.
+///
+/// The boot's call, made before any request runs. A reload builds a
+/// [`Client`] and hands it to [`install`] instead.
 ///
 /// # Errors
 ///
-/// `NotFound`/`InvalidData` for a `roots` entry that cannot be opened or holds
-/// no certificate, `InvalidInput` for a `min_version` this build does not
-/// speak, and whatever opening the key log reported — each of which names the
-/// file it is about, because the caller reporting it is a boot and the
-/// operator's next move is to open that file. `AlreadyExists` when a session
-/// has already run against the compiled-in default, which is a boot that
-/// reached the network before it read its own configuration.
+/// [`Client::build`]'s, and `AlreadyExists` when a client is already in place:
+/// a session that has run against the compiled-in default is a boot that
+/// reached the network before it read its own configuration, and a second boot
+/// in one process is a caller bug.
 pub fn configure(policy: &ClientPolicy) -> io::Result<()> {
-    let roots = Arc::new(store_for(&policy.roots)?);
-    let built = Arc::new(built_over(policy, Arc::clone(&roots))?);
-    DEFAULT.set(built).map_err(|_| {
-        io::Error::new(
+    let client = Client::build(policy)?;
+    let mut held = INSTALLED.write().unwrap_or_else(PoisonError::into_inner);
+    // Under the write lock, so no handshake can build the fallback between
+    // this check and the assignment: [`anchors`] builds it under the read lock.
+    if held.is_some() || FALLBACK.get().is_some() {
+        return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             "the outbound TLS client was already built, so a session has run against anchors this \
              configuration did not choose",
-        )
-    })?;
-    // Only ever reached once, because the line above is the `OnceLock` that
-    // says so; the result is dropped rather than unwrapped so that a second
-    // boot in one process fails with the message above and not with a panic
-    // about a store.
-    drop(CONFIGURED.set(roots));
+        ));
+    }
+    *held = Some(Installed {
+        client,
+        generation: 1,
+    });
     Ok(())
 }
 
-/// [`configure`]'s configuration, built and not installed, over an anchor set
-/// already resolved.
+/// Puts `client` in place of the running one, so every handshake that starts
+/// after this verifies against it, and answers whether anything changed.
 ///
-/// Split from the installed one because that is a `OnceLock` and so is answered
-/// once per process: every case below builds its own here and reaches the same
-/// [`upgraded`] a shipped session does. It takes the store rather than reading
-/// `roots` itself so that a boot parses the compiled-in set once and
-/// [`CONFIGURED`] is that same `Arc`.
+/// A client judged the same as the running one ([`Client::same_as`]) is
+/// dropped and the running one stays, with its generation, so a reload that
+/// did not touch `[http.client.tls]` leaves every pooled connection usable.
+pub fn install(client: Client) -> bool {
+    let mut held = INSTALLED.write().unwrap_or_else(PoisonError::into_inner);
+    let generation = match held.as_ref() {
+        Some(running) if running.client.same_as(&client) => return false,
+        Some(running) => running.generation + 1,
+        None => 1,
+    };
+    *held = Some(Installed { client, generation });
+    true
+}
+
+/// [`Client::build`]'s configuration over an anchor set already resolved.
+///
+/// Split out so that every case below builds its own client here, without
+/// installing it, and reaches the same [`upgraded`] a shipped session does. It
+/// takes the store rather than reading `roots` itself so that a build parses
+/// the anchor set once and [`Client`] keeps that same `Arc`.
 fn built_over(policy: &ClientPolicy, roots: Arc<RootCertStore>) -> io::Result<ClientConfig> {
     let mut config = floored(policy.min_version.as_deref(), roots).with_no_client_auth();
     if let Some(path) = policy.keylog.as_deref() {
@@ -1970,6 +2080,36 @@ mod tests {
     /// steps a boot takes in one call.
     fn built_from(policy: &ClientPolicy) -> io::Result<ClientConfig> {
         built_over(policy, Arc::new(store_for(&policy.roots)?))
+    }
+
+    /// An installed client replaces the running one and moves the generation a
+    /// pool files connections under, and the same anchors installed again
+    /// change nothing.
+    ///
+    /// The only case in this binary that installs, so no other case's outcome
+    /// depends on it: the client it leaves behind trusts the compiled-in set
+    /// and one self-signed certificate nothing else here presents.
+    #[test]
+    fn an_installed_client_replaces_the_running_one_and_moves_the_generation() {
+        let path = scratch("installed");
+        drop(issued_at(&path));
+        let wider = trusting(&[BUNDLED, path.to_str().expect("the scratch path is UTF-8")]);
+        let before = generation();
+        assert!(super::install(
+            Client::build(&wider).expect("the bundle builds")
+        ));
+        let after = generation();
+        assert!(after > before, "{after} is not past {before}");
+        assert_eq!(
+            configured_store().roots.len(),
+            webpki_roots::TLS_SERVER_ROOTS.len() + 1,
+            "the installed anchors are the ones a relaxed call builds its chain against"
+        );
+        assert!(
+            !super::install(Client::build(&wider).expect("the bundle builds")),
+            "the same anchors are not a change"
+        );
+        assert_eq!(generation(), after);
     }
 
     /// A policy naming `roots` and nothing else.

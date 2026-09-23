@@ -381,9 +381,10 @@ pub(crate) fn boot_origins(
 /// does.** It is not folded into [`boot_in`], which resolves the tree for
 /// `nvs check` and `nvs config dump` as well: those open no socket, and one of
 /// them creating a key log file would be the audit writing secrets nobody
-/// asked it for. `nvs_host::tls::configure` settles a `OnceLock`, so a second
-/// call reports `AlreadyExists` rather than replacing anything, and putting
-/// the call where a process is owned is what keeps it a single one.
+/// asked it for. `nvs_host::tls::configure` reports `AlreadyExists` to a second
+/// call rather than replacing anything, and putting the call where a process is
+/// owned is what keeps it a single one. A reload replaces the client through
+/// `nvs_host::tls::install` instead, from `crate::control`.
 ///
 /// The block has already been checked — an empty `roots` (`E0638`), a floor
 /// this build cannot speak (`E0639`) and a `keylog` on a `production` host
@@ -419,8 +420,8 @@ pub(crate) fn install_tls_client(snapshot: &nvs_config::Snapshot) -> Result<(), 
 /// spelling an operator writes it in.
 ///
 /// Split from [`install_tls_client`] for [`policy_of`]'s reason: what a tree
-/// relaxed is assertable on its own, where installing settles a `OnceLock` and is
-/// answerable once per process. Which hosts a grant names is
+/// relaxed is assertable on its own, where installing changes the process's one
+/// client. Which hosts a grant names is
 /// `nvs_config::tree::Capabilities::tls_relaxations`, so the boot's reading of a
 /// grant is the same one the call that asks for it is measured against.
 fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
@@ -440,11 +441,10 @@ fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
 
 /// `[http.client.tls]` as `nvs_host` asks for it.
 ///
-/// Split from [`install_tls_client`] so the reading can be asserted on its own:
-/// installing settles a `OnceLock` and is therefore answerable once per
-/// process, which a test of what the block resolved to would otherwise have to
-/// spend.
-fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
+/// Split from [`install_tls_client`] so the reading can be asserted on its own,
+/// since installing changes the process's one client, and so a reload can build
+/// the client its tree names before it publishes (`crate::control`).
+pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
     let block = snapshot
         .config
         .http

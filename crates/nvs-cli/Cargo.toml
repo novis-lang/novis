@@ -114,6 +114,11 @@ object.workspace = true
 [dev-dependencies]
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
+# `tests/live_config.rs`'s loopback TLS peer, which a reloaded `[http.client.tls]`
+# is judged against: `rcgen` issues its certificate and `rustls` serves it. Both
+# are already in this binary through `nvs-host`.
+rustls.workspace = true
+rcgen.workspace = true
 
 # What tells a long-running `nvs serve` that it has been asked to stop, which
 # `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s

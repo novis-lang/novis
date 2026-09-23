@@ -445,11 +445,6 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
 /// Each `Boot` row, and a tree before and after a reload that changes the key it governs.
 const BOOT_CHANGES: &[(&str, &str, &str)] = &[
     (
-        "http.client.tls",
-        "[http.client.tls]\nmin_version = \"1.2\"\n",
-        "[http.client.tls]\nmin_version = \"1.3\"\n",
-    ),
-    (
         "cache.shared",
         "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n",
         "[cache.shared]\nurl = \"redis://127.0.0.1:6380\"\n",

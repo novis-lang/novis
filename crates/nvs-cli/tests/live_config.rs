@@ -1753,6 +1753,140 @@ fn a_changed_file_cache_dir_applies_to_the_next_compile() {
     );
 }
 
+/// A loopback HTTPS peer whose certificate is self-signed for `127.0.0.1`. It
+/// answers every request with `ok`, and [`Peer::pem`] is the certificate a
+/// `roots` entry names to trust it.
+struct Peer {
+    addr: SocketAddr,
+    pem: String,
+}
+
+impl Peer {
+    /// Issues the certificate, binds a free port and answers every connection
+    /// on a thread of its own.
+    fn start() -> Self {
+        let issued = rcgen::generate_simple_self_signed(vec!["127.0.0.1".to_owned()])
+            .expect("the certificate is issued");
+        let key = rustls::pki_types::PrivateKeyDer::Pkcs8(
+            rustls::pki_types::PrivatePkcs8KeyDer::from(issued.signing_key.serialize_der()),
+        );
+        let config = Arc::new(
+            rustls::ServerConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .expect("the provider speaks the default versions")
+            .with_no_client_auth()
+            .with_single_cert(vec![issued.cert.der().clone()], key)
+            .expect("the certificate and its key match"),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port is free");
+        let addr = listener
+            .local_addr()
+            .expect("a bound socket has an address");
+        thread::spawn(move || {
+            for stream in listener.incoming().map_while(Result::ok) {
+                let config = Arc::clone(&config);
+                thread::spawn(move || served(stream, config));
+            }
+        });
+        Self {
+            addr,
+            pem: issued.cert.pem(),
+        }
+    }
+}
+
+/// Reads one request head from `stream` over TLS and answers `ok`. A client
+/// that refuses the certificate ends the handshake, and nothing is answered.
+fn served(stream: TcpStream, config: Arc<rustls::ServerConfig>) {
+    let Ok(conn) = rustls::ServerConnection::new(config) else {
+        return;
+    };
+    if stream.set_read_timeout(Some(BOUND)).is_err() {
+        return;
+    }
+    let mut tls = rustls::StreamOwned::new(conn, stream);
+    let mut head = Vec::new();
+    let mut byte = [0_u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        match tls.read(&mut byte) {
+            Ok(1) => head.push(byte[0]),
+            _ => return,
+        }
+    }
+    drop(tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"));
+    tls.conn.send_close_notify();
+    drop(tls.flush());
+}
+
+/// A program that calls `peer` and prints its answer, or `refused` when the
+/// call throws.
+fn calling(peer: &Peer) -> String {
+    format!(
+        "<?nvs\ntry {{\n    echo Core\\Http\\Client::get(\"https://{}/\")->text();\n}} catch \
+         (Throwable $refused) {{\n    echo \"refused\";\n}}\n",
+        peer.addr
+    )
+}
+
+/// `[http.client.tls]` trusting the one file `roots` names, or the compiled-in
+/// set when it is `None`, beside a grant to call the loopback address.
+fn anchors(roots: Option<&Path>) -> String {
+    let block = roots.map_or_else(String::new, |path| {
+        format!("[http.client.tls]\nroots = ['{}']\n\n", path.display())
+    });
+    format!("{block}[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n")
+}
+
+/// `[http.client.tls]` reloads. The compiled-in anchors refuse the peer's
+/// certificate. After a reload that trusts it, the next call is answered. A
+/// file that holds no certificate is not used: the reload logs the key and
+/// names it as not applied, and the anchors in force stay.
+#[test]
+fn changed_anchors_judge_the_next_outbound_connection() {
+    let peer = Peer::start();
+    let server = Server::start(
+        "tls-client",
+        &anchors(None),
+        &[
+            ("app.nvs", &calling(&peer)),
+            ("peer.pem", &peer.pem),
+            ("empty.pem", "not a certificate\n"),
+        ],
+    );
+    server.awaits(
+        "/",
+        "the call refused by the compiled-in anchors",
+        |answer| answer.status == 200 && answer.body == "refused",
+    );
+
+    let report = server.reload(&anchors(Some(&server.dir.join("peer.pem"))));
+    assert!(
+        report.contains("applied: http.client.tls.roots\n"),
+        "the reload did not name `http.client.tls.roots` as applied: {report}"
+    );
+    server.awaits("/", "the call answered under the new anchors", |answer| {
+        answer.status == 200 && answer.body == "ok"
+    });
+
+    let report = server.reload(&anchors(Some(&server.dir.join("empty.pem"))));
+    assert!(
+        report.contains("ignored: http.client.tls\n"),
+        "the reload did not name `http.client.tls` as not applied: {report}"
+    );
+    let said = server.logs("configuration key not applied");
+    assert!(
+        said.contains("empty.pem"),
+        "the record does not name the file that holds no certificate: {said}"
+    );
+    server.awaits(
+        "/",
+        "the call answered under the anchors in force",
+        |answer| answer.status == 200 && answer.body == "ok",
+    );
+}
+
 /// A program with one `POST` route, which the door checks for a CSRF token.
 const FORM: &str = r#"<?nvs
 class Form {

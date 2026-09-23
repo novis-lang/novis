@@ -27177,7 +27177,7 @@ long-running host — at a reload, or only at boot.
 | `http.csrf_key_file` | operator only — a request cannot change it | at reload |
 | `http.client.pool_idle` | operator only — a request cannot change it | at reload |
 | `http.client.pool_idle_timeout` | operator only — a request cannot change it | at reload |
-| `http.client.tls` | operator only — a request cannot change it | at boot only |
+| `http.client.tls` | operator only — a request cannot change it | at reload |
 | `http.client.proxy` | operator only — a request cannot change it | at reload |
 | `http.client.socket` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |

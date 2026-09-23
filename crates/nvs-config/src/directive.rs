@@ -131,10 +131,11 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "http.client.pool_idle_timeout", class: Class::System, apply: Apply::Reload },
     // The other exception inside that block, and the stronger one: `[http.client.tls]` settles the
     // single `ClientConfig` every session in the process shares, so a request that could set one of
-    // its keys would be choosing trust anchors for every co-resident request. `Boot` as well as
-    // `System` because that configuration is built once on first use and shared by `Arc` after it
-    // (`nvs_host::tls`), so a new snapshot has nothing to apply a changed anchor set to.
-    Directive { key: "http.client.tls", class: Class::System, apply: Apply::Boot },
+    // its keys would be choosing trust anchors for every co-resident request. `Reload`, because a
+    // reload builds the new client before it publishes and installs it after (`nvs_host::tls`), and
+    // the pool files every connection under the client it was opened with, so the next connection
+    // is judged by the new anchors and no socket the old ones accepted serves a later call.
+    Directive { key: "http.client.tls", class: Class::System, apply: Apply::Reload },
     // `[http.client.proxy]` is `System` on the first of those grounds — where every outbound byte
     // goes is the deployment's decision and a per-call spelling would be a per-call way to narrow
     // `rule:security/net-address-policy` — and `Reload` rather than `Boot`, because the next call

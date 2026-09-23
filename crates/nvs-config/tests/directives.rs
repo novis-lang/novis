@@ -75,6 +75,8 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "opcache.settle",
         // The next compile reads and writes the new directory.
         "opcache.file_cache_dir",
+        // The next outbound connection is judged by the new anchors.
+        "http.client.tls",
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
@@ -220,8 +222,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "http.client.tls",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "changed_anchors_judge_the_next_outbound_connection",
     ),
     (
         "http.client.socket",
@@ -1704,13 +1706,12 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
 /// what settles it, so every key of the block is `System` — a request writing one would be choosing
 /// whose certificates every co-resident request believes.
 ///
-/// **`Boot` is the half no other row under `[http.client]` answers**, and it is what this case is
-/// worth a place for. The configuration object those three keys describe is built once on first use
-/// and handed out by `Arc` after it (`nvs_host::tls`), so a snapshot arriving with a changed anchor
-/// set has nothing to apply it to: an operator who edits the block and reloads would be told the
-/// change landed while every call went on believing the old list. The census over the whole of
-/// `[http.client]` is here rather than a second assertion on the block already named, because a row
-/// added there inherits `Reload` from the blanket without anybody deciding it should.
+/// The block is `Reload`: a reload builds the new client before it publishes and installs it after
+/// (`nvs_host::tls`), and `changed_anchors_judge_the_next_outbound_connection` in `nvs-cli` is the
+/// case that shows the next call judged by the new anchors. The census over the whole of
+/// `[http.client]` is here because no row under it waits for a restart any more
+/// (`rule:config/reloadability-is-its-own-field`), and a `Boot` row added there is a key whose new
+/// value a reload would report and no outbound call would use.
 ///
 /// The keys are read back out of the block rather than listed, so one added to `[http.client.tls]`
 /// joins this census in the commit that adds it — and `keylog` is in it, which matters: the file it
@@ -1718,7 +1719,7 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
 /// whole of it inside a request's reach.
 // covers: directive:http.client.tls
 #[test]
-fn every_key_of_the_tls_block_is_the_deployments_and_waits_for_a_restart() {
+fn every_key_of_the_tls_block_is_the_deployments_and_reaches_the_next_connection() {
     let keys = keys_in("http.client.tls");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -1733,10 +1734,10 @@ fn every_key_of_the_tls_block_is_the_deployments_and_waits_for_a_restart() {
         let row = governing(&key);
         assert_eq!(
             (row.key, row.class, row.apply),
-            ("http.client.tls", Class::System, Apply::Boot),
+            ("http.client.tls", Class::System, Apply::Reload),
             "`{key}` resolves through `{}` to {:?}/{:?}, and one of those two being wrong is a \
-             different failure: `Runtime` would hand a request the trust list, and `Reload` would \
-             report a reloaded anchor set that no call is using",
+             different failure: `Runtime` would hand a request the trust list, and `Boot` would \
+             hold a changed anchor set back until a restart the client does not need",
             row.key,
             row.class,
             row.apply,
@@ -1750,21 +1751,17 @@ fn every_key_of_the_tls_block_is_the_deployments_and_waits_for_a_restart() {
     }
 
     // Every row carved under `[http.client]`, filtered to the ones a change cannot reach without a
-    // restart. Asserted over the block rather than over this one row, because `Boot` here is not the
-    // consistent answer for its neighbours — the proxy is `System` and reaches the next call — so a
-    // row added beside it takes `Reload` from the blanket unless somebody decided otherwise.
-    let mut boot: Vec<&str> = DIRECTIVES
+    // restart. Asserted over the block rather than over this one row, so a `Boot` row added beside it
+    // fails here in the commit that adds it.
+    let boot: Vec<&str> = DIRECTIVES
         .iter()
         .filter(|row| row.key.starts_with("http.client") && row.apply == Apply::Boot)
         .map(|row| row.key)
         .collect();
-    boot.sort_unstable();
-    assert_eq!(
-        boot,
-        ["http.client.tls"],
-        "of the rows carved under `[http.client]`, this is the only one an operator cannot change \
-         without restarting — a second one arriving here is a key whose new value a reload would \
-         report and no outbound call would use",
+    assert!(
+        boot.is_empty(),
+        "{boot:?} under `[http.client]` would wait for a restart, and a reload would report a new \
+         value no outbound call uses",
     );
 }
 
@@ -1779,12 +1776,11 @@ fn every_key_of_the_tls_block_is_the_deployments_and_waits_for_a_restart() {
 /// registry reading one ground off the other would be right today and wrong the moment a key
 /// arrives that costs no memory at all: `bypass` and `resolve` hold nothing per core.
 ///
-/// **`Reload` is the half that separates it from the block beside it.** `[http.client.tls]` is the
-/// other `System` exception under `[http.client]` and it is `Boot`, because the one `ClientConfig`
-/// every session shares is built once and handed out by `Arc`, so a new snapshot has nothing to
-/// apply a changed anchor set to. The proxy has no such object: the next call reads the block, and
-/// the pool's key carries the proxy, so nothing the old value made can serve one. The pair is
-/// asserted together because a registry that answered `Boot` here would look like consistency.
+/// **`Reload`, as the block beside it is.** `[http.client.tls]` is the other `System` exception
+/// under `[http.client]`, and both reach the next call by the same means: the next call reads the
+/// block or the client built from it, and the pool's key carries the proxy and the client, so
+/// nothing the old value made can serve one. The pair is asserted together because they share the
+/// class and the apply for two different reasons.
 ///
 /// The keys are read back out of the block rather than listed, so one added to `[http.client.proxy]`
 /// joins this census in the commit that adds it — including a secret's `_file` sibling, which is the
@@ -1831,16 +1827,13 @@ fn every_key_of_the_proxy_block_is_the_deployments_and_reaches_the_next_call() {
         );
     }
 
-    // The block beside it, which shares the class and not the apply. Asserted here because `Boot`
-    // for the proxy would read as the consistent answer and would mean a changed proxy waiting for
-    // a restart that the one thing holding the old value — the pool's key — does not need.
+    // The block beside it, which shares the class and the apply.
     let tls = governing("http.client.tls.roots");
     assert_eq!(
         (tls.key, tls.class, tls.apply),
-        ("http.client.tls", Class::System, Apply::Boot),
-        "`[http.client.tls]` settles the one `ClientConfig` the process shares by `Arc`, so a new \
-         snapshot has nothing to apply a changed anchor set to — the proxy is the same class for a \
-         different reason and reaches the next call without one",
+        ("http.client.tls", Class::System, Apply::Reload),
+        "`[http.client.tls]` settles the one client the process shares, and a reload installs a new \
+         one — the proxy is the same class for a different reason and reaches the next call too",
     );
 }
 

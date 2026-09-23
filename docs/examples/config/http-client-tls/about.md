@@ -9,6 +9,10 @@ file exists so an operator can read their own traffic in a protocol analyser, an
 outright on a production host — it decrypts everything that host sends, credentials included, for
 whoever can read the file.
 
-All three are the operator's and nobody else's. Every request in the process reaches the outside
-world through one client that these three settle, so there is no per-call and no per-request spelling
-for any of them, and a change is in force at the next restart rather than at the next request.
+Only the operator sets these three keys. Every request in the process uses one client, and these
+three keys configure it. A program cannot change them for one call or for one request.
+
+A running server takes a change at the next reload, and the next connection uses the new settings.
+A connection opened before the reload is not used again. If a file in `roots` has no certificate,
+the server does not use the new settings. The reload then names the key as not applied, and the old
+settings stay in use.

@@ -707,15 +707,19 @@ arms from the next tick. A queue worker a new `workers` or `connection` stops wr
 holds first, and the workers it starts claim on the new connection, whose storage the reload checks
 before it publishes, as the boot does. A new `opcache.file_cache_dir` takes the next compile, and a
 directory the ownership check refuses keeps the running one and is named, as a control socket that
-cannot be created is. A changed `Boot` key **does not take effect**: the
-published snapshot carries the running value forward, and the reload names the key
-([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
+cannot be created is. A reload builds the outbound TLS client `[http.client.tls]` names, reading
+its anchor files again, and installs it only when its anchors, version floor or key log differ from
+the running client's. The next connection is judged by it, and the pool files every connection under
+the client that opened it, so no socket the old anchors accepted serves a later call. A block that
+does not build keeps the running client and is named the same way. A changed `Boot` key **does not
+take effect**: the published snapshot carries the running value forward, and the reload names the
+key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
 **What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
 `max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
-`[session]`, `[control] socket`, `[queue]`, `io.temp_root` and `opcache.file_cache_dir` reload.
-These rows are still `Boot`, because each is read once when the server starts: `http.client.tls`
-and `cache.shared`.
+`[session]`, `[control] socket`, `[queue]`, `io.temp_root`, `opcache.file_cache_dir` and
+`http.client.tls` reload. One row is still `Boot`, because it is read once when the server starts:
+`cache.shared`.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
