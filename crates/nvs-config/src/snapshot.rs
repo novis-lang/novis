@@ -97,6 +97,10 @@ pub struct Snapshot {
     /// on. This is `rule:config/every-matching-app-block-applies-least-specific-first`'s `info: app blocks: …` line, already in order.
     ///
     pub blocks: Vec<PathBuf>,
+    /// The whole `[[app]]` roster as written, which [`table`](Snapshot::table) does not carry for
+    /// [`config`](Snapshot::config)'s reason. [`control::reload`](crate::control::reload) compares
+    /// it as the one `app` leaf, so a reload that moves any block's key names `app` as applied.
+    pub roster: Option<toml::Value>,
     /// Every file the tree was read from, in the order § 3 read them.
     pub files: Vec<PathBuf>,
     /// Every override, in the order they happened: the tree's own first (`rule:config/later-wins-and-every-override-is-recorded`), then each
@@ -176,6 +180,7 @@ impl Snapshot {
             mode: None,
             origin: None,
             blocks: Vec::new(),
+            roster: None,
             files: resolved.files.clone(),
             overrides: resolved.overrides.clone(),
             origins: resolved.origins.clone(),
@@ -187,7 +192,7 @@ impl Snapshot {
         // of applications sitting inside one application's configuration. Its origins go too — a
         // key naming a value no longer in the table can never be overridden and so has nothing to
         // report.
-        snapshot.table.remove("app");
+        snapshot.roster = snapshot.table.remove("app");
         snapshot.origins.retain(|key, _| !governs("app", key));
         for index in matching {
             let block = &resolved.config.app[index];

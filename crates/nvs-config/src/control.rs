@@ -333,7 +333,7 @@ pub fn reload(current: &Current, next: Snapshot, held: usize) -> Result<Report, 
     // The comparison is against the *published* table and not the submitted one, which is what
     // makes a changed `Boot` key absent from `applied` rather than present in both lists: publishing
     // carries the running value back over it, so by this line the two tables agree about it again.
-    let (was, now) = (leaves(&before.table), leaves(&published.snapshot.table));
+    let (was, now) = (leaves(&before), leaves(&published.snapshot));
     let mut applied: Vec<String> = now
         .iter()
         .filter(|(key, value)| was.get(*key) != Some(*value))
@@ -359,9 +359,11 @@ pub fn reload(current: &Current, next: Snapshot, held: usize) -> Result<Report, 
     })
 }
 
-/// Every leaf in `table` by its dotted key — the shape a key-by-key diff needs and the typed tree
-/// cannot be turned back into, which is the same reason [`Snapshot::table`] is kept at all.
-fn leaves(table: &toml::Table) -> BTreeMap<String, toml::Value> {
+/// Every leaf in `snapshot`'s table by its dotted key — the shape a key-by-key diff needs and the
+/// typed tree cannot be turned back into, which is the same reason [`Snapshot::table`] is kept at
+/// all. The `[[app]]` roster is one more leaf, `app`, because the table does not carry it: an array
+/// is a leaf wherever it is written, so this is the key the roster would have had there.
+fn leaves(snapshot: &Snapshot) -> BTreeMap<String, toml::Value> {
     fn walk(table: &toml::Table, prefix: &str, into: &mut BTreeMap<String, toml::Value>) {
         for (key, value) in table {
             let dotted = if prefix.is_empty() {
@@ -376,7 +378,10 @@ fn leaves(table: &toml::Table) -> BTreeMap<String, toml::Value> {
         }
     }
     let mut out = BTreeMap::new();
-    walk(table, "", &mut out);
+    walk(&snapshot.table, "", &mut out);
+    if let Some(roster) = &snapshot.roster {
+        out.insert("app".to_string(), roster.clone());
+    }
     out
 }
 
