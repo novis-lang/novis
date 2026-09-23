@@ -1,0 +1,27 @@
+<?nvs
+// Reads the body of a reply as text, as a program does with every page or file of text it downloads.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: complexity linear
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://example.com/a.txt", 200, {body: Core\Str::repeat("a", 64)});
+        Core\Test::answerHttp("https://example.com/b.txt", 200, {body: Core\Str::repeat("b", 96)});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://example.com/a.txt"),
+            Core\Http\Client::get("https://example.com/b.txt"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reply in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Str::length($replies[(($total + $i) % 2) as int]->text());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

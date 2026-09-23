@@ -1,0 +1,25 @@
+<?nvs
+// Reads bodies a thousand times as large as in `text.nvs`, to measure the cost when a reply grows.
+// bench: iterations 20000
+// bench: scale 1000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://example.com/a.txt", 200, {body: Core\Str::repeat("a", 64000)});
+        Core\Test::answerHttp("https://example.com/b.txt", 200, {body: Core\Str::repeat("b", 96000)});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://example.com/a.txt"),
+            Core\Http\Client::get("https://example.com/b.txt"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($replies[(($total + $i) % 2) as int]->text());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the body of a reply as text.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network. The body is a small text file with two lines.
+Core\Test::answerHttp("https://example.com/robots.txt", 200, {
+    body: "User-agent: *\nDisallow: /admin/\n",
+    headers: ["Content-Type" => "text/plain"],
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://example.com/robots.txt");
+
+// `text()` returns the body as a `string`. This prints both lines of the file.
+tainted string $rules = $response->text();
+echo $rules;
+
+// `Core\Str::lines` splits the text into lines. This prints 2.
+echo Core\Arr::count(Core\Str::lines($rules)), "\n";

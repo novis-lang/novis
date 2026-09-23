@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program reads very large reply bodies as text many times, and sends
+// bodies that are almost UTF-8. Each read must return the same text without a new
+// copy. Every broken body must throw an error, and nothing may crash.
+
+// A memory limit that has room for two copies of the body, but not for three.
+Core\Config::set('memory', '96M');
+
+// 1. A text body of 32 million bytes is read ten thousand times as text and as bytes,
+//    and every result is kept. A copy per read would need far more memory than the limit.
+Core\Test::answerHttp('https://files.example.com/large.txt', 200, { body: Core\Str::repeat('x', 32000000) });
+Core\Http\Response $large = Core\Http\Client::get('https://files.example.com/large.txt');
+array<tainted string> $texts = [];
+array<tainted bytes> $raw = [];
+uint $i = 0;
+while ($i < 10000) {
+    $texts[] = $large->text();
+    $raw[] = $large->bytes();
+    $i = $i + 1;
+}
+if (Core\Str::length($texts[9999]) != 32000000) {
+    throw new LogicError('a read returned a different text');
+}
+if (Core\Bytes::length($raw[9999]) != 32000000) {
+    throw new LogicError('a read returned a different body');
+}
+echo 'step 1: ', Core\Arr::count($texts), "\n";
+
+// 2. Eight bodies that are broken in different ways: a cut character, an overlong
+//    form, a UTF-16 surrogate, a value above U+10FFFF and a byte that is never UTF-8.
+array<string> $brokenHex = ['c3', 'e282', 'f09f98', 'c080', 'eda080', 'f4908080', 'ff', '41c3'];
+uint $refused = 0;
+uint $n = 0;
+foreach ($brokenHex as string $hex) {
+    string $url = 'https://files.example.com/broken/' . $n;
+    Core\Test::answerHttp($url, 200, { body: Core\Encoding::fromHex($hex) });
+    Core\Http\Response $broken = Core\Http\Client::get($url);
+    try {
+        tainted string $text = $broken->text();
+        throw new LogicError('a broken body was read as text: ' . $hex);
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+    $n = $n + 1;
+}
+echo 'step 2: ', $refused, ' refused', "\n";
+
+// 3. A body of one million bytes whose last character is cut in half.
+//    `text()` must throw an error that names byte 1000000.
+array<bytes> $parts = [Core\Str::repeat('a', 1000000) as bytes, Core\Encoding::fromHex('e282')];
+Core\Test::answerHttp('https://files.example.com/cut.txt', 200, { body: Core\Bytes::join($parts) });
+Core\Http\Response $cut = Core\Http\Client::get('https://files.example.com/cut.txt');
+try {
+    tainted string $cutText = $cut->text();
+    throw new LogicError('a cut character was read as text');
+} catch (RuntimeError $error) {
+    if (!Core\Str::contains($error->message, 'byte 1000000 ')) {
+        throw new LogicError('the error names the wrong byte');
+    }
+    echo 'step 3: text refused', "\n";
+}
+
+// 4. A reply with no body at all. `text()` must return an empty string.
+Core\Test::answerHttp('https://files.example.com/empty', 204, {});
+Core\Http\Response $empty = Core\Http\Client::get('https://files.example.com/empty');
+echo 'step 4: ', Core\Str::length($empty->text()), "\n";

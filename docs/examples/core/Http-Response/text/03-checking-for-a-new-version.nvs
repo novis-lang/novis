@@ -1,0 +1,24 @@
+<?nvs
+// Shows a program that checks whether a newer version of itself exists.
+// The update server returns the latest version number as plain text.
+
+class Updates {
+    // Returns the latest version number, without spaces or line breaks around it.
+    public static function latest(string $url): tainted string {
+        Core\Http\Response $response = Core\Http\Client::get($url);
+        return Core\Str::trim($response->text());
+    }
+}
+
+// A fixed reply, so the example runs without a network.
+Core\Test::answerHttp("https://updates.example.com/latest.txt", 200, {body: "2.4.1\n"});
+
+string $installed = "2.3.0";
+tainted string $latest = Updates::latest("https://updates.example.com/latest.txt");
+
+// This prints `A new version is available: 2.4.1`.
+if ($latest != $installed) {
+    echo "A new version is available: ", $latest, "\n";
+} else {
+    echo "You have the latest version.\n";
+}
