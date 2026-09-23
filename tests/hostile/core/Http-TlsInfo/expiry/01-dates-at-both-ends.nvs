@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program builds certificates that expire at the earliest and the latest
+// dates it can write, and one step outside each end. The dates inside must read
+// back exactly, the dates outside must throw an error, and nothing may crash.
+
+// 1. The first second a certificate can hold, the last day a `Core\Time\Instant`
+//    can hold, and the second before 1970. All three must read back unchanged.
+array<string> $inside = ['1950-01-01T00:00:00Z', '9999-12-30T00:00:00Z', '1969-12-31T23:59:59Z'];
+foreach ($inside as string $text) {
+    var $session = Core\Test::tlsSession({ expiry: Core\Time::fromIso($text) });
+    if ($session->expiry()->toIso() != $text) {
+        throw new LogicError('an expiry did not read back: ' . $text);
+    }
+}
+echo "step 1: ok\n";
+
+// 2. One second outside each end. Both must throw an error.
+array<string> $outside = ['1949-12-31T23:59:59Z', '10000-01-01T00:00:00Z'];
+uint $refused = 0;
+foreach ($outside as string $text) {
+    try {
+        Core\Test::tlsSession({ expiry: Core\Time::fromIso($text) });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    } catch (ParseError $p) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 2: ', $refused, "\n";
+
+// 3. A fraction of a second is cut off, and a date in the past is allowed.
+//    Ten thousand reads must all give the same instant.
+var $past = Core\Test::tlsSession({ expiry: Core\Time::fromIso('2001-02-03T04:05:06.999Z') });
+int $seconds = $past->expiry()->toEpochSeconds();
+uint $round = 0;
+while ($round < 10000) {
+    if ($past->expiry()->toEpochSeconds() != $seconds) {
+        throw new LogicError('the expiry changed between two reads');
+    }
+    $round = $round + 1;
+}
+echo 'step 3: ', $past->expiry()->toIso(), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows a daily check that warns about certificates that expire in the next 30 days.
+
+// Fixed replies with TLS connections built for a test, so the example runs
+// without a network. The `shop` certificate expires soon.
+Core\Test::answerHttp("https://api.example.com/health", 200, {
+    tls: Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-09-01T00:00:00Z")}),
+});
+Core\Test::answerHttp("https://shop.example.com/health", 200, {
+    tls: Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-06-15T00:00:00Z")}),
+});
+
+// A real program uses `Core\Time::now()`. The example uses a fixed day.
+var $today = Core\Time::fromIso("2031-06-01T00:00:00Z");
+var $limit = $today->plus(Core\Time\Duration::days(30));
+array<string> $hosts = ["api.example.com", "shop.example.com"];
+
+// `compareTo()` returns a number below 0 when the expiry is before the limit.
+// This prints `renew soon: shop.example.com expires 2031-06-15T00:00:00Z`.
+foreach ($hosts as string $host) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get("https://" . $host . "/health")->tls();
+    if ($info != null) {
+        if ($info->expiry()->compareTo($limit) < 0) {
+            echo "renew soon: ", $host, " expires ", $info->expiry()->toIso(), "\n";
+        }
+    }
+}

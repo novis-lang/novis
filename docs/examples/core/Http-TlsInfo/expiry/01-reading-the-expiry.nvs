@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read when the certificate of the server that sent a reply expires.
+
+// `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
+// without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
+var $session = Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-06-01T12:00:00Z")});
+Core\Test::answerHttp("https://api.example.com/health", 200, {tls: $session});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://api.example.com/health")->tls();
+
+// `expiry()` returns a `Core\Time\Instant`. `toIso()` writes it as text.
+// This prints `2031-06-01T12:00:00Z`.
+if ($info != null) {
+    echo $info->expiry()->toIso(), "\n";
+}

@@ -6586,6 +6586,89 @@ mod tests {
         );
     }
 
+    /// `Core\Http\TlsInfo::subject`, `::issuer` and `::expiry` parse the leaf of
+    /// the chain: a described session reads back the names it was written with
+    /// and its expiry in whole seconds, and a self-signed leaf names itself as
+    /// its own issuer. A receiver that is not an object is a fatal for each.
+    // covers: Core\Http\TlsInfo::subject
+    // covers: Core\Http\TlsInfo::issuer
+    // covers: Core\Http\TlsInfo::expiry
+    #[test]
+    fn tls_info_subject_issuer_and_expiry_read_the_leaf_of_the_chain() {
+        fn text_of(read: Value) -> String {
+            let text = read.as_text().expect("a name is text").to_owned();
+            #[expect(unsafe_code, reason = "this frame owns the read")]
+            unsafe {
+                read.release();
+            }
+            text
+        }
+
+        let mut ctx = Ctx::buffered();
+        let now = std::time::SystemTime::now();
+        let expiry = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_938_254_400);
+        let described = nvs_host::tls::described(&nvs_host::tls::Description {
+            version: None,
+            cipher: None,
+            subject: "CN=api.example.com, O=Shop",
+            issuer: "CN=Example Test CA",
+            expiry,
+            now,
+        })
+        .expect("a described session");
+        let info = super::tls_info_of(&described, true);
+        let subject = nvs_runtime::call(super::nvs_core_http_tls_info_subject, &mut ctx, &[info])
+            .expect("a described leaf parses");
+        assert_eq!(text_of(subject), "CN=api.example.com, O=Shop");
+        let issuer = nvs_runtime::call(super::nvs_core_http_tls_info_issuer, &mut ctx, &[info])
+            .expect("a described leaf parses");
+        assert_eq!(text_of(issuer), "CN=Example Test CA");
+        let instant = nvs_runtime::call(super::nvs_core_http_tls_info_expiry, &mut ctx, &[info])
+            .expect("a described leaf parses");
+        let seconds = nvs_runtime::call(
+            crate::time::nvs_core_time_instant_to_epoch_seconds,
+            &mut ctx,
+            &[instant],
+        )
+        .expect("an instant has epoch seconds");
+        assert_eq!(seconds.as_int(), Some(1_938_254_400));
+        #[expect(unsafe_code, reason = "this frame owns the session and the instant")]
+        unsafe {
+            instant.release();
+            info.release();
+        }
+
+        let self_signed = tls_info_for_example_host(true);
+        let subject = nvs_runtime::call(
+            super::nvs_core_http_tls_info_subject,
+            &mut ctx,
+            &[self_signed],
+        )
+        .expect("an rcgen leaf parses");
+        let issuer = nvs_runtime::call(
+            super::nvs_core_http_tls_info_issuer,
+            &mut ctx,
+            &[self_signed],
+        )
+        .expect("an rcgen leaf parses");
+        assert_eq!(text_of(subject), text_of(issuer));
+        #[expect(unsafe_code, reason = "this frame owns the session")]
+        unsafe {
+            self_signed.release();
+        }
+
+        for reader in [
+            super::nvs_core_http_tls_info_subject,
+            super::nvs_core_http_tls_info_issuer,
+            super::nvs_core_http_tls_info_expiry,
+        ] {
+            assert!(
+                nvs_runtime::call(reader, &mut ctx, &[Value::null()]).is_err(),
+                "`null` is not a session"
+            );
+        }
+    }
+
     /// `Core\Http\Part::file` keeps the path and never the octets. The part it
     /// builds for a granted file holds the path, an empty data slot and the
     /// path's last component as its `filename`, and a written `filename` and

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to take the server name out of the certificate's subject.
+
+// A TLS connection built for a test, so the example runs without a network.
+var $session = Core\Test::tlsSession({subject: "CN=shop.example.com, O=Shop, C=AT"});
+
+// The pairs are separated by `, `. The loop finds the pair that starts with `CN=`,
+// and `Core\Str::after` returns the text after it. This prints `server: shop.example.com`.
+foreach (Core\Str::split($session->subject(), ", ") as tainted string $pair) {
+    if (Core\Str::startsWith($pair, "CN=")) {
+        echo "server: ", Core\Str::after($pair, "CN=") ?? "", "\n";
+    }
+}
