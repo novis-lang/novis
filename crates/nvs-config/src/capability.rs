@@ -242,7 +242,7 @@ pub enum Scope<'a> {
 pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
     use std::net::IpAddr;
 
-    let address = unmapped(address);
+    let address = embedded(address);
     match address {
         IpAddr::V4(v4) => {
             let octets = v4.octets();
@@ -291,6 +291,36 @@ fn unmapped(address: std::net::IpAddr) -> std::net::IpAddr {
             None => IpAddr::V6(v6),
         },
         held => held,
+    }
+}
+
+/// An IPv6 address that carries an IPv4 address in its low 32 bits, as that IPv4 address; every
+/// other address as [`unmapped`] reads it.
+///
+/// The table asks this rather than [`unmapped`] because two more prefixes route to the address they
+/// embed: the IPv4-compatible `::a.b.c.d` (`::/96`, apart from `::` and `::1`, which are addresses of
+/// their own), and the NAT64 well-known prefix `64:ff9b::/96`, which a translating gateway turns
+/// into a connection to the IPv4 address. Either spelling of `127.0.0.1` reaches whatever that
+/// address reaches, so each is denied exactly when the address it carries is.
+///
+/// The exception list and endpoint matching keep [`unmapped`]: an operator's `internal` entry is an
+/// address the operator wrote, and it excepts that address in its two usual spellings and nothing
+/// the table reads more widely.
+fn embedded(address: std::net::IpAddr) -> std::net::IpAddr {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let address = unmapped(address);
+    let IpAddr::V6(v6) = address else {
+        return address;
+    };
+    let s = v6.segments();
+    let compatible = s[..6] == [0; 6] && !v6.is_loopback() && !v6.is_unspecified();
+    let nat64 = s[..6] == [0x64, 0xff9b, 0, 0, 0, 0];
+    if compatible || nat64 {
+        let [.., a, b, c, d] = v6.octets();
+        IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+    } else {
+        address
     }
 }
 

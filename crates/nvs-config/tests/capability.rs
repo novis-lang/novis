@@ -273,6 +273,59 @@ fn ip(text: &str) -> std::net::IpAddr {
         .unwrap_or_else(|_| panic!("{text} is not an address"))
 }
 
+/// `rule:security/net-address-policy`'s table reads an IPv6 address that carries an IPv4 address —
+/// mapped, IPv4-compatible or behind the NAT64 well-known prefix — as the address it carries, and an
+/// exception written for the IPv4 address does not reach the two wider spellings.
+#[test]
+fn an_ipv6_address_carrying_an_internal_ipv4_address_is_denied() {
+    for (carried, range) in [
+        ("::ffff:127.0.0.1", "loopback (127.0.0.0/8)"),
+        ("::127.0.0.1", "loopback (127.0.0.0/8)"),
+        ("::a9fe:a9fe", "link-local (169.254.0.0/16)"),
+        ("64:ff9b::7f00:1", "loopback (127.0.0.0/8)"),
+        ("64:ff9b::10.0.0.7", "private (10/8, 172.16/12, 192.168/16)"),
+        ("64:ff9b::169.254.169.254", "link-local (169.254.0.0/16)"),
+        ("::0.0.0.2", "unspecified (0.0.0.0/8)"),
+    ] {
+        assert_eq!(
+            nvs_config::capability::denied_by_default(ip(carried)),
+            Some(range),
+            "{carried} is judged by the address it carries",
+        );
+    }
+
+    // The two addresses of their own inside `::/96` keep their own answers, and a public IPv4
+    // address carried either way stays public.
+    assert_eq!(
+        nvs_config::capability::denied_by_default(ip("::1")),
+        Some("loopback (::1)")
+    );
+    assert_eq!(
+        nvs_config::capability::denied_by_default(ip("::")),
+        Some("unspecified (::)")
+    );
+    for public in [
+        "64:ff9b::203.0.113.10",
+        "::203.0.113.10",
+        "2001:db8::7f00:1",
+    ] {
+        assert_eq!(
+            nvs_config::capability::denied_by_default(ip(public)),
+            None,
+            "{public} carries no internal address",
+        );
+    }
+
+    let disk = Disk::of(&["/srv"]);
+    let one = granting("[net]\ninternal = [\"127.0.0.1\"]\n", &disk);
+    for wider in ["::127.0.0.1", "64:ff9b::7f00:1"] {
+        assert!(
+            one.address_refused(ip(wider)).is_some(),
+            "`internal = [\"127.0.0.1\"]` excepted {wider}",
+        );
+    }
+}
+
 /// `rule:security/net-address-policy`'s operator exception excepts the addresses it *names* and widens nothing else — not
 /// a range around one, not the table, and not a name that resolves to one.
 ///
