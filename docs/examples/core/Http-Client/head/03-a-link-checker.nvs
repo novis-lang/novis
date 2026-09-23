@@ -1,0 +1,30 @@
+<?nvs
+// Shows a link checker for a blog. It sends a `HEAD` request to each link, so it
+// learns whether the page is there without downloading it.
+
+array<string> $links = [
+    "http://192.168.0.10/posts/hello",
+    "http://10.1.2.3/images/cat.png",
+    "http://[fd00::5]/about",
+];
+
+uint $working = 0;
+uint $broken = 0;
+foreach ($links as string $link) {
+    try {
+        Core\Http\Response $response = Core\Http\Client::head($link, {deadline: 5s});
+        // A status below 400 means the page is there.
+        if ($response->status() < 400) {
+            $working = $working + 1;
+        } else {
+            echo "broken: ", $link, " (", $response->status(), ")", "\n";
+            $broken = $broken + 1;
+        }
+    } catch (RuntimeError $error) {
+        echo "not checked: ", $error->message, "\n";
+        $broken = $broken + 1;
+    }
+}
+
+// All three links are private addresses, so this prints `working: 0, broken: 3`.
+echo "working: ", $working, ", broken: ", $broken, "\n";

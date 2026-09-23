@@ -1,0 +1,4 @@
+not checked: Core\Http\Client::head refuses 192.168.0.10: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not checked: Core\Http\Client::head refuses 10.1.2.3: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not checked: Core\Http\Client::head refuses fd00::5: it is private (fc00::/7), which `net.internal` does not except
+working: 0, broken: 3

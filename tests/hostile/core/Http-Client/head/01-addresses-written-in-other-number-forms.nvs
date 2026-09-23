@@ -1,0 +1,67 @@
+<?nvs
+// Attack: `HEAD` requests try to reach this server's own network. Each address is
+// written in an unusual way, for example as one number or inside an IPv6 address.
+// Every one must throw an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each URL writes 127.0.0.1 or 169.254.169.254 in another form. Each call must throw
+//    a `RuntimeError`. If one is sent, the `LogicError` below stops the program early.
+array<string> $hidden = [
+    'http://2130706433/',
+    'http://0x7f000001/',
+    'http://0x7f.0.0.1/',
+    'http://0177.0.0.1/',
+    'http://127.1/',
+    'http://%31%32%37.0.0.1/',
+    'http://[0:0:0:0:0:0:0:1]/',
+    'http://[::127.0.0.1]/',
+    'http://[::ffff:7f00:1]/',
+    'http://[64:ff9b::7f00:1]/',
+    'http://[64:ff9b::169.254.169.254]/latest/meta-data/',
+    'http://localhost/',
+    'http://LOCALHOST./',
+];
+uint $refused = 0;
+foreach ($hidden as string $url) {
+    try {
+        Core\Http\Response $sent = Core\Http\Client::head($url, { deadline: 2s });
+        throw new LogicError(Core\Str::format('a request to an internal address was sent: %s', $url));
+    } catch (RuntimeError $error) {
+        if (Core\Str::contains($error->message, 'failed')) {
+            throw new LogicError(Core\Str::format('a connection was tried: %s', $url));
+        }
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Every option has its smallest or its largest value, and the URL is a private
+//    address. Each call must throw a `RuntimeError` before anything is sent.
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        Core\Http\Response $wide = Core\Http\Client::head('http://10.0.0.7/', { deadline: 1ns, connectTimeout: 1ns, retryAttempts: 4294967295 });
+        throw new LogicError('a request with the widest options was sent');
+    } catch (RuntimeError $error) {
+        $i = $i + 1;
+    }
+}
+echo 'step 2: ', $i, "\n";
+
+// 3. Every refused request is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://[64:ff9b::a00:%x]/', $n % 65536) . Core\Str::repeat('c', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::head($address);
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}
