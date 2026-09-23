@@ -150,6 +150,269 @@ fn every_row_names_a_distinct_key() {
     }
 }
 
+/// The case that proves a change to a `Reload` row reaches a real request, in `nvs-cli`'s
+/// `tests/live_config.rs`.
+const LIVE: &str = "crates/nvs-cli/tests/live_config.rs";
+
+/// The case that proves a reload names a changed `Boot` row and keeps its running value, in
+/// `tests/snapshot.rs`.
+const RESTART: &str = "crates/nvs-config/tests/snapshot.rs";
+
+/// Every registry row and the test that proves what applying a change to it does. A `Reload` row
+/// names a [`LIVE`] case; a `Boot` row names the [`RESTART`] case.
+const APPLY_PROOFS: &[(&str, &str, &str)] = &[
+    (
+        "limits",
+        LIVE,
+        "a_changed_memory_limit_moves_the_admission_ceiling",
+    ),
+    (
+        "limits.hard",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.fatal_reserve_memory",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.fatal_reserve_time",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.max_script_depth",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.max_decompressed",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.max_decompression_ratio",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "http",
+        LIVE,
+        "a_changed_http_headers_block_reaches_the_next_response",
+    ),
+    (
+        "http.client.pool_idle",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "http.client.pool_idle_timeout",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "http.client.tls",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "http.client.socket",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log.handler_reserve_memory",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log.handler_reserve_time",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "cache.shared",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "cache.local",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "cache.process",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "control.socket",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "io.temp_root",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "debug.keep_temporary",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "server",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "opcache",
+        LIVE,
+        "a_changed_opcache_block_reaches_the_unit_cache",
+    ),
+    (
+        "opcache.file_cache_dir",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "session",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "deferred.max_concurrent",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "deferred.deadline",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "schedule",
+        LIVE,
+        "a_changed_schedule_roster_is_armed_from_the_next_tick",
+    ),
+    (
+        "queue.connection",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "queue.workers",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "queue.visibility",
+        LIVE,
+        "a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed",
+    ),
+    ("app", LIVE, "a_changed_app_origin_reaches_the_mount_rows"),
+    (
+        "metrics",
+        LIVE,
+        "changed_metrics_and_trace_blocks_rebuild_their_exporters",
+    ),
+    (
+        "trace",
+        LIVE,
+        "changed_metrics_and_trace_blocks_rebuild_their_exporters",
+    ),
+];
+
+/// The `Reload` rows no [`LIVE`] case proves yet. Side goal `restart-free` writes a case for each
+/// and moves it into [`APPLY_PROOFS`]. `every_directive_has_a_live_apply_proof_or_a_restart_proof`
+/// replaces this test once the list is empty.
+const OWED_LIVE_PROOF: &[&str] = &[
+    "mode.default",
+    "mode.ceiling",
+    "capabilities",
+    "http.csrf_key",
+    "http.csrf_key_file",
+    "http.client.proxy",
+    "log.handler",
+    "log.target",
+    "debug.inline",
+    "extension",
+    "queue.max_attempts",
+    "include",
+];
+
+/// Whether the file at `path`, relative to the repository root, declares the test `name`.
+fn declares_test(path: &str, name: &str) -> bool {
+    let file = nvs_repo::path(path);
+    let text = fs::read_to_string(&file)
+        .unwrap_or_else(|error| panic!("`{}` could not be read: {error}", file.display()));
+    let lines: Vec<&str> = text.lines().map(str::trim).collect();
+    lines
+        .windows(2)
+        .any(|pair| pair[0] == "#[test]" && pair[1].starts_with(&format!("fn {name}(")))
+}
+
+/// `rule:config/reloadability-is-its-own-field` and `rule:config/a-reload-names-what-it-could-not-apply`:
+/// every row names the test that proves what applying a change to it does, or is listed as still
+/// owing one. A `Reload` row's proof is a live case, and a `Boot` row's is the reload report. A row
+/// added to the registry without either fails here.
+#[test]
+fn every_row_names_its_apply_proof_or_is_listed_as_owing_one() {
+    for row in DIRECTIVES {
+        let proofs: Vec<_> = APPLY_PROOFS
+            .iter()
+            .filter(|(key, _, _)| *key == row.key)
+            .collect();
+        let owed = OWED_LIVE_PROOF.contains(&row.key);
+        assert_eq!(
+            proofs.len() + usize::from(owed),
+            1,
+            "`{}` needs exactly one line in `APPLY_PROOFS` or `OWED_LIVE_PROOF`",
+            row.key,
+        );
+        if owed {
+            assert_eq!(
+                row.apply,
+                Apply::Reload,
+                "`{}` is `Boot` and owes nothing live",
+                row.key
+            );
+            continue;
+        }
+        let (_, file, name) = proofs[0];
+        let wanted = match row.apply {
+            Apply::Reload => LIVE,
+            Apply::Boot => RESTART,
+        };
+        assert_eq!(
+            *file, wanted,
+            "`{}` is `{:?}`, so its proof is in `{wanted}`",
+            row.key, row.apply
+        );
+        assert!(
+            declares_test(file, name),
+            "`{}` names `{name}`, which `{file}` does not declare",
+            row.key
+        );
+    }
+    for key in APPLY_PROOFS
+        .iter()
+        .map(|(key, _, _)| *key)
+        .chain(OWED_LIVE_PROOF.iter().copied())
+    {
+        assert!(
+            DIRECTIVES.iter().any(|row| row.key == key),
+            "`{key}` is listed with a proof, and the registry has no such row"
+        );
+    }
+}
+
 /// `rule:errors/on-limit`: the tier-1 handler's reserved slice is `System`, "not `Runtime`" — and it is
 /// written inside a block whose own row is `Runtime`, so the longest-prefix rule is the only thing
 /// holding it there. Losing the row would not fail to compile, would not fail any census above, and
