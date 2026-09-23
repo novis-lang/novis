@@ -27188,7 +27188,7 @@ long-running host — at a reload, or only at boot.
 | `cache.shared` | operator only — a request cannot change it | at boot only |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `cache.process` | operator only — a request cannot change it | at reload |
-| `control.socket` | operator only — a request cannot change it | at boot only |
+| `control.socket` | operator only — a request cannot change it | at reload |
 | `io.temp_root` | operator only — a request cannot change it | at boot only |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
 | `debug.inline` | a request may only narrow it | at reload |
@@ -27405,7 +27405,9 @@ and mode are the whole of who may use it; there is no token and no TCP form. `re
 configuration tree, applies what can change while running, prints what it applied and names each
 key that needs a restart; a mount `scan` expands again. `config` prints what the process is
 holding, each key with the file it came from. `status` reports how many requests are in flight and
-whether the process is draining. `--socket` names one server where several run on a host.
+whether the process is draining. `--socket` names one server where several run on a host. A
+changed `[control] socket` moves the socket without a restart: the new one answers before the old
+one closes.
 
 ### nvs service
 
