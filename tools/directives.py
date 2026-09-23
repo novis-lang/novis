@@ -206,9 +206,13 @@ BINDINGS = {"written"}
 #: has to reach the field for the access to count.
 CHAIN = r"(?:\s*\.\s*\w+\s*\([^()]*\)\s*\??)*"
 
-# A raw string's opener, `r"` or `r#"` and deeper, matched at a position rather than
-# against a slice: `strip` asks at every `r`, and a slice copies the rest of the file.
-RAW_OPEN = re.compile(r'r(#*)"')
+# What `strip` stops at: a comment opener, a raw string's opener (`r"`, `r#"` and deeper)
+# or a plain string's. Everything between two of them is code, copied in one piece.
+STRIP_NEXT = re.compile(r'//|/\*|r#*"|"')
+# Inside a block comment, the next opener or closer; comments nest in Rust.
+BLOCK_TOKEN = re.compile(r"/\*|\*/")
+# Inside a plain string, the next escape or the closing quote.
+STRING_STOP = re.compile(r'[\\"]')
 
 
 # ------------------------------------------------------------------------------ tree.rs
@@ -424,45 +428,46 @@ def strip(text: str) -> tuple[str, list[str]]:
     literals: list[str] = []
     i, n = 0, len(text)
     while i < n:
-        ch = text[i]
-        if ch == "/" and i + 1 < n and text[i + 1] == "/":
-            while i < n and text[i] != "\n":
-                i += 1
-            continue
-        if ch == "/" and i + 1 < n and text[i + 1] == "*":
+        m = STRIP_NEXT.search(text, i)
+        if m is None:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        i, token = m.start(), m.group()
+        if token == "//":
+            end = text.find("\n", i)
+            i = n if end < 0 else end
+        elif token == "/*":
             depth, i = 1, i + 2
-            while i < n and depth:
-                if text.startswith("/*", i):
-                    depth, i = depth + 1, i + 2
-                elif text.startswith("*/", i):
-                    depth, i = depth - 1, i + 2
-                else:
-                    i += 1
-            continue
-        raw = RAW_OPEN.match(text, i) if ch == "r" else None
-        if raw:
-            fence = '"' + raw.group(1)
-            end = text.find(fence, i + len(raw.group(0)))
+            while depth:
+                b = BLOCK_TOKEN.search(text, i)
+                if b is None:
+                    i = n
+                    break
+                depth += 1 if b.group() == "/*" else -1
+                i = b.end()
+        elif token != '"':
+            fence = '"' + token[1:-1]
+            end = text.find(fence, i + len(token))
             end = n if end < 0 else end + len(fence)
-            literals.append(text[i + len(raw.group(0)):end - len(fence)])
+            literals.append(text[i + len(token):end - len(fence)])
             out.append(" " * (end - i))
             i = end
-            continue
-        if ch == '"':
+        else:
             j = i + 1
             while j < n:
+                s = STRING_STOP.search(text, j)
+                if s is None:
+                    j = n
+                    break
+                j = s.start()
                 if text[j] == "\\":
                     j += 2
                     continue
-                if text[j] == '"':
-                    break
-                j += 1
+                break
             literals.append(text[i + 1:j])
             out.append(" " * (j + 1 - i))
             i = j + 1
-            continue
-        out.append(ch)
-        i += 1
     return "".join(out), literals
 
 
@@ -505,7 +510,8 @@ def access_re(field: str, receivers: set[str]) -> re.Pattern:
     return re.compile(rf"\b(?:{recv})\b{CHAIN}\s*\.\s*{re.escape(field)}\b(?!\s*\()")
 
 
-def reads_field(code: str, key: Key, access: re.Pattern, narrow: re.Pattern, bare: str | None) -> bool:
+def reads_field(code: str, prose_free: str, names: dict[str, bool], key: Key,
+                access: re.Pattern, narrow: re.Pattern, bare: str | None) -> bool:
     """Whether one file reads `key` off a block it holds, generic bindings included.
 
     A generic binding is not a name for *this* block -- `written` is what any
@@ -513,12 +519,37 @@ def reads_field(code: str, key: Key, access: re.Pattern, narrow: re.Pattern, bar
     and for `[http.client]` alike. It is trusted where the field name identifies one
     key on its own, which is `bare_names`' own reading, and otherwise only where the
     file names the block somewhere in its **code**: a block named in a `//!` header and
-    nowhere else is prose about another crate's business, not a read."""
+    nowhere else is prose about another crate's business, not a read.
+
+    `prose_free` is `code` with its line comments removed, and `names` is the file's
+    memo of which receivers it names there: both are per file, and this runs once per
+    key. Both patterns open on a receiver spelled verbatim, so a match can start only
+    where one of them occurs: the pattern is tried at those positions alone, which is
+    the same answer as a search that tries it at every position of the file."""
+    def spelled(pattern: re.Pattern, receivers: set[str]) -> bool:
+        if not receivers:
+            return bool(pattern.search(code))
+        for r in receivers:
+            at = code.find(r)
+            while at >= 0:
+                if pattern.match(code, at):
+                    return True
+                at = code.find(r, at + 1)
+        return False
+
     if bare:
-        return bool(access.search(code))
-    named = any(re.search(rf"\b{re.escape(r)}\b", COMMENT.sub("", code))
-                for r in key.receivers - BINDINGS)
-    return bool((access if named else narrow).search(code))
+        return spelled(access, key.receivers)
+    named = False
+    for r in key.receivers - BINDINGS:
+        if r not in names:
+            names[r] = (r in prose_free
+                        and re.search(rf"\b{re.escape(r)}\b", prose_free) is not None)
+        if names[r]:
+            named = True
+            break
+    if named:
+        return spelled(access, key.receivers)
+    return spelled(narrow, key.receivers - BINDINGS)
 
 
 def bare_names(keys: list[Key]) -> set[str]:
@@ -545,7 +576,7 @@ def find_readers(keys: list[Key]) -> None:
     verbatim, so the substring test skips the regex over most of the corpus. The literal
     pattern spells every segment but `<name>` verbatim too, so the same test over those
     segments skips it over most of the literals."""
-    files = [(rel, code, "\n".join(literals), set(literals))
+    files = [(rel, code, "\n".join(literals), set(literals), COMMENT.sub("", code), {})
              for rel, code, literals in corpus()]
     unique = bare_names(keys)
     for key in keys:
@@ -555,11 +586,12 @@ def find_readers(keys: list[Key]) -> None:
         narrow = access_re(key.field.name, key.receivers - BINDINGS)
         name = key.field.name
         bare = name if name in unique else None
-        for rel, code, joined, texts in files:
+        for rel, code, joined, texts, prose_free, names in files:
             if (rel not in REGISTRIES and all(s in joined for s in spelled)
                     and literal.search(joined)):
                 key.readers.append(f"{rel} (key)")
-            elif name in code and reads_field(code, key, access, narrow, bare):
+            elif name in code and reads_field(code, prose_free, names, key, access, narrow,
+                                              bare):
                 key.readers.append(f"{rel} (field)")
             elif bare and rel not in REGISTRIES and bare in texts:
                 key.readers.append(f"{rel} (name)")
