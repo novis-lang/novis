@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program writes names a folder cannot take, and replaces a file with a folder after `isWritable` returned `true`.
+// Each write must throw an `IOError`, and nothing may crash.
+
+string $dir = Core\IO::temporaryDir();
+
+// 1. The folder is writable, but a name of 100000 characters is too long. The write must throw an `IOError`.
+if (!Core\IO::isWritable($dir)) {
+    throw new LogicError('a new folder was not writable');
+}
+try {
+    Core\IO::write(Core\Path::join($dir, Core\Str::repeat('n', 100000)), 'x');
+    throw new LogicError('a name that is too long was written');
+} catch (IOError $tooLong) {
+}
+echo 'step 1: done', "\n";
+
+// 2. A folder takes the name of a writable file. Writing to it must throw an `IOError`.
+string $file = Core\Path::join($dir, 'report.csv');
+Core\IO::write($file, 'id');
+if (!Core\IO::isWritable($file)) {
+    throw new LogicError('a new file was not writable');
+}
+Core\IO::remove($file);
+Core\IO::makeDir($file);
+try {
+    Core\IO::write($file, 'id,total');
+    throw new LogicError('a folder was written as a file');
+} catch (IOError $notAFile) {
+}
+echo 'step 2: done', "\n";
+
+// 3. Names that cannot be written. Each must return `false` or throw an `IOError`.
+string $plain = Core\Path::join($dir, 'plain.txt');
+Core\IO::write($plain, 'x');
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($plain, 'inside'),
+    Core\Path::join($dir, 'missing/deeper/file.txt'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        if (Core\IO::isWritable($badPath)) {
+            throw new LogicError('a path that cannot be written was writable');
+        }
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. Twenty thousand checks of new names. Memory must not grow with each check.
+int $i = 0;
+while ($i < 20000) {
+    if (Core\IO::isWritable(Core\Path::join($dir, 'none-' . ($i as string)))) {
+        throw new LogicError('a name nobody wrote was writable');
+    }
+    $i = $i + 1;
+}
+echo 'step 4: done', "\n";
