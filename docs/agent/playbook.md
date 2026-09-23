@@ -3648,6 +3648,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   tuned against the debug reading are tuned to a number nothing measures. Time a hostile case or a
   bench with `target/release/nvs.exe` before choosing its counts, and keep the debug binary for
   whether the program runs at all. [until: reviewed 2026-09-22]
+- **An `[[app]]` block in the root `nvs.toml` whose `root` names a directory that does not exist yet
+  breaks every program under that file with `E0605`.** The configuration refuses a key that matches
+  nothing, so writing the grant for a proof tree before its first file exists makes the examples you
+  are about to run fail on the config, not on themselves. Create the directory's first file before
+  (or in the same step as) the block that grants it. [until: reviewed 2026-09-23]
 
 ## Writing a test case
 
