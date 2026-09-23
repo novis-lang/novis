@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program lists a folder with thousands of files, a folder whose files change between
+// calls, and paths that name no folder. `list` must return every name or throw an `IOError`.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+string $many = Core\Path::join($dir, 'many');
+Core\IO::makeDir($many);
+
+// 1. A folder with five thousand files. Every name must be in the result, once.
+uint $count = 0;
+while ($count < 5000) {
+    Core\IO::write(Core\Path::join($many, 'file-' . $count . '.txt'), 'x');
+    $count = $count + 1;
+}
+array<string> $names = Core\IO::list($many);
+if (Core\Arr::count($names) != 5000) {
+    throw new LogicError('a name is missing from the folder');
+}
+echo 'step 1: done', "\n";
+
+// 2. The same folder listed two hundred times. Each result is a new array with every name.
+uint $round = 0;
+while ($round < 200) {
+    if (Core\Arr::count(Core\IO::list($many)) != 5000) {
+        throw new LogicError('a repeated listing lost a name');
+    }
+    $round = $round + 1;
+}
+echo 'step 2: done', "\n";
+
+// 3. A file is deleted between two calls. The second result must not contain it.
+Core\IO::remove(Core\Path::join($many, 'file-0.txt'));
+foreach (Core\IO::list($many) as string $name) {
+    if ($name == 'file-0.txt') {
+        throw new LogicError('a deleted file is still listed');
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. Paths that are not a folder. Each must throw an `IOError`.
+string $file = Core\Path::join($dir, 'file.txt');
+Core\IO::write($file, 'x');
+array<string> $bad = [
+    '',
+    $file,
+    Core\Path::join($dir, 'missing'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($file, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::list($badPath);
+        throw new LogicError('a path that is not a folder was listed');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 4: done', "\n";

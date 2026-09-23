@@ -1,0 +1,17 @@
+<?nvs
+// Shows how `Core\IO::list` returns the name of each file and folder inside a folder.
+
+string $site = Core\Path::join(Core\IO::temporaryDir(), "site");
+Core\IO::makeDir(Core\Path::join($site, "images"));
+Core\IO::write(Core\Path::join($site, "index.html"), "<h1>Home</h1>\n");
+Core\IO::write(Core\Path::join($site, "style.css"), "h1 { color: navy; }\n");
+
+// `list` returns the names in the order the operating system gives.
+// `Core\Arr::sort` puts them in alphabetical order.
+array<string> $names = Core\Arr::sort(Core\IO::list($site));
+
+// This prints "images", "index.html" and "style.css".
+// Each entry is a bare name. The folder path is not part of it.
+foreach ($names as string $name) {
+    echo $name, "\n";
+}

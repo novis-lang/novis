@@ -4157,4 +4157,120 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    /// `Core\IO::list(path)` under `ctx`, answering the names it returned, sorted, or the
+    /// message the refusal left.
+    fn listed(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
+        let answer = call_with(nvs_core_io_list, ctx, &[spelled(path)])?;
+        let mut names: Vec<String> =
+            crate::str::Elements::of(answer.array_ptr().expect("`list` returns an array"))
+                .map(|name| {
+                    name.as_text()
+                        .expect("an entry name is a string")
+                        .to_owned()
+                })
+                .collect();
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the one reference `list` returned"
+        )]
+        unsafe {
+            answer.release();
+        }
+        names.sort();
+        Ok(names)
+    }
+
+    /// `Core\IO::list` returns the bare name of every file and folder directly inside the
+    /// directory, never `.` or `..` and never what a sub-folder has, and an empty directory
+    /// returns an empty array. A file and a missing name throw, and a context granting
+    /// `fs.write` alone throws naming `fs.read`.
+    // covers: Core\IO::list
+    #[test]
+    fn core_io_list_returns_bare_names_one_level_deep_and_refuses_a_file() {
+        let root = scratch("list");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("sub")).expect("a folder to list");
+        std::fs::write(root.join("a.txt"), b"x").expect("a file to list");
+        std::fs::write(root.join("sub").join("inner.txt"), b"x").expect("a file one level down");
+        std::fs::create_dir_all(root.join("empty")).expect("an empty folder");
+
+        let mut ctx = reading("1MiB");
+        assert_eq!(
+            listed(&mut ctx, &root).expect("a granted directory answers"),
+            ["a.txt", "empty", "sub"],
+            "bare names, one level deep, with neither `.` nor `..`"
+        );
+        assert_eq!(
+            listed(&mut ctx, &root.join("empty")).expect("an empty directory answers"),
+            Vec::<String>::new()
+        );
+
+        let file = listed(&mut ctx, &root.join("a.txt")).expect_err("a file is not a directory");
+        assert!(file.contains(r"Core\IO::list"), "{file}");
+        let missing = listed(&mut ctx, &root.join("missing")).expect_err("nothing to list");
+        assert!(missing.contains(r"Core\IO::list"), "{missing}");
+
+        let refused = listed(&mut writing(), &root).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it
+    /// returned, in file order, or the message the refusal left.
+    fn lined(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
+        let answer = call_with(nvs_core_io_lines, ctx, &[spelled(path)])?;
+        assert!(
+            crate::instance::is_instance(answer, &LINES),
+            "`lines` returns its own class"
+        );
+        let held = crate::instance::slot(answer.obj_ptr().expect("an instance"), 0);
+        let lines = crate::str::Elements::of(held.array_ptr().expect("the lines are an array"))
+            .map(|line| line.as_text().expect("a line is a string").to_owned())
+            .collect();
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the one reference `lines` returned"
+        )]
+        unsafe {
+            answer.release();
+        }
+        Ok(lines)
+    }
+
+    /// `Core\IO::lines` splits on `\n`, `\r\n` and a lone `\r`, keeps an empty line in the
+    /// middle, and opens no empty last line after a trailing terminator. An empty file has no
+    /// lines, a missing file throws naming the member, and a context granting `fs.write` alone
+    /// throws naming `fs.read`.
+    // covers: Core\IO::lines
+    #[test]
+    fn core_io_lines_splits_on_all_three_terminators_and_refuses_without_fs_read() {
+        let path = scratch("lines.txt");
+        std::fs::write(&path, b"a\r\nb\rc\n\nd\n").expect("a file with every terminator");
+        let mut ctx = reading("1MiB");
+        assert_eq!(
+            lined(&mut ctx, &path).expect("a granted file answers"),
+            ["a", "b", "c", "", "d"]
+        );
+
+        std::fs::write(&path, b"last line has no terminator").expect("one unterminated line");
+        assert_eq!(
+            lined(&mut ctx, &path).expect("one line"),
+            ["last line has no terminator"]
+        );
+
+        std::fs::write(&path, b"").expect("an empty file");
+        assert_eq!(
+            lined(&mut ctx, &path).expect("an empty file answers"),
+            Vec::<String>::new()
+        );
+
+        let missing = lined(&mut ctx, &path.with_extension("missing")).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::lines"), "{missing}");
+        let refused = lined(&mut writing(), &path).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&path);
+    }
 }

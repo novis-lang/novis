@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `Core\IO::list` returns for an empty folder, and what happens when the path is a file.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "inbox");
+Core\IO::makeDir($dir);
+
+// The folder is empty, so `list` returns an empty array. This prints "entries: 0".
+echo "entries: ", Core\Arr::count(Core\IO::list($dir)), "\n";
+
+// "." and ".." are never in the result. After one file is written, this prints "entries: 1".
+Core\IO::write(Core\Path::join($dir, "message.txt"), "hello\n");
+echo "entries: ", Core\Arr::count(Core\IO::list($dir)), "\n";
+
+// "message.txt" is a file, not a folder. `list` throws an `IOError`,
+// and this prints "not a folder".
+try {
+    Core\IO::list(Core\Path::join($dir, "message.txt"));
+} catch (IOError $e) {
+    echo "not a folder", "\n";
+}
