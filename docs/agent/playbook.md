@@ -6882,6 +6882,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   union of the ten case types. A proof that asks all ten spells each call once, in a helper that
   returns what it needs (`tests/hostile/core/Hash/hmac/01-keys-of-every-size.nvs`'s `Every::sizes`).
   [until: reviewed 2026-09-22]
+- **A bench chained as `$inputs[$total % N]` can pick the same input every round, and it still
+  prints a plausible total.** When the first input's measured size is a multiple of `N`, the
+  index never moves: `benches/members/core/Html/escape.nvs` reads `"Tom & Jerry"` (15 escaped
+  characters) on every one of its rounds, so its figure is one input's figure. Chain on
+  `($total + $i) % N` and check the printed total differs from `rounds × first size`.
+  [until: reviewed 2026-09-23]
 
 ## Splitting a file that got too big
 
