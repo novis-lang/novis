@@ -97,6 +97,12 @@ files = [
 
 modules = [
   "crates/nvs-stdlib/src/io.rs",
+  # `rule:security/capability-check-at-the-door`'s check, and § 5's refusal: the one function a
+  # door to the operating system calls before it opens.
+  "crates/nvs-runtime/src/capability.rs",
+  # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
+  # against.
+  "crates/nvs-stdlib/src/registry.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
