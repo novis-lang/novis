@@ -3660,6 +3660,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   --no-audit --no-fund` in `editors/vscode` (it reads the committed lockfile) and re-run `verify.py`.
   [until: reviewed 2026-09-23]
 - **A probe `.nvs` under `.agent-tmp/` cannot call `Core\IO::temporaryDir` or any other `Core\IO` member.** The repository's `nvs.toml` grants `fs` read and write only to the proof trees, by `root`, so the probe stops with a `RuntimeError` naming `fs.write` before it reaches the question. Put a throwaway probe inside the proof tree it is about (`tests/hostile/core/IO/<member>/zz-probe.nvs`), run it with `target/debug/nvs.exe run`, and delete it in the same call. [until: reviewed 2026-09-23]
+- **A proof program run by hand from its own directory throws for a capability the tree grants.**
+  The grant for `docs/examples/`, `tests/hostile/` and `benches/members/` is the root `nvs.toml`,
+  and `nvs run` finds it from the working directory, so `cd docs/examples/core/IO/write && nvs run
+  01-….nvs` throws `Core\IO::temporaryDir needs the capability fs.write` and reads as a broken
+  member. Run every proof as `target/debug/nvs.exe run <repo-relative path>` from the repository
+  root, which is what `tools/dossier.py` does. [until: reviewed 2026-09-23]
 
 ## Writing a test case
 
