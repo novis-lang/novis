@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a program reads an email template from a file and fills in the customer's details.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "welcome.txt");
+Core\IO::write($path, "Hello {name},\nyour order {order} is on its way.\n");
+
+// `Core\Str::replaceAll` replaces each key in the text with its value.
+array<string> $details = ["{name}" => "Ada", "{order}" => "#1042"];
+string $mail = Core\Str::replaceAll(Core\IO::read($path), $details);
+
+// This prints "Hello Ada," and "your order #1042 is on its way."
+echo $mail;
