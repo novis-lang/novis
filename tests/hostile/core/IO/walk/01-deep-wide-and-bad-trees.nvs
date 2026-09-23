@@ -1,0 +1,111 @@
+<?nvs
+// Attack: a program walks a very deep tree and a very wide tree. It deletes a tree while the
+// result is in use, and it walks paths that are not folders. `walk` must return every entry or
+// throw an `IOError`.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+
+// 1. A tree two hundred folders deep. Every folder must be in the result, once.
+// A path this long can be too long for the system. Then the step throws an `IOError`.
+try {
+    string $deep = Core\Path::join($dir, 'deep');
+    string $level = $deep;
+    uint $depth = 0;
+    while ($depth < 200) {
+        $level = Core\Path::join($level, 'd');
+        $depth = $depth + 1;
+    }
+    Core\IO::makeDir($level);
+    uint $found = 0;
+    foreach (Core\IO::walk($deep) as string $entry) {
+        $found = $found + 1;
+    }
+    if ($found != 200) {
+        throw new LogicError('a folder is missing from the deep tree');
+    }
+} catch (IOError $tooLong) {
+}
+echo 'step 1: done', "\n";
+
+// 2. Fifty folders with one hundred files each. Every entry must be in the result: 5050 in all.
+string $wide = Core\Path::join($dir, 'wide');
+uint $folder = 0;
+while ($folder < 50) {
+    string $sub = Core\Path::join($wide, 'folder-' . $folder);
+    Core\IO::makeDir($sub);
+    uint $file = 0;
+    while ($file < 100) {
+        Core\IO::write(Core\Path::join($sub, 'file-' . $file . '.txt'), 'x');
+        $file = $file + 1;
+    }
+    $folder = $folder + 1;
+}
+uint $entries = 0;
+foreach (Core\IO::walk($wide) as string $entry) {
+    $entries = $entries + 1;
+}
+if ($entries != 5050) {
+    throw new LogicError('an entry is missing from the wide tree');
+}
+echo 'step 2: done', "\n";
+
+// 3. The same tree walked one hundred times. Each result is new and has every entry.
+uint $round = 0;
+while ($round < 100) {
+    uint $again = 0;
+    foreach (Core\IO::walk($wide) as string $entry) {
+        $again = $again + 1;
+    }
+    if ($again != 5050) {
+        throw new LogicError('a repeated walk lost an entry');
+    }
+    $round = $round + 1;
+}
+echo 'step 3: done', "\n";
+
+// 4. The tree is deleted while the result of `walk` is in use. The folders were read before
+// the delete, so a second loop over the same result still gives every entry.
+Core\IO\Walk $held = Core\IO::walk($wide);
+foreach ($held as string $entry) {
+    string $filePath = Core\Path::join($wide, $entry);
+    if (Core\IO::isFile($filePath)) {
+        Core\IO::remove($filePath);
+    }
+}
+foreach ($held as string $entry) {
+    string $folderPath = Core\Path::join($wide, $entry);
+    if (Core\IO::exists($folderPath)) {
+        Core\IO::removeDir($folderPath);
+    }
+}
+Core\IO::removeDir($wide);
+uint $kept = 0;
+foreach ($held as string $entry) {
+    $kept = $kept + 1;
+}
+if ($kept != 5050) {
+    throw new LogicError('a deleted tree changed a result already returned');
+}
+echo 'step 4: done', "\n";
+
+// 5. Paths that are not a folder. Each must throw an `IOError`.
+string $plain = Core\Path::join($dir, 'file.txt');
+Core\IO::write($plain, 'x');
+array<string> $bad = [
+    '',
+    $plain,
+    $wide,
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($plain, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        foreach (Core\IO::walk($badPath) as string $entry) {
+        }
+        throw new LogicError('a path that is not a folder was walked');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 5: done', "\n";

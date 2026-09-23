@@ -1,0 +1,33 @@
+<?nvs
+// Shows what `Core\IO::walk` returns for empty folders, and what happens when the path is a file.
+
+class Tree {
+    // Returns how many entries `walk` finds under `$path`.
+    public static function count(string $path): int {
+        int $count = 0;
+        foreach (Core\IO::walk($path) as string $entry) {
+            $count = $count + 1;
+        }
+        return $count;
+    }
+}
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "archive");
+Core\IO::makeDir(Core\Path::join($dir, "2024"));
+
+// "2024" is empty, so this prints "2024: 0".
+echo "2024: ", Tree::count(Core\Path::join($dir, "2024")), "\n";
+
+// A folder is an entry too. "archive" contains only the empty folder "2024",
+// so this prints "archive: 1".
+echo "archive: ", Tree::count($dir), "\n";
+
+// "notes.txt" is a file, not a folder. `walk` throws an `IOError`,
+// and this prints "not a folder".
+string $file = Core\Path::join($dir, "notes.txt");
+Core\IO::write($file, "hello\n");
+try {
+    Tree::count($file);
+} catch (IOError $e) {
+    echo "not a folder", "\n";
+}

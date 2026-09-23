@@ -4385,6 +4385,129 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// `Core\IO::walk(path)` under `ctx`, answering the entries of the `Iterable<string>` it
+    /// returned in the order it holds them, each spelled with `/`, or the message the refusal
+    /// left.
+    fn walked(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
+        let answer = call_with(nvs_core_io_walk, ctx, &[spelled(path)])?;
+        assert!(
+            crate::instance::is_instance(answer, &WALK),
+            "`walk` returns its own class"
+        );
+        let held = crate::instance::slot(answer.obj_ptr().expect("an instance"), WALK_SLOT);
+        let entries = crate::str::Elements::of(held.array_ptr().expect("the entries are an array"))
+            .map(|entry| {
+                entry
+                    .as_text()
+                    .expect("an entry is a string")
+                    .replace(std::path::MAIN_SEPARATOR, "/")
+            })
+            .collect();
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the one reference `walk` returned"
+        )]
+        unsafe {
+            answer.release();
+        }
+        Ok(entries)
+    }
+
+    /// `Core\IO::walk` returns every file and folder under the root as a path relative to it,
+    /// and every entry of a folder comes before any entry beneath it. An empty folder walks to
+    /// nothing, a file and a missing name throw naming the member, and a context granting
+    /// `fs.write` alone throws naming `fs.read`.
+    // covers: Core\IO::walk
+    #[test]
+    fn core_io_walk_returns_relative_paths_level_by_level_and_refuses_a_file() {
+        let root = scratch("walk");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("sub").join("deep")).expect("a tree to walk");
+        std::fs::create_dir_all(root.join("empty")).expect("an empty folder");
+        std::fs::write(root.join("a.txt"), b"x").expect("a file at the top");
+        std::fs::write(root.join("sub").join("b.txt"), b"x").expect("a file one level down");
+        std::fs::write(root.join("sub").join("deep").join("c.txt"), b"x").expect("two levels down");
+
+        let mut ctx = reading("1MiB");
+        let entries = walked(&mut ctx, &root).expect("a granted tree answers");
+        let mut sorted = entries.clone();
+        sorted.sort();
+        assert_eq!(
+            sorted,
+            [
+                "a.txt",
+                "empty",
+                "sub",
+                "sub/b.txt",
+                "sub/deep",
+                "sub/deep/c.txt"
+            ],
+            "every entry once, relative to the root, a folder included"
+        );
+        let depth = |entry: &String| entry.matches('/').count();
+        assert!(
+            entries
+                .windows(2)
+                .all(|pair| depth(&pair[0]) <= depth(&pair[1])),
+            "a folder's entries come before the entries beneath it: {entries:?}"
+        );
+        assert_eq!(
+            walked(&mut ctx, &root.join("empty")).expect("an empty folder answers"),
+            Vec::<String>::new()
+        );
+
+        let file = walked(&mut ctx, &root.join("a.txt")).expect_err("a file is not a directory");
+        assert!(file.contains(r"Core\IO::walk"), "{file}");
+        let missing = walked(&mut ctx, &root.join("missing")).expect_err("nothing to walk");
+        assert!(missing.contains(r"Core\IO::walk"), "{missing}");
+
+        let refused = walked(&mut writing(), &root).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// `Core\IO::temporaryDir` creates a folder that exists and is empty when the call returns,
+    /// and a second call creates a second folder. A context granting `fs.read` alone throws
+    /// naming `fs.write`.
+    // covers: Core\IO::temporaryDir
+    #[test]
+    fn core_io_temporary_dir_makes_a_new_empty_folder_each_call_and_needs_fs_write() {
+        let made = |ctx: &mut nvs_runtime::Ctx| {
+            call_with(nvs_core_io_temporary_dir, ctx, &[]).map(|value| {
+                let path = std::path::PathBuf::from(value.as_text().expect("a path is a string"));
+                #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                unsafe {
+                    value.release();
+                }
+                path
+            })
+        };
+        let mut ctx = writing();
+        let first = made(&mut ctx).expect("a granted context gets a folder");
+        let second = made(&mut ctx).expect("and a second one");
+        for dir in [&first, &second] {
+            assert!(dir.is_absolute(), "{}", dir.display());
+            assert!(
+                dir.is_dir(),
+                "the folder is made, not only named: {}",
+                dir.display()
+            );
+            assert_eq!(
+                std::fs::read_dir(dir).expect("a folder to read").count(),
+                0,
+                "a new folder is empty"
+            );
+        }
+        assert_ne!(first, second, "each call makes its own folder");
+
+        let refused = made(&mut reading("1MiB")).expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+
+        let _ = std::fs::remove_dir_all(&first);
+        let _ = std::fs::remove_dir_all(&second);
+    }
+
     /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it
     /// returned, in file order, or the message the refusal left.
     fn lined(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
