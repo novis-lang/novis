@@ -1105,8 +1105,8 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and nothing could be resolved — `$base` is not there, \
-                   or no ancestor of the joined path is.",
+            desc: "The capability allowed it and nothing could be resolved — `$base` is not there \
+                   or is not a directory, or no ancestor of the joined path is.",
         },
     ],
 };
@@ -3415,9 +3415,11 @@ nvs_runtime::nvs_helper! {
     /// that. So containment is decided against what the operating system says
     /// the name resolves to and never against the string that came in.
     ///
-    /// **No operating system call happens here.**
     /// `nvs_runtime::capability::canonicalize` is the door, asked once per
-    /// path, and what this body owns is one comparison: `Path::starts_with`,
+    /// path. This body adds one `metadata_if_present` read of the resolved
+    /// base through the same door, so a base that is missing or is a file
+    /// throws an `IOError` rather than being pinned to an ancestor the way a
+    /// missing `$path` is. The rest is one comparison: `Path::starts_with`,
     /// which compares whole components and so does not accept `/base-more`
     /// under `/base` the way a byte-wise prefix test would.
     ///
@@ -3431,6 +3433,20 @@ nvs_runtime::nvs_helper! {
         let given = Path::new(text(&args[0], "within", "base")?);
         let candidate = text(&args[1], "within", "path")?;
         let base = nvs_runtime::capability::canonicalize(ctx, given, MEMBER)?;
+        // The resolution pins a missing name to its deepest existing ancestor,
+        // which is right for `$path` and wrong for `$base`: a folder that is
+        // not there contains nothing, so it throws rather than answering.
+        let folder = nvs_runtime::capability::metadata_if_present(ctx, &base, MEMBER)?;
+        if !folder.is_some_and(|stat| stat.is_dir()) {
+            return Err(nvs_runtime::capability::io_failure(
+                MEMBER,
+                given,
+                &std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "the base is not an existing directory",
+                ),
+            ));
+        }
         let resolved =
             nvs_runtime::capability::canonicalize(ctx, &base.join(candidate), MEMBER)?;
         if !resolved.starts_with(&base) {
@@ -4506,6 +4522,74 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&first);
         let _ = std::fs::remove_dir_all(&second);
+    }
+
+    /// `Core\IO::within` returns the resolved path of a name inside the base, the same one
+    /// through a `..` that comes back, and one for a name not created yet. A `..` past the base
+    /// and a sibling whose name starts like the base throw naming the rule. A base that is
+    /// missing or is a file throws naming the member, and a context granting `fs.write` alone
+    /// throws naming `fs.read`.
+    // covers: Core\IO::within
+    #[test]
+    fn core_io_within_resolves_inside_the_base_and_refuses_an_escape_or_a_missing_base() {
+        let root = scratch("within");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(scratch("within-more"));
+        std::fs::create_dir_all(root.join("sub")).expect("a base with a folder in it");
+        std::fs::write(root.join("sub").join("a.txt"), b"x").expect("a file inside the base");
+        let within = |ctx: &mut nvs_runtime::Ctx, base: &std::path::Path, path: &str| {
+            call_with(nvs_core_io_within, ctx, &[spelled(base), path]).map(|value| {
+                let answer = value.as_text().expect("a path is a string").to_owned();
+                #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                unsafe {
+                    value.release();
+                }
+                answer
+            })
+        };
+
+        let mut ctx = reading("1MiB");
+        let file = within(&mut ctx, &root, "sub/a.txt").expect("a name inside the base");
+        let file = std::path::PathBuf::from(file);
+        assert!(file.is_absolute(), "{}", file.display());
+        assert!(file.ends_with("sub/a.txt"), "{}", file.display());
+        assert_eq!(
+            within(&mut ctx, &root, "sub/../sub/a.txt").expect("a detour that comes back"),
+            file.to_string_lossy(),
+            "a `..` that stays inside resolves to the same path"
+        );
+        let fresh = within(&mut ctx, &root, "sub/new.txt").expect("a name not created yet");
+        assert!(fresh.ends_with("new.txt"), "{fresh}");
+        assert!(
+            !std::path::Path::new(&fresh).exists(),
+            "answering creates nothing"
+        );
+
+        for escape in [
+            "../outside.txt",
+            "sub/../../outside.txt",
+            "../within-more/a.txt",
+        ] {
+            let refused = within(&mut ctx, &root, escape).expect_err("a name outside the base");
+            assert!(
+                refused.contains("a path must stay inside the base"),
+                "{escape}: {refused}"
+            );
+        }
+
+        for base in [root.join("missing"), root.join("sub").join("a.txt")] {
+            let refused = within(&mut ctx, &base, "x.txt").expect_err("not a folder to stay in");
+            assert!(refused.contains(r"Core\IO::within"), "{refused}");
+            assert!(
+                !refused.contains("must stay inside"),
+                "a missing base is not an escape: {refused}"
+            );
+        }
+
+        let refused = within(&mut writing(), &root, "sub/a.txt").expect_err("`fs.write` only");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it

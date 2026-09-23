@@ -11806,7 +11806,7 @@ Resolves `$path` against `$base` and then **proves** the answer is still under i
 
 **Returns** `string` — The resolved absolute path, as a plain `string`. Every `..`, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.
 
-**Throws** `RuntimeError` — The resolved path is not inside `$base`. The message names the base and the argument and never where the argument led, so a refusal discloses nothing about a symlink's target. A configuration that does not grant `fs.read` for either path refuses earlier, in the same class.; `IOError` — The capability allowed it and nothing could be resolved — `$base` is not there, or no ancestor of the joined path is.
+**Throws** `RuntimeError` — The resolved path is not inside `$base`. The message names the base and the argument and never where the argument led, so a refusal discloses nothing about a symlink's target. A configuration that does not grant `fs.read` for either path refuses earlier, in the same class.; `IOError` — The capability allowed it and nothing could be resolved — `$base` is not there or is not a directory, or no ancestor of the joined path is.
 
 <a id="core-core-io-readtext"></a>
 #### `Core\IO::readText`
