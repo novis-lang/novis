@@ -1,0 +1,61 @@
+<?nvs
+// Attack: documents with very deep nesting, tricky markup and a huge size are cleaned.
+// No step may crash the runtime, and no step may return a script. The last step stops
+// the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+class Check
+{
+    // Prints the length of the result, and stops the program if the result has a script or an event handler.
+    public static function clean(string $step, Core\Html\Markup $result): void
+    {
+        string $text = Core\Html::toSource($result, 'the attack reads the result');
+        if (Core\Str::contains($text, '<script') || Core\Str::contains($text, 'onerror') || Core\Str::contains($text, 'javascript:')) {
+            throw new LogicError($step . ': the result still has a script');
+        }
+        echo $step, ': ', Core\Str::length($text), "\n";
+    }
+}
+
+// 1. One hundred thousand `div` tags, each inside the one before. `div` is allowed, so every one is kept.
+Check::clean('step 1', Core\Html::sanitize(Core\Str::repeat('<div>', 100000) . 'bottom'));
+
+// 2. One hundred thousand `font` tags, each inside the one before. `font` is not allowed, so every tag is removed.
+Check::clean('step 2', Core\Html::sanitize(Core\Str::repeat('<font>', 100000) . 'bottom'));
+
+// 3. Markup that changes its meaning when it is parsed a second time.
+array<string> $tricky = [
+    '<noscript><p title="</noscript><img src=x onerror=alert(1)>">',
+    '<svg></p><style><a id="</style><img src=x onerror=alert(1)>">',
+    '<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>',
+    '<!--><img src=x onerror=alert(1)>-->',
+    '<a href="java&#9;script:alert(1)">x</a>',
+    '<template><script>alert(1)</script></template>',
+];
+foreach ($tricky as tainted string $piece) {
+    Core\Html\Markup $once = Core\Html::sanitize($piece);
+    Check::clean('step 3', $once);
+    // Cleaning the result a second time must give the same result.
+    string $first = Core\Html::toSource($once, 'the attack compares two results');
+    string $second = Core\Html::toSource(Core\Html::sanitize($first), 'the attack compares two results');
+    if ($first != $second) {
+        throw new LogicError('step 3: a second clean changed the result');
+    }
+}
+
+// 4. One link with one hundred thousand attributes, and one hundred thousand links to `javascript:`.
+string $attributes = '';
+int $i = 0;
+while ($i < 100000) {
+    $attributes = $attributes . ' on' . $i . '=x';
+    $i = $i + 1;
+}
+Check::clean('step 4', Core\Html::sanitize('<a href="/"' . $attributes . '>x</a>'));
+Check::clean('step 4', Core\Html::sanitize(Core\Str::repeat('<a href="javascript:alert(1)">x</a>', 100000)));
+
+// 5. A document with ten million paragraphs. This step ends the program at its memory limit.
+Check::clean('step 5', Core\Html::sanitize(Core\Str::repeat('<p>x', 10000000)));

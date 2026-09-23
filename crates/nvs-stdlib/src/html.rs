@@ -1862,6 +1862,47 @@ mod tests {
         }
     }
 
+    /// `Core\Html::sanitize` end to end through the boundary compiled code
+    /// reaches it at: a raw-text element goes with its content, an element the
+    /// list lacks leaves its text behind, an attribute the list does not grant
+    /// and a `href` naming a scheme that runs are not written, and the
+    /// wrapper the parse adds round a fragment is not in the answer. Handing
+    /// the answer's own bytes back changes nothing, which is the fixed point
+    /// the member is written around, asked here of the carrier a program gets.
+    // covers: Core\Html::sanitize
+    #[test]
+    fn html_sanitize_rebuilds_a_fragment_and_its_answer_is_a_fixed_point() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let document = Value::str(NvsStr::new(
+            b"<p onclick=x() class=c>Hi <b>there</b><script>alert(1)</script></p>\
+              <font>kept</font> <a href=\" javascript:alert(1)\">a</a> <a href=/help>b</a>",
+        ));
+        let once = call(super::nvs_core_html_sanitize, &mut ctx, &[document])
+            .expect("the rebuild has no failure mode");
+        let written = carried(once);
+        assert_eq!(
+            written,
+            "<p>Hi <b>there</b></p>kept <a>a</a> <a href=\"/help\">b</a>"
+        );
+
+        let again = Value::str(NvsStr::new(written.as_bytes()));
+        let twice = call(super::nvs_core_html_sanitize, &mut ctx, &[again])
+            .expect("the rebuild has no failure mode");
+        assert_eq!(carried(twice), written);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            twice.release();
+            again.release();
+            once.release();
+            document.release();
+        }
+    }
+
     /// `rule:core-classes/html-auto-escape`'s carrier, in the two facts neither crate that acts on it
     /// can check for itself: `nvs_runtime::CARRIER_TEXT_SLOT` is the index
     /// this class's registered layout gives `text`, and this class's name is

@@ -1,0 +1,13 @@
+<?nvs
+// Shows which attributes of a link and an image `Core\Html::sanitize` keeps.
+
+// An `http` or `https` address in `href` is kept. The `onclick`, `class` and `target`
+// attributes are removed, because a link only needs its address.
+echo Core\Html::sanitize('<a href="https://example.com/help" onclick="steal()" class="button" target="_blank">Help</a>'), "\n";
+
+// A `javascript:` address runs code when somebody clicks the link.
+// So the `href` is removed, and the link text stays.
+echo Core\Html::sanitize('<a href="javascript:alert(1)">Click me</a>'), "\n";
+
+// An image keeps `src` and `alt`. The `onerror` attribute runs code, so it is removed.
+echo Core\Html::sanitize('<img src="/images/cake.png" alt="A cake" onerror="steal()">'), "\n";
