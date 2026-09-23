@@ -3679,6 +3679,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   probe into a proof tree the root file already grants (`docs/examples/core/IO-File/` has
   `read = true, write = true`), run it there, and delete it at once.
   [until: reviewed 2026-09-23]
+- **A side goal's worktree has none of the git-ignored fixtures the main checkout holds, so a floor check reading one fails there with `E0605`.** `tests/db/ca.crt` is a copy of a Docker volume's certificate that `nvs.toml` names for the fixtures and that `.gitignore` keeps out of git, so `nvs queue migrate` in `.agent-tmp/worktrees/side/<slug>` reports `cannot read ... tests/db/ca.crt` while the same check is green on `main`. Copy it from the main checkout (`cp D:/mwl/tests/db/ca.crt tests/db/ca.crt`) before reading the failure as work the goal owes. [until: reviewed 2026-10-23]
 
 ## Writing a test case
 
