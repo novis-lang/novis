@@ -11655,7 +11655,7 @@ Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for 
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.read` for the source or `fs.write` for the destination; both are checked before either is used, so a refusal copies nothing.; `IOError` — The capability allowed it and the operating system did not — nothing at the source, a destination directory that is not there, or a permission the process lacks. The message names both ends.
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for the source or `fs.write` for the destination; both are checked before either is used, so a refusal copies nothing.; `IOError` — The capability allowed it and the operating system did not — nothing at the source, a destination directory that is not there, or a permission the process lacks. A destination that is the source file itself, under any spelling, throws too and leaves the file as it was. The message names both ends.
 
 <a id="core-core-io-move"></a>
 #### `Core\IO::move`

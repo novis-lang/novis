@@ -6919,6 +6919,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   namespace with its card's `short`, so the `nvs-lsp` coverage test fails only at `verify.py`.
   Add the new `short` to that case's line for the class in the same slice as the card.
   [until: gone crates/nvs-stdlib/src/registry.rs:CLASSES_STILL_OWING_A_CARD]
+- **A `Core\IO` proof that walks `..` through a name that does not exist prints differently on Windows and Linux.** Windows removes `missing/..` from the text before it looks at the disk, so `Core\IO::canonicalize` resolves it there and throws an `IOError` under Linux, and Linux also throws for any path over 4096 bytes where Windows does not. Create every directory a `..` climbs out of, keep a path the example prints under 4096 bytes, and run a new `Core\IO` proof once with `/var/tmp/nvs-target-wsl/debug/nvs` before blessing it. [until: reviewed 2026-10-23]
 
 ## Splitting a file that got too big
 
