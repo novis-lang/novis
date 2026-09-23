@@ -17,6 +17,8 @@ error, so the failure is at deploy time rather than in a sent message.
 the unit it just compiled builds an absolute link. One entry serves every tenant a `scan` glob
 enumerated, so the same unit is a refusal under a row that resolved no origin and a start under the row
 beside it. A served request then receives its mount's origin on the isolate that answers it, because a
-process serving many mounts has no one origin its accept loop could hold. A mount and its origin cannot
+process serving many mounts has no one origin its accept loop could hold. A mount's own `origin` cannot
 change under a running process — `[server]` is `Boot`-class as a whole
-(`rule:http-server/the-server-block-is-boot-class`) — so the boot is the only place the question arises.
+(`rule:http-server/the-server-block-is-boot-class`). `[[app]] origin` can: a reload that moves it is
+folded into the rows again, and the same check is asked of every row whose origin changed, so a row that
+no longer resolves one is left out of the table and the reason is logged.

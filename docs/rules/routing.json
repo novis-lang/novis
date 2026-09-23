@@ -514,7 +514,8 @@
         "http-server/the-server-block-is-boot-class"
       ],
       "guardedBy": [
-        "crates/nvs-cli/src/serve.rs"
+        "crates/nvs-cli/src/serve.rs",
+        "crates/nvs-cli/tests/live_config.rs"
       ]
     },
     {

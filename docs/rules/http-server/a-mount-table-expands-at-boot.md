@@ -17,5 +17,6 @@ A mount matches on `prefix`, on `host`, or on both, and names **either** `entry`
 The matched prefix is stripped: `Core\Request::path()` is the remainder, `Core\Request::mount()` answers what was removed and the `tainted` captures (`rule:routing/a-request-reads-its-mount`), and `Core\Router::url` prepends the prefix (`rule:routing/link-carries-the-mount-prefix`). A module is therefore relocatable — the same compiled route table serves at `/ModuleA` or at `/` with no recompile. `origin` is per mount, `System`-class and reloadable, with the `[[app]]` block's `origin` as the fallback (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`).
 
 **What is on disk.** All of it for a change on disk (`nvs_cli::serve`'s `mounts`). The expansion
-reads the configuration the server booted on, so a reload that changes `[[server.mount]]`,
-`[server] root` or `[[app]] origin` does not reach the table yet.
+reads the configuration the server booted on, so a reload that changes `[[server.mount]]` or
+`[server] root` does not reach the table yet. A reload that changes `[[app]] origin` does: the next
+pass folds it into the rows again.

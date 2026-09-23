@@ -31,6 +31,15 @@
 //! (`rule:http-server/a-path-is-never-derived-from-a-url`): the rows are still
 //! enumerated from the configuration's globs, only more than once.
 //!
+//! **`[[app]] origin` follows a reload.** Each pass reads it from the tree a
+//! reload published last. Where it moved, the pass folds it into the rows the
+//! last expansion gave (`super::fall_back_to`), asks the origin check of every
+//! row that changed, and publishes. `[[server.mount]]` and `[server] root` are
+//! read from the tree the process booted on, because `[server]` is
+//! `Boot`-class. A named file over a tree that writes no `[[server.mount]]` is
+//! one row that is never expanded again, and its origin follows a reload the
+//! same way.
+//!
 //! **What it spends:** one `stat` per directory the expansion looked in, per
 //! `revalidate_freq`, off the request path. Two sets of rows live during a
 //! swap, and each core rebuilds its table once per swap.
@@ -214,71 +223,65 @@ pub(super) struct Rescan {
     origins: BTreeMap<String, Origin>,
     /// The boot's source map, which a refusal's line is rendered from.
     sources: SourceMap,
+    /// The tree a reload publishes, which `[[app]] origin` is read from.
+    current: Arc<nvs_config::Current>,
+    /// The rows the last expansion gave, before `[[app]] origin` was folded
+    /// into them.
+    written: Vec<Mounted>,
+    /// The `[[app]] origin` the rows standing now were folded with.
+    folded: Option<String>,
     mounts: Arc<Mounts>,
     stamps: BTreeMap<PathBuf, Stamp>,
-    /// What the last expansion logged. An expansion logs only what is not in
-    /// here, so a match that stays refused is logged once and not on every
-    /// pass.
-    said: BTreeSet<String>,
+    /// The refusals the last expansion logged. An expansion logs only what is
+    /// not in here, so a match that stays refused is logged once and not on
+    /// every pass.
+    refused: BTreeSet<String>,
+    /// The origin sentences the last fold logged, kept for the same reason.
+    unreached: BTreeSet<String>,
 }
 
 impl Rescan {
-    /// The expansion that follows boot's, which took `stamps`.
+    /// The expansion that follows boot's, which gave `written` and took
+    /// `stamps`. Boot folded `snapshot`'s `[[app]] origin` into the rows.
     pub(super) fn new(
         snapshot: Arc<nvs_config::Snapshot>,
         origins: BTreeMap<String, Origin>,
         sources: SourceMap,
+        current: Arc<nvs_config::Current>,
         mounts: Arc<Mounts>,
+        written: Vec<Mounted>,
         stamps: BTreeMap<PathBuf, Stamp>,
     ) -> Self {
+        let folded = snapshot.origin.clone();
         Self {
             snapshot,
             origins,
             sources,
+            current,
+            written,
+            folded,
             mounts,
             stamps,
-            said: BTreeSet::new(),
+            refused: BTreeSet::new(),
+            unreached: BTreeSet::new(),
         }
     }
 
-    /// One pass: nothing while no directory moved, and otherwise the table
-    /// expanded again and published where it changed. The module doc lists
-    /// what happens to each row.
+    /// One pass: nothing while no directory moved and `[[app]] origin` did
+    /// not either, and otherwise the rows folded again and published where
+    /// they changed. The module doc lists what happens to each row.
     ///
     /// Answers how long until a change it held back is quiet, and `None`
     /// where it held none back, as `Compiler::revalidate` does.
     pub(super) fn pass(&mut self, compiler: &Compiler) -> Option<Duration> {
-        let now = SystemTime::now();
-        let moved: Vec<Stamp> = self
-            .stamps
-            .iter()
-            .map(|(dir, was)| (modified(dir), was))
-            .filter(|(is, was)| is != *was)
-            .map(|(is, _)| is)
-            .collect();
-        if moved.is_empty() {
-            return None;
+        let origin = self.current.load().origin.clone();
+        let (expanded, wait) = self.expand(compiler.settle());
+        if !expanded && origin == self.folded {
+            return wait;
         }
-        if let Some(newest) = moved.iter().flatten().filter(|at| **at <= now).max()
-            && let Ok(wait) = (*newest + compiler.settle()).duration_since(now)
-            && !wait.is_zero()
-        {
-            return Some(wait);
-        }
-        let stamping = Stamping::default();
-        let expanded =
-            nvs_config::mount::expand_again(&self.snapshot.config, &self.origins, &stamping);
-        self.stamps = stamping.stamps();
-        let (mut rows, left_out) = match expanded {
-            Ok(both) => both,
-            // The configuration's own problem, which is `[server] root` gone:
-            // the table stays as it is until that directory is back.
-            Err(diagnostic) => {
-                self.log(vec![diagnostic], Vec::new());
-                return None;
-            }
-        };
-        super::fall_back_to(&mut rows, self.snapshot.origin.as_deref());
+        self.folded = origin;
+        let mut rows = self.written.clone();
+        super::fall_back_to(&mut rows, self.folded.as_deref());
         let (_, standing) = self.mounts.rows();
         let mut unreached = Vec::new();
         rows.retain(|row| {
@@ -298,21 +301,70 @@ impl Rescan {
                 Err(_) => true,
             }
         });
-        self.log(left_out, unreached);
+        let mut said = BTreeSet::new();
+        for sentence in unreached {
+            if !self.unreached.contains(&sentence) {
+                eprintln!("warning: left out of the mount table: {sentence}");
+            }
+            said.insert(sentence);
+        }
+        self.unreached = said;
         if *standing != *rows {
             self.mounts.publish(rows);
         }
-        None
+        wait
     }
 
-    /// Writes each refusal and each origin sentence the last pass did not
-    /// already write.
-    fn log(&mut self, refused: Vec<Diagnostic>, unreached: Vec<String>) {
+    /// Expands the configuration's blocks again into [`Self::written`] where a
+    /// directory moved and has been still for `settle`.
+    ///
+    /// Answers whether it expanded, and how long until a directory that moved
+    /// is still. A named file over a tree that writes no `[[server.mount]]`
+    /// stamped no directory, so it is never expanded again.
+    fn expand(&mut self, settle: Duration) -> (bool, Option<Duration>) {
+        let now = SystemTime::now();
+        let moved: Vec<Stamp> = self
+            .stamps
+            .iter()
+            .map(|(dir, was)| (modified(dir), was))
+            .filter(|(is, was)| is != *was)
+            .map(|(is, _)| is)
+            .collect();
+        if moved.is_empty() {
+            return (false, None);
+        }
+        if let Some(newest) = moved.iter().flatten().filter(|at| **at <= now).max()
+            && let Ok(wait) = (*newest + settle).duration_since(now)
+            && !wait.is_zero()
+        {
+            return (false, Some(wait));
+        }
+        let stamping = Stamping::default();
+        let expanded =
+            nvs_config::mount::expand_again(&self.snapshot.config, &self.origins, &stamping);
+        self.stamps = stamping.stamps();
+        match expanded {
+            Ok((rows, left_out)) => {
+                self.log(left_out);
+                self.written = rows;
+                (true, None)
+            }
+            // The configuration's own problem, which is `[server] root` gone:
+            // the rows stay as they are until that directory is back.
+            Err(diagnostic) => {
+                self.log(vec![diagnostic]);
+                (false, None)
+            }
+        }
+    }
+
+    /// Writes each refusal the last expansion did not already write.
+    fn log(&mut self, refused: Vec<Diagnostic>) {
         let mut said = BTreeSet::new();
         let mut diags = Diagnostics::new();
         for diagnostic in refused {
             let message = diagnostic.message.clone();
-            if !self.said.contains(&message) {
+            if !self.refused.contains(&message) {
                 diags.report(diagnostic);
             }
             said.insert(message);
@@ -323,12 +375,6 @@ impl Rescan {
             );
             crate::render_diagnostics(&mut diags, &self.sources);
         }
-        for sentence in unreached {
-            if !self.said.contains(&sentence) {
-                eprintln!("warning: left out of the mount table: {sentence}");
-            }
-            said.insert(sentence);
-        }
-        self.said = said;
+        self.refused = said;
     }
 }

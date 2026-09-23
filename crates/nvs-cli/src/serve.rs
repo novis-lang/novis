@@ -376,8 +376,8 @@ pub(crate) fn run(
     // looked in are stamped before it looked: those stamps are where the
     // background expansion below starts comparing from.
     let stamping = mounts::Stamping::default();
-    let mut mounts = match table_for(path, &snapshot, &origins, &stamping) {
-        Ok(mounts) => mounts,
+    let written = match table_for(path, &snapshot, &origins, &stamping) {
+        Ok(written) => written,
         Err(NoTable::Reported(diagnostic)) => return report(*diagnostic, &sources),
         Err(NoTable::Said(refusal)) => {
             eprintln!("error: {refusal}");
@@ -387,7 +387,9 @@ pub(crate) fn run(
     // `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback,
     // folded into the rows once and here, so that every reader below — the boot
     // check and the door alike — has one field to read and cannot disagree
-    // about which of the two keys applied.
+    // about which of the two keys applied. The rows as written are kept too,
+    // for the fold a reload of `[[app]] origin` asks for (`mounts`'s module doc).
+    let mut mounts = written.clone();
     fall_back_to(&mut mounts, snapshot.origin.as_deref());
     // What the boot's last lines say is being served: the file as it was typed,
     // or the size of the table where none was.
@@ -435,26 +437,27 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
-    // The rows every core answers from. A tree that writes `[[server.mount]]`
-    // has them expanded again as its directories change, on the same thread
-    // as the check below (`mounts`'s module doc). A named file over a tree
-    // that writes none is one row, and that row never changes.
+    // The rows every core answers from, on the same thread as the check below
+    // (`mounts`'s module doc). A tree that writes `[[server.mount]]` has them
+    // expanded again as its directories change. A named file over a tree that
+    // writes none is one row. Either way a reload that moves `[[app]] origin`
+    // folds it into the rows again.
     let shared = Arc::new(mounts::Mounts::new(mounts.clone()));
-    let rescan: Option<crate::script::Also> = writes_mounts(&snapshot).then(|| {
-        let mut rescan = mounts::Rescan::new(
-            Arc::clone(&snapshot),
-            origins,
-            sources,
-            Arc::clone(&shared),
-            stamping.stamps(),
-        );
-        Box::new(move |compiler: &Compiler| rescan.pass(compiler)) as crate::script::Also
-    });
+    let mut rescan = mounts::Rescan::new(
+        Arc::clone(&snapshot),
+        origins,
+        sources,
+        Arc::clone(&current),
+        Arc::clone(&shared),
+        written,
+        stamping.stamps(),
+    );
+    let rescan: crate::script::Also = Box::new(move |compiler: &Compiler| rescan.pass(compiler));
     let mounts = shared;
     // From here an edit reaches the server through this thread and no request:
     // a request resolves a path to the unit its pointer names, and this check
     // is what moves the pointer (`crate::script::watch`). Held for the run.
-    let _watching = crate::script::watch(&compiler, rescan);
+    let _watching = crate::script::watch(&compiler, Some(rescan));
 
     // Every socket this process opens, in the one order [`bind_sockets`] owns:
     // the control endpoint, then every address the set named — all of it before
@@ -1895,9 +1898,10 @@ fn writes_mounts(snapshot: &nvs_config::Snapshot) -> bool {
 /// that must not disagree. From here down, `Mounted::origin` is *the* origin
 /// this mount resolved, whichever key wrote it.
 ///
-/// The `[app]` half is the boot snapshot's, which is the one this command
-/// resolved for the entry it was told to serve — the same value `nvs run`
-/// installs for that file. A mount whose entry matches a different `[[app]]`
+/// The `[app]` half is from the snapshot this command resolved for the entry
+/// it was told to serve — the same value `nvs run` installs for that file. At
+/// boot that is the boot snapshot, and after a reload it is the snapshot the
+/// reload published (`mounts::Rescan::pass`). A mount whose entry matches a different `[[app]]`
 /// block than the served one does not get that block's origin yet, which is
 /// this command's per-application gap and not this key's.
 fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
