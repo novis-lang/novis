@@ -3680,6 +3680,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `read = true, write = true`), run it there, and delete it at once.
   [until: reviewed 2026-09-23]
 - **A side goal's worktree has none of the git-ignored fixtures the main checkout holds, so a floor check reading one fails there with `E0605`.** `tests/db/ca.crt` is a copy of a Docker volume's certificate that `nvs.toml` names for the fixtures and that `.gitignore` keeps out of git, so `nvs queue migrate` in `.agent-tmp/worktrees/side/<slug>` reports `cannot read ... tests/db/ca.crt` while the same check is green on `main`. Copy it from the main checkout (`cp D:/mwl/tests/db/ca.crt tests/db/ca.crt`) before reading the failure as work the goal owes. [until: reviewed 2026-10-23]
+- **A background thread that takes its first baseline inside its own closure can take it after the event it is meant to notice.** The configuration check read its boot stamps as the spawned thread's first statement, and under the driver's loaded acceptance run that statement ran after a live case had already saved `nvs.toml`, so the save was never noticed and two cases timed out with nothing logged. Take the baseline on the spawning thread before `spawn` (as `crate::control::check` in `crates/nvs-cli/src/control.rs` now does), and read a live case that passes alone but fails under the driver as a startup race before calling it slow. [until: reviewed 2026-09-23]
 
 ## Writing a test case
 

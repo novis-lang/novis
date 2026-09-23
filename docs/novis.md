@@ -27198,12 +27198,6 @@ long-running host — at a reload, or only at boot.
 | `server.workers` | operator only — a request cannot change it | at boot only |
 | `server.root` | operator only — a request cannot change it | at boot only |
 | `server.mount` | operator only — a request cannot change it | at boot only |
-| `server.header_timeout` | operator only — a request cannot change it | at boot only |
-| `server.body_idle_timeout` | operator only — a request cannot change it | at boot only |
-| `server.write_idle_timeout` | operator only — a request cannot change it | at boot only |
-| `server.keepalive_timeout` | operator only — a request cannot change it | at boot only |
-| `server.drain_timeout` | operator only — a request cannot change it | at boot only |
-| `server.connection` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `opcache.file_cache_dir` | operator only — a request cannot change it | at boot only |
 | `session` | operator only — a request cannot change it | at boot only |
