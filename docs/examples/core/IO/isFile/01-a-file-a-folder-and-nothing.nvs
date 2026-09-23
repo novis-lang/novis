@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\IO::isFile` returns for a file, a folder and a path with nothing at it.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "notes.txt");
+Core\IO::write($file, "hello");
+
+// A file. This prints "true".
+echo Core\IO::isFile($file) ? "true" : "false", "\n";
+
+// A folder is not a file. This prints "false".
+echo Core\IO::isFile($dir) ? "true" : "false", "\n";
+
+// Nothing has this name. `isFile` does not throw an error. This prints "false".
+echo Core\IO::isFile(Core\Path::join($dir, "missing.txt")) ? "true" : "false", "\n";

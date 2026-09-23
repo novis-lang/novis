@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program checks names that look like files but are folders, and names that cannot exist.
+// `isFile` must return the right answer or throw an error, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+string $fake = Core\Path::join($dir, 'report.pdf');
+Core\IO::makeDir($fake);
+
+// 1. A folder with a file name. `isFile` must return `false`, and reading it must throw an `IOError`.
+if (Core\IO::isFile($fake)) {
+    throw new LogicError('a folder was taken for a file');
+}
+try {
+    Core\IO::read($fake);
+    throw new LogicError('a folder was read as a file');
+} catch (IOError $notAFile) {
+}
+echo 'step 1: done', "\n";
+
+// 2. Names that cannot be a file. Each must return `false` or throw an `IOError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte.txt"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($fake, Core\Str::repeat('a/../', 2000)),
+    Core\Path::join($dir, Core\Str::repeat('../', 5000)),
+];
+foreach ($bad as string $badPath) {
+    try {
+        if (Core\IO::isFile($badPath)) {
+            throw new LogicError('a path that is not a file was taken for one');
+        }
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. The same name is a file, then a folder, then a file again, 2000 times.
+// Every check must see what is there at that moment.
+string $name = Core\Path::join($dir, 'changing');
+int $i = 0;
+while ($i < 2000) {
+    Core\IO::write($name, 'x');
+    if (!Core\IO::isFile($name)) {
+        throw new LogicError('a new file was not seen');
+    }
+    Core\IO::remove($name);
+    Core\IO::makeDir($name);
+    if (Core\IO::isFile($name)) {
+        throw new LogicError('a new folder was taken for a file');
+    }
+    Core\IO::removeDir($name);
+    $i = $i + 1;
+}
+echo 'step 3: done', "\n";
