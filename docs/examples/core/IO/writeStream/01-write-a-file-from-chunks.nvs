@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to write a file from a list of chunks with `Core\IO::writeStream`.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "message.txt");
+
+// Each chunk is a piece of the file. They are written in this order.
+array<bytes> $chunks = ["Hello, " as bytes, "world" as bytes, "!\n" as bytes];
+Core\IO::writeStream($path, $chunks);
+
+// The file has all the chunks, one after the other. This prints "Hello, world!".
+echo Core\IO::read($path);

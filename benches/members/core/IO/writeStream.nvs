@@ -1,0 +1,27 @@
+<?nvs
+// Saves a small file from three chunks, as a program does when it stores an uploaded file.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $chunks = ["first part, " as bytes, "second part, " as bytes, "last part\n" as bytes];
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, "upload-a.bin"),
+            Core\Path::join($dir, "upload-b.bin"),
+            Core\Path::join($dir, "upload-c.bin"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file in each round depends on the round before, so no round can be left out.
+            string $path = $paths[(($total + $i) % 3) as int];
+            Core\IO::writeStream($path, $chunks, {overwrite: true});
+            $total = $total + Core\IO::size($path);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000) > 0 ? "done" : "nothing was written", "\n";
