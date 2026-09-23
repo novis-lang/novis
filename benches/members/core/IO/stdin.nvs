@@ -1,0 +1,13 @@
+<?nvs
+// Reads a list of 2000 orders sent to standard input, as a command-line tool does with a piped file.
+// bench: iterations 1
+
+class Bench {
+    public static function run(): uint {
+        // The input is the file `stdin.in` beside this one. It can be read only once.
+        tainted string $input = Core\IO::stdin();
+        return Core\Str::length($input);
+    }
+}
+
+echo Bench::run() > 0 ? "done" : "no input was read", "\n";

@@ -1,0 +1,30 @@
+<?nvs
+// Attack: the input sent to the program has a NUL byte and bytes that are not UTF-8.
+// Then the program reads its input again many times. Each read must return a string
+// or throw an error, and must not crash.
+
+// 1. The input is the file `01-input-that-is-not-text.in` beside this one. It is not
+// valid UTF-8, so `Core\IO::stdin` must throw a `RuntimeError`.
+try {
+    Core\IO::stdin();
+    throw new LogicError('input that is not text was returned as a string');
+} catch (RuntimeError $notText) {
+}
+echo 'step 1: done', "\n";
+
+// 2. The input was read once, so every later call must return "".
+uint $round = 0;
+while ($round < 100000) {
+    if (Core\IO::stdin() != '') {
+        throw new LogicError('the input was read a second time');
+    }
+    $round = $round + 1;
+}
+echo 'step 2: done', "\n";
+
+// 3. The empty result is used like any other string.
+tainted string $empty = Core\IO::stdin();
+if (Core\Arr::count(Core\Str::lines($empty)) > 1 || Core\Str::length($empty) != 0) {
+    throw new LogicError('the empty input has content');
+}
+echo 'step 3: done', "\n";

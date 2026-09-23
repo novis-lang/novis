@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the text that was sent to a program's standard input.
+// Start it with `nvs run 01-count-the-lines-of-the-input.nvs < notes.txt`.
+// Here the input is the file `01-count-the-lines-of-the-input.in` beside this one.
+
+// `Core\IO::stdin` returns all of the input as one string.
+tainted string $input = Core\IO::stdin();
+
+// `Core\Str::lines` splits the text into lines. This prints 3 and 53.
+array<tainted string> $lines = Core\Str::lines($input);
+echo "lines: ", Core\Arr::count($lines), "\n";
+echo "characters: ", Core\Str::length($input), "\n";
+
+// The last line of the input is printed as it is.
+echo "last line: ", $lines[Core\Arr::count($lines) - 1], "\n";

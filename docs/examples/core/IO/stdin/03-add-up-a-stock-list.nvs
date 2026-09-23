@@ -1,0 +1,32 @@
+<?nvs
+// Shows a small command-line tool that adds up a stock list sent to its input.
+// Start it with `nvs run 03-add-up-a-stock-list.nvs < stock.csv`. Here the input
+// is the file `03-add-up-a-stock-list.in` beside this one.
+
+class Stock {
+    public static function total(tainted string $input): void {
+        int $total = 0;
+        uint $lineNumber = 0;
+        foreach (Core\Str::lines($input) as tainted string $line) {
+            $lineNumber = $lineNumber + 1;
+            // Each line is a product and a count, separated by a `;`.
+            array<tainted string> $cells = Core\Str::split($line, ";");
+            if (Core\Arr::count($cells) != 2) {
+                echo "line ", $lineNumber, " is skipped: it needs two fields\n";
+                continue;
+            }
+            // `as ?int` converts the text to a whole number. If that is not possible,
+            // the result is `null`.
+            ?int $count = Core\Str::trim($cells[1]) as ?int;
+            if ($count == null) {
+                echo "line ", $lineNumber, " is skipped: '", $cells[1], "' is not a number\n";
+                continue;
+            }
+            $total = $total + $count;
+        }
+        // This prints 57.
+        echo "items in stock: ", $total, "\n";
+    }
+}
+
+Stock::total(Core\IO::stdin());

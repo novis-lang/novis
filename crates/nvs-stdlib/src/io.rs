@@ -1218,11 +1218,18 @@ const STDIN_DOC: MethodDoc = MethodDoc {
           is already closed, which is what a program started with no input sees. Input ends when \
           its writer ends it, so at a terminal this waits for the person there; a program that \
           means to ask someone a question uses `Core\\Cli`'s prompts, which have a deadline.",
-    errors: &[ErrorDoc {
-        error: "IOError",
-        desc: "The operating system failed the read — the pipe's writer died, or the \
+    errors: &[
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system failed the read — the pipe's writer died, or the \
                    descriptor was not open for reading.",
-    }],
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The input is not valid UTF-8. The message gives the position of the first \
+                   byte that is not text.",
+        },
+    ],
 };
 
 /// `Core\IO\FileMode`'s fully-qualified name, in one place for the same reason
@@ -2168,12 +2175,20 @@ nvs_runtime::nvs_helper! {
     /// request's memory limit like [`nvs_core_io_read`]'s and bounded by the
     /// same number rather than by a second one.
     fn nvs_core_io_stdin(_ctx, _args: [0]) {
-        let mut bytes = Vec::new();
-        std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut bytes).map_err(|err| {
-            nvs_runtime::capability::io_failure("Core\\IO::stdin", Path::new("<stdin>"), &err)
-        })?;
-        text_of(&bytes, "Core\\IO::stdin")
+        read_to_text(&mut std::io::stdin().lock())
     }
+}
+
+/// [`nvs_core_io_stdin`]'s whole answer, over any reader: every byte until end
+/// of input, checked as text by [`text_of`]. The member hands it the process's
+/// standard input; a test hands it a `Cursor`, since a test cannot choose what
+/// its own process's standard input holds.
+fn read_to_text(input: &mut impl std::io::Read) -> Result<Value, Fault> {
+    let mut bytes = Vec::new();
+    input.read_to_end(&mut bytes).map_err(|err| {
+        nvs_runtime::capability::io_failure("Core\\IO::stdin", Path::new("<stdin>"), &err)
+    })?;
+    text_of(&bytes, "Core\\IO::stdin")
 }
 
 nvs_runtime::nvs_helper! {
@@ -4863,5 +4878,65 @@ mod tests {
         assert_eq!(std::fs::read(&path).expect("the file"), b"kept");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO::stdin` returns every byte of its input as one string, and an input that has
+    /// already ended gives the empty string. Input that is not UTF-8 throws a `RuntimeError`
+    /// naming the byte where the text stops, and a failed read throws an `IOError` naming the
+    /// member.
+    // covers: Core\IO::stdin
+    #[test]
+    fn core_io_stdin_reads_to_the_end_and_refuses_input_that_is_not_text() {
+        let text_of_input = |input: &[u8]| {
+            let value = read_to_text(&mut std::io::Cursor::new(input.to_vec()))
+                .unwrap_or_else(|fault| panic!("{input:?} is text: {fault:?}"));
+            let answer = value.as_text().expect("the answer is a string").to_owned();
+            #[expect(unsafe_code, reason = "the reader handed back a reference of its own")]
+            unsafe {
+                value.release();
+            }
+            answer
+        };
+        assert_eq!(
+            text_of_input(b"one\ntwo\nCaf\xc3\xa9\n"),
+            "one\ntwo\nCafé\n"
+        );
+        assert_eq!(text_of_input(b""), "");
+
+        let mut once = std::io::Cursor::new(b"only once".to_vec());
+        let first = read_to_text(&mut once).expect("the whole input");
+        let second = read_to_text(&mut once).expect("an input that has ended");
+        assert_eq!(first.as_text(), Some("only once"));
+        assert_eq!(second.as_text(), Some(""));
+        #[expect(unsafe_code, reason = "each read handed back a reference of its own")]
+        unsafe {
+            first.release();
+            second.release();
+        }
+
+        let refused = read_to_text(&mut std::io::Cursor::new(b"ok\0ok\xff".to_vec()))
+            .expect_err("a byte that is never UTF-8 is not text");
+        let Fault::Thrown(nvs_runtime::ThrownClass::Runtime, message) = refused else {
+            panic!("input that is not text is a catchable `RuntimeError`: {refused:?}");
+        };
+        assert!(
+            message.contains("Core\\IO::stdin") && message.contains("byte 5"),
+            "{message}"
+        );
+
+        struct Broken;
+        impl std::io::Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("the writer went away"))
+            }
+        }
+        let failed = read_to_text(&mut Broken).expect_err("a failed read is not an empty input");
+        let Fault::Thrown(nvs_runtime::ThrownClass::Io, message) = failed else {
+            panic!("a failed read is an `IOError`: {failed:?}");
+        };
+        assert!(
+            message.contains("Core\\IO::stdin") && message.contains("the writer went away"),
+            "{message}"
+        );
     }
 }

@@ -11872,7 +11872,7 @@ Reads everything the program's standard input will produce, in one call — the 
 
 **Returns** `tainted string` — Every byte until end of input, as one `tainted string` — the empty string when input is already closed, which is what a program started with no input sees. Input ends when its writer ends it, so at a terminal this waits for the person there; a program that means to ask someone a question uses `Core\Cli`'s prompts, which have a deadline.
 
-**Throws** `IOError` — The operating system failed the read — the pipe's writer died, or the descriptor was not open for reading.
+**Throws** `IOError` — The operating system failed the read — the pipe's writer died, or the descriptor was not open for reading.; `RuntimeError` — The input is not valid UTF-8. The message gives the position of the first byte that is not text.
 
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`

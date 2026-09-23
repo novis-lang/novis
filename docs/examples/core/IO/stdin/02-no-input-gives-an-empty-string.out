@@ -1,0 +1,3 @@
+No input was given.
+usage: nvs run 02-no-input-gives-an-empty-string.nvs < file.txt
+second call: 0 characters
