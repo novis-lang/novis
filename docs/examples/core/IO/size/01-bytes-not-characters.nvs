@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `Core\IO::size` counts the bytes in a file, not the characters.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "name.txt");
+
+// "Cafe" has four characters and four bytes. This prints 4.
+Core\IO::write($file, "Cafe");
+echo Core\IO::size($file), "\n";
+
+// "Café" has four characters, but "é" takes two bytes. This prints 5.
+Core\IO::write($file, "Café");
+echo Core\IO::size($file), "\n";
+
+// An empty file has a size of 0. This prints 0.
+Core\IO::write($file, "");
+echo Core\IO::size($file), "\n";

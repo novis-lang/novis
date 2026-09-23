@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program measures a large file, a file that grows, a folder, and names with no file at them.
+// `size` must return the right number or throw an `IOError`, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+
+// 1. A file of 4 MiB. The size must be exactly 4194304.
+string $large = Core\Path::join($dir, 'large.bin');
+Core\IO::write($large, Core\Str::repeat('x', 4194304));
+if (Core\IO::size($large) != 4194304) {
+    throw new LogicError('a large file has the wrong size');
+}
+echo 'step 1: done', "\n";
+
+// 2. A file that grows by one byte two thousand times. Each size must match what was written.
+string $log = Core\Path::join($dir, 'app.log');
+Core\IO::write($log, '');
+uint $written = 0;
+while ($written < 2000) {
+    Core\IO::append($log, 'x');
+    $written = $written + 1;
+    if (Core\IO::size($log) != $written) {
+        throw new LogicError('a growing file has the wrong size');
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. A folder. `size` may return a number or throw an `IOError`.
+try {
+    Core\IO::size($dir);
+} catch (IOError $aFolder) {
+}
+echo 'step 3: done', "\n";
+
+// 4. Names with no file at them. Each must throw an `IOError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, 'missing.txt'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($log, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::size($badPath);
+        throw new LogicError('a path with no file had a size');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 4: done', "\n";

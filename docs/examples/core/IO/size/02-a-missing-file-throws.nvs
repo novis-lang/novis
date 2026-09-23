@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `Core\IO::size` throws an `IOError` when there is no file at the path.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "missing.txt");
+
+// A missing file has no size, so `size` throws an error. This prints "no file to measure".
+try {
+    echo Core\IO::size($path), "\n";
+} catch (IOError $e) {
+    echo "no file to measure", "\n";
+}
+
+// You can check with `exists` first. It returns `false`, so this prints "the file does not exist".
+if (Core\IO::exists($path)) {
+    echo "size: ", Core\IO::size($path), "\n";
+} else {
+    echo "the file does not exist", "\n";
+}
