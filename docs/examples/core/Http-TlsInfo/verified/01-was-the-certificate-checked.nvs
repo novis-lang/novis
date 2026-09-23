@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to check whether the server's certificate was checked for a reply.
+
+// `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
+// without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
+Core\Test::answerHttp("https://api.example.com/health", 200, {tls: Core\Test::tlsSession({})});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://api.example.com/health")->tls();
+
+// `verified()` returns `true` when the certificate and the server name were both
+// checked. A test connection is checked by default, so this prints `checked`.
+if ($info != null) {
+    echo $info->verified() ? "checked" : "not checked", "\n";
+}

@@ -1,0 +1,28 @@
+<?nvs
+// Shows an audit that allows one partner server to skip the certificate check,
+// and reports every other server that skipped it.
+
+// Fixed replies with TLS connections built for a test, so the example runs without
+// a network. Two servers skip the check, and only `legacy.example.com` may do that.
+Core\Test::answerHttp("https://legacy.example.com/orders", 200, {tls: Core\Test::tlsSession({verified: false})});
+Core\Test::answerHttp("https://shop.example.com/orders", 200, {tls: Core\Test::tlsSession({})});
+Core\Test::answerHttp("https://stock.example.com/orders", 200, {tls: Core\Test::tlsSession({verified: false})});
+
+string $allowed = "legacy.example.com";
+array<string> $hosts = ["legacy.example.com", "shop.example.com", "stock.example.com"];
+
+// The loop calls every server. It reports a server that skipped the check,
+// unless that server is the allowed one.
+uint $problems = 0;
+foreach ($hosts as string $host) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get("https://" . $host . "/orders")->tls();
+    if ($info != null) {
+        if (!$info->verified() && $host != $allowed) {
+            echo "not allowed: ", $host, " skipped the check\n";
+            $problems = $problems + 1;
+        }
+    }
+}
+
+// This prints `not allowed: stock.example.com skipped the check` and then `problems: 1`.
+echo "problems: ", $problems, "\n";

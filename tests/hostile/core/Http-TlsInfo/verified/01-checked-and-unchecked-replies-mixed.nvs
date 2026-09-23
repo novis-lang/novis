@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program mixes many replies from checked and unchecked connections, and
+// keeps the connections after the replies are gone. Every read of `verified()` must
+// return the value the connection was built with, and nothing may crash or leak.
+
+// 1. Two connections, one checked and one not. Each is read ten thousand times.
+var $checked = Core\Test::tlsSession({});
+var $unchecked = Core\Test::tlsSession({ verified: false });
+uint $yes = 0;
+uint $round = 0;
+while ($round < 10000) {
+    if ($checked->verified()) {
+        $yes = $yes + 1;
+    }
+    if ($unchecked->verified()) {
+        $yes = $yes + 1000000;
+    }
+    $round = $round + 1;
+}
+if ($yes != 10000) {
+    throw new LogicError('an unchecked connection reported a check');
+}
+echo 'step 1: ', $yes, "\n";
+
+// 2. Five thousand replies to two servers. One server's connection is checked and
+//    the other's is not, and every reply must report its own server's connection.
+Core\Test::answerHttp('https://safe.example.com/*', 200, { tls: $checked });
+Core\Test::answerHttp('https://open.example.com/*', 200, { tls: $unchecked });
+array<Core\Http\Response> $replies = [];
+uint $i = 0;
+while ($i < 5000) {
+    string $host = 'safe';
+    if ($i % 2 == 1) {
+        $host = 'open';
+    }
+    $replies[] = Core\Http\Client::get('https://' . $host . '.example.com/items/' . $i);
+    $i = $i + 1;
+}
+uint $safe = 0;
+foreach ($replies as Core\Http\Response $reply) {
+    ?Core\Http\TlsInfo $info = $reply->tls();
+    if ($info != null) {
+        if ($info->verified()) {
+            $safe = $safe + 1;
+        }
+    }
+}
+if ($safe != 2500) {
+    throw new LogicError('a reply reported the wrong connection');
+}
+echo 'step 2: ', $safe, "\n";
+
+// 3. The connections are kept and the replies are deleted. The first two variables
+//    get new, unchecked connections. The kept connections must not change.
+array<?Core\Http\TlsInfo> $kept = [];
+foreach ($replies as Core\Http\Response $reply) {
+    $kept[] = $reply->tls();
+}
+$replies = [];
+$checked = Core\Test::tlsSession({ verified: false });
+$unchecked = Core\Test::tlsSession({ verified: false });
+uint $stillSafe = 0;
+foreach ($kept as ?Core\Http\TlsInfo $session) {
+    if ($session != null) {
+        if ($session->verified()) {
+            $stillSafe = $stillSafe + 1;
+        }
+    }
+}
+echo 'step 3: ', $stillSafe, "\n";
