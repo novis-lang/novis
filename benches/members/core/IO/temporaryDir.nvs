@@ -1,0 +1,18 @@
+<?nvs
+// Creates a temporary folder, as a program does before it unpacks an upload or builds an export file.
+// bench: iterations 1000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the length of a new path, so no round can be left out.
+            $total = $total + Core\Str::length(Core\IO::temporaryDir());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000) > 0 ? "done" : "no folder was made", "\n";

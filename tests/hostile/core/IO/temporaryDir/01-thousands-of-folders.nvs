@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program creates thousands of temporary folders and fills some of them. It also deletes
+// one early and uses it again. No two folders may be the same, and the program must end cleanly.
+// hostile: timeout-ms 60000
+
+// 1. Two thousand folders. Each one must be new and empty.
+array<string> $made = [];
+uint $count = 0;
+while ($count < 2000) {
+    string $dir = Core\IO::temporaryDir();
+    if (Core\Arr::count(Core\IO::list($dir)) != 0) {
+        throw new LogicError('a new temporary folder is not empty');
+    }
+    $made[] = $dir;
+    $count = $count + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. No path is returned twice.
+if (Core\Arr::count(Core\Arr::unique($made)) != 2000) {
+    throw new LogicError('two calls returned the same folder');
+}
+echo 'step 2: done', "\n";
+
+// 3. A tree of folders and files inside one of them. Novis must delete all of it when the program ends.
+string $deep = $made[0];
+uint $level = 0;
+while ($level < 20) {
+    $deep = Core\Path::join($deep, 'level-' . $level);
+    Core\IO::makeDir($deep);
+    Core\IO::write(Core\Path::join($deep, 'data.bin'), Core\Str::repeat('x', 10000));
+    $level = $level + 1;
+}
+echo 'step 3: done', "\n";
+
+// 4. A folder is deleted early. Writing into it must throw an `IOError`.
+// Deleting it a second time must throw an `IOError` too.
+string $gone = $made[1];
+Core\IO::removeDir($gone);
+try {
+    Core\IO::write(Core\Path::join($gone, 'late.txt'), 'x');
+    throw new LogicError('a file was written into a deleted folder');
+} catch (IOError $refused) {
+}
+try {
+    Core\IO::removeDir($gone);
+    throw new LogicError('a deleted folder was deleted again');
+} catch (IOError $refused) {
+}
+echo 'step 4: done', "\n";

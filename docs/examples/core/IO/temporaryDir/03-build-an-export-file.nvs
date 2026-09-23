@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program writes an export file into a temporary folder before it sends the file.
+
+class Export {
+    // Writes one line per order to "orders.csv" in a new temporary folder, and returns the file's path.
+    public static function orders(array<string> $orders): string {
+        string $file = Core\Path::join(Core\IO::temporaryDir(), "orders.csv");
+        string $csv = "id\n";
+        foreach ($orders as string $id) {
+            $csv = $csv . $id . "\n";
+        }
+        Core\IO::write($file, $csv);
+        return $file;
+    }
+}
+
+string $file = Export::orders(["A-100", "A-101", "A-102"]);
+
+// The file has a header line and three orders, so this prints "orders.csv: 21 bytes".
+// Novis deletes the folder and the file when the program ends.
+echo Core\Path::basename($file), ": ", Core\IO::size($file), " bytes", "\n";

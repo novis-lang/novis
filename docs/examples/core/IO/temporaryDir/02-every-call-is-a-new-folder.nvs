@@ -1,0 +1,18 @@
+<?nvs
+// Shows that each call to `Core\IO::temporaryDir` creates a different folder, and that you may delete one early.
+
+string $first = Core\IO::temporaryDir();
+string $second = Core\IO::temporaryDir();
+
+// The two paths are not the same. This prints "different folders".
+echo $first == $second ? "the same folder" : "different folders", "\n";
+
+// A file in one folder is not in the other. This prints "in the second: no".
+Core\IO::write(Core\Path::join($first, "a.txt"), "a");
+echo "in the second: ", Core\IO::exists(Core\Path::join($second, "a.txt")) ? "yes" : "no", "\n";
+
+// Novis deletes both folders when the program ends. You can also delete one yourself.
+// `removeDir` needs an empty folder, so the file is removed first. This prints "first exists: no".
+Core\IO::remove(Core\Path::join($first, "a.txt"));
+Core\IO::removeDir($first);
+echo "first exists: ", Core\IO::exists($first) ? "yes" : "no", "\n";

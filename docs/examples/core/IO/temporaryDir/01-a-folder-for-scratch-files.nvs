@@ -1,0 +1,12 @@
+<?nvs
+// Shows how `Core\IO::temporaryDir` creates an empty folder for files the program needs only while it runs.
+
+string $dir = Core\IO::temporaryDir();
+
+// The folder exists and is empty. This prints "folder: yes, entries: 0".
+echo "folder: ", Core\IO::isDir($dir) ? "yes" : "no", ", entries: ", Core\Arr::count(Core\IO::list($dir)), "\n";
+
+// The program can write and read files in it. This prints "draft saved".
+string $draft = Core\Path::join($dir, "draft.txt");
+Core\IO::write($draft, "draft saved\n");
+echo Core\IO::readText($draft);
