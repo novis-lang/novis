@@ -6630,7 +6630,7 @@ def context_sweep(base, slug):
     listing = RUNDIR / "context-added.txt"
     listing.unlink(missing_ok=True)
     r = capture(sys.executable, [str(ROOT / "tools" / "context-sync.py"), "--since", base,
-                                 "--added", str(listing)])
+                                 "--goal", str(GOAL_TOML), "--added", str(listing)])
     note = (r.out or "").strip()
     try:
         added = listing.read_text(encoding="utf-8").split()
