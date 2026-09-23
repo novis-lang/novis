@@ -7,21 +7,19 @@ config change it can.** ADR 0218 covers source revalidation (Stages 2 to 4). It 
 five rules it modifies. Each fragment ends in a **What is on disk** paragraph, and the session that
 lands the rest shrinks it.
 
-**Stage 2 is complete. Stage 3 has one item left.** A request for a path with a pointer does one
-map lookup and makes no file-system call (`Compiler::compiled`). `Compiler::revalidate` runs on one
-`nvs-revalidate` thread (`script::watch`), once per `revalidate_freq`, from `nvs serve` and
-`nvs run`. A change is held back until the program has been quiet for `settle`. A compile resolves
-the entry path through its links once (`real_path`) and reads the program through that real path,
-which the trace keeps (`Trace::real`). `describes_the_disk` resolves it again, so both the check
-after a background compile (`Compiler::moved`) and every background check treat a switched link as
-a moved tree. `nvs serve <file>` keeps its entry unresolved at boot (`serve::one_mount`), and only
-its mount root is canonical, so its static files still come from the release it started with.
+**Stages 2 and 3 are complete.** A request for a path with a pointer does one map lookup and makes
+no file-system call (`Compiler::compiled`). `Compiler::revalidate` runs on one `nvs-revalidate`
+thread (`script::watch`), once per `revalidate_freq`, from `nvs serve` and `nvs run`. A change is
+held back until the program has been quiet for `settle`. A compile reads the program through its
+entry's real path, and a switched link discards it. The unit table holds at most two units per path
+after ten thousand edits (`units_held_stay_bounded_after_ten_thousand_edits`, a unit test in
+`script.rs`: `nvs-cli` has no library, so `live_edit` cannot read `Compiler::held`). That test was
+moved out of the `live_edit` check into a check of its own in the goal's toml. It takes about 150s
+in a debug build, one compile per edit, and so it is the tail of the `nvs` unit-test binary.
 
 Calls in ADR 0218 that are mine and not confirmed with the user: a mount re-expansion that meets a
 match boot would refuse logs it and leaves it out (§ 9), keeping the replaced unit (§ 7, § 8), and
-the `FLOOR` of 10ms between two watcher passes. `live_edit` has 17 cases. The link-switch case was
-checked to fail with `real_path` returning the written path (a request got `one second`). It uses a
-directory junction on Windows (`mklink /J`, no privilege needed) and a renamed symlink on Unix.
+the `FLOOR` of 10ms between two watcher passes.
 
 `verify.py`'s `extension` leg fails on `tsc` not found (missing `editors/vscode/node_modules`),
 which nothing here touches. `tests/db/ca.crt` is a git-ignored fixture copied in from the main
@@ -29,23 +27,28 @@ checkout.
 
 ## Next group
 
-**Stage 3: the check leaves the request path** — one file set: `crates/nvs-cli/src/script.rs`,
-`crates/nvs-cli/tests/live_edit.rs`.
+**Stage 4: the mount table follows the disk** — one file set: `crates/nvs-cli/src/serve.rs`,
+`crates/nvs-config/src/mount.rs`, `crates/nvs-cli/src/script.rs`, `crates/nvs-cli/tests/live_edit.rs`.
 
-- [ ] **Units stay bounded** (`rule:config/an-edit-reaches-the-next-request-without-a-restart`,
-      ADR 0218 § 8). Test `units_held_stay_bounded_after_ten_thousand_edits` in
-      `crates/nvs-cli/tests/live_edit.rs:1018`'s file, or as a unit test beside the others in
-      `crates/nvs-cli/src/script.rs`, against `Compiler::held` at
-      `crates/nvs-cli/src/script.rs:578` and `record` at `crates/nvs-cli/src/script.rs:1160`.
-      Ten thousand server edits cost a compile each, so a unit test with `revalidate()` by hand is
-      likely the only affordable shape.
+- [ ] **A scan is expanded again in the background** (ADR 0218 § 9,
+      `rule:http-server/a-mount-table-expands-at-boot`, which this modifies). Each scanned
+      directory's stamp is compared on the watcher's pass, and one that moved is listed again with
+      `nvs_config::mount::expand` at `crates/nvs-config/src/mount.rs:284`. The boot expansion is
+      `crates/nvs-cli/src/serve.rs:1830`, and the watcher pass is `Compiler::revalidate` at
+      `crates/nvs-cli/src/script.rs:658`. A new module is compiled, has the `origin` check run on it
+      and is served; a match boot would refuse is logged and left out. Tests
+      `a_new_module_under_a_mount_scan_is_served_without_a_restart` and
+      `a_removed_module_under_a_mount_scan_answers_404` in `crates/nvs-cli/tests/live_edit.rs:1018`'s
+      file.
+- [ ] **A new scanned module that does not compile fails only its own requests**, and **an explicit
+      mount entry that appears is served** (ADR 0218 § 9). Tests
+      `a_new_scanned_module_that_does_not_compile_fails_only_its_own_requests` and
+      `an_explicit_mount_entry_that_appears_is_served_without_a_restart`, same file, over the same
+      expansion at `crates/nvs-cli/src/serve.rs:1830`. Then shrink the **What is on disk** paragraph
+      of `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
 
 ## Backlog
 
-- Stage 4, the mount table re-expanded by the same background check (goal file § Stage 4). It
-  also owns the link-switch gaps the rule's **What is on disk** names: a `[[server.mount]]` entry
-  and root, and `one_mount`'s root (`crates/nvs-cli/src/serve.rs:1771`), are resolved at boot.
-- `rule:config/a-startup-default-is-never-flipped`'s `dispatch` and `static` rows are not derived
-  from the mode (`crates/nvs-server/src/mount.rs:35`). That is outside this goal.
-- A reload that changes `[opcache]` does not reach `Compiler::revalidation`, which is read once at
-  `Compiler::new`. That is stage 5's business.
+- Stage 5, every reloadable key really reloads, and the census — `docs/agent/goals/side/restart-free.md` § Stage 5.
+- Stage 6, the configuration applies itself — same file, § Stage 6, and a second decision record.
+- The ten-thousand-edit test costs one debug compile per edit; a cheaper compile path would shorten it — `crates/nvs-cli/src/script.rs`.
