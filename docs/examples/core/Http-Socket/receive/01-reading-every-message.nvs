@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read every message from a server until the server closes the connection.
+
+// A fixed server, so the example runs without a network. It sends three messages and then closes.
+Core\Test::answerSocket("wss://news.example.com/live", ["rain today", "match starts at 8", "shop opens late"]);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://news.example.com/live");
+
+// `receive()` returns `null` when the server has closed, so the loop stops there.
+// This prints the three messages, then `3 messages`.
+uint $count = 0;
+?Core\Socket\Message $message = $socket->receive();
+while ($message != null) {
+    echo "news: ", $message->text() ?? "", "\n";
+    $count = $count + 1;
+    $message = $socket->receive();
+}
+echo $count, " messages\n";

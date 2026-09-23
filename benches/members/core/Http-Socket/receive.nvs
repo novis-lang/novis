@@ -1,0 +1,30 @@
+<?nvs
+// Receives the next message from a WebSocket server, as a program does in its read loop.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The server is answered from this table, so nothing is sent over a network.
+        array<string|bytes> $frames = [];
+        uint $n = 0;
+        while ($n < $rounds) {
+            $frames[] = "tick";
+            $n = $n + 1;
+        }
+        Core\Test::answerSocket("wss://feed.example.com/ticks", $frames);
+        Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://feed.example.com/ticks");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round reads the message after the one the round before read.
+            ?Core\Socket\Message $message = $socket->receive();
+            if ($message != null) {
+                $total = $total + 1 + ($i % 2);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

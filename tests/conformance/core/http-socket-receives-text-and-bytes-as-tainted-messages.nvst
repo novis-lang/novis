@@ -2,6 +2,7 @@
 `Core\Http\Socket::receive` answers a message whose `text` and `bytes` are both `tainted`, so a plain binding of either is refused — `rule:security/tainted-sources`, `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
 --FILE--
 <?nvs
+// covers: Core\Http\Socket::receive
 // Agreement, asked of both of a message's payload readers: one mark on both,
 // and the refusal is the only thing that can pin it. A plain value is
 // assignable into a `tainted` target, so a case that bound the readers the
