@@ -75,6 +75,6 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 kind = "command"
 stage = "2 the dossier"
 name = 'dossier: Core\Test (2/2)'
-argv = ["python", "tools/dossier.py", "--verify", "--only", 'Core\Test::assertNull', 'Core\Test::assertSame', 'Core\Test::assertThrows', 'Core\Test::assertTrue', 'Core\Test::double', 'Core\Test::expectFailure', 'Core\Test::partial', 'Core\Test::request', 'Core\Test::scriptAnswers', 'Core\Test::sentHttp', 'Core\Test::sentSocket', 'Core\Test::serverUrl']
+argv = ["python", "tools/dossier.py", "--verify", "--only", 'Core\Test::assertNull', 'Core\Test::assertSame', 'Core\Test::assertThrows', 'Core\Test::assertTrue', 'Core\Test::double', 'Core\Test::expectFailure', 'Core\Test::partial', 'Core\Test::request', 'Core\Test::scriptAnswers', 'Core\Test::sentHttp', 'Core\Test::sentSocket', 'Core\Test::serverUrl', 'Core\Test::tlsSession']
 want = ["nothing owed", "0 failed", "0 failed"]
 

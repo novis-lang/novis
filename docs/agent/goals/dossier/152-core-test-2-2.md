@@ -38,6 +38,7 @@ understanding; split across one session per proof it is bought once per proof.
 10. **`Core\Test::sentHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:702`
 11. **`Core\Test::sentSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:730`
 12. **`Core\Test::serverUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:641`
+13. **`Core\Test::tlsSession`** — owes examples, hostile, perf. `crates/nvs-stdlib/src/test.rs:756`
 
 ## Running this goal wide
 
@@ -48,7 +49,7 @@ is the one shape that earns it: the examples, the attack and the bench are attri
 from the feature's own id, so two workers cannot name the same file; nothing here is a
 design decision; and `dossier.py --verify --group` judges the result mechanically.
 
-    python tools/dossier.py --partition --group 'Core\Test' --only 'Core\Test::assertNull' 'Core\Test::assertSame' 'Core\Test::assertThrows' 'Core\Test::assertTrue' 'Core\Test::double' 'Core\Test::expectFailure' 'Core\Test::partial' 'Core\Test::request' 'Core\Test::scriptAnswers' 'Core\Test::sentHttp' 'Core\Test::sentSocket' 'Core\Test::serverUrl'
+    python tools/dossier.py --partition --group 'Core\Test' --only 'Core\Test::assertNull' 'Core\Test::assertSame' 'Core\Test::assertThrows' 'Core\Test::assertTrue' 'Core\Test::double' 'Core\Test::expectFailure' 'Core\Test::partial' 'Core\Test::request' 'Core\Test::scriptAnswers' 'Core\Test::sentHttp' 'Core\Test::sentSocket' 'Core\Test::serverUrl' 'Core\Test::tlsSession'
 
 writes one brief per worker under `.loop/dossier-fanout/` and **refuses** if any two would
 write the same path. Hand each worker its brief *path* — it reads it in its own window, so
