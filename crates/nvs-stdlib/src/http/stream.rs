@@ -599,7 +599,8 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
                 })
             }
             Framing::Lines => line_at(held, ended, false, "lines")?
-                .map(|(line, used)| (Value::str(NvsStr::new(line)), used)),
+                .map(|(line, used)| text_of(line, "lines").map(|line| (line, used)))
+                .transpose()?,
             // A walk over chunks frames nothing, so whatever has arrived is an
             // element and the read that delivered it is the piece a program
             // sees.
@@ -799,6 +800,12 @@ fn event_at(
         at += next;
         if line.is_empty() {
             if written {
+                // All three are checked before any is allocated, so a refusal
+                // leaves nothing to release.
+                checked(&data, "events")?;
+                for field in [&name, &id].into_iter().flatten() {
+                    checked(field, "events")?;
+                }
                 return Ok(Some((
                     crate::instance::build(
                         &EVENT,
@@ -851,9 +858,34 @@ fn event_at(
     Ok(None)
 }
 
-/// The `?string` slot behind `name()` and `id()`.
+/// The `?string` slot behind `name()` and `id()`, over octets [`checked`]
+/// has already passed.
 fn optional_text(value: Option<&[u8]>) -> Value {
     value.map_or_else(Value::null, |text| Value::str(NvsStr::new(text)))
+}
+
+/// One framed piece of the reply as a `string`, or the error saying it is not
+/// text.
+fn text_of(octets: &[u8], member: &str) -> Result<Value, Fault> {
+    checked(octets, member)?;
+    Ok(Value::str(NvsStr::new(octets)))
+}
+
+/// `Ok` when `octets` may become a `string`. They are whatever the origin
+/// sent, and a `string` is well-formed UTF-8 by `NvsStr`'s own invariant, so
+/// every framed piece is checked before it becomes one — the way
+/// `Core\Http\Response::text` checks a whole body. `chunks()` reads the same
+/// reply as `bytes`, which asks nothing of it.
+fn checked(octets: &[u8], member: &str) -> Result<(), Fault> {
+    match std::str::from_utf8(octets) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(Fault::thrown(format!(
+            "{STREAM_NAME}::{member}(): a piece of this reply is not valid UTF-8, so it is not a \
+             `string` — byte {} of it is where it stops being text, and `chunks()` reads the \
+             reply as `bytes`",
+            err.valid_up_to()
+        ))),
+    }
 }
 
 /// One of [`EVENT`]'s three slots, with a reference of its own.

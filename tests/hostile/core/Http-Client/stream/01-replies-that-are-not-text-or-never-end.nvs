@@ -1,0 +1,168 @@
+<?nvs
+// Attack: streamed requests try to reach this server's own network. Then replies that
+// are not valid text, or have no end, try to break the methods that read the body. Every
+// step must throw an error or finish. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each method is sent to each internal address with the smallest time limits.
+//    Each call must throw a `RuntimeError`, or the `LogicError` below stops the program.
+array<Core\Http\Method> $methods = [
+    Core\Http\Method::Get,
+    Core\Http\Method::Post,
+    Core\Http\Method::Put,
+    Core\Http\Method::Patch,
+    Core\Http\Method::Delete,
+];
+array<string> $hidden = [
+    'http://127.0.0.1/events',
+    'http://[::1]/events',
+    'http://0x7f000001/events',
+    'http://localhost/events',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://10.0.0.7/events',
+    'file:///etc/passwd',
+    '',
+];
+uint $refused = 0;
+foreach ($methods as Core\Http\Method $method) {
+    foreach ($hidden as string $url) {
+        try {
+            Core\Http\Stream $sent = Core\Http\Client::stream($method, $url, { deadline: 2s, idle: 1ns, maxDuration: 1ns });
+            throw new LogicError(Core\Str::format('a request to an internal address was sent: %s', $url));
+        } catch (RuntimeError $error) {
+            $refused = $refused + 1;
+        }
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. `idle` and `maxDuration` are zero, one thousand times each. Each call must throw
+//    a `RuntimeError` that names the option.
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        Core\Http\Stream $noPause = Core\Http\Client::stream(Core\Http\Method::Get, 'https://203.0.113.10/events', { idle: 0s });
+        throw new LogicError('a stream with no time for a pause was opened');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'idle')) {
+            throw new LogicError(Core\Str::format('`idle` was not checked first: %s', $error->message));
+        }
+    }
+    try {
+        Core\Http\Stream $noTime = Core\Http\Client::stream(Core\Http\Method::Get, 'https://203.0.113.10/events', { maxDuration: 0s });
+        throw new LogicError('a stream with no time for its body was opened');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'maxDuration')) {
+            throw new LogicError(Core\Str::format('`maxDuration` was not checked first: %s', $error->message));
+        }
+    }
+    $i = $i + 1;
+}
+echo 'step 2: ', $i, "\n";
+
+// From here on, every reply comes from a table, so nothing is sent over a network.
+// The first two replies are not valid UTF-8, for example a byte sequence cut in half.
+Core\Test::answerHttp('https://feed.example.com/lines', 200, { body: Core\Encoding::fromHex('fffe0a80c0af0ae282') });
+Core\Test::answerHttp('https://feed.example.com/events', 200, { body: Core\Encoding::fromHex('6576656e743a20ff0a69643a20c0800a646174613a20eda0800a0a') });
+Core\Test::answerHttp('https://feed.example.com/rows', 200, { body: "one\ntwo\nthree\n" });
+Core\Test::answerHttp('https://feed.example.com/one-long-line', 200, { body: Core\Str::repeat('a', 10000000) });
+Core\Test::answerHttp('https://feed.example.com/endless-event', 200, { body: Core\Str::repeat('data: ' . Core\Str::repeat('b', 60000) . "\n", 50) });
+Core\Test::answerHttp('https://feed.example.com/only-line-breaks', 200, { body: Core\Str::repeat("\r", 3000000) });
+Core\Test::answerHttp('https://pad.example.com/*', 200, { body: Core\Str::repeat('c', 10000) . "\nnever read\n" });
+
+// 3. Each line of a reply that is not text is used as a string. Each use must throw
+//    an error or give a result. The program must not stop.
+var $notText = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/lines');
+try {
+    foreach ($notText->lines() as tainted string $line) {
+        var $used = Core\Str::length($line) + Core\Str::length(Core\Str::upper($line)) + Core\Str::length(Core\Str::reverse($line));
+    }
+} catch (RuntimeError $error) {
+    echo 'step 3: lines refused', "\n";
+}
+echo 'step 3: done', "\n";
+
+// 4. The name, the id and the data of one event are not text. Each is used as a string.
+var $notTextEvents = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/events');
+try {
+    foreach ($notTextEvents->events() as Core\Http\Event $event) {
+        var $data = Core\Str::length(Core\Str::upper($event->data()));
+        var $name = Core\Str::length(Core\Str::reverse($event->name() ?? 'message'));
+        var $id = Core\Str::length(Core\Str::upper($event->id() ?? 'none'));
+    }
+} catch (RuntimeError $error) {
+    echo 'step 4: events refused', "\n";
+}
+echo 'step 4: done', "\n";
+
+// 5. While one loop reads the lines, the same body is read again from inside it.
+//    Each second read must throw a `LogicError`, and nothing may be read twice.
+var $twice = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/rows');
+uint $readAgain = 0;
+foreach ($twice->lines() as tainted string $row) {
+    try {
+        foreach ($twice->chunks() as tainted bytes $again) {
+            $readAgain = $readAgain + 1;
+        }
+    } catch (LogicError $readTwice) {
+    }
+    try {
+        foreach ($twice->events() as Core\Http\Event $againEvent) {
+            $readAgain = $readAgain + 1;
+        }
+    } catch (LogicError $readTwice) {
+    }
+}
+if ($readAgain > 0) {
+    throw new LogicError('a streamed body was read a second time');
+}
+echo 'step 5: refused', "\n";
+
+// 6. One line of ten million characters with no line break. Reading it must throw
+//    a `RuntimeError`.
+var $long = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/one-long-line');
+try {
+    foreach ($long->lines() as tainted string $line) {
+        throw new LogicError('a line of ten million characters was read');
+    }
+} catch (RuntimeError $error) {
+    echo 'step 6: refused', "\n";
+}
+
+// 7. One event whose data is three million characters, sent without the empty line
+//    that ends an event. Reading it must throw a `RuntimeError` or give nothing.
+var $endless = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/endless-event');
+try {
+    foreach ($endless->events() as Core\Http\Event $event) {
+        throw new LogicError('an event that never ended was given');
+    }
+} catch (RuntimeError $error) {
+    echo 'step 7: refused', "\n";
+}
+
+// 8. A reply of three million line breaks and nothing else. Reading it as events
+//    must finish and give no event.
+var $empty = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/only-line-breaks');
+foreach ($empty->events() as Core\Http\Event $event) {
+    throw new LogicError('an empty line was given as an event');
+}
+echo 'step 8: done', "\n";
+
+// 9. Each stream is opened and only its first line is read. The stream and the line
+//    are kept in lists and never freed. This step ends the program at its memory limit.
+array<Core\Http\Stream> $open = [];
+array<tainted string> $kept = [];
+uint $n = 0;
+while (true) {
+    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://pad.example.com/%d', $n));
+    foreach ($stream->lines() as tainted string $first) {
+        $kept[] = $first;
+        break;
+    }
+    $open[] = $stream;
+    $n = $n + 1;
+}

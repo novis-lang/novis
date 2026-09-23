@@ -1,0 +1,25 @@
+<?nvs
+// Measures opening a streamed reply that a test answers, as the tests of a program
+// that reads a live feed do.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Every request below is answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://feed.example.com/*", 200, {headers: ["content-type" => "text/event-stream"]});
+        array<string> $paths = ["/orders/", "/prices/", "/events/"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The URL in each round is chosen by the round before, so no round can be left out.
+            string $url = "https://feed.example.com" . $paths[($total % 3) as int] . $i;
+            Core\Http\Stream $stream = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+            $total = $total + ($stream->status() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows the two options that limit how long the body of a streamed reply may take.
+
+// `idle` is the longest pause between two pieces of the body. It must be longer than zero.
+try {
+    var $quiet = Core\Http\Client::stream(Core\Http\Method::Get, "https://203.0.113.10/prices/live", {idle: 0s});
+} catch (RuntimeError $noPause) {
+    echo $noPause->message, "\n";
+}
+
+// `maxDuration` is the most time the whole body may take. It must be longer than zero too.
+try {
+    var $endless = Core\Http\Client::stream(Core\Http\Method::Get, "https://203.0.113.10/prices/live", {maxDuration: 0s});
+} catch (RuntimeError $noTime) {
+    echo $noTime->message, "\n";
+}
