@@ -6946,6 +6946,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   can ever run.** `catch (RuntimeError $refused) {} catch (IOError $refused) {}` does not compile:
   it reports `E0406` "`$refused` is already declared" at the second clause. Give each clause its
   own variable (`$refused`, `$failed`) when a proof catches two classes. [until: reviewed 2026-09-23]
+- **An `assert!` inside `std::thread::scope` that fails before a `Barrier::wait` the spawned thread still owes hangs the test binary rather than failing it.** The scope joins its threads before it unwinds, and the spawned one waits on the barrier for ever, so `cargo test` shows nothing but `has been running for over 60 seconds` and the failing assertion is never printed. Read what the assertion needs into locals, pass the barrier, and only then assert, as `a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it` in `crates/nvs-cli/src/script.rs` does. [until: reviewed 2026-09-23]
 
 ## Splitting a file that got too big
 
