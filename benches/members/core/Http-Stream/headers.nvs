@@ -1,0 +1,26 @@
+<?nvs
+// Reads every line of one header of a streamed reply, as a program does to collect its cookies.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The reply comes from this table, so nothing is sent over a network.
+        array<string> $cookies = ["session=abc123; Path=/", "cart=7; Max-Age=600"];
+        Core\Test::answerHttp("https://shop.example.com/login", 200, {
+            body: "",
+            headers: ["content-type" => "text/plain", "set-cookie" => $cookies],
+        });
+        Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, "https://shop.example.com/login");
+        array<string> $names = ["set-cookie", "content-type", "etag"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Arr::count($login->headers($names[(($total + $i) % 3) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

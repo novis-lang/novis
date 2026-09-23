@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `headers()` returns for a header sent once, sent twice, or not sent at all.
+
+array<string> $vary = ["Accept", "Accept-Encoding"];
+Core\Test::answerHttp("https://api.example.com/export", 200, {
+    body: "id,name\n",
+    headers: ["content-type" => "text/csv", "vary" => $vary],
+});
+
+Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/export");
+// The name can be written in any case. This prints 1, 2 and 0.
+echo Core\Arr::count($export->headers("Content-Type")), "\n";
+echo Core\Arr::count($export->headers("vary")), "\n";
+// The server did not send `etag`, so the result is an empty list.
+echo Core\Arr::count($export->headers("etag")), "\n";

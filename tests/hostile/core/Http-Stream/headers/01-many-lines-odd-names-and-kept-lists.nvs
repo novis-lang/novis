@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a server sends one header on very many lines, and a program asks for names that
+// are empty, very long or contain line breaks. `headers()` must return every line once,
+// or an empty list. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. 20000 `set-cookie` lines. The list must have 20000 entries, in the order they were sent.
+array<string> $cookies = [];
+uint $i = 0;
+while ($i < 20000) {
+    $cookies[] = Core\Str::format('c%d=v', $i);
+    $i = $i + 1;
+}
+Core\Test::answerHttp('https://many.example.com/', 200, { body: '', headers: ['set-cookie' => $cookies] });
+var $many = Core\Http\Client::stream(Core\Http\Method::Get, 'https://many.example.com/');
+array<tainted string> $lines = $many->headers('SET-COOKIE');
+if (Core\Arr::count($lines) != 20000) {
+    throw new LogicError(Core\Str::format('%d lines were returned, not 20000', Core\Arr::count($lines)));
+}
+if ($lines[19999] != 'c19999=v') {
+    throw new LogicError('the lines are not in the order they were sent');
+}
+echo 'step 1: done', "\n";
+
+// 2. Names that no server can send: empty, 100000 characters, and one with a line break.
+//    Each one must return an empty list.
+Core\Test::answerHttp('https://odd.example.com/', 200, { body: '', headers: ['x-a' => 'one'] });
+var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://odd.example.com/');
+array<string> $names = ['', Core\Str::repeat('x', 100000), "x-a\r\nx-b", 'x-a ', "x-a\u{0}"];
+foreach ($names as string $name) {
+    if (Core\Arr::count($odd->headers($name)) != 0) {
+        throw new LogicError('a name no server can send returned a line');
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. The list is asked for 200000 times after the body was read.
+//    Each list must still have 20000 entries.
+foreach ($many->chunks() as tainted bytes $piece) {
+}
+uint $round = 0;
+while ($round < 200) {
+    if (Core\Arr::count($many->headers('set-cookie')) != 20000) {
+        throw new LogicError('the lines changed after the body was read');
+    }
+    $round = $round + 1;
+}
+echo 'step 3: done', "\n";
+
+// 4. Every list is kept and never freed.
+//    This step ends the program at its memory limit.
+array<array<tainted string>> $kept = [];
+while (true) {
+    $kept[] = $many->headers('set-cookie');
+}

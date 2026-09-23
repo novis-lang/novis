@@ -3,6 +3,8 @@
 --FILE--
 <?nvs
 // covers: Core\Http\Stream::header
+// covers: Core\Http\Stream::headers
+// covers: Core\Http\Stream::status
 // No socket is opened and no name resolved: the answers come from the table
 // (`rule:testing/an-outbound-call-is-answered-from-a-table`).
 // A field the origin sent twice, so that both readings of the head are asked
