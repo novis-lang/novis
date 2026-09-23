@@ -49,8 +49,9 @@
 //! at all. Reading them is a question about the configuration and not about any one cache, so it
 //! lands beside the key rather than inside the crate that happens to hold the table — the same
 //! separation `[server]`'s waits have from the listener that arms them ([`mod@crate::server`]).
-//! A `validate` that is neither `mtime` nor `hash` does not load ([`validate`]); a
-//! `revalidate_freq` that is not a duration is not refused yet and keeps the default cap.
+//! `settle` is the third, and the one whose default the run mode chooses. A `validate` that is
+//! neither `mtime` nor `hash` does not load ([`validate`]); a `revalidate_freq` or `settle` that is
+//! not a duration is not refused yet and keeps its default.
 //!
 //! **`compiler_version_hash` is the running executable, not the release version.** The package
 //! version alone is the same string for every build of an unreleased tree, so a developer who
@@ -450,9 +451,9 @@ impl Validate {
 /// `[opcache]`'s revalidation directives, read into what one resolve asks — `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 /// steps 1-2.
 ///
-/// Both are `System`-class (`rule:config/opcache-revalidation-is-system-class`): a request able to
-/// raise the cap for itself could hold a shipped fix back, and one able to lower it could force a
-/// `stat` storm on a hot file. Nothing here is per-request, so
+/// All three are `System`-class (`rule:config/opcache-revalidation-is-system-class`): a request able
+/// to raise the cap or the settle time for itself could hold a shipped fix back, and one able to
+/// lower either could force a `stat` storm on a hot file or a compile per keystroke of a deploy. Nothing here is per-request, so
 /// a caller holds one of these for a configuration generation and reads it on every resolve.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -463,10 +464,21 @@ pub struct Revalidation {
     /// reuses the digest the last check observed and spends no syscall, which is what bounds the
     /// overhead at `N ⁄ revalidate_freq` stats rather than at the request rate.
     pub freq: Duration,
+    /// `settle`: how long no file of a changed program may have moved before it is compiled, so a
+    /// deploy still being copied is compiled once, from the finished tree.
+    pub settle: Duration,
 }
 
+/// `settle`'s startup row (`rule:config/a-startup-default-is-never-flipped`) in `production`, and
+/// the default for a mode that is neither.
+pub const SETTLE_PRODUCTION: Duration = Duration::from_secs(1);
+
+/// `settle`'s startup row in `development`: short enough that a saved file reaches the next reload
+/// of a browser tab, and long enough that an editor's write-then-rename is one change.
+pub const SETTLE_DEVELOPMENT: Duration = Duration::from_millis(100);
+
 impl Default for Revalidation {
-    /// `mtime`, checked at most once every two seconds.
+    /// `mtime`, checked at most once every two seconds, and settled for production's one second.
     ///
     /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` states neither number, so they are decided here, in the crate that reads the
     /// block — the same place `rule:config/opcache-file-cache-directives-are-system` leaves its file-cache pair to the implementation. Both
@@ -480,6 +492,7 @@ impl Default for Revalidation {
         Self {
             validate: Validate::Mtime,
             freq: Duration::from_secs(2),
+            settle: SETTLE_PRODUCTION,
         }
     }
 }
@@ -497,9 +510,24 @@ impl Revalidation {
     /// consulted: `[opcache]` is `System`-class and one process holds one unit cache, so a
     /// per-application answer would be a second policy over a table the applications share.
     ///
+    /// An unwritten `settle` is the startup row of the mode `[mode] default` names, read here each
+    /// time a configuration is published and never from a runtime flip, which only a request makes.
+    ///
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let fallback = Self::default();
+        let development = config
+            .mode
+            .as_ref()
+            .and_then(|mode| mode.default.as_deref())
+            == Some(crate::mode::DEVELOPMENT);
+        let fallback = Self {
+            settle: if development {
+                SETTLE_DEVELOPMENT
+            } else {
+                SETTLE_PRODUCTION
+            },
+            ..Self::default()
+        };
         let Some(opcache) = config.opcache.as_ref() else {
             return fallback;
         };
@@ -512,8 +540,13 @@ impl Revalidation {
             freq: opcache
                 .revalidate_freq
                 .as_ref()
-                .and_then(freq_of)
+                .and_then(|written| duration_of("opcache.revalidate_freq", written))
                 .unwrap_or(fallback.freq),
+            settle: opcache
+                .settle
+                .as_ref()
+                .and_then(|written| duration_of("opcache.settle", written))
+                .unwrap_or(fallback.settle),
         }
     }
 }
@@ -578,15 +611,15 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     ))
 }
 
-/// One written `revalidate_freq`, as the interval it names.
+/// One written `revalidate_freq` or `settle`, as the interval it names.
 ///
 /// [`Quantity`] is the one parser for a duration anywhere in this tree (`rule:config/ini-set-is-core-config-set`), so `"2s"`,
 /// `"500ms"` and a bare `2` all read here exactly as they do in `[limits]`. `false` is the spelling
-/// `rule:config/three-changeability-classes` gives to "no ceiling" and means no cap at all — a check on every resolve, which is
-/// what a developer watching one file asks for and what the default deliberately is not.
+/// `rule:config/three-changeability-classes` gives to "no ceiling" and means no wait at all: for
+/// `revalidate_freq` a check on every resolve, for `settle` a compile as soon as a change is seen.
 ///
-fn freq_of(setting: &Setting) -> Option<Duration> {
-    match Quantity::parse("opcache.revalidate_freq", Unit::Duration, setting) {
+fn duration_of(key: &str, setting: &Setting) -> Option<Duration> {
+    match Quantity::parse(key, Unit::Duration, setting) {
         Ok(Quantity::Nanos(nanos)) => Some(Duration::from_nanos(nanos)),
         Ok(Quantity::Unbounded) => Some(Duration::ZERO),
         _ => None,

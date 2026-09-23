@@ -1355,6 +1355,9 @@ pub struct Opcache {
     pub validate: Option<Setting>,
     /// The rate cap bounding that `stat` overhead.
     pub revalidate_freq: Option<Setting>,
+    /// How long a changed program must be quiet before it is compiled; its default is a startup
+    /// row the run mode chooses (`rule:config/a-startup-default-is-never-flipped`).
+    pub settle: Option<Setting>,
     /// Whether the on-disk artifact cache is used at all.
     pub file_cache: Option<bool>,
     /// Where it lives; root-owned, and defaulting to the per-build location `nvs-cli`'s cache module

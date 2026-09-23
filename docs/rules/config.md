@@ -1199,7 +1199,9 @@ objection is always to the *flip*, never to the *default*: a value chosen by a r
 request move how the process treats its source. The list stays closed at eight rows across the two
 tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-**What is on disk.** No `settle` row.
+**What is on disk.** The `settle` row, chosen where the snapshot's revalidation policy is read
+(`nvs_config::cache::Revalidation::from_config`). `dispatch` and `static` are not derived from the
+mode yet: an unwritten switch is production's value in both modes.
 
 <sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md).</sub>
 
@@ -1890,7 +1892,8 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-**What is on disk.** `settle` does not exist yet.
+**What is on disk.** `settle` is read, with its startup row, into `nvs_config::cache::Revalidation`,
+but nothing waits on it yet: the check that would still runs inside the resolve.
 
 <sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
 

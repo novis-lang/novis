@@ -20,4 +20,6 @@ objection is always to the *flip*, never to the *default*: a value chosen by a r
 request move how the process treats its source. The list stays closed at eight rows across the two
 tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-**What is on disk.** No `settle` row.
+**What is on disk.** The `settle` row, chosen where the snapshot's revalidation policy is read
+(`nvs_config::cache::Revalidation::from_config`). `dispatch` and `static` are not derived from the
+mode yet: an unwritten switch is production's value in both modes.

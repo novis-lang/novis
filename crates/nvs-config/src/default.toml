@@ -857,6 +857,9 @@
 # whose timestamps cannot be trusted. There is no value that stops the checks.
 #validate = "mtime"                   # default
 #revalidate_freq = "2s"               # default
+# How long no file of a changed program may move before it is compiled, so a deploy that is still
+# being copied is compiled once, from the finished files.
+#settle = "1s"                        # default: "1s" in production, "100ms" in development
 # Whether the on-disk artifact cache is used at all, and where it lives. `file_cache_dir` is the only
 # spelling of that directory — `[cache]` above is `Core\Cache`'s two tiers and holds none — and it is
 # the one key in this block that applies at boot rather than at reload, because moving it re-creates

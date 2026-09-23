@@ -78,6 +78,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "extension.sha256",
         "opcache.validate",
         "opcache.revalidate_freq",
+        "opcache.settle",
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
@@ -3315,6 +3316,7 @@ fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_directi
     for expected in [
         "validate",
         "revalidate_freq",
+        "settle",
         "file_cache",
         "file_cache_dir",
         "file_cache_max_size",

@@ -710,3 +710,80 @@ fn validate_defaults_to_mtime_in_production_and_development() {
         Revalidation::default().freq,
     );
 }
+
+/// `settle`'s default is a startup row: one second on a host that writes no mode or `production`,
+/// a tenth of one in `development`. A written value wins in either mode, because the mode supplies
+/// a default and nothing more (`rule:config/a-startup-default-is-never-flipped`).
+#[test]
+fn settle_defaults_to_one_second_in_production_and_100ms_in_development() {
+    let written = |block: &str| {
+        let fs = Fake::with(&[("nvs.toml", block), ("srv/www/index.nvs", "")]);
+        Revalidation::from_config(&snapshot_of(&fs, "srv/www/index.nvs").config).settle
+    };
+
+    assert_eq!(written(""), Duration::from_secs(1));
+    assert_eq!(
+        written("[mode]\ndefault = \"production\"\n"),
+        Duration::from_secs(1)
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n"),
+        Duration::from_millis(100)
+    );
+    // A block that writes another `[opcache]` key still takes the mode's row for this one.
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n\n[opcache]\nvalidate = \"hash\"\n"),
+        Duration::from_millis(100)
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n\n[opcache]\nsettle = \"3s\"\n"),
+        Duration::from_secs(3)
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"production\"\n\n[opcache]\nsettle = \"250ms\"\n"),
+        Duration::from_millis(250)
+    );
+    assert_eq!(
+        written("[opcache]\nsettle = false\n"),
+        Duration::ZERO,
+        "`false` is no wait, which compiles a change as soon as a check sees it",
+    );
+}
+
+/// `settle` is `System` — a request can neither hold a fix back nor force a compile per keystroke —
+/// and `Reload`: a reload that changes it names no `Boot` key, and the published snapshot reads the
+/// new value, including the startup row of a mode the same reload changed
+/// (`rule:config/opcache-revalidation-is-system-class`, `rule:config/reloadability-is-its-own-field`).
+#[test]
+fn settle_is_system_class_and_reloadable() {
+    use nvs_config::directive::{Apply, Class, lookup};
+
+    let row = lookup("opcache.settle").expect("`opcache.settle` has a registry row");
+    assert_eq!((row.class, row.apply), (Class::System, Apply::Reload));
+    assert!(!row.class.settable_by_a_request());
+
+    let before = Fake::with(&[("nvs.toml", "[opcache]\nsettle = \"2s\"\n")]);
+    let after = Fake::with(&[("nvs.toml", "[opcache]\nsettle = \"500ms\"\n")]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(&after, "nvs.toml")))
+        .expect("this tree deserializes");
+    assert!(reload.boot.is_empty(), "{:?}", reload.boot);
+    assert_eq!(
+        Revalidation::from_config(&current.load().config).settle,
+        Duration::from_millis(500)
+    );
+
+    let into_development = Fake::with(&[("nvs.toml", "[mode]\ndefault = \"development\"\n")]);
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(
+            &into_development,
+            "nvs.toml",
+        )))
+        .expect("this tree deserializes");
+    assert!(reload.boot.is_empty(), "{:?}", reload.boot);
+    assert_eq!(
+        Revalidation::from_config(&current.load().config).settle,
+        Duration::from_millis(100)
+    );
+}
