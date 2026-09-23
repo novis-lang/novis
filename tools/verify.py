@@ -287,6 +287,8 @@ EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
 RESULT_RE = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed")
+# One test's line in libtest's output: `test <path> ... ok`, `... ignored`.
+TEST_LINE_RE = re.compile(r"test \S+ \.\.\. \w+")
 # `nvs test <dir>` prints exactly one of these, at the end.
 CASES_RE = re.compile(r"(\d+) passed, (\d+) failed, (\d+) skipped")
 
@@ -541,8 +543,14 @@ def run_tests(step, package=None):
                 continue
             # What it opened first, because the key that stands for this run holds those reads.
             reach.record(j, j["reads_log"])
-            lines = [ln for ln in results[j["name"]][2].splitlines() if RESULT_RE.search(ln)]
-            stored[j["name"]] = {"key": reach.key(j)[0], "result": "\n".join(lines)}
+            out = results[j["name"]][2].splitlines()
+            lines = [ln for ln in out if RESULT_RE.search(ln)]
+            # Every `test <name> ... <status>` line as well, so `tools/loop.py`'s `crate_tests`
+            # can answer a check that names tests from this run rather than running the binary a
+            # second time over the same inputs.
+            tests = [ln.rstrip() for ln in out if TEST_LINE_RE.match(ln)]
+            stored[j["name"]] = {"key": reach.key(j)[0], "result": "\n".join(lines),
+                                 "tests": tests}
         reach.save()
         try:
             TMP.mkdir(exist_ok=True)

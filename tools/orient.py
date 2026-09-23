@@ -499,11 +499,16 @@ def last_acceptance() -> tuple[str, str] | None:
             continue
         body = line.strip()
         # `goal cost:` is written for every acceptance run, `goal check:` only for a failing
-        # one -- so the pair is what distinguishes "passed whole" from "never ran".
+        # one -- so the pair is what distinguishes "passed whole" from "never ran". The lines
+        # right under a `goal check:` that name more red checks -- `also red:` from a sweep that
+        # ran past its first red, `(and N later fixture(s) red ...)` from a fixture tier -- are
+        # part of the same verdict.
         if body.startswith("goal cost:"):
             cost = True
         elif body.startswith("goal check:"):
             fail = body[len("goal check:"):].strip()
+        elif fail and (body.startswith("also red:") or body.startswith("(and ")):
+            fail += "\n" + body
         if cost and session:
             found = (session, fail)
     return found
@@ -779,12 +784,14 @@ def run_marker() -> None:
             emit(f"The driver's last acceptance check, after session {session}, passed whole.")
         else:
             emit(f"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session {session}:")
-            emit(f"  {fail}")
+            for ln in fail.split("\n"):
+                emit(f"  {ln}")
             emit("The run ends only when every check in loop-goal.toml passes, and nothing else")
             emit("shows a session this one -- the driver writes it to the ledger and moves on.")
-            emit("This is the EARLIEST-STAGE failing check, so it is the one that can be closed")
-            emit("without three other stages landing first; any later stages also red are named")
-            emit("after it on the same line.")
+            emit("The first line is the EARLIEST-STAGE failing check, so it is the one that can be")
+            emit("closed without three other stages landing first. On the sweep a goal is reached")
+            emit("on, every other red check follows on an `also red:` line of its own: close all")
+            emit("of them this session, because the next sweep is the same length whatever is left.")
             emit()
             emit("Two failures read differently, and getting them the wrong way round is the")
             emit("expensive mistake here:")

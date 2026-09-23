@@ -2514,6 +2514,9 @@ class Goal:
         self._commands = {}  # (argv tuple, cwd) -> Result, likewise
         self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
+        self._verify_green = None  # `verify.py`'s per-binary green record, read once a sweep
+        self._audited = set()  # (crate, target) pairs an audit is running; `verify_green` skips them
+        self.reused = 0  # binaries `crate_tests` answered from `verify.py`'s record this sweep
         self._tree = ""
         self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
         self._tiers = None  # the `verify_keys.Tree` that walk took, which `binary_inputs` keys on
@@ -2548,6 +2551,8 @@ class Goal:
         self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
         self.settle_only = False  # `--settle`: the carried floor and nothing else
+        self.collect = False  # run past a red check and report every red; see `_check`
+        self.reds = []  # the red checks a collecting sweep ran past, in sweep order
         self._claimed = set()  # memo keys `skip` ran anyway this sweep; `audits` says why
         self.held = []  # what a shut gate did not run; non-empty means "green" is not "reached"
         self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
@@ -2879,6 +2884,13 @@ class Goal:
         else:
             code, outs, errs = 0, [], []
             for target, exe, cwd in chosen:
+                held = self.verify_green(exe) if key not in self._audited else None
+                if held is not None:
+                    self.trace(f"{crate} ({target}) green in verify.py's run over these inputs")
+                    self.reused += 1
+                    outs.append(held)
+                    errs.append("")
+                    continue
                 TICKER.set(detail=f"{crate}: {target}")
                 one = capture(exe, [], cwd=cwd, env=dict(os.environ, CARGO_MANIFEST_DIR=cwd))
                 outs.append(one.out)
@@ -2894,6 +2906,42 @@ class Goal:
             r = Result(code, "\n".join(outs), "\n".join(errs))
         self._crate_runs[key] = r
         return r
+
+    def verify_green(self, exe):
+        """The output `verify.py`'s `test` step recorded for the binary `exe` when it last ran green,
+        or `None` when that record does not stand for the bytes on disk now.
+
+        The record is `.agent-tmp/verify-test-green.json`, keyed per binary by `tools/impact.py`
+        over what the binary reads -- the same key `binary_inputs` files this sweep's own memo
+        under. A session runs `verify.py` over its work, and the sweep behind it would otherwise run
+        every binary that work reached a second time over the same inputs, which for the server's
+        end-to-end binaries is minutes a session. So a binary with a matching key is answered from
+        the record and not run. A binary `impact` calls wide is keyed over the whole tree, so its
+        record stands only while nothing at all has changed, which is the trust `verify.py` itself
+        gives it. Never under `--full`, never for a check `audits` is running to test the memo, and
+        never for a record written before the record carried its test lines, since a `cargo-named`
+        check reads those lines for the names it wants."""
+        if self.full or self._tiers is None:
+            return None
+        reach = self.reach()
+        if self._verify_green is None:
+            try:
+                got = json.loads((ROOT / ".agent-tmp" / "verify-test-green.json")
+                                 .read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                got = {}
+            self._verify_green = got if isinstance(got, dict) else {}
+        want = os.path.normcase(os.path.normpath(exe))
+        job = next((j for j in reach.jobs if j.get("argv")
+                    and os.path.normcase(os.path.normpath(j["argv"][0])) == want), None)
+        if job is None:
+            return None
+        entry = self._verify_green.get(job["name"])
+        if not isinstance(entry, dict) or not isinstance(entry.get("tests"), list):
+            return None
+        if entry.get("key") != reach.key(job)[0]:
+            return None
+        return "\n".join(entry["tests"] + [entry.get("result", "")])
 
     def workspace_tests(self):
         """`cargo test --workspace`'s verdict off the shared build: `crate_tests` for every
@@ -3307,6 +3355,9 @@ class Goal:
         label = what or f"{leg + ' ' if leg else ''}{c.get('name') or c.get('file')}"
         if key not in self._ran_green and self.audits(c):
             self._claimed.add(key)
+            plain = plain_crate_test(c.get("args", []))
+            if plain is not None:
+                self._audited.add(plain)
             self.trace(f"{label} (green on these inputs already -- run again, as the audit of that)")
             return False
         if key in self._ran_green:
@@ -3325,16 +3376,25 @@ class Goal:
         `binary_inputs` or `observed_inputs` holds what the check was SEEN or SHOWN to read,
         which is narrower and rests on more: that a test leaves its package only through
         `nvs_repo`, that a script reads again what it read last time. So whenever the floor gate
-        is open -- one sweep in `FLOOR_GATE_EVERY`, the sweep a goal is reached on, and
-        `--settle` -- a check with such a key runs whatever the memo says, and
+        is open -- one sweep in `FLOOR_GATE_EVERY`, the sweep a goal is reached on, landing and
+        `--settle` -- a sample of the checks with such a key runs whatever the memo says, and
         `run_cargo_check` names a red one a SELECTOR MISS: the key lacked something the check
-        reads, and that is a bug in the key rather than in the tree. These are the cheap checks:
-        a crate's test binaries run once for every check naming the crate, and a script is
-        seconds. A `package_inputs` key is not audited -- it stands for the checks that cost
-        minutes, and what it rests on is the cargo graph."""
+        reads, and that is a bug in the key rather than in the tree.
+
+        A sample, one check in `AUDIT_EVERY`, and not every one of them. Auditing all of them made
+        every gate-open sweep run over a thousand checks the memo had already answered, and it was
+        most of the wait between a goal's last session and its landing, while no audit found a miss.
+        The sample is drawn from the check's key and the tree's fingerprint, so a sweep over the same
+        tree audits the same checks and a new tree audits different ones: a key that is missing
+        something is found over a few trees rather than on the first one. A `package_inputs` key is
+        not audited -- it stands for the checks that cost minutes, and what it rests on is the cargo
+        graph."""
         if not self.floor_gate or self._parts is None:
             return False
-        return self.binary_inputs(c) is not None or self.observed_inputs(c) is not None
+        if self.binary_inputs(c) is None and self.observed_inputs(c) is None:
+            return False
+        draw = hashlib.blake2b(f"{self.memo_key(c)}\0{self._tree}".encode("utf-8"), digest_size=8)
+        return int.from_bytes(draw.digest(), "big") % AUDIT_EVERY == 0
 
     def remember(self, c, leg=""):
         want = self.inputs_for(c)
@@ -3766,6 +3826,10 @@ class Goal:
         self._wsl_build = None
         self._exes = None
         self._crate_runs = {}
+        self._verify_green = None
+        self._audited = set()
+        self.reused = 0
+        self.reds = []
         self.short = []  # thresholds not met yet, judged after everything else
         self.skipped = []
         self._ran_green = set()
@@ -3807,7 +3871,9 @@ class Goal:
             return fail
 
         # Before ANY build, because the whole value of it is not paying for one: see `fast_fail`.
-        fail = self.fast_fail()
+        # Not in a collecting sweep, which is paying for every check to name every red one, and
+        # runs this one in its place in the list.
+        fail = "" if self.collect else self.fast_fail()
         if fail:
             return fail
 
@@ -3856,8 +3922,9 @@ class Goal:
         # current goal is doing, and catching it without paying for a test build is why this tier
         # runs first. Every one of them, not the first failing one -- the same trade the valgrind
         # sweep makes below, and for the same reason: "one floor fixture broke" and "eleven did"
-        # are different bugs. The sweep still stops HERE, so a red floor never goes on to pay for
-        # the cargo checks, the WSL leg, the valgrind sweep or the release checks.
+        # are different bugs. A sweep that is not collecting stops HERE, so a red floor never goes
+        # on to pay for the cargo checks, the WSL leg, the valgrind sweep or the release checks; a
+        # collecting one carries on, and `ran_past` says which sweeps those are.
         #
         # Unless the floor gate is shut, when the carried floor -- here, in `cargo_checks`, on the
         # WSL leg and under valgrind -- is held, and the sweep is the current goal's own list: its
@@ -3879,7 +3946,9 @@ class Goal:
             else:
                 self.remember(c, native.name)
         if fails:
-            return self.report_program_fails(fails)
+            fail = self.report_program_fails(fails)
+            if not self.ran_past(fail):
+                return fail
 
         self.hold(self.cargo_checks, "cargo check(s)")
         self.start_wsl_build()
@@ -3890,6 +3959,8 @@ class Goal:
             trace(f"cargo {c['name']}")
             fail = self.run_cargo_check(c, native)
             if fail:
+                if self.ran_past(fail):
+                    continue
                 return fail
             self.remember(c)
 
@@ -3908,7 +3979,9 @@ class Goal:
             else:
                 self.remember(c, native.name)
         if fails:
-            return self.report_program_fails(fails)
+            fail = self.report_program_fails(fails)
+            if not self.ran_past(fail):
+                return fail
 
         # Windows is green, so now pay for the Linux leg.
         #
@@ -3947,14 +4020,16 @@ class Goal:
                     if fail:
                         leg_fails.append((stage_key(c), c, fail))
                 if leg_fails:
-                    return self.report_program_fails(leg_fails)
+                    fail = self.report_program_fails(leg_fails)
+                    if not self.ran_past(fail):
+                        return fail
                 # A leg over the goal's own fixtures alone is not the leg this memo names.
-                if self.floor_gate:
+                if self.floor_gate and not leg_fails:
                     self.remember(wsl_leg)
 
         trace("valgrind sweep")
         fail = self.valgrind(leg)
-        if fail:
+        if fail and not self.ran_past(fail):
             return fail
 
         # The `overlap` commands, running since the setup tier. Judged here because this is the
@@ -3967,6 +4042,8 @@ class Goal:
             trace(f"command {c['name']} (overlapped since the setup tier)")
             fail = self.run_cargo_check(c, native)
             if fail:
+                if self.ran_past(fail):
+                    continue
                 return fail
             self.remember(c)
 
@@ -3997,13 +4074,41 @@ class Goal:
             if fail:
                 fail = self.asked_again(c, native, fail)
             if fail:
+                if self.ran_past(fail):
+                    continue
                 return fail
             self.remember(c)
 
+        if self.reds:
+            return self.all_reds()
         # Last, because a corpus that is merely still growing is the one failure that must not hide
         # anything: everything above is a claim about whether the language is correct on both legs
         # and leaks nothing, and all of it has now run. See `cargo_check`'s `min_passing` arm.
         return self.short[0] if self.short else ""
+
+    def ran_past(self, fail):
+        """Whether a collecting sweep carries on past the red check `fail`, which it then keeps
+        for `all_reds`. A sweep that is not collecting stops at its first red, and this says no.
+
+        A sweep stops at its first red while a goal is in progress, because its own later stages
+        are red for the ordinary reason that nobody has built them yet, and the pack names the
+        earliest red check. The sweeps that collect are the ones where every red is a finding: the
+        gate-open sweep that would reach a goal, landing a side goal, and `--settle`. There a sweep
+        that stopped at its first red paid for a whole session and a whole sweep per red check,
+        one after another, when one sweep could have named them all. A build that fails still
+        stops every sweep, since nothing behind it can run."""
+        if not self.collect:
+            return False
+        self.reds.append(fail)
+        return True
+
+    def all_reds(self):
+        """A collecting sweep's verdict: the first red check in sweep order, whole, and then each
+        other one as an `also red:` line of its own, which `orient.py` prints with it. The first
+        line is the one `check_of` reads, so the DONE-claim retry keys on the same check as before."""
+        first, rest = self.reds[0], self.reds[1:]
+        lines = [first] + [f"       also red: {r.split(chr(10))[0].strip()}" for r in rest]
+        return "\n".join(lines)
 
     # -- the two things that let a sweep cost less than all of it ------------------------
 
@@ -4012,7 +4117,9 @@ class Goal:
         first. Only a `cargo-named` check is remembered, because only that kind is cheap enough
         to be worth trying alone -- `fast_fail` says what that costs and what it buys."""
         fail = self.cargo_check(c, leg)
-        if fail and c["kind"] == "cargo-named" and "--release" not in c.get("args", []):
+        # The first red of a collecting sweep, which is the one its verdict leads with.
+        if (fail and c["kind"] == "cargo-named" and "--release" not in c.get("args", [])
+                and not (self.collect and self.reds)):
             self.failed_name = c["name"]
         if fail and self.memo_key(c) in self._claimed:
             ledger(f"       SELECTOR MISS: {c['name']} -- green in the memo, red when run")
@@ -4159,8 +4266,11 @@ class Goal:
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
         skipped = f", {len(self.skipped)} remembered" if self.skipped else ""
+        reused = f", {self.reused} test binaries from verify.py's run" if self.reused else ""
+        audited = f", {len(self._claimed)} audited" if self._claimed else ""
         held = f", {len(self.held)} held (floor gate shut)" if self.held else ""
-        return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}{held}"
+        reds = f", {len(self.reds)} red" if self.reds else ""
+        return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}{reused}{audited}{held}{reds}"
                 + (f"; slowest: {slow}" if slow else ""))
 
     def write_times(self):
@@ -6250,7 +6360,7 @@ def run_cli():
         return owed(goal)
 
     if opts.settle:
-        opts.goal_only, goal.settle_only = True, True
+        opts.goal_only, goal.settle_only, goal.collect = True, True, True
 
     if not (opts.goal_only or opts.leg_only or opts.chain_install) and respawn.ENV not in os.environ:
         # A run, typed by hand: `tools/respawn.py` takes it from here, and starts this file again
@@ -6437,6 +6547,10 @@ def first_turn(chain, goal):
 #: sweep is the goal's own dozen checks. Dropping this to 5 halves the window for about a minute
 #: a session more.
 FLOOR_GATE_EVERY = 10
+
+#: One narrow-keyed check in this many is run again on a gate-open sweep although the memo answers
+#: it, to test the memo. `Goal.audits` owns why it is a sample and how the sample is drawn.
+AUDIT_EVERY = 50
 
 
 def read_counter(path, every):
@@ -6919,11 +7033,24 @@ def drive(opts, goal, chain, run):
         # of those bytes, and is answered from the file when none has. `Goal.remembered` owns why
         # a check over identical inputs cannot answer differently; `--goal-only --full` is the
         # sweep that consults nothing, by hand.
+        #
+        # That second sweep runs past a red check and names every one (`Goal.ran_past`). The goal's
+        # own list has just passed, so each red there is a finding for the next session, and a
+        # sweep that stopped at the first cost a session and a sweep for every red check, one after
+        # another.
+        #
+        # The goal-end gates run after it, red or green, for the same reason. They ask about the
+        # goal's own work, which the scoped sweep has just passed, so a red floor check says nothing
+        # about them, and a gate first asked once the floor is green is one more round. Any other
+        # sweep asks them only when it is green, as it always did.
+        reaching = not fail
         if not fail and goal.held:
             step(f"scoped sweep green with {len(goal.held)} check(s) held -- opening the floor "
                  f"gate over what this goal changed before the goal is reached", C.CYAN)
             ledger(f"       goal cost: {goal.summary()} (scoped; opening the floor gate)")
             goal.floor_gate = True
+            goal.collect = True
+            reaching = True
             fail = goal.check(verbose=True)
         write_counter(FLOORGATE, 0 if goal.floor_gate else floor_since)
         write_last_fail(goal.failed_name)
@@ -6940,8 +7067,8 @@ def drive(opts, goal, chain, run):
             ledger(f"       {widened}")
         # Only a sweep that would reach the goal pays for the two goal-end gates; `doc_gate` and
         # `owner_gate` each say why. Both run when the list is green, so one session sees both.
-        docs_red = "" if fail else doc_gate(index)
-        owner_red = "" if fail else owner_gate(index, chain.current.slug)
+        docs_red = doc_gate(index) if reaching else ""
+        owner_red = owner_gate(index, chain.current.slug) if reaching else ""
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
         if not fail and not docs_red and not owner_red:
@@ -7958,6 +8085,7 @@ def landing_verify():
     except (OSError, tomllib.TOMLDecodeError, GoalError) as e:
         return f"the acceptance list does not load after the rebase: {e}"
     goal.floor_gate = True
+    goal.collect = True
     step("landing: the acceptance list, floor gate open", C.CYAN)
     fail = goal.check(verbose=True)
     ledger(f"       landing cost: {goal.summary()}")

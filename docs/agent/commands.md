@@ -300,7 +300,9 @@ each test binary on what *it* reads: its own package as bytes, the workspace pac
 against with comments and layout removed, and what it opens while it runs when it says so through
 `nvs_repo`. An edit to `nvs-lsp` therefore runs the binaries of `nvs-lsp` and `nvs-cli` and answers
 the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line each printed when it
-was green, so the step's counts stay the workspace's. Every doubt resolves wide — a binary whose
+was green, so the step's counts stay the workspace's. The record also keeps every `test <name> ...`
+line, and the loop's acceptance sweep reads it: a test binary whose key matches is answered from
+`verify.py`'s run and not run a second time (`tools/loop.py`'s `verify_green`). Every doubt resolves wide — a binary whose
 sources leave their package some other way, or whose dep-info cannot be found, keeps the whole-tree
 key. `python tools/impact.py` lists which binaries are narrow and why the others are not,
 `--explain <path>...` says what an edit to a path re-runs, and `--graph` prints the package graph
@@ -362,6 +364,15 @@ inside a run they wait for the floor gate (`tools/loop.py`'s `FLOOR_GATE_EVERY`)
 goal is reached on. Nothing is dropped: a carried check is remembered against a hash of what it
 reads, so a change stales exactly the checks that read what it touched, and they stay stale until
 something runs them.
+
+**The sweep a goal is reached on names every red check, not the first.** While a goal is in progress
+a sweep stops at its first red, because the goal's later stages are red until they are built. The
+gate-open sweep that would reach the goal, landing a side goal, and `--settle` run past a red check
+instead, and the ledger's `goal check:` line is followed by one `also red:` line per other red check,
+which the pack prints. The goal-end gates (`verify.py --doc`, `owners.py --closes`) run after that
+sweep whether it is red or green. A gate-open sweep also runs a sample of the checks the memo already
+answers, to test the memo (`tools/loop.py`'s `audits` and `AUDIT_EVERY`); a red one is a `SELECTOR
+MISS`.
 
 **A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
 `--owed` reads it off the same memo and the same keys a sweep uses, and exits non-zero while there is
