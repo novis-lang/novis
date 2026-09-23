@@ -27185,7 +27185,7 @@ long-running host — at a reload, or only at boot.
 | `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
 | `log.target` | operator only — a request cannot change it | at reload |
-| `cache.shared` | operator only — a request cannot change it | at boot only |
+| `cache.shared` | operator only — a request cannot change it | at reload |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `cache.process` | operator only — a request cannot change it | at reload |
 | `control.socket` | operator only — a request cannot change it | at reload |

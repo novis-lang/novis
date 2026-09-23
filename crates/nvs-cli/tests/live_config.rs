@@ -1167,6 +1167,60 @@ fn a_changed_session_backend_applies_to_new_requests() {
     );
 }
 
+/// A deployment whose shared store is `store`, granted to `app.nvs`, with a
+/// `scope = "fleet"` entry that runs `jobs/tick.nvs` every minute.
+fn fleet(store: &Store) -> String {
+    format!(
+        "[[app]]\nentry = \"app.nvs\"\n\n[app.capabilities.cache]\nshared = true\n\n\
+         [cache.shared]\nurl = \"{}\"\n\n{}\n[[schedule]]\nname = \"fleet-minutely\"\ncron = \
+         \"* * * * *\"\nscript = \"jobs/tick.nvs\"\nscope = \"fleet\"\n",
+        store.url(),
+        scheduling("")
+    )
+}
+
+/// An entry file that reads one key from the shared store and prints `asked`.
+const ASKING: &str = "<?nvs\nCore\\Cache::shared()->get(\"live\");\necho \"asked\";\n";
+
+/// A reload that moves `[cache.shared] url` reaches both of its readers. The
+/// next request reads from the new store, and the next fire of a fleet entry
+/// takes its lease there. The fire comes at the next whole minute, so this case
+/// waits up to a minute more than the others.
+#[test]
+fn a_changed_shared_store_takes_the_next_request_and_the_next_fleet_lease() {
+    let first = Store::start();
+    let second = Store::start();
+    let server = Server::start(
+        "shared-store",
+        &fleet(&first),
+        &[("app.nvs", ASKING), ("jobs/tick.nvs", TICKING)],
+    );
+    server.awaits("/", "the first answer", |answer| answer.body == "asked");
+    assert!(
+        first.received("GET"),
+        "the request before the reload did not reach the first store"
+    );
+
+    let report = server.reload(&fleet(&second));
+    assert!(
+        report.contains("applied: cache.shared.url\n"),
+        "the reload did not name `cache.shared.url` as applied: {report}"
+    );
+    server.awaits("/", "an answer after the reload", |answer| {
+        answer.body == "asked" && second.received("GET")
+    });
+
+    let started = Instant::now();
+    while !second.received("SET") {
+        assert!(
+            started.elapsed() <= BOUND + Duration::from_secs(60),
+            "no fleet fire took its lease in the new store within a minute; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL * 10);
+    }
+}
+
 /// A second control endpoint for the server in `dir`: a socket beside the
 /// first on Unix, and a pipe name of its own on Windows.
 fn moved_endpoint(dir: &Path) -> PathBuf {

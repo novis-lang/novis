@@ -711,15 +711,11 @@ cannot be created is. A reload builds the outbound TLS client `[http.client.tls]
 its anchor files again, and installs it only when its anchors, version floor or key log differ from
 the running client's. The next connection is judged by it, and the pool files every connection under
 the client that opened it, so no socket the old anchors accepted serves a later call. A block that
-does not build keeps the running client and is named the same way. A changed `Boot` key **does not
-take effect**: the published snapshot carries the running value forward, and the reload names the
-key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
-
-**What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
-`max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
-`[session]`, `[control] socket`, `[queue]`, `io.temp_root`, `opcache.file_cache_dir` and
-`http.client.tls` reload. One row is still `Boot`, because it is read once when the server starts:
-`cache.shared`.
+does not build keeps the running client and is named the same way. A request dials the
+`[cache.shared]` store its own snapshot names, and the schedule ticker opens its fleet lease again
+when that block moves, so the next `fleet` fire takes its key in the new store. A changed `Boot` key
+**does not take effect**: the published snapshot carries the running value forward, and the reload
+names the key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
@@ -1638,15 +1634,18 @@ idempotent.
 
 The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
 `Leases` parameter only `nvs serve` can supply, because the crate the ticker lives in names no
-standard library. That binary supplies one whenever the tree names a `[cache.shared]` store its boot
-can reach, over a connection of its own to that tier and a set-if-absent no program is given
-([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
+standard library. That binary supplies one whenever the tree names a `[cache.shared]` store it can
+reach, over a connection of its own to that tier and a set-if-absent no program is given
+([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The connection is opened at boot, and again
+when a reload moves `[cache.shared]` or changes a roster that needs a lease and has none. The next
+fire takes its key in the new store, and a fire already running renews in the store it took its key
+from.
 
-A tree with no shared store, and one whose store will not answer the boot, leave every `fleet` entry
-**unarmed** and named in a boot note. Firing it on each host's own clock would be the precise failure
+A tree with no shared store, and one whose store will not answer, leave every `fleet` entry
+**unarmed** and named in a note. Firing it on each host's own clock would be the precise failure
 the scope exists to prevent, so the safe half is to run none of them and say so.
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0073](../decisions/0073.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0073](../decisions/0073.md), [0059](../decisions/0059.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-overlap-is-skip-queue-or-kill"></a>
 

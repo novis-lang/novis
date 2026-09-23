@@ -28,6 +28,5 @@ echo 'timeout:  ', Core\Config::get('cache.shared.timeout') ?? '(the built-in bo
 echo 'move:     ', Core\Config::set('cache.shared.url', 'redis://elsewhere:6379') ? 'yes' : 'no', "\n";
 echo 'hurry:    ', Core\Config::set('cache.shared.timeout', '5ms') ? 'yes' : 'no', "\n";
 
-// Even an operator's edit waits for a restart here, unlike the two in-memory
-// tiers: every core holds an open connection to this store, so a new address
-// means re-dialling all of them.
+// The person who runs the server can change this block while it runs.
+// The next request then uses the new store. No restart is needed.

@@ -8,5 +8,5 @@ databases these entries live in; and `timeout`, which bounds both the connect an
 that has stopped answering cannot hold a request open. Naming a store is only half of it — an application
 also has to be granted the shared cache before it may open one.
 
-**Good to know:** unlike the two in-memory tiers, a change here waits for a restart. Every core holds an open
-connection to this store, so moving it re-dials all of them.
+**Good to know:** you can change this block while the server runs. The next request uses the new store,
+and so does the next scheduled job with `scope = "fleet"`. You do not need to restart the server.

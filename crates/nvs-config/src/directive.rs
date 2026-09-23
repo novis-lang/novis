@@ -174,15 +174,14 @@ pub const DIRECTIVES: &[Directive] = &[
     // resolved when a record is first written, so a new value is in force for the next context and
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
-    // The `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
-    // records as unspelled and less `[queue]`'s two, which are written beside the rest of their own
-    // block below. `[server]`'s `Boot` rows are written with its block, further down. The artifact
-    // cache's directory is written `opcache.file_cache_dir` further down: neither `[cache]` key is an
-    // artifact directory at all, and the block holds no third one (`docs/decisions/0175.md`).
+    // `[cache]`'s three tiers, one row each. The artifact cache's directory is written
+    // `opcache.file_cache_dir` further down: no `[cache]` key is an artifact directory at all
+    // (`docs/decisions/0175.md`). The only `Boot` rows are `[server]`'s, written with its block.
     // `rule:core-api/two-cache-tiers`'s shared tier is `System` because where a fleet's coherent state lives is not a
-    // decision a request may make for itself, and `Boot` because each core holds one connection to
-    // it, and moving the store re-dials every one of them.
-    Directive { key: "cache.shared", class: Class::System, apply: Apply::Boot },
+    // decision a request may make for itself. `Reload` because a request dials the store its own
+    // snapshot names, and the schedule ticker opens its fleet lease again when the block moves: the
+    // next fire takes its key in the new store, and a fire already running renews in the old one.
+    Directive { key: "cache.shared", class: Class::System, apply: Apply::Reload },
     // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule `rule:config/three-changeability-classes` states — the memory it
     // bounds is the core's, so a request raising it would spend what every other request on that
     // core then goes without — and `Reload` rather than `Boot` because a new ceiling is read by the

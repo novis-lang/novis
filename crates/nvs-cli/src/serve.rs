@@ -1124,43 +1124,33 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // this binary is the one place it can be opened: `nvs-server` names no
     // `nvs-stdlib`, so the store a fleet entry is held in is reachable from here
     // and nowhere else. A tree with no `scope = "fleet"` entry opens nothing —
-    // the connection is per process and lives as long as the server, so it is
-    // paid for by the roster that needs it and by nothing else — and a store
-    // that will not answer leaves § 3's fallback holding: every fleet entry
-    // unarmed and named while an operator is still reading the start. A reload
-    // opens no lease, so a fleet entry it adds to a boot that opened none gets
-    // that same fallback and note.
-    let fleet = ticks
-        && snapshot
-            .config
-            .schedule
-            .iter()
-            .any(|entry| entry.scope.as_deref().map(str::trim) == Some("fleet"));
-    // An `Rc` rather than the value: § 3's renewal runs on each fire's own task, so the store is
-    // reached from frames that outlive both this one and the tick's.
-    let lease: Option<Rc<dyn nvs_server::Leases>> = if fleet {
-        fleet_lease(&snapshot.config).map(|held| Rc::new(held) as Rc<dyn nvs_server::Leases>)
+    // the connection is per process, so it is paid for by the roster that
+    // needs it and by nothing else — and a store that will not answer leaves
+    // § 3's fallback holding: every fleet entry unarmed and named while an
+    // operator is still reading the start. The ticker opens the lease again
+    // when a reload moves `[cache.shared]`, and when a reload changes a roster
+    // that needs one and has none.
+    let lease = if ticks {
+        fleet_lease_for(&snapshot.config)
     } else {
         None
     };
-    let arm_roster = {
-        let lease = lease.clone();
-        move |schedule: &[nvs_config::tree::Schedule]| {
-            let armed = nvs_server::arm(schedule, &Zoned::now(), lease.as_deref(), |note| {
-                eprintln!("note: {note}");
-            });
-            if !armed.is_empty() {
-                println!(
-                    "arming {} scheduled entr{}",
-                    armed.len(),
-                    if armed.len() == 1 { "y" } else { "ies" }
-                );
-            }
-            armed
+    let arm_roster = |schedule: &[nvs_config::tree::Schedule],
+                      lease: Option<&dyn nvs_server::Leases>| {
+        let armed = nvs_server::arm(schedule, &Zoned::now(), lease, |note| {
+            eprintln!("note: {note}");
+        });
+        if !armed.is_empty() {
+            println!(
+                "arming {} scheduled entr{}",
+                armed.len(),
+                if armed.len() == 1 { "y" } else { "ies" }
+            );
         }
+        armed
     };
     if ticks {
-        let mut armed = arm_roster(&snapshot.config.schedule);
+        let mut armed = arm_roster(&snapshot.config.schedule, lease.as_deref());
         // A second task on *this* scheduler and not a second scheduler: the
         // ticker sleeps out its interval on a core the accept loop is still
         // serving on, and each fire is a child task of it (`rule:concurrency/a-child-belongs-to-the-calling-task`).
@@ -1172,19 +1162,36 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
         let ticking = draining.clone();
         // The roster is armed from, and compared against, the snapshot it was
-        // last armed from. A reload that changed some other block publishes a
-        // new snapshot with the same `[[schedule]]` list, and that re-arms nothing.
+        // last armed from. A reload that changed neither `[[schedule]]` nor the
+        // store a fleet entry's lease is taken in re-arms nothing.
         let mut armed_from = Arc::clone(&snapshot);
         let current = Arc::clone(&current);
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let mut held = lease.clone();
             let mut roster = || {
                 let now = current.load();
                 if Arc::ptr_eq(&now, &armed_from) {
                     return None;
                 }
-                let changed = now.config.schedule != armed_from.config.schedule;
+                let listed = now.config.schedule != armed_from.config.schedule;
+                let moved = shared_store(&now.config) != shared_store(&armed_from.config);
                 armed_from = now;
-                changed.then(|| arm_roster(&armed_from.config.schedule))
+                let fleet = has_fleet_entry(&armed_from.config);
+                if !listed && !(moved && fleet) {
+                    return None;
+                }
+                // Opened on this core, as at the start. The ticker drops its
+                // handle on the old store here, and a fire still running holds
+                // its own until that fire ends.
+                if !fleet {
+                    held = None;
+                } else if moved || held.is_none() {
+                    held = fleet_lease_for(&armed_from.config);
+                }
+                Some(nvs_server::Roster {
+                    armed: arm_roster(&armed_from.config.schedule, held.as_deref()),
+                    leases: held.clone(),
+                })
             };
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
             // skipped rather than replayed, which is the ticker asking the clock
@@ -1634,6 +1641,33 @@ impl FleetLease {
             }
         }
     }
+}
+
+/// Whether `config` lists a `scope = "fleet"` entry, which is what needs a
+/// lease at all.
+fn has_fleet_entry(config: &nvs_config::Config) -> bool {
+    config
+        .schedule
+        .iter()
+        .any(|entry| entry.scope.as_deref().map(str::trim) == Some("fleet"))
+}
+
+/// `[cache.shared]` as `config` writes it, which is the store a fleet lease is
+/// taken in.
+fn shared_store(config: &nvs_config::Config) -> Option<&nvs_config::tree::CacheShared> {
+    config.cache.as_ref()?.shared.as_ref()
+}
+
+/// The lease the ticker is handed for `config`: [`fleet_lease`] where a fleet
+/// entry needs one, and [`None`] otherwise.
+///
+/// An `Rc` rather than the value: § 3's renewal runs on each fire's own task,
+/// so the store is reached from frames that outlive the tick that took the key.
+fn fleet_lease_for(config: &nvs_config::Config) -> Option<Rc<dyn nvs_server::Leases>> {
+    if !has_fleet_entry(config) {
+        return None;
+    }
+    fleet_lease(config).map(|held| Rc::new(held) as Rc<dyn nvs_server::Leases>)
 }
 
 /// The lease `arm` and the ticker are handed, or [`None`] when there is no

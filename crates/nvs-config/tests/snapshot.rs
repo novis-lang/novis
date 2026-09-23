@@ -445,11 +445,6 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
 /// Each `Boot` row, and a tree before and after a reload that changes the key it governs.
 const BOOT_CHANGES: &[(&str, &str, &str)] = &[
     (
-        "cache.shared",
-        "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n",
-        "[cache.shared]\nurl = \"redis://127.0.0.1:6380\"\n",
-    ),
-    (
         "server.listen",
         "[server]\nlisten = [\"127.0.0.1:8080\"]\n",
         "[server]\nlisten = [\"127.0.0.1:8081\"]\n",
@@ -517,6 +512,26 @@ fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
             "a reload that changed `{key}` put the new value in force"
         );
     }
+}
+
+/// `rule:config/reloadability-is-its-own-field`'s `Boot` set is three keys, and no other row is
+/// `Boot`. A port below 1024 needs a privilege the process dropped, `socket_mode` is applied when
+/// that socket is bound, and `workers` sizes what each core holds. A row added as `Boot` beside
+/// them is a key an operator restarts for, so it fails here until the rule names it.
+#[test]
+fn only_listen_socket_mode_and_workers_need_a_restart() {
+    use nvs_config::directive::{Apply, DIRECTIVES};
+
+    let boot: Vec<&str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.apply == Apply::Boot)
+        .map(|row| row.key)
+        .collect();
+    assert_eq!(
+        boot,
+        ["server.listen", "server.socket_mode", "server.workers"],
+        "only the three restart keys may be `Boot`"
+    );
 }
 
 /// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse

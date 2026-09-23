@@ -106,6 +106,11 @@
 //! re-arm landing on the entry's own minute does not lose that fire. An entry the
 //! reload removed is dropped from the roster, and its run in flight is still one
 //! of this ticker's children and is waited out like any other.
+//!
+//! A [`Roster`] carries the store the next `fleet` fires take their key in, so
+//! a reload that moves the shared store moves the lease with it. A fire already
+//! running renews in the store it took its key from, because its renewal holds
+//! that store's [`Rc`].
 
 use std::cell::Cell;
 use std::io;
@@ -525,9 +530,9 @@ pub struct Rearm<'a> {
     /// The longest one pass waits before it asks [`Rearm::roster`] again. It is also the bound on
     /// how late a stop is noticed, because the wait it caps is the only place the ticker parks.
     pub every: Duration,
-    /// Answers the roster to tick from now on, armed by [`arm`], or [`None`] when the
-    /// configuration it was armed from has not changed since the last answer.
-    pub roster: &'a mut dyn FnMut() -> Option<Vec<Armed>>,
+    /// Answers the roster to tick from now on, or [`None`] when the configuration it was armed
+    /// from has not changed since the last answer.
+    pub roster: &'a mut dyn FnMut() -> Option<Roster>,
 }
 
 impl std::fmt::Debug for Rearm<'_> {
@@ -535,6 +540,28 @@ impl std::fmt::Debug for Rearm<'_> {
         f.debug_struct("Rearm")
             .field("every", &self.every)
             .finish_non_exhaustive()
+    }
+}
+
+/// What [`Rearm::roster`] answers: the entries to tick from now on, and the store their `fleet`
+/// fires take § 3's key in.
+///
+/// The two travel together because a reload can move either. A new store takes the next fire's
+/// key, and a fire already running goes on renewing in the store it took its key from, because its
+/// renewal holds that store's [`Rc`]. The old store is dropped when the last of those runs ends.
+pub struct Roster {
+    /// The entries, armed by [`arm`] against [`Roster::leases`].
+    pub armed: Vec<Armed>,
+    /// The store every later `fleet` fire asks, or [`None`] where there is none.
+    pub leases: Option<Rc<dyn Leases>>,
+}
+
+impl std::fmt::Debug for Roster {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Roster")
+            .field("armed", &self.armed.len())
+            .field("leases", &self.leases.is_some())
+            .finish()
     }
 }
 
@@ -566,7 +593,8 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
 /// [`serve_on_this_core`](crate::serve::serve_on_this_core) takes `keep_serving`: a loop that reads a
 /// global directly can only be tested by waiting for it. `nvs serve` passes `Zoned::now`.
 ///
-/// `leases` is the same value [`arm`] was given and is asked once per fire of a `fleet` entry — the
+/// `leases` is the same value [`arm`] was given, until a [`Rearm`] answers a [`Roster`] carrying
+/// another, and is asked once per fire of a `fleet` entry — the
 /// key § 3 names, held for the interval, and a refusal means another host has this one. It is asked
 /// *after* § 6's overlap question and never before it: an entry still running its own previous fire
 /// has already lost this interval on this host, and taking the lease only to drop the fire under
@@ -602,9 +630,11 @@ where
         return Err(io::Error::other("the ticker must run as a task on a core"));
     };
     let outstanding = Rc::new(Cell::new(0_usize));
+    let mut leases: Option<Rc<dyn Leases>> = leases.cloned();
     loop {
         if let Some(fresh) = rearm.as_mut().and_then(|rearm| (rearm.roster)()) {
-            *entries = carry_over(std::mem::take(entries), fresh);
+            *entries = carry_over(std::mem::take(entries), fresh.armed);
+            leases = fresh.leases;
         }
         let wait = match (soonest(entries, &now()), &rearm) {
             (Some(wait), None) => wait,
@@ -698,7 +728,7 @@ where
                 // than silent, because "the nightly did not run here" is a thing an operator
                 // reading one host's log has to be able to tell from a failure — and on a fleet of
                 // twenty this is the ordinary line that nineteen of them write.
-                if let Some(held) = took_the_lease(entry, leases) {
+                if let Some(held) = took_the_lease(entry, leases.as_ref()) {
                     start(entry, fires, &outstanding, &parent, Some(held))?;
                 } else {
                     fires.note(&format!(
@@ -1233,12 +1263,15 @@ mod tests {
                         return None;
                     }
                     answered = true;
-                    Some(arm(
-                        &[entry("nightly", "* * * * *", "host")],
-                        &armed_at,
-                        None,
-                        |note| panic!("nothing to report on a re-arm, and it said: {note}"),
-                    ))
+                    Some(Roster {
+                        armed: arm(
+                            &[entry("nightly", "* * * * *", "host")],
+                            &armed_at,
+                            None,
+                            |note| panic!("nothing to report on a re-arm, and it said: {note}"),
+                        ),
+                        leases: None,
+                    })
                 };
                 tick_on_this_core(
                     &mut Vec::new(),

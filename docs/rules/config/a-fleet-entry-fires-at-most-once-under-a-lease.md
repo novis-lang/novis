@@ -13,10 +13,13 @@ idempotent.
 
 The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
 `Leases` parameter only `nvs serve` can supply, because the crate the ticker lives in names no
-standard library. That binary supplies one whenever the tree names a `[cache.shared]` store its boot
-can reach, over a connection of its own to that tier and a set-if-absent no program is given
-(`rule:concurrency/cross-request-state-is-explicit`).
+standard library. That binary supplies one whenever the tree names a `[cache.shared]` store it can
+reach, over a connection of its own to that tier and a set-if-absent no program is given
+(`rule:concurrency/cross-request-state-is-explicit`). The connection is opened at boot, and again
+when a reload moves `[cache.shared]` or changes a roster that needs a lease and has none. The next
+fire takes its key in the new store, and a fire already running renews in the store it took its key
+from.
 
-A tree with no shared store, and one whose store will not answer the boot, leave every `fleet` entry
-**unarmed** and named in a boot note. Firing it on each host's own clock would be the precise failure
+A tree with no shared store, and one whose store will not answer, leave every `fleet` entry
+**unarmed** and named in a note. Firing it on each host's own clock would be the precise failure
 the scope exists to prevent, so the safe half is to run none of them and say so.

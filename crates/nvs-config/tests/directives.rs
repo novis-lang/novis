@@ -88,8 +88,10 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "queue.visibility",
         "metrics.listen",
         "trace.sample",
-        // Its sibling `cache.shared` is `Boot` above; this one bounds a map in the core's own
-        // memory (`rule:concurrency/cache-memory-is-charged-to-the-core`), so a new ceiling is read by the next write and re-dials nothing.
+        // The next request dials the new store, and the next fleet fire takes its lease there.
+        "cache.shared.url",
+        // This one bounds a map in the core's own memory
+        // (`rule:concurrency/cache-memory-is-charged-to-the-core`), so a new ceiling is read by the next write.
         "cache.local.max_size",
         // The third tier's two, which are this class for the same reason doubled: what they bound
         // is one map for the whole process rather than one per core
@@ -247,8 +249,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "cache.shared",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_shared_store_takes_the_next_request_and_the_next_fleet_lease",
     ),
     (
         "cache.local",
@@ -707,14 +709,9 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
 /// request that raised it would be spending what every other request on that core then goes
 /// without. `Reload` because the ceiling is read by the next write and enforced by forgetting
 /// entries, which re-dials nothing and re-creates nothing.
-///
-/// Asserted beside `cache.shared`, which is `Boot`, because that is what the row costs: three
-/// tiers written as three rows rather than as one `cache` row is the only way the block holds two
-/// apply classes at once, and a blanket row added above them would pass every other assertion here
-/// while making an operator restart for a ceiling change.
 // covers: directive:cache.local
 #[test]
-fn the_local_tiers_ceiling_is_one_system_key_applied_at_reload_beside_a_boot_sibling() {
+fn the_local_tiers_ceiling_is_one_system_key_applied_at_reload() {
     let keys = keys_in("cache.local");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -745,12 +742,6 @@ fn the_local_tiers_ceiling_is_one_system_key_applied_at_reload_beside_a_boot_sib
         Apply::Reload,
         "a new ceiling is read by the next write and enforced by forgetting entries \
          (`rule:config/reloadability-is-its-own-field`)",
-    );
-    assert_eq!(
-        governing("cache.shared.url").apply,
-        Apply::Boot,
-        "the coherent tier is dialled once per core, so moving it re-dials every connection — and \
-         `[cache]` holding both apply classes is why these are per-tier rows",
     );
 }
 
@@ -812,27 +803,21 @@ fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_
     );
     assert!(
         lookup("cache").is_none() && lookup("cache.nvs_no_such_tier.max_size").is_none(),
-        "a blanket `cache` row would hand every future tier whichever class it happened to carry, \
-         and `cache.shared` being `Boot` beside these two is what that row could not say",
+        "a blanket `cache` row would hand every future tier whichever class it happened to carry",
     );
 }
 
 /// `rule:core-api/two-cache-tiers`: the coherent tier is a *store* rather than a map, and every key
-/// naming or reaching it is the operator's and applies at boot.
+/// naming or reaching it is the operator's and applies at reload.
 ///
 /// `System` because where a fleet's coherent state lives is not a decision one request may make for
 /// the rest — and because four of the five keys are how that store is *reached*, so a request able
-/// to write them would be re-pointing a credential as well as an address. `Boot` because each core
-/// holds one connection to the store: moving it re-dials every one of them, which is the same
-/// "re-creates the runtime's mapping" the artifact directory is `Boot` for.
-///
-/// The last assertion is the one the three-rows-per-tier shape exists for. `[cache]` holds two apply
-/// classes at once — this tier's `Boot` beside the two in-memory tiers' `Reload` — so a blanket row
-/// above them could only be right about one, and which of the two it got wrong is either an
-/// operator restarting for a ceiling change or a fleet believing it moved a store it did not.
+/// to write them would be re-pointing a credential as well as an address. `Reload` because a
+/// request dials the store its own snapshot names, and the schedule ticker opens its fleet lease
+/// again when the block moves (`rule:config/reloadability-is-its-own-field`).
 // covers: directive:cache.shared
 #[test]
-fn every_shared_tier_key_is_system_class_applied_at_boot_beside_two_reload_siblings() {
+fn every_shared_tier_key_is_system_class_and_applied_at_reload() {
     let keys = keys_in("cache.shared");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -861,19 +846,10 @@ fn every_shared_tier_key_is_system_class_applied_at_boot_beside_two_reload_sibli
         );
         assert_eq!(
             row.apply,
-            Apply::Boot,
-            "every core holds an open connection to this store, so a change here re-dials all of \
-             them rather than being read by the next caller \
-             (`rule:config/reloadability-is-its-own-field`)",
-        );
-    }
-
-    for sibling in ["cache.local.max_size", "cache.process.fill_wait"] {
-        assert_eq!(
-            governing(sibling).apply,
             Apply::Reload,
-            "`{sibling}` bounds a map this process already holds, so it applies without re-dialling \
-             anything — and `[cache]` carrying both apply classes is why the tiers are three rows",
+            "a request dials the store its own snapshot names, and the fleet lease is opened again \
+             when the block moves, so `{key}` needs no restart \
+             (`rule:config/reloadability-is-its-own-field`)",
         );
     }
 }

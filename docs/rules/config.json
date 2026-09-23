@@ -1111,7 +1111,8 @@
       "status": "shipped",
       "because": [
         "0073",
-        "0059"
+        "0059",
+        "0219"
       ],
       "seeAlso": [
         "config/scope-has-no-default",
@@ -1120,7 +1121,8 @@
         "concurrency/cross-request-state-is-explicit"
       ],
       "guardedBy": [
-        "crates/nvs-server/src/schedule.rs"
+        "crates/nvs-server/src/schedule.rs",
+        "crates/nvs-cli/tests/live_config.rs"
       ]
     },
     {
