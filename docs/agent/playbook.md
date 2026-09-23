@@ -2659,6 +2659,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   then add all of the group's Rust tests once, so the group pays one release build rather than one
   per member. [until: reviewed 2026-09-22]
 - **A handoff that says a dossier goal is complete can be wrong, and the driver's failure line hides the list that says so.** The acceptance ledger prints the first stderr line of `dossier.py --verify --group`, which is the release-rebuild notice (`target/release/nvs.exe is missing or older than the tree`), not the features still owed below it. Before trusting a `DONE` handoff or reading that line as a stale binary, run the goal's own `python tools/dossier.py --verify --group '<Class>'` once per `[[check]]` group and read its `still owe a proof` list. [until: reviewed 2026-10-23]
+- **A new directive row is a new dossier feature, and the floor's `--emit-goals --dry-run` check turns
+  red until its proofs exist.** Splitting `listen`, `socket_mode` and `workers` out of `[server]` gave
+  `tools/dossier.py` three `directive:server.*` features no goal on disk claims, so the check read
+  "would append 1 goal(s)" with no feature named. Run `python tools/dossier.py --verify --only
+  directive:<key>` for every row a change adds, and write its example, attack and `// covers:` marker
+  in the same slice. [until: gone tools/dossier.py:claimed_features]
 
 ## Running things
 
