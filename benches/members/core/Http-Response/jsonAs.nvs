@@ -1,0 +1,26 @@
+<?nvs
+// Decodes a small JSON reply into a shape, as a program does with every answer from a web API.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://api.example.com/users/3", 200, {body: "{\"name\":\"Ada\",\"id\":3}"});
+        Core\Test::answerHttp("https://api.example.com/users/1", 200, {body: "{\"name\":\"Grace\",\"id\":1}"});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://api.example.com/users/3"),
+            Core\Http\Client::get("https://api.example.com/users/1"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reply in each round is chosen by the round before, so no round can be left out.
+            var $user = $replies[($total % 2) as int]->jsonAs<tainted {name: string, id: int}>();
+            $total = $total + ($user->id as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

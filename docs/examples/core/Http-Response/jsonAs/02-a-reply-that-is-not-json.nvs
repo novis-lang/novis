@@ -1,0 +1,37 @@
+<?nvs
+// Shows what happens when a reply is not the JSON document the program expects.
+
+// The text in a reply comes from another server, so the text field is `tainted`.
+#[Core\Json\Derive]
+class User {
+    public tainted string $name;
+    public int $id;
+
+    public function constructor(tainted string $name, int $id) {
+        $this->name = $name;
+        $this->id = $id;
+    }
+}
+
+// The first server sends a web page. The second sends JSON without the field `id`.
+Core\Test::answerHttp("https://api.example.com/page", 200, {body: "<html>Maintenance</html>"});
+Core\Test::answerHttp("https://api.example.com/partial", 200, {body: "{\"name\":\"Ada\"}"});
+// The third server sends bytes that are not UTF-8 text.
+Core\Test::answerHttp("https://api.example.com/blob", 200, {body: Core\Encoding::fromHex("7b22ff227d")});
+
+// `jsonAs<T>()` throws a `ParseError` when the body does not fit the type `T`.
+// This prints one error message for each of the three replies.
+array<string> $urls = [
+    "https://api.example.com/page",
+    "https://api.example.com/partial",
+    "https://api.example.com/blob",
+];
+foreach ($urls as string $url) {
+    Core\Http\Response $response = Core\Http\Client::get($url);
+    try {
+        User $user = $response->jsonAs<User>();
+        echo $user->name, "\n";
+    } catch (ParseError $error) {
+        echo $error->message, "\n";
+    }
+}

@@ -3,24 +3,26 @@
 ## State
 
 Goal `core-http-response-and-1-more` (feature proofs for `Core\Http\Response` and `Core\Http\TlsInfo`, 14 members).
-`Core\Http\Response::bytes`, `::header` and `::headers` have all their feature proofs on disk and measured.
-Their examples use `Core\Test::answerHttp` for a fixed reply, so they show a real `Core\Http\Response`
-without a network; the Rust tests share `answered_once` in `crates/nvs-stdlib/src/http.rs`'s tests, a
-loopback origin that hands back the response itself. `header`/`headers` now share the stored header
-strings rather than copying each line (5 allocations per `header` read became 1).
-Nothing is blocked. Eleven members remain: `jsonAs`, `status`, `text`, `tls` and the seven `TlsInfo` readers.
+`Core\Http\Response::bytes`, `::header`, `::headers`, `::text`, `::status` and `::jsonAs` have all their feature
+proofs on disk and measured. Their examples use `Core\Test::answerHttp` for a fixed reply; the Rust tests share
+`answered_once` in `crates/nvs-stdlib/src/http.rs`'s tests, and `named_shape` there builds the `{name: string}`
+shape a compiled `jsonAs<T>()` call site hands the helper. Nothing is blocked. Eight members remain: `tls` and the
+seven `TlsInfo` readers.
 
 ## Next group
 
-**Stage 1: `Core\Http\Response` body readers** — one file set: `crates/nvs-stdlib/src/http.rs` (registry rows, helpers, tests),
-`docs/examples/core/Http-Response/`, `tests/hostile/core/Http-Response/`, `benches/members/core/Http-Response/`.
-Reuse `answered_once` for the Rust half and `Core\Test::answerHttp` for the examples, as the `bytes` proofs do.
+**Stage 1: `Core\Http\Response::tls` and the `Core\Http\TlsInfo` readers** — one file set: `crates/nvs-stdlib/src/http.rs`
+(registry rows, helpers, tests), `docs/examples/core/Http-Response/tls/`, `docs/examples/core/Http-TlsInfo/`,
+`tests/hostile/core/`, `benches/members/core/`. `tls()` is `null` for a reply `Core\Test::answerHttp` answered
+(`tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst`), so a non-null example needs
+either a real TLS origin or a way for the table to carry a session — read the `answerHttp` row first and decide.
 
-- [ ] **`Core\Http\Response::text`** — `rule:testing/feature-proofs`; the helper is `crates/nvs-stdlib/src/http.rs:4300`, its row `crates/nvs-stdlib/src/http.rs:1700`. The not-UTF-8 refusal is already pinned from Rust by `response_bytes_reads_a_body_text_refuses_and_reads_it_again`; its own test should pin a valid body and the byte offset the refusal names.
-- [ ] **`Core\Http\Response::status`** — `rule:testing/feature-proofs`; row `crates/nvs-stdlib/src/http.rs:1691`. A `404`/`500` is an answer, not a throw (STATUS_DOC).
-- [ ] **`Core\Http\Response::jsonAs`** — `rule:testing/feature-proofs`; helper `crates/nvs-stdlib/src/http.rs:4397`, row `crates/nvs-stdlib/src/http.rs:1718`. Its examples need a `#[Json\Derive]` class whose text fields are `tainted`.
+- [ ] **`Core\Http\Response::tls`** — `rule:testing/feature-proofs`; row `crates/nvs-stdlib/src/http.rs:1746`. The `null` answer is pinned from Novis; a Rust test needs a TLS loopback origin or the slot written directly.
+- [ ] **`Core\Http\TlsInfo::version` and `::cipher`** — `rule:testing/feature-proofs`; class `crates/nvs-stdlib/src/http.rs:1910`, rows `crates/nvs-stdlib/src/http.rs:1916` and `crates/nvs-stdlib/src/http.rs:1925`. A Rust test can build the instance with `crate::instance::build(&TLS_INFO, [...])`.
+- [ ] **`Core\Http\TlsInfo::subject`, `::issuer` and the other three readers** — `rule:testing/feature-proofs`; rows from `crates/nvs-stdlib/src/http.rs:1952`.
 
 ## Backlog
 
-- `Core\Hash::of` and `::hmac` take `CoreTy::Bytes`/`CoreTy::Str` (`crates/nvs-stdlib/src/hash.rs:298`), so a downloaded `tainted bytes` body cannot be checked against a published SHA-256 checksum without a launderer. Possibly `CoreTy::Blob(Qual::Neutral)`; a security call, not taken here — owning doc `crates/nvs-stdlib/src/hash.rs`.
-- The `TlsInfo` readers (`crates/nvs-stdlib/src/http.rs:1907`-`1961`) need a real TLS session, since an answered call's `tls()` is `null`; look for the loopback TLS fixture the `Client` tests use before writing one.
+- A shape's internal label leaks into messages: `1 field(s) of `$shape{id,name}` did not match` (`crates/nvs-stdlib/src/json.rs:2454` and about twenty sibling sites, plus `crates/nvs-stdlib/src/db/row.rs`). Five `tests/conformance/lang/` cases and `docs/examples/lang/errors/properties-not-accessors/02-every-problem-in-one-list.out` pin the spelling, so changing it is a tree-wide call, not a proof slice.
+- `Core\Http\Response::jsonAs` spends 12 allocations and 566 bytes to decode a two-field shape (`docs/perf/members.ndjson`), a perf opportunity in `crates/nvs-stdlib/src/json.rs`'s `decode_as`.
+- `benches/members/core/Http-Response/bytes.nvs` chains on `$total % 2` over two even-length bodies, so it only reads the first reply; the `text`, `status` and `jsonAs` benches alternate. Fixing it re-measures `bytes`.

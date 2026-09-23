@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a server sends JSON that is very deep, very wide or very large, and a
+// program decodes it with `jsonAs<T>()`. Each reply must throw a `ParseError`,
+// or stop at the memory limit, and must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+#[Core\Json\Derive]
+class Item
+{
+    public int $n;
+
+    public function constructor(int $n)
+    {
+        $this->n = $n;
+    }
+}
+
+Core\Config::set('memory', '256M');
+
+// 1. An array nested one hundred thousand levels deep. The depth limit must stop it.
+string $deep = Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000);
+Core\Test::answerHttp('https://api.example.com/deep', 200, { body: $deep });
+Core\Http\Response $deepReply = Core\Http\Client::get('https://api.example.com/deep');
+try {
+    array<Item> $items = $deepReply->jsonAs<array<Item>>();
+    throw new LogicError('a document deeper than the limit was decoded');
+} catch (ParseError $tooDeep) {
+    echo 'step 1: refused', "\n";
+}
+
+// 2. A depth limit outside the allowed range must throw an error.
+try {
+    array<Item> $none = $deepReply->jsonAs<array<Item>>({ maxDepth: 1000000 });
+    throw new LogicError('a depth limit of one million was accepted');
+} catch (LogicError $badLimit) {
+    echo 'step 2: refused', "\n";
+}
+
+// 3. One object with two hundred thousand keys. Only `n` is read, and the reply is
+//    decoded one hundred times, so memory must not grow with each call.
+array<string> $keys = [];
+uint $k = 0;
+while ($k < 200000) {
+    $keys[] = '"k' . $k . '":' . $k;
+    $k = $k + 1;
+}
+$keys[] = '"n":7';
+string $wide = '{' . Core\Str::join($keys, ',') . '}';
+Core\Test::answerHttp('https://api.example.com/wide', 200, { body: $wide });
+Core\Http\Response $wideReply = Core\Http\Client::get('https://api.example.com/wide');
+uint $round = 0;
+uint $sum = 0;
+while ($round < 100) {
+    $sum = $sum + ($wideReply->jsonAs<Item>()->n as uint);
+    $round = $round + 1;
+}
+echo 'step 3: ', $sum, "\n";
+
+// 4. An array of one million items, decoded again and again until the memory
+//    limit stops the program. This is the last step.
+string $many = '[' . Core\Str::repeat('{"n":1},', 999999) . '{"n":1}]';
+Core\Test::answerHttp('https://api.example.com/many', 200, { body: $many });
+Core\Http\Response $manyReply = Core\Http\Client::get('https://api.example.com/many');
+array<array<Item>> $kept = [];
+while (true) {
+    $kept[] = $manyReply->jsonAs<array<Item>>();
+}

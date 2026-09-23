@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read a JSON reply into a shape with named fields.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network.
+Core\Test::answerHttp("https://api.example.com/users/7", 200, {
+    body: "{\"name\":\"Ada\",\"id\":7}",
+    headers: ["Content-Type" => "application/json"],
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/users/7");
+
+// `jsonAs<T>()` decodes the body into the type `T` that you write between `<` and `>`.
+// The text came from another server, so the shape is `tainted`.
+var $user = $response->jsonAs<tainted {name: string, id: int}>();
+
+// This prints `Ada has the id 7`.
+echo $user->name, " has the id ", $user->id, "\n";
