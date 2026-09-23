@@ -166,9 +166,10 @@ impl Phase {
 #[derive(Debug)]
 pub struct ConnectionIo {
     stream: NvsConnection,
-    /// The numbers, fixed for this connection's life — `[server]` is
-    /// `Boot`-class (`rule:http-server/the-server-block-is-boot-class`), so a reload does not move them under a
-    /// connection already being served.
+    /// The numbers, fixed for this connection's life: they are the snapshot's
+    /// that was published when it was accepted
+    /// (`rule:http-server/the-server-block-is-boot-class`), so a reload reaches
+    /// the next connection and never moves them under this one.
     waits: Waits,
     /// The phase in force, shared with the connection loop: the module doc
     /// § *The clock* says which changes each side can see.

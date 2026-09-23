@@ -306,36 +306,6 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
     ),
     (
-        "server.header_timeout",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.body_idle_timeout",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.write_idle_timeout",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.keepalive_timeout",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.drain_timeout",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.connection",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
         "opcache",
         LIVE,
         "a_changed_opcache_block_reaches_the_unit_cache",

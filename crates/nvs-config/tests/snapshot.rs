@@ -502,36 +502,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[server]\nroot = \"/srv\"\n\n[[server.mount]]\nentry = \"blog/index.nvs\"\nprefix = \"/news\"\n",
     ),
     (
-        "server.header_timeout",
-        "[server]\nheader_timeout = \"10s\"\n",
-        "[server]\nheader_timeout = \"20s\"\n",
-    ),
-    (
-        "server.body_idle_timeout",
-        "[server]\nbody_idle_timeout = \"10s\"\n",
-        "[server]\nbody_idle_timeout = \"20s\"\n",
-    ),
-    (
-        "server.write_idle_timeout",
-        "[server]\nwrite_idle_timeout = \"10s\"\n",
-        "[server]\nwrite_idle_timeout = \"20s\"\n",
-    ),
-    (
-        "server.keepalive_timeout",
-        "[server]\nkeepalive_timeout = \"10s\"\n",
-        "[server]\nkeepalive_timeout = \"20s\"\n",
-    ),
-    (
-        "server.drain_timeout",
-        "[server]\ndrain_timeout = \"30s\"\n",
-        "[server]\ndrain_timeout = \"60s\"\n",
-    ),
-    (
-        "server.connection",
-        "[server.connection]\nmax_open = 100\n",
-        "[server.connection]\nmax_open = 200\n",
-    ),
-    (
         "opcache.file_cache_dir",
         "[opcache]\nfile_cache_dir = \"/var/cache/one\"\n",
         "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",

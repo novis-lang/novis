@@ -889,8 +889,9 @@ idle and lifetime windows, the send wait — and every key it leaves out keeps t
 partly-written block is a decision per key rather than one decision about the table. Neither `false`,
 which removes a ceiling everywhere else in the configuration, nor zero, which is that value from the
 other side, is a value any of those keys has: both are refused while the file is being read, before a
-listener exists. The block is `Boot`-class, read once when the server starts, so a connection already
-open keeps what it was accepted under.
+listener exists. A connection is framed inside the bounds of the snapshot published when it is
+accepted, so a reload reaches the next connection, and a connection already open keeps what it was
+accepted under.
 
 Each bound ends in a **defined close** rather than a reset, and the connection's own loop takes it:
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its

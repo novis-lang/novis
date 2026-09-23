@@ -175,8 +175,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
     // The `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
     // records as unspelled and less `[queue]`'s two, which are written beside the rest of their own
-    // block below. `[server]`'s whole block is `Boot` per `rule:http-server/the-server-block-is-boot-class`, which is more than
-    // 0078's "the server's listen addresses" and includes them. The artifact cache's directory is
+    // block below. `[server]`'s `Boot` rows are written with its block, further down. The artifact cache's directory is
     // one of them and is written `opcache.file_cache_dir` further down: neither `[cache]` key is an
     // artifact directory at all, and the block holds no third one (`docs/decisions/0175.md`).
     // `rule:core-api/two-cache-tiers`'s shared tier is `System` because where a fleet's coherent state lives is not a
@@ -224,8 +223,10 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "debug.inline", class: Class::RuntimeTighten, apply: Apply::Reload },
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
-    // snapshot it cloned: `dispatch`, `static`, `health_path`, `trusted_proxies` and
-    // `max_in_flight`. The longer rows below it are `Boot`.
+    // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and
+    // `max_in_flight`) and the ones a connection reads from the snapshot published when it is
+    // accepted (the four waits, `drain_timeout` and `[server.connection]`). The longer rows below
+    // it are `Boot`.
     Directive { key: "server", class: Class::System, apply: Apply::Reload },
     // `rule:config/reloadability-is-its-own-field`'s three restart keys. `listen` binds the sockets,
     // and a port below 1024 needs a privilege the process dropped after it bound. `socket_mode` is
@@ -234,17 +235,10 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "server.listen", class: Class::System, apply: Apply::Boot },
     Directive { key: "server.socket_mode", class: Class::System, apply: Apply::Boot },
     Directive { key: "server.workers", class: Class::System, apply: Apply::Boot },
-    // `Boot` because `nvs serve` reads each of these once, when it starts: the mount table is
-    // expanded from `root` and `mount`, and the waits and the connection bounds are resolved before
-    // the first listener accepts.
+    // `Boot` because `nvs serve` expands the mount table from `root` and `mount` once, when it
+    // starts.
     Directive { key: "server.root", class: Class::System, apply: Apply::Boot },
     Directive { key: "server.mount", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.header_timeout", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.body_idle_timeout", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.write_idle_timeout", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.keepalive_timeout", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.drain_timeout", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.connection", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
     // The one `[opcache]` key that is not `Reload`, and a longer row than the block above, so

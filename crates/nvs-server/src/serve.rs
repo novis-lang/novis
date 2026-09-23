@@ -552,15 +552,15 @@ impl Draining {
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
-/// valve, the published tree, and the header set, cross-origin policy and proxy
-/// list that tree configures.
+/// valve, the published tree, and the header set, cross-origin policy, proxy
+/// list, waits and connection bounds that tree configures.
 ///
 /// One argument rather than one per policy because these are the *shared* half
 /// of a connection's context — an [`Arc`] each, so every core answers under the
-/// one valve and the one configuration. `waits` stays a value beside it for
-/// exactly that reason: it is [`Copy`], and § 5 makes it `Boot`-class so a
-/// connection carries its own copy rather than a handle somebody could move
-/// under it.
+/// one valve and the one configuration. A connection copies its waits and
+/// bounds out of the snapshot published when it is accepted, and keeps that
+/// copy for its whole life: a reload reaches the next connection, never one
+/// already open.
 #[derive(Clone, Debug)]
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
@@ -582,16 +582,6 @@ pub struct Serving {
     /// unaffected either way: it holds the [`Arc`] it took, and the clone here
     /// is taken once at its start.
     current: Arc<nvs_config::Current>,
-    /// `rule:concurrency/connection-bounds-are-finite`'s table, for every
-    /// connection this loop frames. Beside the admission ceiling above it
-    /// because it is the same kind of number read at the same moment:
-    /// `[server.connection]` is `Boot`-class, so these are resolved once and a
-    /// connection already open keeps what it was accepted under.
-    ///
-    /// Not an [`Arc`], and the only field here that is not: it is a table of
-    /// `Copy` numbers, so sharing it would buy an indirection on the path that
-    /// reads it per connection and save nothing a clone does not.
-    bounds: crate::bounds::Connection,
 }
 
 impl Serving {
@@ -638,12 +628,13 @@ impl Serving {
             secure,
             cors,
             trusted,
+            waits: None,
+            bounds: crate::bounds::Connection::default(),
         };
         Self {
             admission,
             policy: Arc::new(RwLock::new(Arc::new(policy))),
             current,
-            bounds: crate::bounds::Connection::default(),
         }
     }
 
@@ -687,11 +678,21 @@ impl Serving {
                 .and_then(|server| server.trusted_proxies.as_deref())
                 .unwrap_or_default(),
         );
+        // A published tree passed `nvs_config::server::validate`, so neither
+        // arm below fails. If one did, the connection keeps the numbers the
+        // last snapshot gave it.
+        let no_origins = std::collections::BTreeMap::new();
+        let waits =
+            nvs_config::server::waits_for(&snapshot.config, &no_origins).map_or(held.waits, Some);
+        let bounds = nvs_config::server::connection_bounds_for(&snapshot.config, &no_origins)
+            .map_or(held.bounds, crate::bounds::Connection::configured);
         let derived = Arc::new(Policy {
             of: Arc::clone(snapshot),
             secure: Arc::new(Secure::of(http)),
             cors: Arc::new(Cors::of(http)),
             trusted: Arc::new(trusted),
+            waits,
+            bounds,
         });
         *self
             .policy
@@ -701,7 +702,8 @@ impl Serving {
     }
 
     /// The same, under the connection bounds a boot resolved, rather than under
-    /// the ones this server ships.
+    /// the ones this server ships. A snapshot published later brings the
+    /// bounds its own `[server.connection]` block resolves to.
     ///
     /// A step after the constructor and not a parameter of it, because that is
     /// what the two callers are: a process that read a `[server.connection]`
@@ -711,13 +713,36 @@ impl Serving {
     /// `rule:concurrency/connection-bounds-are-finite`'s point, that the
     /// unconfigured table is already a complete one.
     #[must_use]
-    pub fn bounded_by(mut self, bounds: crate::bounds::Connection) -> Self {
-        self.bounds = bounds;
+    pub fn bounded_by(self, bounds: crate::bounds::Connection) -> Self {
+        {
+            let mut held = self
+                .policy
+                .write()
+                .expect("the policy lock is never poisoned");
+            let booted = &**held;
+            *held = Arc::new(Policy {
+                of: Arc::clone(&booted.of),
+                secure: Arc::clone(&booted.secure),
+                cors: Arc::clone(&booted.cors),
+                trusted: Arc::clone(&booted.trusted),
+                waits: booted.waits,
+                bounds,
+            });
+        }
         self
+    }
+
+    /// The waits and the connection bounds a connection accepted now is
+    /// served under: those of the snapshot published now, or `booted` and the
+    /// bounds [`bounded_by`](Self::bounded_by) set while that is still the
+    /// snapshot this was built with.
+    fn connection_terms(&self, booted: Waits) -> (Waits, crate::bounds::Connection) {
+        let policy = self.policy(&self.current.load());
+        (policy.waits.unwrap_or(booted), policy.bounds)
     }
 }
 
-/// The three policies one published snapshot configures.
+/// The policies and the connection terms one published snapshot configures.
 #[derive(Debug)]
 struct Policy {
     /// The snapshot these were derived from. Only its address is compared.
@@ -735,6 +760,14 @@ struct Policy {
     /// or a scheme. Empty is the default and means no forwarded header is read
     /// at all — [`crate::forwarded`] owns that difference.
     trusted: Arc<Trusted>,
+    /// `rule:http-server/the-server-block-is-boot-class`'s waits and
+    /// `drain_timeout`, for a connection accepted under this snapshot. `None`
+    /// for the snapshot [`Serving`] was built with: a connection accepted under
+    /// it keeps the waits its caller handed [`serve_connection`].
+    waits: Option<Waits>,
+    /// `rule:concurrency/connection-bounds-are-finite`'s table, for a
+    /// connection accepted under this snapshot.
+    bounds: crate::bounds::Connection,
 }
 
 /// The isolate answering one request, held by the future that is waiting for it.
@@ -933,15 +966,14 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// [`crate::secure`]'s own docs own that direction, and the effective scheme
 /// this passes.
 ///
-/// **The connection bounds ride on `serving` and the waits do not**, which
-/// looks like an inconsistency and is the difference between the two. A wait
-/// bounds the request this loop is framing, so a caller that frames one
-/// connection with a clock of its own is an ordinary thing to be;
-/// `rule:concurrency/connection-bounds-are-finite`'s table bounds what the
-/// request may *leave behind*, and that is a property of the server rather than
-/// of any one connection offered to it.
+/// **The waits and the connection bounds are the published snapshot's.**
+/// Both are copied once, when this function starts, and the connection keeps
+/// them for its whole life, so a reload reaches the next connection. `waits`
+/// is what a connection gets while the snapshot published is still the one
+/// `serving` was built with, which lets a caller frame a connection under a
+/// clock of its own.
 ///
-/// **`waits` is the clock, and it is a parameter and not a default.** `rule:http-server/the-server-block-is-boot-class`
+/// **The waits are the clock.** `rule:http-server/the-server-block-is-boot-class`
 /// 's four waits bound this connection from the moment it is accepted, and
 /// [`crate::io`]'s § *The clock* is where they are actually enforced; what this
 /// function owns is the one phase change no adapter can see, which is that
@@ -1074,14 +1106,13 @@ where
     // on this socket, so there is no second request to fill it.
     let pending_socket: RefCell<Option<nvs_runtime::Upgrade>> = RefCell::new(None);
     let pending_socket = &pending_socket;
-    // `rule:concurrency/connection-bounds-are-finite`'s table for this
-    // connection, copied once here rather than read per request or per
-    // hand-over: every response written over this socket writes through the
-    // same send bound, and the framing at the end of this function is held
-    // inside the same numbers. What a `[server.connection]` block moved is
-    // already in it — the block is `Boot`-class, so [`Serving`] resolved it
-    // before the listener existed.
-    let bounds = serving.bounds;
+    // `rule:concurrency/connection-bounds-are-finite`'s table and the waits
+    // for this connection, copied once here from the snapshot published now,
+    // rather than read per request or per hand-over: every response written
+    // over this socket writes through the same send bound, and the framing at
+    // the end of this function is held inside the same numbers. A reload
+    // reaches the next connection.
+    let (waits, bounds) = serving.connection_terms(waits);
     let send_timeout = bounds.send;
     // A request whose head has gone out and whose body is still being written.
     // At most one, because `hyper`'s h1 dispatcher writes one response at a
@@ -2142,11 +2173,11 @@ impl Listening for nvs_host::NvsUnixListener {
 /// is that drain. Handed in rather than returned because the handler is built
 /// before the loop is, and it is what the probe is answered from.
 ///
-/// `waits` is handed to every connection unchanged and is never re-read: ADR
-/// 0097 § 5 makes the waits `Boot`-class precisely because `header_timeout`
-/// and `keepalive_timeout` apply before any Novis code exists on a connection,
-/// so a reload that moved them under a socket already accepted would be a
-/// promise two of the four could not keep.
+/// `waits` are the boot's, handed to every connection, which trades them for
+/// a reloaded snapshot's own ([`serve_connection`]). A connection already
+/// accepted keeps the waits it started with: `header_timeout` and
+/// `keepalive_timeout` apply before any Novis code exists on it, so moving
+/// them under an open socket is a promise two of the four could not keep.
 ///
 /// `serving` is handed to every connection by clone rather than by copy, which
 /// is what [`Serving`]'s own docs say it is for: one valve, one header set and

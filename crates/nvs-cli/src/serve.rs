@@ -214,12 +214,11 @@ pub(crate) fn run(
         Ok(entries) => entries,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
-    // `rule:concurrency/connection-bounds-are-finite`'s table, resolved here
-    // with the other `Boot`-class keys: what a `[server.connection]`
-    // block wrote, over the finite set `nvs_server::bounds::Connection` ships.
-    // It is read before a listener exists because a connection that upgrades
-    // outlives the request it came from, so the moment there is one to bound is
-    // already too late to ask a file.
+    // `rule:concurrency/connection-bounds-are-finite`'s table for the boot's
+    // snapshot: what a `[server.connection]` block wrote, over the finite set
+    // `nvs_server::bounds::Connection` ships. A snapshot published later
+    // brings its own, and `nvs_server::Serving` derives it for the next
+    // connection, as it does the waits.
     let bounds = match connection_bounds_for(&snapshot.config, &origins) {
         Ok(written) => nvs_server::bounds::Connection::configured(written),
         Err(diagnostic) => return report(diagnostic, &sources),
@@ -810,8 +809,9 @@ struct Core {
     /// this core *builds* is `Boot`-class and is the tree this process started
     /// on, and what a fire *runs under* is whatever a reload has published since.
     current: Arc<nvs_config::Current>,
-    /// § 5's waits, copied because they are `Boot`-class and nothing reloads
-    /// them under a connection.
+    /// § 5's waits for the boot's snapshot. A connection accepted under a
+    /// snapshot published later takes that snapshot's own waits
+    /// (`nvs_server::serve_connection`), and the exporters keep these.
     waits: nvs_config::server::Waits,
     /// The valve, the header set and the proxy list — one of each for the
     /// process, shared by clone rather than one per core.

@@ -92,8 +92,8 @@ use crate::serve::Draining;
 /// bounds on one open connection.
 ///
 /// Copied per connection rather than shared, for `nvs_config::server::Waits`'
-/// reason: these are boot-class, and a connection already open keeps the
-/// numbers it was accepted under across a reload.
+/// reason: a reload reaches the next connection, and a connection already
+/// open keeps the numbers it was accepted under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Connection {
     /// How many connections this process may hold open at once.

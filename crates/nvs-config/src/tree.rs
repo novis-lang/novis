@@ -1099,7 +1099,7 @@ pub struct Trace {
     pub propagate: Option<bool>,
 }
 
-/// `[server]` — `rule:http-server/the-server-block-is-boot-class`, `Boot` as a whole block: a change here needs a restart.
+/// `[server]` — `rule:http-server/the-server-block-is-boot-class`. The registry says which of its keys need a restart.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Server {

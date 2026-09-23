@@ -99,8 +99,8 @@ use crate::value::{Quantity, Unit};
 ///
 /// Held by value and copied per configuration generation rather than borrowed from the tree, for
 /// [`crate::queue::QueueBounds`]'s reason: `rule:config/the-config-is-an-immutable-snapshot`
-/// 's reload replaces the tree whole, and these are `Boot`-class anyway — a connection already
-/// being served keeps the waits it was accepted under.
+/// 's reload replaces the tree whole. A reload reaches the next connection, and a connection
+/// already being served keeps the waits it was accepted under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Waits {
     /// How long the request head may take to arrive, refreshed as it arrives.
@@ -284,8 +284,8 @@ fn refuse(
 /// second home for a number the server already states, so this type carries the *override* and
 /// nothing else: a `None` means the shipped bound stands, not that the bound is absent.
 ///
-/// Copied rather than borrowed, for [`Waits`]' reason: `[server.connection]` is `Boot`-class, so a
-/// connection already open keeps the bounds it was accepted under across a reload.
+/// Copied rather than borrowed, for [`Waits`]' reason: a reload reaches the next connection, and a
+/// connection already open keeps the bounds it was accepted under.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnectionBounds {
     /// `max_open` — connections this process may hold open at once.

@@ -28,8 +28,8 @@ completion; the new set arms from the next tick. A changed `Boot` key **does not
 published snapshot carries the running value forward, and the reload names the key
 (`rule:config/a-reload-names-what-it-could-not-apply`).
 
-**What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path` and
-`max_in_flight` reload. These rows are still `Boot`, because each is read once when the server starts:
-`[server] root`, `[[server.mount]]`, the four waits, `drain_timeout`, `[server.connection]`,
+**What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
+`max_in_flight`, the four waits, `drain_timeout` and `[server.connection]` reload. These rows are
+still `Boot`, because each is read once when the server starts: `[server] root`, `[[server.mount]]`,
 `http.client.tls`, `cache.shared`, `[control] socket`, `io.temp_root`, `opcache.file_cache_dir`,
 `[session]`, and `[queue]`'s `connection` and `workers`.

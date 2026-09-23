@@ -1505,3 +1505,72 @@ fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
         thread::sleep(POLL);
     }
 }
+
+/// The waits are read when a connection is accepted. After a reload shortens
+/// `[server] header_timeout`, a new connection that sends nothing is closed
+/// within the new wait. A connection accepted before the reload keeps the
+/// wait it started with, so a head it sends slowly is still answered.
+#[test]
+fn a_changed_server_timeout_applies_to_the_next_connection() {
+    let server = Server::start(
+        "timeout",
+        "[server]\nheader_timeout = \"60s\"\n",
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+    // One whole request on a kept-alive connection, so it is certainly
+    // accepted under the boot's configuration.
+    let mut before = TcpStream::connect(server.addr).expect("the server accepts");
+    before
+        .set_read_timeout(Some(BOUND))
+        .expect("a read timeout can be set");
+    write!(before, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n").expect("the request is written");
+    let mut head = Vec::new();
+    let mut byte = [0_u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        before
+            .read_exact(&mut byte)
+            .unwrap_or_else(|error| panic!("the first answer ended early: {error}"));
+        head.push(byte[0]);
+    }
+    let head = String::from_utf8_lossy(&head).to_lowercase();
+    let length: usize = head
+        .lines()
+        .find_map(|line| line.strip_prefix("content-length:"))
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or_else(|| panic!("the first answer has no length: {head}"));
+    before
+        .read_exact(&mut vec![0; length])
+        .expect("the first answer's body arrives");
+
+    server.reload("[server]\nheader_timeout = \"1s\"\n");
+
+    let mut after = TcpStream::connect(server.addr).expect("the server accepts");
+    after
+        .set_read_timeout(Some(BOUND))
+        .expect("a read timeout can be set");
+    let started = Instant::now();
+    let _ = after.read_to_end(&mut Vec::new());
+    let held = started.elapsed();
+    assert!(
+        held < Duration::from_secs(20),
+        "a connection accepted after the reload was held {held:?} with no head; the server \
+         wrote: {}",
+        server.said()
+    );
+
+    // Three seconds between the head's first line and the rest of it: past
+    // the reloaded wait, and well inside the one this connection started with.
+    write!(before, "GET / HTTP/1.1\r\n").expect("the first line is written");
+    thread::sleep(Duration::from_secs(3));
+    write!(before, "Host: localhost\r\nConnection: close\r\n\r\n")
+        .expect("the rest of the head is written");
+    let mut answer = String::new();
+    let _ = before.read_to_string(&mut answer);
+    assert!(
+        answer.starts_with("HTTP/1.1 200"),
+        "a connection accepted before the reload lost the wait it started with: {answer:?}; the \
+         server wrote: {}",
+        server.said()
+    );
+}
