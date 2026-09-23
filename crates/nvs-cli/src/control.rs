@@ -50,7 +50,7 @@ use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
 use nvs_server::control::{Controlled, Report};
-use nvs_server::{Admission, Draining};
+use nvs_server::{Admission, Ceiling, Draining};
 
 use crate::script::Compiler;
 use crate::service::{Notify, State};
@@ -89,7 +89,7 @@ pub(crate) struct Process {
     /// re-key it owes.
     compiler: Arc<Compiler>,
     /// The valve every request is admitted through, which is where the in-flight
-    /// count already lives.
+    /// count already lives, and whose ceiling a reload moves.
     admission: Arc<Admission>,
     /// This process's drain bit.
     draining: Draining,
@@ -137,13 +137,18 @@ impl Process {
     /// makes the `READY=1` its caller sends next true.
     fn published(&self) -> Result<Report, String> {
         let mut sources = SourceMap::new();
-        let (next, _) = crate::config::boot_origins(
+        let (next, origins) = crate::config::boot_origins(
             &self.roots,
             self.entry.as_deref(),
             &mut sources,
             crate::config::Init::Never,
         )
         .map_err(|refusal| rendered(&refusal, &sources))?;
+        // Asked of the incoming tree before the publish, so a `[limits]` memory
+        // setting the admission arithmetic cannot read refuses the reload the
+        // way it refuses a boot, and leaves the running tree serving.
+        nvs_config::server::capacity_for(&next.config, &origins)
+            .map_err(|refusal| rendered(&refusal, &sources))?;
         // The publish takes a snapshot by value and this one was built for it,
         // so the clone is the branch that never runs: a tree just resolved is
         // held by nobody else.
@@ -161,6 +166,17 @@ impl Process {
         self.compiler
             .rekey(nvs_config::cache::env_hash(&serving.config));
         self.compiler.reconfigure(&serving.config);
+        // `rule:http-server/admission-is-arithmetic-not-a-number` over the tree
+        // now serving: `limits.memory` reloads, and `[server] max_in_flight` is
+        // whatever the publish carried. The tree passed the same arithmetic
+        // above, so the error arm keeps the ceiling it had and never runs.
+        if let Ok(capacity) = nvs_config::server::capacity_for(&serving.config, &origins) {
+            let ceiling = Ceiling::of(&capacity);
+            if let Some(note) = ceiling.clamp_note() {
+                eprintln!("note: {note}");
+            }
+            self.admission.resize(&ceiling);
+        }
         Ok(report)
     }
 

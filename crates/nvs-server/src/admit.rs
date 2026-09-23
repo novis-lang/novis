@@ -43,7 +43,8 @@
 //! value path `rule:programs/memory-priority`'s
 //! non-atomic refcount decision protects.
 //!
-//! **What it spends**, per that ADR: one `usize` for the whole process, one
+//! **What it spends**, per that ADR: two `usize`s for the whole process — the
+//! count and the ceiling a reload moves — one
 //! [`InFlight`] guard per request being served — a borrow and nothing else, so
 //! O(in-flight) with a zero-sized tail — and the response above, which allocates
 //! no body at all.
@@ -145,11 +146,12 @@ impl Ceiling {
 /// scheduler.
 #[derive(Debug)]
 pub struct Admission {
-    /// [`Ceiling::effective`], taken at boot and never re-read: § 5 is
-    /// `Boot`-class, so a reload that moved this under requests already
-    /// admitted would be counting against a number they were never checked
-    /// with.
-    ceiling: usize,
+    /// [`Ceiling::effective`] for the snapshot in force, which a reload sets
+    /// through [`Admission::resize`] because `limits.memory` is a `Reload`
+    /// directive and it is one of § 13's inputs. A request already admitted
+    /// keeps its place: the count is not reset, so a lowered ceiling refuses
+    /// new requests until enough of the admitted ones end.
+    ceiling: AtomicUsize,
     /// How many requests are between [`Admission::admit`] and the end of their
     /// answer.
     in_flight: AtomicUsize,
@@ -160,9 +162,18 @@ impl Admission {
     #[must_use]
     pub fn new(ceiling: &Ceiling) -> Self {
         Self {
-            ceiling: ceiling.effective,
+            ceiling: AtomicUsize::new(ceiling.effective),
             in_flight: AtomicUsize::new(0),
         }
+    }
+
+    /// Refuses past `ceiling` from the next [`admit`](Self::admit) on.
+    ///
+    /// Relaxed for the module doc's reason: the number orders no memory, and
+    /// a request that races the store is checked against one of the two
+    /// ceilings, either of which was in force at that moment.
+    pub fn resize(&self, ceiling: &Ceiling) {
+        self.ceiling.store(ceiling.effective, Ordering::Relaxed);
     }
 
     /// A place in the count, or `None` where the ceiling is already met.
@@ -175,9 +186,10 @@ impl Admission {
     /// `rule:observability/the-runtime-exports-what-it-already-measures`.
     #[must_use]
     pub fn admit(&self) -> Option<InFlight<'_>> {
+        let ceiling = self.ceiling();
         self.in_flight
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                (current < self.ceiling).then_some(current + 1)
+                (current < ceiling).then_some(current + 1)
             })
             .ok()
             .map(|_| InFlight { admission: self })
@@ -189,11 +201,11 @@ impl Admission {
         self.in_flight.load(Ordering::Relaxed)
     }
 
-    /// The number this valve refuses past — [`Ceiling::effective`] as it was at
-    /// boot.
+    /// The number this valve refuses past — [`Ceiling::effective`] as the last
+    /// boot or reload set it.
     #[must_use]
     pub fn ceiling(&self) -> usize {
-        self.ceiling
+        self.ceiling.load(Ordering::Relaxed)
     }
 }
 
@@ -320,6 +332,30 @@ mod tests {
             "the guard did not give its place back"
         );
         let third = admission.admit().expect("a freed place was not reusable");
+        drop((second, third));
+        assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
+    }
+
+    /// A reload moves the ceiling under requests already admitted: they keep
+    /// their places, a lowered ceiling refuses until enough of them end, and a
+    /// raised one admits at once.
+    #[test]
+    fn a_resized_valve_keeps_the_requests_it_already_admitted() {
+        let admission = Admission::new(&Ceiling::of(&capacity(2, None, None)));
+        let first = admission.admit().expect("the first request was refused");
+        let second = admission.admit().expect("the second request was refused");
+
+        admission.resize(&Ceiling::of(&capacity(1, None, None)));
+        assert_eq!(admission.ceiling(), 1);
+        assert_eq!(admission.in_flight(), 2, "a resize dropped a place");
+        drop(first);
+        assert!(
+            admission.admit().is_none(),
+            "a request was admitted with the count still at the lowered ceiling"
+        );
+
+        admission.resize(&Ceiling::of(&capacity(3, None, None)));
+        let third = admission.admit().expect("a raised ceiling refused");
         drop((second, third));
         assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
     }

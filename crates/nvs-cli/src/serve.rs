@@ -224,7 +224,8 @@ pub(crate) fn run(
     };
     // `rule:http-server/admission-is-arithmetic-not-a-number`: the ceiling is the smaller of what the file asked for and
     // what this machine affords at the per-request cap, and a clamp is logged
-    // **once, here**, naming both directives and both numbers. Silently is what
+    // here and by each reload (`crate::control`), naming both directives and
+    // both numbers. Silently is what
     // that section rejected — the observed capacity of a small instance changes
     // with the arithmetic, and an operator surprised by that should be able to
     // find out why from a line rather than from a benchmark.

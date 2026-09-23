@@ -242,18 +242,29 @@ impl Server {
             &self.dir.join("nvs.toml"),
             &controlled(&self.socket, config),
         );
+        self.ctl("reload")
+    }
+
+    /// Runs `nvs ctl <request>` against this server and returns what it
+    /// printed.
+    ///
+    /// # Panics
+    ///
+    /// When the request fails; the message carries what both processes wrote
+    /// to standard error.
+    fn ctl(&self, request: &str) -> String {
         let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("ctl")
             .arg("--socket")
             .arg(&self.socket)
-            .arg("reload")
+            .arg(request)
             .current_dir(&self.dir)
             .stdin(Stdio::null())
             .output()
             .expect("the `nvs` binary this test was built beside starts");
         assert!(
             ran.status.success(),
-            "`nvs ctl reload` failed: {}\nand the server wrote: {}",
+            "`nvs ctl {request}` failed: {}\nand the server wrote: {}",
             String::from_utf8_lossy(&ran.stderr),
             self.stderr.lock().expect("no reader panicked")
         );
@@ -462,5 +473,71 @@ fn a_changed_cors_block_reaches_the_next_response() {
     server.reload("");
     server.awaits_with("/", &crossing, "the grant taken away", |answer| {
         answer.status == 200 && answer.header("access-control-allow-origin").is_none()
+    });
+}
+
+/// A program that answers `ok`, after twenty seconds when the query says
+/// `hold=yes`.
+const HOLDING: &str = r#"<?nvs
+if (Core\Request::query("hold") == "yes") {
+    Core\Time::sleep(20s);
+}
+echo "ok";
+"#;
+
+/// A `[limits]` block whose `memory` is `bytes`.
+fn memory(bytes: u64) -> String {
+    format!("[limits]\nmemory = {bytes}\n")
+}
+
+/// `limits.memory` is one input of the admission ceiling, so a reload that
+/// moves it moves the ceiling. A cap of a pebibyte a request leaves this
+/// machine room for one request, so while one is held in flight the next is
+/// answered `503`. The held request keeps its place across both reloads, and
+/// a second reload back to a small cap admits the next request again.
+#[test]
+fn a_changed_memory_limit_moves_the_admission_ceiling() {
+    const SMALL: u64 = 64 * 1024 * 1024;
+    const HUGE: u64 = 1 << 50;
+    let server = Server::start("memory", &memory(SMALL), &[("app.nvs", HOLDING)]);
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "ok"
+    });
+
+    // The held request's answer is never read: the server is stopped under
+    // it when the case ends, so every error here is expected.
+    let addr = server.addr;
+    thread::spawn(move || {
+        if let Ok(mut stream) = TcpStream::connect(addr) {
+            let _ = write!(stream, "GET /?hold=yes HTTP/1.0\r\nHost: localhost\r\n\r\n");
+            let _ = stream.read_to_end(&mut Vec::new());
+        }
+    });
+    let started = Instant::now();
+    while !server.ctl("status").contains("in_flight: 1\n") {
+        assert!(
+            started.elapsed() < BOUND,
+            "the held request was not in flight within {BOUND:?}"
+        );
+        thread::sleep(POLL);
+    }
+
+    let report = server.reload(&memory(HUGE));
+    assert!(
+        report.contains("applied: limits.memory\n"),
+        "the reload did not name `limits.memory` as applied: {report}"
+    );
+    let refused = server.awaits("/", "a refusal at the lowered ceiling", |answer| {
+        answer.status == 503
+    });
+    assert_eq!(refused.header("retry-after"), Some("1"), "{refused:?}");
+    assert!(
+        server.ctl("status").contains("in_flight: 1\n"),
+        "the held request lost its place in the count"
+    );
+
+    server.reload(&memory(SMALL));
+    server.awaits("/", "an admission at the raised ceiling", |answer| {
+        answer.status == 200 && answer.body == "ok"
     });
 }
