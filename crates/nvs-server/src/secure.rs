@@ -90,10 +90,8 @@ pub use nvs_runtime::Scheme;
 
 /// `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved from `[http.headers]` and rendered once.
 ///
-/// Boot-fixed and process-wide: `[http.headers]` is `Runtime`-class in the ADR's own table, but
-/// nothing in this milestone re-reads it under a live socket, so a server holds one of these
-/// and every core shares it. A reload that must move these is the slice that gives
-/// [`crate::serve::serve_on_this_core`] a snapshot to re-read rather than a value.
+/// One per published snapshot: `[http.headers]` reloads, so [`crate::serve::Serving`] derives
+/// a new set the first time a request is answered under a new snapshot, and every core shares it.
 ///
 #[derive(Clone, Debug)]
 pub struct Secure {

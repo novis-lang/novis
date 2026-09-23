@@ -79,7 +79,7 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -552,29 +552,26 @@ impl Draining {
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
-/// valve, `rule:http-server/secure-headers-with-nothing-written`
-/// 's header set, and the tree this instance booted on.
+/// valve, the published tree, and the header set and cross-origin policy that
+/// tree configures.
 ///
 /// One argument rather than one per policy because these are the *shared* half
-/// of a connection's context — an [`Arc`] each, boot-fixed, so every core
-/// answers under the one valve, the one header set and the one configuration.
-/// `waits` stays a value beside it for exactly that reason: it is [`Copy`], and
-/// § 5 makes it `Boot`-class so a connection carries its own copy rather than a
-/// handle somebody could move under it.
+/// of a connection's context — an [`Arc`] each, so every core answers under the
+/// one valve and the one configuration. `waits` stays a value beside it for
+/// exactly that reason: it is [`Copy`], and § 5 makes it `Boot`-class so a
+/// connection carries its own copy rather than a handle somebody could move
+/// under it.
 #[derive(Clone, Debug)]
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
     admission: Arc<Admission>,
-    /// `rule:http-server/secure-headers-with-nothing-written`'s header set, filled into every response this loop writes.
-    secure: Arc<Secure>,
     /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s `[server] trusted_proxies`, resolved: who may assert a
     /// client address or a scheme. Empty is the default and means no forwarded
     /// header is read at all — [`crate::forwarded`] owns that difference.
     trusted: Arc<Trusted>,
-    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin policy, asked of a preflight before the
-    /// handler is. Closed is the default — [`crate::cors`] owns what that means
-    /// and why the refusal is taken here rather than in an application.
-    cors: Arc<Cors>,
+    /// The header set and the cross-origin policy of the last snapshot a
+    /// request was answered under, shared by every core ([`Serving::policy`]).
+    policy: Arc<RwLock<Arc<Policy>>>,
     /// The tree this instance is serving — `rule:config/the-config-is-an-immutable-snapshot`'s
     /// published snapshot, which every request reads through a clone taken at
     /// its own start ([`serve_connection`]). It rides here for the reason the
@@ -626,6 +623,10 @@ impl Serving {
     }
 
     /// [`new`](Self::new) over a holder somebody else publishes into.
+    ///
+    /// `secure` and `cors` are the policies for the snapshot `current` holds
+    /// now. A snapshot published later gets policies derived from its own
+    /// `[http]` block ([`Serving::policy`]).
     #[must_use]
     pub fn live(
         admission: Arc<Admission>,
@@ -634,14 +635,60 @@ impl Serving {
         cors: Arc<Cors>,
         current: Arc<nvs_config::Current>,
     ) -> Self {
+        let policy = Policy {
+            of: current.load(),
+            secure,
+            cors,
+        };
         Self {
             admission,
-            secure,
             trusted,
-            cors,
+            policy: Arc::new(RwLock::new(Arc::new(policy))),
             current,
             bounds: crate::bounds::Connection::default(),
         }
+    }
+
+    /// The header set and the cross-origin policy a request that took
+    /// `snapshot` is answered under.
+    ///
+    /// `[http.headers]` and `[http.cors]` are `Reload`-class
+    /// (`rule:config/reloadability-is-its-own-field`), so a reload that moves
+    /// either reaches the next request. Rendering them checks and builds every
+    /// header value, so it happens once per snapshot and not once per request:
+    /// the first request under a new snapshot derives them and stores them for
+    /// every core, and each request after it pays a read lock and a pointer
+    /// comparison. Two requests under two snapshots at once can derive in
+    /// turn, and each is still answered under its own snapshot.
+    ///
+    /// Memory: the policies of one snapshot, and that snapshot kept alive
+    /// until a request takes a newer one.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked while holding the lock. Nothing done under it can
+    /// panic — an `Arc` clone and an `Arc` store.
+    fn policy(&self, snapshot: &Arc<nvs_config::Snapshot>) -> Arc<Policy> {
+        let held = Arc::clone(
+            &self
+                .policy
+                .read()
+                .expect("the policy lock is never poisoned"),
+        );
+        if Arc::ptr_eq(&held.of, snapshot) {
+            return held;
+        }
+        let http = snapshot.config.http.as_ref();
+        let derived = Arc::new(Policy {
+            of: Arc::clone(snapshot),
+            secure: Arc::new(Secure::of(http)),
+            cors: Arc::new(Cors::of(http)),
+        });
+        *self
+            .policy
+            .write()
+            .expect("the policy lock is never poisoned") = Arc::clone(&derived);
+        derived
     }
 
     /// The same, under the connection bounds a boot resolved, rather than under
@@ -659,6 +706,21 @@ impl Serving {
         self.bounds = bounds;
         self
     }
+}
+
+/// The two policies one published snapshot's `[http]` block configures.
+#[derive(Debug)]
+struct Policy {
+    /// The snapshot these were derived from. Only its address is compared.
+    of: Arc<nvs_config::Snapshot>,
+    /// `rule:http-server/secure-headers-with-nothing-written`'s header set,
+    /// filled into every response this loop writes.
+    secure: Arc<Secure>,
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin
+    /// policy, asked of a preflight before the handler is. Closed is the
+    /// default — [`crate::cors`] owns what that means and why the refusal is
+    /// taken here rather than in an application.
+    cors: Arc<Cors>,
 }
 
 /// The isolate answering one request, held by the future that is waiting for it.
@@ -1059,6 +1121,16 @@ where
                 began.elapsed(),
             );
         };
+        // `rule:config/the-config-is-an-immutable-snapshot`'s one clone, taken
+        // at the request's start and not when this connection was accepted: a
+        // connection carries any number of requests, so a tree read once per
+        // socket would answer a request under whatever stood when its peer
+        // dialled. It is taken before the door writes anything, because the
+        // header set and the cross-origin policy every answer below carries are
+        // this tree's (`Serving::policy`), and the program the handler runs is
+        // configured by the same one.
+        let snapshot = serving.current.load();
+        let policy = serving.policy(&snapshot);
         // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
         // because what asserts it is a *header*: one connection carries many
         // requests and a proxy writes the line on each. Before the valve below,
@@ -1077,7 +1149,7 @@ where
             Err(crate::forwarded::Unusable) => {
                 phase.set(Phase::Write);
                 let mut refused = unusable_forward();
-                serving.secure.fill(refused.headers_mut(), Scheme::Http);
+                policy.secure.fill(refused.headers_mut(), Scheme::Http);
                 counted(&refused, None);
                 return Ok::<_, Infallible>(refused);
             }
@@ -1106,7 +1178,7 @@ where
         let Some(place) = serving.admission.admit() else {
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
-            serving.secure.fill(refused.headers_mut(), scheme);
+            policy.secure.fill(refused.headers_mut(), scheme);
             counted(&refused, None);
             return Ok::<_, Infallible>(refused);
         };
@@ -1119,11 +1191,11 @@ where
         // process and a `503` is the answer a server at capacity owes every
         // request, whatever it was going to ask. [`crate::cors`] owns which
         // status the policy gives and what it grants with it.
-        if let Some(preflight) = serving.cors.preflight(request.method(), request.headers()) {
+        if let Some(preflight) = policy.cors.preflight(request.method(), request.headers()) {
             phase.set(Phase::Write);
             let mut permitted = Response::new(Answer::empty());
             *permitted.status_mut() = preflight.status();
-            serving.secure.fill(permitted.headers_mut(), scheme);
+            policy.secure.fill(permitted.headers_mut(), scheme);
             preflight.fill(permitted.headers_mut());
             counted(&permitted, None);
             return Ok::<_, Infallible>(permitted);
@@ -1135,7 +1207,7 @@ where
         // and saying it varied by an origin nothing looked at would be a claim
         // about an answer the policy never produced. [`crate::cors`] owns the
         // rest, including why a cache is what `Vary` is for.
-        let crossing = serving.cors.answer(request.headers());
+        let crossing = policy.cors.answer(request.headers());
         // What a request that answers with a **file** will be answered against —
         // taken here for `crossing`'s reason, the handler below owning the
         // request from the next line on, and kept rather than the whole header
@@ -1288,11 +1360,7 @@ where
                 // cleared, and why this is ahead of the arming and not behind
                 // it.
                 ctx.borrow_mut().reroot();
-                // `rule:config/the-config-is-an-immutable-snapshot`'s one
-                // clone, taken at the request's start and not when this
-                // connection was accepted: a connection carries any number of
-                // requests, so a tree read once per socket would answer a
-                // request under whatever stood when its peer dialled. It is
+                // The tree the door took at this request's start. It is
                 // written to the connection's own context because that context
                 // is this request tree's root — `Ctx::isolate` carries the
                 // configuration down to the child, while the ceiling a watchdog
@@ -1301,7 +1369,7 @@ where
                 // `[limits]` and every capability an entry asks for is this
                 // line: a context nobody configured states no ceiling and
                 // grants nothing.
-                ctx.borrow_mut().set_config(serving.current.load());
+                ctx.borrow_mut().set_config(Arc::clone(&snapshot));
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -1520,7 +1588,7 @@ where
         // the answer already spelled for itself exactly as it is. § 2's answer
         // is written on the same terms and at the same point, so a response has
         // one place where policy reaches it rather than two.
-        serving.secure.fill(answered.headers_mut(), scheme);
+        policy.secure.fill(answered.headers_mut(), scheme);
         crossing.fill(answered.headers_mut());
         // After the policy and before the answer goes back, so that what is
         // counted is the response this connection actually writes — including

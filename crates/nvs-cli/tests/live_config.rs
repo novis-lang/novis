@@ -36,11 +36,25 @@ const POLL: Duration = Duration::from_millis(50);
 const PRODUCTION: &str =
     "[mode]\ndefault = \"production\"\n\n[opcache]\nrevalidate_freq = \"100ms\"\n";
 
-/// One answer: the status code and the body, as text.
+/// One answer: the status code, the header lines and the body, as text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Answer {
     status: u16,
+    head: String,
     body: String,
+}
+
+impl Answer {
+    /// The value of the header `name`, compared without regard to case, or
+    /// `None` when the answer does not carry it.
+    fn header(&self, name: &str) -> Option<&str> {
+        self.head.lines().skip(1).find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.trim()
+                .eq_ignore_ascii_case(name)
+                .then_some(value.trim())
+        })
+    }
 }
 
 /// A running `nvs serve app.nvs` over a program in its own directory.
@@ -132,18 +146,31 @@ impl Server {
     }
 
     /// One `GET` of `path`, on a connection of its own.
+    fn get(&self, path: &str) -> Answer {
+        self.get_with(path, &[])
+    }
+
+    /// One `GET` of `path` that also sends `headers`, each a name and its
+    /// value, on a connection of its own.
     ///
     /// # Panics
     ///
     /// When the server does not answer, or answers something that is not HTTP.
-    fn get(&self, path: &str) -> Answer {
+    fn get_with(&self, path: &str, headers: &[(&str, &str)]) -> Answer {
         let mut stream = TcpStream::connect(self.addr)
             .unwrap_or_else(|error| panic!("{} does not answer: {error}", self.addr));
         stream
             .set_read_timeout(Some(BOUND))
             .expect("a read timeout is set");
-        write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n")
-            .expect("the request is sent");
+        let extra: String = headers
+            .iter()
+            .map(|(name, value)| format!("{name}: {value}\r\n"))
+            .collect();
+        write!(
+            stream,
+            "GET {path} HTTP/1.0\r\nHost: localhost\r\n{extra}\r\n"
+        )
+        .expect("the request is sent");
         let mut raw = Vec::new();
         stream
             .read_to_end(&mut raw)
@@ -159,20 +186,33 @@ impl Server {
             .unwrap_or_else(|| panic!("the answer to `{path}` has no status: {head}"));
         Answer {
             status,
+            head: head.to_owned(),
             body: body.to_owned(),
         }
     }
 
     /// Polls `path` until `wanted` holds of its answer, and returns that answer.
+    fn awaits(&self, path: &str, what: &str, wanted: impl Fn(&Answer) -> bool) -> Answer {
+        self.awaits_with(path, &[], what, wanted)
+    }
+
+    /// Polls `path`, sending `headers` each time, until `wanted` holds of its
+    /// answer, and returns that answer.
     ///
     /// # Panics
     ///
     /// When [`BOUND`] runs out first. The message names `what` was awaited, the
     /// last answer and what the server wrote to standard error.
-    fn awaits(&self, path: &str, what: &str, wanted: impl Fn(&Answer) -> bool) -> Answer {
+    fn awaits_with(
+        &self,
+        path: &str,
+        headers: &[(&str, &str)],
+        what: &str,
+        wanted: impl Fn(&Answer) -> bool,
+    ) -> Answer {
         let started = Instant::now();
         loop {
-            let answer = self.get(path);
+            let answer = self.get_with(path, headers);
             if wanted(&answer) {
                 return answer;
             }
@@ -303,4 +343,53 @@ fn a_changed_app_origin_reaches_the_mount_rows() {
         !after.body.contains("one.example.test"),
         "a request after the reload still linked from the old origin: {after:?}"
     );
+}
+
+/// A program that answers every request with one word.
+const PLAIN: &str = "<?nvs\necho \"ok\";\n";
+
+/// `[http.headers]` reloads: the header set every response carries is the one
+/// the tree a request started under configures, so a reload that moves
+/// `referrer_policy` moves the header on the next response.
+#[test]
+fn a_changed_http_headers_block_reaches_the_next_response() {
+    let server = Server::start(
+        "headers",
+        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("no-referrer")
+    });
+
+    server.reload("[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    server.awaits("/", "the reloaded `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("same-origin")
+    });
+}
+
+/// `[http.cors]` reloads: a server that booted closed grants an origin a reload
+/// named, and takes the grant away again when a second reload removes it.
+#[test]
+fn a_changed_cors_block_reaches_the_next_response() {
+    const ORIGIN: &str = "https://app.example.test";
+    let crossing = [("Origin", ORIGIN)];
+    let server = Server::start("cors", "", &[("app.nvs", PLAIN)]);
+    let closed = server.get_with("/", &crossing);
+    assert_eq!(closed.status, 200, "the boot's answer: {closed:?}");
+    assert_eq!(
+        closed.header("access-control-allow-origin"),
+        None,
+        "a server that booted closed granted an origin: {closed:?}"
+    );
+
+    server.reload(&format!("[http.cors]\norigins = [\"{ORIGIN}\"]\n"));
+    server.awaits_with("/", &crossing, "the reloaded grant", |answer| {
+        answer.status == 200 && answer.header("access-control-allow-origin") == Some(ORIGIN)
+    });
+
+    server.reload("");
+    server.awaits_with("/", &crossing, "the grant taken away", |answer| {
+        answer.status == 200 && answer.header("access-control-allow-origin").is_none()
+    });
 }

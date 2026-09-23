@@ -118,11 +118,10 @@ use hyper::{HeaderMap, Method, StatusCode};
 use nvs_config::tree::{Http, Setting};
 use nvs_config::{Quantity, Unit};
 
-/// `rule:http-server/cors-is-closed-until-origins-are-named`'s policy, resolved from `[http.cors]` at boot.
+/// `rule:http-server/cors-is-closed-until-origins-are-named`'s policy, resolved from `[http.cors]`.
 ///
-/// Boot-fixed and process-wide for the reason [`crate::secure::Secure`] is: § 2's block is
-/// `Runtime`-class in the ADR's own table, and nothing in this milestone re-reads it under a
-/// live socket.
+/// One per published snapshot, on the terms [`crate::secure::Secure`] is: `[http.cors]` reloads,
+/// and [`crate::serve::Serving`] derives the policy again for the first request under a new one.
 ///
 #[derive(Clone, Debug)]
 pub struct Cors {
