@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program changes the certificate list it got, reads a very large
+// certificate many times, and keeps the list after the connection is deleted.
+// The connection must not change, every read must be the same, and nothing may crash or leak.
+
+// 1. The program changes the list that `peerChain()` returned. A second read must
+//    still return the two certificates of the connection, unchanged.
+var $session = Core\Test::tlsSession({ subject: 'CN=api.example.com' });
+array<tainted string> $chain = $session->peerChain();
+tainted string $leaf = $chain[0];
+$chain[0] = 'not a certificate';
+$chain[] = 'one more entry';
+array<tainted string> $again = $session->peerChain();
+if (Core\Arr::count($again) != 2 || $again[0] != $leaf) {
+    throw new LogicError('changing a copy changed the connection');
+}
+echo 'step 1: ', Core\Arr::count($chain), ' ', Core\Arr::count($again), "\n";
+
+// 2. A name of twenty thousand characters makes a large certificate. The list is
+//    read ten thousand times, and every read must have the same length.
+var $large = Core\Test::tlsSession({
+    subject: 'CN=api.example.com, O=' . Core\Str::repeat('Shop ', 4000),
+});
+uint $first = Core\Str::length($large->peerChain()[0]);
+uint $round = 0;
+while ($round < 10000) {
+    if (Core\Str::length($large->peerChain()[0]) != $first) {
+        throw new LogicError('the certificate changed between two reads');
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $first > 20000 ? 'large' : 'small', "\n";
+
+// 3. Twenty thousand reads are kept in one array, and then the array is deleted.
+array<array<tainted string>> $kept = [];
+$round = 0;
+while ($round < 20000) {
+    $kept[] = $session->peerChain();
+    $round = $round + 1;
+}
+echo 'step 3: ', Core\Arr::count($kept), "\n";
+$kept = [];
+
+// 4. The list is kept after the connection is deleted, and then read again.
+array<tainted string> $held = $large->peerChain();
+$large = Core\Test::tlsSession({});
+echo 'step 4: ', Core\Arr::count($held), ' ', Core\Str::length($held[0]) == $first ? 'kept' : 'lost', "\n";

@@ -110,6 +110,17 @@
 //! charged to the request and held until the last attempt is done with it — except a
 //! `Core\Http\Part::file`, which is a descriptor and a chunk rather than the file
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
+//!
+//! # Known gaps
+//!
+//! 1. **`Core\Http\TlsInfo::expiry` is a fatal for a peer whose `notAfter` is
+//!    `99991231235959Z`.** RFC 5280 § 4.1.2.5 names exactly that date for a
+//!    certificate with no end, and `Core\Time\Instant` ends before it, so
+//!    [`nvs_core_http_tls_info_expiry`] has no instant to return. Whether it
+//!    returns the last instant or an error a program can catch is a design call
+//!    no record makes yet; `Core\Test::tlsSession` cannot build such a leaf, so
+//!    only a peer, or a Rust test with an `rcgen` leaf, reaches it.
+//!    — owner: M10
 
 mod pool;
 pub(crate) mod socket;
@@ -4726,10 +4737,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_http_tls_info_expiry(_ctx, args: [1]) {
         let object = crate::instance::receiver(args[0], &TLS_INFO, "expiry")?;
         let read = leaf_of(&chain_of(object), "expiry")?;
-        // unreachable from source: an X.509 `notAfter` is a UTCTime or a
-        // GeneralizedTime, so whatever the peer sent names a year between 1950
-        // and 9999, and every one of those is inside `Core\Time\Instant`'s own
-        // range.
+        // A `notAfter` past `Core\Time\Instant`'s last instant, such as RFC
+        // 5280's `99991231235959Z` for a certificate with no end, is this fatal:
+        // the module doc's first known gap.
         crate::time::instant_at_system_time(read.expiry()).ok_or_else(|| {
             Fault::fatal(format!(
                 "{TLS_INFO_NAME}::expiry read a `notAfter` no `Core\\Time\\Instant` names"
@@ -6667,6 +6677,101 @@ mod tests {
                 "`null` is not a session"
             );
         }
+    }
+
+    /// `Core\Http\TlsInfo::peerChain` writes each certificate the session holds
+    /// as one PEM block, leaf first: a described session's two blocks decode
+    /// back to its own leaf and CA in that order, no body line is wider than 64
+    /// characters, and a session holding no chain answers an empty array. A
+    /// receiver that is not an object is a fatal.
+    // covers: Core\Http\TlsInfo::peerChain
+    #[test]
+    fn tls_info_peer_chain_writes_each_certificate_as_pem_leaf_first() {
+        use base64::Engine as _;
+
+        fn blocks_of(read: Value) -> Vec<String> {
+            let mut out = Vec::new();
+            {
+                let held = crate::arr::borrowed(read.array_ptr().expect("the chain is an array"));
+                let mut from = 0_usize;
+                while let Some(slot) = held.next_slot(from) {
+                    from = slot + 1;
+                    let block = held
+                        .value_at(slot)
+                        .expect("next_slot only names live entries");
+                    out.push(block.as_text().expect("a PEM block is text").to_owned());
+                }
+            }
+            #[expect(unsafe_code, reason = "this frame owns the read")]
+            unsafe {
+                read.release();
+            }
+            out
+        }
+
+        let mut ctx = Ctx::buffered();
+        let now = std::time::SystemTime::now();
+        let described = nvs_host::tls::described(&nvs_host::tls::Description {
+            version: None,
+            cipher: None,
+            subject: "CN=api.example.com",
+            issuer: "CN=Example Test CA",
+            expiry: now + std::time::Duration::from_secs(86_400),
+            now,
+        })
+        .expect("a described session");
+        assert_eq!(
+            described.chain().len(),
+            2,
+            "a leaf and the CA that signed it"
+        );
+        let info = super::tls_info_of(&described, true);
+        let read = nvs_runtime::call(super::nvs_core_http_tls_info_peer_chain, &mut ctx, &[info])
+            .expect("`peerChain` never throws for a session");
+        let blocks = blocks_of(read);
+        assert_eq!(blocks.len(), 2);
+        for (block, der) in blocks.iter().zip(described.chain()) {
+            let body = block
+                .strip_prefix("-----BEGIN CERTIFICATE-----\n")
+                .and_then(|rest| rest.strip_suffix("-----END CERTIFICATE-----\n"))
+                .expect("a block is framed by the two `CERTIFICATE` lines");
+            assert!(body.lines().all(|line| line.len() <= 64), "{block}");
+            let decoded = super::STANDARD
+                .decode(body.replace('\n', ""))
+                .expect("a block's body is base64");
+            assert_eq!(&decoded, der, "the blocks keep the chain's order");
+        }
+        #[expect(unsafe_code, reason = "this frame owns the session")]
+        unsafe {
+            info.release();
+        }
+
+        let bare = crate::instance::build(
+            &super::TLS_INFO,
+            [
+                Value::str(NvsStr::new(b"TLSv1.3")),
+                Value::str(NvsStr::new(b"TLS13_AES_128_GCM_SHA256")),
+                Value::bool(false),
+                Value::array(NvsArray::new()),
+            ],
+        );
+        let read = nvs_runtime::call(super::nvs_core_http_tls_info_peer_chain, &mut ctx, &[bare])
+            .expect("an empty chain is not an error");
+        assert!(blocks_of(read).is_empty());
+        #[expect(unsafe_code, reason = "this frame owns the session")]
+        unsafe {
+            bare.release();
+        }
+
+        assert!(
+            nvs_runtime::call(
+                super::nvs_core_http_tls_info_peer_chain,
+                &mut ctx,
+                &[Value::null()]
+            )
+            .is_err(),
+            "`null` is not a session"
+        );
     }
 
     /// `Core\Http\Part::file` keeps the path and never the octets. The part it

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the certificates that the server of a reply sent.
+
+// `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
+// without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
+var $session = Core\Test::tlsSession({subject: "CN=api.example.com"});
+Core\Test::answerHttp("https://api.example.com/health", 200, {tls: $session});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://api.example.com/health")->tls();
+
+// `peerChain()` returns one text per certificate. The first one is the server's own.
+// This prints `2`, and then the first line of each certificate.
+if ($info != null) {
+    array<tainted string> $chain = $info->peerChain();
+    echo Core\Arr::count($chain), "\n";
+    foreach ($chain as tainted string $pem) {
+        echo Core\Str::lines($pem)[0], "\n";
+    }
+}

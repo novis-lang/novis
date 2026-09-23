@@ -1,0 +1,24 @@
+<?nvs
+// Reads the certificates a server sent, as a program does before it saves or compares them.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Two TLS connections built for a test, so nothing is sent over a network.
+        array<Core\Http\TlsInfo> $sessions = [
+            Core\Test::tlsSession({subject: "CN=api.example.com"}),
+            Core\Test::tlsSession({subject: "CN=shop.example.com, O=Shop"}),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The connection in each round depends on the count read in the round before.
+            $total = $total + Core\Arr::count($sessions[($total % 2) as int]->peerChain()) + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
