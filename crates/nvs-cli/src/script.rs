@@ -516,7 +516,10 @@ pub(crate) struct Compiler {
     /// **What it spends:** one open of a content-addressed path per compile
     /// this cache misses, against a whole backend on every one it answers.
     ///
-    cache: Option<crate::cache::Cache>,
+    /// Behind a lock for [`Self::env`]'s reason: the disk cache keys and heads
+    /// every artifact with the same digest, so [`Self::rekey`] moves it too. A
+    /// compile clones it out, which is one path per compile.
+    cache: RwLock<Option<crate::cache::Cache>>,
     /// How many times [`Self::compile`] has run on this cache — the counter
     /// `docs/plan/m7.md`'s acceptance paragraph asks the "compiles it exactly
     /// once" claim to be asserted against, and the only number a caller could
@@ -568,7 +571,7 @@ impl Compiler {
             env: RwLock::new(env_hash(config)),
             revalidation: RwLock::new(Revalidation::from_config(config)),
             watcher: Mutex::new(Weak::new()),
-            cache: crate::cache::from_config(config),
+            cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
         }
     }
@@ -630,8 +633,10 @@ impl Compiler {
         shared(&self.units).len()
     }
 
-    /// Moves this cache onto the environment `env` names, dropping every unit
-    /// keyed under the one it leaves — and answering how many that was.
+    /// Moves this cache and the disk cache behind it onto the environment `env`
+    /// names, dropping every unit keyed under the one it leaves — and answering
+    /// how many that was. The disk cache keeps its artifacts: the next compile
+    /// looks for one under the new digest, and misses.
     ///
     /// `0` for a digest that has not moved, which is every reload that did not
     /// touch `[[extension]]`: the units stay, and the cheapest reload stays the
@@ -650,6 +655,9 @@ impl Compiler {
             return 0;
         }
         *keyed = env;
+        if let Some(cache) = exclusive(&self.cache).as_mut() {
+            cache.rekey(env);
+        }
         let mut units = exclusive(&self.units);
         let dropped = units.len();
         units.clear();
@@ -1363,7 +1371,8 @@ impl Compiler {
             &checked.enums,
             &checked.layouts,
         );
-        let outcome = crate::cache::unit_for(&lowered, program, self.cache.as_ref())
+        let cache = shared(&self.cache).clone();
+        let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
             .map(|(unit, _)| {
                 Arc::new(Compiled {
                     unit: Arc::new(unit),

@@ -1278,6 +1278,13 @@ impl Cache {
         self.env
     }
 
+    /// Keys and heads every artifact read or written from now on with `env`. A reload that
+    /// changes the `[[extension]]` array calls it, so the next compile misses the artifacts
+    /// written under the old set.
+    pub(crate) fn rekey(&mut self, env: EnvHash) {
+        self.env = env;
+    }
+
     /// § 1's path for `key`: `<dir>/<key[0..2]>/<key[2..]>.nvsc`.
     #[must_use]
     pub(crate) fn path(&self, key: Digest) -> PathBuf {

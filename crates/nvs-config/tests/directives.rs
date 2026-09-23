@@ -327,24 +327,66 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         LIVE,
         "changed_metrics_and_trace_blocks_rebuild_their_exporters",
     ),
-];
-
-/// The `Reload` rows no [`LIVE`] case proves yet. Side goal `restart-free` writes a case for each
-/// and moves it into [`APPLY_PROOFS`]. `every_directive_has_a_live_apply_proof_or_a_restart_proof`
-/// replaces this test once the list is empty.
-const OWED_LIVE_PROOF: &[&str] = &[
-    "mode.default",
-    "mode.ceiling",
-    "capabilities",
-    "http.csrf_key",
-    "http.csrf_key_file",
-    "http.client.proxy",
-    "log.handler",
-    "log.target",
-    "debug.inline",
-    "extension",
-    "queue.max_attempts",
-    "include",
+    (
+        "mode.default",
+        LIVE,
+        "a_changed_mode_block_reaches_the_next_request",
+    ),
+    (
+        "mode.ceiling",
+        LIVE,
+        "a_changed_mode_block_reaches_the_next_request",
+    ),
+    (
+        "capabilities",
+        LIVE,
+        "a_grant_a_reload_removes_fails_the_next_call",
+    ),
+    (
+        "http.csrf_key",
+        LIVE,
+        "a_rotated_csrf_key_refuses_the_old_token_at_the_door",
+    ),
+    (
+        "http.csrf_key_file",
+        LIVE,
+        "a_rotated_csrf_key_refuses_the_old_token_at_the_door",
+    ),
+    (
+        "http.client.proxy",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log.handler",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log.target",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "debug.inline",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "queue.max_attempts",
+        LIVE,
+        "a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed",
+    ),
+    (
+        "include",
+        LIVE,
+        "a_changed_included_file_reaches_the_next_request",
+    ),
+    (
+        "extension",
+        LIVE,
+        "a_changed_extension_set_compiles_every_program_again",
+    ),
 ];
 
 /// Whether the file at `path`, relative to the repository root, declares the test `name`.
@@ -359,32 +401,23 @@ fn declares_test(path: &str, name: &str) -> bool {
 }
 
 /// `rule:config/reloadability-is-its-own-field` and `rule:config/a-reload-names-what-it-could-not-apply`:
-/// every row names the test that proves what applying a change to it does, or is listed as still
-/// owing one. A `Reload` row's proof is a live case, and a `Boot` row's is the reload report. A row
-/// added to the registry without either fails here.
+/// every row names the one test that proves what applying a change to it does. A `Reload` row's
+/// proof is a live case, in which a real server takes the change in a request. A `Boot` row's is
+/// the reload report, which names the key and keeps its running value. A row added to the registry
+/// without a proof fails here.
 #[test]
-fn every_row_names_its_apply_proof_or_is_listed_as_owing_one() {
+fn every_directive_has_a_live_apply_proof_or_a_restart_proof() {
     for row in DIRECTIVES {
         let proofs: Vec<_> = APPLY_PROOFS
             .iter()
             .filter(|(key, _, _)| *key == row.key)
             .collect();
-        let owed = OWED_LIVE_PROOF.contains(&row.key);
         assert_eq!(
-            proofs.len() + usize::from(owed),
+            proofs.len(),
             1,
-            "`{}` needs exactly one line in `APPLY_PROOFS` or `OWED_LIVE_PROOF`",
+            "`{}` needs exactly one line in `APPLY_PROOFS`",
             row.key,
         );
-        if owed {
-            assert_eq!(
-                row.apply,
-                Apply::Reload,
-                "`{}` is `Boot` and owes nothing live",
-                row.key
-            );
-            continue;
-        }
         let (_, file, name) = proofs[0];
         let wanted = match row.apply {
             Apply::Reload => LIVE,
@@ -401,13 +434,9 @@ fn every_row_names_its_apply_proof_or_is_listed_as_owing_one() {
             row.key
         );
     }
-    for key in APPLY_PROOFS
-        .iter()
-        .map(|(key, _, _)| *key)
-        .chain(OWED_LIVE_PROOF.iter().copied())
-    {
+    for (key, _, _) in APPLY_PROOFS {
         assert!(
-            DIRECTIVES.iter().any(|row| row.key == key),
+            DIRECTIVES.iter().any(|row| row.key == *key),
             "`{key}` is listed with a proof, and the registry has no such row"
         );
     }
