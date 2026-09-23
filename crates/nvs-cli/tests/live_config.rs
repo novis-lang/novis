@@ -854,3 +854,91 @@ fn changed_metrics_and_trace_blocks_rebuild_their_exporters() {
         scraped(new_port).is_none()
     });
 }
+
+/// The directives a request reads out of the snapshot it started under, each
+/// with the value the boot writes and the value a reload writes.
+const REQUEST_READ: &[(&str, &str, &str)] = &[
+    ("limits.fatal_reserve_memory", "\"1M\"", "\"2M\""),
+    ("limits.fatal_reserve_time", "\"50ms\"", "\"60ms\""),
+    ("limits.max_script_depth", "64", "32"),
+    ("limits.max_decompressed", "\"64M\"", "\"32M\""),
+    ("limits.max_decompression_ratio", "1000", "500"),
+    ("limits.hard.memory", "\"1G\"", "\"2G\""),
+    ("log.format", "\"json\"", "\"text\""),
+    ("log.handler_reserve_memory", "\"16M\"", "\"8M\""),
+    ("log.handler_reserve_time", "\"5s\"", "\"4s\""),
+    ("debug.keep_temporary", "false", "true"),
+    ("http.client.pool_idle", "16", "8"),
+    ("http.client.pool_idle_timeout", "\"30s\"", "\"20s\""),
+    ("http.client.socket.send_timeout", "\"30s\"", "\"20s\""),
+    ("deferred.max_concurrent", "256", "128"),
+    ("deferred.deadline", "\"30s\"", "\"20s\""),
+    ("cache.local.max_size", "\"32M\"", "\"16M\""),
+    ("cache.process.max_size", "\"32M\"", "\"16M\""),
+    ("cache.process.fill_wait", "\"5s\"", "\"4s\""),
+];
+
+/// `nvs.toml` writing every [`REQUEST_READ`] key, with its reloaded value when
+/// `reloaded` is set. Keys of one block are written under one header.
+fn request_read(reloaded: bool) -> String {
+    let mut blocks: Vec<(&str, String)> = Vec::new();
+    for (key, boot, reload) in REQUEST_READ {
+        let (block, name) = key.rsplit_once('.').expect("every key is in a block");
+        let value = if reloaded { reload } else { boot };
+        let line = format!("{name} = {value}\n");
+        match blocks.iter_mut().find(|(written, _)| *written == block) {
+            Some((_, body)) => body.push_str(&line),
+            None => blocks.push((block, line)),
+        }
+    }
+    blocks
+        .iter()
+        .map(|(block, body)| format!("[{block}]\n{body}\n"))
+        .collect()
+}
+
+/// A program that prints each [`REQUEST_READ`] key and the value
+/// `Core\Config::get` returns for it, one per line.
+fn reading_back() -> String {
+    let lines: String = REQUEST_READ
+        .iter()
+        .map(|(key, _, _)| {
+            format!("echo \"{key}=\", Core\\Config::get(\"{key}\") ?? \"none\", \"\\n\";\n")
+        })
+        .collect();
+    format!("<?nvs\n{lines}")
+}
+
+/// Every directive a request reads out of its own snapshot takes the
+/// reloaded value from the next request. A request reads each of them through
+/// the context it started under, so the value `Core\Config::get` returns is the
+/// value its reader sees. Every line changes after the reload, and none of them
+/// is missing.
+#[test]
+fn every_request_read_directive_takes_the_reloaded_value_in_the_next_request() {
+    let server = Server::start(
+        "request-read",
+        &request_read(false),
+        &[("app.nvs", &reading_back())],
+    );
+    let boot = server.awaits("/", "the boot's values", |answer| {
+        answer.status == 200 && answer.body.lines().count() == REQUEST_READ.len()
+    });
+    for line in boot.body.lines() {
+        assert!(!line.ends_with("=none"), "the boot did not set `{line}`");
+    }
+
+    server.reload(&request_read(true));
+    let reloaded = server.awaits("/", "every reloaded value", |answer| {
+        answer.status == 200
+            && answer.body.lines().count() == REQUEST_READ.len()
+            && answer
+                .body
+                .lines()
+                .zip(boot.body.lines())
+                .all(|(now, then)| now != then)
+    });
+    for line in reloaded.body.lines() {
+        assert!(!line.ends_with("=none"), "the reload unset `{line}`");
+    }
+}
