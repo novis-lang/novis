@@ -17,13 +17,22 @@ const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 const FIRST = Buffer.from("the first build\n");
 const SECOND = Buffer.from("the second build, which is longer\n");
 
+/**
+ * The limit for a suite that writes and copies executables, in milliseconds. On Windows a new
+ * `.exe` is scanned before the write returns, and while `cargo` runs beside the suite that takes
+ * longer than mocha's two-second default, even for a hook that writes a few bytes.
+ */
+const DISK = 30_000;
+
 /** Write `bytes` to `path` with a modification time of `seconds`, so two builds never share a stamp. */
 function build(path: string, bytes: Buffer, seconds: number): void {
   writeFileSync(path, bytes);
   utimesSync(path, seconds, seconds);
 }
 
-describe("the copy the server runs from", () => {
+describe("the copy the server runs from", function () {
+  this.timeout(DISK);
+
   let root: string;
   let source: string;
   let storage: string;
@@ -91,7 +100,9 @@ describe("the copy the server runs from", () => {
   });
 });
 
-describe("the copy handed to each spawn", () => {
+describe("the copy handed to each spawn", function () {
+  this.timeout(DISK);
+
   let root: string;
   let source: string;
   let storage: string;
@@ -158,7 +169,9 @@ describe("the copy handed to each spawn", () => {
   });
 });
 
-describe("what a sweep of the storage deletes", () => {
+describe("what a sweep of the storage deletes", function () {
+  this.timeout(DISK);
+
   let root: string;
   let source: string;
   let storage: string;
