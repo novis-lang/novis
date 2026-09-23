@@ -36,6 +36,10 @@ it and are deleted in step 9.
 - **A long report.** Split it. One report usually holds several items of different classes, and each is
   classified, searched and decided on its own. Read attached files as evidence and reduce each to the
   smallest program that still shows the item; a reporter's test file is never a test case here.
+- **A report from the issue tracker** usually came through one of the forms in
+  [.github/ISSUE_TEMPLATE/](../../.github/ISSUE_TEMPLATE/): *Bug report*, *Feature request* or *Hard to
+  find or understand*, which is the friction class below. Only the first box of each is required, so
+  treat the form a reporter picked as a hint, not a classification.
 - **Any report.** Note what the reporter ran — a version, a commit, a platform. An item that no longer
   reproduces on `main` is *already fixed* and needs only a reply.
 
