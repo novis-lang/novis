@@ -309,18 +309,29 @@ FANOUT_WORKERS = 8
 #: policy file's `[all] about = true`, which the emitter's closing goal writes. `comments` is a
 #: key no kind carries here, which reads as off: `[all] comments = true` makes every program a
 #: feature's proofs are made of owe the bounds `comment_problems` judges, and goal
-#: `plain-comments` writes it after bringing the landed programs inside them.
+#: `plain-comments` writes it after bringing the landed programs inside them. `help` is what the
+#: binary shows for the feature (ADR 0216): on for every kind the binary can already show, and off
+#: for an exception, an interface and a directive, which have no card or index entry yet -- goal
+#: `core-class-cards` builds those and switches the three on.
 POLICY = {
-    "member":    {"tests": 2, "rust": 1, "examples": 3, "perf": True,  "hostile": 1, "about": False},
-    "lang":      {"tests": 2, "rust": 0, "examples": 3, "perf": True,  "hostile": 1, "about": False},
-    "exception": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
-    "enum":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False},
-    "interface": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False},
-    "tool":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
-    "directive": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
+    "member":    {"tests": 2, "rust": 1, "examples": 3, "perf": True,  "hostile": 1, "about": False, "help": True},
+    "lang":      {"tests": 2, "rust": 0, "examples": 3, "perf": True,  "hostile": 1, "about": False, "help": True},
+    "exception": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False, "help": False},
+    "enum":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False, "help": True},
+    "interface": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False, "help": False},
+    "tool":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False, "help": True},
+    "directive": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False, "help": False},
 }
 
-PROOFS = ("tests", "examples", "perf", "hostile", "about")
+PROOFS = ("tests", "examples", "perf", "hostile", "about", "help")
+
+#: The features that had landed when the help proof started to be owed, and still lacked it. Each
+#: reads as a skip of `help` with `HELP_BACKLOG_REASON`, so a goal the loop has already walked does
+#: not fail its floor over a proof that did not exist when it finished. Goal `core-class-cards`
+#: drains the list; a feature leaves it in the commit that gives it its help, and nothing is added.
+HELP_BACKLOG = TOOLS / "data" / "help-backlog.toml"
+HELP_BACKLOG_REASON = ("Landed before the help proof was owed; goal `core-class-cards` writes it "
+                       "and deletes this feature from tools/data/help-backlog.toml.")
 
 #: The words a description aims for. `docs/examples/README.md` § *The description* is where the
 #: band is explained, and the prompts state it as the target a writer is given.
@@ -601,6 +612,9 @@ def load_policy(no_perf: bool = False) -> tuple[dict, dict]:
                     policy[k].update(fields)
             elif kind in policy:
                 policy[kind].update(fields)
+    if HELP_BACKLOG.exists():
+        for fid in tomllib.loads(read(HELP_BACKLOG)).get("features", []):
+            skips.setdefault(fid, {}).setdefault("help", HELP_BACKLOG_REASON)
     if no_perf or os.environ.get("NVS_DOSSIER_NO_PERF", "") not in ("", "0"):
         for k in policy:
             policy[k]["perf"] = False
@@ -622,7 +636,7 @@ def shown_proofs(policy: dict) -> tuple[str, ...]:
     """The proofs any kind still owes -- the audit's columns, so a switched-off proof leaves no
     column reading as complete when nothing was ever asked of it."""
     return tuple(p for p in PROOFS
-                 if p not in ("perf", "about") or any(k[p] for k in policy.values()))
+                 if p not in ("perf", "about", "help") or any(k[p] for k in policy.values()))
 
 
 def about_problem(path: Path) -> str:
@@ -722,6 +736,7 @@ class Entry:
     anchor: str = ""                # `crates/…/file.rs:NN`, when the roster knows one
     twin: list[str] = field(default_factory=list)   # PHP built-ins it replaces, when known
     summary: str = ""
+    help: str = ""                  # what the binary's own help is missing, or "" when nothing
 
     @property
     def examples_dir(self) -> Path:
@@ -851,8 +866,17 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
     A fenced block is skipped whole, because a sample program is written in the language the chapter
     documents rather than in Markdown: `# also a line comment` inside one is a comment Novis accepts,
     and reading it as a heading invents a feature nothing ships and then owes it feature proofs.
+
+    The section under a heading is what `nvs agent show` prints for the feature, so it owes the help
+    proof unless it shows how the feature is written: a fenced block, or a table row holding code.
     """
     out: list[Entry] = []
+
+    def judge(entry: Entry | None, shows_code: bool, path: Path) -> None:
+        if entry is not None and not shows_code:
+            entry.help = (f"the section `# {entry.summary}` in {rel(path)} shows no code: add a "
+                          f"short example of how it is written, which `nvs agent show` prints")
+
     for path in sorted(directory.glob("*.md")):
         text = read(path)
         m = re.search(r"^---\n(.*?)\n---\n", text, re.S)
@@ -862,6 +886,8 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
         body = text[m.end():] if m else text
         line_no = text[: m.end()].count("\n") + 1 if m else 0
         fence = ""
+        current: Entry | None = None
+        shows_code = False
         for line in body.split("\n"):
             line_no += 1
             marker = line.strip()[:3]
@@ -871,18 +897,25 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
                 continue
             if marker in ("```", "~~~"):
                 fence = marker
+                shows_code = True
                 continue
+            if line.lstrip().startswith("|") and "`" in line:
+                shows_code = True
             if line.startswith("# "):
+                judge(current, shows_code, path)
                 title = line[2:].strip()
                 slug = slugify(title)
-                out.append(Entry(
+                current = Entry(
                     id=f"{area}:{chapter}/{slug}",
                     kind="lang" if area == "lang" else "tool",
                     group=f"{area}:{chapter}",
                     path=f"{area}/{chapter}/{slug}",
                     anchor=f"{rel(path)}:{line_no}",
                     summary=title,
-                ))
+                )
+                shows_code = False
+                out.append(current)
+        judge(current, shows_code, path)
     return out
 
 
@@ -897,6 +930,11 @@ def roster(nvs: Path) -> list[Entry]:
     for klass in doc.get("classes", []):
         cname = klass["name"]
         tail = class_tail(cname)
+        # A member's own card is enforced by the registry test; what the binary can still be
+        # missing is the class's card, which a completion list and `show` print above the member.
+        class_help = "" if (klass.get("doc") or {}).get("short") else (
+            f"`{cname}` has no class card: add its `ClassDoc` above the class's `CLASS` row and "
+            f"delete it from `CLASSES_STILL_OWING_A_CARD` in crates/nvs-stdlib/src/registry.rs")
         for member in klass.get("members", []):
             mname = member["name"]
             out.append(Entry(
@@ -907,6 +945,8 @@ def roster(nvs: Path) -> list[Entry]:
                 anchor=anchors.get((cname, mname), ""),
                 twin=twins.get((cname, mname), []),
                 summary=(member.get("doc") or {}).get("short", "") or member.get("signature", ""),
+                help=class_help if (member.get("doc") or {}).get("short") else
+                f"`{cname}::{mname}` has no card, so `nvs agent show` prints nothing for it",
             ))
 
     for kind, key in (("exception", "exceptions"), ("enum", "enums"), ("interface", "interfaces")):
@@ -919,6 +959,8 @@ def roster(nvs: Path) -> list[Entry]:
                 path=f"types/{class_tail(name)}",
                 anchor=tables[kind].get(name, ""),
                 summary=((item.get("doc") or {}).get("short", "") if isinstance(item, dict) else ""),
+                help="" if isinstance(item, dict) and (item.get("doc") or {}).get("short") else
+                f"`{name}` has no card, so `nvs agent show` prints nothing for it",
             ))
 
     for d in doc.get("directives", []):
@@ -1131,6 +1173,8 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
             out["about"] = f"no description at {rel(entry.about_file)}"
         elif proofs.about_problem:
             out["about"] = f"{proofs.about}: {proofs.about_problem}"
+    if want.get("help") and "help" not in skip and entry.help:
+        out["help"] = entry.help
     if want.get("comments") and "comments" not in skip:
         # Not a sixth proof and so not in `PROOFS`: it judges the programs the other proofs already
         # are. Off in `POLICY`, and `[all] comments = true` is what goal `plain-comments` writes
@@ -1897,7 +1941,7 @@ def group_rows(entries: list[Entry], proofs: dict[str, Proofs], policy: dict,
 
 
 HEADINGS = {"tests": "tests", "examples": "exmpl", "perf": "perf", "hostile": "hostl",
-            "about": "about"}
+            "about": "about", "help": "help"}
 
 
 def print_status(rows: list[dict], columns: tuple[str, ...]) -> None:
@@ -2053,6 +2097,9 @@ def worker_owed(missing: dict[str, str]) -> dict[str, str]:
     out = dict(missing)
     if "perf" in out and not out["perf"].startswith("no bench"):
         del out["perf"]
+    # The help proof is a class card under `crates/` or a reference section under `docs/`, and a
+    # worker writes neither (`RESERVED`), so the parent writes it, as it records the perf figure.
+    out.pop("help", None)
     return out
 
 
@@ -3259,6 +3306,10 @@ def gate(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dic
     plain = ", plain comments" if any(k.get("comments") for k in policy.values()) else ""
     print(f"dossier gate: nothing owed in {where} "
           f"({len(scope)} features, each owing {', '.join(shown_proofs(policy))}{plain}).")
+    if group is None:
+        backlog = sum(1 for reasons in skips.values() if reasons.get("help") == HELP_BACKLOG_REASON)
+        print(f"help backlog: {backlog} feature(s) skip help until they have it" if backlog
+              else "help backlog: empty")
     return 0
 
 
