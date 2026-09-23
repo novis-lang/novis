@@ -3659,6 +3659,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   in the tree restores it once it is gone, and the leg runs whenever the Core registry moves. Run `npm ci
   --no-audit --no-fund` in `editors/vscode` (it reads the committed lockfile) and re-run `verify.py`.
   [until: reviewed 2026-09-23]
+- **A probe `.nvs` under `.agent-tmp/` cannot call `Core\IO::temporaryDir` or any other `Core\IO` member.** The repository's `nvs.toml` grants `fs` read and write only to the proof trees, by `root`, so the probe stops with a `RuntimeError` naming `fs.write` before it reaches the question. Put a throwaway probe inside the proof tree it is about (`tests/hostile/core/IO/<member>/zz-probe.nvs`), run it with `target/debug/nvs.exe run`, and delete it in the same call. [until: reviewed 2026-09-23]
 
 ## Writing a test case
 

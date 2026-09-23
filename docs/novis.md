@@ -11707,7 +11707,7 @@ Makes sure a directory exists at `$path`, creating any missing parent along the 
 
 **Returns** `void` — Nothing. A directory that is already there is success rather than a refusal — the contract is that it exists afterwards, and refusing would leave every caller writing an `exists` check in front of this one. `removeDir` is deliberately not the mirror of this: it refuses to recurse, because what it would recurse over is destruction.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused call leaves no directory behind.; `IOError` — The capability allowed it and the operating system did not — a component of the path exists and is a file, or the process may not create there.
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused call leaves no directory behind.; `IOError` — The capability allowed it and the operating system did not — the path is empty, a component of the path exists and is a file, or the process may not create there.
 
 <a id="core-core-io-removedir"></a>
 #### `Core\IO::removeDir`
