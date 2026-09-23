@@ -1,0 +1,29 @@
+--TEST--
+Core\IO::copy of a file onto itself throws an IOError and leaves the file whole, under the same spelling and under a second one through `..` — the door refuses it on every platform rather than letting a truncating copy empty the source — spec § 14
+--FILE--
+<?nvs
+// covers: Core\IO::copy
+// Two spellings of one destination, because a check that compared the text
+// of the two paths would catch the first and empty the file on the second.
+Core\IO::write("source.txt", "the content");
+Core\IO::makeDir("sub");
+array<string> $spellings = ["source.txt", "sub/../source.txt"];
+
+int $refused = 0;
+foreach ($spellings as string $to) {
+    try {
+        Core\IO::copy("source.txt", $to);
+    } catch (IOError $e) {
+        $refused = $refused + 1;
+    }
+}
+
+echo "copies onto the source refused: ", $refused as string, " of 2\n";
+echo "the source afterwards: '", Core\IO::read("source.txt"), "'\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+copies onto the source refused: 2 of 2
+the source afterwards: 'the content'

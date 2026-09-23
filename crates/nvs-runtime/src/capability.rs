@@ -601,17 +601,51 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 /// `Core\IO::copy` has nothing to say about it and a door that answered one would be inviting a
 /// second member to report it.
 ///
+/// **A destination that is the source itself is refused**, under any spelling and through a hard
+/// link. `std::fs::copy` on Unix truncates the destination before it reads the source, so a copy
+/// of a file onto itself would succeed and leave it empty; Windows refuses the same call with a
+/// sharing violation, so the check here is what makes both platforms throw.
+///
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
-/// `from` or `fs.write` for `to`, or [`io_failure`]'s `IOError` when the copy itself fails. The
-/// message names [`pair`]'s both-ends spelling, because either end can be the one at fault.
+/// `from` or `fs.write` for `to`, or [`io_failure`]'s `IOError` when the two paths name one file or
+/// the copy itself fails. The message names [`pair`]'s both-ends spelling, because either end can
+/// be the one at fault.
 pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
     require(ctx, Cap::FsRead, Scope::Path(from), member)?;
     require(ctx, Cap::FsWrite, Scope::Path(to), member)?;
+    if same_file(from, to) {
+        return Err(io_failure(
+            member,
+            &pair(from, to),
+            &std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "the source and the destination are the same file",
+            ),
+        ));
+    }
     std::fs::copy(from, to)
         .map(|_| ())
         .map_err(|err| io_failure(member, &pair(from, to), &err))
+}
+
+/// Whether `a` and `b` both exist and are one file: the same device and inode, so a second
+/// spelling and a hard link both count. Windows answers the question itself by refusing to open a
+/// file for writing that a copy already holds open for reading, so this is `false` there.
+#[cfg(unix)]
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
+}
+
+/// See the Unix twin: the operating system refuses the copy here.
+#[cfg(not(unix))]
+fn same_file(_a: &Path, _b: &Path) -> bool {
+    false
 }
 
 /// § 2's rename door: the name `from` becomes the name `to`, once [`Cap::FsWrite`] has been shown to

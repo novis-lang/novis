@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to keep a copy of a settings file before a program changes it.
+
+string $dir = Core\IO::temporaryDir();
+string $settings = Core\Path::join($dir, "settings.ini");
+string $backup = Core\Path::join($dir, "settings.ini.bak");
+Core\IO::write($settings, "mode = test\n");
+
+Core\IO::copy($settings, $backup);
+Core\IO::write($settings, "mode = live\n");
+
+// The change is only in the first file. This prints "mode = live" and then "mode = test".
+echo Core\IO::read($settings);
+echo Core\IO::read($backup);

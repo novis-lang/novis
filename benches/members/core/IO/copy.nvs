@@ -1,0 +1,25 @@
+<?nvs
+// Copies a small file to a new name, as a program does before it changes a settings file.
+// bench: iterations 2000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $sources = [Core\Path::join($dir, "a.ini"), Core\Path::join($dir, "b.ini")];
+        Core\IO::write($sources[0], Core\Str::repeat("a", 64));
+        Core\IO::write($sources[1], Core\Str::repeat("b", 96));
+        string $to = Core\Path::join($dir, "copy.ini");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file copied in each round depends on the round before, so no round can be left out.
+            Core\IO::copy($sources[(($total + $i) % 2) as int], $to);
+            $total = $total + Core\IO::size($to);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

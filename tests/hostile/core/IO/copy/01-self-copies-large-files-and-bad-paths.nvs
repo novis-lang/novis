@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a program copies a file onto itself, copies a large file many times, and copies
+// to and from paths that cannot be a file. `copy` must copy every byte or throw an error.
+// A failed copy must never empty or change the source.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+string $source = Core\Path::join($dir, 'source.bin');
+Core\IO::write($source, 'keep me');
+Core\IO::makeDir(Core\Path::join($dir, 'sub'));
+
+// 1. The source as its own destination, written three ways. Each copy must throw, and the source must not change.
+array<string> $selves = [
+    $source,
+    Core\Path::join($dir, 'sub/../source.bin'),
+    Core\Path::join($dir, './source.bin'),
+];
+foreach ($selves as string $self) {
+    try {
+        Core\IO::copy($source, $self);
+        throw new LogicError('a copy onto the source itself succeeded');
+    } catch (IOError $sameFile) {
+    }
+    if (Core\IO::read($source) != 'keep me') {
+        throw new LogicError('a copy onto itself changed the source');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. A file of 8000000 bytes, copied 20 times onto the same destination. Every copy must be whole.
+string $big = Core\Path::join($dir, 'big.bin');
+string $copy = Core\Path::join($dir, 'big-copy.bin');
+Core\IO::write($big, Core\Str::repeat('x', 8000000));
+int $i = 0;
+while ($i < 20) {
+    Core\IO::copy($big, $copy);
+    if (Core\IO::size($copy) != 8000000) {
+        throw new LogicError('a copy of a large file was not whole');
+    }
+    $i = $i + 1;
+}
+echo 'step 2: done', "\n";
+
+// 3. A chain: each copy is the source of the next, 500 times. The last one must match the first.
+string $from = $source;
+$i = 0;
+while ($i < 500) {
+    string $to = Core\Path::join($dir, Core\Str::format('chain-%d.bin', $i));
+    Core\IO::copy($from, $to);
+    $from = $to;
+    $i = $i + 1;
+}
+if (Core\IO::read($from) != 'keep me') {
+    throw new LogicError('a chain of copies changed the content');
+}
+echo 'step 3: done', "\n";
+
+// 4. Paths that cannot work: a missing source, a directory as source or destination,
+// a missing directory, a NUL byte and a very long name.
+array<array<string>> $bad = [
+    [Core\Path::join($dir, 'missing.bin'), Core\Path::join($dir, 'out.bin')],
+    [$dir, Core\Path::join($dir, 'out.bin')],
+    [$source, $dir],
+    [$source, Core\Path::join($dir, 'no-such-dir/deeper/out.bin')],
+    [$source, Core\Path::join($dir, "nul\0byte.bin")],
+    [$source, Core\Path::join($dir, Core\Str::repeat('n', 100000))],
+];
+foreach ($bad as array<string> $pair) {
+    try {
+        Core\IO::copy($pair[0], $pair[1]);
+        throw new LogicError('a copy between impossible paths succeeded');
+    } catch (IOError $refused) {
+    }
+}
+if (Core\IO::read($source) != 'keep me' || Core\IO::exists(Core\Path::join($dir, 'out.bin'))) {
+    throw new LogicError('a refused copy changed a file or left one behind');
+}
+echo 'step 4: done', "\n";
