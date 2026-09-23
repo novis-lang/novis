@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a server sends ids that must be ignored, very many ids without events, and
+// one very long id that every later event gets. Each `id()` call must return the id
+// the stream should have. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+
+// 1. An id with a NUL byte must be ignored, so the event keeps the id before it.
+//    An empty id is allowed, so the next event's id is empty and not `null`.
+Core\Test::answerHttp('https://feed.example.com/ignored', 200, { body: "id: 5\ndata: a\n\nid: 6\0\ndata: b\n\nid\ndata: c\n\n" });
+var $ignored = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/ignored');
+array<string> $expected = ['5', '5', ''];
+uint $k = 0;
+foreach ($ignored->events() as Core\Http\Event $event) {
+    if ($event->id() != $expected[$k as int]) {
+        throw new LogicError(Core\Str::format('event %d has the wrong id', $k));
+    }
+    $k = $k + 1;
+}
+echo 'step 1: ', $k, "\n";
+
+// 2. 100000 blocks that only set an id, then one event. The blocks are not events,
+//    but the event must have the id from the last block.
+string $ids = '';
+uint $i = 0;
+while ($i < 100000) {
+    $ids = $ids . 'id: ' . $i . "\n\n";
+    $i = $i + 1;
+}
+Core\Test::answerHttp('https://feed.example.com/many-ids', 200, { body: $ids . "data: now\n\n" });
+var $many = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/many-ids');
+uint $events = 0;
+foreach ($many->events() as Core\Http\Event $event) {
+    if ($event->id() != '99999') {
+        throw new LogicError('the event does not have the last id');
+    }
+    $events = $events + 1;
+}
+echo 'step 2: ', $events, "\n";
+
+// 3. One id of 65000 characters, then 100000 small events that all get this id. The
+//    events are kept in a list. This step ends the program at its memory limit.
+Core\Test::answerHttp('https://feed.example.com/long-id', 200, { body: 'id: ' . Core\Str::repeat('i', 65000) . "\n" . Core\Str::repeat("data: x\n\n", 100000) });
+var $copied = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-id');
+array<Core\Http\Event> $kept = [];
+foreach ($copied->events() as Core\Http\Event $event) {
+    $kept[] = $event;
+}
+echo 'step 3: ', Core\Arr::count($kept), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows that an event without an `id` line has the id of the event before it.
+
+// The first event has no id. The second sets the id to 10.
+// The third has no `id` line, so its id is still 10.
+Core\Test::answerHttp("https://logs.example.com/tail", 200, {
+    body: "data: starting\n\nid: 10\ndata: ready\n\ndata: first request\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+// This prints "none", then "10", then "10".
+Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, "https://logs.example.com/tail");
+foreach ($log->events() as Core\Http\Event $event) {
+    echo $event->data(), " -> ", $event->id() ?? "none", "\n";
+}
