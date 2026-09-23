@@ -2,6 +2,9 @@
 `Core\Http\Stream::events` reads the WHATWG EventSource format whichever of `\r\n`, `\r` and `\n` ended each line, keeps an `id` in force between events, dispatches nothing for a block carrying no `data`, and is the one framing a lone `\r` ends a line for — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
 --FILE--
 <?nvs
+// covers: Core\Http\Event::data
+// covers: Core\Http\Event::name
+// covers: Core\Http\Event::id
 // Nothing below opens a socket or resolves a name: every outbound call is
 // answered from the table (`rule:testing/an-outbound-call-is-answered-from-a-table`),
 // which is what lets a streamed reply be written out here byte for byte.

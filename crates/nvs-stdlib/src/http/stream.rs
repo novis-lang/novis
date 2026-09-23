@@ -62,6 +62,20 @@
 //! `events()`, that event's accumulated `data` under the cap above. The
 //! connection under the reader is given back at the end of the body, or with
 //! the request where a program abandons the walk.
+//!
+//! # Known gaps
+//!
+//! 1. **An `id` in force is copied into every event that follows it.** [`step`]
+//!    copies the walk's `lastId` slot out, [`event_at`] copies it again, and
+//!    each dispatch checks it and builds a fresh `string` for the event and one
+//!    for the slot. So an origin that sends one 65000-byte `id` line and then
+//!    nine-byte events makes every nine bytes cost that whole id, several
+//!    times over, in copying and in memory a program that keeps its events
+//!    holds. The request's memory cap still bounds it
+//!    (`tests/hostile/core/Http-Event/id/01-ids-ignored-repeated-and-copied.nvs`).
+//!    The fix shares the slot's one reference with every event whose block set
+//!    no `id`, which is a new refcount edge and owes a valgrind run.
+//!    — owner: M12
 
 use super::*;
 
@@ -382,7 +396,7 @@ const SAVE_TO_DOC: MethodDoc = MethodDoc {
 /// `Event::event()` reads as the whole event rather than as the field.
 pub(crate) const EVENT: CoreClass = CoreClass {
     name: EVENT_NAME,
-    doc: None,
+    doc: Some(&EVENT_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -415,6 +429,12 @@ pub(crate) const EVENT: CoreClass = CoreClass {
     ],
     slots: &["data", "name", "id"],
     constants: &[],
+};
+
+/// `Core\Http\Event`'s own card — `rule:core-api/reference-card`.
+const EVENT_CARD: ClassDoc = ClassDoc {
+    short: "One server-sent event: its data, its name and its id. A `foreach` over \
+            `Core\\Http\\Stream::events()` gives one for each event the server finished sending.",
 };
 
 /// `Core\Http\Event::data`'s reference card — `rule:core-api/reference-card`.
@@ -1190,6 +1210,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::{CHUNKS, EVENTS, LINES, STREAM, event_at, line_at};
+    use nvs_runtime::{Ctx, Tag, Value};
 
     /// The walks' slot layouts, asserted together: one implementation reads all
     /// three, so a class whose slots drifted would frame the wrong field of the
@@ -1322,5 +1343,49 @@ mod tests {
             .expect("no cap is reached")
             .expect("the blank line dispatched it");
         assert_eq!(used, 11, "the block is taken to the end of its blank line");
+    }
+
+    /// The three readers answer the fields of the event they were framed from,
+    /// each its own: `data` joins its lines with a newline, `name` is reset at
+    /// every dispatch while `id` stays in force, and an id carrying a NUL leaves
+    /// the previous one standing. A reader wired to a neighbouring slot would
+    /// still answer a string, which is why every field differs from the others.
+    // covers: Core\Http\Event::data
+    // covers: Core\Http\Event::name
+    // covers: Core\Http\Event::id
+    #[test]
+    fn each_reader_answers_its_own_field_of_the_framed_event() {
+        let body = b"event: tick\nid: 7\ndata: one\ndata: two\n\ndata: three\nid: x\0y\n\n";
+        let (first, used, id) = event_at(body, true, None)
+            .expect("no cap is reached")
+            .expect("the first block ends with a blank line");
+        let (second, _, _) = event_at(&body[used..], true, id.as_deref())
+            .expect("no cap is reached")
+            .expect("the second block ends with a blank line");
+        let mut ctx = Ctx::buffered();
+        let mut read = |event: Value, member: &str| {
+            let reader = match member {
+                "data" => super::nvs_core_http_event_data,
+                "name" => super::nvs_core_http_event_name,
+                _ => super::nvs_core_http_event_id,
+            };
+            nvs_runtime::call(reader, &mut ctx, &[event]).expect("a reader reads a slot")
+        };
+
+        assert_eq!(read(first, "data").as_text(), Some("one\ntwo"));
+        assert_eq!(read(first, "name").as_text(), Some("tick"));
+        assert_eq!(read(first, "id").as_text(), Some("7"));
+
+        assert_eq!(read(second, "data").as_text(), Some("three"));
+        assert_eq!(
+            read(second, "name").tag(),
+            Some(Tag::Null),
+            "the event name does not outlive its own event"
+        );
+        assert_eq!(
+            read(second, "id").as_text(),
+            Some("7"),
+            "the id stays in force, and one with a NUL in it is ignored"
+        );
     }
 }

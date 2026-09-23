@@ -5241,7 +5241,6 @@ mod tests {
         r"Core\Http",
         r"Core\Http\Chunks",
         r"Core\Http\Client",
-        r"Core\Http\Event",
         r"Core\Http\Events",
         r"Core\Http\Identity",
         r"Core\Http\Lines",

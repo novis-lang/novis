@@ -2,6 +2,7 @@
 A streamed reply's line cap and event cap are each named on both sides — the longest line `lines()` frames and the first it refuses, the longest `data` one event may accumulate and the first byte past it — and `chunks()` and `saveTo`, which frame nothing, are bound by neither — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
 --FILE--
 <?nvs
+// covers: Core\Http\Event::data
 // The caps are constants rather than directives: these are bytes another host
 // chose, so "until memory runs out" would be that host deciding this process's
 // footprint. Nothing below opens a socket

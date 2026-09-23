@@ -13,7 +13,7 @@ namespace Core\Http
 
 - `Chunks`
 - `Client`
-- `Event`
+- `Event` — One server-sent event: its data, its name and its id. A `foreach` over `Core\Http\Stream::events()` gives one for each event the server finished sending.
 - `Events`
 - `Identity`
 - `Lines`
