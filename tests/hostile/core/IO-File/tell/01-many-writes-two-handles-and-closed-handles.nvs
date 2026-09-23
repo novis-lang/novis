@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program asks for the position 100000 times while it writes, and asks two
+// handles on one file. It also asks a closed handle.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-tell');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+
+// 1. One byte is written 100000 times. After each write, `tell` must be one byte further.
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+uint $i = 0;
+while ($i < 100000) {
+    $file->write('x');
+    $i = $i + 1;
+    if ($file->tell() != $i) {
+        throw new LogicError('tell returned the wrong position after a write');
+    }
+}
+$file->close();
+echo 'step 1: done', "\n";
+
+// 2. A second handle adds to the end of the file. The first handle's position must not
+// change, and the second handle must be at the new end.
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+$reader->read(10);
+Core\IO\File $appender = Core\IO::open($path, Core\IO\FileMode::Append);
+$appender->write('added');
+if ($reader->tell() != 10 || $appender->tell() != 100005) {
+    throw new LogicError('two handles on one file mixed up their positions');
+}
+$appender->close();
+echo 'step 2: done', "\n";
+
+// 3. A closed handle is asked 1000 times. Each `tell` must throw a `RuntimeError`.
+$reader->close();
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $reader->tell();
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle returned a position');
+}
+echo 'step 3: done', "\n";

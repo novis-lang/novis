@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find out where the handle of an open file is.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+
+// A new handle is at byte 0, so this prints 0.
+echo $file->tell(), "\n";
+
+// `write` moves the handle past what it wrote. This prints 6.
+$file->write("first\n");
+echo $file->tell(), "\n";
+
+// This prints 13.
+$file->write("second\n");
+echo $file->tell(), "\n";
+$file->close();
