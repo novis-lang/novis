@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `Core\IO::modifiedAt` works for a folder, and throws an `IOError` for a missing file.
+
+string $dir = Core\IO::temporaryDir();
+
+// A folder has a modification time too. This prints "the folder has a time".
+Core\Time\Instant $folder = Core\IO::modifiedAt($dir);
+echo "the folder has a time", "\n";
+
+// There is no file at this path, so `modifiedAt` throws an error.
+// This prints "no file, so no time".
+try {
+    Core\Time\Instant $when = Core\IO::modifiedAt(Core\Path::join($dir, "missing.txt"));
+    echo "changed at ", $when->toIso(), "\n";
+} catch (IOError $e) {
+    echo "no file, so no time", "\n";
+}

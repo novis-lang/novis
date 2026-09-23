@@ -884,8 +884,8 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — a component of the \
-                   path exists and is a file, or the process may not create there.",
+            desc: "The capability allowed it and the operating system did not — the path is empty, \
+                   a component of the path exists and is a file, or the process may not create there.",
         },
     ],
 };
@@ -4035,5 +4035,126 @@ mod tests {
 
         let _ = std::fs::remove_file(&file);
         let _ = std::fs::remove_file(&empty);
+    }
+
+    /// `Core\IO::modifiedAt` answers the time the operating system recorded, to the second a
+    /// test set it to, for a file and for a directory, and throws for a name with nothing at it.
+    /// A context with no `fs.read` throws before the operating system is asked.
+    // covers: Core\IO::modifiedAt
+    #[test]
+    fn core_io_modified_at_answers_the_recorded_time_and_throws_for_a_missing_name() {
+        let file = scratch("modified-at.txt");
+        std::fs::write(&file, b"dated").expect("a file to date");
+        let recorded = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .and_then(|handle| handle.set_modified(recorded))
+            .expect("a modification time the test chose");
+        let mut ctx = reading("1MiB");
+        let iso_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
+            call_with(nvs_core_io_modified_at, ctx, &[spelled(path)]).map(|value| {
+                let iso = crate::time::instant_iso(value).expect("`modifiedAt` answers an Instant");
+                #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                unsafe {
+                    value.release();
+                }
+                iso
+            })
+        };
+        assert_eq!(
+            iso_of(&mut ctx, &file).as_deref(),
+            Ok("2023-11-14T22:13:20Z")
+        );
+        let dir = file.parent().expect("a scratch file sits in a directory");
+        assert!(iso_of(&mut ctx, dir).is_ok(), "a directory has a time too");
+        let missing = iso_of(&mut ctx, &scratch("modified-at-missing.txt")).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::modifiedAt"), "{missing}");
+
+        let refused = iso_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&file);
+    }
+
+    /// `Core\IO::move` takes the source away and puts its whole content at the destination,
+    /// replacing a file already there. A missing source throws with a message naming both ends,
+    /// and a context granting `fs.read` alone throws and leaves the source where it was.
+    // covers: Core\IO::move
+    #[test]
+    fn core_io_move_replaces_the_destination_and_names_both_ends_when_it_fails() {
+        let from = scratch("move-from.txt");
+        let to = scratch("move-to.txt");
+        std::fs::write(&from, b"the new content").expect("a file to move");
+        std::fs::write(&to, b"old").expect("a file to replace");
+        let mut ctx = writing();
+        call_with(nvs_core_io_move, &mut ctx, &[spelled(&from), spelled(&to)])
+            .expect("a move under `fs.write`");
+        assert!(!from.exists(), "the source is gone");
+        assert_eq!(
+            std::fs::read(&to).expect("the destination"),
+            b"the new content"
+        );
+
+        let missing = scratch("move-missing.txt");
+        let failed = call_with(
+            nvs_core_io_move,
+            &mut ctx,
+            &[spelled(&missing), spelled(&from)],
+        )
+        .expect_err("nothing to move");
+        assert!(failed.contains("move-missing.txt"), "{failed}");
+        assert!(failed.contains("move-from.txt"), "{failed}");
+
+        let refused = call_with(
+            nvs_core_io_move,
+            &mut reading("1MiB"),
+            &[spelled(&to), spelled(&from)],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(to.exists(), "a refused move leaves the source");
+
+        let _ = std::fs::remove_file(&to);
+    }
+
+    /// `Core\IO::makeDir` creates every missing folder on the path, and a second call for a
+    /// folder that is already there succeeds. A path under a file throws, and a context granting
+    /// `fs.read` alone throws and creates nothing.
+    // covers: Core\IO::makeDir
+    #[test]
+    fn core_io_make_dir_creates_the_parents_and_accepts_a_folder_already_there() {
+        let root = scratch("make-dir");
+        let _ = std::fs::remove_dir_all(&root);
+        let nested = root.join("a").join("b").join("c");
+        let mut ctx = writing();
+        call_with(nvs_core_io_make_dir, &mut ctx, &[spelled(&nested)]).expect("a new tree");
+        assert!(nested.is_dir(), "every missing parent was created");
+        call_with(nvs_core_io_make_dir, &mut ctx, &[spelled(&nested)])
+            .expect("a folder already there is success");
+
+        let file = root.join("file.txt");
+        std::fs::write(&file, b"x").expect("a file in the way");
+        let failed = call_with(
+            nvs_core_io_make_dir,
+            &mut ctx,
+            &[spelled(&file.join("sub"))],
+        )
+        .expect_err("a file is not a folder");
+        assert!(failed.contains(r"Core\IO::makeDir"), "{failed}");
+        call_with(nvs_core_io_make_dir, &mut ctx, &[""])
+            .expect_err("an empty path names no folder, so none exists afterwards");
+
+        let other = root.join("refused");
+        let refused = call_with(
+            nvs_core_io_make_dir,
+            &mut reading("1MiB"),
+            &[spelled(&other)],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(!other.exists(), "a refused call creates nothing");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

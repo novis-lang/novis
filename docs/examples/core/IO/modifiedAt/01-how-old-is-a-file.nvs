@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find out how long ago a file was changed.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+Core\IO::write($path, "Buy milk\n");
+
+// `modifiedAt` returns the time the file was written.
+// `since` returns the time between that moment and now, as a `Core\Time\Duration`.
+Core\Time\Instant $changed = Core\IO::modifiedAt($path);
+Core\Time\Duration $age = Core\Time::now()->since($changed);
+
+// The file was written a moment ago, so this prints "changed less than a minute ago".
+if ($age->toSeconds() < 60) {
+    echo "changed less than a minute ago", "\n";
+} else {
+    echo "changed ", $age->toString(), " ago", "\n";
+}

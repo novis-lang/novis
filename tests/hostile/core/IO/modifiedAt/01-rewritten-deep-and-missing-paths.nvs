@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program asks for the time of a file that changes many times, and of paths with no file.
+// `modifiedAt` must return a time or throw an `IOError`, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+
+// 1. A file rewritten two thousand times. Its time must never go back.
+string $log = Core\Path::join($dir, 'app.log');
+Core\IO::write($log, '');
+Core\Time\Instant $last = Core\IO::modifiedAt($log);
+uint $round = 0;
+while ($round < 2000) {
+    Core\IO::append($log, 'x');
+    Core\Time\Instant $now = Core\IO::modifiedAt($log);
+    if ($now->compareTo($last) < 0) {
+        throw new LogicError('the time of a file went back');
+    }
+    $last = $now;
+    $round = $round + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. A file that is deleted. Asking again must throw an `IOError`.
+Core\IO::remove($log);
+try {
+    Core\IO::modifiedAt($log);
+    throw new LogicError('a deleted file still had a time');
+} catch (IOError $gone) {
+}
+echo 'step 2: done', "\n";
+
+// 3. A path five thousand folders deep that does not exist. It must throw an `IOError`.
+string $deep = Core\Path::join($dir, Core\Str::repeat('a/', 5000));
+try {
+    Core\IO::modifiedAt($deep);
+    throw new LogicError('a deep missing path had a time');
+} catch (IOError $tooDeep) {
+}
+echo 'step 3: done', "\n";
+
+// 4. Names with no file at them. Each must throw an `IOError`.
+string $file = Core\Path::join($dir, 'plain.txt');
+Core\IO::write($file, 'x');
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, 'missing.txt'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($file, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::modifiedAt($badPath);
+        throw new LogicError('a path with no file had a time');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 4: done', "\n";
