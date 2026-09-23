@@ -1,16 +1,11 @@
 <?nvs
-// Attack: the two keys that decide when this process notices that its source
-// changed, pushed by a program that would rather it did not notice. Every
-// spelling of `never` an engine might fold a value into, every duration long
-// enough to be one, and then the pair hammered while the program does real work
-// — a host that still re-checks on whatever schedule its operator wrote is the
-// only evidence that none of it took.
+// Attack: a program tries to stop the server from noticing that its source files
+// changed. Only the person who runs the server may change these settings, so every
+// attempt below should fail and the settings should stay as they were.
 // hostile: timeout-ms 20000
 
-// 1. `validate`, in every spelling that might be read as "stop looking". The
-//    interesting ones are the ones that are almost a word the parser knows: a
-//    value it does not recognise keeps the startup default rather than refusing,
-//    so a near miss that landed would be silent.
+// 1. The program tries to set `validate` to many values that could mean
+//    "stop checking", including near misses and a very long string.
 array<string> $policies = [
     'never',
     'Never',
@@ -35,10 +30,8 @@ foreach ($policies as string $policy) {
     Core\Config::restore('opcache.validate');
 }
 
-// 2. The cap beside it, from both ends. A huge interval is the same thing as
-//    `never` written as a number, and a zero one is a disk check on every
-//    resolve of every path — one program forcing that on a whole deployment is
-//    why this key is nobody's to set from code.
+// 2. The program tries very long and very short times for `revalidate_freq` and `settle`.
+//    A long time stops the checks, and a zero time checks the disk on every request.
 array<string> $intervals = [
     '0',
     '0s',
@@ -55,32 +48,32 @@ array<string> $intervals = [
 ];
 foreach ($intervals as string $interval) {
     Core\Config::set('opcache.revalidate_freq', $interval);
+    Core\Config::set('opcache.settle', $interval);
     Core\Config::set('opcache.file_cache', $interval);
     Core\Config::restore('opcache.revalidate_freq');
+    Core\Config::restore('opcache.settle');
 }
 
-// 3. Both keys under as many writes as the runtime will take, read back every
-//    round. The block is `System` and read per resolve off the published
-//    snapshot, so a refused write that nevertheless reached it would show up
-//    here as the policy changing under a program that was told no.
+// 3. The program writes the settings many times and reads `validate` back each time.
+//    `$changes` counts the reads that differ, and it should stay `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('opcache.validate') ?? '(nothing written)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('opcache.validate', 'never');
     Core\Config::set('opcache.revalidate_freq', '100000s');
+    Core\Config::set('opcache.settle', '100000s');
     Core\Config::restore('opcache.validate');
     Core\Config::restore('opcache.revalidate_freq');
+    Core\Config::restore('opcache.settle');
     if ((Core\Config::get('opcache.validate') ?? '(nothing written)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
 }
 
-// 4. And the same question asked the other way: a mode flip re-derives five
-//    defaults into this request, and `validate`'s startup default is chosen by
-//    the mode before any request exists. A flip that reached it would be this
-//    key set from code by the one route that does not spell its name.
+// 4. The program changes the run mode many times. The mode picks the default of
+//    `settle`, but only when the server starts, so these changes should do nothing.
 uint $j = 0;
 while ($j < 50000) {
     Core\Config::set('mode.default', 'development');
@@ -90,5 +83,6 @@ while ($j < 50000) {
 }
 
 echo 'changes: ', $changes, "\n";
-echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";
-echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written — the cap this build ships with)', "\n";
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written)', "\n";
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written)', "\n";
+echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(nothing written)', "\n";
