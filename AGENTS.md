@@ -114,7 +114,10 @@ which are whole where they stand.
    git-ignored and is where `verify.py` already writes its logs. Never the system temp directory, a
    harness's own scratchpad or a home directory, whatever a harness offers by default: the user set this
    for every agent and every session, and a file outside the tree is one they cannot see, review or
-   clean up.
+   clean up. A git worktree is scratch too: it goes under `.agent-tmp/worktrees/<branch>`, and the agent
+   that made it removes it and deletes its branch the moment that branch is merged into `main`, with
+   `git worktree remove` and `git branch -d`, never a forced form: one of them refusing means work
+   would be lost, and that is a question for the user.
 11. **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
    configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
    all of it is theirs: the test, the decision record, the rule, the example, the comment and the commit
