@@ -1652,6 +1652,107 @@ fn a_changed_extension_set_compiles_every_program_again() {
     });
 }
 
+/// An `[opcache]` block that writes compiled programs to `dir`.
+fn cache_dir(dir: &str) -> String {
+    format!("[opcache]\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\nfile_cache_dir = \"{dir}\"\n")
+}
+
+/// Lets every account write to `dir`. `[opcache] file_cache_dir` is not used
+/// there.
+///
+/// # Panics
+///
+/// When the access list or the mode cannot be changed.
+fn open_to_everyone(dir: &Path) {
+    #[cfg(windows)]
+    {
+        let ran = nvs_repo::spawn("icacls", &[])
+            .arg(dir)
+            .args(["/grant", "*S-1-1-0:(OI)(CI)F"])
+            .output()
+            .expect("`icacls` starts");
+        assert!(
+            ran.status.success(),
+            "`icacls` could not open `{}`: {}",
+            dir.display(),
+            String::from_utf8_lossy(&ran.stdout)
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o777))
+            .unwrap_or_else(|error| panic!("`{}` could not be opened: {error}", dir.display()));
+    }
+}
+
+/// `[opcache] file_cache_dir` reloads. After a reload that moves it, the next
+/// compile writes its program to the new directory, and nothing more is
+/// written to the old one. A directory that every account may write to is
+/// not used: the reload logs the key and names it as not applied, and the
+/// directory in force stays.
+#[test]
+fn a_changed_file_cache_dir_applies_to_the_next_compile() {
+    let server = Server::start(
+        "cache-dir",
+        &cache_dir("one"),
+        &[
+            ("app.nvs", &saying("one")),
+            ("one/.keep", ""),
+            ("two/.keep", ""),
+            ("open/.keep", ""),
+        ],
+    );
+    let dir = |name: &str| server.dir.join(name);
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "one"
+    });
+    assert_eq!(
+        artifacts(&dir("one")),
+        1,
+        "the boot did not write one program to its directory; the server wrote: {}",
+        server.said()
+    );
+
+    let report = server.reload(&cache_dir("two"));
+    assert!(
+        report.contains("applied: opcache.file_cache_dir\n"),
+        "the reload did not name `opcache.file_cache_dir` as applied: {report}"
+    );
+    write_file(&dir("app.nvs"), &saying("two"));
+    server.awaits("/", "the edit, written to the new directory", |answer| {
+        answer.body == "two" && artifacts(&dir("two")) == 1
+    });
+    assert_eq!(
+        artifacts(&dir("one")),
+        1,
+        "a compile after the reload wrote to the old directory"
+    );
+
+    open_to_everyone(&dir("open"));
+    let report = server.reload(&cache_dir("open"));
+    assert!(
+        report.contains("ignored: opcache.file_cache_dir\n"),
+        "the reload did not name `opcache.file_cache_dir` as not applied: {report}"
+    );
+    let said = server.logs("configuration key not applied");
+    assert!(
+        said.contains("open"),
+        "the record does not name the directory that was written: {said}"
+    );
+    write_file(&dir("app.nvs"), &saying("three"));
+    server.awaits(
+        "/",
+        "the edit, written to the directory in force",
+        |answer| answer.body == "three" && artifacts(&dir("two")) == 2,
+    );
+    assert_eq!(
+        artifacts(&dir("open")),
+        0,
+        "a directory every account may write to was used"
+    );
+}
+
 /// A program with one `POST` route, which the door checks for a CSRF token.
 const FORM: &str = r#"<?nvs
 class Form {

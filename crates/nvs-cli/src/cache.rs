@@ -1632,28 +1632,60 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
 /// case `rule:config/the-extension-set-is-in-every-unit-key`'s key does not separate and a
 /// *configured* `file_cache_dir` is exactly as exposed to it as the default one.
 pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
+    placed(config).unwrap_or_else(|(written, why)| {
+        static REPORTED: std::sync::Once = std::sync::Once::new();
+        REPORTED.call_once(|| eprintln!("{}", refused_dir_warning(&written, &why)));
+        None
+    })
+}
+
+/// [`from_config`]'s answer with its one reported case left to the caller: the written
+/// `file_cache_dir` and why § 5 refused it. A reload reports that case differently from a boot,
+/// because a reload keeps the cache already in use (`crate::control`).
+///
+/// # Errors
+///
+/// A `file_cache_dir` somebody wrote, and § 5's reason for refusing it.
+pub(crate) fn placed(config: &nvs_config::Config) -> Result<Option<Cache>, (String, Untrusted)> {
     let opcache = config.opcache.as_ref();
     if opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
-        return None;
+        return Ok(None);
     }
     if !nvs_config::cache::build_is_identified() {
-        return None;
+        return Ok(None);
     }
     let written = opcache.and_then(|opcache| opcache.file_cache_dir.as_deref());
     let dir = match written {
         Some(written) => PathBuf::from(written),
-        None => default_dir()?,
+        None => match default_dir() {
+            Some(dir) => dir,
+            None => return Ok(None),
+        },
     };
     match Cache::new(dir, env_hash(config)) {
-        Ok(cache) => Some(cache.with_eviction(eviction_of(opcache))),
-        Err(why) => {
-            if let Some(written) = written {
-                static REPORTED: std::sync::Once = std::sync::Once::new();
-                REPORTED.call_once(|| eprintln!("{}", refused_dir_warning(written, &why)));
-            }
-            None
-        }
+        Ok(cache) => Ok(Some(cache.with_eviction(eviction_of(opcache)))),
+        Err(why) => match written {
+            Some(written) => Err((written.to_owned(), why)),
+            None => Ok(None),
+        },
     }
+}
+
+/// Whether `now` places the artifact cache anywhere `was` does not: another `file_cache`,
+/// `file_cache_dir` or § 6 policy. A reload that moves none of them keeps the cache it has.
+pub(crate) fn placement_moved(was: &nvs_config::Config, now: &nvs_config::Config) -> bool {
+    let keys = |config: &nvs_config::Config| {
+        config.opcache.as_ref().map(|opcache| {
+            (
+                opcache.file_cache,
+                opcache.file_cache_dir.clone(),
+                opcache.file_cache_max_size.clone(),
+                opcache.file_cache_gc_probability,
+                opcache.file_cache_gc_divisor,
+            )
+        })
+    };
+    keys(was) != keys(now)
 }
 
 /// The line [`from_config`] prints for a written `file_cache_dir` § 5 refused.

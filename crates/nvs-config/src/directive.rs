@@ -175,13 +175,12 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
     // The `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
     // records as unspelled and less `[queue]`'s two, which are written beside the rest of their own
-    // block below. `[server]`'s `Boot` rows are written with its block, further down. The artifact cache's directory is
-    // one of them and is written `opcache.file_cache_dir` further down: neither `[cache]` key is an
+    // block below. `[server]`'s `Boot` rows are written with its block, further down. The artifact
+    // cache's directory is written `opcache.file_cache_dir` further down: neither `[cache]` key is an
     // artifact directory at all, and the block holds no third one (`docs/decisions/0175.md`).
     // `rule:core-api/two-cache-tiers`'s shared tier is `System` because where a fleet's coherent state lives is not a
     // decision a request may make for itself, and `Boot` because each core holds one connection to
-    // it — moving the store re-dials every one of them, which is the same "re-creates the runtime's
-    // mapping" the artifact directory is `Boot` for.
+    // it, and moving the store re-dials every one of them.
     Directive { key: "cache.shared", class: Class::System, apply: Apply::Boot },
     // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule `rule:config/three-changeability-classes` states — the memory it
     // bounds is the core's, so a request raising it would spend what every other request on that
@@ -240,13 +239,14 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "server.workers", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
-    // The one `[opcache]` key that is not `Reload`, and a longer row than the block above, so
-    // `lookup` finds it first: every other file-cache directive is read by the next compile, while
-    // moving the directory re-creates the runtime's mapping of every cached unit. `System` for the
-    // whole block's reason (`rule:config/opcache-file-cache-directives-are-system`) — a request that could redirect
-    // where already-compiled native code is read from would hold a code-injection primitive rather
-    // than a performance knob. `nvs_cli::cache::from_config` is its reader.
-    Directive { key: "opcache.file_cache_dir", class: Class::System, apply: Apply::Boot },
+    // A row of its own under the block above, with the block's class and apply, because a reload
+    // names this key when it cannot apply it: a directory the ownership check refuses keeps the
+    // running one (`rule:config/a-reload-names-what-it-could-not-apply`), and a carried key needs a
+    // row. The next compile reads and writes the new directory, and units already in memory stay.
+    // `System` for the whole block's reason (`rule:config/opcache-file-cache-directives-are-system`) —
+    // a request that could redirect where already-compiled native code is read from would hold a
+    // code-injection primitive rather than a performance knob. `nvs_cli::cache::placed` is its reader.
+    Directive { key: "opcache.file_cache_dir", class: Class::System, apply: Apply::Reload },
     // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`. `Reload`
     // because `Core\Session::start` reads the block out of the snapshot its request cloned, and
     // the store it reaches is this core's connection, dialled again when the published tree names

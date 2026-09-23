@@ -320,11 +320,11 @@ fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
 fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
     let before = Fake::with(&[(
         "nvs.toml",
-        "[opcache]\nfile_cache_dir = \"/var/cache/nvs\"\n\n[limits]\nmemory = \"128M\"\n",
+        "[server]\nworkers = 4\n\n[limits]\nmemory = \"128M\"\n",
     )]);
     let after = Fake::with(&[(
         "nvs.toml",
-        "[opcache]\nfile_cache_dir = \"/srv/cache\"\n\n[limits]\nmemory = \"512M\"\n",
+        "[server]\nworkers = 2\n\n[limits]\nmemory = \"512M\"\n",
     )]);
     let current = Current::new(snapshot_of(&before, "nvs.toml"));
 
@@ -334,15 +334,15 @@ fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
 
     assert_eq!(
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["opcache.file_cache_dir"]
+        vec!["server.workers"]
     );
-    let opcache = reload
+    let server = reload
         .snapshot
         .config
-        .opcache
+        .server
         .as_ref()
-        .expect("the running `[opcache]` block was carried forward");
-    assert_eq!(opcache.file_cache_dir.as_deref(), Some("/var/cache/nvs"));
+        .expect("the running `[server]` block was carried forward");
+    assert_eq!(server.workers, Some(4));
     // The `Reload` half of the same file did take effect, which is what makes the refusal above a
     // property of the directive and not of the reload.
     assert_eq!(limits(&reload.snapshot).memory, text("512M"));
@@ -428,7 +428,7 @@ fn a_reload_that_changes_workers_publishes_the_new_count() {
 #[test]
 fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
     let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
-    let after = Fake::with(&[("nvs.toml", "[opcache]\nfile_cache_dir = \"/srv/cache\"\n")]);
+    let after = Fake::with(&[("nvs.toml", "[server]\nworkers = 2\n")]);
     let current = Current::new(snapshot_of(&before, "nvs.toml"));
 
     let reload = current
@@ -437,9 +437,9 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
 
     assert_eq!(
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["opcache.file_cache_dir"]
+        vec!["server.workers"]
     );
-    assert_eq!(reload.snapshot.config.opcache, None);
+    assert_eq!(reload.snapshot.config.server, None);
 }
 
 /// Each `Boot` row, and a tree before and after a reload that changes the key it governs.
@@ -468,11 +468,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "server.workers",
         "[server]\nworkers = 4\n",
         "[server]\nworkers = 2\n",
-    ),
-    (
-        "opcache.file_cache_dir",
-        "[opcache]\nfile_cache_dir = \"/var/cache/one\"\n",
-        "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",
     ),
 ];
 

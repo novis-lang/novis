@@ -27197,7 +27197,7 @@ long-running host — at a reload, or only at boot.
 | `server.socket_mode` | operator only — a request cannot change it | at boot only |
 | `server.workers` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
-| `opcache.file_cache_dir` | operator only — a request cannot change it | at boot only |
+| `opcache.file_cache_dir` | operator only — a request cannot change it | at reload |
 | `session` | operator only — a request cannot change it | at reload |
 | `deferred.max_concurrent` | operator only — a request cannot change it | at reload |
 | `deferred.deadline` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |

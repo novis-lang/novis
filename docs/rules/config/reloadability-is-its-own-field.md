@@ -16,8 +16,7 @@ ever does.
 below 1024 needs a privilege the process dropped after it bound, so `listen` cannot move in general.
 `socket_mode` is applied when a Unix listener is bound, so it moves only with `listen`. `workers`
 sizes the runtime state each core holds. The registry keeps a row per key where a block's keys are
-two apply classes: `[server]` is a `Reload` block row with `Boot` rows for its restart keys, as
-`[opcache]` is with `file_cache_dir`.
+two apply classes: `[server]` is a `Reload` block row with `Boot` rows for its restart keys.
 
 Everything else reloads, including the `[[extension]]` array and its pins, `opcache.validate` and its
 rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`, the whole of `[queue]`,
@@ -26,12 +25,14 @@ the published snapshot: work that began before the publish finishes on the old o
 after the last of it ends. A `[[schedule]]` firing already in flight runs to completion; the new set
 arms from the next tick. A queue worker a new `workers` or `connection` stops writes back the job it
 holds first, and the workers it starts claim on the new connection, whose storage the reload checks
-before it publishes, as the boot does. A changed `Boot` key **does not take effect**: the
+before it publishes, as the boot does. A new `opcache.file_cache_dir` takes the next compile, and a
+directory the ownership check refuses keeps the running one and is named, as a control socket that
+cannot be created is. A changed `Boot` key **does not take effect**: the
 published snapshot carries the running value forward, and the reload names the key
 (`rule:config/a-reload-names-what-it-could-not-apply`).
 
 **What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
 `max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
-`[session]`, `[control] socket`, `[queue]` and `io.temp_root` reload. These rows are still `Boot`,
-because each is read once when the server starts: `http.client.tls`, `cache.shared` and
-`opcache.file_cache_dir`.
+`[session]`, `[control] socket`, `[queue]`, `io.temp_root` and `opcache.file_cache_dir` reload.
+These rows are still `Boot`, because each is read once when the server starts: `http.client.tls`
+and `cache.shared`.

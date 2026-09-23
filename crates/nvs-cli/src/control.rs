@@ -189,6 +189,17 @@ enum Move {
     Keep,
 }
 
+/// What a reload does to the on-disk artifact cache, decided before the publish.
+enum Recache {
+    /// `[opcache]` places the cache where it already is.
+    Stay,
+    /// The cache the tree now places, already built, or none.
+    Swap(Option<crate::cache::Cache>),
+    /// The `file_cache_dir` the tree now names was refused, so the key keeps
+    /// its running value.
+    Keep,
+}
+
 /// A tree resolved from the files as they stand now, with what a refusal of
 /// it is rendered against.
 struct Tree {
@@ -286,6 +297,33 @@ impl Process {
         )
     }
 
+    /// What `next` does to the on-disk artifact cache. The new cache is built
+    /// here, before the publish, so a `file_cache_dir` the ownership check
+    /// refuses is known in time to keep the key's running value. A refused
+    /// directory that is already the running one changes nothing.
+    fn caching(&self, next: &Snapshot) -> Recache {
+        let running = self.current.load();
+        if !crate::cache::placement_moved(&running.config, &next.config) {
+            return Recache::Stay;
+        }
+        match crate::cache::placed(&next.config) {
+            Ok(cache) => Recache::Swap(cache),
+            Err((written, why)) => {
+                let in_force = running
+                    .config
+                    .opcache
+                    .as_ref()
+                    .and_then(|opcache| opcache.file_cache_dir.as_deref());
+                if in_force == Some(written.as_str()) {
+                    return Recache::Stay;
+                }
+                let config = nvs_config::Request::new(running);
+                drop(LogWriter::resolve(Some(&config)).write(&uncached(&written, why.message())));
+                Recache::Keep
+            }
+        }
+    }
+
     /// The source map the origins of the snapshot numbered `generation` point
     /// into, where the last reload published that snapshot, and `None`
     /// otherwise.
@@ -346,11 +384,14 @@ impl Process {
         let moved = self
             .moving(&next)
             .map_err(|refusal| rendered(&refusal, &sources))?;
-        let keep: &[&str] = if matches!(moved, Move::Keep) {
-            &["control.socket"]
-        } else {
-            &[]
-        };
+        let recache = self.caching(&next);
+        let mut keep: Vec<&str> = Vec::new();
+        if matches!(moved, Move::Keep) {
+            keep.push("control.socket");
+        }
+        if matches!(recache, Recache::Keep) {
+            keep.push("opcache.file_cache_dir");
+        }
         // The publish takes a snapshot by value and this one was built for it,
         // so the clone is the branch that never runs: a tree just resolved is
         // held by nobody else.
@@ -364,7 +405,7 @@ impl Process {
             .collect();
         // A refused publish drops a new endpoint here, and the old one is
         // still answering.
-        let report = nvs_config::control::reload(&self.current, next, self.compiler.held(), keep)
+        let report = nvs_config::control::reload(&self.current, next, self.compiler.held(), &keep)
             .map_err(|refusal| rendered(&refusal, &sources))?;
         // The new endpoint answers before the old one stops.
         match moved {
@@ -408,6 +449,9 @@ impl Process {
         *lock(&self.refused) = None;
         self.compiler
             .rekey(nvs_config::cache::env_hash(&serving.config));
+        if let Recache::Swap(cache) = recache {
+            self.compiler.recache(cache);
+        }
         self.compiler.reconfigure(&serving.config);
         // `rule:http-server/admission-is-arithmetic-not-a-number` over the tree
         // now serving: `limits.memory` reloads, and `[server] max_in_flight` is
@@ -669,6 +713,20 @@ fn unmoved(name: &Path, reason: &str) -> Record {
     record.envelope.fields = vec![
         ("key".to_string(), text("control.socket")),
         ("written".to_string(), text(&name.display().to_string())),
+        ("reason".to_string(), text(reason)),
+    ];
+    record
+}
+
+/// A moved `[opcache] file_cache_dir` the ownership check refused, as the
+/// record [`Process::caching`] writes: `Warn`, with the key, the directory
+/// written and the reason.
+fn uncached(written: &str, reason: &str) -> Record {
+    let mut record = Record::at(Level::Warn);
+    record.envelope.message = Some(Rendered::new("configuration key not applied"));
+    record.envelope.fields = vec![
+        ("key".to_string(), text("opcache.file_cache_dir")),
+        ("written".to_string(), text(written)),
         ("reason".to_string(), text(reason)),
     ];
     record

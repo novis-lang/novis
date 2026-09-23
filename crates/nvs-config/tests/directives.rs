@@ -58,12 +58,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     }
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
-    for key in [
-        "opcache.file_cache_dir",
-        "server.listen",
-        "server.socket_mode",
-        "server.workers",
-    ] {
+    for key in ["server.listen", "server.socket_mode", "server.workers"] {
         assert_eq!(
             governing(key).apply,
             Apply::Boot,
@@ -78,6 +73,8 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "opcache.validate",
         "opcache.revalidate_freq",
         "opcache.settle",
+        // The next compile reads and writes the new directory.
+        "opcache.file_cache_dir",
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
@@ -303,8 +300,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "opcache.file_cache_dir",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_file_cache_dir_applies_to_the_next_compile",
     ),
     (
         "session",
@@ -3599,7 +3596,7 @@ fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_n
 /// `rule:config/opcache-revalidation-is-system-class` and
 /// `rule:config/opcache-file-cache-directives-are-system` are one class over one block, and this is
 /// the class rather than either rule's semantics — `the_opcache_block_is_read_into_a_revalidation_policy`
-/// and `the_validate_default_is_selected_by_the_run_mode` own what the keys mean.
+/// and `validate_defaults_to_mtime_in_production_and_development` own what the keys mean.
 ///
 /// `Class::System` exactly, and not merely a class no request may set: `RuntimeTighten` is the one
 /// that reads plausibly here and is the mistake this case exists to catch. Every other key a request
@@ -3654,11 +3651,11 @@ fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_directi
     }
 }
 
-/// The one key of that block that is not `Reload`, asserted beside the sibling whose name it is a
-/// prefix of. `reloadability_is_a_field_of_its_own_and_not_the_changeability_class` names this row in
-/// `rule:config/reloadability-is-its-own-field`'s `Boot` list; what is asked here is why it is a row
-/// at all — `file_cache` and `file_cache_dir` are two keys one `starts_with` apart, and a registry
-/// that governed the first through the second would make turning the cache off wait for a restart.
+/// The one key of that block with a row of its own, asserted beside the sibling whose name it is a
+/// prefix of. The row exists so a reload can name the key when a refused directory keeps the
+/// running one (`rule:config/a-reload-names-what-it-could-not-apply`), and it has the block's class
+/// and apply. `file_cache` and `file_cache_dir` are two keys one `starts_with` apart, and a registry
+/// that governed the first through the second would give turning the cache off the directory's row.
 ///
 /// The second half is `rule:config/opcache-file-cache-directives-are-system`'s *only spelling*
 /// clause. `[cache]` is `Core\Cache`'s tiers and holds nothing about compiled units, so an operator
@@ -3667,13 +3664,13 @@ fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_directi
 /// request may not set beside the tiers it may.
 // covers: directive:opcache.file_cache_dir
 #[test]
-fn the_artifact_directory_is_one_boot_row_in_a_reload_block_and_has_no_second_spelling() {
+fn the_artifact_directory_is_one_reload_row_in_its_block_and_has_no_second_spelling() {
     let directory = governing("opcache.file_cache_dir");
     assert_eq!(
         (directory.key, directory.class, directory.apply),
-        ("opcache.file_cache_dir", Class::System, Apply::Boot),
-        "`opcache.file_cache_dir` resolves through `{}`: every unit this process has already mapped \
-         was read out of the standing directory, so a reload cannot be what moves it",
+        ("opcache.file_cache_dir", Class::System, Apply::Reload),
+        "`opcache.file_cache_dir` resolves through `{}`: the next compile reads and writes the \
+         directory a reload publishes, and a reload that cannot use it has to name this key",
         directory.key,
     );
 
@@ -3682,7 +3679,7 @@ fn the_artifact_directory_is_one_boot_row_in_a_reload_block_and_has_no_second_sp
         (bool_beside_it.key, bool_beside_it.apply),
         ("opcache", Apply::Reload),
         "`opcache.file_cache` is governed by `{}`, so a prefix that did not end on a dot has caught \
-         the key whose name it opens — turning the cache off now waits for a restart it does not need",
+         the key whose name it opens",
         bool_beside_it.key,
     );
 

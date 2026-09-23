@@ -517,7 +517,8 @@ pub(crate) struct Compiler {
     /// this cache misses, against a whole backend on every one it answers.
     ///
     /// Behind a lock for [`Self::env`]'s reason: the disk cache keys and heads
-    /// every artifact with the same digest, so [`Self::rekey`] moves it too. A
+    /// every artifact with the same digest, so [`Self::rekey`] moves it too, and
+    /// a reload that places it elsewhere replaces it ([`Self::recache`]). A
     /// compile clones it out, which is one path per compile.
     cache: RwLock<Option<crate::cache::Cache>>,
     /// How many times [`Self::compile`] has run on this cache — the counter
@@ -621,6 +622,23 @@ impl Compiler {
             state.lock().unwrap_or_else(PoisonError::into_inner).retimed = true;
             wakes.notify_all();
         }
+    }
+
+    /// Puts `cache` behind this compiler in place of the one in use, which is
+    /// how a reload moves `[opcache] file_cache_dir` and the § 6 policy
+    /// (`rule:config/reloadability-is-its-own-field`). The next compile reads and
+    /// writes artifacts there. Units already in memory stay, and a compile
+    /// already running finishes on the cache it cloned.
+    ///
+    /// `cache` is keyed again under this compiler's environment, so a reload
+    /// that moves `[[extension]]` too cannot leave the two digests apart.
+    pub(crate) fn recache(&self, cache: Option<crate::cache::Cache>) {
+        let mut cache = cache;
+        let env = self.env();
+        if let Some(cache) = cache.as_mut() {
+            cache.rekey(env);
+        }
+        *exclusive(&self.cache) = cache;
     }
 
     /// How many compiled units this cache holds right now.
