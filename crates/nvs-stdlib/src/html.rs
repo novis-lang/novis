@@ -135,6 +135,23 @@
 //! A *balanced* control passes through: mixed-direction text is what those
 //! code points are for, and `rule:security/bidi-predicate`'s whole position is that banning them
 //! breaks Arabic and Hebrew.
+//!
+//! # Known gaps
+//!
+//! 1. **Deeply nested markup costs time in the square of its depth.** Fifty
+//!    thousand nested `<div>` tags take about five seconds in [`parse`] on a
+//!    release build and a hundred thousand take about twenty, so a body of
+//!    half a megabyte holds a core for as long as its CPU limit allows. The
+//!    time is spent while parsing — `Core\Html::parse` alone shows it, and
+//!    [`nvs_core_html_sanitize`] inherits it — which points at the scope
+//!    checks WHATWG's tree builder makes over the stack of open elements on
+//!    every start tag; whether `html5ever` or [`Sink`] spends it is not
+//!    checked. Browsers bound this with a cap on tree depth, and choosing
+//!    that cap, and what a document past it becomes, is a decision about
+//!    `rule:core-classes/html-parsing`'s output rather than a change to this
+//!    module. `tests/hostile/core/Html/sanitize/02-markup-nested-a-hundred-thousand-deep.nvs`
+//!    is the attack that found it, and it is marked as this gap.
+//!    — owner: M12
 
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};

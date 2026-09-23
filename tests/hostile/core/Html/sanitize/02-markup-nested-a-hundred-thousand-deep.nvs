@@ -1,0 +1,12 @@
+<?nvs
+// Attack: documents with tags nested one hundred thousand deep are cleaned. The
+// program should finish quickly, and no step may crash the runtime.
+// dossier: known-gap crates/nvs-stdlib/src/html.rs -- deeply nested markup costs time in the square of its depth, so a hundred thousand nested tags take far longer than the time limit
+
+// 1. One hundred thousand `div` tags, each inside the one before. `div` is allowed, so every one is kept.
+string $kept = Core\Html::toSource(Core\Html::sanitize(Core\Str::repeat('<div>', 100000) . 'bottom'), 'the attack reads the result');
+echo 'step 1: ', Core\Str::length($kept), "\n";
+
+// 2. One hundred thousand `font` tags, each inside the one before. `font` is not allowed, so every tag is removed.
+string $removed = Core\Html::toSource(Core\Html::sanitize(Core\Str::repeat('<font>', 100000) . 'bottom'), 'the attack reads the result');
+echo 'step 2: ', Core\Str::length($removed), "\n";
