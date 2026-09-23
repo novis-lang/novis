@@ -1,0 +1,96 @@
+<?nvs
+// Attack: a server sends a line with no end, a line that is too long, very many empty lines
+// and a line that is not text. `lines()` must give each line once, or throw an error.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+Core\Test::answerHttp('https://feed.example.com/no-end', 200, { body: Core\Str::repeat('n', 65536) });
+Core\Test::answerHttp('https://feed.example.com/long', 200, { body: 'first' . "\n" . Core\Str::repeat('l', 65537) . "\n" });
+Core\Test::answerHttp('https://feed.example.com/empty-lines', 200, { body: Core\Str::repeat("\r\n", 300000) });
+Core\Test::answerHttp('https://feed.example.com/carriage-returns', 200, { body: Core\Str::repeat("\r", 60000) . "\n" });
+Core\Test::answerHttp('https://feed.example.com/not-text', 200, { body: Core\Encoding::fromHex('6f6b0afffe0a') });
+Core\Test::answerHttp('https://big.example.com/*', 200, { body: Core\Str::repeat(Core\Str::repeat('b', 60000) . "\n", 4) });
+
+// 1. One line of 65536 bytes with no line ending. It is exactly at the limit,
+//    so it is given once, when the body ends.
+var $noEnd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/no-end');
+uint $count = 0;
+foreach ($noEnd->lines() as tainted string $line) {
+    if (Core\Str::length($line) != 65536) {
+        throw new LogicError('the last line was cut');
+    }
+    $count = $count + 1;
+}
+if ($count != 1) {
+    throw new LogicError(Core\Str::format('%d lines were given, not 1', $count));
+}
+echo 'step 1: done', "\n";
+
+// 2. A short line, then a line of 65537 bytes. The first line is given, and the
+//    second one throws an error.
+var $long = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long');
+uint $before = 0;
+try {
+    foreach ($long->lines() as tainted string $line) {
+        if ($line != 'first') {
+            throw new LogicError('a line over the limit was given');
+        }
+        $before = $before + 1;
+    }
+} catch (RuntimeError $error) {
+    echo 'step 2: refused after ', $before, ' line', "\n";
+}
+
+// 3. 300000 empty lines that end with "\r\n". Each one must be given once, and empty.
+var $empty = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/empty-lines');
+uint $seen = 0;
+foreach ($empty->lines() as tainted string $line) {
+    if ($line != '') {
+        throw new LogicError('an empty line was given with text in it');
+    }
+    $seen = $seen + 1;
+}
+if ($seen != 300000) {
+    throw new LogicError(Core\Str::format('%d lines were given, not 300000', $seen));
+}
+echo 'step 3: done', "\n";
+
+// 4. 60000 "\r" characters and one "\n". A "\r" alone does not end a line,
+//    so this is one line. Only the last "\r" is removed.
+var $returns = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/carriage-returns');
+foreach ($returns->lines() as tainted string $line) {
+    if (Core\Str::length($line) != 59999) {
+        throw new LogicError(Core\Str::format('the line had %d characters', Core\Str::length($line)));
+    }
+}
+echo 'step 4: done', "\n";
+
+// 5. The second line is not valid UTF-8 text. The first line is given, and the
+//    second one throws an error.
+var $notText = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/not-text');
+try {
+    foreach ($notText->lines() as tainted string $line) {
+        if ($line != 'ok') {
+            throw new LogicError('a line that is not text was given');
+        }
+    }
+} catch (RuntimeError $error) {
+    echo 'step 5: refused', "\n";
+}
+
+// 6. Every line of every stream is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+array<tainted string> $kept = [];
+uint $n = 0;
+while (true) {
+    var $big = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $n));
+    foreach ($big->lines() as tainted string $line) {
+        $kept[] = $line;
+    }
+    $n = $n + 1;
+}

@@ -1,0 +1,26 @@
+<?nvs
+// Reads a streamed reply one line at a time, as a program does with a log or an export.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies come from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://logs.example.com/a", 200, {body: "09:00 started\n09:05 request\r\n09:07 done\n"});
+        Core\Test::answerHttp("https://logs.example.com/b", 200, {body: "id,cents\nA-1,1250\n\nA-2,899"});
+        array<string> $urls = ["https://logs.example.com/a", "https://logs.example.com/b"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // A body can be read only once, so each round opens a new stream.
+            // The reply in each round depends on the round before, so no round can be left out.
+            Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            foreach ($log->lines() as tainted string $line) {
+                $total = $total + Core\Str::length($line);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

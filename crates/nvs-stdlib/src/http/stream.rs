@@ -1536,4 +1536,129 @@ mod tests {
         let message = ctx.take_pending().expect("the refusal says why");
         assert!(message.contains("headers(\"set-cookie\")"), "{message}");
     }
+
+    /// `lines()` takes the body into a walk with nothing framed yet, and the
+    /// next reader throws naming `lines`. The framing it steps with ends a line
+    /// at `\n` only: a `\r` before it is stripped, a lone `\r` stays inside the
+    /// line, an empty line is a line, and the last one needs no terminator.
+    // covers: Core\Http\Stream::lines
+    #[test]
+    fn lines_takes_the_body_and_frames_at_a_newline_alone() {
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                Value::null(),
+                Value::uint(12),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let walk = nvs_runtime::call(super::nvs_core_http_stream_lines, &mut ctx, &[stream])
+            .expect("nothing has read the body yet");
+        let walked = walk.obj_ptr().expect("a walk is an object");
+        assert_eq!(crate::instance::slot(walked, 0).as_uint(), Some(12));
+        assert_eq!(crate::instance::slot(walked, 1).tag(), Some(Tag::Null));
+
+        let taken = stream.obj_ptr().expect("a stream is an object");
+        assert_eq!(crate::instance::slot(taken, 3).as_text(), Some("lines"));
+
+        let late = nvs_runtime::call(super::nvs_core_http_stream_chunks, &mut ctx, &[stream]);
+        assert!(late.is_err(), "`chunks()` walked a body `lines()` took");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message
+                .contains("Core\\Http\\Stream::chunks(): this stream's body was read by `lines()`"),
+            "{message}"
+        );
+
+        let mut body: &[u8] = b"one\r\ntwo\rthree\n\nlast";
+        let mut framed = Vec::new();
+        while let Some((line, used)) = line_at(body, true, false, "lines").expect("under the cap") {
+            framed.push(String::from_utf8(line.to_vec()).expect("text"));
+            body = &body[used..];
+        }
+        assert_eq!(framed, ["one", "two\rthree", "", "last"]);
+    }
+
+    /// `status()` answers the code in the head as it is, a `5xx` included, and
+    /// the same code again after a reader took the body: the head is not part
+    /// of what a body reader consumes.
+    // covers: Core\Http\Stream::status
+    #[test]
+    fn status_answers_the_head_code_before_and_after_the_body_is_taken() {
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(503),
+                Value::null(),
+                Value::uint(5),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let status = nvs_runtime::call(super::nvs_core_http_stream_status, &mut ctx, &[stream])
+            .expect("a head carries a code");
+        assert_eq!(status.as_int(), Some(503));
+
+        nvs_runtime::call(super::nvs_core_http_stream_lines, &mut ctx, &[stream])
+            .expect("nothing has read the body yet");
+        let status = nvs_runtime::call(super::nvs_core_http_stream_status, &mut ctx, &[stream])
+            .expect("the head outlives the body");
+        assert_eq!(status.as_int(), Some(503));
+    }
+
+    /// `headers()` keeps apart the lines `header()` joins, in arrival order,
+    /// matches the name in any case, answers an empty list for a field that
+    /// never arrived, and reads `Set-Cookie` without throwing — this is the
+    /// reader that field is refused to `header()` for.
+    // covers: Core\Http\Stream::headers
+    #[test]
+    fn headers_keeps_each_line_apart_and_reads_set_cookie() {
+        let lines = [
+            ("set-cookie".to_owned(), "a=1".to_owned()),
+            ("x-trace".to_owned(), "one".to_owned()),
+            ("set-cookie".to_owned(), "b=2".to_owned()),
+        ];
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                crate::http::header_map(&lines),
+                Value::uint(9),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let mut headers = |name: &str| {
+            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            let list = nvs_runtime::call(
+                super::nvs_core_http_stream_headers,
+                &mut ctx,
+                &[stream, name],
+            )
+            .expect("`headers` does not throw");
+            let array = crate::arr::borrowed(list.array_ptr().expect("the answer is an array"));
+            let read: Vec<String> = (0..array.count())
+                .map(|at| {
+                    let line = array
+                        .get_index(i64::try_from(at).expect("an index"))
+                        .expect("a line");
+                    line.as_text().expect("each line is text").to_owned()
+                })
+                .collect();
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the list `headers` answered with, and it is not \
+                          its caller's"
+            )]
+            unsafe {
+                list.release();
+            }
+            read
+        };
+        assert_eq!(headers("Set-Cookie"), ["a=1", "b=2"]);
+        assert_eq!(headers("X-TRACE"), ["one"]);
+        assert!(headers("etag").is_empty());
+    }
 }
