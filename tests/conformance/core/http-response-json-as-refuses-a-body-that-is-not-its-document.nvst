@@ -14,6 +14,7 @@ class Point {
 // A reply that carried no body is not the document `null`: nothing arrived,
 // and a program that asked for a `Point` is told so rather than handed an
 // instance built out of nothing.
+// covers: Core\Http\Response::jsonAs
 Core\Test::answerHttp("https://api.example.com/empty", 204, {body: ""});
 var $empty = Core\Http\Client::get("https://api.example.com/empty");
 try {

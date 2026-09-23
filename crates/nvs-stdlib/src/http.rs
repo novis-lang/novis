@@ -5978,6 +5978,229 @@ mod tests {
         }
     }
 
+    /// `Core\Http\Response::text` answers a UTF-8 body as a `string` carrying
+    /// every octet the origin sent, a second call answers the same text, and a
+    /// body that stops being UTF-8 part-way through a character is refused with
+    /// the offset of the first octet that is not text.
+    // covers: Core\Http\Response::text
+    #[test]
+    fn response_text_reads_a_utf8_body_twice_and_names_where_a_broken_one_stops() {
+        const GREETING: &str = "Grüße, 世界\n";
+        let (_, answer) = answered_once(
+            "get",
+            "GET",
+            "/hello.txt",
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16\r\n\
+              Connection: close\r\n\r\nGr\xc3\xbc\xc3\x9fe, \xe4\xb8\x96\xe7\x95\x8c\n",
+        );
+        let mut ctx = Ctx::buffered();
+
+        let first = nvs_runtime::call(super::nvs_core_http_response_text, &mut ctx, &[answer])
+            .expect("`text` reads a UTF-8 body");
+        let second = nvs_runtime::call(super::nvs_core_http_response_text, &mut ctx, &[answer])
+            .expect("a second read finds the same body");
+        assert!(
+            matches!(first.tag(), Some(nvs_runtime::Tag::Str)),
+            "the answer is a `string`"
+        );
+        assert_eq!(
+            first.as_text(),
+            Some(GREETING),
+            "every octet, as it arrived"
+        );
+        assert_eq!(
+            second.as_text(),
+            Some(GREETING),
+            "reading the body does not consume it"
+        );
+
+        let (_, broken) = answered_once(
+            "get",
+            "GET",
+            "/latin1.txt",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\nGr\xc3\xbc\xe4\xb8e",
+        );
+        let refused = nvs_runtime::call(super::nvs_core_http_response_text, &mut ctx, &[broken]);
+        assert!(refused.is_err(), "a truncated character is not text");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message.contains("byte 4 is where it stops being text"),
+            "the refusal names the first octet that is not text: {message}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns both responses and the two references `text` \
+                      answered with, and none is its caller's"
+        )]
+        unsafe {
+            first.release();
+            second.release();
+            answer.release();
+            broken.release();
+        }
+    }
+
+    /// `Core\Http\Response::status` answers the code on the status line as the
+    /// origin wrote it — a `404` and a `500` are answers the call returns, not
+    /// throws — and ignores the reason phrase beside it, however it is spelled.
+    // covers: Core\Http\Response::status
+    #[test]
+    fn response_status_answers_the_code_the_origin_wrote_for_an_error_too() {
+        let replies: [(&'static [u8], i64); 3] = [
+            (
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                404,
+            ),
+            (
+                b"HTTP/1.1 500 Everything Is Fine\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                500,
+            ),
+            (
+                b"HTTP/1.1 299 \r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                299,
+            ),
+        ];
+        let mut ctx = Ctx::buffered();
+        for (reply, code) in replies {
+            let (_, answer) = answered_once("get", "GET", "/", reply);
+            let status =
+                nvs_runtime::call(super::nvs_core_http_response_status, &mut ctx, &[answer])
+                    .expect("an error status is an answer, not a throw");
+            assert_eq!(status.as_int(), Some(code), "the code on the status line");
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the response, and `status` answered an int"
+            )]
+            unsafe {
+                answer.release();
+            }
+        }
+    }
+
+    /// The one-field shape `{name: string}` at the ABI a compiled call site
+    /// hands `jsonAs<T>()`: a descriptor, the `array<...>` flag and the wire
+    /// contract. The table is leaked because a descriptor's address is its
+    /// identity and it must outlive every instance made from it.
+    fn named_shape() -> (
+        *const nvs_runtime::ClassDesc,
+        *const nvs_runtime::ShapeCodec,
+    ) {
+        use nvs_runtime::{ClassTable, CodecField, CodecTy};
+
+        let mut table = ClassTable::new();
+        // `$` cannot start a Novis identifier, so no declared class collides.
+        let id = table.define("$shape{name}".to_owned(), &["name"], &[]);
+        let codec = vec![CodecField {
+            key: "name".to_owned(),
+            slot: 0,
+            param: 0,
+            ty: CodecTy::Str,
+            element: None,
+            class: None,
+            cases: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        }];
+        let shape = table.define_shape_codec(codec, vec![std::ptr::null()], vec![std::ptr::null()]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// `Core\Http\Response::jsonAs` hydrates a UTF-8 body into the shape it was
+    /// handed, and a second call reads the same body again; a `maxDepth` outside
+    /// its range is refused before the body is read, and a body that is not
+    /// UTF-8 is refused as a document that is not JSON.
+    // covers: Core\Http\Response::jsonAs
+    #[test]
+    fn response_json_as_hydrates_a_shape_twice_and_refuses_a_bad_depth_and_a_non_text_body() {
+        let (class, codec) = named_shape();
+        let asked = |ctx: &mut Ctx, answer: Value, depth: u64| {
+            nvs_runtime::call(
+                super::nvs_core_http_response_json_as,
+                ctx,
+                &[
+                    Value::class_desc(class),
+                    Value::bool(false),
+                    Value::shape_codec(codec),
+                    answer,
+                    Value::uint(depth),
+                ],
+            )
+        };
+        let name_of = |instance: Value| -> String {
+            #[expect(
+                unsafe_code,
+                reason = "the value is an instance this frame holds a reference to, so \
+                          the field borrowed from it cannot outlive the allocation"
+            )]
+            let object = std::mem::ManuallyDrop::new(unsafe {
+                nvs_runtime::NvsObj::from_raw(instance.obj_ptr().expect("an instance"))
+            });
+            object
+                .field(0)
+                .as_text()
+                .expect("`name` is declared `string`")
+                .to_owned()
+        };
+        let (_, answer) = answered_once(
+            "get",
+            "GET",
+            "/me",
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 18\r\n\
+              Connection: close\r\n\r\n{\"name\":\"Gr\xc3\xbc\xc3\x9fe\"}",
+        );
+        let mut ctx = Ctx::buffered();
+
+        let first = asked(&mut ctx, answer, 64).expect("the body is the document");
+        let second = asked(&mut ctx, answer, 64).expect("a second read finds the same body");
+        assert_eq!(name_of(first), "Grüße", "the field, decoded");
+        assert_eq!(
+            name_of(second),
+            "Grüße",
+            "reading the body does not consume it"
+        );
+
+        assert!(
+            asked(&mut ctx, answer, 0).is_err(),
+            "a depth of 0 is outside the bag's range"
+        );
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message.contains("maxDepth"),
+            "the refusal names the option: {message}"
+        );
+
+        let (_, broken) = answered_once(
+            "get",
+            "GET",
+            "/blob",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 12\r\nConnection: close\r\n\r\n{\"name\":\"\xff\"}",
+        );
+        // `take_pending` answers an empty sentence for a `ParseError` thrown with
+        // an issue list under a bare `Ctx`, so the sentence is pinned from Novis by
+        // `docs/examples/core/Http-Response/jsonAs/02-a-reply-that-is-not-json.nvs`.
+        assert!(
+            asked(&mut ctx, broken, 64).is_err(),
+            "a body that is not UTF-8 is not a JSON document"
+        );
+        assert!(ctx.take_pending().is_some(), "the refusal is pending");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns both responses and the two instances `jsonAs` \
+                      answered with, and none is its caller's"
+        )]
+        unsafe {
+            first.release();
+            second.release();
+            answer.release();
+            broken.release();
+        }
+    }
+
     /// A reply carrying `Vary` on two lines under two spellings and
     /// `Set-Cookie` on two lines, one of them with a comma of its own — the
     /// fixture both field readers below are asked about.

@@ -6,6 +6,7 @@ A registered answer serves the outbound call that matches it, exactly or by a `*
 // below is granted `net.connect`, no name is resolved and no socket is opened,
 // yet every call is answered. The first `answerHttp` is what arms the table
 // (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+// covers: Core\Http\Response::status
 
 // `json` is the value written as a JSON document where it is registered, so a
 // test naming an object never quotes one into a string literal.

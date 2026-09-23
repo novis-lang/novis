@@ -8,6 +8,7 @@
 // is what declares the qualifier, and `tainted {…}` distributes to every field
 // that carries text — the `int` beside them needs nothing, because a number
 // holds no octets a sink could misread.
+// covers: Core\Http\Response::jsonAs
 Core\Test::answerHttp("https://api.example.com/v1/me", 200, {body: "{\"name\":\"ada\",\"id\":42}", headers: ["Content-Type" => "application/json"]});
 
 var $reply = Core\Http\Client::get("https://api.example.com/v1/me");
