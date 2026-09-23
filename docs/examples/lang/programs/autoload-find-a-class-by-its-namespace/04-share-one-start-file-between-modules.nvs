@@ -1,0 +1,10 @@
+<?nvs
+// Every module in this project has the same start file, byte for byte.
+
+// Each start file maps its own module. `{..}` in it becomes the name of the
+// module's folder, so one file maps `Site\Blog` and the other `Site\Shop`.
+require './modules/Blog/public/start.nvs';
+require './modules/Shop/public/start.nvs';
+
+echo Site\Blog\Home::title(), "\n";
+echo Site\Shop\Home::title(), "\n";

@@ -106,7 +106,7 @@
       "id": "programs/autoload",
       "title": "`autoload` maps a prefix to roots, resolved relative to the file that declares it",
       "status": "shipped",
-      "because": ["0061", "0021", "0029"],
+      "because": ["0061", "0021", "0029", "0215"],
       "divergesFromPhp": "the map is a declaration in source rather than a registered loader or a `psr-4` manifest, and it travels with the code instead of with the deployment",
       "seeAlso": [
         "programs/no-runtime-autoload",
@@ -120,17 +120,22 @@
         "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst",
         "tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst",
         "tests/conformance/lang/an-autoload-inside-an-autoloaded-file-is-a-compile-error.nvst",
+        "tests/conformance/lang/a-directory-segment-names-the-prefix-after-a-directory.nvst",
+        "tests/conformance/lang/an-autoload-prefix-that-can-never-match-does-not-compile.nvst",
         "crates/nvs-hir/src/autoload.rs"
       ]
     },
     {
       "id": "programs/one-declaration-per-autoloaded-file",
-      "title": "A file reached by autoload declares exactly one thing, named for the file",
+      "title": "A file reached by autoload declares exactly one thing, under the name the map finds it by",
       "status": "shipped",
-      "because": ["0061"],
+      "because": ["0061", "0215"],
       "divergesFromPhp": "PSR-4 imposes this by convention; here it is a diagnostic",
       "seeAlso": ["programs/autoload", "programs/no-runtime-autoload"],
-      "guardedBy": ["tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst"]
+      "guardedBy": [
+        "tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst",
+        "tests/conformance/lang/an-autoloaded-file-declaring-another-namespace-does-not-compile.nvst"
+      ]
     },
     {
       "id": "programs/path-case",

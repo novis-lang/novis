@@ -11,6 +11,18 @@ Paths resolve **relative to the file that declares them**, never to the entry po
 one framework directory serve many unrelated project trees. A concatenated or interpolated path is
 `E_AUTOLOAD_PATH_NOT_LITERAL`. A prefix carries no trailing separator; matching appends one.
 
+Every prefix segment is a `PascalCase` namespace segment, or the declaration is
+`E_AUTOLOAD_PREFIX_SHAPE`: a prefix that no name can match, such as the PSR-4 `'App\*'`, is reported
+where it is written. One segment may instead be `{` + a path of `.` and `..` steps + `}`, which is
+replaced while compiling by the name of the directory those steps reach from the declaring file, as
+the disk spells it — `autoload 'App\{..}' from '../src';` in `Blog/public/index.nvs` is
+`autoload 'App\Blog' from '../src';`. That name is held to the same shape, and a prefix takes one such
+segment at most. This is how many modules share one entry file byte for byte while each maps only its
+own root.
+
+A root that does not exist is allowed, because a deployment leaves a module out by not shipping its
+directory, and `nvs check --autoload-map` lists it under `missing`.
+
 `discover` takes a glob containing exactly one `*` occupying a whole path segment. Every directory it
 matches becomes a root and the matched segment becomes that root's prefix. A matched directory whose
 name is not a legal `PascalCase` namespace segment is **skipped, not diagnosed** — a glob over a

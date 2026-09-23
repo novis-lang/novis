@@ -1,0 +1,10 @@
+<?nvs
+namespace Site\Blog;
+
+class Home
+{
+    public static function title(): string
+    {
+        return "Blog home";
+    }
+}

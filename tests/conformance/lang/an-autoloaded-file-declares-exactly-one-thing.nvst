@@ -33,6 +33,6 @@ class Stowaway
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0317]: an autoloaded file declares exactly one thing, named `Pair`
+error[E0317]: an autoloaded file declares exactly one thing, named `App\Pair`
 %A
 error: aborting due to 1 error

@@ -43,19 +43,30 @@
 //! `nvs check --autoload-map` prints the result, which is why what a
 //! `discover` glob does *quietly* — passing over a directory that cannot
 //! name a namespace, and producing a prefix an explicit declaration already
-//! owns — is kept on the map rather than dropped where it happens.
-//! [`AutoloadMap::render`] is that printer. Its shape is a counted section
-//! per kind, one line per prefix with its roots in probe order:
+//! owns — is kept on the map rather than dropped where it happens. So is a
+//! root that does not exist: it is allowed, because a deployment leaves a
+//! module out by not shipping its directory, and it is listed, because a
+//! typo in a root looks the same. [`AutoloadMap::render`] is that printer.
+//! Its shape is a counted section per kind, one line per prefix with its
+//! roots in probe order:
 //!
 //! ```text
-//! prefixes (2)
+//! prefixes (3)
 //!   App       explicit  override
+//!   Billing   explicit  billing/src
 //!   Plugin    discover  Plugin/src
 //! shadowed (1)
 //!   App       discover  App/src
 //! skipped (1)
 //!   vendor    not a PascalCase namespace segment
+//! missing (1)
+//!   Billing   billing/src
 //! ```
+//!
+//! A prefix is checked where it is built. Each segment is a namespace
+//! segment or one `{..}`, which is replaced by the name of the directory its
+//! `.` and `..` steps reach from the declaring file; anything else is
+//! [`code::E_AUTOLOAD_PREFIX_SHAPE`], since such a prefix can never match.
 //!
 //! A count sits on every header, so an empty section still says so — the
 //! answer someone reaching for the flag is usually after, since a glob that
@@ -247,7 +258,15 @@ impl AutoloadMap {
             let SiteKind::Prefix { prefix, roots } = &site.kind else {
                 continue;
             };
-            let segments = QName::parse(prefix).segments().to_vec();
+            let segments = match prefix_segments(&site.base_dir, prefix, site.span) {
+                Ok(segments) => segments,
+                Err(diagnostic) => {
+                    if !is_borrowed {
+                        diags.report(diagnostic);
+                    }
+                    continue;
+                }
+            };
             if let Some(previous) = map.entry(&segments) {
                 if !is_borrowed {
                     report_duplicate(prefix, previous.span, site.span, diags);
@@ -502,6 +521,21 @@ impl AutoloadMap {
             let _ = writeln!(out, "  {path:skip_width$}  {reason}");
         }
 
+        let missing: Vec<(String, String)> = entries
+            .iter()
+            .flat_map(|entry| {
+                entry
+                    .roots
+                    .iter()
+                    .filter(|root| !is_dir(root))
+                    .map(|root| (entry.segments.join("\\"), show(root, &base)))
+            })
+            .collect();
+        let _ = writeln!(out, "missing ({})", missing.len());
+        for (prefix, root) in &missing {
+            let _ = writeln!(out, "  {prefix:width$}  {root}");
+        }
+
         out
     }
 
@@ -617,9 +651,18 @@ fn is_dir(path: &Path) -> bool {
 /// One path the way [`AutoloadMap::render`] prints it: relative to `base`
 /// where it sits under it, whole where it does not, and always `/`-separated
 /// so the Windows and WSL legs render one string.
+///
+/// A whole path loses the `\\?\` Windows puts in front of a canonical one, so
+/// it prints as `D:/srv/app` and a network path as `//host/share`.
 fn show(path: &Path, base: &Path) -> String {
     let shown = path.strip_prefix(base).unwrap_or(path);
     let text = shown.to_string_lossy().replace('\\', "/");
+    let text = match text.strip_prefix("//?/") {
+        Some(rest) => rest
+            .strip_prefix("UNC/")
+            .map_or_else(|| rest.to_owned(), |share| format!("//{share}")),
+        None => text,
+    };
     if text.is_empty() {
         ".".to_owned()
     } else {
@@ -645,9 +688,40 @@ fn report_duplicate(prefix: &str, first: Span, second: Span, diags: &mut Diagnos
 /// not exist stays as-written: every probe under it then simply misses, which
 /// is the same answer with no extra diagnostic for a deployment that ships
 /// only some of its modules.
+///
+/// A missing root is still made canonical as far as the disk allows: its `.`
+/// and `..` steps are folded by name, the deepest directory that exists is
+/// canonicalized, and the rest is added back. `nvs check --autoload-map` then
+/// prints it under `missing` in the same form as every other root.
 fn canonical(base_dir: &Path, root: &str) -> PathBuf {
     let joined = base_dir.join(root);
-    crate::requires::canonicalize(&joined).unwrap_or(joined)
+    if let Some(found) = crate::requires::canonicalize(&joined) {
+        return found;
+    }
+    let mut folded = PathBuf::new();
+    for part in joined.components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                folded.pop();
+            }
+            other => folded.push(other),
+        }
+    }
+    let mut rest: Vec<std::ffi::OsString> = Vec::new();
+    let mut existing = folded.clone();
+    loop {
+        if let Some(found) = crate::requires::canonicalize(&existing) {
+            let mut whole = found;
+            whole.extend(rest.iter().rev());
+            return whole;
+        }
+        let Some(name) = existing.file_name().map(std::ffi::OsStr::to_os_string) else {
+            return folded;
+        };
+        rest.push(name);
+        existing.pop();
+    }
 }
 
 /// What one `autoload discover '<glob>'` expanded to.
@@ -751,6 +825,81 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     out
 }
 
+/// Turns a written prefix into its segments, replacing a `{..}` segment by the
+/// name of the directory it reaches — `rule:programs/autoload`'s directory
+/// segment.
+///
+/// The braces hold a path of `.` and `..` steps only, resolved against the
+/// declaring file's directory exactly as a root is, so `{.}` is that
+/// directory's own name and `{..}` its parent's. The name is read from the
+/// canonical path, which is the directory as the disk spells it. At most one
+/// such segment is allowed: two would name the same module twice, or two
+/// levels of one tree, and nothing needs that.
+///
+/// Every segment, written or read off the disk, has to be a namespace segment.
+/// A prefix holding anything else can never match a name, so it is
+/// [`code::E_AUTOLOAD_PREFIX_SHAPE`] here rather than an `E0303` on the first
+/// name it was meant to find.
+fn prefix_segments(base_dir: &Path, prefix: &str, span: Span) -> Result<Vec<String>, Diagnostic> {
+    let refuse = |label: String| {
+        Diagnostic::error(
+            code::E_AUTOLOAD_PREFIX_SHAPE,
+            format!("`{prefix}` is not a namespace prefix"),
+        )
+        .with_primary(span, label)
+        .with_note(
+            "each segment of a prefix is a `PascalCase` name, or one `{..}` naming a directory; \
+             there is no wildcard, and `autoload discover` is the form that maps many directories",
+        )
+    };
+
+    let braced = |written: &str| {
+        written
+            .strip_prefix('{')
+            .and_then(|rest| rest.strip_suffix('}'))
+            .map(str::to_owned)
+    };
+    if prefix.split('\\').filter_map(braced).count() > 1 {
+        return Err(refuse("only one segment may name a directory".to_owned()));
+    }
+
+    let mut segments = Vec::new();
+    for written in prefix.split('\\') {
+        let Some(steps) = braced(written) else {
+            if !is_namespace_segment(written) {
+                return Err(refuse(format!("`{written}` is not a namespace segment")));
+            }
+            segments.push(written.to_owned());
+            continue;
+        };
+        if steps
+            .split(['/', '\\'])
+            .any(|step| step != "." && step != "..")
+        {
+            return Err(refuse(format!(
+                "`{{{steps}}}` holds something other than `.` and `..` steps"
+            )));
+        }
+        let reached = crate::requires::canonicalize(&base_dir.join(&steps));
+        let name = reached
+            .as_deref()
+            .and_then(Path::file_name)
+            .map(|name| name.to_string_lossy().into_owned());
+        match name {
+            Some(name) if is_namespace_segment(&name) => segments.push(name),
+            Some(name) => {
+                return Err(refuse(format!(
+                    "`{{{steps}}}` names the directory `{name}`, which is not a namespace segment"
+                )));
+            }
+            None => {
+                return Err(refuse(format!("`{{{steps}}}` reaches no named directory")));
+            }
+        }
+    }
+    Ok(segments)
+}
+
 /// `rule:core-api/identifier-casing`'s namespace-segment shape: `PascalCase`, ASCII alphanumeric, and
 /// never a leading `_` (`rule:classes/no-leading-underscore-identifiers`).
 fn is_namespace_segment(name: &str) -> bool {
@@ -789,24 +938,29 @@ fn spelled_exactly(canonical: &Path, root: &Path, suffix: &[String]) -> bool {
 }
 
 /// Applies `rule:programs/one-declaration-per-autoloaded-file` to a file that was reached through the autoload map:
-/// exactly one top-level declaration, named after the file, and nothing else
-/// but `namespace`/`use`.
+/// exactly one top-level declaration, whose qualified name is the one the map
+/// found the file by, and nothing else but `namespace`/`use`.
 ///
-/// `expected` is the file's base name. Files reached by `require` are
-/// deliberately not subject to any of this and may declare anything.
+/// `expected` is that name: the prefix, the directories under the root, and
+/// the file's base name. The namespace the file writes is compared too, and
+/// exactly, because a file declaring some other name would put that name in
+/// the program only when something probed or scanned this path. Files reached
+/// by `require` are deliberately not subject to any of this and may declare
+/// anything.
 pub fn check_file_shape(
     stmts: &[Stmt],
     src: &SourceFile,
-    expected: &str,
+    expected: &QName,
     span: Span,
     diags: &mut Diagnostics,
 ) {
-    let mut declared: Vec<(String, Span)> = Vec::new();
+    let mut declared: Vec<(QName, Span)> = Vec::new();
     let mut stray: Option<Span> = None;
-    scan_shape(stmts, src, &mut declared, &mut stray);
+    scan_shape(stmts, src, &[], &mut declared, &mut stray);
 
+    let file_name = expected.short_name();
     let complaint = if declared.is_empty() {
-        Some((span, format!("nothing here declares `{expected}`")))
+        Some((span, format!("nothing here declares `{file_name}`")))
     } else if declared.len() > 1 {
         Some((declared[1].1, "a second declaration".to_owned()))
     } else if let Some(at) = stray {
@@ -814,13 +968,21 @@ pub fn check_file_shape(
             at,
             "only declarations belong in an autoloaded file".to_owned(),
         ))
-    } else if declared[0].0 == expected {
+    } else if declared[0].0 == *expected {
         None
+    } else if declared[0].0.short_name() != file_name {
+        Some((
+            declared[0].1,
+            format!(
+                "this declares `{}`, but the file is named `{file_name}`",
+                declared[0].0.short_name()
+            ),
+        ))
     } else {
         Some((
             declared[0].1,
             format!(
-                "this declares `{}`, but the file is named `{expected}`",
+                "this declares `{}`, but the autoload map finds this file as `{expected}`",
                 declared[0].0
             ),
         ))
@@ -840,21 +1002,31 @@ pub fn check_file_shape(
     }
 }
 
+/// Collects every top-level declaration under the namespace in force where
+/// it stands. The statement form `namespace A;` sets the namespace for the
+/// statements after it; the bracketed form sets it for its own block.
 fn scan_shape(
     stmts: &[Stmt],
     src: &SourceFile,
-    declared: &mut Vec<(String, Span)>,
+    outer: &[String],
+    declared: &mut Vec<(QName, Span)>,
     stray: &mut Option<Span>,
 ) {
+    let mut namespace = outer.to_vec();
     for stmt in stmts {
         let span = match &stmt.kind {
             StmtKind::ClassDecl(d) => d.name.span,
             StmtKind::InterfaceDecl(d) => d.name.span,
             StmtKind::EnumDecl(d) => d.name.span,
             StmtKind::TypeAliasDecl(d) => d.name.span,
-            StmtKind::NamespaceDecl(NamespaceDecl { body, .. }) => {
-                if let Some(block) = body {
-                    scan_shape(&block.stmts, src, declared, stray);
+            StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
+                let named = name.as_ref().map_or_else(Vec::new, |name| {
+                    let text = src.span_text(name.span).unwrap_or_default();
+                    QName::parse(text).segments().to_vec()
+                });
+                match body {
+                    Some(block) => scan_shape(&block.stmts, src, &named, declared, stray),
+                    None => namespace = named,
                 }
                 continue;
             }
@@ -866,8 +1038,8 @@ fn scan_shape(
                 continue;
             }
         };
-        let text = src.span_text(span).unwrap_or_default().to_owned();
-        declared.push((text, span));
+        let text = src.span_text(span).unwrap_or_default();
+        declared.push((QName::join(&namespace, text), span));
     }
 }
 

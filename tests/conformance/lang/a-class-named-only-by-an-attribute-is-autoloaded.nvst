@@ -48,6 +48,6 @@ class Smuggled
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0317]: an autoloaded file declares exactly one thing, named `Audit`
+error[E0317]: an autoloaded file declares exactly one thing, named `App\Audit`
 %A
 error: aborting due to 1 error

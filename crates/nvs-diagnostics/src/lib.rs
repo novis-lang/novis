@@ -720,6 +720,12 @@ pub mod code {
     /// `@return` to fill in, a generated `///` would be empty, so the only way
     /// to clear it is to write a sentence.
     pub const E_DOC_MISSING: Code = Code::new("E0326");
+    /// An `autoload` prefix that no name can ever match: a segment that is
+    /// not a `PascalCase` namespace segment, or a `{..}` directory segment
+    /// whose directory name is not one — `rule:programs/autoload`. A PSR-4
+    /// wildcard such as `'App\*'` is the usual way to reach it, and without
+    /// this code it failed only later, as an `E0303` far from the declaration.
+    pub const E_AUTOLOAD_PREFIX_SHAPE: Code = Code::new("E0327");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

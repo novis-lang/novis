@@ -1,0 +1,10 @@
+<?nvs
+namespace Site\Shop;
+
+class Home
+{
+    public static function title(): string
+    {
+        return "Shop home";
+    }
+}

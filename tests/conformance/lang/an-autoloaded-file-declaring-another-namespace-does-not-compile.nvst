@@ -1,0 +1,43 @@
+--TEST--
+a file an autoload root reaches declares the name the map finds it by, namespace included — `rule:programs/one-declaration-per-autoloaded-file`
+--FILE--
+<?nvs
+// covers: lang:programs/autoload-find-a-class-by-its-namespace
+// The root is mapped as `Shop`, and the file under it declares
+// `Blog\View\Index`. The scan `implementing` runs loads every file under the
+// root, so if the namespace were not compared, `Blog\View\Index` would exist
+// in this program only because something enumerated the root: a lookup by
+// that name without the scan finds nothing. That is the order dependence the
+// rule exists to rule out, so the file does not compile either way.
+autoload 'Shop' from './src';
+
+echo Core\Arr::count(Core\Program::implementing<Shop\View\Page>()), "\n";
+--FILE src/View/Page.nvs--
+<?nvs
+namespace Shop\View;
+
+interface Page
+{
+    public function render(): string;
+}
+--FILE src/View/Index.nvs--
+<?nvs
+namespace Blog\View;
+
+use Shop\View\Page;
+
+class Index implements Page
+{
+    public function render(): string
+    {
+        return "index";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0317]: an autoloaded file declares exactly one thing, named `Shop\View\Index`
+%A
+%sthis declares `Blog\View\Index`, but the autoload map finds this file as `Shop\View\Index`
+%A
+error: aborting due to 1 error

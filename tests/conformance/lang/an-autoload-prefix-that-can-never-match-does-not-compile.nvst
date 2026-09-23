@@ -1,0 +1,40 @@
+--TEST--
+an `autoload` prefix holding a segment that is not a namespace segment does not compile — `rule:programs/autoload`
+--FILE--
+<?nvs
+// covers: lang:programs/autoload-find-a-class-by-its-namespace
+// A prefix is matched segment by segment against written names, and a name's
+// segments are `PascalCase` identifiers. `App\*` is what a PSR-4 habit writes
+// first, and `App\modules` is a lower-case segment: neither can match a name,
+// so each is reported at its declaration instead of as an `E0303` on the first
+// class it was meant to find.
+//
+// A `{..}` segment is held to the same shape once it is read off the disk:
+// `{.}` in `modules/boot.nvs` names `modules`, which is lower-case. And one
+// prefix takes one directory segment at most. All four come from one run.
+require './bootstrap.nvs';
+require './modules/boot.nvs';
+--FILE bootstrap.nvs--
+<?nvs
+autoload 'App\*' from './*/src';
+autoload 'App\modules' from './modules';
+--FILE modules/boot.nvs--
+<?nvs
+autoload 'App\{.}' from './';
+autoload 'App\{..}\{.}' from './';
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0327]: `App\*` is not a namespace prefix
+%A
+error[E0327]: `App\modules` is not a namespace prefix
+%A
+error[E0327]: `App\{.}` is not a namespace prefix
+%A
+%s`{.}` names the directory `modules`, which is not a namespace segment
+%A
+error[E0327]: `App\{..}\{.}` is not a namespace prefix
+%A
+%sonly one segment may name a directory
+%A
+error: aborting due to 4 errors

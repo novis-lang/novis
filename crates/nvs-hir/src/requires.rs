@@ -467,13 +467,7 @@ fn walk(
                 by_path.insert(path.clone(), new_id);
                 let new_stmts = parse_file(map.file(new_id), diags);
                 check_declarations(&new_stmts, map.file(new_id), diags);
-                autoload::check_file_shape(
-                    &new_stmts,
-                    map.file(new_id),
-                    name.short_name(),
-                    site,
-                    diags,
-                );
+                autoload::check_file_shape(&new_stmts, map.file(new_id), &name, site, diags);
                 work.push((new_id, new_stmts, vec![path]));
             }
             continue;
@@ -511,7 +505,7 @@ fn walk(
         by_path.insert(path.clone(), new_id);
         let new_stmts = parse_file(map.file(new_id), diags);
         check_declarations(&new_stmts, map.file(new_id), diags);
-        autoload::check_file_shape(&new_stmts, map.file(new_id), name.short_name(), span, diags);
+        autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
         work.push((new_id, new_stmts, vec![path]));
     }
 
@@ -2559,6 +2553,7 @@ class Unreached {}
         let built = AutoloadMap::build(
             &[
                 site(&dir, id, prefix("Acme", &["./override"])),
+                site(&dir, id, prefix("Gone", &["./absent"])),
                 site(
                     &dir,
                     id,
@@ -2577,8 +2572,9 @@ class Unreached {}
         assert_eq!(
             built.render(&dir.path),
             concat!(
-                "prefixes (2)\n",
+                "prefixes (3)\n",
                 "  Acme   explicit  override\n",
+                "  Gone   explicit  absent\n",
                 "  Other  discover  Other/src\n",
                 "shadowed (1)\n",
                 "  Acme   discover  Acme/src\n",
@@ -2586,6 +2582,8 @@ class Unreached {}
                 "  .git      not a PascalCase namespace segment\n",
                 "  override  not a PascalCase namespace segment\n",
                 "  vendor    not a PascalCase namespace segment\n",
+                "missing (1)\n",
+                "  Gone   absent\n",
             )
         );
     }

@@ -146,8 +146,9 @@ A code is `E` followed by four digits for an error and `W` for a warning; the lo
 code is stable and is what the tables in this reference cite.
 
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
-`discover` glob skipped, and what was shadowed — so an autoload declaration can be audited without
-running anything.
+`discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload
+declaration can be audited without running anything. A `{..}` prefix segment is shown as the
+directory name it resolved to.
 
 ```nvs error
 <?nvs

@@ -514,10 +514,18 @@ the last becomes the file name.
 autoload 'App' from './src';                       // one prefix, one root
 autoload 'Acme\Legacy' from '../vendor/acme/lib', '../vendor/acme/compat';   // several roots, searched in order
 autoload discover '../packages/*/src';             // every directory the glob matches is a root for the namespace named by the `*` segment
+autoload 'App\{..}' from '../src';                 // `{..}` is the name of the directory `..` reaches from this file
 ```
 
 - Every path is a plain string literal, relative to the directory of the file holding the
   declaration. The statement is valid only at a file's top level.
+- Every segment of a prefix is a `PascalCase` name. There is no wildcard: `'App\*'` does not
+  compile (`E0327`). One segment may be `{.}`, `{..}` or `{../..}`, which is replaced by the name of
+  the directory that path reaches from the declaring file. The same entry file in `Blog/public/`
+  and in `Shop/public/` then maps `App\Blog` in one and `App\Shop` in the other.
+- A file found through a root declares one class, interface, enum or `type`, and its full name is
+  the one the map found it by, namespace included (`E0317`).
+- A root that does not exist is allowed. `nvs check --autoload-map` lists it under `missing`.
 - The map is built while compiling, from every `autoload` in every file the program reaches;
   there is no runtime loader and no registration function. A class that cannot be found is a
   compile error naming the roots that were searched.
@@ -26152,8 +26160,9 @@ A code is `E` followed by four digits for an error and `W` for a warning; the lo
 code is stable and is what the tables in this reference cite.
 
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
-`discover` glob skipped, and what was shadowed — so an autoload declaration can be audited without
-running anything.
+`discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload
+declaration can be audited without running anything. A `{..}` prefix segment is shown as the
+directory name it resolved to.
 
 ```nvs error
 <?nvs
