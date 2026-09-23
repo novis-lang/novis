@@ -7,7 +7,9 @@ build`, `nvs fmt` over the `.nvs` files this working tree added or changed, `car
 `.nvst` trees through the binary the build just produced, `cargo clippy
 --all-targets -- -D warnings`, and -- once `editors/vscode` exists -- that extension's headless
 suites, in that order, stopping at the first failure. The script gates precede the compile steps
-because they decide what the tree means rather than whether it builds. Green prints one
+because they decide what the tree means rather than whether it builds. Two stretches of that
+order run at the same time -- *Why steps overlap* below -- and their verdicts are still taken
+and reported in list order, so the order is still the one a failure is reported in. Green prints one
 line per step; a failure prints that step's output and nothing else. `fmt` and `nvs-fmt` *write*
 source: they format rather than check, and *Why `fmt` formats* and *Why `nvs-fmt` formats* below
 are the measurements. `fuzz-lock` and `reference` write the one derived file each of them owns.
@@ -21,9 +23,9 @@ green rather than on every verification -- see *Why `doc` runs when a goal ends*
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
-status fields quote. They cost about seven seconds together on a 16-thread machine, since
-`nvs test` runs cases as a pool (`nvs_test::run` has the measurement); serially they had grown to
-89s, half of every verification, and were paid again by the driver's sweep. **Do not rebuild
+status fields quote. `nvs test` runs the cases as a pool (`nvs_test::run` has the measurement);
+serially they had grown to 89s, half of every verification, and were paid again by the driver's
+sweep. **Do not rebuild
 `target/release/nvs.exe` to run a case** -- see `CASE_TREES` below for the measurement, and the
 playbook under *Running things*.
 
@@ -172,6 +174,29 @@ reported as that failure, red, rather than retried into green. The fix is always
 its own resource, never to run it apart: a clash that serial running hides is the same clash waiting
 for the loop and a person to run the suite at the same moment.
 
+## Why steps overlap
+
+Two stretches of the list leave most of the machine idle when run one step at a time, and each
+runs at the same time instead.
+
+The script steps (`BESIDE_BUILD`) read source and nothing `build` produces, and `build` reads
+nothing they write, so they run beside it. A red script step is still the one reported, since it
+comes first in the list; the `build` that ran beside it is not recorded.
+
+`test` ends on a tail: its slowest binaries still running and most cores free. So once every job
+has started and at most half the cores are still running one, the steps after `test` start on one
+lane, one at a time and in list order. `clippy` waits there while `cargo test --doc` holds cargo's
+build-directory lock, which costs the lane time but never a wrong verdict. Nothing starts on the
+lane after a binary has failed. When one fails after the lane started, the lane finishes its
+current step and stops before the failed binary is run again alone, so the second run is still
+alone. The verdicts are taken in list order after `test` finishes: a red `test` is reported and
+the lane's verdicts are dropped, green or not. The headline time is the wall clock of the run,
+which is no longer the sum of its steps' times.
+
+What this trades: the test binaries still running at the tail share the machine with the lane.
+A test that fails under that load and passes alone is reported the way the section above
+reports one, and the fix is the one that section names.
+
 ## Why `test` runs only the binaries a change reaches
 
 The step's own key is every input in the tree, so an edit anywhere used to run all of the
@@ -247,6 +272,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -279,6 +305,8 @@ CACHE_TTL = 3600  # seconds. A key cannot go stale on its own; this is a belt on
 NEEDS_BINARY = {"nvs-fmt", "test", "conformance", "differential", "reference", "extension"}
 #: The steps that rewrite source, after which every later step's key is taken again.
 WRITES = {"fmt", "nvs-fmt"}
+#: The script steps, which run at the same time as `build` -- *Why steps overlap*.
+BESIDE_BUILD = {"lints", "directives", "template", "owners", "fuzz-lock"}
 #: Where `nvs-fmt` looks for a new or modified `.nvs` file, and the one directory under them whose
 #: files are unformatted on purpose. The first is `crates/nvs-fmt/tests/identity.rs`'s corpus.
 NVS_FMT_TREES = ("tests", "examples")
@@ -522,15 +550,33 @@ def run_tests(step, package=None):
 
     # Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
     jobs.sort(key=lambda j: -float(last.get(j["name"], float("inf"))))
-    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
-        results = dict(zip((j["name"] for j in jobs), pool.map(run_job, jobs)))
+    workers = os.cpu_count() or 4
+    # The tail: every job started and at most half the cores still running one. `main` starts
+    # the steps after this one then -- *Why steps overlap* -- unless a binary has already failed.
+    left, red, lock = [len(jobs)], [False], threading.Lock()
+    on_tail = getattr(step, "on_tail", None)
+
+    def one(job):
+        got = run_job(job)
+        with lock:
+            left[0] -= 1
+            red[0] = red[0] or got[1] != 0
+            if on_tail is not None and not red[0] and left[0] <= workers // 2:
+                on_tail()
+        return got
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = dict(zip((j["name"] for j in jobs), pool.map(one, jobs)))
 
     failed = [j for j in jobs if results[j["name"]][1] != 0]
     step.doc_green = "doc-tests" in results and results["doc-tests"][1] == 0
     # A binary that became wide is a red step, named with the line that made it so. Unscoped
     # runs only: `tools/data/impact-wide.txt` lists the workspace's, and `-p` sees one package's.
     wide = impact.findings(reach, binaries) if reach is not None and not package else []
-    # Alone, one at a time, after the pool has drained: the second run is the diagnosis.
+    # Alone, one at a time, after the pool has drained and the steps started at the tail have
+    # stopped: the second run is the diagnosis.
+    if failed and getattr(step, "quiesce", None) is not None:
+        step.quiesce()
     alone = {j["name"]: run_job(j)[1] == 0 for j in failed}
 
     if reach is not None:
@@ -882,8 +928,8 @@ def steps_for(opts):
         # key in `nvs.toml` *means*, which no amount of compiling answers. `deny_unknown_fields`
         # makes `crates/nvs-config/src/tree.rs` the accepted key set exactly, and a key that
         # parses but reaches no reader is worse than one that is refused -- the operator writes
-        # it, the file is accepted, and the setting silently does nothing. Sub-second, and
-        # unscoped: it reads one Rust file and greps the rest, so `-p` has nothing to narrow.
+        # it, the file is accepted, and the setting silently does nothing. Unscoped: it reads
+        # one Rust file and greps the rest, so `-p` has nothing to narrow.
         #
         # Every key the tree parses is decided one of three ways -- a reader, a deletion, or an
         # `[unread: … owner: …]` trailer on the field's own doc comment -- and pre-marking a key
@@ -1249,7 +1295,10 @@ def main():
     unchanged = {}  # step name -> the entry it was answered from
     failed = None
     deferred = None  # `fmt` red: reported only if nothing after it is -- the module docstring
-    for i, step in enumerate(steps):
+    began = time.monotonic()
+
+    def needed(i, step):
+        """None when `step` has to run; otherwise the green entry that replaces running it."""
         entry = answered(step)
         if entry is not None and step.name == "build":
             # Only if nothing after it will use what `build` leaves -- the module docstring. `test`
@@ -1262,7 +1311,9 @@ def main():
                 entry = None
         if entry is not None:
             unchanged[step.name] = entry
-            continue
+        return entry
+
+    def prepare(i, step):
         if step.name == "test":
             # `--no-cache` is every step for real, and cargo's build is part of this one.
             step.binary_key = (tree.key("build") if tree is not None and not opts.no_cache
@@ -1271,7 +1322,10 @@ def main():
             if not opts.package:
                 step.skip_doc = held(cache, tree, opts, "test:doc") is not None
         progress(done, step, len(steps), index=i + 1)
-        ok = run(step)
+
+    def settle(step, ok):
+        """One finished run's verdict, taken in list order; False when it stops the run."""
+        nonlocal tree, failed, deferred
         if step.name in WRITES and step.out.strip():
             # It rewrote files, so every verdict from here on belongs to the tree as it now is.
             tree = take_tree()
@@ -1284,17 +1338,94 @@ def main():
             record(tree, opts, "test:doc", "ok", 0)
         if step.name == "fmt" and not ok:
             deferred = step
-            continue
+            return True
         if not ok:
             failed = step
-            break
+            return False
         record(tree, opts, step.name, step.summarize(step.out), step.seconds)
         done.append(step)
+        return True
+
+    def beside_build(i):
+        """The script steps from `i` on, run at the same time as the `build` after them --
+        *Why steps overlap* in the module docstring. Verdicts are still taken in list order."""
+        j = i
+        while j < len(steps) and steps[j].name in BESIDE_BUILD:
+            j += 1
+        group = steps[i:j + 1] if j < len(steps) and steps[j].name == "build" else steps[i:j]
+        todo = [(k, s) for k, s in enumerate(group, i) if needed(k, s) is None]
+        with ThreadPoolExecutor(max_workers=max(len(todo), 1)) as pool:
+            running = []
+            for k, s in todo:
+                prepare(k, s)
+                running.append((s, pool.submit(run, s)))
+            for s, future in running:
+                if not settle(s, future.result()):
+                    break
+        return len(group)
+
+    def with_tail(i):
+        """`test`, and the steps after it started while its slowest binaries are still running
+        -- *Why steps overlap*. They run one at a time on one lane, in list order."""
+        test, after = steps[i], [(k, s) for k, s in enumerate(steps[i + 1:], i + 1)]
+        if needed(i, test) is not None:
+            return 1
+        after = [(k, s) for k, s in after if needed(k, s) is None]
+        tail, stop, ran = threading.Event(), threading.Event(), {}
+
+        def lane():
+            tail.wait()
+            for k, s in after:
+                if stop.is_set():
+                    return
+                prepare(k, s)
+                ran[s.name] = run(s)
+                if not ran[s.name]:
+                    return
+
+        worker = threading.Thread(target=lane, daemon=True)
+
+        def quiesce():
+            # A failed binary is run again alone, and alone means nothing on the lane either.
+            stop.set()
+            tail.set()
+            worker.join()
+
+        test.on_tail, test.quiesce = tail.set, quiesce
+        worker.start()
+        prepare(i, test)
+        ok = run(test)
+        if not ok:
+            stop.set()
+        tail.set()
+        worker.join()
+        if settle(test, ok):
+            for _, s in after:
+                if s.name not in ran or not settle(s, ran[s.name]):
+                    break
+        return 1 + len(steps[i + 1:])
+
+    i = 0
+    while i < len(steps) and failed is None:
+        step = steps[i]
+        if step.name in BESIDE_BUILD or step.name == "build":
+            i += beside_build(i)
+        elif step.name == "test":
+            i += with_tail(i)
+        else:
+            if needed(i, step) is None:
+                prepare(i, step)
+                settle(step, run(step))
+            i += 1
+    if failed is not None:
+        # A step after the one that stopped the run was not reached, whatever the cache holds.
+        for s in steps[steps.index(failed) + 1:]:
+            unchanged.pop(s.name, None)
     if failed is None and deferred is not None:
         failed = deferred
     progress(done, finished=1 if failed else 0)
 
-    total = sum(s.seconds for s in done) + (failed.seconds if failed else 0)
+    total = time.monotonic() - began
 
     def lines():
         for s in steps:
