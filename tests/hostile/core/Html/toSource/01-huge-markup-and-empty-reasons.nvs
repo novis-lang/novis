@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a huge HTML value, many empty reasons and a reason made of control
+// characters are passed to `Core\Html::toSource`. No step may crash the runtime. The last step stops the
+// program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Thirteen million characters of escaped text are read back one thousand times.
+//    The memory in use must not grow.
+Core\Html\Markup $big = Core\Html::escape(Core\Str::repeat('<&>', 1000000));
+string $last = '';
+uint $i = 0;
+while ($i < 1000) {
+    $last = Core\Html::toSource($big, 'reading the escaped text');
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Str::length($last), "\n";
+
+// 2. One hundred thousand calls with an empty reason. Each one must throw a `LogicError`.
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        Core\Html::toSource($big, '');
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 2: ', $refused, "\n";
+
+// 3. A reason made of a NUL character, a terminal color code and a direction control.
+//    The reason is not used, so this prints `<p>ok</p>`.
+echo 'step 3: ', Core\Html::toSource('<p>ok</p>' as Core\Html\Markup, "\u{0000}\u{001B}[31m\u{202E}"), "\n";
+
+// 4. The texts are kept in a list and never freed, each one joined to a number.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    $kept[] = Core\Html::toSource($big, 'keeping every text') . Core\Str::format('%d', $n);
+    $n = $n + 1;
+}

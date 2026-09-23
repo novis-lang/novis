@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when the reason is empty.
+
+Core\Html\Markup $bold = "<b>Sale</b>" as Core\Html\Markup;
+
+// An empty reason is not allowed. The call throws a `LogicError` and returns nothing.
+try {
+    echo Core\Html::toSource($bold, ""), "\n";
+} catch (LogicError $error) {
+    echo "The reason is missing.\n";
+}
+
+// With a reason, the call returns the HTML text. This prints `<b>Sale</b>`.
+echo Core\Html::toSource($bold, "showing the HTML in this example"), "\n";

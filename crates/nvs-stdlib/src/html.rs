@@ -726,12 +726,10 @@ nvs_runtime::nvs_helper! {
     /// is the home of that argument, and this member takes the same
     /// [`Qual::Neutral`] text for the same reasons — no byte of it reaches the
     /// answer, and a `secret` justification is refused by the ordinary rule.
-    /// **An empty one is refused here**, which is the half of § 3's rule that
-    /// can be enforced at all today: the other half wants the reason to be a
-    /// *source literal*, and that is a compile-time judgement with nowhere to
-    /// declare its diagnostic — both type bands are full (`E0499`, `E0799`), so
-    /// widening them is a decision of its own rather than a line in this
-    /// member. The module's *Known gaps* records it.
+    /// **An empty one is refused here**, and a computed one never reaches this
+    /// body because `E0805` refuses it where it is written; the module doc's
+    /// *Where each half of the reason rule is enforced* is the home of that
+    /// split.
     ///
     /// **What it spends:** one comparison. The answer is the slot's own
     /// [`NvsStr`] with one more reference on it, so the bytes are never copied
@@ -1900,6 +1898,47 @@ mod tests {
             again.release();
             once.release();
             document.release();
+        }
+    }
+
+    /// `Core\Html::toSource` end to end through the boundary compiled code
+    /// reaches it at: the answer is a plain string holding the carrier's bytes
+    /// unchanged — no reference is decoded — and the carrier still holds the
+    /// same bytes afterwards. An empty reason is refused before the carrier is
+    /// read, so a call with nothing written at the site never gets the bytes.
+    // covers: Core\Html::toSource
+    #[test]
+    fn html_to_source_answers_the_carried_bytes_and_refuses_an_empty_reason() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let fragment = markup(b"<b>Tom &amp; Jerry</b>");
+        let reason = Value::str(NvsStr::new(b"storing the rendered card"));
+        let source = call(
+            super::nvs_core_html_to_source,
+            &mut ctx,
+            &[fragment, reason],
+        )
+        .expect("a written reason is accepted");
+        assert_eq!(
+            text(&source, "the answer").expect("the answer is a string"),
+            "<b>Tom &amp; Jerry</b>"
+        );
+        assert_eq!(carried(fragment), "<b>Tom &amp; Jerry</b>");
+
+        let empty = Value::str(NvsStr::new(b""));
+        assert!(call(super::nvs_core_html_to_source, &mut ctx, &[fragment, empty]).is_err());
+        let refused = ctx.take_pending().expect("an empty reason throws");
+        assert!(refused.contains("an empty one is refused"), "{refused}");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            empty.release();
+            source.release();
+            reason.release();
+            fragment.release();
         }
     }
 

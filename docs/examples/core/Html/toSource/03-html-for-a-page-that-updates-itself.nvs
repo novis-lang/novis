@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to send a piece of HTML inside a JSON response. A page can use it
+// to update one part of itself without loading again.
+
+tainted string $product = "Mugs & <Cups>";
+uint $count = 3;
+
+// The HTML is built as a `Core\Html\Markup` value, so the product name is escaped.
+Core\Html\Markup $row = ("<li>" as Core\Html\Markup)
+    + Core\Html::escape($product)
+    + Core\Html::escape(Core\Str::format(" (%d in your cart)", $count))
+    + ("</li>" as Core\Html\Markup);
+
+// A JSON value needs a `string`, so `Core\Html::toSource` returns the HTML as one.
+string $html = Core\Html::toSource($row, "the page script puts this HTML into the cart list");
+
+// This prints one JSON object. The HTML is inside it as a normal text.
+echo Core\Json::encode(["target" => "cart", "html" => $html]), "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to get the HTML text out of a `Core\Html\Markup` value as a normal `string`.
+
+// `Core\Html::escape` returns a `Core\Html\Markup` value.
+Core\Html\Markup $name = Core\Html::escape("Tom & Jerry");
+
+// `Core\Html::toSource` returns the same HTML as a `string`.
+// The second argument is the reason. It tells the next reader why you need the text.
+string $source = Core\Html::toSource($name, "counting the characters of the escaped name");
+
+// The text is not changed, so `&amp;` stays `&amp;`. This prints `Tom &amp; Jerry` and then `15`.
+echo $source, "\n";
+echo Core\Str::length($source), "\n";
