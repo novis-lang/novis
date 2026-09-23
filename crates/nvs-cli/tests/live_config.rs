@@ -330,15 +330,16 @@ impl Server {
     /// When the request fails; the message carries what both processes wrote
     /// to standard error.
     fn ctl(&self, request: &str) -> String {
-        let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .arg("ctl")
-            .arg("--socket")
-            .arg(&self.socket)
-            .arg(request)
-            .current_dir(&self.dir)
-            .stdin(Stdio::null())
-            .output()
-            .expect("the `nvs` binary this test was built beside starts");
+        self.ctl_on(&self.socket, request)
+    }
+
+    /// [`Server::ctl`] over the control endpoint `socket`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::ctl`] does.
+    fn ctl_on(&self, socket: &Path, request: &str) -> String {
+        let ran = self.ctl_output(socket, request);
         assert!(
             ran.status.success(),
             "`nvs ctl {request}` failed: {}\nand the server wrote: {}",
@@ -346,6 +347,20 @@ impl Server {
             self.stderr.lock().expect("no reader panicked")
         );
         String::from_utf8_lossy(&ran.stdout).into_owned()
+    }
+
+    /// Runs `nvs ctl <request>` over the control endpoint `socket`, and
+    /// returns how it ended, whether it succeeded or not.
+    fn ctl_output(&self, socket: &Path, request: &str) -> std::process::Output {
+        Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("ctl")
+            .arg("--socket")
+            .arg(socket)
+            .arg(request)
+            .current_dir(&self.dir)
+            .stdin(Stdio::null())
+            .output()
+            .expect("the `nvs` binary this test was built beside starts")
     }
 }
 
@@ -1047,6 +1062,75 @@ fn a_changed_session_backend_applies_to_new_requests() {
     assert!(
         store.received("SET"),
         "a session started after the reload wrote no record to the shared store"
+    );
+}
+
+/// A second control endpoint for the server in `dir`: a socket beside the
+/// first on Unix, and a pipe name of its own on Windows.
+fn moved_endpoint(dir: &Path) -> PathBuf {
+    #[cfg(unix)]
+    {
+        dir.join("moved.sock")
+    }
+    #[cfg(windows)]
+    {
+        let _ = dir;
+        PathBuf::from(format!(
+            r"\\.\pipe\nvs-live-config-{}-moved",
+            std::process::id()
+        ))
+    }
+}
+
+/// `[control] socket` moves without a restart. A reload pushed over the old
+/// endpoint is answered there and names the key as applied. After it, the new
+/// endpoint answers `nvs ctl` and the old one does not. A name whose endpoint
+/// cannot be created is logged and named as not applied, and the endpoint in
+/// force keeps answering.
+#[test]
+fn a_changed_control_socket_moves_the_control_endpoint() {
+    let server = Server::start("moves", "", &[("app.nvs", PLAIN)]);
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+
+    let moved = moved_endpoint(&server.dir);
+    write_file(&server.dir.join("nvs.toml"), &controlled(&moved, ""));
+    let report = server.ctl("reload");
+    assert!(
+        report.contains("applied: control.socket\n"),
+        "the reload did not name `control.socket` as applied: {report}"
+    );
+    let status = server.ctl_on(&moved, "status");
+    assert!(
+        status.contains("in_flight:"),
+        "the moved endpoint did not answer `status`: {status}"
+    );
+    let started = Instant::now();
+    while server.ctl_output(&server.socket, "status").status.success() {
+        assert!(
+            started.elapsed() < BOUND,
+            "the old endpoint still answers after the reload moved it; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+
+    // A directory that does not exist, which no endpoint can be created in.
+    let missing = server.dir.join("missing").join("control.sock");
+    write_file(&server.dir.join("nvs.toml"), &controlled(&missing, ""));
+    let report = server.ctl_on(&moved, "reload");
+    assert!(
+        report.contains("ignored: control.socket\n"),
+        "the reload did not name `control.socket` as not applied: {report}"
+    );
+    let said = server.logs("configuration key not applied");
+    assert!(
+        said.contains("missing"),
+        "the record does not name the endpoint that was written: {said}"
+    );
+    let status = server.ctl_on(&moved, "status");
+    assert!(
+        status.contains("in_flight:"),
+        "the endpoint in force stopped answering after a move that failed: {status}"
     );
 }
 

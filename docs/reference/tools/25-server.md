@@ -198,7 +198,9 @@ and mode are the whole of who may use it; there is no token and no TCP form. `re
 configuration tree, applies what can change while running, prints what it applied and names each
 key that needs a restart; a mount `scan` expands again. `config` prints what the process is
 holding, each key with the file it came from. `status` reports how many requests are in flight and
-whether the process is draining. `--socket` names one server where several run on a host.
+whether the process is draining. `--socket` names one server where several run on a host. A
+changed `[control] socket` moves the socket without a restart: the new one answers before the old
+one closes.
 
 # nvs service
 

@@ -297,9 +297,9 @@ pub(crate) fn run(
         Arc::clone(&current),
     )
     .bounded_by(bounds);
-    // `rule:config/one-local-control-socket`'s address, read here with the
-    // other `Boot`-class keys so that a value naming something a network
-    // could reach refuses the start before anything is compiled. A tree that
+    // `rule:config/one-local-control-socket`'s address, read here so that a
+    // value naming something a network could reach refuses the start before
+    // anything is compiled. A reload that moves it is `crate::control`'s. A tree that
     // wrote no `[control]` block resolves to `Disabled`, which is no control
     // surface at all rather than a default one.
     let controlled = match nvs_server::control::Address::of(&snapshot.config) {
@@ -524,10 +524,7 @@ pub(crate) fn run(
     crate::control::check(&host);
     if let Some(endpoint) = controlling {
         println!("control endpoint on {}", endpoint.name().display());
-        if let Err(error) = std::thread::Builder::new()
-            .name("nvs-control".to_owned())
-            .spawn(move || drop(nvs_server::control::serve(&endpoint, &*host)))
-        {
+        if let Err(error) = host.open(endpoint) {
             eprintln!("error: could not start the control endpoint's thread: {error}");
             return ExitCode::FAILURE;
         }

@@ -39,6 +39,7 @@ use std::convert::Infallible;
 use std::io;
 use std::pin::pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 
@@ -52,7 +53,9 @@ use nvs_config::snapshot::Snapshot;
 use crate::io::Nonblocking;
 use crate::serve::Answer;
 
-pub use nvs_config::control::{Address, Endpoint, Refusal, Report, bind, boundary, reload};
+pub use nvs_config::control::{
+    Address, Endpoint, Refusal, Report, bind, boundary, connect, reload,
+};
 
 /// The header every answer carries, so a client can tell what it is talking to before it reads a
 /// body — `rule:config/one-local-control-socket`.
@@ -318,13 +321,18 @@ fn sent(status: StatusCode, body: String, allow: Option<&'static str>) -> Respon
 /// accept when the drain begins ends with the process, having answered nobody — there is no client
 /// on it to close cleanly.
 ///
+/// `retired` is read at the same point, and is how a reload that moved `[control] socket` ends
+/// this loop once the endpoint that replaced it is answering. The reload that moved it may be the
+/// client being answered, so it is answered here first. A thread parked in the accept is woken by
+/// the caller connecting to the endpoint once, and ends having answered that connection.
+///
 /// # Errors
 ///
 /// The OS's error from the accept, which is the endpoint itself having gone: the loop ends rather
 /// than spinning on a name that will not answer again. A *connection* that fails is one client's
 /// problem — a `nvs ctl` killed mid-request — and the loop takes the next one.
-pub fn serve(endpoint: &Endpoint, host: &dyn Controlled) -> io::Result<()> {
-    while !host.draining() {
+pub fn serve(endpoint: &Endpoint, host: &dyn Controlled, retired: &AtomicBool) -> io::Result<()> {
+    while !host.draining() && !retired.load(Ordering::Acquire) {
         drop(answer_connection(endpoint.accept()?, host));
     }
     Ok(())
@@ -1047,13 +1055,13 @@ mod tests {
         );
     }
 
-    /// `rule:config/a-reload-names-what-it-could-not-apply`: a reload names the `Boot` keys whose values changed and therefore did not take
-    /// effect, individually, beside what it did apply.
+    /// `rule:config/a-reload-names-what-it-could-not-apply`: a reload names the keys whose values
+    /// changed and did not take effect, individually, beside what it did apply.
     ///
-    /// Silently ignoring a changed `Boot` key is how a deployment ends up believing it applied a
-    /// change it did not, which is § 5's own sentence. The key used here is `control.socket`
-    /// itself — a `Boot` row by `rule:config/reloadability-is-its-own-field` — so the case also pins that moving the control
-    /// endpoint needs a restart rather than taking effect underneath the connection asking for it.
+    /// Silently ignoring a changed key is how a deployment ends up believing it applied a change it
+    /// did not, which is § 5's own sentence. The key used here is `control.socket`, passed as
+    /// `keep`: the caller could not create the endpoint it now names, so the running value stays
+    /// and the key is reported the way a changed `Boot` key is.
     #[test]
     fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
         let current = Current::new(Arc::new(snapshot(
@@ -1064,13 +1072,14 @@ mod tests {
             &current,
             snapshot("[control]\nsocket = \"/run/nvs/other.sock\"\n[limits]\nmemory = \"256M\"\n"),
             12,
+            &["control.socket"],
         )
         .expect("the incoming tree is well formed");
 
         assert_eq!(
             report.ignored,
             vec!["control.socket"],
-            "the changed `Boot` key is named individually, not counted",
+            "the key that could not be applied is named individually, not counted",
         );
         assert_eq!(
             report.applied,

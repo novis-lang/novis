@@ -306,14 +306,24 @@ impl Snapshot {
     /// path and the whole subtree moves together: a `[server]` with one address changed and one
     /// added is one `Boot` change, not two.
     ///
+    /// A row whose key is in `keep` is carried and reported the same way, whatever its apply
+    /// class — [`Current::publish_keeping`] is why.
+    ///
     /// # Errors
     ///
     /// `E0601` if the carried tree does not deserialize, which two trees that each did makes
     /// unreachable.
     ///
-    fn carry_boot(&self, next: &mut Self) -> Result<Vec<&'static Directive>, Diagnostic> {
+    fn carry_boot(
+        &self,
+        next: &mut Self,
+        keep: &[&str],
+    ) -> Result<Vec<&'static Directive>, Diagnostic> {
         let mut changed = Vec::new();
-        for row in DIRECTIVES.iter().filter(|row| row.apply == Apply::Boot) {
+        for row in DIRECTIVES
+            .iter()
+            .filter(|row| row.apply == Apply::Boot || keep.contains(&row.key))
+        {
             let running = value_at(&self.table, row.key);
             if running == value_at(&next.table, row.key) {
                 continue;
@@ -389,8 +399,27 @@ impl Current {
     ///
     /// If a thread panicked while holding the lock — see [`load`](Current::load).
     pub fn publish(&self, next: Snapshot) -> Result<Reload, Diagnostic> {
+        self.publish_keeping(next, &[])
+    }
+
+    /// [`publish`](Current::publish), which also carries the running value of each `Reload` row
+    /// named in `keep`, and reports it beside the `Boot` rows it carried.
+    ///
+    /// `keep` is for a key whose new resource could not be built, such as a control endpoint
+    /// whose directory fails the trust check. The key keeps its running value and is reported as
+    /// not applied, and the rest of the tree is published. One resource that cannot be built
+    /// does not hold back an unrelated change.
+    ///
+    /// # Errors
+    ///
+    /// As [`publish`](Current::publish).
+    ///
+    /// # Panics
+    ///
+    /// As [`publish`](Current::publish).
+    pub fn publish_keeping(&self, next: Snapshot, keep: &[&str]) -> Result<Reload, Diagnostic> {
         let mut next = next;
-        let boot = self.load().carry_boot(&mut next)?;
+        let boot = self.load().carry_boot(&mut next, keep)?;
         let snapshot = Arc::new(next);
         *self.0.write().expect("the snapshot lock is never poisoned") = Arc::clone(&snapshot);
         Ok(Reload { snapshot, boot })

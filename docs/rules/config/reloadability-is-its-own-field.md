@@ -29,7 +29,7 @@ published snapshot carries the running value forward, and the reload names the k
 (`rule:config/a-reload-names-what-it-could-not-apply`).
 
 **What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
-`max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`
-and `[session]` reload. These rows are still `Boot`, because each is read once when the server
-starts: `http.client.tls`, `cache.shared`, `[control] socket`, `io.temp_root`,
+`max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
+`[session]` and `[control] socket` reload. These rows are still `Boot`, because each is read once
+when the server starts: `http.client.tls`, `cache.shared`, `io.temp_root`,
 `opcache.file_cache_dir`, and `[queue]`'s `connection` and `workers`.

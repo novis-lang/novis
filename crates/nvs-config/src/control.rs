@@ -309,7 +309,8 @@ pub struct Report {
     /// The `Boot` keys whose written value changed and which therefore did **not** take effect,
     /// each named individually. § 5's own paragraph is why they are named rather than counted: a
     /// deployment that silently ignores a changed listen address believes it applied a change it
-    /// did not.
+    /// did not. A reloadable key whose new resource could not be built is named here too
+    /// ([`reload`]'s `keep`).
     pub ignored: Vec<&'static str>,
     /// How many compiled units the swap invalidated, so an operator knows a recompile wave is
     /// coming. § 4's rule is what decides it: a changed `env_hash` rekeys **every** unit and an
@@ -322,14 +323,23 @@ pub struct Report {
 /// `held` is how many compiled units the caller has, which is the only half of § 5's third answer
 /// this module cannot know: the unit cache is `nvs-cli`'s.
 ///
+/// `keep` names the reloadable keys whose new resource the caller could not build. Each keeps
+/// its running value and is reported in [`Report::ignored`], as [`Current::publish_keeping`]
+/// says.
+///
 /// # Errors
 ///
 /// Whatever [`Current::publish`] refuses — `E0601` for a tree that does not deserialize once the
 /// running `Boot` values are carried into it. The previous snapshot is still serving in that case,
 /// because publishing is the last step and it never ran.
-pub fn reload(current: &Current, next: Snapshot, held: usize) -> Result<Report, Diagnostic> {
+pub fn reload(
+    current: &Current,
+    next: Snapshot,
+    held: usize,
+    keep: &[&str],
+) -> Result<Report, Diagnostic> {
     let before = current.load();
-    let published = current.publish(next)?;
+    let published = current.publish_keeping(next, keep)?;
     // The comparison is against the *published* table and not the submitted one, which is what
     // makes a changed `Boot` key absent from `applied` rather than present in both lists: publishing
     // carries the running value back over it, so by this line the two tables agree about it again.

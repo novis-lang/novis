@@ -709,9 +709,9 @@ published snapshot carries the running value forward, and the reload names the k
 ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
 **What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
-`max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`
-and `[session]` reload. These rows are still `Boot`, because each is read once when the server
-starts: `http.client.tls`, `cache.shared`, `[control] socket`, `io.temp_root`,
+`max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
+`[session]` and `[control] socket` reload. These rows are still `Boot`, because each is read once
+when the server starts: `http.client.tls`, `cache.shared`, `io.temp_root`,
 `opcache.file_cache_dir`, and `[queue]`'s `connection` and `workers`.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
@@ -998,7 +998,11 @@ socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` di
 socket's owner and mode are the authentication. It is created mode `0600` (a DACL naming this account
 on Windows), owned by the runtime's account, and **the server refuses to start if the directory
 holding it is writable by any other account**, the same trust check every configuration file gets.
-A tree that writes no `[control]` block gets no control surface at all. The socket exists only where
+A tree that writes no `[control]` block gets no control surface at all. A reload that changes
+`socket` creates the new endpoint, under the same directory check, before the old one stops
+answering, and a reload pushed over the old one is answered there; `false` closes it. A new
+endpoint that cannot be created is logged by name with the reason, and the running one stays and
+is named as not applied. The socket exists only where
 a long-running server does; `nvs run` compiles one file and exits.
 
 The wire protocol is HTTP over that socket, not a bespoke line protocol: `curl --unix-socket` debugs

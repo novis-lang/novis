@@ -467,11 +467,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[cache.shared]\nurl = \"redis://127.0.0.1:6380\"\n",
     ),
     (
-        "control.socket",
-        "[control]\nsocket = \"/run/novis/one.sock\"\n",
-        "[control]\nsocket = \"/run/novis/two.sock\"\n",
-    ),
-    (
         "io.temp_root",
         "[io]\ntemp_root = \"/var/tmp/one\"\n",
         "[io]\ntemp_root = \"/var/tmp/two\"\n",

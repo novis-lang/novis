@@ -40,6 +40,15 @@
 //! somebody asked what the server was serving. So the resolve here is always
 //! [`Init::Never`](crate::config::Init::Never).
 //!
+//! **`[control] socket` moves without a restart.** A reload that renames it
+//! binds the new endpoint, under the same directory check the boot runs, and
+//! starts its thread before the old one is told to stop ([`Door`]). The old
+//! thread reads that between clients, so a reload pushed over the old endpoint
+//! is still answered there. A new endpoint that cannot be created is logged by
+//! name with the reason, and the key keeps its running value and is reported
+//! as not applied while the rest of the tree is published
+//! ([`nvs_config::Current::publish_keeping`]). `false` closes the endpoint.
+//!
 //! **The unit cache is re-keyed and not merely counted.** `[[extension]]` is the
 //! configuration's whole contribution to
 //! `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest and
@@ -57,11 +66,15 @@
 //! `rule:config/the-config-is-an-immutable-snapshot`'s own promise and bounds
 //! that hold at O(in-flight). The check is one thread per process, asleep
 //! between passes, and one `stat` per configuration file per [`CHECK`]. No
-//! request makes one.
+//! request makes one. A moved control endpoint is one thread while it
+//! answers, and two for the moment between the new one starting and the old
+//! one ending.
 
 use std::collections::BTreeMap;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime};
 
 use nvs_config::resolve::Origin;
@@ -70,7 +83,7 @@ use nvs_config::{Apply, DIRECTIVES};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
-use nvs_server::control::{Controlled, Pending, Report};
+use nvs_server::control::{Address, Controlled, Endpoint, Pending, Report};
 use nvs_server::{Admission, Ceiling, Draining};
 
 use crate::script::Compiler;
@@ -85,8 +98,10 @@ static PROCESS: OnceLock<Arc<Process>> = OnceLock::new();
 /// Keeps `process` as this process's, for [`installed`].
 ///
 /// Installed once — a second call keeps the first, because `nvs serve` runs
-/// once per process.
+/// once per process. The process keeps a weak handle on itself too, which is
+/// what [`Process::open`] gives the thread of a control endpoint.
 pub(crate) fn install(process: Arc<Process>) {
+    drop(process.me.set(Arc::downgrade(&process)));
     drop(PROCESS.set(process));
 }
 
@@ -133,6 +148,32 @@ pub(crate) struct Process {
     /// The generation of the snapshot the last reload published, and the
     /// source map its origins point into. `None` until a reload publishes.
     sources: Mutex<Option<(u64, Arc<SourceMap>)>>,
+    /// This process, for the thread [`Process::open`] starts. Set by
+    /// [`install`].
+    me: OnceLock<Weak<Process>>,
+    /// The control endpoint answering now, or `None` where the tree names
+    /// none.
+    door: Mutex<Option<Door>>,
+}
+
+/// A control endpoint a thread is answering on: its name, and the bit that
+/// stops the thread once a reload has moved `[control] socket`.
+struct Door {
+    name: PathBuf,
+    retired: Arc<AtomicBool>,
+}
+
+/// What a reload does to the control endpoint, decided before the publish.
+enum Move {
+    /// `[control] socket` did not change.
+    Stay,
+    /// The tree now names no endpoint, so the running one is closed.
+    Close,
+    /// The endpoint the tree now names, already created.
+    Open(Endpoint),
+    /// The endpoint the tree now names could not be created, so the key keeps
+    /// its running value.
+    Keep,
 }
 
 /// A tree resolved from the files as they stand now, with what a refusal of
@@ -166,7 +207,68 @@ impl Process {
             pending: Mutex::new(Vec::new()),
             refused: Mutex::new(None),
             sources: Mutex::new(None),
+            me: OnceLock::new(),
+            door: Mutex::new(None),
         }
+    }
+
+    /// Answers the control endpoint `endpoint` on a thread of its own, and
+    /// closes the one that was answering before it.
+    ///
+    /// # Errors
+    ///
+    /// The process was never [`install`]ed, or the thread could not be
+    /// started. The endpoint is closed, and the one that was answering still
+    /// is.
+    pub(crate) fn open(&self, endpoint: Endpoint) -> io::Result<()> {
+        let me = self
+            .me
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| io::Error::other("the process was not installed"))?;
+        let retired = Arc::new(AtomicBool::new(false));
+        let door = Door {
+            name: endpoint.name().to_path_buf(),
+            retired: Arc::clone(&retired),
+        };
+        std::thread::Builder::new()
+            .name("nvs-control".to_owned())
+            .spawn(move || drop(nvs_server::control::serve(&endpoint, &*me, &retired)))?;
+        if let Some(old) = lock(&self.door).replace(door) {
+            retire(old);
+        }
+        Ok(())
+    }
+
+    /// What `next` does to the control endpoint. A new endpoint is created
+    /// here, before the publish, so one that cannot be created is known in
+    /// time to keep the key's running value.
+    ///
+    /// # Errors
+    ///
+    /// `E0629`, for a `[control] socket` that names no local endpoint. The
+    /// boot refuses the same value.
+    fn moving(&self, next: &Snapshot) -> Result<Move, Diagnostic> {
+        let wanted = Address::of(&next.config)?;
+        let running = Address::of(&self.current.load().config).ok();
+        if running.as_ref() == Some(&wanted) {
+            return Ok(Move::Stay);
+        }
+        let Address::Local(name) = wanted else {
+            return Ok(Move::Close);
+        };
+        Ok(
+            match nvs_server::control::bind(&name, nvs_server::control::boundary) {
+                Ok(endpoint) => Move::Open(endpoint),
+                Err(refusal) => {
+                    let config = nvs_config::Request::new(self.current.load());
+                    drop(
+                        LogWriter::resolve(Some(&config)).write(&unmoved(&name, refusal.message())),
+                    );
+                    Move::Keep
+                }
+            },
+        )
     }
 
     /// The source map the origins of the snapshot numbered `generation` point
@@ -218,19 +320,43 @@ impl Process {
         // way it refuses a boot, and leaves the running tree serving.
         nvs_config::server::capacity_for(&next.config, &origins)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        let moved = self
+            .moving(&next)
+            .map_err(|refusal| rendered(&refusal, &sources))?;
+        let keep: &[&str] = if matches!(moved, Move::Keep) {
+            &["control.socket"]
+        } else {
+            &[]
+        };
         // The publish takes a snapshot by value and this one was built for it,
         // so the clone is the branch that never runs: a tree just resolved is
         // held by nobody else.
         let next = Arc::try_unwrap(next).unwrap_or_else(|held| Snapshot::clone(&held));
-        // The written value of every restart key, taken before the publish
+        // The written value of every key the publish carries, taken before it
         // carries the running value back over it.
         let written: Vec<(&'static str, String)> = DIRECTIVES
             .iter()
-            .filter(|row| row.apply == Apply::Boot)
+            .filter(|row| row.apply == Apply::Boot || keep.contains(&row.key))
             .map(|row| (row.key, shown(value_at(&next.table, row.key))))
             .collect();
-        let report = nvs_config::control::reload(&self.current, next, self.compiler.held())
+        // A refused publish drops a new endpoint here, and the old one is
+        // still answering.
+        let report = nvs_config::control::reload(&self.current, next, self.compiler.held(), keep)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        // The new endpoint answers before the old one stops.
+        match moved {
+            Move::Open(endpoint) => {
+                if let Err(error) = self.open(endpoint) {
+                    eprintln!("error: the moved control endpoint's thread did not start: {error}");
+                }
+            }
+            Move::Close => {
+                if let Some(old) = lock(&self.door).take() {
+                    retire(old);
+                }
+            }
+            Move::Stay | Move::Keep => {}
+        }
         // After the publish, from the tree that is now serving: the report's
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
@@ -467,6 +593,45 @@ fn same_tree(next: &Snapshot, serving: &Snapshot) -> bool {
             .iter()
             .zip(&serving.origins)
             .all(|((key, origin), (was, then))| key == was && origin.path == then.path)
+}
+
+/// Stops the thread answering on `door`.
+///
+/// The bit is read between clients, so a client being answered now is
+/// answered first — which may be the reload that moved the endpoint. One
+/// connection of our own then wakes a thread parked in its accept. On Unix
+/// that connection waits in the backlog and returns at once, and the socket
+/// file is removed with it, under the reload's lock, so a reload that moves
+/// the endpoint back to this name cannot lose its new file. A Windows pipe
+/// busy with the reload's own client makes the connection wait, so it is made
+/// on a thread of its own and the reload's answer does not wait behind it.
+fn retire(door: Door) {
+    door.retired.store(true, Ordering::Release);
+    #[cfg(unix)]
+    {
+        drop(nvs_server::control::connect(&door.name));
+        drop(std::fs::remove_file(&door.name));
+    }
+    #[cfg(windows)]
+    drop(
+        std::thread::Builder::new()
+            .name("nvs-control-close".to_owned())
+            .spawn(move || drop(nvs_server::control::connect(&door.name))),
+    );
+}
+
+/// A moved `[control] socket` whose endpoint could not be created, as the
+/// record [`Process::moving`] writes: `Warn`, with the key, the name written
+/// and the reason.
+fn unmoved(name: &Path, reason: &str) -> Record {
+    let mut record = Record::at(Level::Warn);
+    record.envelope.message = Some(Rendered::new("configuration key not applied"));
+    record.envelope.fields = vec![
+        ("key".to_string(), text("control.socket")),
+        ("written".to_string(), text(&name.display().to_string())),
+        ("reason".to_string(), text(reason)),
+    ];
+    record
 }
 
 /// A value as TOML, or `not written`.

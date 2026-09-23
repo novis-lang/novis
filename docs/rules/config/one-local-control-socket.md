@@ -7,7 +7,11 @@ socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` di
 socket's owner and mode are the authentication. It is created mode `0600` (a DACL naming this account
 on Windows), owned by the runtime's account, and **the server refuses to start if the directory
 holding it is writable by any other account**, the same trust check every configuration file gets.
-A tree that writes no `[control]` block gets no control surface at all. The socket exists only where
+A tree that writes no `[control]` block gets no control surface at all. A reload that changes
+`socket` creates the new endpoint, under the same directory check, before the old one stops
+answering, and a reload pushed over the old one is answered there; `false` closes it. A new
+endpoint that cannot be created is logged by name with the reason, and the running one stays and
+is named as not applied. The socket exists only where
 a long-running server does; `nvs run` compiles one file and exits.
 
 The wire protocol is HTTP over that socket, not a bespoke line protocol: `curl --unix-socket` debugs

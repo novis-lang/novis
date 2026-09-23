@@ -60,7 +60,6 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
     for key in [
         "opcache.file_cache_dir",
-        "control.socket",
         "server.listen",
         "server.socket_mode",
         "server.workers",
@@ -105,6 +104,8 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "server.health_path",
         "server.trusted_proxies",
         "server.max_in_flight",
+        // A reload that moves it binds the new endpoint before the old one stops answering.
+        "control.socket",
     ] {
         let row = governing(key);
         assert_eq!(
@@ -262,8 +263,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "control.socket",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_control_socket_moves_the_control_endpoint",
     ),
     (
         "io.temp_root",
@@ -879,22 +880,22 @@ fn every_shared_tier_key_is_system_class_applied_at_boot_beside_two_reload_sibli
 }
 
 /// `rule:config/one-local-control-socket`: the one local door to a running server is the operator's,
-/// and it is created once.
+/// and a reload may move it.
 ///
 /// `System` because the socket's owner and mode *are* the authentication, so a request able to write
 /// the key would be choosing where that door is and which account answers it — the registry's class
-/// is the only thing standing between a served request and that choice. `Boot` because the endpoint
-/// is a kernel object created as the server starts, and a reload that renamed it would leave
-/// `nvs ctl` addressing the old one.
+/// is the only thing standing between a served request and that choice. `Reload` because a reload
+/// that renames it binds the new endpoint, under the boot's trust check, before the old one stops
+/// answering (`a_changed_control_socket_moves_the_control_endpoint` in `nvs-cli`'s `live_config`).
 ///
 /// The last assertion is the one that distinguishes this row's *shape* from `[capabilities]`', and
 /// the registry states both. This row is keyed at the dotted key, so `[control]` has no blanket row
 /// and a second key added to the block is governed by nothing — which `Core\Config::set` reads as
 /// unwritable rather than as this row's class. A blanket `control` row would hand that future key
-/// `System`/`Boot` by accident, which is the right answer arrived at by not asking.
+/// `System` by accident, which is the right answer arrived at by not asking.
 // covers: directive:control.socket
 #[test]
-fn the_control_socket_is_one_system_key_applied_at_boot_and_its_block_has_no_row() {
+fn the_control_socket_is_one_system_key_a_reload_moves_and_its_block_has_no_row() {
     let keys = keys_in("control");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -923,15 +924,15 @@ fn the_control_socket_is_one_system_key_applied_at_boot_and_its_block_has_no_row
     );
     assert_eq!(
         row.apply,
-        Apply::Boot,
-        "the endpoint is created as the server starts, so a new name is a new kernel object rather \
-         than a value the next caller reads (`rule:config/reloadability-is-its-own-field`)",
+        Apply::Reload,
+        "a reload binds the endpoint a new name addresses before it closes the old one \
+         (`rule:config/reloadability-is-its-own-field`)",
     );
 
     assert!(
         lookup("control").is_none() && lookup("control.nvs_no_such_key").is_none(),
         "a blanket `control` row would govern a key nobody has written a row for, and handing a \
-         future key `System`/`Boot` by accident is the right answer reached without asking",
+         future key `System` by accident is the right answer reached without asking",
     );
 }
 
