@@ -5,62 +5,62 @@
 **Side goal `restart-free`: a running server takes every code change without a restart, and every
 config change it can.** ADR 0218 covers source revalidation (Stages 2 to 4) and ADR 0219
 configuration apply (Stages 5 and 6). Both are on disk, and 0219 is the last record number this goal
-takes. Stages 2 to 6 are complete.
+takes. Stages 2 to 6 are complete, and Stage 7 has one group left.
 
-**Stage 6 is done.** The only `Boot` rows are `server.listen`, `server.socket_mode` and
-`server.workers` (`only_listen_socket_mode_and_workers_need_a_restart` in
-`crates/nvs-config/tests/snapshot.rs`). `cache.shared` reloads: a request dials the store its own
-snapshot names, and the schedule ticker in `crates/nvs-cli/src/serve.rs` opens its fleet lease again
-when `[cache.shared]` moves. `nvs_server::Roster` carries the new lease to `tick_on_this_core`
-(`a_changed_shared_store_takes_the_next_request_and_the_next_fleet_lease`). The fragment
-`reloadability-is-its-own-field` no longer has a **What is on disk** paragraph, because all of it is
-on disk.
+**Stage 7 so far.** The template ends the three restart keys' lines `; restart required`
+(`crates/nvs-config/src/default.toml`), and `tools/directives.py`'s `NOTE` accepts that suffix.
+`every_restart_key_is_marked_restart_required_in_the_template_and_no_other_is` in
+`crates/nvs-config/tests/resolve.rs` holds the template to `DIRECTIVES` in both directions.
+`docs/reference/tools/25-server.md` has § *What reaches a running server*, with *Deploying* and
+*What no compiler can check* under it. Its stale "read once, at start" and `scan` lines are
+rewritten, and so are `docs/reference/tools/20-config.md`'s two reload passages. The section is
+roster feature `tools:server/what-reaches-a-running-server`, and `dossier.py --id` calls it complete.
+
+**Two Stage 7 checks were re-scoped in `docs/agent/goals/side/restart-free.toml`.** `--gate` now
+runs `--only tools:server/what-reaches-a-running-server`, the shape the floor's own gate checks use,
+and it passes. `--comments` now names the six program directories this goal writes or rewrites.
+Unscoped, the gate owes 638 `Core` members and 305 of 2442 programs miss the bounds, all of them
+work of main's dossier and comment goals, and no side goal can close them. This is my call, not
+confirmed with the user.
 
 **The floor holds this goal red on a check it cannot fix.** Main's carried floor check
 `nvs-config (the validate default)` names `the_validate_default_is_selected_by_the_run_mode`. This goal
 renamed it to `validate_defaults_to_mtime_in_production_and_development` in `crates/nvs-config/tests/snapshot.rs`
-(commit 8707a9148), by the standing decision that removes `never`: `validate`'s default is now `mtime`
-in both modes, and the run mode selects `settle`'s instead. A test under the old name would claim
-something false, and a side run may not edit main's `loop-goal.toml`. The user has to re-point that
-floor check (in `docs/agent/loop-goal.toml` and `docs/agent/goals/dossier/115-core-http-response-and-1-more.toml`
-on `main`) to the new name. Until then it stays red. The session that finds the rest of the goal green
-writes `BLOCKED` on it.
+(commit 8707a9148), by the standing decision that removes `never`. A side run may not edit main's
+`loop-goal.toml`, so the user has to re-point that floor check (in `docs/agent/loop-goal.toml` and
+`docs/agent/goals/dossier/115-core-http-response-and-1-more.toml` on `main`). The session that finds
+the rest of the goal green writes `BLOCKED` on it.
 
-My calls, not confirmed with the user: the ticker opens a new lease when `[cache.shared]` moves and a
-fleet entry exists, and when `[[schedule]]` changes while a fleet roster holds no lease (so a store
-that did not answer at boot is tried again). It opens it on the ticker's own core, as the boot does.
-A fire already running renews in the store it took its key from, and the old store is dropped when
-the last such fire ends. A reload that moves the store names nothing as ignored: a store that will
-not answer leaves fleet entries unarmed with a note, as at boot. Earlier calls are in ADR 0218, ADR
-0219 and `git log`.
+My other calls, not confirmed: the mark is spelled `# default; restart required`, because every
+setting line already owes its unset note. The reference says that a `[[server.mount]]` table
+resolves its links at boot, so a `current` link switch reaches such a server only at its next start
+(`rule:config/an-edit-reaches-the-next-request-without-a-restart` § *What is on disk*).
 
 `verify.py`'s `extension` leg fails on `tsc` not found (missing `editors/vscode/node_modules`),
-which nothing here touches. Under full parallel load `verify.py` saw
-`a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job` and nvs-host's
-`the_watchdog_reports_a_wedged_worker_without_a_heartbeat` fail once and pass alone.
-`tests/db/ca.crt` is a git-ignored fixture copied in from the main checkout.
-`docs/examples/config/cache-shared/01-the-store-a-whole-fleet-shares.nvs` still misses the comment
-bounds on its older lines 2, 15 and 22, which Stage 7's `--comments` check will name.
+which nothing here touches. `tests/db/ca.crt` is a git-ignored fixture copied in from the main
+checkout.
 
 ## Next group
 
-**Stage 7: the template and the reference say it** — one file set: `crates/nvs-config/src/default.toml`,
-`crates/nvs-config/tests/resolve.rs`, `docs/reference/tools/25-server.md`,
-`docs/reference/tools/20-config.md`.
+**Stage 7: the comment bounds** — one file set: `docs/examples/config/opcache/`,
+`tests/hostile/config/opcache/`, `docs/examples/config/cache-shared/`.
 
-- [ ] **The three restart keys end `# restart required` in the template**: the `[server]` header at
-      `crates/nvs-config/src/default.toml:428` still calls the whole block `Boot`-class. Mark
-      `listen`, `socket_mode` and `workers`, and add
-      `every_restart_key_is_marked_restart_required_in_the_template_and_no_other_is` beside
-      `crates/nvs-config/tests/resolve.rs:223`, checking the template against `DIRECTIVES` in both
-      directions. The `# default` / `# example` line endings have their own guard in `tools/`; keep
-      both passing. `rule:config/reloadability-is-its-own-field`.
-- [ ] **"What reaches a running server" reference section**: `docs/reference/tools/25-server.md:1`
-      and `docs/reference/tools/20-config.md:54`. A code change always, a configuration change by
-      itself, the three restart keys, how to deploy, and what no compiler makes consistent (the goal
-      file's Stage 7 bullets). `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
+- [ ] **The `[opcache]` example still describes `never`**: rewrite the comments in
+      `docs/examples/config/opcache/01-when-this-host-notices-that-the-code-changed.nvs:1` to
+      `mtime` in both modes and `settle`, re-bless the `.out` with `dossier.py --bless`, and rewrite
+      `docs/examples/config/opcache/about.md:14` ("production never re-checks").
+      `rule:config/opcache-revalidation-is-system-class`.
+- [ ] **The `[opcache]` attack misses the bounds** at lines 2, 10, 38, 62 and 80 of
+      `tests/hostile/config/opcache/01-pinning-the-version-of-the-code-i-like.nvs:2`. Rewrite each
+      from what the code does. `rule:testing/feature-proofs`.
+- [ ] **The `[cache.shared]` example misses the bounds** at lines 2, 15 and 22 of
+      `docs/examples/config/cache-shared/01-the-store-a-whole-fleet-shares.nvs:2`. Then the Stage 7
+      `--comments` check prints `each inside the bounds`, and the goal is green but for the floor.
+      `rule:testing/feature-proofs`.
 
 ## Backlog
 
-- Stage 7's dossier checks: `python tools/dossier.py --gate` and `--comments docs/examples tests/hostile benches/members` (goal file, Stage 7).
-- The floor check `the_validate_default_is_selected_by_the_run_mode` needs the user to re-point it on `main` (see State).
+- A `current` link switch does not reach a server with a `[[server.mount]]` table until it restarts
+  — owner: `rule:config/an-edit-reaches-the-next-request-without-a-restart` § *What is on disk*;
+  ask the user whether this goal must close it.
+- The floor check `nvs-config (the validate default)` needs the user to re-point it on `main`.

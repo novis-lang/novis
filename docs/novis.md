@@ -222,7 +222,7 @@ Conventions the whole file uses:
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
-- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
+- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
 - C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 - C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
@@ -27056,7 +27056,7 @@ user = "app"
 password_file = "/run/secrets/mail-password"
 ```
 
-The value is read at boot, and again at each `nvs ctl reload`, never per request. It never appears
+The value is read at boot, and again each time the configuration is applied, never per request. It never appears
 in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
 from, so an audit can act on the file without the credential passing through the audit.
 `Core\Config::get("db.main.password")` answers the value, not the path — the `_file` sibling is how
@@ -27157,8 +27157,9 @@ restored: 128M
 
 Every directive has a **class** that says who may change it: `Runtime` (the file states a default
 and a request may move it up to its ceiling), `RuntimeTighten` (a request may only narrow it),
-`System` (the file alone). The `apply` column says when a change to the file takes effect on a
-long-running host — at a reload, or only at boot.
+`System` (the file alone). The `apply` column says whether a running server applies a change to
+the file by itself, or only at its next start. Only `[server] listen`, `socket_mode` and `workers`
+wait for the next start (the server chapter, § *What reaches a running server*).
 
 | Key | Class | Applies |
 |---|---|---|
@@ -27222,7 +27223,7 @@ subcommands in the `nvs` command chapter.
 <a id="tools-server"></a>
 ## C.4 The HTTP server
 
-Keywords: nvs serve, server, HTTP, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+Keywords: nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 
 ### nvs serve
 
@@ -27272,8 +27273,9 @@ keepalive_timeout  = "75s"
 drain_timeout      = "30s"                # how long working connections are served after a stop begins
 ```
 
-Every key here is read once, at start: changing one needs a restart, and `nvs ctl reload` says so.
-`listen` is one flat list. An entry that begins with a path separator is a Unix socket, which is
+A running server applies a change to any key here by itself, except `listen`, `socket_mode` and
+`workers`. A change to one of those three takes effect at the next start (§ *What reaches a running
+server*). `listen` is one flat list. An entry that begins with a path separator is a Unix socket, which is
 Unix-only and is the transport to prefer behind a proxy; `socket_mode` is who may connect to it.
 On Windows the server listens on TCP.
 
@@ -27308,8 +27310,8 @@ host   = "shop.example.com"               # compared without regard to case
 entry  = "Shop/public/index.nvs"
 ```
 
-- A `scan` expands against the disk when the server starts and again on `nvs ctl reload`, into
-  ordinary mounts. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
+- A `scan` expands against the disk into ordinary mounts when the server starts. It expands again
+  when a scanned directory changes, and when a reload changes `root` or a mount. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
   beginning with a dot. `{n}` is the nth capture as the directory spells it, `{n:lower}` the same
   in lower case, so a directory named `Blog` is served at `/blog` while `Core\Request::mount()`
   still reports `Blog`. Any other brace is an error at start and under `nvs config check`.
@@ -27384,6 +27386,65 @@ listener is trusted without being listed, since the operating system decides who
 it. A production server whose every listener is loopback or a socket and whose
 `trusted_proxies` is empty logs one warning at start.
 
+### What reaches a running server
+
+A running server takes a change without a restart, except a change to three keys.
+
+**A code change.** The server checks every file a program has loaded once per `[opcache]
+revalidate_freq`, off the request path. When a file changed, the server waits until no file of the
+program has changed for `[opcache] settle`: `1s` in production, `100ms` in development. Then it
+compiles the whole program again, and the next request runs the new code. A request that is already
+running finishes on the code it started with. A file added where the program looks for one, or a
+file removed, is a change too. This works in every mode, and a deploy has no step to run after it.
+
+A change that does not compile fails the requests that reach it, with its diagnostic. The server
+does not serve the last version that compiled in its place. When the file is fixed, the next check
+finds the fix.
+
+**A configuration change.** The server checks its own configuration files every two seconds. A
+saved file is applied the same way `nvs ctl reload` applies it: the whole tree is read and checked
+first, and only then does the next request see it. A file that does not check is logged once, with
+its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
+
+**Three keys need a restart**: `[server] listen`, `[server] socket_mode` and `[server] workers`. A
+port below 1024 needs a privilege the server gave up after it opened the socket. `socket_mode` is
+applied only when a socket is opened, and `workers` sets how many cores accept requests. A changed one
+takes effect at the next start. Until then, the reload names it and logs it once with the running
+value and the new one, and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these
+three lines with `restart required`:
+
+```toml
+[server]
+#listen = ["127.0.0.1:8000"]          # default; restart required
+#socket_mode = "0660"                 # default; restart required
+#workers = 4                          # default: one per core; restart required
+
+[opcache]
+#revalidate_freq = "2s"               # how often the server checks the files a program loaded
+#settle = "1s"                        # how long they must stay unchanged before a compile
+```
+
+#### Deploying
+
+Copying files into place is safe, even when the copy takes a few seconds. The server compiles only
+after the program's files have stopped changing for `settle`. If a file changes while it compiles,
+it throws that compile away and starts again.
+
+An upload that can pause for longer than `settle`, over a slow link or with a large archive, goes
+into a new directory. When the upload is complete, switch a link such as `current` to it. The server
+resolves the link at the start of each compile and again at the end, so it never builds one program
+from two releases. Under `nvs serve <file>` the next compile after the switch reads the new release,
+and static files still come from the release the server started with. A `[[server.mount]]` table
+resolves its links when the server starts, so a switch reaches it at the next start.
+
+#### What no compiler can check
+
+The compiler checks that the new code agrees with itself. It cannot check data that the old code
+wrote and the new code reads: cache entries, sessions, queued jobs and database rows. Requests that
+started before a change finish on the old code, so for a short time both versions write. Write the
+new code so that it reads what the old code wrote. For example, a job that gains a field needs a
+default for the jobs queued without it.
+
 ### Stopping and reloading: the drain
 
 A stop — `Ctrl-C`, `nvs service stop`, the service manager — and a `nvs ctl reload` both drain.
@@ -27404,8 +27465,8 @@ configuration — a path on Unix, `\\.\pipe\nvs-control` on Windows, `false` to 
 and mode are the whole of who may use it; there is no token and no TCP form. `reload` re-reads the
 configuration tree, applies what can change while running, prints what it applied and names each
 key that needs a restart; a mount `scan` expands again. `config` prints what the process is
-holding, each key with the file it came from. `status` reports how many requests are in flight and
-whether the process is draining. `--socket` names one server where several run on a host. A
+holding, each key with the file it came from. `status` reports how many requests are in flight,
+whether the process is draining, and each restart key whose change is waiting for the next start. `--socket` names one server where several run on a host. A
 changed `[control] socket` moves the socket without a restart: the new one answers before the old
 one closes.
 
