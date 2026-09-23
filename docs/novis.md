@@ -11443,9 +11443,9 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 |---|---|---|
 | `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
 
-**Returns** `string` — The file's bytes as a `string`, with nothing stripped and no encoding assumed.
+**Returns** `string` — The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; `readText` reads a file written in another charset.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path; the message names the capability in the spelling `nvs.toml` grants it under. Or the file is larger than `[limits] max_output`, the one ceiling a request holds a single read to — the same directive that bounds a captured child's output.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path; the message names the capability in the spelling `nvs.toml` grants it under. Or the file is larger than `[limits] max_output`, the one ceiling a request holds a single read to — the same directive that bounds a captured child's output. Or the file is not valid UTF-8, and the message names the byte where the text stops.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
 
 <a id="core-core-io-write"></a>
 #### `Core\IO::write`

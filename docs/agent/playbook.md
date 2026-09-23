@@ -6921,6 +6921,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Add the new `short` to that case's line for the class in the same slice as the card.
   [until: gone crates/nvs-stdlib/src/registry.rs:CLASSES_STILL_OWING_A_CARD]
 - **A `Core\IO` proof that walks `..` through a name that does not exist prints differently on Windows and Linux.** Windows removes `missing/..` from the text before it looks at the disk, so `Core\IO::canonicalize` resolves it there and throws an `IOError` under Linux, and Linux also throws for any path over 4096 bytes where Windows does not. Create every directory a `..` climbs out of, keep a path the example prints under 4096 bytes, and run a new `Core\IO` proof once with `/var/tmp/nvs-target-wsl/debug/nvs` before blessing it. [until: reviewed 2026-10-23]
+- **A proof that holds thousands of open handles under `Core\IO::temporaryDir()` is slow on the Windows dev host, and the slowness is not Novis.** 20000 unclosed `Core\IO::open` handles on one file in the host's temporary folder took 7 s and grew with the square of the count, while the same loop on a file under `.agent-tmp/` took 0.28 s and raw `CreateFileW` took 0.13 s. Keep a many-handles attack near 10000, which is still far past a Linux descriptor limit, and time a slow case against a file inside the tree before blaming the runtime. [until: reviewed 2026-09-23]
 
 ## Splitting a file that got too big
 
