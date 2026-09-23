@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to ask a price server for updates by sending one JSON message per product.
+
+// A fixed server, so the example runs without a network. It sends two prices and then closes.
+Core\Test::answerSocket("wss://prices.example.com/stream", ['{"symbol":"coffee","price":"4.20"}', '{"symbol":"tea","price":"3.10"}']);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://prices.example.com/stream");
+
+// `Core\Json::encode` turns each request into JSON text, and `send()` sends it.
+array<string> $products = ["coffee", "tea"];
+foreach ($products as string $product) {
+    $socket->send(Core\Json::encode({action: "subscribe", symbol: $product}));
+}
+
+// This prints the two prices the server sends back.
+?Core\Socket\Message $message = $socket->receive();
+while ($message != null) {
+    echo "update: ", $message->text() ?? "", "\n";
+    $message = $socket->receive();
+}
+
+// This prints the two requests the program sent.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    echo "sent: ", $sent->text() ?? "", "\n";
+}

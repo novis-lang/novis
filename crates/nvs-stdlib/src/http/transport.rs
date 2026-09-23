@@ -3046,6 +3046,10 @@ pub(crate) mod tests {
         /// The close frame the client sent, as its code and its reason, or
         /// `None` where the connection ended without one.
         pub(crate) closed: Option<(u16, String)>,
+        /// Every text and binary message the client sent, oldest first. The
+        /// peer reads only while it holds a silence or waits for the close, so
+        /// a case that asserts this sends before the script ends.
+        pub(crate) said: Vec<tungstenite::Message>,
     }
 
     /// A loopback origin that answers one opening handshake and then holds up
@@ -3075,7 +3079,10 @@ pub(crate) mod tests {
                 };
                 return talks(stream, chosen, script);
             }
-            Heard { closed: None }
+            Heard {
+                closed: None,
+                said: Vec::new(),
+            }
         });
         (at, served)
     }
@@ -3103,14 +3110,17 @@ pub(crate) mod tests {
         answered(&mut stream, chosen);
         let mut peer =
             WebSocket::from_raw_socket(stream, tungstenite::protocol::Role::Server, None);
-        let mut closed = None;
+        let mut heard = Heard {
+            closed: None,
+            said: Vec::new(),
+        };
         for say in script {
             let carried = match say {
                 Say::Text(text) => peer.send(tungstenite::Message::Text(text.into())).is_ok(),
                 Say::Bytes(octets) => peer
                     .send(tungstenite::Message::Binary(vec![b'.'; octets].into()))
                     .is_ok(),
-                Say::Quiet(how_long) => listens(&mut peer, Instant::now() + how_long, &mut closed),
+                Say::Quiet(how_long) => listens(&mut peer, Instant::now() + how_long, &mut heard),
             };
             if !carried {
                 break;
@@ -3121,9 +3131,9 @@ pub(crate) mod tests {
         listens(
             &mut peer,
             Instant::now() + Duration::from_secs(5),
-            &mut closed,
+            &mut heard,
         );
-        Heard { closed }
+        heard
     }
 
     /// Says nothing until `ends`, answering the client's pings meanwhile, and
@@ -3134,11 +3144,12 @@ pub(crate) mod tests {
     /// that had stopped answering the protocol rather than one with nothing to
     /// say — and those are the two cases a bound on silence has to tell apart. A
     /// read that times out is the silence doing its job; anything else is the
-    /// conversation ending, and a close is recorded where the case reads it.
+    /// conversation ending, and a close is recorded where the case reads it, as
+    /// is every text and binary message read on the way.
     fn listens(
         peer: &mut WebSocket<std::net::TcpStream>,
         ends: Instant,
-        closed: &mut Option<(u16, String)>,
+        heard: &mut Heard,
     ) -> bool {
         let held = loop {
             let now = Instant::now();
@@ -3152,9 +3163,12 @@ pub(crate) mod tests {
                 .expect("a bound on this origin's own wait");
             match peer.read() {
                 Ok(tungstenite::Message::Close(frame)) => {
-                    *closed =
+                    heard.closed =
                         frame.map(|end| (u16::from(end.code), end.reason.as_str().to_owned()));
                     break false;
+                }
+                Ok(message @ (tungstenite::Message::Text(_) | tungstenite::Message::Binary(_))) => {
+                    heard.said.push(message);
                 }
                 Ok(_) => {}
                 Err(tungstenite::Error::Io(why))

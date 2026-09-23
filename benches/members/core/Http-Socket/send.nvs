@@ -1,0 +1,24 @@
+<?nvs
+// Sends one short text message to a WebSocket server, as a program does for each update it reports.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The server is answered from a table, so nothing is sent over a network.
+        Core\Test::answerSocket("wss://feed.example.com/updates", []);
+        Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://feed.example.com/updates");
+        array<string> $updates = ["up", "down", "same"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round picks its message from what the round before counted.
+            string $update = $updates[$total % 3];
+            $socket->send($update);
+            $total = $total + Core\Str::length($update);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -334,11 +334,11 @@ const SEND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Socket::sendBytes`'s reference card — `rule:core-api/reference-card`.
 const SEND_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Sends one binary message to the peer — the other of RFC 6455's two payload kinds, \
-            and a member of its own rather than an argument that could be either.",
+    short: "Sends one binary message to the peer. `send` sends a text message.",
     params: &[ParamDoc {
         name: "frame",
-        desc: "The octets to send, as one binary message.",
+        desc: "The bytes to send, as one binary message. A `tainted` value is accepted, as it \
+               is for `send`.",
         shape: &[],
     }],
     ret: "Nothing.",
@@ -1506,6 +1506,77 @@ mod tests {
             waited < Duration::from_secs(5),
             "a peer that answers is not waited on for the whole send wait: {waited:?}"
         );
+    }
+
+    /// Both send members write one whole message of their own kind, in the
+    /// order they were called, and neither writes anything once the socket's
+    /// `maxDuration` has passed.
+    ///
+    /// The peer is what reads the wire here, so a text sent as binary, a
+    /// message split in two or two messages swapped all fail on what arrived
+    /// rather than on what this end believes it wrote. The text is larger than
+    /// one read so a message written in pieces would show.
+    // covers: Core\Http\Socket::send
+    // covers: Core\Http\Socket::sendBytes
+    #[test]
+    fn a_send_writes_one_whole_message_of_its_kind_and_nothing_past_the_lifetime() {
+        let (at, served) = talking_origin(None, Vec::new());
+        let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(30), 1 << 20);
+        let long = "w".repeat(200_000);
+
+        super::written(
+            &mut open,
+            tungstenite::Message::Text("hello".into()),
+            "send",
+        )
+        .expect("a text message to a peer that is reading");
+        super::written(
+            &mut open,
+            tungstenite::Message::Binary(vec![0, 255, 7].into()),
+            "sendBytes",
+        )
+        .expect("a binary message to a peer that is reading");
+        super::written(
+            &mut open,
+            tungstenite::Message::Text(long.clone().into()),
+            "send",
+        )
+        .expect("a long text message to a peer that is reading");
+
+        open.until = Instant::now();
+        let refused = super::written(&mut open, tungstenite::Message::Text("late".into()), "send")
+            .expect_err("a socket past its lifetime");
+        let Fault::Thrown(class, why) = refused else {
+            panic!("a bound that ran out is a throw")
+        };
+        assert!(
+            matches!(class, ThrownClass::Timeout),
+            "a send past `maxDuration` is a `TimeoutError`: {why}"
+        );
+        assert!(
+            why.contains("`maxDuration`"),
+            "the refusal names the lifetime: {why}"
+        );
+
+        drop(
+            open.framed
+                .socket
+                .close(Some(ending(&Value::null(), &Value::null()))),
+        );
+        drop(open.framed.socket.flush());
+        farewell(&mut open);
+
+        let heard = served.join().expect("the peer's own thread");
+        assert_eq!(
+            heard.said,
+            vec![
+                tungstenite::Message::Text("hello".into()),
+                tungstenite::Message::Binary(vec![0, 255, 7].into()),
+                tungstenite::Message::Text(long.into()),
+            ],
+            "the peer read three whole messages in the order they were sent, and not the late one"
+        );
+        assert_eq!(heard.closed, Some((1000, String::new())));
     }
 
     /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:

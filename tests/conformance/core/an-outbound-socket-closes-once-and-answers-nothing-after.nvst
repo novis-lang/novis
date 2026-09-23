@@ -4,6 +4,8 @@
 <?nvs
 // covers: Core\Http\Socket::close
 // covers: Core\Http\Socket::protocol
+// covers: Core\Http\Socket::send
+// covers: Core\Http\Socket::sendBytes
 // A bound asserted on both sides: the last thing a closed socket still does,
 // and the first thing it refuses. A peer with frames left over is what makes
 // the reading after the close a decision rather than the end of the script

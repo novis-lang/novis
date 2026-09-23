@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program sends a message of sixteen megabytes, then two hundred thousand small messages,
+// and then keeps sending on a closed connection. Each step must finish or throw an error.
+// Nothing may crash.
+
+Core\Test::answerSocket('wss://sink.example.com/in', []);
+
+// 1. One text message of sixteen megabytes.
+Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://sink.example.com/in');
+$socket->send(Core\Str::repeat('s', 16777216));
+echo 'step 1: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 2. Two hundred thousand small messages, each one different.
+uint $i = 0;
+while ($i < 200000) {
+    $socket->send('tick ' . $i);
+    $i = $i + 1;
+}
+echo 'step 2: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 3. A message received from the server is sent back unchanged. It is `tainted`, and that is allowed.
+Core\Test::answerSocket('wss://echo.example.com/in', ["\u{0}\u{FFFF}\r\n"]);
+Core\Http\Socket $echo = Core\Http\Client::openSocket('wss://echo.example.com/in');
+?Core\Socket\Message $heard = $echo->receive();
+$echo->send($heard?->text() ?? ('' as tainted string));
+echo 'step 3: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 4. After `close()`, a hundred thousand more sends. Each one must throw a `LogicError`.
+$socket->close();
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $socket->send('late');
+    } catch (LogicError $closed) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+if ($refused != 100000) {
+    throw new LogicError('a closed connection accepted a message');
+}
+echo 'step 4: ', $refused, "\n";

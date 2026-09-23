@@ -1,0 +1,2 @@
+error: Core\Http\Socket::send(): this socket was closed, so there is nobody left to send to
+1 message sent

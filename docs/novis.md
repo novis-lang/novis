@@ -22525,11 +22525,11 @@ Sends one text message to the peer.
 $socket->sendBytes(bytes $frame): void
 ```
 
-Sends one binary message to the peer — the other of RFC 6455's two payload kinds, and a member of its own rather than an argument that could be either.
+Sends one binary message to the peer. `send` sends a text message.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$frame` | `bytes` (neutral) | The octets to send, as one binary message. |
+| `$frame` | `bytes` (neutral) | The bytes to send, as one binary message. A `tainted` value is accepted, as it is for `send`. |
 
 **Returns** `void` — Nothing.
 

@@ -1,0 +1,4 @@
+update: {"symbol":"coffee","price":"4.20"}
+update: {"symbol":"tea","price":"3.10"}
+sent: {"action":"subscribe","symbol":"coffee"}
+sent: {"action":"subscribe","symbol":"tea"}
