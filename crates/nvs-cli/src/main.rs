@@ -2444,8 +2444,11 @@ fn run_run(
     // The workers get their own handle on the same tree, taken before it is moved onto this
     // context: a job is an isolate resolved through `rule:security/capability-check-at-the-door`'s spawn door, that door asks the
     // *context* it is resolved from, and a worker's context is not the script's. `worker`'s module
-    // doc owns why the deployment's own snapshot is the right answer there.
-    let for_workers = queued.is_some().then(|| std::sync::Arc::clone(&snapshot));
+    // doc owns why the deployment's own snapshot is the right answer there. A holder because a
+    // served worker reads a holder a reload publishes into; this run never publishes into it.
+    let for_workers = queued
+        .is_some()
+        .then(|| std::sync::Arc::new(nvs_config::Current::new(std::sync::Arc::clone(&snapshot))));
     // And the unit cache gets one for the same reason, taken at the same
     // moment: `[opcache]` decides when a `spawn script` path is re-checked, and
     // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key it holds

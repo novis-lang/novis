@@ -1158,7 +1158,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         // `TaskRoot::Request` for the same reason the accept loop holds it — a
         // fault under a fire belongs to that run and must not retire the worker
         // the requests are being served by.
-        let fires = Rc::new(Scheduled { current });
+        let fires = Rc::new(Scheduled {
+            current: Arc::clone(&current),
+        });
         let ticking = draining.clone();
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
@@ -1190,7 +1192,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     }
     // `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s third
     // subsystem, armed where the ticker is and for the ticker's reasons.
-    let Ok(queue_workers) = arm_queue_workers(sched, &snapshot, ticks, &draining) else {
+    let Ok(queue_workers) = arm_queue_workers(sched, &current, ticks, &draining) else {
         // Printed and drained where the refusal was decided, so this core ends here rather than
         // taking a listener, and the boot's exit code is every core's answer together.
         return false;
@@ -1478,6 +1480,9 @@ fn queue_storage_is_current(
 /// so a server nothing but a kill could stop. **The root**, which is
 /// [`crate::worker::start`]'s `TaskRoot::Worker` where the ticker holds `TaskRoot::Request`.
 ///
+/// `[queue]` is resolved from the snapshot `current` holds now, and the workers keep `current`
+/// itself, so each job runs under whatever a reload published last.
+///
 /// No lease and no `nvs_server::Leases`, unlike `arm`: `rule:concurrency/claiming-is-one-statement`
 /// puts the mutual exclusion in the database, so a fleet of instances each running their own
 /// workers is the intended deployment rather than the hazard a `fleet` schedule entry would be.
@@ -1488,11 +1493,11 @@ fn queue_storage_is_current(
 /// having spawned nothing and takes no listener at all.
 fn arm_queue_workers(
     sched: &mut nvs_host::Scheduler,
-    snapshot: &Arc<nvs_config::Snapshot>,
+    current: &Arc<nvs_config::Current>,
     ticks: bool,
     draining: &nvs_server::Draining,
 ) -> Result<u32, ExitCode> {
-    let armed = match queue_on_this_core(&snapshot.config, ticks) {
+    let armed = match queue_on_this_core(&current.load().config, ticks) {
         Ok(armed) => armed,
         Err(refused) => {
             crate::stop::deliver_to(draining);
@@ -1507,7 +1512,7 @@ fn arm_queue_workers(
         &crate::worker::Workers::draining(draining.clone()),
         &bounds,
         &block,
-        snapshot,
+        current,
     );
     Ok(bounds.workers)
 }
@@ -3395,13 +3400,13 @@ mod tests {
         took
     }
 
-    /// A snapshot whose tree is the written one, which is what the boot hands
-    /// every core.
-    fn snapshot_of(written: &str) -> Arc<nvs_config::Snapshot> {
-        Arc::new(nvs_config::Snapshot {
+    /// A holder serving a snapshot whose tree is the written one, which is
+    /// what the boot hands every core.
+    fn current_of(written: &str) -> Arc<nvs_config::Current> {
+        Arc::new(nvs_config::Current::new(Arc::new(nvs_config::Snapshot {
             config: config_of(written),
             ..Default::default()
-        })
+        })))
     }
 
     /// `[queue]` off the boot snapshot arms that many worker tasks, on the
@@ -3415,11 +3420,11 @@ mod tests {
     /// no reactor and no request to have happened first.
     #[test]
     fn serve_arms_queue_workers_from_the_boot_snapshot_before_the_accept_loop_is_spawned() {
-        let snapshot = snapshot_of(&queue_over_sqlite(2, "arms-from-the-snapshot"));
+        let current = current_of(&queue_over_sqlite(2, "arms-from-the-snapshot"));
         let mut sched = nvs_host::Scheduler::new();
         let armed = super::arm_queue_workers(
             &mut sched,
-            &snapshot,
+            &current,
             true,
             &nvs_server::Draining::detached(),
         )
@@ -3474,10 +3479,10 @@ mod tests {
     /// races.
     #[test]
     fn a_queue_behind_its_schema_is_refused_before_a_worker_is_armed() {
-        let snapshot = snapshot_of(&queue_over_bare_sqlite(2, "behind-at-boot"));
+        let current = current_of(&queue_over_bare_sqlite(2, "behind-at-boot"));
         let draining = nvs_server::Draining::detached();
         let mut sched = nvs_host::Scheduler::new();
-        let armed = super::arm_queue_workers(&mut sched, &snapshot, true, &draining);
+        let armed = super::arm_queue_workers(&mut sched, &current, true, &draining);
         assert!(
             armed.is_err(),
             "a queue over a file holding no table at all was served"
@@ -3498,15 +3503,18 @@ mod tests {
     /// the ticker's shape: an `Option` read at boot and no cost beyond it.
     #[test]
     fn a_tree_with_no_queue_block_arms_no_worker_and_spawns_no_task() {
-        let snapshot = snapshot_of("[server]\nlisten = ['127.0.0.1:8000']\n");
+        let current = current_of("[server]\nlisten = ['127.0.0.1:8000']\n");
         assert!(
-            matches!(super::queue_on_this_core(&snapshot.config, true), Ok(None)),
+            matches!(
+                super::queue_on_this_core(&current.load().config, true),
+                Ok(None)
+            ),
             "a tree writing no `[queue]` block resolved one anyway"
         );
         let mut sched = nvs_host::Scheduler::new();
         let armed = super::arm_queue_workers(
             &mut sched,
-            &snapshot,
+            &current,
             true,
             &nvs_server::Draining::detached(),
         )

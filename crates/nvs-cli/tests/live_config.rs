@@ -83,6 +83,16 @@ impl Server {
     /// line within [`BOOT`]; the message carries what it wrote to standard
     /// error.
     fn start(case: &str, config: &str, files: &[(&str, &str)]) -> Self {
+        Self::start_after(case, config, files, &[])
+    }
+
+    /// [`Server::start`], which first runs `nvs <first>` in the program's
+    /// directory when `first` is not empty.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::start`] does, and when that first command fails.
+    fn start_after(case: &str, config: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-config-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -92,6 +102,20 @@ impl Server {
         }
         let socket = endpoint(&dir, case);
         write_file(&dir.join("nvs.toml"), &controlled(&socket, config));
+        if !first.is_empty() {
+            let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .args(first)
+                .current_dir(&dir)
+                .stdin(Stdio::null())
+                .output()
+                .expect("the `nvs` binary this test was built beside starts");
+            assert!(
+                ran.status.success(),
+                "`nvs {}` failed: {}",
+                first.join(" "),
+                String::from_utf8_lossy(&ran.stderr)
+            );
+        }
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
@@ -227,6 +251,11 @@ impl Server {
             }
             thread::sleep(POLL);
         }
+    }
+
+    /// What the server has written to standard error so far.
+    fn said(&self) -> String {
+        self.stderr.lock().expect("no reader panicked").clone()
     }
 
     /// Rewrites `nvs.toml` as [`Server::start`] wrote it, with `config` in
@@ -540,4 +569,74 @@ fn a_changed_memory_limit_moves_the_admission_ceiling() {
     server.awaits("/", "an admission at the raised ceiling", |answer| {
         answer.status == 200 && answer.body == "ok"
     });
+}
+
+/// A SQLite queue with one worker, whose `[queue] visibility` is `visibility`.
+/// `max_attempts = 1` moves a job that throws to the dead-letter table at
+/// once, so no retry of an older job writes a line after the reload.
+fn queue(visibility: &str) -> String {
+    format!(
+        "[capabilities.script]\nspawn = [\"jobs/\"]\n\n[db.jobs]\ndriver = \"sqlite\"\npath = \
+         \"jobs.db\"\n\n[queue]\nconnection = \"jobs\"\nworkers = 1\nmax_attempts = 1\nvisibility \
+         = \"{visibility}\"\n"
+    )
+}
+
+/// An entry file that pushes one job per request.
+const PUSHING: &str = "<?nvs\nCore\\Queue::push(\"jobs/work.nvs\");\necho \"pushed\";\n";
+
+/// A job that throws the `[queue] visibility` it reads. A throw is what the
+/// worker reports on standard error.
+const READING: &str =
+    "<?nvs\nthrow new RuntimeError(\"visibility \" . Core\\Config::get('queue.visibility'));\n";
+
+/// A queue job runs under the snapshot in force when a worker claims it, and
+/// not under the one the worker started with. After a reload moves `[queue]
+/// visibility`, a job pushed afterwards reads the new value.
+#[test]
+fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
+    const THREW: &str = "`jobs/work.nvs` threw RuntimeError: visibility ";
+    let server = Server::start_after(
+        "queue",
+        &queue("5m"),
+        &[("app.nvs", PUSHING), ("jobs/work.nvs", READING)],
+        &["queue", "migrate"],
+    );
+    server.awaits("/", "the first push", |answer| answer.body == "pushed");
+    let started = Instant::now();
+    while !server.said().contains(&format!("{THREW}5m")) {
+        assert!(
+            started.elapsed() <= BOUND,
+            "no queued job read `5m` within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+
+    let report = server.reload(&queue("7m"));
+    assert!(
+        report.contains("applied: queue.visibility\n"),
+        "the reload did not name `queue.visibility` as applied: {report}"
+    );
+
+    // One job per push, pushed until a job runs, far slower than `POLL` so the
+    // queue never holds more than a few.
+    let seen = server.said().len();
+    let started = Instant::now();
+    let after = loop {
+        let said = server.said();
+        if let Some(line) = said[seen..].lines().find(|line| line.contains(THREW)) {
+            break line.to_owned();
+        }
+        assert!(
+            started.elapsed() <= BOUND,
+            "no job pushed after the reload ran within {BOUND:?}; the server wrote: {said}"
+        );
+        server.awaits("/", "a push", |answer| answer.body == "pushed");
+        thread::sleep(POLL * 10);
+    };
+    assert!(
+        after.ends_with(&format!("{THREW}7m")),
+        "a job claimed after the reload did not read the reloaded `[queue] visibility`: {after}"
+    );
 }

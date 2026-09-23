@@ -48,7 +48,8 @@
 //! `rule:security/capability-check-at-the-door`'s
 //! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
-//! script's, so each one is handed the same configuration snapshot the run resolved at boot.
+//! script's, so each one is handed the configuration snapshot in force when it claims a job. Under
+//! `nvs serve` that is whatever a reload published last, and under `nvs run` it is the boot's.
 //!
 //! That snapshot is the **ceiling** and not the answer.
 //! `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has the job run under what
@@ -223,17 +224,20 @@ impl Workers {
 /// Spawns `bounds.workers` worker tasks onto `sched`, each claiming out of `[db.<name>]`.
 ///
 /// Nothing runs here — [`nvs_host::Scheduler::spawn`] only queues — so the caller is free to
-/// install the reactor afterwards. `snapshot` is the configuration the run resolved at boot, and
-/// each worker's context is given it for the reason the module doc's *Why the grants* section
-/// owns: a job's isolate is resolved against the context that runs it.
+/// install the reactor afterwards. `current` holds the configuration in force. Each job's context
+/// is given the snapshot it holds at the moment the job is claimed, for the reason the module
+/// doc's *What a job's grants are* section owns: a job's isolate is resolved against the context
+/// that runs it. `bounds` is what the boot resolved: `connection` and `workers` are `Boot` keys,
+/// and `visibility` is only the value a turn falls back on.
 ///
-/// Both binaries arrive here, and what they hand it differs in `workers` alone.
+/// Both binaries arrive here, and what they hand it differs in `workers` alone. `nvs run` never
+/// publishes a second snapshot, so its holder keeps the one it was made with.
 pub(crate) fn start(
     sched: &mut nvs_host::Scheduler,
     workers: &Workers,
     bounds: &QueueBounds,
     block: &Database,
-    snapshot: &Arc<nvs_config::Snapshot>,
+    current: &Arc<nvs_config::Current>,
 ) {
     for _ in 0..bounds.workers {
         // The whole switch rather than its flag alone: which end stops these workers is carried
@@ -244,10 +248,11 @@ pub(crate) fn start(
         // rather than shared because a `Database` is a handful of strings read once at connect.
         let block = block.clone();
         let visibility = bounds.visibility;
+        let current = Arc::clone(current);
         let mut ctx = nvs_runtime::Ctx::stdout();
-        ctx.set_config(Arc::clone(snapshot));
+        ctx.set_config(current.load());
         sched.spawn(ctx, ROOT, move |ctx| {
-            claim_until_stopped(ctx, &workers, &name, &block, visibility);
+            claim_until_stopped(ctx, &workers, &name, &block, &current, visibility);
         });
     }
 }
@@ -263,6 +268,7 @@ fn claim_until_stopped(
     workers: &Workers,
     name: &str,
     block: &Database,
+    current: &nvs_config::Current,
     visibility: Duration,
 ) {
     // Asked before the connection is opened and not only at the top of a turn: this task is
@@ -274,17 +280,13 @@ fn claim_until_stopped(
     let Some(mut conn) = open(name, block) else {
         return;
     };
-    // Saturating rather than wrapping for a `visibility` no operator would write: the clamp makes
-    // every job's claim eligible again immediately, which is a busy worker, where the wrap would
-    // make it eligible never.
-    let window = i64::try_from(visibility.as_millis()).unwrap_or(i64::MAX);
     // A worker that stops on a failed statement says so, on the stream [`open`]'s own refusals use.
     // The failure this is written for is a claim naming a column the table has not got, which is
     // every deployment between a schema gaining one and `nvs queue migrate` being run: the worker
     // ends, the queue silently never drains, and a program polling `stats` sees a counter that
     // stays at zero with nothing anywhere to say why. Warning rather than fatal for
     // `rule:errors/escalation-ladder`'s reason — the run's own script is not this task's to end.
-    if let Err(refused) = take_turns(workers, || turn(ctx, &mut conn, window)) {
+    if let Err(refused) = take_turns(workers, || turn(ctx, &mut conn, current, visibility)) {
         eprintln!("warning: the queue worker on `[db.{name}]` stopped: {refused}");
     }
 }
@@ -321,14 +323,25 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
 /// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — § 2 names
 /// no queues, so the table is the only place they are written down — and the two instants are
 /// computed once here so that every claim in this turn judges due-ness against the same moment.
-fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<bool> {
+/// The visibility window is read from `current` at the start of the turn, so a reload that moves
+/// `[queue] visibility` reaches the next turn. `boot` is the window used when the snapshot in
+/// force resolves no queue.
+fn turn(
+    ctx: &mut nvs_runtime::Ctx,
+    conn: &mut Wire,
+    current: &nvs_config::Current,
+    boot: Duration,
+) -> io::Result<bool> {
     let now = nvs_stdlib::queue::now_millis();
-    let cutoff = now.saturating_sub(window);
+    let cutoff = now.saturating_sub(window(&current.load(), boot));
     let mut claimed = false;
     conn.bound_next_exchange();
     for queue in roster(conn, now, cutoff)? {
         conn.bound_next_exchange();
         if let Some(job) = claim(conn, &queue, now, cutoff)? {
+            // The job runs under the snapshot in force now, just after its claim, and not under
+            // the one this worker started with (`rule:config/reloadability-is-its-own-field`).
+            ctx.set_config(current.load());
             // Run before the next queue is claimed against, rather than after the roster has been
             // walked: a claim this worker is holding is a job nothing else may take, so the
             // shortest time between the two is the one that costs a fleet the least. The write-back
@@ -344,6 +357,21 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<
         }
     }
     Ok(claimed)
+}
+
+/// `[queue] visibility` in milliseconds, as `snapshot` resolves it, or `boot` when it resolves no
+/// queue.
+///
+/// A published snapshot was validated before it was published, so the fallback is reached only by a
+/// tree whose `[queue]` block the reload removed. Saturating rather than wrapping for a
+/// `visibility` no operator would write: the clamp makes every job's claim eligible again
+/// immediately, which is a busy worker, where the wrap would make it eligible never.
+fn window(snapshot: &nvs_config::Snapshot, boot: Duration) -> i64 {
+    let visibility = nvs_config::queue::queue_for(&snapshot.config, &snapshot.origins)
+        .ok()
+        .flatten()
+        .map_or(boot, |bounds| bounds.visibility);
+    i64::try_from(visibility.as_millis()).unwrap_or(i64::MAX)
 }
 
 /// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`],
@@ -2519,8 +2547,10 @@ mod tests {
         // The grant is the *snapshot*'s and not a context's, because a worker builds its own
         // context out of the run's configuration — the module doc's *Why the grants are the run's
         // own* section — and `script.spawn` is denied by default at the resolve door.
-        let snapshot = Arc::new(crate::script::granting_snapshot());
-        super::start(&mut sched, &workers, &bounds(1), &block, &snapshot);
+        let current = Arc::new(nvs_config::Current::new(Arc::new(
+            crate::script::granting_snapshot(),
+        )));
+        super::start(&mut sched, &workers, &bounds(1), &block, &current);
         let began = Rc::new(Cell::new(None));
         draining_once_the_job_leaves(&mut sched, &block, id, &[PENDING, CLAIMED], drain, &began);
 
@@ -2578,8 +2608,10 @@ mod tests {
             let drain = nvs_server::Draining::detached();
             let workers = super::Workers::draining(drain.clone());
             let mut sched = nvs_host::Scheduler::new();
-            let snapshot = Arc::new(crate::script::granting_snapshot());
-            super::start(&mut sched, &workers, &bounds(2), &block, &snapshot);
+            let current = Arc::new(nvs_config::Current::new(Arc::new(
+                crate::script::granting_snapshot(),
+            )));
+            super::start(&mut sched, &workers, &bounds(2), &block, &current);
             let began = Rc::new(Cell::new(None));
             draining_once_the_job_leaves(&mut sched, &block, id, &[PENDING], drain, &began);
 

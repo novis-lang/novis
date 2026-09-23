@@ -1778,9 +1778,9 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
 /// [`granting_ctx`]'s grant as the snapshot itself, for a test that arms
 /// something which builds its own contexts.
 ///
-/// `crate::worker::start` hands every worker the run's own configuration —
-/// that module's *Why the grants are the run's own* section is why — so a test
-/// arming a queue worker has no context to hand it and needs the snapshot
+/// `crate::worker::start` gives every job the configuration in force when it
+/// is claimed — that module's *What a job's grants are* section is why — so a
+/// test arming a queue worker has no context to hand it and needs the snapshot
 /// underneath one. The same grant either way, which is the whole reason the
 /// pair is here rather than a second capability literal in that test module.
 #[cfg(test)]
