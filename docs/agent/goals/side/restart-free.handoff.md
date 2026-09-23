@@ -6,15 +6,18 @@
 config change it can.** ADR 0218 (source revalidation, Stages 2 to 4) is on disk with the five rules it
 modifies; each fragment ends in a **What is on disk** paragraph the landing session shrinks.
 
-`validate = "never"` is gone (`Validate` is `Mtime | Hash`, `mtime` the default in both modes, `E0601`
-at load for anything else). The check still runs inside the resolve, on the request path, and the key's
-digest is still the entry file's content alone: probed by hand against `target/debug/nvs.exe serve`, an
-edit to a `require`d file is not answered until the entry file changes.
+The unit is keyed on the whole program. A compile, failed or not, records a `Trace`
+(`crates/nvs-cli/src/script.rs:231`): every file the front end read with its stamp and digest, every
+path it missed (`SourceMap::missed`, fed by `SourceMap::load` and the `require` walk), and the
+`autoload` probes. `crate::front_end_looking` and `Looked` (`crates/nvs-cli/src/main.rs:1747`) hand
+that list back on both exits. The check still runs inside the resolve, on the request path.
 
-The `live_edit` harness is on disk: `crates/nvs-cli/tests/live_edit.rs`, whose module doc says how
-`Server::start`, `get`, `awaits`, `awaits_body` and `write` work. Two of the check's eleven tests are
-written and pass against today's code (the entry-file edit, and a broken entry file then its fix); the
-other nine are not written, because each fails until the item it tests lands.
+`crates/nvs-cli/tests/live_edit.rs` has seven of the check's eleven tests, all passing: the entry-file
+edit, the broken edit and its fix, a required-file edit, an autoloaded-class edit, a deleted required
+file (and its restore), a new class file under a root, and a shadowing file. Still unwritten:
+`a_new_module_under_a_discovery_directory_joins_implementing_without_a_restart`,
+`a_reverted_edit_is_answered_from_the_unit_already_compiled`,
+`a_queue_job_and_a_scheduled_fire_run_the_edited_code`, `a_running_websocket_keeps_the_code_it_started_with`.
 
 Two calls in ADR 0218 are not the user's and are not confirmed: the table keeps, per path, the unit in
 force and the one it replaced (§ 7, § 8); a mount re-expansion that meets a match boot would refuse
@@ -27,35 +30,22 @@ nothing here touches. `tests/db/ca.crt` is a git-ignored fixture copied in from 
 ## Next group
 
 **Stage 2: every file a program reached is watched** — one file set: `crates/nvs-cli/src/script.rs`,
-`crates/nvs-cli/tests/live_edit.rs`, `crates/nvs-cli/src/cache.rs`.
+`crates/nvs-cli/tests/live_edit.rs`, `crates/nvs-hir/src/autoload.rs`.
 
-- [ ] **The unit is keyed on the whole program** — `crates/nvs-cli/src/script.rs:341` (`Compiler`),
-      its `key` near :650 and `compiled` near :500: a compile records every file it read, and a check
-      of a unit checks all of them (`rule:config/an-edit-reaches-the-next-request-without-a-restart`,
-      ADR 0218 § 2). `crates/nvs-cli/src/cache.rs:1492` (`program_digest`) is the digest to key on.
-      Lands with `an_edit_to_a_required_file_reaches_the_next_request`,
-      `an_edit_to_an_autoloaded_class_reaches_the_next_request` and
-      `a_deleted_required_file_fails_the_requests_that_reach_it` in
-      `crates/nvs-cli/tests/live_edit.rs:250`, on the harness's `Server`.
-- [ ] **A probe miss that a new file fills recompiles** — the two autoload cases,
-      `a_new_class_file_under_an_autoload_root_is_found_without_a_restart` and
-      `a_file_that_shadows_an_autoload_probe_miss_takes_over_without_a_restart`, in
-      `crates/nvs-cli/tests/live_edit.rs:250`; the probe trace is already keyed
-      (`rule:packaging/autoload-probes-fold-into-the-cache-key`), so these may pass once the first item does.
-- [ ] **A discovery query's directories join the check** — wherever `Core\Program::implementing`
-      lists directories — `crates/nvs-hir/src/autoload.rs:631` is the resolver's one `read_dir`,
-      not yet confirmed to be that scan —
-      `rule:packaging/autoload-probes-fold-into-the-cache-key`.
+- [ ] **A discovery query's directories join the check** — every directory the `discover` scan
+      listed (`crates/nvs-hir/src/autoload.rs:567`, `listing` at `crates/nvs-hir/src/autoload.rs:621`)
+      goes into the trace beside the probes, with its stamp, and the sorted discovered names hash into
+      the key (`rule:packaging/autoload-probes-fold-into-the-cache-key`). Carry the list out through
+      `Looked` (`crates/nvs-cli/src/main.rs:1747`) into `Trace` (`crates/nvs-cli/src/script.rs:231`)
+      and check it in `revalidate_trace` (`crates/nvs-cli/src/script.rs:724`). Lands with
+      `a_new_module_under_a_discovery_directory_joins_implementing_without_a_restart` in
+      `crates/nvs-cli/tests/live_edit.rs`.
+- [ ] **A reverted edit is a pointer swap** — the table keeps, per path, the unit in force and the one
+      it replaced (ADR 0218 § 7, § 8); `record` at `crates/nvs-cli/src/script.rs:852` sweeps every
+      other generation today, and `traces` holds one trace per entry content. Lands with
+      `a_reverted_edit_is_answered_from_the_unit_already_compiled`.
 
 ## Backlog
 
-- **The remaining Stage 2 tests** — the reverted edit, the queue job and scheduled fire, the running
-  WebSocket; the goal's `.toml` names them.
-- **`revalidate_freq` refused at load** when it is not a duration — `crates/nvs-config/src/cache.rs`
-  module doc records it as not refused yet.
-- **Stage 3: off the request path, settle, atomic link switch, bounded memory** — ADR 0218 § 3 to § 8;
-  same files plus `crates/nvs-cli/src/serve.rs` and `crates/nvs-config/src/directive.rs`.
-- **Stage 4: the mount table follows the disk** — ADR 0218 § 9; `crates/nvs-cli/src/serve.rs:@table_for`,
-  `crates/nvs-config/src/mount.rs`.
-- **Stage 5: every reloadable key reloads, and the census** — the second decision record first.
-- **Stage 6 and 7** — the configuration applies itself; the template, the reference, the feature proofs.
+- `a_queue_job_and_a_scheduled_fire_run_the_edited_code` and `a_running_websocket_keeps_the_code_it_started_with` — stage 2, `crates/nvs-cli/src/worker.rs`, goal prose stage 2.
+- The background check, `settle` and the link re-resolve — stages 3 and 4, `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
