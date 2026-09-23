@@ -693,9 +693,9 @@ impl Compiler {
     /// names, which is one map lookup and no file-system call. Moving the
     /// pointer is [`Self::revalidate`]'s job, off the request path.
     ///
-    /// A path with no pointer yet goes through [`Self::check`], the steps the
-    /// background check runs, with step 3's single flight: one caller compiles
-    /// a content and every other waits on it. So does a path whose unit is no
+    /// A path with no pointer yet goes through [`Self::look`] and
+    /// [`Self::take`], the steps the background check runs, with step 3's
+    /// single flight: one caller compiles a content and every other waits on it. So does a path whose unit is no
     /// longer in the table, which a reload that moved the environment leaves.
     ///
     /// # Errors
