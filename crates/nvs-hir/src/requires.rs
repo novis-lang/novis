@@ -370,6 +370,7 @@ fn walk(
                     };
                     let target = base_dir.join(&literal);
                     let Some(canonical) = canonicalize(&target) else {
+                        map.note_missing(&target);
                         diags.report(
                             Diagnostic::error(
                                 code::E_REQUIRE_TARGET_NOT_FOUND,

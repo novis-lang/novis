@@ -35,7 +35,7 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** The resolve-time form of this rule: the check runs inside the resolve, on the
-request path, and the key's digest is the entry file's content
-alone, so an edit to a `require`d or autoloaded file is not seen until the entry file changes. The
-background check, `settle`, the link re-resolve and the whole-program key are not.
+**What is on disk.** The resolve-time form of this rule: the key is the whole program, and a check
+looks at every file the compile read, every path it missed and every `autoload` probe, but it runs
+inside the resolve, on the request path. A discovery query's directories are not checked. The
+background check, `settle` and the link re-resolve are not on disk.

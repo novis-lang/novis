@@ -354,6 +354,20 @@ impl UnitKey {
         Self { probes, ..self }
     }
 
+    /// The same key with the digest of the whole program a finished compile read, in place of
+    /// the entry file's digest the lookup ahead of it could name
+    /// (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+    ///
+    /// Like [`Self::with_probes`], it keeps the path and the environment the key was claimed
+    /// under.
+    #[must_use]
+    pub fn with_program(self, program: Digest) -> Self {
+        Self {
+            content_hash: program,
+            ..self
+        }
+    }
+
     /// The trace this key is under — [`ProbeHash::unrecorded`] where the entry behind it was
     /// published by a compile that produced none.
     ///
@@ -368,7 +382,8 @@ impl UnitKey {
         &self.path
     }
 
-    /// The source's own digest.
+    /// The content digest this key addresses: the whole program's once a compile has recorded
+    /// it ([`Self::with_program`]), and the entry file's for a key a first compile claims under.
     pub fn content_hash(&self) -> Digest {
         self.content_hash
     }

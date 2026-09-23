@@ -1710,7 +1710,66 @@ fn front_end_granted(
     sink: Sink,
     init: config::Init,
 ) -> Result<Checked, ExitCode> {
-    front_end_in(SourceMap::new(), path, config, strict_docs, sink, init)
+    front_end_in(
+        SourceMap::new(),
+        path,
+        config,
+        strict_docs,
+        sink,
+        init,
+        None,
+    )
+}
+
+/// [`front_end`], writing into `looked` every path the run looked at on disk,
+/// whether the program compiled or not.
+///
+/// `crate::script::Compiler` is the caller. It keeps a compiled program and has
+/// to notice when any file behind it changes, and after a failed compile the
+/// only list of those files is the one this run leaves behind.
+fn front_end_looking(path: &std::path::Path, looked: &mut Looked) -> Result<Checked, ExitCode> {
+    front_end_in(
+        SourceMap::new(),
+        path,
+        None,
+        false,
+        Sink::Text,
+        config::Init::Never,
+        Some(looked),
+    )
+}
+
+/// Every path one front-end run looked at on disk, whatever it concluded.
+///
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` checks all
+/// of these, so an edit to any of them reaches the next compile.
+#[derive(Debug, Default)]
+struct Looked {
+    /// Each file the run read, with the digest of the text it read. The entry
+    /// file is the first.
+    read: Vec<(std::path::PathBuf, nvs_config::cache::Digest)>,
+    /// Each path it looked for and found nothing at: a `require` target that was
+    /// not there, and the entry file itself when it could not be read.
+    missed: Vec<std::path::PathBuf>,
+    /// The `autoload` probe trace, in probe order, misses included
+    /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`). Empty when
+    /// the run stopped before the graph walk.
+    probed: Vec<std::path::PathBuf>,
+}
+
+impl Looked {
+    /// Copies out of `map` and `autoload` what the run read, missed and probed.
+    fn take(&mut self, map: &SourceMap, autoload: Option<&nvs_hir::AutoloadMap>) {
+        self.read = map
+            .files()
+            .filter_map(|file| {
+                let digest = nvs_config::cache::content_hash(file.text().as_bytes());
+                Some((file.path()?.to_path_buf(), digest))
+            })
+            .collect();
+        self.missed = map.missed().to_vec();
+        self.probed = autoload.map_or_else(Vec::new, |map| map.probe_trace().probed().to_vec());
+    }
 }
 
 /// [`front_end`] for an entry that exists only as `text`: the program a
@@ -1723,11 +1782,22 @@ fn front_end_granted(
 fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     map.overlay(path, text);
-    front_end_in(map, path, None, false, Sink::Text, config::Init::Never)
+    front_end_in(
+        map,
+        path,
+        None,
+        false,
+        Sink::Text,
+        config::Init::Never,
+        None,
+    )
 }
 
 /// [`front_end_granted`] over a map the caller prepared — empty for a file on
 /// disk, or holding the one overlay [`front_end_synthesized`] registers.
+///
+/// `looked` is [`front_end_looking`]'s, filled at every way out after the entry
+/// file was asked for.
 fn front_end_in(
     mut map: SourceMap,
     path: &std::path::Path,
@@ -1735,11 +1805,15 @@ fn front_end_in(
     strict_docs: bool,
     sink: Sink,
     init: config::Init,
+    looked: Option<&mut Looked>,
 ) -> Result<Checked, ExitCode> {
     let id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
             eprintln!("error: could not read {}: {err}", path.display());
+            if let Some(looked) = looked {
+                looked.take(&map, None);
+            }
             return Err(ExitCode::FAILURE);
         }
     };
@@ -1798,6 +1872,9 @@ fn front_end_in(
             &mut diags,
         );
 
+        if let Some(looked) = looked {
+            looked.take(&map, Some(&autoload));
+        }
         if diags.has_errors() {
             emit_diagnostics(&mut diags, &map, sink);
             return Err(ExitCode::FAILURE);

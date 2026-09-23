@@ -226,6 +226,9 @@ pub struct SourceMap {
     /// Text that stands in for a path's bytes, keyed by [`canonical_key`].
     /// Empty for every batch compilation — see [`SourceMap::overlay`].
     overlays: HashMap<PathBuf, String>,
+    /// Every path a load asked for and got no file from, in the order asked —
+    /// see [`SourceMap::missed`].
+    missed: Vec<PathBuf>,
 }
 
 /// The form a path is keyed and compared under.
@@ -334,7 +337,13 @@ impl SourceMap {
             ));
             return Ok(id);
         }
-        let text = std::fs::read_to_string(path)?;
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => {
+                self.note_missing(path);
+                return Err(error);
+            }
+        };
         if text.len() > MAX_SOURCE_LEN {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -369,6 +378,27 @@ impl SourceMap {
     /// Every file, in insertion order.
     pub fn files(&self) -> impl ExactSizeIterator<Item = &SourceFile> {
         self.files.iter()
+    }
+
+    /// Records `path` as a file this compilation looked for and did not find.
+    ///
+    /// [`load`](Self::load) records its own failures. A caller that decides a
+    /// path is missing before it loads anything — `nvs-hir`'s `require` walk,
+    /// whose canonicalize fails first — records it here.
+    pub fn note_missing(&mut self, path: &Path) {
+        self.missed.push(path.to_path_buf());
+    }
+
+    /// Every path this compilation looked for and did not find, in the order it
+    /// looked.
+    ///
+    /// A server that keeps a compiled program watches these beside the files
+    /// that were read: a file created at one of them changes what the next
+    /// compile of the same sources reads, with no file already read having
+    /// changed (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+    #[must_use]
+    pub fn missed(&self) -> &[PathBuf] {
+        &self.missed
     }
 
     /// How many files have been added.

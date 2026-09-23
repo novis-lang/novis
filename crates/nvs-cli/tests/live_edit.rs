@@ -197,6 +197,14 @@ impl Server {
     fn write(&self, path: &str, text: &str) {
         write_file(&self.dir.join(path), text);
     }
+
+    /// Deletes `path`, relative to the program's directory.
+    fn remove(&self, path: &str) {
+        let path = self.dir.join(path);
+        std::fs::remove_file(&path).unwrap_or_else(|error| {
+            panic!("`{}` could not be removed: {error}", path.display());
+        });
+    }
 }
 
 impl Drop for Server {
@@ -257,4 +265,133 @@ fn a_broken_edit_fails_requests_and_its_fix_recovers_them() {
 
     server.write("app.nvs", &printing("fixed"));
     server.awaits_body("/", "fixed");
+}
+
+/// An entry file that requires `lib.nvs` and prints nothing itself.
+const REQUIRING: &str = "<?nvs\nrequire './lib.nvs';\n";
+
+/// The entry file never changes here, so only a check of the file it requires
+/// can bring the edit to a request.
+#[test]
+fn an_edit_to_a_required_file_reaches_the_next_request() {
+    let server = Server::start(
+        "required",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", REQUIRING),
+            ("lib.nvs", &printing("before")),
+        ],
+    );
+    server.awaits_body("/", "before");
+
+    server.write("lib.nvs", &printing("after"));
+    server.awaits_body("/", "after");
+}
+
+/// A class reached through `autoload` is a file of the program like any other,
+/// though nothing names its path.
+#[test]
+fn an_edit_to_an_autoloaded_class_reaches_the_next_request() {
+    let server = Server::start(
+        "autoloaded",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", &saying("Word", &["./src"])),
+            ("src/Word.nvs", &class("Word", "before")),
+        ],
+    );
+    server.awaits_body("/", "before");
+
+    server.write("src/Word.nvs", &class("Word", "after"));
+    server.awaits_body("/", "after");
+}
+
+/// A class that no file declares yet fails the program, and writing its file
+/// under the `autoload` root is found without a restart. The entry file does not
+/// change after the class is named, so only the path the resolution looked for
+/// and missed can bring the new file to a request.
+#[test]
+fn a_new_class_file_under_an_autoload_root_is_found_without_a_restart() {
+    let server = Server::start(
+        "new-class",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", &saying("Word", &["./src"])),
+            ("src/Word.nvs", &class("Word", "first")),
+        ],
+    );
+    server.awaits_body("/", "first");
+
+    server.write("app.nvs", &saying("Other", &["./src"]));
+    server.awaits("/", "naming a class with no file failing `/`", |answer| {
+        answer.status != 200
+    });
+
+    server.write("src/Other.nvs", &class("Other", "found"));
+    server.awaits_body("/", "found");
+}
+
+/// A class file written under the first `autoload` root takes over from the one
+/// under the second root. No file the program read has changed, so only the
+/// path the resolution probed and missed can bring it to a request.
+#[test]
+fn a_file_that_shadows_an_autoload_probe_miss_takes_over_without_a_restart() {
+    let server = Server::start(
+        "shadow",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", &saying("Word", &["./src", "./vendor"])),
+            ("vendor/Word.nvs", &class("Word", "vendor")),
+            ("src/.keep", ""),
+        ],
+    );
+    server.awaits_body("/", "vendor");
+
+    server.write("src/Word.nvs", &class("Word", "src"));
+    server.awaits_body("/", "src");
+}
+
+/// An entry file that maps `App` to `roots` and prints what `App\<name>::say`
+/// returns.
+fn saying(name: &str, roots: &[&str]) -> String {
+    let roots = roots
+        .iter()
+        .map(|root| format!("'{root}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("<?nvs\nautoload 'App' from {roots};\nvar $it = new App\\{name}();\necho $it->say();\n")
+}
+
+/// The file that declares `App\<name>`, whose `say` returns `word`.
+fn class(name: &str, word: &str) -> String {
+    format!(
+        "<?nvs\nnamespace App;\nclass {name} {{ public function say(): string {{ return '{word}'; }} }}\n"
+    )
+}
+
+/// A required file that is deleted fails every request that reaches it, and
+/// putting it back is served without a restart.
+#[test]
+fn a_deleted_required_file_fails_the_requests_that_reach_it() {
+    let server = Server::start(
+        "deleted",
+        &[
+            ("nvs.toml", PRODUCTION),
+            ("app.nvs", REQUIRING),
+            ("lib.nvs", &printing("present")),
+        ],
+    );
+    server.awaits_body("/", "present");
+
+    server.remove("lib.nvs");
+    let failed = server.awaits("/", "the deletion failing `/`", |answer| {
+        answer.status != 200
+    });
+    assert!(
+        !failed.body.contains("present"),
+        "the program compiled before the deletion is never served in its place: {failed:?}"
+    );
+
+    server.write("lib.nvs", &printing("restored"));
+    server.awaits_body("/", "restored");
 }

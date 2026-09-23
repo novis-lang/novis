@@ -878,10 +878,10 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** The resolve-time form of this rule: the check runs inside the resolve, on the
-request path, and the key's digest is the entry file's content
-alone, so an edit to a `require`d or autoloaded file is not seen until the entry file changes. The
-background check, `settle`, the link re-resolve and the whole-program key are not.
+**What is on disk.** The resolve-time form of this rule: the key is the whole program, and a check
+looks at every file the compile read, every path it missed and every `autoload` probe, but it runs
+inside the resolve, on the request path. A discovery query's directories are not checked. The
+background check, `settle` and the link re-resolve are not on disk.
 
 <sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 
