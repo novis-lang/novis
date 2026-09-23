@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to read the items of a list, even when the `</li>` tags are missing.
+
+class Items {
+    // Returns the text of every `li` element under `$node`.
+    public static function of(Core\Xml\Node $node): array<tainted string> {
+        array<tainted string> $found = [];
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element && $child->name() == "li") {
+                // The text of an element is in its children, so this reads the first child.
+                foreach ($child->children() as Core\Xml\Node $text) {
+                    $found[] = $text->text();
+                    break;
+                }
+            }
+            foreach (Items::of($child) as tainted string $item) {
+                $found[] = $item;
+            }
+        }
+        return $found;
+    }
+}
+
+// No item is closed. Each new `<li>` ends the item before it.
+var $tree = Core\Html::parse("<ul><li>Apples<li>Pears<li>Plums</ul>");
+
+// This prints the three items, one on each line.
+foreach (Items::of($tree) as tainted string $item) {
+    echo $item, "\n";
+}

@@ -2221,6 +2221,44 @@ mod tests {
         );
     }
 
+    /// `Core\Html::parse`, end to end through the boundary compiled code
+    /// reaches it at, and read back through the member a program writes the
+    /// tree out with: the tags a fragment left out are supplied, and an item
+    /// nobody closed is closed where the next one opens.
+    ///
+    /// The empty document is the other end of the same claim — no input at
+    /// all still answers the three elements every document has.
+    // covers: Core\Html::parse
+    #[test]
+    fn html_parse_answers_a_whole_document_for_a_fragment_and_for_nothing() {
+        let cases: [(&[u8], &str); 2] = [
+            (
+                b"<ul><li>one<li>two</ul>",
+                "<html><head></head><body><ul><li>one</li><li>two</li></ul></body></html>",
+            ),
+            (b"", "<html><head></head><body></body></html>"),
+        ];
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for (document, expected) in cases {
+            let source = Value::str(NvsStr::new(document));
+            let tree = call(super::nvs_core_html_parse, &mut ctx, &[source])
+                .expect("the parse has no failure mode");
+            let written = call(crate::xml::nvs_core_xml_node_source, &mut ctx, &[tree])
+                .expect("a parsed document writes back out");
+            assert_eq!(written.as_text(), Some(expected));
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the three references it built or was handed, and \
+                          neither member consumed its argument"
+            )]
+            unsafe {
+                written.release();
+                tree.release();
+                source.release();
+            }
+        }
+    }
+
     /// `rule:core-classes/html-parsing`'s one-node-family half.
     ///
     /// The strongest half of it is not asserted here at all — [`parse`]'s

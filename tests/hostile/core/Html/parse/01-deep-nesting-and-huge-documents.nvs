@@ -1,0 +1,56 @@
+<?nvs
+// Attack: documents with very deep nesting, very many attributes and broken tables are parsed.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+class Count
+{
+    // Counts every node in the tree. It uses a list of nodes to visit, so it does not call itself.
+    public static function nodes(Core\Xml\Node $root): uint
+    {
+        array<Core\Xml\Node> $todo = [$root];
+        int $next = 0;
+        while ($next < Core\Arr::count($todo)) {
+            Core\Xml\Node $node = $todo[$next];
+            $next = $next + 1;
+            foreach ($node->children() as Core\Xml\Node $child) {
+                $todo[] = $child;
+            }
+        }
+        return $next as uint;
+    }
+}
+
+// 1. One hundred thousand `div` tags, each inside the one before, and none closed.
+var $deep = Core\Html::parse(Core\Str::repeat('<div>', 100000) . 'bottom');
+echo 'step 1: ', Count::nodes($deep), "\n";
+
+// 2. One hundred thousand `b` tags that are never closed, then a paragraph that closes them all.
+var $bold = Core\Html::parse(Core\Str::repeat('<b>', 100000) . '<p>x</p>');
+echo 'step 2: ', Count::nodes($bold), "\n";
+
+// 3. One element with one hundred thousand attributes.
+string $attributes = '';
+int $i = 0;
+while ($i < 100000) {
+    $attributes = $attributes . ' a' . $i . '=' . $i;
+    $i = $i + 1;
+}
+var $wide = Core\Html::parse('<p' . $attributes . '>x');
+echo 'step 3: ', Count::nodes($wide), "\n";
+
+// 4. Ten thousand tables, each cell opening the next table.
+var $tables = Core\Html::parse(Core\Str::repeat('<table><tr><td>', 10000));
+echo 'step 4: ', Count::nodes($tables), "\n";
+
+// 5. Comments, scripts and text that never end.
+var $open = Core\Html::parse('<!--' . Core\Str::repeat('<p>', 100000) . '<script>' . Core\Str::repeat('</', 100000));
+echo 'step 5: ', Count::nodes($open), "\n";
+
+// 6. A document with ten million paragraphs. This step ends the program at its memory limit.
+var $huge = Core\Html::parse(Core\Str::repeat('<p>x', 10000000));
+echo 'step 6: ', Count::nodes($huge), "\n";

@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to list every link on a web page, as a link checker does.
+
+class Links {
+    // Prints the `href` of every `a` element under `$node`, and the text of the link.
+    public static function show(Core\Xml\Node $node): void {
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() != Core\Xml\NodeKind::Element) {
+                continue;
+            }
+            array<tainted string> $attributes = $child->attributes();
+            if ($child->name() == "a" && Core\Arr::hasKey($attributes, "href")) {
+                echo $attributes["href"], " (", Links::text($child), ")\n";
+            }
+            Links::show($child);
+        }
+    }
+
+    // Returns all the text under `$node`, with the tags left out.
+    public static function text(Core\Xml\Node $node): tainted string {
+        tainted string $text = $node->text();
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $text = $text . Links::text($child);
+        }
+        return $text;
+    }
+}
+
+// A page as a server sends it. The second link has no `href`, so it is not printed.
+string $page = <<<HTML
+<!DOCTYPE html>
+<title>Shop</title>
+<nav><a href="/">Home</a> <a name="top">Top</a></nav>
+<p>See our <a href="/offers"><b>new</b> offers</a> and <a href=/help>help pages</a>.
+HTML;
+
+Links::show(Core\Html::parse($page));
