@@ -192,6 +192,30 @@ impl Server {
         })
     }
 
+    /// What the server has written to standard error so far.
+    fn said(&self) -> String {
+        self.stderr.lock().expect("no reader panicked").clone()
+    }
+
+    /// Waits until the server has written `text` to standard error. Standard
+    /// error is one ordered stream, so every line written before `text` has
+    /// arrived too.
+    ///
+    /// # Panics
+    ///
+    /// When [`BOUND`] runs out first.
+    fn awaits_said(&self, text: &str) {
+        let started = Instant::now();
+        while !self.said().contains(text) {
+            assert!(
+                started.elapsed() <= BOUND,
+                "the server did not write `{text}` within {BOUND:?}; it wrote: {}",
+                self.said()
+            );
+            thread::sleep(POLL);
+        }
+    }
+
     /// Writes `text` to `path`, relative to the program's directory, creating
     /// any directory it needs.
     fn write(&self, path: &str, text: &str) {
@@ -434,4 +458,45 @@ fn a_deleted_required_file_fails_the_requests_that_reach_it() {
 
     server.write("lib.nvs", &printing("restored"));
     server.awaits_body("/", "restored");
+}
+
+/// A program that prints `word`, and whose every compile writes one warning to
+/// standard error: its `/** … */` comment documents nothing. The warning
+/// quotes the comment, so `marker` counts the compiles of this version.
+fn warned(marker: &str, word: &str) -> String {
+    format!(
+        "<?nvs\nclass Word {{\n    /** {marker} */\n    public static function say(): string {{ return '{word}'; }}\n}}\necho Word::say();\n"
+    )
+}
+
+/// Undoing the last edit is answered from the unit compiled before it, so the
+/// first version's warning is not written a second time.
+#[test]
+fn a_reverted_edit_is_answered_from_the_unit_already_compiled() {
+    let first = warned("Compiled first.", "first");
+    let server = Server::start("reverted", &[("nvs.toml", PRODUCTION), ("app.nvs", &first)]);
+    server.awaits_body("/", "first");
+
+    server.write("app.nvs", &warned("Compiled second.", "second"));
+    server.awaits_body("/", "second");
+    server.awaits_said("Compiled second.");
+    let compiled = server.said().matches("Compiled first.").count();
+    assert!(
+        compiled > 0,
+        "the first version compiled without its warning"
+    );
+
+    server.write("app.nvs", &first);
+    server.awaits_body("/", "first");
+
+    // A third version whose warning comes after anything the revert wrote.
+    server.write("app.nvs", &warned("Compiled third.", "third"));
+    server.awaits_body("/", "third");
+    server.awaits_said("Compiled third.");
+    assert_eq!(
+        server.said().matches("Compiled first.").count(),
+        compiled,
+        "the reverted version was compiled again: {}",
+        server.said()
+    );
 }

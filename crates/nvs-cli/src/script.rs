@@ -31,10 +31,11 @@
 //! every spawn and of a failure mode before the front end has run — and what a
 //! program controls is its own text, which is the thing this key already is.
 //!
-//! **What it spends:** at most two compiled units per distinct written path —
-//! the one in force and, while an edit does not compile, the failure the next
-//! resolve of that same content is answered with — plus, per unit, the path and
-//! the two digests its key carries. O(the program's text), never
+//! **What it spends:** at most three compiled units per distinct written path —
+//! the one in force, the one it replaced, so that undoing the last change is a
+//! pointer swap and not a compile, and, while an edit does not compile, the
+//! failure the next resolve of that same content is answered with — plus, per
+//! unit, its key and its [`Trace`]. O(the program's text), never
 //! O(isolates spawned) and never O(edits), per
 //! `rule:programs/memory-priority` — and freed with
 //! the resolver, which is a local of `nvs run` published through
@@ -71,11 +72,14 @@
 //! allowed to look at the file system at all ([`Revalidation`], step 1 above)
 //! checks every file the compile read, under the same `validate`, every path it
 //! looked for and did not find, and every path its `autoload` resolution
-//! probed. Where one of them moved, it drops the trace, and that sends the
-//! content to a compile, because the key it would be answered under is now
-//! nobody's. That covers the edits no entry-file digest moves: an edit to a
-//! `require`d file, and writing `src/Thing.nvs` where `App\Thing` resolves
-//! through `vendor/compat/Thing.nvs`.
+//! probed. Where one of them moved, the trace is no longer current, and that
+//! sends the content to a compile, because the key it would be answered under
+//! is now nobody's. That covers the edits no entry-file digest moves: an edit
+//! to a `require`d file, and writing `src/Thing.nvs` where `App\Thing` resolves
+//! through `vendor/compat/Thing.nvs`. One entry-file content can have a trace
+//! for each unit the table keeps, and a check that finds the current one moved
+//! looks at the others before it gives up, so undoing an edit to a `require`d
+//! file finds the unit compiled before it.
 //!
 //! **A failed compile records a trace too.** The front end reports what it read
 //! and missed however it ends, so a broken `require`d file, or a deleted one,
@@ -197,9 +201,13 @@ pub(crate) struct Compiled {
 ///
 #[derive(Clone, Copy, Debug)]
 struct PathEntry {
-    /// The digest of the content this path last *compiled* to, which is the
-    /// half of its [`UnitKey`] that moves.
-    content_hash: Digest,
+    /// The unit in force: the digest of the entry-file content this path last
+    /// *compiled* to, and the two key fields that compile's [`Trace`] gave.
+    unit: Generation,
+    /// The unit in force before [`Self::unit`], which the table keeps beside
+    /// it so that undoing the last change is a pointer swap and not a compile.
+    /// `None` until the pointer has moved once.
+    replaced: Option<Generation>,
     /// What `validate = "mtime"` compares against, and `None` where the file
     /// system answered with neither — a path whose stamp cannot be read is
     /// re-hashed rather than trusted.
@@ -208,6 +216,37 @@ struct PathEntry {
     /// against this, which is what makes the cost `N ⁄ freq` rather than `N`.
     last_checked: Instant,
 }
+
+/// One compiled program of one path: the entry file's digest, and the
+/// whole-program digest and probe digest its [`Trace`] gave. With the path and
+/// the environment it is a [`UnitKey`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Generation {
+    content: Digest,
+    program: Digest,
+    probes: ProbeHash,
+}
+
+/// The traces [`Compiler::traces`] keeps for one path at one entry-file
+/// content, and which of them that content is answered under now.
+///
+/// There can be more than one because the entry file is not the whole
+/// program: an edit to a `require`d file and its revert leave the entry file's
+/// digest where it was, and each of the two programs has a trace of its own.
+#[derive(Debug, Default)]
+struct Traced {
+    /// The program digest and probe digest of the trace that still describes
+    /// the disk, and `None` where the last check found every trace here moved.
+    current: Option<(Digest, ProbeHash)>,
+    traces: Vec<Trace>,
+}
+
+/// One stamp to keep per file, or per listed directory, in order.
+type Stamps = Vec<Option<Stamp>>;
+
+/// What a resolve gives its caller: the program and its route table, or the
+/// one-line summary of why it did not compile.
+type Answer = Result<(Program, Arc<nvs_runtime::routes::Routes>), String>;
 
 /// The `mtime`/size pair `rule:config/an-edit-reaches-the-next-request-without-a-restart` calls the cheap
 /// pre-filter: enough to say a file did *not* change, never enough to say what
@@ -402,17 +441,17 @@ pub(crate) struct Compiler {
     /// two paths holding the same source compile once and a reverted edit is a
     /// hit rather than a recompile.
     units: RwLock<HashMap<UnitKey, CompileState>>,
-    /// What the compile of a path's entry-file content read — the index a
+    /// What each compile of a path's entry-file content read — the index a
     /// lookup needs in front of the table above, since the whole-program digest
     /// and the probe digest that complete a [`UnitKey`] are produced by the
     /// compile the key is meant to spare.
     ///
-    /// A lookup reads this to spell the key it is about to ask with, and finds
-    /// nothing for content this process has not compiled — which spells the
-    /// entry file's digest and [`ProbeHash::unrecorded`], the key the compile
-    /// then claims under and re-keys away from ([`Self::record`]). So the entry
-    /// here and the entry there move together, and a content the table holds a
-    /// unit for is a content this map names the trace of.
+    /// A lookup reads the [`Traced::current`] trace to spell the key it is
+    /// about to ask with. Content this process has not compiled, or whose every
+    /// trace has moved, has none, and spells the entry file's digest and
+    /// [`ProbeHash::unrecorded`] — the key a compile then claims under and
+    /// re-keys away from ([`Self::record`]). A trace stays here exactly as long
+    /// as the unit it addresses stays in `units`.
     ///
     /// The paths a trace names are **not** entries in [`Self::paths`]. That map
     /// answers *what a written path last compiled to* — one entry per path
@@ -425,7 +464,7 @@ pub(crate) struct Compiler {
     /// own rule, so the pair stays O(the program's files) rather than O(edits)
     /// — `rule:programs/memory-priority`, and `nvs_hir::autoload::ProbeTrace` is
     /// where the probe list's length is bounded.
-    traces: RwLock<HashMap<(PathBuf, Digest), Trace>>,
+    traces: RwLock<HashMap<(PathBuf, Digest), Traced>>,
     /// The environment half of every key here — `rule:config/the-extension-set-is-in-every-unit-key`'s digest, taken
     /// from the configuration this process is serving.
     ///
@@ -571,14 +610,14 @@ impl Compiler {
         // What step 4 below compares against: the pointer as this resolve
         // found it, read once here so that everything after it — the `stat`,
         // the hash and the compile — happens outside the map.
-        let since = known.map(|entry| entry.content_hash);
+        let since = known.map(|entry| entry.unit.content);
 
         // 1. The syscall this resolve does not make: a request arriving
         //    inside the rate cap's window is answered from the entry the last
         //    check wrote.
         if let Some(entry) = known
             && entry.last_checked.elapsed() < self.revalidation.freq
-            && let Some(answer) = self.answer(&written, entry.content_hash)
+            && let Some((_, answer)) = self.answer(&written, entry.unit.content)
         {
             return answer;
         }
@@ -592,7 +631,8 @@ impl Compiler {
         let observed = match observe(&written, self.revalidation.validate, known) {
             Ok(observed) => observed,
             Err(error) => {
-                if let Some(answer) = known.and_then(|e| self.answer(&written, e.content_hash)) {
+                if let Some((_, answer)) = known.and_then(|e| self.answer(&written, e.unit.content))
+                {
                     return answer;
                 }
                 eprintln!("error: could not read {}: {error}", written.display());
@@ -602,14 +642,6 @@ impl Compiler {
             }
         };
 
-        // What a failure below keeps in force beside itself: the unit this path
-        // pointed at, spelled before step 2a can drop the trace that spells it.
-        // A failure of the same entry content replaces that trace, so the unit
-        // would be unreachable and is not kept.
-        let in_force = known
-            .filter(|entry| entry.content_hash != observed.content_hash)
-            .map(|entry| (entry.content_hash, self.key(&written, entry.content_hash)));
-
         // 2a. And everything else this program's last compile read: its other
         //     files, the paths it missed, and what its `autoload` resolution
         //     probed. An edit to any of them is one the entry file's digest
@@ -618,12 +650,12 @@ impl Compiler {
 
         // Step 2's second half and step 3's content key in one lookup: an
         // observation that did not move addresses the entry the last one wrote,
-        // and one that did may still name content this process compiled before
-        // — a reverted edit, or a broken one being re-observed. Either way this
-        // resolve is answered without reaching a flight at all.
-        if let Some(answer) = self.answer(&written, observed.content_hash) {
+        // and one that did may still name a program this process compiled
+        // before — a reverted edit, or a broken one being re-observed. Either
+        // way this resolve is answered without reaching a flight at all.
+        if let Some((generation, answer)) = self.answer(&written, observed.content_hash) {
             if answer.is_ok() {
-                self.advance(&written, &observed, since);
+                self.advance(&written, &observed, generation, since);
             }
             return answer;
         }
@@ -653,9 +685,10 @@ impl Compiler {
         // another content of this path sweeping the entry out in between. Both
         // fall through and compile on this caller's own account, which is what
         // every caller did before there was a flight to wait behind.
-        if !claimed && let Some(answer) = self.answer(&written, observed.content_hash) {
+        if !claimed && let Some((generation, answer)) = self.answer(&written, observed.content_hash)
+        {
             if answer.is_ok() {
-                self.advance(&written, &observed, since);
+                self.advance(&written, &observed, generation, since);
             }
             return answer;
         }
@@ -668,141 +701,166 @@ impl Compiler {
             Ok(compiled) => CompileState::Ready(compiled),
             Err(message) => CompileState::Failed(message),
         };
-        // 4 and 5: the pointer moves only on success, and what the table keeps
-        // for this path is the entry in force plus, at most, the failure the
-        // next resolve of this content is owed.
+        // 4 and 5: the pointer moves only on success. What the table keeps for
+        // this path is the unit in force and the one it replaced, plus at most
+        // the failure the next resolve of this content is owed. A success
+        // becomes the unit in force, so the one in force now is the one it
+        // replaced, and the one before that goes.
         let ready = matches!(state, CompileState::Ready(_));
-        let keep = if ready { None } else { in_force };
+        let generation = Generation {
+            content: observed.content_hash,
+            program: trace.program,
+            probes: trace.probes,
+        };
+        let keep: Vec<Generation> = known
+            .map(|entry| {
+                let replaced = entry
+                    .replaced
+                    .filter(|_| !ready || entry.unit == generation);
+                [Some(entry.unit), replaced].into_iter().flatten().collect()
+            })
+            .unwrap_or_default();
         let published = key.with_program(trace.program).with_probes(trace.probes);
         // Taken from the state before it goes into the table, so a record for
         // another content of this path, landing in between, cannot take this
         // caller's answer with it.
         let reply = reply(&state).expect("a finished compile is an answer");
-        self.record(published, observed.content_hash, state, keep, trace);
+        self.record(published, observed.content_hash, state, &keep, trace);
         // The waiters, released once the answer is in the table and not before.
         // The explicit drop is the ordering; the guard is for the path where
         // the line above never ran at all.
         drop(landing);
         if ready {
-            self.advance(&written, &observed, since);
+            self.advance(&written, &observed, generation, since);
         }
         reply
     }
 
     /// What the table holds for `path` at `content`, and `None` where it holds
     /// nothing — the one place a [`CompileState`] becomes a caller's answer.
-    fn answer(
-        &self,
-        path: &Path,
-        content: Digest,
-    ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
-        let key = self.key(path, content);
-        reply(shared(&self.units).get(&key)?)
+    /// The [`Generation`] beside it is the one the answer was read under.
+    fn answer(&self, path: &Path, content: Digest) -> Option<(Generation, Answer)> {
+        let generation = self.generation(path, content);
+        let key = self.key_of(path, generation);
+        Some((generation, reply(shared(&self.units).get(&key)?)?))
     }
 
-    /// The key `path` at `content` is addressed by right now: the environment
-    /// this process is serving, and the [`Trace`] [`Self::traces`] recorded for
-    /// that content — its whole-program digest and its probe digest. Where it
-    /// holds none, the key is the entry file's digest and
-    /// [`ProbeHash::unrecorded`], which is the key a first compile of the
-    /// content claims under.
-    ///
-    /// Both maps are read here and released before the caller touches `units`,
-    /// so no lock in this resolver is ever held across another: a reload taking
-    /// the write half of either cannot meet a reader holding the other.
-    fn key(&self, path: &Path, content: Digest) -> UnitKey {
+    /// The program `path` at `content` is addressed by right now: the
+    /// [`Traced::current`] trace [`Self::traces`] holds for that content — its
+    /// whole-program digest and its probe digest. Where there is none, it is
+    /// the entry file's digest and [`ProbeHash::unrecorded`], which is the key
+    /// a compile of the content claims under.
+    fn generation(&self, path: &Path, content: Digest) -> Generation {
         let (program, probes) = shared(&self.traces)
             .get(&(path.to_path_buf(), content))
-            .map_or_else(
-                || (content, ProbeHash::unrecorded()),
-                |trace| (trace.program, trace.probes),
-            );
-        UnitKey::new(path, program, probes, self.env())
+            .and_then(|traced| traced.current)
+            .unwrap_or((content, ProbeHash::unrecorded()));
+        Generation {
+            content,
+            program,
+            probes,
+        }
     }
 
-    /// Step 2's other half: every path the last compile of this content read,
-    /// missed or probed, checked again under the gate the entry file's `stat`
-    /// rides rather than one of their own.
+    /// The key `path` at `content` is addressed by right now: its
+    /// [`Self::generation`] under the environment this process is serving.
     ///
-    /// A path that answers differently now means the next compile would read a
-    /// different program, so the trace recorded here is no longer this
-    /// content's. Dropping the entry is what says so: the resolve behind this
-    /// call then spells the unrecorded key, misses, and compiles — and
-    /// [`Self::record`] sweeps the unit the stale trace addressed. Where nothing
-    /// moved but a stamp was refreshed, the refreshed stamps are written back,
-    /// so a file re-read once is not re-read on every later check.
+    /// Every map is read and released before the caller touches `units`, so
+    /// no lock in this resolver is ever held across another: a reload taking
+    /// the write half of either cannot meet a reader holding the other.
+    fn key(&self, path: &Path, content: Digest) -> UnitKey {
+        self.key_of(path, self.generation(path, content))
+    }
+
+    /// `generation` of `path` as a key, under the environment this process is
+    /// serving.
+    fn key_of(&self, path: &Path, generation: Generation) -> UnitKey {
+        UnitKey::new(path, generation.program, generation.probes, self.env())
+    }
+
+    /// Step 2's other half: every path a compile of this content read, missed
+    /// or probed, checked again under the gate the entry file's `stat` rides
+    /// rather than one of their own.
     ///
-    /// The unit is **not** removed here. It is still the right answer for the
-    /// key it is under, a reader holding it is unaffected either way, and
-    /// leaving one place that takes units out of the table is what keeps the
-    /// sweep's accounting readable.
+    /// The current trace is checked first. Where a path it names answers
+    /// differently now, the next compile would read a different program, so
+    /// the trace is no longer this content's, and the other traces kept for
+    /// this content are checked newest first. The first one that still
+    /// describes the disk becomes current, which is how undoing an edit to a
+    /// `require`d file finds the unit compiled before it. Where none does,
+    /// nothing is current: the resolve behind this call spells the unrecorded
+    /// key, misses, and compiles. Where the trace that stays current had a
+    /// stamp refreshed, the refreshed stamps are written back, so a file re-read
+    /// once is not re-read on every later check.
+    ///
+    /// No trace and no unit is removed here. A trace that moved may describe
+    /// the disk again after a revert, a unit is still the right answer for the
+    /// key it is under, and [`Self::record`] is the one place that takes either
+    /// out of its map.
     ///
     /// **What it costs:** one `stat` per file the program read or missed and per
     /// directory a discovery scan listed, one `exists` per probed path, and a
     /// read or a listing only for a path whose stamp moved (or every one, under
-    /// `validate = "hash"`) — per revalidation window that reaches step 2.
+    /// `validate = "hash"`) — per revalidation window that reaches step 2, and
+    /// once more for each other trace kept for this content when the current
+    /// one moved.
     fn revalidate_trace(&self, path: &Path, content: Digest) {
         let entry = (path.to_path_buf(), content);
         let validate = self.revalidation.validate;
         let checked = SystemTime::now();
-        let (program, stamps) = {
+        let (was, found) = {
             let traces = shared(&self.traces);
-            let Some(trace) = traces.get(&entry) else {
+            let Some(traced) = traces.get(&entry) else {
                 return;
             };
-            let probes_moved = trace
-                .answers
+            let id = |trace: &Trace| (trace.program, trace.probes);
+            let current = traced
+                .traces
                 .iter()
-                .any(|(probed, existed)| probed.exists() != *existed);
-            /// One stamp to keep per file, or per listed directory, in order.
-            type Stamps = Vec<Option<Stamp>>;
-            let stamps: Option<(Stamps, Stamps)> = if probes_moved {
-                None
-            } else {
-                trace
-                    .files
-                    .iter()
-                    .map(|read| unmoved(read, validate, checked))
-                    .collect::<Option<Vec<_>>>()
-                    .zip(
-                        trace
-                            .listed
-                            .iter()
-                            .map(|listed| unlisted(listed, validate, checked))
-                            .collect::<Option<Vec<_>>>(),
-                    )
-            };
-            let restamped = stamps.map(|(files, dirs)| {
-                let changed = trace
-                    .files
-                    .iter()
-                    .map(|read| read.stamp)
-                    .zip(&files)
-                    .chain(trace.listed.iter().map(|listed| listed.stamp).zip(&dirs))
-                    .any(|(was, now)| was != *now);
-                changed.then_some((files, dirs))
+                .filter(|trace| Some(id(trace)) == traced.current);
+            let others = traced
+                .traces
+                .iter()
+                .rev()
+                .filter(|trace| Some(id(trace)) != traced.current);
+            let found = current.chain(others).find_map(|trace| {
+                describes_the_disk(trace, validate, checked).map(|stamps| (id(trace), stamps))
             });
-            (trace.program, restamped)
+            (traced.current, found)
         };
-        match stamps {
-            None => {
-                exclusive(&self.traces).remove(&entry);
+        if matches!(found, Some((id, None)) if Some(id) == was)
+            || (found.is_none() && was.is_none())
+        {
+            return;
+        }
+        let mut traces = exclusive(&self.traces);
+        // Only onto the state that was checked: a compile that landed in
+        // between recorded a current trace, and stamps, of its own.
+        let Some(traced) = traces.get_mut(&entry) else {
+            return;
+        };
+        if traced.current != was {
+            return;
+        }
+        traced.current = None;
+        let Some((id, stamps)) = found else {
+            return;
+        };
+        let Some(trace) = traced
+            .traces
+            .iter_mut()
+            .find(|trace| (trace.program, trace.probes) == id)
+        else {
+            return;
+        };
+        traced.current = Some(id);
+        if let Some((files, dirs)) = stamps {
+            for (read, stamp) in trace.files.iter_mut().zip(files) {
+                read.stamp = stamp;
             }
-            Some(Some((files, dirs))) => {
-                // Only onto the generation that was checked: a compile that
-                // landed in between recorded stamps of its own.
-                if let Some(trace) = exclusive(&self.traces).get_mut(&entry)
-                    && trace.program == program
-                {
-                    for (read, stamp) in trace.files.iter_mut().zip(files) {
-                        read.stamp = stamp;
-                    }
-                    for (listed, stamp) in trace.listed.iter_mut().zip(dirs) {
-                        listed.stamp = stamp;
-                    }
-                }
+            for (listed, stamp) in trace.listed.iter_mut().zip(dirs) {
+                listed.stamp = stamp;
             }
-            Some(None) => {}
         }
     }
 
@@ -845,15 +903,32 @@ impl Compiler {
     /// compiled, so it still answers with its own unit — what it has lost is
     /// only being the content the *next* resolve of this path starts from.
     /// [`bool`] is here for the tests that order two revalidations by hand.
-    fn advance(&self, path: &Path, observed: &Observed, since: Option<Digest>) -> bool {
+    ///
+    /// `generation` is the unit now in force. Where it differs from the one the
+    /// pointer named, that one becomes [`PathEntry::replaced`]; where it is the
+    /// same, the pointer keeps the one it had.
+    fn advance(
+        &self,
+        path: &Path,
+        observed: &Observed,
+        generation: Generation,
+        since: Option<Digest>,
+    ) -> bool {
         let mut paths = exclusive(&self.paths);
-        if paths.get(path).map(|entry| entry.content_hash) != since {
+        let known = paths.get(path).copied();
+        if known.map(|entry| entry.unit.content) != since {
             return false;
         }
+        let replaced = match known {
+            Some(entry) if entry.unit == generation => entry.replaced,
+            Some(entry) => Some(entry.unit),
+            None => None,
+        };
         paths.insert(
             path.to_path_buf(),
             PathEntry {
-                content_hash: observed.content_hash,
+                unit: generation,
+                replaced,
                 stamp: observed.stamp,
                 last_checked: Instant::now(),
             },
@@ -861,49 +936,83 @@ impl Compiler {
         true
     }
 
-    /// `state` under `key`, and the two entries this path is then allowed to
-    /// keep: the content just reached, and `keep` where a failure leaves an
-    /// older unit still in force.
+    /// `state` under `key`, and the entries this path is then allowed to keep:
+    /// the program just reached, and the generations in `keep`.
     ///
-    /// The sweep is what keeps the table O(paths): every earlier generation of
+    /// `keep` is what [`Self::compiled`] decides the path still owes: the unit
+    /// in force and the one it replaced ([`PathEntry`]). After a success the
+    /// unit in force is about to become the replaced one, and the one before it
+    /// is not kept. After a failure both stay beside it. So a path holds at
+    /// most three units, and at most one of them is a failure.
+    ///
+    /// The sweep is what keeps the table O(paths): every other generation of
     /// this path goes, and a unit a running [`Program`] still holds stays
     /// mapped through that program's own `Arc` rather than through this map.
+    /// The traces go with their units, and a [`Traced::current`] whose trace
+    /// went is cleared.
     ///
-    /// A generation is the whole key, so the placeholder a first compile
-    /// claimed under — the entry file's digest and [`ProbeHash::unrecorded`] —
-    /// goes the moment the trace that replaces it lands: one entry per content.
-    /// [`Self::traces`] is then told the trace, keyed by `reached`, the entry
-    /// file's digest, after the unit is in the table and before the waiters are
-    /// released, so every caller woken by the landing spells the new key and
-    /// finds the unit already under it. A caller arriving cold *between* the
-    /// two writes spells the old key, finds the placeholder gone and compiles
-    /// on its own account — the same answer the map already gives a waiter
-    /// whose flight died, and it converges on the same entry rather than on a
-    /// second one.
-    ///
-    /// `keep` is the unit still in force after a failure — its entry file's
-    /// digest and its key — and its trace stays with it.
+    /// A generation is the whole key, so the placeholder a compile claimed
+    /// under — the entry file's digest and [`ProbeHash::unrecorded`] — goes the
+    /// moment the trace that replaces it lands. [`Self::traces`] is then told
+    /// the trace, keyed by `reached`, the entry file's digest, and made current,
+    /// after the unit is in the table and before the waiters are released, so
+    /// every caller woken by the landing spells the new key and finds the unit
+    /// already under it. A caller arriving cold *between* the two writes spells
+    /// the old key, finds the placeholder gone and compiles on its own account
+    /// — the same answer the map already gives a waiter whose flight died, and
+    /// it converges on the same entry rather than on a second one.
     fn record(
         &self,
         key: UnitKey,
         reached: Digest,
         state: CompileState,
-        keep: Option<(Digest, UnitKey)>,
+        keep: &[Generation],
         trace: Trace,
     ) {
-        let (kept_content, kept_key) = keep.unzip();
+        let path = key.path();
+        let published = Generation {
+            content: reached,
+            program: trace.program,
+            probes: trace.probes,
+        };
+        // Spelled before either guard is taken, because a key reads `env`.
+        let kept_keys: Vec<UnitKey> = keep.iter().map(|g| self.key_of(path, *g)).collect();
         {
             let mut units = exclusive(&self.units);
             units.retain(|other, _| {
-                other.path() != key.path() || other == &key || Some(other) == kept_key.as_ref()
+                other.path() != path || other == &key || kept_keys.contains(other)
             });
             units.insert(key.clone(), state);
         }
         let mut traces = exclusive(&self.traces);
-        traces.retain(|(path, content), _| {
-            path != key.path() || *content == reached || Some(*content) == kept_content
+        traces.retain(|(traced_path, content), traced| {
+            if traced_path != path {
+                return true;
+            }
+            traced.traces.retain(|kept| {
+                let generation = Generation {
+                    content: *content,
+                    program: kept.program,
+                    probes: kept.probes,
+                };
+                generation == published || keep.contains(&generation)
+            });
+            if let Some(current) = traced.current
+                && !traced
+                    .traces
+                    .iter()
+                    .any(|kept| (kept.program, kept.probes) == current)
+            {
+                traced.current = None;
+            }
+            !traced.traces.is_empty()
         });
-        traces.insert((key.path().to_path_buf(), reached), trace);
+        let traced = traces.entry((path.to_path_buf(), reached)).or_default();
+        traced
+            .traces
+            .retain(|kept| (kept.program, kept.probes) != (trace.program, trace.probes));
+        traced.current = Some((trace.program, trace.probes));
+        traced.traces.push(trace);
     }
 
     /// The front end and the backend, over one path, with this process's own
@@ -1114,6 +1223,41 @@ fn unlisted(listed: &Listed, validate: Validate, checked: SystemTime) -> Option<
     (nvs_hir::autoload::listed_names(&listed.dir) == listed.names).then(|| vouching(stamp, checked))
 }
 
+/// Whether every path `trace` names still answers the way the compile saw it:
+/// `None` where a probe, a file or a listed directory moved, and otherwise the
+/// stamps to write back — `None` inside where none of them was refreshed.
+fn describes_the_disk(
+    trace: &Trace,
+    validate: Validate,
+    checked: SystemTime,
+) -> Option<Option<(Stamps, Stamps)>> {
+    if trace
+        .answers
+        .iter()
+        .any(|(probed, existed)| probed.exists() != *existed)
+    {
+        return None;
+    }
+    let files = trace
+        .files
+        .iter()
+        .map(|read| unmoved(read, validate, checked))
+        .collect::<Option<Stamps>>()?;
+    let dirs = trace
+        .listed
+        .iter()
+        .map(|listed| unlisted(listed, validate, checked))
+        .collect::<Option<Stamps>>()?;
+    let changed = trace
+        .files
+        .iter()
+        .map(|read| read.stamp)
+        .zip(&files)
+        .chain(trace.listed.iter().map(|listed| listed.stamp).zip(&dirs))
+        .any(|(was, now)| was != *now);
+    Some(changed.then_some((files, dirs)))
+}
+
 /// A read guard on one of [`Compiler`]'s two maps: the hit path, and the one
 /// every resolve after the first takes.
 ///
@@ -1157,7 +1301,7 @@ fn observe(path: &Path, validate: Validate, known: Option<PathEntry>) -> std::io
         && known.stamp == Some(stamp)
     {
         return Ok(Observed {
-            content_hash: known.content_hash,
+            content_hash: known.unit.content,
             stamp: Some(stamp),
         });
     }
@@ -1501,8 +1645,9 @@ mod tests {
         let probed = shared(&compiler.traces)
             .values()
             .next()
-            .expect("one trace")
-            .probes;
+            .and_then(|traced| traced.current)
+            .expect("one current trace")
+            .1;
         assert_ne!(
             probed,
             ProbeHash::unrecorded(),
@@ -1561,8 +1706,8 @@ mod tests {
         );
         assert_eq!(
             shared(&compiler.units).len(),
-            1,
-            "the generation the stale trace addressed is still in the table",
+            2,
+            "the table holds more than the unit in force and the one it replaced",
         );
     }
 
@@ -1605,8 +1750,52 @@ mod tests {
         assert_eq!(said(restored), "three\n", "the restored file was not seen");
         assert_eq!(
             shared(&compiler.units).len(),
-            1,
-            "an earlier generation of the program is still in the table",
+            2,
+            "the table holds more than the unit in force and the one it replaced",
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_reverted_edit_to_a_required_file_is_answered_without_a_compile() {
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+        // reverted edit, where the entry file's digest never moves: both
+        // programs have a trace under the same entry content, and the check
+        // finds the older one describing the disk again.
+        let dir = std::env::temp_dir().join(format!("nvs-reverted-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the program's directory");
+        let lib = dir.join("lib.nvs");
+        std::fs::write(&lib, "<?nvs\necho \"one\\n\";\n").expect("the required file");
+        std::fs::write(dir.join("entry.nvs"), "<?nvs\nrequire './lib.nvs';\n")
+            .expect("the entry point");
+        let written = dir.join("entry.nvs").to_string_lossy().into_owned();
+        let compiler = revalidating();
+
+        let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        assert_eq!(said(first), "one\n");
+        std::fs::write(&lib, "<?nvs\necho \"two, edited\\n\";\n").expect("the edit");
+        let (edited, _routes) = compiler.compiled(&written).expect("the edit compiles");
+        assert_eq!(said(edited), "two, edited\n");
+
+        std::fs::write(&lib, "<?nvs\necho \"one\\n\";\n").expect("the revert");
+        let (reverted, _routes) = compiler.compiled(&written).expect("the revert resolves");
+        assert_eq!(said(reverted), "one\n", "the revert was not seen");
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the reverted program was compiled again",
+        );
+
+        // And the edit it undid is now the unit it replaced, so redoing it is a
+        // swap back.
+        std::fs::write(&lib, "<?nvs\necho \"two, edited\\n\";\n").expect("the redo");
+        let (redone, _routes) = compiler.compiled(&written).expect("the redo resolves");
+        assert_eq!(said(redone), "two, edited\n", "the redo was not seen");
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the redone program was compiled again",
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1818,12 +2007,12 @@ mod tests {
     #[test]
     fn a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it() {
         // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
-        // step 4 seen from a core that resolved *before* the swap. [`record`]'s
-        // sweep takes the old generation out of the table the moment the new
-        // content is published, so the only thing keeping that reader's pages
-        // mapped is the `Arc` its own [`Program`] carries — and the counts
-        // below are that sentence as a number, rather than an argument from
-        // the program having run.
+        // step 4 seen from a core that resolved *before* two swaps. The table
+        // keeps the unit in force and the one it replaced, so [`record`]'s
+        // sweep takes the first generation out when the third is published,
+        // and the only thing keeping that reader's pages mapped is the `Arc`
+        // its own [`Program`] carries — and the counts below are that sentence
+        // as a number, rather than an argument from the program having run.
         let path = a_file_saying("outlives", "one");
         let written = path.to_string_lossy().into_owned();
         let compiler = Arc::new(revalidating());
@@ -1861,21 +2050,28 @@ mod tests {
 
             resolved.wait();
             let _ = a_file_saying("outlives", "two");
-            let (after, _routes) = compiler
+            let (between, _routes) = compiler
                 .compiled(&written)
                 .expect("the edited entry compiles");
-            assert_eq!(
-                shared(&compiler.units).len(),
-                1,
-                "the swept generation is still in the table"
-            );
-            assert_eq!(
-                Arc::strong_count(&old),
-                2,
-                "the old unit is held by something other than its reader and this test"
-            );
+            drop(between);
+            let _ = a_file_saying("outlives", "three");
+            let (after, _routes) = compiler
+                .compiled(&written)
+                .expect("the edited entry compiles again");
+            let held = shared(&compiler.units).len();
+            let holders = Arc::strong_count(&old);
+            // Released before asserting, so a failure below cannot leave the
+            // reader waiting on the barrier for ever.
             swapped.wait();
             drop(after);
+            assert_eq!(
+                held, 2,
+                "the table holds more than the unit in force and the one it replaced"
+            );
+            assert_eq!(
+                holders, 2,
+                "the old unit is held by something other than its reader and this test"
+            );
         });
 
         // The reader has returned, so its clone is gone and the last hold on
@@ -1920,7 +2116,7 @@ mod tests {
             .compiled(&swapping)
             .expect("the swapped entry compiles");
         drop(warm_swap);
-        let before = shared(&compiler.paths)[&swap].content_hash;
+        let before = shared(&compiler.paths)[&swap].unit.content;
 
         let started = std::sync::Barrier::new(READERS + 1);
         let published = std::sync::atomic::AtomicBool::new(false);
@@ -1963,14 +2159,14 @@ mod tests {
         });
 
         assert_ne!(
-            shared(&compiler.paths)[&swap].content_hash,
+            shared(&compiler.paths)[&swap].unit.content,
             before,
             "the revalidation won the compare and did not publish"
         );
         assert_eq!(
             shared(&compiler.units).len(),
-            2,
-            "one path per generation, so a swept generation is still in the table"
+            3,
+            "the read path's unit, and the swapped path's unit in force and the one it replaced"
         );
         // Three compiles: the two warm-ups and the edit. A reader that had been
         // made to wait for the compile would have gone back to the table
@@ -2006,14 +2202,15 @@ mod tests {
         let compiler = revalidating();
         let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
         drop(first);
-        let stale = shared(&compiler.paths)[&path].content_hash;
+        let stale_unit = shared(&compiler.paths)[&path].unit;
+        let stale = stale_unit.content;
 
         let _ = a_file_saying("stale", "two");
         let (second, _routes) = compiler
             .compiled(&written)
             .expect("the edited entry compiles");
         drop(second);
-        let fresher = shared(&compiler.paths)[&path].content_hash;
+        let fresher = shared(&compiler.paths)[&path].unit.content;
         assert_ne!(stale, fresher, "the edit never reached the pointer");
 
         // The slower revalidation, landing after the one that overtook it. It
@@ -2025,11 +2222,11 @@ mod tests {
             stamp: None,
         };
         assert!(
-            !compiler.advance(&path, &observed, Some(stale)),
+            !compiler.advance(&path, &observed, stale_unit, Some(stale)),
             "a revalidation that observed the file first won step 4 by finishing last"
         );
         assert_eq!(
-            shared(&compiler.paths)[&path].content_hash,
+            shared(&compiler.paths)[&path].unit.content,
             fresher,
             "the published content was rolled back to what a slower resolve saw"
         );
@@ -2058,7 +2255,7 @@ mod tests {
         let compiler = revalidating();
 
         let (running, _routes) = compiler.compiled(&written).expect("the entry compiles");
-        let good = shared(&compiler.paths)[&path].content_hash;
+        let good = shared(&compiler.paths)[&path].unit.content;
 
         // The edit that does not parse, and the resolve that reaches it. What
         // comes back is a message rather than a panic or a stale unit, which
@@ -2081,7 +2278,7 @@ mod tests {
         // compiled — and [`Compiler::record`]'s `keep` is why that unit is
         // still in the table beside the failure rather than swept by it.
         assert_eq!(
-            shared(&compiler.paths)[&path].content_hash,
+            shared(&compiler.paths)[&path].unit.content,
             good,
             "a broken edit moved the pointer"
         );
@@ -2103,7 +2300,7 @@ mod tests {
             .expect("the repaired entry compiles");
         assert_eq!(said(repaired), "two\n");
         assert_ne!(
-            shared(&compiler.paths)[&path].content_hash,
+            shared(&compiler.paths)[&path].unit.content,
             good,
             "the repair never reached the pointer"
         );
@@ -2127,7 +2324,7 @@ mod tests {
         // Warmed first, so what the storm meets is a break in a file this
         // cache already serves rather than a cold path that never compiled.
         let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
-        let good = shared(&compiler.paths)[&entry].content_hash;
+        let good = shared(&compiler.paths)[&entry].unit.content;
         drop(warm);
         let _ = a_file_running("broken-storm", "echo \"one\" \"two\";");
 
@@ -2179,7 +2376,7 @@ mod tests {
             "the storm put the same break through the front end more than once"
         );
         assert_eq!(
-            shared(&compiler.paths)[&entry].content_hash,
+            shared(&compiler.paths)[&entry].unit.content,
             good,
             "the storm moved the pointer off the content that compiled"
         );
@@ -2354,11 +2551,12 @@ mod tests {
     #[test]
     fn a_connection_opened_after_the_swap_runs_the_new_unit() {
         // The other half of the bullet, over the same fixture: what a resolve
-        // taken after the edit hands back is the *new* unit. The length
-        // assertion is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s own accounting — the pointer moved rather
-        // than the table growing an entry per edit — and it holds while the
-        // program resolved before the edit is still alive, because that one's
-        // pages are kept by its own `Arc` (`script`'s module doc).
+        // taken after the edits hands back is the *new* unit. The length
+        // assertion is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+        // own accounting — the table keeps the unit in force and the one it
+        // replaced, rather than growing an entry per edit — and it holds while
+        // the program resolved before the edits is still alive, because that
+        // one's pages are kept by its own `Arc` (`script`'s module doc).
         let path = a_file_saying("swaps", "one");
         let compiler = revalidating();
         let (before, _) = compiler
@@ -2366,14 +2564,19 @@ mod tests {
             .expect("the entry compiles");
 
         let _ = a_file_saying("swaps", "two");
-        let (after, _) = compiler
+        let (between, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the edited entry compiles");
+        drop(between);
+        let _ = a_file_saying("swaps", "three");
+        let (after, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the edited entry compiles again");
 
         let completion = run_program(after);
         assert!(completion.ok, "error: {:?}", completion.error);
-        assert_eq!(String::from_utf8_lossy(&completion.output), "two\n");
-        assert_eq!(shared(&compiler.units).len(), 1);
+        assert_eq!(String::from_utf8_lossy(&completion.output), "three\n");
+        assert_eq!(shared(&compiler.units).len(), 2);
         drop(before);
     }
 
@@ -2391,7 +2594,7 @@ mod tests {
         let (holding, _) = compiler
             .compiled(&child.to_string_lossy())
             .expect("the child compiles");
-        let before = shared(&compiler.paths)[&child].content_hash;
+        let before = shared(&compiler.paths)[&child].unit.content;
 
         // The edit a serving core is about to find, and the request that finds
         // it: this parent resolves the edited path mid-run, through the seam
@@ -2416,7 +2619,7 @@ mod tests {
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(String::from_utf8_lossy(&completion.output), "served\n");
         assert_ne!(
-            shared(&compiler.paths)[&child].content_hash,
+            shared(&compiler.paths)[&child].unit.content,
             before,
             "the swap did not publish"
         );
