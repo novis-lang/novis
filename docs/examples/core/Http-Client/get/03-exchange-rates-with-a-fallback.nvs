@@ -1,0 +1,24 @@
+<?nvs
+// Shows a shop that reads today's exchange rate from a service. When the service
+// cannot be reached, the shop uses the rate it saved yesterday.
+
+class Rates {
+    public static function euroToDollar(): float {
+        try {
+            // `deadline` is the most time the request may take, so a slow service
+            // cannot hold up the page.
+            Core\Http\Response $response = Core\Http\Client::get("http://10.0.0.12/rates/EUR-USD", {deadline: 2s});
+            if ($response->status() == 200) {
+                return $response->text() as float;
+            }
+        } catch (RuntimeError $error) {
+            echo "The rate service is not reachable: ", $error->message, "\n";
+        }
+        // The rate saved yesterday.
+        return 1.08;
+    }
+}
+
+// The service is at a private address, so this uses the saved rate and prints `54 EUR is 58.32 USD`.
+float $rate = Rates::euroToDollar();
+echo "54 EUR is ", Core\Math::round(54 * $rate, {precision: 2}), " USD", "\n";

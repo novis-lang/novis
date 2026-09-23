@@ -1,0 +1,25 @@
+<?nvs
+// Measures sending a `GET` request that a test answers, as a program's own tests do
+// for every request to another service.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Every request below is answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://api.example.com/*", 200, {body: "in stock"});
+        array<string> $paths = ["/stock/", "/prices/", "/orders/"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The URL in each round is chosen by the round before, so no round can be left out.
+            string $url = "https://api.example.com" . $paths[($total % 3) as int] . $i;
+            Core\Http\Response $response = Core\Http\Client::get($url);
+            $total = $total + ($response->status() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

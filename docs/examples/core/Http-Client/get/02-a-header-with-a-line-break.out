@@ -1,0 +1,1 @@
+Core\Http\Client::get: `X-User` is not a header this request can carry — a name or value holding a control byte would end the line early, which is a second request the caller did not write

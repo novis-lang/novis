@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `GET` requests with a very long URL or a very large number of headers try
+// to exhaust memory or hide a line break. Every one must throw an error before
+// anything is sent. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. One request has one hundred thousand headers, and only the last one has a line break.
+//    The call must throw a `RuntimeError` about that header.
+array<string> $headers = [];
+uint $h = 0;
+while ($h < 100000) {
+    $headers[Core\Str::format('X-Field-%d', $h)] = 'value';
+    $h = $h + 1;
+}
+$headers['X-Last'] = "value\r\nGET /admin HTTP/1.1";
+try {
+    Core\Http\Response $many = Core\Http\Client::get('https://203.0.113.10/', { deadline: 2s, headers: $headers });
+    throw new LogicError('a header with a line break was sent');
+} catch (RuntimeError $error) {
+    if (!Core\Str::contains($error->message, 'X-Last')) {
+        throw new LogicError(Core\Str::format('the header was not checked first: %s', $error->message));
+    }
+}
+echo 'step 1: refused', "\n";
+
+// 2. A URL of ten million characters names a private address. It is tried one hundred
+//    times. Each call must throw a `RuntimeError`, and the memory in use must not grow.
+string $long = 'http://10.0.0.7/' . Core\Str::repeat('a', 10000000);
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Http\Response $big = Core\Http\Client::get($long, { deadline: 2s });
+        throw new LogicError('a request to a private address was sent');
+    } catch (RuntimeError $error) {
+        $i = $i + 1;
+    }
+}
+echo 'step 2: ', $i, "\n";
+
+// 3. Every refused URL is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://192.168.%d.1/', $n % 250) . Core\Str::repeat('d', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::get($address);
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}
