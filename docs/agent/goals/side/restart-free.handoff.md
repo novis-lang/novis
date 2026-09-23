@@ -9,24 +9,22 @@ takes. Stages 2 to 5 are complete.
 
 **Stage 6.** The configuration check is on disk (`crate::control::check` in
 `crates/nvs-cli/src/control.rs`). `[server]` is a `Reload` block row with `Boot` rows `listen`,
-`socket_mode` and `workers`, and every other `[server]` key reloads. `root` and `[[server.mount]]`
-now reload too: `mounts::Rescan` (`crates/nvs-cli/src/serve/mounts.rs`) compares them in the
-published snapshot with the tree it last expanded, and expands the published tree at once when they
-differ. It renders a refusal against the source map `Process::published` records per snapshot
-generation (`Process::sources_of`), reached through `crate::control::installed()`, which is no
-longer Windows-only. Proved by `a_changed_mount_table_is_expanded_again`. Still `Boot`, each with its
-own row and `BOOT_CHANGES` line: `http.client.tls`, `cache.shared`, `control.socket`,
-`io.temp_root`, `opcache.file_cache_dir`, `session`, `queue.connection`, `queue.workers`. The
-fragment `reloadability-is-its-own-field` names exactly these in its **What is on disk**
-paragraph; shrink it as each lands.
+`socket_mode` and `workers`; every other `[server]` key, `root` and `[[server.mount]]` reload.
+`[session]` now reloads too: `Core\Session::start` reads the block from the snapshot its request
+cloned, and the per-core shared-store connection is dialled again when the dial differs
+(`open_shared` in `crates/nvs-stdlib/src/cache.rs`). Proved by
+`a_changed_session_backend_applies_to_new_requests`, which uses a stand-in RESP store (`Store` in
+`crates/nvs-cli/tests/live_config.rs`). Still `Boot`, each with its own row and `BOOT_CHANGES` line:
+`http.client.tls`, `cache.shared`, `control.socket`, `io.temp_root`, `opcache.file_cache_dir`,
+`queue.connection`, `queue.workers`. The fragment `reloadability-is-its-own-field` names exactly
+these in its **What is on disk** paragraph; shrink it as each lands.
 
-My calls, not confirmed with the user: after boot, the check that a named file is one of the
-table's entries is not asked again, and a reload that removes the last `[[server.mount]]` block
-serves the named file alone (or keeps the rows, with a warning, where no file was named); a changed
-root or block is expanded at once, without waiting for `settle`. Earlier calls: `[server]` is one
-`Reload` block row with `Boot` rows beneath it; a `trusted_proxies` entry that names no network is
-dropped on a reload without a note; the exporters keep the boot's waits for their own scrape and
-push connections. Those before are in ADR 0218, ADR 0219 and the previous handoffs in `git log`.
+A reload's `applied:` lines name dotted leaves (`session.backend`), never the registry row key.
+
+My calls, not confirmed with the user: after boot, the check that a named file is one of the mount
+table's entries is not asked again; a reload that removes the last `[[server.mount]]` block serves
+the named file alone; a changed root or block is expanded at once, without waiting for `settle`.
+Earlier calls are in ADR 0218, ADR 0219 and the previous handoffs in `git log`.
 
 `verify.py`'s `extension` leg fails on `tsc` not found (missing `editors/vscode/node_modules`),
 which nothing here touches. `tests/db/ca.crt` is a git-ignored fixture copied in from the main
@@ -35,16 +33,27 @@ checkout.
 ## Next group
 
 **Stage 6: the configuration applies itself** — one file set: `crates/nvs-cli/src/control.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-config/src/directive.rs`,
-`crates/nvs-config/tests/snapshot.rs`, `crates/nvs-config/tests/directives.rs`,
-`crates/nvs-cli/tests/live_config.rs`.
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-server/src/control.rs`,
+`crates/nvs-config/src/directive.rs`, `crates/nvs-config/tests/snapshot.rs`,
+`crates/nvs-config/tests/directives.rs`, `crates/nvs-cli/tests/live_config.rs`.
 
-- [ ] **The resource keys' live cases** (ADR 0219 § 7): `a_changed_session_backend_applies_to_new_requests`,
-      `a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job` and
-      `a_changed_control_socket_moves_the_control_endpoint`, each after its subsystem rebuilds from
-      the snapshot `Process::published` publishes at `crates/nvs-cli/src/control.rs:210`. Rows at
-      `crates/nvs-config/src/directive.rs:205`, `crates/nvs-config/src/directive.rs:251` and
-      `crates/nvs-config/src/directive.rs:267`.
+- [ ] **`a_changed_control_socket_moves_the_control_endpoint`** (ADR 0219 § 7). Row at
+      `crates/nvs-config/src/directive.rs:205`. The boot spawns the endpoint's thread at
+      `crates/nvs-cli/src/serve.rs:525`, and its loop is `nvs_server::control::serve` at
+      `crates/nvs-server/src/control.rs:326`, which checks only `host.draining()`. A plan: hold the
+      running endpoint (name plus a `retired` flag) in `crate::control`, and after the publish in
+      `Process::published` (`crates/nvs-cli/src/control.rs:210`) bind the new one with
+      `nvs_config::control::bind(name, boundary)`, start its thread, set the old one's flag, and wake
+      its parked accept with `nvs_config::control::connect` on a detached thread (on Windows that
+      call waits for a busy pipe). A reload pushed over the old endpoint is still answered there,
+      because the flag is read between clients. A bind that fails has to keep the running value and
+      be reported as not applied, which `Current::publish`'s `carry_boot`
+      (`crates/nvs-config/src/snapshot.rs:314`) does only for `Boot` rows today.
+- [ ] **`a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job`** (ADR 0219
+      § 7). Rows at `crates/nvs-config/src/directive.rs:268` and
+      `crates/nvs-config/src/directive.rs:269`. Workers are armed once on one core by
+      `arm_queue_workers` at `crates/nvs-cli/src/serve.rs:1471`; a new count has to start tasks on
+      that core or stop some after their current job, as the schedule ticker's roster does beside it.
 - [ ] **`watching_the_configuration_costs_no_request_a_filesystem_call`** in
       `crates/nvs-cli/tests/live_config.rs`: the check runs on its own thread
       (`crates/nvs-cli/src/control.rs:409`), and the request path reads only `Current::load`.
@@ -54,7 +63,10 @@ checkout.
 
 - `only_listen_socket_mode_and_workers_need_a_restart` in `crates/nvs-config/tests/snapshot.rs`, once
   the last temporary `Boot` row is gone (stage 6 check).
-- `http.client.tls`, `cache.shared`, `io.temp_root` and `opcache.file_cache_dir` still need a live
-  case each, or a shared one (ADR 0219 § 7).
+- `cache.shared` needs the schedule ticker's fleet lease (`fleet_lease` in
+  `crates/nvs-cli/src/serve.rs`, opened once at boot) to follow a changed store; requests already
+  redial.
+- `http.client.tls`, `io.temp_root` and `opcache.file_cache_dir` still need a live case each, or a
+  shared one (ADR 0219 § 7).
 - The three registry rows `server.listen`, `server.socket_mode` and `server.workers` are dossier
   features that owe their proofs; stage 7's `dossier.py --gate` counts them.
