@@ -234,14 +234,16 @@
       "id": "testing/an-outbound-call-is-answered-from-a-table",
       "title": "One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network",
       "status": "shipped",
-      "because": ["0180"],
+      "because": ["0180", "0217"],
       "divergesFromPhp": "there is no way to intercept `curl_exec` short of a wrapper the application was written around or a stub extension; here one registered answer takes the whole test off the network",
       "seeAlso": ["testing/in-process-request", "testing/doubles", "http-server/allow-url-pins-the-address"],
       "guardedBy": [
         "crates/nvs-stdlib/src/test.rs",
         "tests/conformance/core/test-answer-http-serves-an-outbound-call-from-a-table.nvst",
         "tests/conformance/core/test-sent-http-records-each-outbound-request.nvst",
-        "tests/conformance/core/test-an-unanswered-outbound-call-throws-and-never-connects.nvst"
+        "tests/conformance/core/test-an-unanswered-outbound-call-throws-and-never-connects.nvst",
+        "tests/conformance/core/http-response-tls-reports-the-session-a-test-described.nvst",
+        "crates/nvs-host/src/tls.rs"
       ]
     },
     {

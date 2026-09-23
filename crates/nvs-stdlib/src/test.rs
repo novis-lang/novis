@@ -447,7 +447,60 @@ const ANSWER: &[CoreOption] = &[
         ty: CoreTy::Array(&CoreTy::Union(ANSWER_HEADER)),
         default: Const::EmptyArray,
     },
+    // A `Core\Http\TlsInfo` and not a bag of its fields, because an option is
+    // never itself a bag: `Core\Test::tlsSession` is the member that takes the
+    // fields and builds one (ADR 0217).
+    CoreOption {
+        name: "tls",
+        ty: CoreTy::Instance(crate::http::TLS_INFO_NAME),
+        default: Const::Null,
+    },
 ];
+
+/// `Core\Test::tlsSession`'s options, one per `Core\Http\TlsInfo` member that
+/// a test may choose, in that class's member order. Every one has a default,
+/// so `tlsSession()` alone is a verified TLS 1.3 session.
+const TLS_SESSION: &[CoreOption] = &[
+    CoreOption {
+        name: "version",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "cipher",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "verified",
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
+    CoreOption {
+        name: "subject",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "issuer",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "expiry",
+        ty: CoreTy::Instance(crate::time::INSTANT_NAME),
+        default: Const::Null,
+    },
+];
+
+/// The subject a described session's leaf carries when the test names none.
+const DEFAULT_TLS_SUBJECT: &str = "CN=example.com";
+/// The issuer a described session's CA carries when the test names none.
+const DEFAULT_TLS_ISSUER: &str = "CN=Novis Test CA";
+/// How long after the test's clock a described session's leaf expires when
+/// the test names no expiry: ninety days, the lifetime most public
+/// certificates are issued for.
+const DEFAULT_TLS_LIFETIME: std::time::Duration = std::time::Duration::from_secs(90 * 86_400);
 
 /// What a synthetic request's `body` may be: text, or the octets of a body that
 /// is not text at all.
@@ -698,6 +751,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_answer_http",
             doc: Some(&ANSWER_HTTP_DOC),
+        },
+        CoreMethod {
+            name: "tlsSession",
+            names: &[],
+            params: &[CoreTy::Options(TLS_SESSION)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(crate::http::TLS_INFO_NAME),
+            symbol: "nvs_core_test_tls_session",
+            doc: Some(&TLS_SESSION_DOC),
         },
         CoreMethod {
             name: "sentHttp",
@@ -1111,14 +1173,76 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
                    A name is matched case-insensitively, as a header name is.",
             shape: &[],
         },
+        ParamDoc {
+            name: "tls",
+            desc: "The TLS session the reply reports, from `Core\\Test::tlsSession`. \
+                   `Core\\Http\\Response::tls` returns it for every call this answer serves. \
+                   Without it, `tls()` returns `null`.",
+            shape: &[],
+        },
     ],
     ret: "Nothing. Answers accumulate, so a test registers as many as it has calls; a URL \
           answered exactly wins over one answered by a prefix, and the longest prefix wins among \
           prefixes.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The answer names both `json` and `body`, which are two spellings of one body; or \
-               the status is not one a status line can carry.",
+        desc: "The answer names both `json` and `body`, which are two spellings of one body; the \
+               status is not one a status line can carry; or the answer gives a `tls` session to \
+               an `http://` URL, which has none.",
+    }],
+};
+
+/// `Core\Test::tlsSession`'s reference card — `rule:core-api/reference-card`.
+const TLS_SESSION_DOC: MethodDoc = MethodDoc {
+    short: "Builds a TLS session for a test, with a real certificate chain, so a test can read a \
+            `Core\\Http\\TlsInfo` without a network.",
+    params: &[
+        ParamDoc {
+            name: "version",
+            desc: "`TLSv1.3` or `TLSv1.2`. The default is `TLSv1.3`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cipher",
+            desc: "A cipher suite this build supports for that version, under its IANA name. The \
+                   default is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and \
+                   `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for TLS 1.2.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "verified",
+            desc: "What `verified()` returns. The default is `true`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "subject",
+            desc: "The leaf certificate's subject, written as `subject()` returns it: `KEY=value` \
+                   pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, \
+                   `C`, `ST` and `L`. The default is `CN=example.com`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "issuer",
+            desc: "The subject of the CA certificate that signs the leaf, which is what \
+                   `issuer()` returns. Written like `subject`. The default is `CN=Novis Test CA`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expiry",
+            desc: "When the leaf certificate expires, in whole seconds. The default is 90 days \
+                   after `Core\\Time::now()`, so a test with a fixed clock gets the same value \
+                   every run.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Http\\TlsInfo`. Its `peerChain()` has two certificates: the leaf, then the CA \
+          that signed it. Pass it to `Core\\Test::answerHttp` as `tls` to make a faked reply \
+          report it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The version is not `TLSv1.3` or `TLSv1.2`; the cipher is not one this build \
+               supports for that version; a subject or issuer is not written as `KEY=value` \
+               pairs with the keys above; or the expiry is before 1950 or after 9999.",
     }],
 };
 
@@ -2041,7 +2165,7 @@ fn answer_headers_of(bag: Value, member: &str) -> Result<Vec<(String, String)>, 
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::answerHttp(string $url, uint $status, {json?, body?, headers?}): void`
+    /// `Core\Test::answerHttp(string $url, uint $status, {json?, body?, headers?, tls?}): void`
     /// — `rule:testing/an-outbound-call-is-answered-from-a-table`, and the
     /// switch that takes a test off the network.
     ///
@@ -2063,7 +2187,7 @@ nvs_runtime::nvs_helper! {
     /// omits as the never-written marker
     /// (`rule:core-api/omission-is-not-a-written-null`) and the two arrive
     /// under different tags rather than as one argument.
-    fn nvs_core_test_answer_http(ctx, args: [5]) {
+    fn nvs_core_test_answer_http(ctx, args: [6]) {
         let member = "Core\\Test::answerHttp";
         let url = args[0].as_text().ok_or_else(|| {
             // Unreachable from source: the row's first parameter is
@@ -2101,6 +2225,25 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
+        let tls = if matches!(args[5].tag(), Some(Tag::Null)) {
+            None
+        } else {
+            Some(crate::http::answered_tls(args[5], member)?)
+        };
+        if tls.is_some()
+            && url
+                .get(..7)
+                .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
+        {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}(): {url} is a plain `http` URL, and a reply over plain `http` has \
+                     no TLS session to report"
+                ),
+            ));
+        }
+
         let mut headers = answer_headers_of(args[4], member)?;
         let body = match encoded {
             Some(document) => {
@@ -2121,8 +2264,53 @@ nvs_runtime::nvs_helper! {
             status: u16::try_from(status).unwrap_or(u16::MAX),
             headers,
             body,
+            tls,
         });
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}):
+    /// Core\Http\TlsInfo` — a TLS session a test describes, for the reply
+    /// `Core\Test::answerHttp`'s `tls` option makes report it (ADR 0217).
+    ///
+    /// `nvs_host::tls::described` checks the version and the suite and issues
+    /// the chain; this reads the options and fills the two defaults that need
+    /// the test's own clock, so a `#[Test(at: …)]` gets the same expiry every
+    /// run.
+    ///
+    /// **No refusal outside a test**, for `answerHttp`'s reason: the session
+    /// is one the program built itself, and nothing trusts it.
+    ///
+    /// # Errors
+    ///
+    /// A `LogicError` carrying `described`'s sentence.
+    fn nvs_core_test_tls_session(ctx, args: [6]) {
+        let member = "Core\\Test::tlsSession";
+        let now = crate::time::wall_clock(ctx).ok_or_else(|| {
+            // Unreachable from source: `Core\Test::advance` refuses to store a
+            // reading outside the representable range.
+            Fault::fatal(format!("{member} read a fixed clock no instant names"))
+        })?;
+        let now = std::time::SystemTime::from(now);
+        let expiry = if matches!(args[5].tag(), Some(Tag::Null)) {
+            now + DEFAULT_TLS_LIFETIME
+        } else {
+            std::time::SystemTime::from(crate::time::instant_of(args, 5, member)?)
+        };
+        let description = nvs_host::tls::Description {
+            version: args[0].as_text(),
+            cipher: args[1].as_text(),
+            subject: args[3].as_text().unwrap_or(DEFAULT_TLS_SUBJECT),
+            issuer: args[4].as_text().unwrap_or(DEFAULT_TLS_ISSUER),
+            expiry,
+            now,
+        };
+        let session = nvs_host::tls::described(&description)
+            .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}")))?;
+        let verified = args[2].as_bool().unwrap_or(true);
+        Ok(crate::http::tls_info_of(&session, verified))
     }
 }
 
@@ -2369,6 +2557,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
         "nvs_core_test_assert_completes" => (nvs_core_test_assert_completes as *const ()).cast(),
         "nvs_core_test_answer_http" => (nvs_core_test_answer_http as *const ()).cast(),
+        "nvs_core_test_tls_session" => (nvs_core_test_tls_session as *const ()).cast(),
         "nvs_core_test_sent_http" => (nvs_core_test_sent_http as *const ()).cast(),
         "nvs_core_test_answer_socket" => (nvs_core_test_answer_socket as *const ()).cast(),
         "nvs_core_test_sent_socket" => (nvs_core_test_sent_socket as *const ()).cast(),
@@ -4428,6 +4617,7 @@ mod tests {
                     | "double"
                     | "partial"
                     | "answerHttp"
+                    | "tlsSession"
                     | "sentHttp"
                     | "answerSocket"
                     | "sentSocket"
@@ -4574,7 +4764,7 @@ mod tests {
         // § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
         // `scriptAnswers`, § 18's `request` and `serverUrl`,
         // `rule:testing/an-outbound-call-is-answered-from-a-table`'s
-        // `answerHttp` and `sentHttp`, and
+        // `answerHttp`, `tlsSession` and `sentHttp`, and
         // `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
         // `answerSocket` and `sentSocket`, and `rule:testing/doubles`'s
         // `double` and `partial`, which build a subject rather than claiming
@@ -4582,7 +4772,7 @@ mod tests {
         // hand. This count is what makes adding a member to this class have to
         // answer "is it an assertion?": a new row joins § 4's shape sweep
         // unless it is listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 11);
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 12);
         assert_eq!(equality_members().count(), 3);
     }
 

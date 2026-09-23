@@ -31,6 +31,24 @@ pub struct HttpAnswer {
     /// The reply's body, already encoded — a `json` answer is written to JSON
     /// where it is registered, so nothing here knows the difference.
     pub body: Vec<u8>,
+    /// The TLS session the reply reports, or `None` for a reply that reports
+    /// none.
+    pub tls: Option<AnsweredTls>,
+}
+
+/// The TLS session a registered answer reports: `Core\Test::tlsSession`'s
+/// session, copied out of the `Core\Http\TlsInfo` the test passed, so every
+/// reply the row answers builds its own.
+#[derive(Clone, Debug)]
+pub struct AnsweredTls {
+    /// The protocol version, as `Core\Http\TlsInfo::version` reads it.
+    pub version: String,
+    /// The cipher suite, as `Core\Http\TlsInfo::cipher` reads it.
+    pub cipher: String,
+    /// Whether the session reports the chain and the name as checked.
+    pub verified: bool,
+    /// The certificates as DER, leaf first.
+    pub chain: Vec<Vec<u8>>,
 }
 
 /// One outbound call the program made while the table was armed.
@@ -193,6 +211,7 @@ mod tests {
             status,
             headers: Vec::new(),
             body: Vec::new(),
+            tls: None,
         }
     }
 

@@ -1,7 +1,13 @@
 Once a test registers one answer with `Core\Test::answerHttp(string $url, uint $status, {json?, body?,
-headers?})`, **every** outbound call that test makes is answered from the table, and an unmatched one
-throws a `LogicError` naming the URL. A `$url` matches exactly, or as a prefix ending in `*`, and
+headers?, tls?})`, **every** outbound call that test makes is answered from the table, and an unmatched
+one throws a `LogicError` naming the URL. A `$url` matches exactly, or as a prefix ending in `*`, and
 `Core\Test::sentHttp(): array<Core\Test\SentRequest>` hands back what the program sent, in order.
+
+An answer reports no TLS session unless its `tls` option names one:
+`Core\Test::tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Core\Http\TlsInfo`
+describes a session over a real leaf certificate for `subject`, signed by a CA certificate for
+`issuer`, and every reply that answer serves reports it. A `tls` session on an `http://` URL is a
+`LogicError`, because a reply over plain `http` has none.
 
 All-or-nothing is the whole point. A table that answers the calls it knows and lets the rest reach the
 network is a suite that passes on a laptop, talks to a partner's production API from CI, and says nothing
@@ -18,4 +24,5 @@ is the one question `rule:security/tainted-qualifier` answers. This is what make
 conformance cases writable with no listener and no outbound grant, the same way
 `rule:testing/in-process-request` makes a request testable with no socket; what it cannot reach is
 everything below the table — the pool, the framing, a content coding, a redirect hop, a handshake — which
-is proved against a loopback origin instead.
+is proved against a loopback origin instead. A described session is what a handshake *reports*, not a
+handshake: nothing verifies its chain and no anchor trusts its CA.

@@ -16121,7 +16121,7 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, tlsSession, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -16195,7 +16195,8 @@ final class CartTest {
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
 | [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes, mount?: string}): Core\Test\Response` |
-| [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>}): void` |
+| [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>, tls?: Core\Http\TlsInfo}): void` |
+| [`Core\Test::tlsSession`](#core-core-test-tlssession) | `tlsSession({version?: string, cipher?: string, verified?: bool, subject?: string, issuer?: string, expiry?: Core\Time\Instant}): Core\Http\TlsInfo` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 | [`Core\Test::answerSocket`](#core-core-test-answersocket) | `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` |
 | [`Core\Test::sentSocket`](#core-core-test-sentsocket) | `sentSocket(): array<Core\Socket\Message>` |
@@ -16477,7 +16478,7 @@ Runs one request through the program under test in this process — the compiled
 #### `Core\Test::answerHttp`
 
 ```nvs skip
-Core\Test::answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>}): void
+Core\Test::answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>, tls?: Core\Http\TlsInfo}): void
 ```
 
 Says what one outbound URL answers with, and takes this test off the network — from the first answer registered, every `Core\Http\Client` call the test makes is served from the table and none of them connects.
@@ -16489,10 +16490,33 @@ Says what one outbound URL answers with, and takes this test off the network —
 | `{json: …}` | `mixed` (default `(omitted)`) | A value the answer carries as a JSON document, written exactly as `Core\Json::encode` would write it. The answer declares `application/json` for it unless the `headers` bag names a content type itself. |
 | `{body: …}` | `string\|bytes` (default `null`, neutral) | The body the answer carries, for a reply that is not a JSON document — text, or the octets of a reply that is not text at all, which is what `Core\Http\Response::bytes` reads back and `::text` refuses. An answer may name this or `json` and not both. |
 | `{headers: …}` | `array<string\|array<string>>` (default `[]`) | The headers the answer carries, keyed by name — the same shape `Core\Http\Options` writes a request's headers in, plus one arm it has no use for: an array of strings under a name is a reply that carried that field on that many lines, which is what `Core\Http\Response::headers` reads back. A name is matched case-insensitively, as a header name is. |
+| `{tls: …}` | `Core\Http\TlsInfo` (default `null`) | The TLS session the reply reports, from `Core\Test::tlsSession`. `Core\Http\Response::tls` returns it for every call this answer serves. Without it, `tls()` returns `null`. |
 
 **Returns** `void` — Nothing. Answers accumulate, so a test registers as many as it has calls; a URL answered exactly wins over one answered by a prefix, and the longest prefix wins among prefixes.
 
-**Throws** `LogicError` — The answer names both `json` and `body`, which are two spellings of one body; or the status is not one a status line can carry.
+**Throws** `LogicError` — The answer names both `json` and `body`, which are two spellings of one body; the status is not one a status line can carry; or the answer gives a `tls` session to an `http://` URL, which has none.
+
+<a id="core-core-test-tlssession"></a>
+#### `Core\Test::tlsSession`
+
+```nvs skip
+Core\Test::tlsSession({version?: string, cipher?: string, verified?: bool, subject?: string, issuer?: string, expiry?: Core\Time\Instant}): Core\Http\TlsInfo
+```
+
+Builds a TLS session for a test, with a real certificate chain, so a test can read a `Core\Http\TlsInfo` without a network.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{version: …}` | `string` (default `null`, neutral) | `TLSv1.3` or `TLSv1.2`. The default is `TLSv1.3`. |
+| `{cipher: …}` | `string` (default `null`, neutral) | A cipher suite this build supports for that version, under its IANA name. The default is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for TLS 1.2. |
+| `{verified: …}` | `bool` (default `true`) | What `verified()` returns. The default is `true`. |
+| `{subject: …}` | `string` (default `null`, neutral) | The leaf certificate's subject, written as `subject()` returns it: `KEY=value` pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, `C`, `ST` and `L`. The default is `CN=example.com`. |
+| `{issuer: …}` | `string` (default `null`, neutral) | The subject of the CA certificate that signs the leaf, which is what `issuer()` returns. Written like `subject`. The default is `CN=Novis Test CA`. |
+| `{expiry: …}` | `Core\Time\Instant` (default `null`) | When the leaf certificate expires, in whole seconds. The default is 90 days after `Core\Time::now()`, so a test with a fixed clock gets the same value every run. |
+
+**Returns** `Core\Http\TlsInfo` — A `Core\Http\TlsInfo`. Its `peerChain()` has two certificates: the leaf, then the CA that signed it. Pass it to `Core\Test::answerHttp` as `tls` to make a faked reply report it.
+
+**Throws** `LogicError` — The version is not `TLSv1.3` or `TLSv1.2`; the cipher is not one this build supports for that version; a subject or issuer is not written as `KEY=value` pairs with the keys above; or the expiry is before 1950 or after 9999.
 
 <a id="core-core-test-senthttp"></a>
 #### `Core\Test::sentHttp`

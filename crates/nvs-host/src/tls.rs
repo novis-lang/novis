@@ -353,6 +353,19 @@ pub struct Session {
 }
 
 impl Session {
+    /// A session no handshake produced: the one [`described`] issues, and the
+    /// one a test's answer table hands back a copy of for every reply it
+    /// answers. The three values are taken as they are, so the caller is the
+    /// one that already checked them.
+    #[must_use]
+    pub fn recorded(version: String, cipher: String, chain: Vec<Vec<u8>>) -> Self {
+        Self {
+            version,
+            cipher,
+            chain,
+        }
+    }
+
     /// The protocol version — `TLSv1.3` or `TLSv1.2`.
     #[must_use]
     pub fn version(&self) -> &str {
@@ -461,6 +474,188 @@ pub fn leaf(der: &[u8]) -> Option<Leaf> {
         issuer: parsed.issuer().to_string(),
         expiry,
     })
+}
+
+/// A TLS session a test describes rather than negotiates —
+/// `Core\Test::tlsSession`'s options, with the two defaults that need a clock
+/// already resolved by the caller.
+#[derive(Clone, Copy, Debug)]
+pub struct Description<'a> {
+    /// `TLSv1.3` or `TLSv1.2`; `None` is `TLSv1.3`.
+    pub version: Option<&'a str>,
+    /// A suite this build negotiates over `version`, under its IANA name;
+    /// `None` is [`DEFAULT_SUITES`]'s entry for the version.
+    pub cipher: Option<&'a str>,
+    /// The leaf's subject, written as [`Leaf::subject`] reads it back.
+    pub subject: &'a str,
+    /// The issuing CA's subject, which is the leaf's issuer.
+    pub issuer: &'a str,
+    /// The leaf's `notAfter`.
+    pub expiry: SystemTime,
+    /// The caller's wall clock. The leaf is valid from one day before this or
+    /// before `expiry`, whichever is earlier.
+    pub now: SystemTime,
+}
+
+/// The suite a described session reports when the test names none, per
+/// version: the AES-128-GCM suite each version negotiates with an ECDSA
+/// certificate, which is what [`described`] issues.
+pub const DEFAULT_SUITES: [(&str, &str); 2] = [
+    ("TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+    ("TLSv1.2", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"),
+];
+
+/// The earliest `notAfter` [`described`] issues: 1950-01-01, the first instant
+/// X.509's `UTCTime` can write.
+const EARLIEST_CERTIFICATE_SECONDS: i64 = -631_152_000;
+/// The latest: 9999-12-31T23:59:59, the last instant `GeneralizedTime` can
+/// write.
+const LATEST_CERTIFICATE_SECONDS: i64 = 253_402_300_799;
+
+/// The session `description` describes: its version and suite checked against
+/// what this build negotiates, and a real two-certificate chain — a leaf for
+/// `subject`, signed by a CA certificate for `issuer` — so every
+/// `Core\Http\TlsInfo` member reads it exactly as it reads a peer's.
+///
+/// **Test-only in purpose and harmless outside a test.** Nothing trusts the CA
+/// and nothing verifies the chain: the session goes into a `Core\Http\TlsInfo`
+/// the program built itself, or into a test's answer table, where no reply
+/// crosses a network. What it spends is two fresh P-256 keys and two
+/// signatures per call, on the caller's own thread.
+///
+/// # Errors
+///
+/// A sentence naming the field, for a version that is not `TLSv1.3` or
+/// `TLSv1.2`, a suite this build does not negotiate over that version, a name
+/// that is not a list of `KEY=value` pairs with keys from `CN`, `O`, `OU`, `C`,
+/// `ST` and `L`, or an expiry outside what a certificate can hold.
+pub fn described(description: &Description<'_>) -> Result<Session, String> {
+    let version = description.version.unwrap_or("TLSv1.3");
+    let Some((_, default_suite)) = DEFAULT_SUITES.iter().find(|(named, _)| *named == version)
+    else {
+        return Err(format!(
+            "`version` is `TLSv1.3` or `TLSv1.2`, and this one is `{version}`"
+        ));
+    };
+    let suites: Vec<String> = provider()
+        .cipher_suites
+        .iter()
+        .filter(|suite| named_version(suite.version().version) == version)
+        .map(|suite| named_suite(suite.suite()))
+        .collect();
+    let cipher = description.cipher.unwrap_or(default_suite);
+    if !suites.iter().any(|suite| suite == cipher) {
+        return Err(format!(
+            "`cipher` is a suite this build negotiates over {version} — {} — and `{cipher}` is \
+             not one of them",
+            suites.join(", ")
+        ));
+    }
+
+    let expiry = seconds_of(description.expiry);
+    if !(EARLIEST_CERTIFICATE_SECONDS..=LATEST_CERTIFICATE_SECONDS).contains(&expiry) {
+        return Err(
+            "`expiry` is between 1950 and the end of 9999, which is what a certificate can hold"
+                .to_owned(),
+        );
+    }
+    let valid_from =
+        (seconds_of(description.now).min(expiry) - 86_400).max(EARLIEST_CERTIFICATE_SECONDS);
+    // `rcgen`'s own epoch plus a duration, so this crate names no second date
+    // library for the one type `rcgen` writes a validity in.
+    let epoch = rcgen::date_time_ymd(1970, 1, 1);
+    let certificate_time = |seconds: i64| {
+        let span = Duration::from_secs(seconds.unsigned_abs());
+        if seconds < 0 {
+            epoch - span
+        } else {
+            epoch + span
+        }
+    };
+
+    let failed = |error: rcgen::Error| format!("the certificate could not be issued: {error}");
+    let mut authority = rcgen::CertificateParams::new(Vec::<String>::new()).map_err(failed)?;
+    authority.distinguished_name = distinguished(description.issuer, "issuer")?;
+    authority.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    authority.key_usages = vec![
+        rcgen::KeyUsagePurpose::KeyCertSign,
+        rcgen::KeyUsagePurpose::CrlSign,
+    ];
+    authority.not_before = certificate_time(valid_from);
+    authority.not_after = certificate_time(expiry);
+    let authority_key = rcgen::KeyPair::generate().map_err(failed)?;
+    let authority_certificate = authority.self_signed(&authority_key).map_err(failed)?;
+
+    let mut leaf = rcgen::CertificateParams::new(Vec::<String>::new()).map_err(failed)?;
+    leaf.distinguished_name = distinguished(description.subject, "subject")?;
+    leaf.not_before = certificate_time(valid_from);
+    leaf.not_after = certificate_time(expiry);
+    let leaf_key = rcgen::KeyPair::generate().map_err(failed)?;
+    let signer = rcgen::Issuer::new(authority, authority_key);
+    let leaf_certificate = leaf.signed_by(&leaf_key, &signer).map_err(failed)?;
+
+    Ok(Session::recorded(
+        version.to_owned(),
+        cipher.to_owned(),
+        vec![
+            leaf_certificate.der().to_vec(),
+            authority_certificate.der().to_vec(),
+        ],
+    ))
+}
+
+/// `at` as whole seconds from the Unix epoch, negative before it.
+fn seconds_of(at: SystemTime) -> i64 {
+    match at.duration_since(UNIX_EPOCH) {
+        Ok(after) => i64::try_from(after.as_secs()).unwrap_or(i64::MAX),
+        Err(before) => i64::try_from(before.duration().as_secs()).map_or(i64::MIN, |secs| -secs),
+    }
+}
+
+/// A distinguished name written the way [`Leaf::subject`] reads one back —
+/// `CN=api.example.com, O=Shop` — as the name `rcgen` writes, in the order it
+/// was written.
+///
+/// # Errors
+///
+/// A sentence naming `field`, for a part with no `=`, an empty value, a key
+/// outside the six below, or a key written twice.
+fn distinguished(text: &str, field: &str) -> Result<rcgen::DistinguishedName, String> {
+    let mut name = rcgen::DistinguishedName::new();
+    let mut seen: Vec<&str> = Vec::new();
+    for part in text.split(',') {
+        let part = part.trim();
+        let Some((key, value)) = part.split_once('=') else {
+            return Err(format!(
+                "`{field}` is written as `KEY=value` pairs such as `CN=api.example.com, O=Shop`, \
+                 and `{part}` has no `=`"
+            ));
+        };
+        let (key, value) = (key.trim(), value.trim());
+        let kind = match key {
+            "CN" => rcgen::DnType::CommonName,
+            "O" => rcgen::DnType::OrganizationName,
+            "OU" => rcgen::DnType::OrganizationalUnitName,
+            "C" => rcgen::DnType::CountryName,
+            "ST" => rcgen::DnType::StateOrProvinceName,
+            "L" => rcgen::DnType::LocalityName,
+            other => {
+                return Err(format!(
+                    "`{field}` uses the keys `CN`, `O`, `OU`, `C`, `ST` and `L`, and `{other}` is \
+                     not one of them"
+                ));
+            }
+        };
+        if value.is_empty() {
+            return Err(format!("`{field}` gives `{key}` an empty value"));
+        }
+        if seen.contains(&key) {
+            return Err(format!("`{field}` writes `{key}` twice"));
+        }
+        seen.push(key);
+        name.push(kind, value);
+    }
+    Ok(name)
 }
 
 /// A client identity: the certificate chain a handshake presents when a server
@@ -2219,5 +2414,103 @@ mod tests {
         ] {
             assert_eq!(policy.verifies(), verifies, "{why}");
         }
+    }
+
+    /// A description with every field a test may leave out left out, at a
+    /// fixed clock and expiry.
+    fn describing(
+        version: Option<&'static str>,
+        cipher: Option<&'static str>,
+    ) -> Description<'static> {
+        Description {
+            version,
+            cipher,
+            subject: "CN=api.example.com, O=Shop",
+            issuer: "CN=Example Test CA",
+            expiry: UNIX_EPOCH + Duration::from_secs(1_938_000_000),
+            now: UNIX_EPOCH + Duration::from_secs(1_900_000_000),
+        }
+    }
+
+    /// A described session carries the version and suite it was given or the
+    /// defaults, and a two-certificate chain whose leaf reads back, through
+    /// the same [`leaf`] a peer's does, the subject, issuer and expiry written.
+    // covers: Core\Test::tlsSession
+    #[test]
+    fn a_described_session_reads_back_what_was_written() {
+        let session = described(&describing(None, None)).expect("the defaults describe a session");
+        assert_eq!(session.version(), "TLSv1.3");
+        assert_eq!(session.cipher(), "TLS_AES_128_GCM_SHA256");
+        assert_eq!(
+            session.chain().len(),
+            2,
+            "the leaf, then the CA that signed it"
+        );
+        let read = leaf(&session.chain()[0]).expect("the leaf parses");
+        assert_eq!(read.subject(), "CN=api.example.com, O=Shop");
+        assert_eq!(read.issuer(), "CN=Example Test CA");
+        assert_eq!(
+            read.expiry(),
+            UNIX_EPOCH + Duration::from_secs(1_938_000_000)
+        );
+        let authority = leaf(&session.chain()[1]).expect("the CA certificate parses");
+        assert_eq!(authority.subject(), "CN=Example Test CA");
+
+        let older = described(&describing(Some("TLSv1.2"), None)).expect("TLS 1.2 is described");
+        assert_eq!(older.version(), "TLSv1.2");
+        assert_eq!(older.cipher(), "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256");
+    }
+
+    /// Every default suite is one this build negotiates over its version, so a
+    /// session with no `cipher` never fails its own check.
+    #[test]
+    fn every_default_suite_is_one_this_build_negotiates() {
+        for (version, suite) in DEFAULT_SUITES {
+            let session = described(&describing(Some(version), Some(suite)))
+                .unwrap_or_else(|why| panic!("{version} {suite}: {why}"));
+            assert_eq!(session.cipher(), suite);
+        }
+    }
+
+    /// A version, a suite, a name or an expiry the session cannot hold is
+    /// refused with a sentence naming the field.
+    // covers: Core\Test::tlsSession
+    #[test]
+    fn a_description_the_session_cannot_hold_is_refused() {
+        let refused = |description: Description<'static>, field: &str| {
+            let why = described(&description).expect_err(field);
+            assert!(why.contains(&format!("`{field}`")), "{field}: {why}");
+        };
+        refused(describing(Some("TLSv1.1"), None), "version");
+        refused(
+            describing(
+                Some("TLSv1.3"),
+                Some("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"),
+            ),
+            "cipher",
+        );
+        for subject in ["api.example.com", "CN=", "XX=api", "CN=a, CN=b"] {
+            refused(
+                Description {
+                    subject,
+                    ..describing(None, None)
+                },
+                "subject",
+            );
+        }
+        refused(
+            Description {
+                issuer: "",
+                ..describing(None, None)
+            },
+            "issuer",
+        );
+        refused(
+            Description {
+                expiry: UNIX_EPOCH - Duration::from_secs(700_000_000),
+                ..describing(None, None)
+            },
+            "expiry",
+        );
     }
 }

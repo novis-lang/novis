@@ -1,13 +1,13 @@
 --TEST--
-A reply a test's answer table served reports no TLS session, whichever scheme its URL wrote, and every `Core\Http\TlsInfo` member sits behind the one check that answer forces — `rule:http-server/a-reply-reports-its-tls-session`, `rule:testing/an-outbound-call-is-answered-from-a-table`
+A reply a test's answer table served with no `tls` session reports none, whichever scheme its URL wrote, and every `Core\Http\TlsInfo` member sits behind the one check that answer forces — `rule:http-server/a-reply-reports-its-tls-session`, `rule:testing/an-outbound-call-is-answered-from-a-table`
 --FILE--
 <?nvs
 // covers: Core\Http\Response::tls
 // The claim is *an edge*: an outbound call in a test ends at the answer table,
-// so nothing was negotiated with anyone and `tls()` is `null` — for an `https`
-// URL exactly as for an `http` one, because neither of them reached a socket.
-// A member that reported a session here would be reporting one this process
-// never had.
+// and an answer registered with no `tls` session reports none, so `tls()` is
+// `null` — for an `https` URL exactly as for an `http` one, because neither of
+// them reached a socket. `http-response-tls-reports-the-session-a-test-described.nvst`
+// is the answer that names one.
 Core\Test::answerHttp("https://api.example.com/secure", 200, {body: "ok"});
 Core\Test::answerHttp("http://api.example.com/plain", 200, {body: "ok"});
 
@@ -19,8 +19,9 @@ echo $plain->status(), " ", $plain->tls() != null ? "session" : "no session", "\
 
 // The seven members of `Core\Http\TlsInfo` are what a reply that did arrive
 // over TLS answers, and the answer being `?Core\Http\TlsInfo` is what makes the
-// check above the only way to reach them. The branch is written and never runs:
-// that it compiles is the surface, that it is skipped is the table's answer.
+// check above the only way to reach them. The branch is written and never runs
+// here: that it compiles is the surface, that it is skipped is the table's
+// answer.
 var $info = $secure->tls();
 if ($info != null) {
     echo $info->version(), " ", $info->cipher(), "\n";

@@ -264,8 +264,10 @@ windows-sys = { version = "0.61", features = [
 # host: the same binary then trusts the same certificates everywhere, and a
 # distroless image that ships no `ca-certificates` still verifies. `tls.rs`'s
 # module doc is the home of that decision and of what an operator adds to it.
-# `rcgen` stays a `[dev-dependencies]` line: it is the certificate the handshake
-# tests need, on the same provider so the two share one crypto implementation.
+# `rcgen` issues certificates on the same provider, so the two share one crypto
+# implementation: the handshake tests' peers, and the chain
+# `Core\Test::tlsSession` describes (ADR 0217), which puts it in the shipped
+# binary. It is reached from that one member and never from a request.
 rustls = { version = "0.23", default-features = false, features = [
     "std",
     "ring",
@@ -279,9 +281,8 @@ webpki-roots = "1"
 # bytes on the one path whose answer decides whether a peer is believed. Pure
 # Rust with no build script and no C — its `ring` feature is the only one that
 # would add any, and it is off — so ADR 0051 § 4's second question never opens.
-# It adds no crate this lock file did not already hold; what it changes is that
-# `rcgen` was pulling them in for the handshake tests alone, and this line puts
-# them in the shipped binary. `crates/nvs-host/src/tls.rs` is the one caller.
+# It adds no crate this lock file did not already hold.
+# `crates/nvs-host/src/tls.rs` is the one caller.
 x509-parser = { version = "0.18", default-features = false }
 rcgen = { version = "0.14", default-features = false, features = [
     "crypto",

@@ -3592,22 +3592,54 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
 /// written at `peerChain` rather than here: a reply that nobody asks about pays
 /// for neither encoding, and the slot stays the one thing the leaf readers parse.
 fn tls_info(tls: Option<transport::Tls>) -> Value {
-    let Some(tls) = tls else {
-        return Value::null();
-    };
+    match tls {
+        Some(tls) => tls_info_of(&tls.session, tls.verified),
+        None => Value::null(),
+    }
+}
+
+/// A `Core\Http\TlsInfo` over `session`, reporting `verified` — the one place
+/// the class's four slots are filled, for a handshake's session and for the
+/// one `Core\Test::tlsSession` describes. The caller owns it.
+pub(crate) fn tls_info_of(session: &nvs_host::tls::Session, verified: bool) -> Value {
     let mut chain = NvsArray::new();
-    for der in tls.session.chain() {
+    for der in session.chain() {
         chain.append(Value::bytes(NvsStr::new(der)));
     }
     crate::instance::build(
         &TLS_INFO,
         [
-            Value::str(NvsStr::new(tls.session.version().as_bytes())),
-            Value::str(NvsStr::new(tls.session.cipher().as_bytes())),
-            Value::bool(tls.verified),
+            Value::str(NvsStr::new(session.version().as_bytes())),
+            Value::str(NvsStr::new(session.cipher().as_bytes())),
+            Value::bool(verified),
             Value::array(chain),
         ],
     )
+}
+
+/// The session a `Core\Http\TlsInfo` holds, copied out as the plain data a
+/// test's answer table keeps — `Core\Test::answerHttp`'s `tls` option.
+///
+/// # Errors
+///
+/// The fatal for a receiver that is not a `Core\Http\TlsInfo`, which the
+/// option's declared type makes unreachable from source.
+pub(crate) fn answered_tls(value: Value, member: &str) -> Result<nvs_runtime::AnsweredTls, Fault> {
+    let object = crate::instance::receiver(value, &TLS_INFO, member)?;
+    let text = |slot: usize| {
+        crate::instance::slot(object, slot)
+            .as_text()
+            .unwrap_or_default()
+            .to_owned()
+    };
+    Ok(nvs_runtime::AnsweredTls {
+        version: text(TLS_VERSION_SLOT),
+        cipher: text(TLS_CIPHER_SLOT),
+        verified: crate::instance::slot(object, TLS_VERIFIED_SLOT)
+            .as_bool()
+            .unwrap_or(false),
+        chain: chain_of(object),
+    })
 }
 
 /// One certificate as PEM: the base64 of its DER, wrapped at 64 characters
@@ -3661,9 +3693,9 @@ fn leaf_of(chain: &[Vec<u8>], member: &str) -> Result<nvs_host::tls::Leaf, Fault
         },
         None => "presented no certificate",
     };
-    // no case can reach this: a `.nvst` case answers every outbound call from a
-    // table and a table has no session at all, so no case holds a
-    // `Core\Http\TlsInfo` to ask anything of. `a_leaf_that_is_absent_or_unreadable_is_refused`
+    // no case can reach this: every `Core\Http\TlsInfo` a program can hold has
+    // a readable leaf, because a handshake's peer presented one and
+    // `Core\Test::tlsSession` issues one. `a_leaf_that_is_absent_or_unreadable_is_refused`
     // is what asserts it instead.
     Err(Fault::thrown(format!(
         "{TLS_INFO_NAME}::{member}: the peer {why}, so there is nothing to read this from"
@@ -4118,6 +4150,17 @@ fn faked(
     let status = i64::from(answer.status);
     let octets = answer.body.clone();
     let headers = header_map(&answer.headers);
+    // The session the row was registered with, if any, as a fresh copy per
+    // reply: `Core\Test::tlsSession` described it and nothing negotiated it
+    // (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+    let tls = answer.tls.as_ref().map(|held| transport::Tls {
+        session: nvs_host::tls::Session::recorded(
+            held.version.clone(),
+            held.cipher.clone(),
+            held.chain.clone(),
+        ),
+        verified: held.verified,
+    });
     // A streamed call is answered through a reader here too, over octets that
     // are all present already ([`transport::Incoming::already`]): the walks
     // have one way to frame a body, and a test that armed the table is walking
@@ -4127,10 +4170,7 @@ fn faked(
     } else {
         Value::bytes(NvsStr::new(&octets))
     };
-    // No session, and that is the answer rather than an omission: a table
-    // answered this call and nothing was ever negotiated with anyone
-    // (`rule:http-server/a-reply-reports-its-tls-session`).
-    Ok((status, body, headers, None))
+    Ok((status, body, headers, tls))
 }
 
 /// The `traceparent` this call carries: the request's own trace, when
@@ -4957,6 +4997,7 @@ mod tests {
             status: 200,
             headers: Vec::new(),
             body: b"ok".to_vec(),
+            tls: None,
         });
 
         let url = Value::str(NvsStr::new(URL.as_bytes()));

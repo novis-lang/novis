@@ -48,6 +48,12 @@ webpki-roots.workspace = true
 x509-parser.workspace = true
 sha2.workspace = true
 base64.workspace = true
+# `Core\Test::tlsSession`'s chain (ADR 0217): `src/tls.rs`'s `described` issues a
+# real leaf and CA certificate, so every `Core\Http\TlsInfo` member reads a
+# session a test describes exactly as it reads a peer's. The handshake tests in
+# `src/tls.rs` and `net.rs` sign the certificates their real peers present
+# with it too, on the same `ring` provider.
+rcgen.workspace = true
 
 # `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
 # measured against and which `std` spells on neither platform.
@@ -62,10 +68,6 @@ libc.workspace = true
 windows-sys.workspace = true
 
 [dev-dependencies]
-# The certificate a handshake test needs: `src/tls.rs`'s cases and `net.rs`'s
-# `a_rustls_session_streams_over_it_unmodified` each stand up a real peer, and
-# no shipped path issues a certificate.
-rcgen.workspace = true
 # `tests/limits.rs`'s capability case builds the snapshot a request reads and hands it to
 # `Ctx::set_config`, which is `nvs-config`'s type on `nvs-runtime`'s surface — the crate is already
 # in this binary through that dependency, and these two lines only make the spelling sayable here.

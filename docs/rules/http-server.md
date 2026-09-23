@@ -1420,8 +1420,9 @@ never through any of these three keys.
 members as every `Core` instance is ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)): `version()`, `cipher()`,
 `verified(): bool` — `true` only when the chain *and* the name were checked — `peerChain(): array<tainted
 string>` as PEM, and the leaf's `subject()`, `issuer()` and `expiry()`. It answers `null` for a plain
-`http` reply and for one a test's table answered
-([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)), because neither had a session.
+`http` reply, because it had no session, and for one a test's table answered with no `tls` session
+([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)). A table answer that names one reports the
+session the test described with `Core\Test::tlsSession`.
 
 `verified()` is the member this exists for. A deployment that relaxed verification for one partner host
 ([`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)) needs a way to assert, in a test and in
@@ -1432,7 +1433,7 @@ The chain is `tainted` and the timings are not here: where a call's time went is
 ([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
 that disagrees.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md), [0217](../decisions/0217.md).</sub>
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 
