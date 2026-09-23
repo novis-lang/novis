@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read one record from a file where every record has the same size.
+// A record starts at its number times the record size.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "fruit.dat");
+// Every record is 10 bytes: 9 characters and a line break.
+Core\IO::write($path, "apple    \nbanana   \ncherry   \ndate     \n");
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $size = 10;
+array<uint> $wanted = [2, 0];
+
+// Record 2 starts at byte 20, and record 0 at byte 0. This prints "cherry" and "apple".
+foreach ($wanted as uint $number) {
+    $file->seek($number * $size);
+    echo Core\Str::trim($file->read($size)), "\n";
+}
+$file->close();

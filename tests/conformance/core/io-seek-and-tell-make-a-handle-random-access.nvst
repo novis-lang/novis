@@ -2,6 +2,7 @@
 `Core\IO\File::seek` moves the handle to an offset from the start and `::tell` answers where it is, with no `whence` argument anywhere between them — spec § 14, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
+// covers: Core\IO\File::seek, Core\IO\File::tell
 // A handle is random-access, and these two members are the whole of what makes
 // it so: one sets the position, the other reads it back. Every other member of
 // the class leaves the handle just past what it touched, which is what makes

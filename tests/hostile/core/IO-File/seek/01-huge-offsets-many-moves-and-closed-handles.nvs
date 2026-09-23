@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program moves a handle 100000 times, and to offsets far past the end of
+// the file. It writes after a gap, and moves a closed handle.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-seek');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+Core\IO::write($path, '0123456789');
+
+// 1. The handle moves 100000 times and reads one byte each time. Every byte must be right.
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $i = 0;
+while ($i < 100000) {
+    $file->seek($i % 10);
+    if ($file->read(1) != ($i % 10) as string) {
+        throw new LogicError('a seek read the wrong byte');
+    }
+    $i = $i + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. The handle moves far past the end. Each move must work or throw an `IOError`.
+// If it works, `tell` must return the offset and `read` an empty string.
+array<uint> $far = [1099511627776, 4611686018427387904, 9223372036854775807];
+foreach ($far as uint $offset) {
+    try {
+        $file->seek($offset);
+        if ($file->tell() != $offset || $file->read(10) != '') {
+            throw new LogicError('a seek past the end moved to the wrong place');
+        }
+    } catch (IOError $refused) {
+    }
+}
+$file->close();
+echo 'step 2: done', "\n";
+
+// 3. A write 1 MB past the end must fill the gap with zero bytes.
+Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$writer->seek(1048586);
+$writer->write('!');
+$writer->close();
+if (Core\IO::size($path) != 1048587) {
+    throw new LogicError('a write after a gap made a file of the wrong size');
+}
+echo 'step 3: done', "\n";
+
+// 4. A closed handle is moved 1000 times. Each `seek` must throw a `RuntimeError`.
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $writer->seek(0);
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle was moved without an error');
+}
+echo 'step 4: done', "\n";
