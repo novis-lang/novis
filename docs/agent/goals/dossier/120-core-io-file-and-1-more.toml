@@ -3804,11 +3804,10 @@ stage = "1 floor"
 name = "nvs-config (the validate default)"
 args = ["test", "-p", "nvs-config"]
 tests = [
-  # `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `validate` STARTUP default is an `rule:config/a-startup-default-is-never-flipped` row, chosen by the
-  # run mode before any request exists. It belongs to whichever module reads
-  # `[opcache]` -- `nvs_config::cache` -- and NOT to `nvs_config::mode`, whose
-  # own doc says § 3a's startup rows are deliberately outside its table.
-  "the_validate_default_is_selected_by_the_run_mode",
+  # `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `validate` default is
+  # `mtime` in production and in development alike. It belongs to whichever module reads
+  # `[opcache]` -- `nvs_config::cache` -- and NOT to `nvs_config::mode`.
+  "validate_defaults_to_mtime_in_production_and_development",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -7098,13 +7097,12 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-config (four rows, System throughout, split Boot and Reload)"
+name = "nvs-config (four rows, System throughout, every one reloads)"
 args = ["test", "-p", "nvs-config"]
 tests = [
   "every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four",
-  "connection_and_workers_are_boot_and_max_attempts_and_visibility_are_reload",
+  "every_queue_key_reloads",
   "every_queue_row_is_system_class",
-  "a_reload_that_changes_workers_carries_the_running_value_and_names_the_key",
 ]
 
 # ---------------------------------------------------------------------------------------------------
