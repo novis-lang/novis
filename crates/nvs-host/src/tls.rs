@@ -419,9 +419,10 @@ fn named_suite(suite: CipherSuite) -> String {
 /// the alternative it rejects is handing a program PEM alone and expecting it to
 /// write an ASN.1 parser in Novis to learn when a certificate expires.
 ///
-/// The two names are rendered as RFC 4514 writes a distinguished name, which is
-/// what `openssl x509 -subject` prints and therefore the spelling an operator
-/// comparing the two already holds.
+/// The two names are written as [`written`] writes one: `KEY=value` pairs in
+/// the certificate's order with each value escaped per RFC 4514 § 2.4, which is
+/// close to what `openssl x509 -subject` prints and therefore the spelling an
+/// operator comparing the two already holds.
 #[derive(Clone, Debug)]
 pub struct Leaf {
     /// The subject distinguished name.
@@ -470,10 +471,70 @@ pub fn leaf(der: &[u8]) -> Option<Leaf> {
         UNIX_EPOCH.checked_add(since)?
     };
     Some(Leaf {
-        subject: parsed.subject().to_string(),
-        issuer: parsed.issuer().to_string(),
+        subject: written(parsed.subject()),
+        issuer: written(parsed.issuer()),
         expiry,
     })
+}
+
+/// `name` as [`Leaf::subject`] writes it: `KEY=value` per attribute in the
+/// certificate's own order, the attributes of one RDN joined with ` + ` and the
+/// RDNs with `, `, and every value escaped as RFC 4514 § 2.4 escapes one.
+///
+/// The escaping is what keeps two names apart: without it a value `x, O=y` or
+/// `x + O=y` reads back as the same text as a name with two attributes. A key
+/// the registry has no short name for is its dotted OID, and a value that is
+/// not a string is `#` and its content octets in hex.
+fn written(name: &x509_parser::x509::X509Name<'_>) -> String {
+    let registry = x509_parser::objects::oid_registry();
+    let mut out = String::new();
+    for (index, rdn) in name.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        for (position, attribute) in rdn.iter().enumerate() {
+            if position > 0 {
+                out.push_str(" + ");
+            }
+            match x509_parser::objects::oid2abbrev(attribute.attr_type(), registry) {
+                Ok(short) => out.push_str(short),
+                Err(_) => out.push_str(&attribute.attr_type().to_id_string()),
+            }
+            out.push('=');
+            match attribute.as_str() {
+                Ok(value) => escape_value(value, &mut out),
+                Err(_) => {
+                    out.push('#');
+                    for byte in attribute.as_slice() {
+                        out.push_str(&format!("{byte:02X}"));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Appends `value` escaped per RFC 4514 § 2.4: a backslash before each of
+/// `"+,;<>\`, before a leading space or `#` and before a trailing space, and
+/// `\00` for a zero byte.
+fn escape_value(value: &str, out: &mut String) {
+    let last = value.chars().count().saturating_sub(1);
+    for (index, c) in value.chars().enumerate() {
+        match c {
+            '"' | '+' | ',' | ';' | '<' | '>' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            ' ' | '#' if index == 0 => {
+                out.push('\\');
+                out.push(c);
+            }
+            ' ' if index == last => out.push_str("\\ "),
+            '\0' => out.push_str("\\00"),
+            _ => out.push(c),
+        }
+    }
 }
 
 /// A TLS session a test describes rather than negotiates —
@@ -2459,6 +2520,36 @@ mod tests {
         let older = described(&describing(Some("TLSv1.2"), None)).expect("TLS 1.2 is described");
         assert_eq!(older.version(), "TLSv1.2");
         assert_eq!(older.cipher(), "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256");
+    }
+
+    /// A value holding one of RFC 4514's special characters reads back escaped,
+    /// so a one-attribute name never reads as the same text as a name with two:
+    /// `CN=x+O=y` written as one common name is `CN=x\+O=y`, and a comma inside
+    /// an organization is `\,`.
+    #[test]
+    fn a_name_value_reads_back_escaped_as_rfc_4514_writes_it() {
+        let session = described(&Description {
+            subject: "CN=x+O=y",
+            issuer: "CN=#1 \"Test\"; <CA> a\\b",
+            ..describing(None, None)
+        })
+        .expect("special characters are allowed in a value");
+        let read = leaf(&session.chain()[0]).expect("the leaf parses");
+        assert_eq!(read.subject(), "CN=x\\+O=y");
+        assert_eq!(read.issuer(), "CN=\\#1 \\\"Test\\\"\\; \\<CA\\> a\\\\b");
+
+        let mut name = rcgen::DistinguishedName::new();
+        name.push(rcgen::DnType::OrganizationName, "Shop, Inc.");
+        let mut params = rcgen::CertificateParams::new(Vec::<String>::new()).expect("no names");
+        params.distinguished_name = name;
+        let key = rcgen::KeyPair::generate().expect("a key");
+        let issued = params.self_signed(&key).expect("a certificate");
+        let read = leaf(issued.der()).expect("the certificate parses");
+        assert_eq!(read.subject(), "O=Shop\\, Inc.");
+
+        let mut out = String::new();
+        escape_value(" a\0b ", &mut out);
+        assert_eq!(out, "\\ a\\00b\\ ");
     }
 
     /// Every default suite is one this build negotiates over its version, so a
