@@ -2,6 +2,7 @@
 `Core\Http\Response::header` refuses `Set-Cookie` by name and says which member reads it, whether the reply carried one or not, and `::headers` answers each cookie whole — `rule:security/tainted-sources`
 --FILE--
 <?nvs
+// covers: Core\Http\Response::header
 // covers: Core\Http\Response::headers
 // The claim is *the edge*: the one field name where joining is wrong rather
 // than lossy. RFC 6265 § 3 exempts `Set-Cookie` from RFC 9110 § 5.3's comma

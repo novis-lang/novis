@@ -2,6 +2,7 @@
 // Attack: a program reads very large reply bodies as text many times, and sends
 // bodies that are almost UTF-8. Each read must return the same text without a new
 // copy. Every broken body must throw an error, and nothing may crash.
+// hostile: timeout-ms 30000
 
 // A memory limit that has room for two copies of the body, but not for three.
 Core\Config::set('memory', '96M');
