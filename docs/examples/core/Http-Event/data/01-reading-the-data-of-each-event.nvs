@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the data of each event that a server sends.
+
+// The server's reply is fixed here, so the example runs without a network.
+// Each event ends with an empty line.
+Core\Test::answerHttp("https://news.example.com/live", 200, {
+    body: "data: Match started\n\ndata: Goal for the home team\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+// `data()` returns the text of one event. This prints two lines.
+Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "https://news.example.com/live");
+foreach ($feed->events() as Core\Http\Event $event) {
+    echo $event->data(), "\n";
+}

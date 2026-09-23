@@ -1,0 +1,30 @@
+<?nvs
+// Reads the data of a server-sent event, as a program does for each event it receives.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://feed.example.com/live", 200, {body: "data: one\n\ndata: two\n\ndata: three\n\n"});
+        array<Core\Http\Event> $events = [];
+        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "https://feed.example.com/live");
+        foreach ($feed->events() as Core\Http\Event $event) {
+            $events[] = $event;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The event in each round depends on the round before, so no round can be left out.
+            if ($events[(($total + $i) % 3) as int]->data() == "one") {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

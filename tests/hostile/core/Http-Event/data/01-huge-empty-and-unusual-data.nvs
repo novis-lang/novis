@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a server sends events whose data is very large, empty, or full of unusual
+// characters. Each `data()` call must return exactly the data that was sent, or throw
+// an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+Core\Test::answerHttp('https://feed.example.com/empty-lines', 200, { body: Core\Str::repeat("data\n", 200000) . "\n" });
+
+// 1. One event with 200000 `data` lines that are all empty.
+//    `data()` must return 199999 line breaks and nothing else.
+var $empties = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/empty-lines');
+foreach ($empties->events() as Core\Http\Event $event) {
+    if ($event->data() != Core\Str::repeat("\n", 199999)) {
+        throw new LogicError('the empty data lines were not joined');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. Data with a NUL byte, a tab, a terminal escape code and 30000 accented letters.
+//    `data()` must return each one unchanged.
+array<string> $odd = ["a\0b", "tab\there", "\x1b[31mred", Core\Str::repeat('é', 30000)];
+string $body = '';
+foreach ($odd as string $value) {
+    $body = $body . 'data: ' . $value . "\n\n";
+}
+Core\Test::answerHttp('https://feed.example.com/odd', 200, { body: $body });
+var $unusual = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/odd');
+uint $k = 0;
+foreach ($unusual->events() as Core\Http\Event $event) {
+    if ($event->data() != $odd[$k as int]) {
+        throw new LogicError(Core\Str::format('data %d was changed', $k));
+    }
+    $k = $k + 1;
+}
+echo 'step 2: ', $k, "\n";
+
+// 3. One event's data is read one million times. Each call returns the same text.
+Core\Test::answerHttp('https://feed.example.com/one', 200, { body: "data: the same text\n\n" });
+var $one = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/one');
+foreach ($one->events() as Core\Http\Event $event) {
+    uint $i = 0;
+    while ($i < 1000000) {
+        if ($event->data() != 'the same text') {
+            throw new LogicError('the data changed between two calls');
+        }
+        $i = $i + 1;
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. Each stream gives one event with 60000 characters of data. The data is kept
+//    in a list and never freed. This step ends the program at its memory limit.
+Core\Test::answerHttp('https://big.example.com/*', 200, { body: 'data: ' . Core\Str::repeat('d', 60000) . "\n\n" });
+array<tainted string> $kept = [];
+uint $n = 0;
+while (true) {
+    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $n));
+    foreach ($stream->events() as Core\Http\Event $event) {
+        $kept[] = $event->data();
+    }
+    $n = $n + 1;
+}

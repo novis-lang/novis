@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to build a long answer that a server sends in small pieces,
+// as a text generation service does.
+
+// Each event has one piece of the answer. The last event is "[DONE]".
+Core\Test::answerHttp("https://ai.example.com/v1/answer", 200, {
+    body: "data: The order\n\ndata:  ships\n\ndata:  on Monday.\n\ndata: [DONE]\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $reply = Core\Http\Client::stream(Core\Http\Method::Post, "https://ai.example.com/v1/answer");
+tainted string $answer = "";
+foreach ($reply->events() as Core\Http\Event $event) {
+    // "[DONE]" is not part of the answer. It says that the answer is complete.
+    if ($event->data() == "[DONE]") {
+        break;
+    }
+    $answer = $answer . $event->data();
+}
+
+// This prints "The order ships on Monday."
+echo $answer, "\n";
