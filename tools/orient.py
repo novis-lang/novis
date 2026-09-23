@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import functools
 import json
 import re
 import subprocess
@@ -235,12 +236,19 @@ def git(*args: str) -> str:
 # One function, because every file this script reads is markdown with `##`/`###` headings and the
 # thing wanted is always "that heading and everything under it until the next one at or above its
 # level". Doing it once means a manifest can name a section in any of these files identically.
+#
+# The four parsers below are cached by their arguments, the text itself included. A caller that
+# resolves many selectors against one file -- `session.py`'s playbook collision check resolves
+# every bullet's, twice -- would otherwise re-parse the whole file per selector, which is quadratic
+# in the playbook's size. They return tuples, so no caller can change what the next one reads.
+# The cache keeps a few copies of the files it was handed for the life of the process.
 
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 
 
-def headings(text: str) -> list[tuple[int, int, str]]:
+@functools.lru_cache(maxsize=16)
+def headings(text: str) -> tuple[tuple[int, int, str], ...]:
     """(line index, level, title) for every heading, in order."""
     found = []
     fenced = False
@@ -252,9 +260,10 @@ def headings(text: str) -> list[tuple[int, int, str]]:
         m = HEADING_RE.match(line)
         if m:
             found.append((i, len(m.group(1)), m.group(2)))
-    return found
+    return tuple(found)
 
 
+@functools.lru_cache(maxsize=65536)
 def normalize(title: str) -> str:
     """`### 2. Both operands must ...` -> `2 both operands must ...`, so a manifest can name a
     section as `§2`, as `2`, or by the words in its title, and all three land.
@@ -269,6 +278,7 @@ def normalize(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+@functools.lru_cache(maxsize=256)
 def slice_section(text: str, wanted: str) -> str | None:
     """The named heading and its body, up to the next heading at the same or a higher level."""
     lines = text.split("\n")
@@ -297,7 +307,8 @@ def mask_code(line: str) -> str:
     return re.sub(r"`[^`]*`", lambda m: " " * len(m.group(0)), line)
 
 
-def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
+@functools.lru_cache(maxsize=256)
+def bullets(text: str, within: str | None = None) -> tuple[tuple[str, str], ...]:
     """Every `- ` bullet in the file, as (its bold lead-in, its whole text).
 
     A playbook bullet runs from its `- ` to the next `- ` at the same indent, the next heading,
@@ -320,7 +331,7 @@ def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
             cur.append(line)
     if cur:
         found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))
-    return found
+    return tuple(found)
 
 
 def slice_bullets(text: str, selector: str) -> tuple[list[str], str | None]:
