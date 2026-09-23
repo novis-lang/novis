@@ -1,0 +1,20 @@
+<?nvs
+// Shows the difference between `text()` and `bytes()` for a body that is not
+// valid UTF-8 text.
+
+// The reply has three bytes. The byte ff never occurs in UTF-8 text.
+Core\Test::answerHttp("https://files.example.com/raw", 200, {
+    body: Core\Encoding::fromHex("41ff42"),
+});
+Core\Http\Response $response = Core\Http\Client::get("https://files.example.com/raw");
+
+// `text()` checks that the body is UTF-8 text. This body is not, so the call
+// throws a `RuntimeError`.
+try {
+    echo $response->text(), "\n";
+} catch (RuntimeError $error) {
+    echo "text() failed: ", $error->message, "\n";
+}
+
+// `bytes()` does not check the body. This prints 3.
+echo Core\Bytes::length($response->bytes()), "\n";

@@ -1,0 +1,41 @@
+<?nvs
+// Shows a program that downloads a profile picture and checks it before it
+// saves it. The picture must be a PNG image and must not be too large.
+
+class Avatar {
+    // Every PNG image starts with these eight bytes.
+    private static function pngStart(): bytes {
+        return Core\Encoding::fromHex("89504e470d0a1a0a");
+    }
+
+    // Returns the picture's bytes. Throws a `RuntimeError` when the picture is not usable.
+    public static function download(string $url): tainted bytes {
+        Core\Http\Response $response = Core\Http\Client::get($url);
+        tainted bytes $picture = $response->bytes();
+        if (!Core\Bytes::startsWith($picture, Avatar::pngStart())) {
+            throw new RuntimeError($url . " is not a PNG image");
+        }
+        if (Core\Bytes::length($picture) > 100000) {
+            throw new RuntimeError($url . " is larger than 100000 bytes");
+        }
+        return $picture;
+    }
+}
+
+// Two fixed replies, so the example runs without a network. The second one is
+// a web page, not an image.
+Core\Test::answerHttp("https://img.example.com/kim.png", 200, {
+    body: Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452"),
+});
+Core\Test::answerHttp("https://img.example.com/lee.png", 200, {body: "<html>Not found</html>"});
+
+// This prints `kim.png: 16 bytes`, then the error for lee.png.
+array<string> $names = ["kim.png", "lee.png"];
+foreach ($names as string $name) {
+    try {
+        tainted bytes $picture = Avatar::download("https://img.example.com/" . $name);
+        echo $name, ": ", Core\Bytes::length($picture), " bytes", "\n";
+    } catch (RuntimeError $error) {
+        echo $error->message, "\n";
+    }
+}

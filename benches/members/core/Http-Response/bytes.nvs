@@ -1,0 +1,28 @@
+<?nvs
+// Reads the body of a reply as bytes, as a program does with every image or file it downloads.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://cdn.example.com/a.png", 200, {body: Core\Str::repeat("a", 64)});
+        Core\Test::answerHttp("https://cdn.example.com/b.png", 200, {body: Core\Str::repeat("b", 96)});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://cdn.example.com/a.png"),
+            Core\Http\Client::get("https://cdn.example.com/b.png"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reply in each round is chosen by the round before, so no round can be left out.
+            $total = $total + Core\Bytes::length($replies[($total % 2) as int]->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

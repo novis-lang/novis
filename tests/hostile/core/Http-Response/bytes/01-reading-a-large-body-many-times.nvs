@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program reads a very large reply body many times and keeps every
+// result. Each read must return the same body without a new copy, so memory must
+// stay under the limit. Bodies that are empty or not text must also be read whole.
+
+// A memory limit that has room for two copies of the body, but not for three.
+Core\Config::set('memory', '96M');
+
+// 1. A body of 32 million bytes is read ten thousand times, and every result is
+//    kept. A copy per read would need far more memory than the limit allows.
+Core\Test::answerHttp('https://files.example.com/large.bin', 200, { body: Core\Str::repeat('x', 32000000) });
+Core\Http\Response $large = Core\Http\Client::get('https://files.example.com/large.bin');
+array<tainted bytes> $kept = [];
+uint $i = 0;
+while ($i < 10000) {
+    $kept[] = $large->bytes();
+    $i = $i + 1;
+}
+if (Core\Bytes::length($kept[9999]) != 32000000) {
+    throw new LogicError('a read returned a different body');
+}
+echo 'step 1: ', Core\Arr::count($kept), "\n";
+
+// 2. A body whose last byte is not valid UTF-8. `text()` must throw an error,
+//    and `bytes()` must still return every byte.
+array<bytes> $parts = [Core\Str::repeat('a', 1000000) as bytes, Core\Encoding::fromHex('ff')];
+Core\Test::answerHttp('https://files.example.com/broken.txt', 200, { body: Core\Bytes::join($parts) });
+Core\Http\Response $broken = Core\Http\Client::get('https://files.example.com/broken.txt');
+try {
+    tainted string $text = $broken->text();
+    throw new LogicError('a body that is not UTF-8 was read as text');
+} catch (RuntimeError $error) {
+    echo 'step 2: text refused', "\n";
+}
+if (Core\Bytes::length($broken->bytes()) != 1000001) {
+    throw new LogicError('the body was not read whole');
+}
+
+// 3. A reply with no body at all. `bytes()` must return an empty value.
+Core\Test::answerHttp('https://files.example.com/empty', 204, {});
+Core\Http\Response $empty = Core\Http\Client::get('https://files.example.com/empty');
+echo 'step 3: ', Core\Bytes::length($empty->bytes()), "\n";
