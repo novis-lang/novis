@@ -1,0 +1,29 @@
+<?nvs
+// Checks whether a path is a folder, as a program does before it lists what is inside.
+// bench: iterations 5000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        Core\IO::write(Core\Path::join($dir, "a.txt"), "x");
+        Core\IO::makeDir(Core\Path::join($dir, "archive"));
+        array<string> $paths = [
+            Core\Path::join($dir, "archive"),
+            Core\Path::join($dir, "a.txt"),
+            Core\Path::join($dir, "missing"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path in each round depends on the round before, so no round can be left out.
+            if (Core\IO::isDir($paths[(($total + $i) % 3) as int])) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000) > 0 ? "done" : "no folder found", "\n";

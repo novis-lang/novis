@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program checks a folder 200 levels deep, a file where a folder should be, and names that cannot exist.
+// `isDir` must return the right answer or throw an error, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+
+// 1. A folder 200 levels deep. Every level must be a folder, or the path is too long and throws an `IOError`.
+string $deep = $dir;
+int $level = 0;
+try {
+    while ($level < 200) {
+        $deep = Core\Path::join($deep, 'd');
+        Core\IO::makeDir($deep);
+        if (!Core\IO::isDir($deep)) {
+            throw new LogicError('a new folder was not seen');
+        }
+        $level = $level + 1;
+    }
+} catch (IOError $tooLong) {
+}
+echo 'step 1: done', "\n";
+
+// 2. A file where a folder should be. `isDir` must return `false`, and listing it must throw an `IOError`.
+string $file = Core\Path::join($dir, 'uploads');
+Core\IO::write($file, 'x');
+if (Core\IO::isDir($file)) {
+    throw new LogicError('a file was taken for a folder');
+}
+try {
+    Core\IO::list($file);
+    throw new LogicError('a file was listed as a folder');
+} catch (IOError $notAFolder) {
+}
+echo 'step 2: done', "\n";
+
+// 3. Names that cannot be a folder. Each must return `false` or throw an `IOError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($file, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        if (Core\IO::isDir($badPath)) {
+            throw new LogicError('a path that is not a folder was taken for one');
+        }
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
