@@ -6908,6 +6908,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   [until: reviewed 2026-09-23]
 - **A `-p nvs-stdlib` test reads an empty sentence off `ctx.take_pending()` for a `ParseError` thrown with an issue list.** `Fault::thrown_with_issues` (every `Core\Json` decode refusal, `Core\Http\Response::jsonAs`'s not-UTF-8 body) leaves `take_pending` answering `""` under a bare `Ctx::buffered()`, so a `message.contains(…)` assertion fails and reads as the member saying nothing. Assert `is_err()` from Rust and pin the sentence from Novis, the way `response_json_as_hydrates_a_shape_twice_and_refuses_a_bad_depth_and_a_non_text_body` points at `docs/examples/core/Http-Response/jsonAs/02-a-reply-that-is-not-json.nvs`. [until: reviewed 2026-09-23]
 - **`$x != null && $x->member()` does not compile in Novis, because `&&` does not narrow a nullable receiver for its right side.** `E0459` names the receiver as nullable, and a second `E0401` calls the member's result `mixed`, so the error reads like a type problem in the member. Test for `null` in its own `if` and do the call inside it, as `docs/examples/core/Http-TlsInfo/subject/03-checking-the-partner-organization.nvs` does. [until: reviewed 2026-09-23]
+- **`Core\Test::answerHttp` registered twice for one exact URL serves the first answer every time,
+  so a second registration does not script a reconnect.** Answers accumulate and the first exact
+  match wins, so an example that reads a stream, "connects again" and expects new events prints the
+  first body twice. Give the second connection its own URL (a query such as `?after=2` is the
+  honest one), and read `nvs agent show 'Core\Test::answerHttp'` for the matching order.
+  [until: reviewed 2026-09-23]
 
 ## Splitting a file that got too big
 
