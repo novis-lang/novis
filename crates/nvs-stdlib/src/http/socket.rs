@@ -214,7 +214,7 @@ impl Drop for Open {
 /// message is asking a question with one honest answer.
 pub(crate) const SOCKET: CoreClass = CoreClass {
     name: SOCKET_NAME,
-    doc: None,
+    doc: Some(&SOCKET_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -276,6 +276,12 @@ pub(crate) const SOCKET: CoreClass = CoreClass {
     ],
     slots: &["url", "protocol", "at", "closed", "held"],
     constants: &[],
+};
+
+/// `Core\Http\Socket`'s own card — `rule:core-api/reference-card`.
+const SOCKET_CARD: ClassDoc = ClassDoc {
+    short: "A WebSocket connection your program opened to another server: it sends and receives \
+            messages until one side closes it. `Core\\Http\\Client::openSocket()` returns one.",
 };
 
 /// `Core\Http\Socket::receive`'s reference card — `rule:core-api/reference-card`.
@@ -420,10 +426,11 @@ nvs_runtime::nvs_helper! {
         judge_bound(args, SOCKET_MAX_DURATION, "maxDuration", MEMBER)?;
         judge_bound(args, SOCKET_SEND_TIMEOUT, "sendTimeout", MEMBER)?;
         judge_bound(args, SOCKET_PING, "ping", MEMBER)?;
+        let offered = offers(args)?;
 
         let (chosen, held) = if ctx.faked_http().is_armed() {
             (
-                transport::settled(scripted(ctx, &url)?, &offers(args), MEMBER)?,
+                transport::settled(scripted(ctx, &url)?, &offered, MEMBER)?,
                 Value::null(),
             )
         } else {
@@ -575,7 +582,7 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
     )?;
     let framing = tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(usize::try_from(cap).unwrap_or(usize::MAX)));
-    let upgraded = transport::upgrade(&call, &offers(args), framing)?;
+    let upgraded = transport::upgrade(&call, &offers(args)?, framing)?;
     super::traced(ctx, &call);
     let protocol = upgraded.protocol.clone();
     let open = Open {
@@ -609,9 +616,18 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
 /// own type is `array<string>`, so `E0401` has already refused a call that
 /// wrote anything else, and a check here would be a refusal no program can
 /// reach.
-fn offers(args: &[Value]) -> Vec<String> {
+///
+/// # Errors
+///
+/// A `RuntimeError` naming an offer that is not an RFC 6455 § 4.1 subprotocol
+/// name — one non-empty RFC 7230 token. The names travel joined by `, ` in one
+/// header, so a comma or a space inside one is a list the peer reads
+/// differently from the one the program wrote, and a control byte would end
+/// the line. The refusal is here rather than at the header so a socket a test
+/// answered refuses the same offer a live one does.
+fn offers(args: &[Value]) -> Result<Vec<String>, Fault> {
     let Some(array) = args[SOCKET_PROTOCOLS].array_ptr() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let array = crate::arr::borrowed(array);
     let mut names = Vec::new();
@@ -622,10 +638,19 @@ fn offers(args: &[Value]) -> Vec<String> {
             .value_at(slot)
             .expect("next_slot only names live entries");
         if let Some(name) = offer.as_text() {
+            let token =
+                |byte: u8| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte);
+            if name.is_empty() || !name.bytes().all(token) {
+                return Err(Fault::thrown(format!(
+                    "{MEMBER}: {name:?} is not a subprotocol name — a name is one word of letters, \
+                     digits and the characters !#$%&'*+-.^_`|~, with no space, comma or control \
+                     character"
+                )));
+            }
             names.push(name.to_owned());
         }
     }
-    names
+    Ok(names)
 }
 
 /// One text message, as the shape both halves of this module answer in.
@@ -1154,6 +1179,7 @@ mod tests {
     /// is what makes this a case about the bound: a connection that had gone
     /// away is a failure any wait would have noticed. What says the bound fired
     /// rather than the peer's own clock is the time it took.
+    // covers: Core\Http\Socket::receive
     #[test]
     fn socket_idle_ends_a_silent_peer() {
         let (at, served) = talking_origin(None, vec![Say::Quiet(Duration::from_secs(3))]);
@@ -1316,6 +1342,7 @@ mod tests {
     /// looks idle to the next. What the case asserts beside the refusal is that
     /// the mark is *cleared* — a socket that refused a second wait for ever
     /// would refuse the program's next ordinary `receive` too.
+    // covers: Core\Http\Socket::receive
     #[test]
     fn two_receives_waiting_on_one_socket_is_a_logic_error() {
         let (at, served) = talking_origin(
@@ -1356,6 +1383,7 @@ mod tests {
     /// ADR 0183 § 7's close codes, as the frame a program's own `close` sends:
     /// an omitted code is a normal ending, and a number that is no close code
     /// is not turned into one that is.
+    // covers: Core\Http\Socket::close
     #[test]
     fn a_close_carries_the_programs_code_and_reason() {
         let quiet = ending(&Value::null(), &Value::null());
@@ -1385,6 +1413,65 @@ mod tests {
         );
     }
 
+    /// `protocol` answers the name the handshake settled, before and after a
+    /// `close`, and `null` for a socket whose handshake settled none: the name
+    /// is what the two ends agreed, not a property of the connection being
+    /// open.
+    // covers: Core\Http\Socket::protocol
+    // covers: Core\Http\Socket::close
+    #[test]
+    fn protocol_reads_the_settled_name_whether_or_not_the_socket_is_closed() {
+        let text = |value: &str| Value::str(nvs_runtime::NvsStr::new(value.as_bytes()));
+        let socket = |protocol: Value| {
+            crate::instance::build(
+                &super::SOCKET,
+                [
+                    text("wss://gateway.example.com/v1"),
+                    protocol,
+                    Value::int(0),
+                    Value::bool(false),
+                    Value::null(),
+                ],
+            )
+        };
+        let mut ctx = Ctx::buffered();
+
+        let settled = socket(text("chat.v2"));
+        let before = nvs_runtime::call(super::nvs_core_http_socket_protocol, &mut ctx, &[settled])
+            .expect("`protocol` reads a slot and throws nothing");
+        assert_eq!(before.as_text(), Some("chat.v2"), "the name the peer chose");
+
+        nvs_runtime::call(
+            super::nvs_core_http_socket_close,
+            &mut ctx,
+            &[settled, Value::null(), Value::null()],
+        )
+        .expect("a scripted socket closes without an error");
+        let after = nvs_runtime::call(super::nvs_core_http_socket_protocol, &mut ctx, &[settled])
+            .expect("a closed socket still answers `protocol`");
+        assert_eq!(
+            after.as_text(),
+            Some("chat.v2"),
+            "closing ends the conversation and leaves the agreed name readable"
+        );
+        let heard = nvs_runtime::call(super::nvs_core_http_socket_receive, &mut ctx, &[settled])
+            .expect("a closed socket answers `receive` without an error");
+        assert_eq!(
+            heard.tag(),
+            Some(Tag::Null),
+            "a closed socket has nothing left to read"
+        );
+
+        let bare = socket(Value::null());
+        let none = nvs_runtime::call(super::nvs_core_http_socket_protocol, &mut ctx, &[bare])
+            .expect("`protocol` reads a slot and throws nothing");
+        assert_eq!(
+            none.tag(),
+            Some(Tag::Null),
+            "a handshake that settled nothing answers `null`"
+        );
+    }
+
     /// [ADR 0183](/docs/decisions/0183.md) § 5: a `close` sends its frame and
     /// then waits for the peer's own, rather than writing one and walking away.
     ///
@@ -1393,6 +1480,7 @@ mod tests {
     /// reset rather than recording the code it was sent. The peer is still
     /// talking when the close goes out, so this is also the frame in flight
     /// being read and dropped rather than turning into a failure.
+    // covers: Core\Http\Socket::close
     #[test]
     fn a_close_waits_for_the_peers_own_close() {
         let (at, served) = talking_origin(None, vec![Say::Text("hello")]);

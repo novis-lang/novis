@@ -1,0 +1,30 @@
+<?nvs
+// Reads the subprotocol of a WebSocket connection, as a program does before it writes a message.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both servers are answered from this table, so nothing is sent over a network.
+        Core\Test::answerSocket("wss://chat.example.com/new", [], {protocol: "chat.v2"});
+        Core\Test::answerSocket("wss://chat.example.com/old", []);
+        array<Core\Http\Socket> $sockets = [
+            Core\Http\Client::openSocket("wss://chat.example.com/new", {protocols: ["chat.v2"]}),
+            Core\Http\Client::openSocket("wss://chat.example.com/old"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The socket in each round depends on the round before, so no round can be left out.
+            if ($sockets[(($total + $i) % 2) as int]->protocol() == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

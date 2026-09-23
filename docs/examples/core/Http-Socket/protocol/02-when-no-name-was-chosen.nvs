@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `protocol()` returns `null` when no subprotocol was chosen.
+
+// Two fixed servers, so the example runs without a network. Neither chooses a name.
+Core\Test::answerSocket("wss://news.example.com/live", ["headline"]);
+Core\Test::answerSocket("wss://chat.example.com/room", ["welcome"]);
+
+// This program offers no names, so the result is `null`. This prints `none`.
+Core\Http\Socket $plain = Core\Http\Client::openSocket("wss://news.example.com/live");
+echo $plain->protocol() ?? "none", "\n";
+
+// This program offers a name, but the server does not choose it.
+// The result is also `null`. This prints `none`.
+Core\Http\Socket $offered = Core\Http\Client::openSocket("wss://chat.example.com/room", {
+    protocols: ["chat.v2"],
+});
+echo $offered->protocol() ?? "none", "\n";

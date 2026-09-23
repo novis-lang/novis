@@ -2311,9 +2311,11 @@ const SOCKET_DEADLINE_PARAM: ParamDoc = ParamDoc {
 /// The subprotocols a socket offers — see [`SOCKET_PARAMS`].
 const PROTOCOLS_PARAM: ParamDoc = ParamDoc {
     name: "protocols",
-    desc: "The subprotocols to offer as `Sec-WebSocket-Protocol`, most preferred first. A peer \
-           that chooses one of them is reported by `Core\\Http\\Socket::protocol`, and one that \
-           chooses a name that was never offered is refused.",
+    desc: "The subprotocols to offer as `Sec-WebSocket-Protocol`, most preferred first. Each \
+           name is one word of letters, digits and the punctuation an HTTP token allows, such as \
+           `.`, `-` and `_`. A space, a comma or a control character throws an error. A peer that chooses one of them is reported by \
+           `Core\\Http\\Socket::protocol`, and one that chooses a name that was never offered is \
+           refused.",
     shape: &[],
 };
 
@@ -2518,7 +2520,8 @@ const OPEN_SOCKET_DOC: MethodDoc = MethodDoc {
                it names no host, `net.connect` does not grant that host, or it resolves to an \
                address the deployment's policy denies. An option is outside its bounds: a \
                `deadline`, `connectTimeout`, `idle`, `maxDuration`, `sendTimeout` or `ping` that \
-               is not a positive duration. Or the peer did not open a socket: it answered a \
+               is not a positive duration, or a `protocols` entry that is not one word. Or the \
+               peer did not open a socket: it answered a \
                redirect, which is never followed and names its `Location`; it answered any other \
                status than `101`; or it chose a subprotocol that `protocols` never offered.",
     }],

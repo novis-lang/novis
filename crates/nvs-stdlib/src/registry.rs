@@ -5246,7 +5246,6 @@ mod tests {
         r"Core\Http\Identity",
         r"Core\Http\Lines",
         r"Core\Http\Part",
-        r"Core\Http\Socket",
         r"Core\Http\Stream",
         r"Core\Http\Target",
         r"Core\IO",

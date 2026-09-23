@@ -2,6 +2,7 @@
 A socket opens a `wss` URL and reports the subprotocol the handshake settled on, and a peer choosing a name that was never offered is refused — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:http-server/allow-url-pins-the-address`
 --FILE--
 <?nvs
+// covers: Core\Http\Socket::protocol
 // The secure half of the roster, opened the way every outbound call is: the URL
 // goes through the row that speaks `ws` and `wss`, and the bag carries what this
 // end offered. `protocol()` reads back the one name both ends agreed on.
