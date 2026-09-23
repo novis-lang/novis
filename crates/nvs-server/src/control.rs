@@ -109,6 +109,11 @@ pub trait Controlled {
         Vec::new()
     }
 
+    /// What the configuration check has done, or `None` where the process runs none.
+    fn checked(&self) -> Option<Checked> {
+        None
+    }
+
     /// Requests in flight across this process right now.
     fn in_flight(&self) -> usize;
 
@@ -126,6 +131,21 @@ pub struct Pending {
     pub running: String,
     /// The value the files now hold, written the same way.
     pub written: String,
+}
+
+/// What the process's configuration check has done since it started —
+/// `rule:config/the-config-is-an-immutable-snapshot`'s last paragraph.
+///
+/// Every `stat` of a configuration path is counted, and so is every pass that takes them, so
+/// `GET /status` shows that the stat calls grow with the passes and never with the requests.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Checked {
+    /// How many times the stamps of every configuration path were taken.
+    pub passes: u64,
+    /// How many `stat` calls those passes made.
+    pub stats: u64,
+    /// How many paths the serving tree was read from or probed.
+    pub paths: usize,
 }
 
 /// What a request arriving on the control endpoint asked for — `rule:config/one-local-control-socket`.
@@ -240,6 +260,12 @@ impl Operation {
                     host.in_flight(),
                     host.draining(),
                 );
+                if let Some(checked) = host.checked() {
+                    body.push_str(&format!(
+                        "config_check: {} passes, {} stats, {} paths\n",
+                        checked.passes, checked.stats, checked.paths
+                    ));
+                }
                 for pending in host.pending() {
                     body.push_str(&format!(
                         "restart pending: {} (running {}, written {})\n",
@@ -429,8 +455,8 @@ mod tests {
     use nvs_config::trust::Untrusted;
 
     use super::{
-        Address, Answer, Controlled, Denied, Operation, Pending, Refusal, Report, SETTLE, VERSION,
-        VERSION_HEADER, answer, answer_connection, bind, boundary, reload, same_build,
+        Address, Answer, Checked, Controlled, Denied, Operation, Pending, Refusal, Report, SETTLE,
+        VERSION, VERSION_HEADER, answer, answer_connection, bind, boundary, reload, same_build,
     };
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
@@ -678,6 +704,7 @@ mod tests {
         current: Current,
         unapplied: Vec<&'static str>,
         pending: Vec<Pending>,
+        checked: Option<Checked>,
         in_flight: usize,
         draining: bool,
         refuse: Option<String>,
@@ -690,6 +717,7 @@ mod tests {
                 current: Current::new(Arc::new(traced(document, written_in))),
                 unapplied: Vec::new(),
                 pending: Vec::new(),
+                checked: None,
                 in_flight: 0,
                 draining: false,
                 refuse: None,
@@ -719,6 +747,10 @@ mod tests {
 
         fn pending(&self) -> Vec<Pending> {
             self.pending.clone()
+        }
+
+        fn checked(&self) -> Option<Checked> {
+            self.checked
         }
 
         fn in_flight(&self) -> usize {
@@ -852,6 +884,22 @@ mod tests {
         assert_eq!(
             body(answer("GET", "/status", &process)),
             "in_flight: 0\ndraining: false\nrestart pending: server.workers (running 4, written 2)\n",
+        );
+    }
+
+    /// `status` gives the configuration check's passes and `stat` calls, with the number of paths
+    /// each pass takes, where the process runs a check. A process that runs none prints no line.
+    #[test]
+    fn a_status_request_reports_the_configuration_checks_passes_and_stats() {
+        let mut process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
+        process.checked = Some(Checked {
+            passes: 5,
+            stats: 10,
+            paths: 2,
+        });
+        assert_eq!(
+            body(answer("GET", "/status", &process)),
+            "in_flight: 0\ndraining: false\nconfig_check: 5 passes, 10 stats, 2 paths\n",
         );
     }
 

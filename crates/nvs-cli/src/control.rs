@@ -82,7 +82,7 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime};
 
@@ -92,7 +92,7 @@ use nvs_config::{Apply, DIRECTIVES};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
-use nvs_server::control::{Address, Controlled, Endpoint, Pending, Report};
+use nvs_server::control::{Address, Checked, Controlled, Endpoint, Pending, Report};
 use nvs_server::{Admission, Ceiling, Draining};
 
 use crate::script::Compiler;
@@ -163,6 +163,10 @@ pub(crate) struct Process {
     /// The control endpoint answering now, or `None` where the tree names
     /// none.
     door: Mutex<Option<Door>>,
+    /// How many times [`Process::stamps`] took every stamp, and how many
+    /// `stat` calls it made, which `nvs ctl status` prints.
+    passes: AtomicU64,
+    stats: AtomicU64,
 }
 
 /// A control endpoint a thread is answering on: its name, and the bit that
@@ -218,6 +222,8 @@ impl Process {
             sources: Mutex::new(None),
             me: OnceLock::new(),
             door: Mutex::new(None),
+            passes: AtomicU64::new(0),
+            stats: AtomicU64::new(0),
         }
     }
 
@@ -456,14 +462,22 @@ impl Process {
     }
 
     /// Every path the serving tree was read from or probed, with its stamp now.
+    ///
+    /// Only [`check`] calls this, once before its thread starts and then once
+    /// per pass. Each call and each `stat` it makes is counted, so
+    /// `nvs ctl status` shows the calls growing with the passes and not with
+    /// the requests.
     fn stamps(&self) -> Vec<(PathBuf, Stamp)> {
         let serving = self.current.load();
-        serving
+        let taken: Vec<(PathBuf, Stamp)> = serving
             .files
             .iter()
             .chain(&serving.probed)
             .map(|path| (path.clone(), stamp(path)))
-            .collect()
+            .collect();
+        self.stats.fetch_add(taken.len() as u64, Ordering::Relaxed);
+        self.passes.fetch_add(1, Ordering::Relaxed);
+        taken
     }
 
     /// Writes what the reload did where `[log] target` says —
@@ -517,6 +531,15 @@ impl Controlled for Process {
 
     fn pending(&self) -> Vec<Pending> {
         lock(&self.pending).clone()
+    }
+
+    fn checked(&self) -> Option<Checked> {
+        let serving = self.current.load();
+        Some(Checked {
+            passes: self.passes.load(Ordering::Relaxed),
+            stats: self.stats.load(Ordering::Relaxed),
+            paths: serving.files.len() + serving.probed.len(),
+        })
     }
 
     fn in_flight(&self) -> usize {
