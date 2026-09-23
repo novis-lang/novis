@@ -174,8 +174,8 @@ pub(crate) fn run(
 ) -> ExitCode {
     // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
-    // The `[server]` block is `Boot`-class as a whole (`rule:http-server/the-server-block-is-boot-class`), so this
-    // is the only time it is read.
+    // The `[server]` keys read below are `Boot`-class (`rule:http-server/the-server-block-is-boot-class`),
+    // so this is the only time they are read.
     let mut sources = SourceMap::new();
     let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources, init) {
         Ok(both) => both,
@@ -215,7 +215,7 @@ pub(crate) fn run(
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     // `rule:concurrency/connection-bounds-are-finite`'s table, resolved here
-    // with the rest of the `Boot`-class block: what a `[server.connection]`
+    // with the other `Boot`-class keys: what a `[server.connection]`
     // block wrote, over the finite set `nvs_server::bounds::Connection` ships.
     // It is read before a listener exists because a connection that upgrades
     // outlives the request it came from, so the moment there is one to bound is
@@ -240,7 +240,7 @@ pub(crate) fn run(
         eprintln!("note: {note}");
     }
     // `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s core count, read at boot
-    // beside the valve because the key is `Boot`-class with the rest of the block. It is a bound
+    // beside the valve because the key is `Boot`-class. It is a bound
     // and not a request for one — a written count is neither raised to this machine's parallelism
     // nor clamped down to it — so the only thing it can refuse is the `0` that leaves nothing
     // accepting.
@@ -298,8 +298,8 @@ pub(crate) fn run(
         Arc::clone(&current),
     )
     .bounded_by(bounds);
-    // `rule:config/one-local-control-socket`'s address, read here with the rest
-    // of the `Boot`-class block so that a value naming something a network
+    // `rule:config/one-local-control-socket`'s address, read here with the
+    // other `Boot`-class keys so that a value naming something a network
     // could reach refuses the start before anything is compiled. A tree that
     // wrote no `[control]` block resolves to `Disabled`, which is no control
     // surface at all rather than a default one.
@@ -934,7 +934,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
                 return Reply::not_implemented();
             }
-            let table = tables.table();
+            // The tree standing now, read once for everything below that the
+            // handler reads from it: the table's switches, the trace sample
+            // and the CSRF key. A reload reaches the next request.
+            let standing = current.load();
+            let table = tables.table(&standing);
             let selected = match table.select(&request, &OnDisk) {
                 // Step 0, ahead of every mount: § 5's probe says the process is
                 // alive, which is a fact this loop holds and no program is asked
@@ -1023,7 +1027,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // on, and it decides only a trace this request roots.
             nvs_server::trace::take(
                 &mut inbound,
-                nvs_config::export::head_sample(&current.load().config),
+                nvs_config::export::head_sample(&standing.config),
             );
             // `rule:routing/a-request-reads-its-mount`'s mount, which is the other half of what step 2 did:
             // the prefix taken off the path above, and § 3's captures of the row
@@ -1050,7 +1054,6 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // next request; `nvs_server::route::csrf` owns which requests each
             // half of the check covers, and `nvs_stdlib::session` owns the
             // cookie name, because the default is the one that module writes.
-            let standing = current.load();
             let key = nvs_config::http::csrf_key(&standing.config);
             let verdict = nvs_server::route::csrf(
                 &inbound,

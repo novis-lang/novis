@@ -6,7 +6,7 @@
 5. otherwise                                                                             -> run the mount's entry
 ```
 
-In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the pattern every PHP application already deploys under. Both directives are `Boot`-class startup defaults a mode selects and no request may flip (`rule:config/a-startup-default-is-never-flipped`), because a flip would appear to change `dispatch` for a request already dispatched.
+In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the pattern every PHP application already deploys under. Both directives are `System`-class startup defaults a mode selects and no request may flip (`rule:config/a-startup-default-is-never-flipped`), because a flip would appear to change `dispatch` for a request already dispatched. Both reload: a request reads them from the snapshot it cloned, so a reload reaches the next request, and a request already dispatched keeps the table it was dispatched by.
 
 **No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is `rule:programs/path-case`'s comparison, at the same cost — the canonical path is already in hand. The host is the one part that folds (`rule:http-server/host-matching-is-on-the-host-part-only`), because its specification says it does.
 

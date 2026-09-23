@@ -348,11 +348,12 @@ fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
     assert_eq!(limits(&reload.snapshot).memory, text("512M"));
 }
 
-/// A `Boot` row naming a block governs every key beneath it, so a `[server]` the reload rewrote is
-/// one reported directive and the whole block stays as it was bound.
-// covers: directive:server
+/// A `Boot` row inside a `Reload` block carries its own key and nothing beside it. A reload that
+/// rewrote `[server] listen` and `[server] dispatch` names `server.listen`, keeps the address the
+/// server bound, and puts the new `dispatch` in force.
+// covers: directive:server, directive:server.listen
 #[test]
-fn a_boot_row_naming_a_block_carries_the_whole_block() {
+fn a_boot_key_inside_a_reload_block_is_carried_alone() {
     let before = Fake::with(&[(
         "nvs.toml",
         "[server]\nlisten = [\"127.0.0.1:8080\"]\ndispatch = \"path\"\n",
@@ -369,7 +370,7 @@ fn a_boot_row_naming_a_block_carries_the_whole_block() {
 
     assert_eq!(
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["server"]
+        vec!["server.listen"]
     );
     let server = reload
         .snapshot
@@ -381,7 +382,7 @@ fn a_boot_row_naming_a_block_carries_the_whole_block() {
         server.listen.as_deref(),
         Some(["127.0.0.1:8080".to_string()].as_slice())
     );
-    assert_eq!(server.dispatch.as_deref(), Some("path"));
+    assert_eq!(server.dispatch.as_deref(), Some("entry"));
 }
 
 /// [ADR 0154] § 5's reason for splitting `[queue]` across two apply classes, asserted as the thing
@@ -476,9 +477,59 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[io]\ntemp_root = \"/var/tmp/two\"\n",
     ),
     (
-        "server",
+        "server.listen",
         "[server]\nlisten = [\"127.0.0.1:8080\"]\n",
         "[server]\nlisten = [\"127.0.0.1:8081\"]\n",
+    ),
+    (
+        "server.socket_mode",
+        "[server]\nsocket_mode = \"0660\"\n",
+        "[server]\nsocket_mode = \"0600\"\n",
+    ),
+    (
+        "server.workers",
+        "[server]\nworkers = 4\n",
+        "[server]\nworkers = 2\n",
+    ),
+    (
+        "server.root",
+        "[server]\nroot = \"/srv/one\"\n",
+        "[server]\nroot = \"/srv/two\"\n",
+    ),
+    (
+        "server.mount",
+        "[server]\nroot = \"/srv\"\n\n[[server.mount]]\nentry = \"blog/index.nvs\"\nprefix = \"/blog\"\n",
+        "[server]\nroot = \"/srv\"\n\n[[server.mount]]\nentry = \"blog/index.nvs\"\nprefix = \"/news\"\n",
+    ),
+    (
+        "server.header_timeout",
+        "[server]\nheader_timeout = \"10s\"\n",
+        "[server]\nheader_timeout = \"20s\"\n",
+    ),
+    (
+        "server.body_idle_timeout",
+        "[server]\nbody_idle_timeout = \"10s\"\n",
+        "[server]\nbody_idle_timeout = \"20s\"\n",
+    ),
+    (
+        "server.write_idle_timeout",
+        "[server]\nwrite_idle_timeout = \"10s\"\n",
+        "[server]\nwrite_idle_timeout = \"20s\"\n",
+    ),
+    (
+        "server.keepalive_timeout",
+        "[server]\nkeepalive_timeout = \"10s\"\n",
+        "[server]\nkeepalive_timeout = \"20s\"\n",
+    ),
+    (
+        "server.drain_timeout",
+        "[server]\ndrain_timeout = \"30s\"\n",
+        "[server]\ndrain_timeout = \"60s\"\n",
+    ),
+    (
+        "server.connection",
+        "[server.connection]\nmax_open = 100\n",
+        "[server.connection]\nmax_open = 200\n",
     ),
     (
         "opcache.file_cache_dir",

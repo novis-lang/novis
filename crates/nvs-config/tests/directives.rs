@@ -62,6 +62,8 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "opcache.file_cache_dir",
         "control.socket",
         "server.listen",
+        "server.socket_mode",
+        "server.workers",
         "queue.connection",
         "queue.workers",
     ] {
@@ -96,6 +98,13 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         // (`rule:concurrency/the-process-tier-is-one-store-per-process`).
         "cache.process.max_size",
         "cache.process.fill_wait",
+        // `[server]`'s block row, beside its `Boot` keys: a request reads each of these out of the
+        // snapshot it cloned.
+        "server.dispatch",
+        "server.static",
+        "server.health_path",
+        "server.trusted_proxies",
+        "server.max_in_flight",
     ] {
         let row = governing(key);
         assert_eq!(
@@ -268,6 +277,61 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "server",
+        LIVE,
+        "a_changed_server_block_reaches_the_next_request",
+    ),
+    (
+        "server.listen",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.socket_mode",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.workers",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.root",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.mount",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.header_timeout",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.body_idle_timeout",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.write_idle_timeout",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.keepalive_timeout",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.drain_timeout",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.connection",
         RESTART,
         "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
     ),
@@ -467,7 +531,8 @@ fn the_fatal_reserve_is_system_class_inside_a_runtime_block() {
 fn a_key_reports_the_block_it_is_written_in() {
     assert_eq!(governing("limits.hard.memory").block(), "limits");
     assert_eq!(governing("deferred.max_concurrent").block(), "deferred");
-    assert_eq!(governing("server.listen").block(), "");
+    assert_eq!(governing("server.dispatch").block(), "");
+    assert_eq!(governing("server.listen").block(), "server");
 }
 
 /// Every key the header `[block]` accepts, read back out of the refusal `deny_unknown_fields`

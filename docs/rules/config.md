@@ -692,18 +692,27 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
-`Boot` is the narrow set: `opcache.file_cache_dir`, `[server]`'s listen addresses, the thread-per-core count,
-`[control] socket` itself, and `[queue]`'s `connection` and `workers` — a worker is a spawned task, so
-applying a new count means starting or stopping tasks, and a connection swapped under running workers
-strands every claim in flight against a database nothing will report to. Everything else reloads,
-including the `[[extension]]` array and its pins, `opcache.validate` and its rate cap, the per-app
-blocks, `[[schedule]]`, `[deferred] max_concurrent`, `[queue]`'s `max_attempts` and `visibility` —
-both read per job, out of the snapshot, re-creating nothing — and both observability blocks. `[queue]`
-is the second block after `[deferred]` whose halves are two apply classes, which is the pairing this
-field exists to make expressible. A `[[schedule]]` firing already in flight runs to completion; the new
-set arms from the next tick. A changed `Boot` key **does not take effect**: the published snapshot
-carries the running value forward, and the reload names the key
+**`Boot` is three keys: `[server] listen`, `[server] socket_mode` and `[server] workers`.** A port
+below 1024 needs a privilege the process dropped after it bound, so `listen` cannot move in general.
+`socket_mode` is applied when a Unix listener is bound, so it moves only with `listen`. `workers`
+sizes the runtime state each core holds. The registry keeps a row per key where a block's keys are
+two apply classes: `[server]` is a `Reload` block row with `Boot` rows for its restart keys, as
+`[opcache]` is with `file_cache_dir`.
+
+Everything else reloads, including the `[[extension]]` array and its pins, `opcache.validate` and its
+rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`, `[queue]`'s `max_attempts`
+and `visibility`, and both observability blocks. A key that names a resource applies by building the
+new resource from the published snapshot: work that began before the publish finishes on the old one,
+which is closed after the last of it ends. A `[[schedule]]` firing already in flight runs to
+completion; the new set arms from the next tick. A changed `Boot` key **does not take effect**: the
+published snapshot carries the running value forward, and the reload names the key
 ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
+
+**What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path` and
+`max_in_flight` reload. These rows are still `Boot`, because each is read once when the server starts:
+`[server] root`, `[[server.mount]]`, the four waits, `drain_timeout`, `[server.connection]`,
+`http.client.tls`, `cache.shared`, `[control] socket`, `io.temp_root`, `opcache.file_cache_dir`,
+`[session]`, and `[queue]`'s `connection` and `workers`.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
@@ -1198,14 +1207,14 @@ because each is read outside any request, before there is one to change it:
 
 | Directive | Class | `production` | `development` |
 |---|---|---|---|
-| `[server] dispatch` | `Boot` | `"entry"` | `"path"` |
-| `[server] static` | `Boot` | `false` | `true` |
+| `[server] dispatch` | `System` | `"entry"` | `"path"` |
+| `[server] static` | `System` | `false` | `true` |
 | `opcache.settle` | `System` | `"1s"` | `"100ms"` |
 
 **A startup row is chosen from the mode the configuration names, is never re-derived by a runtime
 mode flip, and is never flippable.** It is chosen when a configuration is published — at boot, and
-again at a reload for a row whose directive reloads, such as `settle`. `Core\Config::set` refuses it
-exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives **only**
+again at a reload, because all three directives reload. `Core\Config::set` refuses it
+exactly as it refuses any `System` directive, and a runtime mode flip re-derives **only**
 the five rows of [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults). Without that separation a flip would appear to
 change `dispatch` for a request that had already been dispatched.
 

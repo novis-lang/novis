@@ -284,8 +284,8 @@ fn refuse(
 /// second home for a number the server already states, so this type carries the *override* and
 /// nothing else: a `None` means the shipped bound stands, not that the bound is absent.
 ///
-/// Copied rather than borrowed, for [`Waits`]' reason: the whole `[server]` block is `Boot`-class,
-/// so a connection already open keeps the bounds it was accepted under across a reload.
+/// Copied rather than borrowed, for [`Waits`]' reason: `[server.connection]` is `Boot`-class, so a
+/// connection already open keeps the bounds it was accepted under across a reload.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnectionBounds {
     /// `max_open` — connections this process may hold open at once.
@@ -543,8 +543,8 @@ const DEFAULT_SOCKET_MODE: u32 = 0o660;
 /// multi-tenant host grants them exactly that.
 ///
 /// A `String` in the tree and a number here, because a file mode is octal and TOML has no octal
-/// integer: an unquoted `0660` would be read as six hundred and sixty. Read once at boot with the
-/// rest of a `Boot`-class block, so a reload never moves the mode under a socket already bound.
+/// integer: an unquoted `0660` would be read as six hundred and sixty. Read once at boot, because
+/// the key is `Boot`-class, so a reload never moves the mode under a socket already bound.
 ///
 /// # Errors
 ///

@@ -399,8 +399,8 @@ pub type NextBeat = Rc<Cell<Option<Instant>>>;
 #[derive(Debug)]
 pub struct Heartbeat {
     /// The interval, from [`heartbeat`] and fixed for this stream's life —
-    /// `[server]` is `Boot`-class, so a reload does not move it under a stream
-    /// already open.
+    /// `[server] write_idle_timeout` is `Boot`-class, so a reload does not move
+    /// it under a stream already open.
     every: Duration,
     /// When the next beat falls due, pushed forward by every byte that goes out
     /// for any reason, and published for the loop on every change.

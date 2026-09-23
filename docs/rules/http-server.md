@@ -21,21 +21,21 @@ The parsing half is not delegated. Request smuggling is a proxy/origin parser di
 
 <a id="http-server-the-server-block-is-boot-class"></a>
 
-## The `[server]` block is `Boot`-class, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word
+## Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word
 
 `rule:http-server/the-server-block-is-boot-class`
 
 ```toml
-[server]                                  # Boot — a change here needs a restart
+[server]
 root               = "/www"
-listen             = ["127.0.0.1:8000"]   # "host:port", or an absolute path meaning a Unix socket
-socket_mode        = "0660"               # Unix-socket entries only
+listen             = ["127.0.0.1:8000"]   # restart required; "host:port", or an absolute path meaning a Unix socket
+socket_mode        = "0660"               # restart required; Unix-socket entries only
 dispatch           = "entry"              # a mode-selected startup default; development "path"
 static             = false                # a mode-selected startup default; development true
 trusted_proxies    = []                   # fail-closed
 health_path        = ""                   # off
 max_in_flight      = 10000
-workers            = 4                    # accept cores; unwritten is this machine's parallelism
+workers            = 4                    # restart required; accept cores; unwritten is this machine's parallelism
 header_timeout     = "10s"
 body_idle_timeout  = "30s"
 write_idle_timeout = "30s"
@@ -43,7 +43,11 @@ keepalive_timeout  = "75s"
 drain_timeout      = "30s"                # how long a connection is served after it sees the drain
 ```
 
-The whole block is `Boot`-class ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. `listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file, on the same precedent that makes the mode flag the last word ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)); `--port` alone keeps the host the file chose.
+The whole block is `System`-class ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. **Three keys need a restart: `listen`, `socket_mode` and `workers`** ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)). Every other key applies without one. `dispatch`, `static`, `trusted_proxies`, `health_path` and `max_in_flight` are read from the snapshot a request cloned, so a reload reaches the next request.
+
+**What is on disk.** `root`, `[[server.mount]]`, the four waits, `drain_timeout` and `[server.connection]` are still read once, when the server starts, and their registry rows are `Boot`.
+
+`listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file, on the same precedent that makes the mode flag the last word ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)); `--port` alone keeps the host the file chose.
 
 `workers` is the one key here the machine answers a default for, and it is the only one that says how many accept loops there are rather than what one of them does: [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core) owns the count, what a core holds of its own and what every core shares.
 
@@ -291,7 +295,7 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 5. otherwise                                                                             -> run the mount's entry
 ```
 
-In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the pattern every PHP application already deploys under. Both directives are `Boot`-class startup defaults a mode selects and no request may flip ([`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped)), because a flip would appear to change `dispatch` for a request already dispatched.
+In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the pattern every PHP application already deploys under. Both directives are `System`-class startup defaults a mode selects and no request may flip ([`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped)), because a flip would appear to change `dispatch` for a request already dispatched. Both reload: a request reads them from the snapshot it cloned, so a reload reaches the next request, and a request already dispatched keeps the table it was dispatched by.
 
 **No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is [`programs/path-case`](programs.md#programs-path-case)'s comparison, at the same cost — the canonical path is already in hand. The host is the one part that folds ([`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only)), because its specification says it does.
 

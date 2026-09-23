@@ -30,7 +30,7 @@
     },
     {
       "id": "http-server/the-server-block-is-boot-class",
-      "title": "The `[server]` block is `Boot`-class, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
+      "title": "Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
       "status": "shipped",
       "because": [
         "0097",

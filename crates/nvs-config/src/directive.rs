@@ -12,13 +12,10 @@
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
 //! specific `limits.hard` row answers for `limits.hard.memory`. That is how the ADRs state the
-//! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server]` is `Boot`
-//! (0097 § 5) — so the registry holds one row per *stated* rule rather than a row per key invented
+//! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server] listen`
+//! is `Boot` (0219 § 6) — so the registry holds one row per *stated* rule rather than a row per key invented
 //! to fill the table out. It is therefore **not** the list of legal keys: refusing an unknown key is
 //! `serde`'s `deny_unknown_fields` over the typed tree, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s.
-//!
-//! One roster gap is recorded rather than guessed: `rule:config/reloadability-is-its-own-field`'s `Boot` set names "the
-//! thread-per-core count", and no ADR spells that as a key, so it has no row here yet.
 //!
 //! Cost: one `&'static` slice, no allocation and nothing per request. A lookup is a linear scan of
 //! the rows below, run at boot and on each reload and never on the request path.
@@ -225,7 +222,29 @@ pub const DIRECTIVES: &[Directive] = &[
     // default for a key `lookup` answers `None` for, which is the drift
     // `every_derived_default_names_a_directive_the_registry_holds` stands in the way of.
     Directive { key: "debug.inline", class: Class::RuntimeTighten, apply: Apply::Reload },
-    Directive { key: "server", class: Class::System, apply: Apply::Boot },
+    // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
+    // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
+    // snapshot it cloned: `dispatch`, `static`, `health_path`, `trusted_proxies` and
+    // `max_in_flight`. The longer rows below it are `Boot`.
+    Directive { key: "server", class: Class::System, apply: Apply::Reload },
+    // `rule:config/reloadability-is-its-own-field`'s three restart keys. `listen` binds the sockets,
+    // and a port below 1024 needs a privilege the process dropped after it bound. `socket_mode` is
+    // applied when a Unix listener is bound, so it moves only with `listen`. `workers` sizes the
+    // runtime state every core holds.
+    Directive { key: "server.listen", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.socket_mode", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.workers", class: Class::System, apply: Apply::Boot },
+    // `Boot` because `nvs serve` reads each of these once, when it starts: the mount table is
+    // expanded from `root` and `mount`, and the waits and the connection bounds are resolved before
+    // the first listener accepts.
+    Directive { key: "server.root", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.mount", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.header_timeout", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.body_idle_timeout", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.write_idle_timeout", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.keepalive_timeout", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.drain_timeout", class: Class::System, apply: Apply::Boot },
+    Directive { key: "server.connection", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
     // The one `[opcache]` key that is not `Reload`, and a longer row than the block above, so

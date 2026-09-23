@@ -3,14 +3,14 @@ because each is read outside any request, before there is one to change it:
 
 | Directive | Class | `production` | `development` |
 |---|---|---|---|
-| `[server] dispatch` | `Boot` | `"entry"` | `"path"` |
-| `[server] static` | `Boot` | `false` | `true` |
+| `[server] dispatch` | `System` | `"entry"` | `"path"` |
+| `[server] static` | `System` | `false` | `true` |
 | `opcache.settle` | `System` | `"1s"` | `"100ms"` |
 
 **A startup row is chosen from the mode the configuration names, is never re-derived by a runtime
 mode flip, and is never flippable.** It is chosen when a configuration is published — at boot, and
-again at a reload for a row whose directive reloads, such as `settle`. `Core\Config::set` refuses it
-exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives **only**
+again at a reload, because all three directives reload. `Core\Config::set` refuses it
+exactly as it refuses any `System` directive, and a runtime mode flip re-derives **only**
 the five rows of `rule:config/a-mode-is-five-defaults`. Without that separation a flip would appear to
 change `dispatch` for a request that had already been dispatched.
 

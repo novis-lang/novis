@@ -614,13 +614,32 @@ fn memory(bytes: u64) -> String {
 /// `limits.memory` is one input of the admission ceiling, so a reload that
 /// moves it moves the ceiling. A cap of a pebibyte a request leaves this
 /// machine room for one request, so while one is held in flight the next is
-/// answered `503`. The held request keeps its place across both reloads, and
-/// a second reload back to a small cap admits the next request again.
+/// answered `503`.
 #[test]
 fn a_changed_memory_limit_moves_the_admission_ceiling() {
     const SMALL: u64 = 64 * 1024 * 1024;
     const HUGE: u64 = 1 << 50;
-    let server = Server::start("memory", &memory(SMALL), &[("app.nvs", HOLDING)]);
+    the_ceiling_follows("memory", &memory(SMALL), &memory(HUGE), "limits.memory");
+}
+
+/// `[server] max_in_flight` is the other input of the admission ceiling. A
+/// ceiling of one, with one request held in flight, answers the next `503`.
+#[test]
+fn a_changed_in_flight_ceiling_moves_the_admission_ceiling() {
+    the_ceiling_follows(
+        "in-flight",
+        "[server]\nmax_in_flight = 8\n",
+        "[server]\nmax_in_flight = 1\n",
+        "server.max_in_flight",
+    );
+}
+
+/// Holds one request in flight under `roomy`, reloads `tight`, and expects the
+/// next request to be answered `503` and the reload to name `applied`. The held
+/// request keeps its place across both reloads, and a second reload back to
+/// `roomy` admits the next request again.
+fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
+    let server = Server::start(case, roomy, &[("app.nvs", HOLDING)]);
     server.awaits("/", "the boot's program", |answer| {
         answer.status == 200 && answer.body == "ok"
     });
@@ -643,10 +662,10 @@ fn a_changed_memory_limit_moves_the_admission_ceiling() {
         thread::sleep(POLL);
     }
 
-    let report = server.reload(&memory(HUGE));
+    let report = server.reload(tight);
     assert!(
-        report.contains("applied: limits.memory\n"),
-        "the reload did not name `limits.memory` as applied: {report}"
+        report.contains(&format!("applied: {applied}\n")),
+        "the reload did not name `{applied}` as applied: {report}"
     );
     let refused = server.awaits("/", "a refusal at the lowered ceiling", |answer| {
         answer.status == 503
@@ -657,10 +676,73 @@ fn a_changed_memory_limit_moves_the_admission_ceiling() {
         "the held request lost its place in the count"
     );
 
-    server.reload(&memory(SMALL));
+    server.reload(roomy);
     server.awaits("/", "an admission at the raised ceiling", |answer| {
         answer.status == 200 && answer.body == "ok"
     });
+}
+
+/// A program that says whether the client address it was given is the one a
+/// proxy forwarded.
+const ADDRESSED: &str =
+    "<?nvs\necho Core\\Request::clientIp() == \"203.0.113.9\" ? \"forwarded\" : \"direct\";\n";
+
+/// `[server]`'s switches, as the boot writes them and as the reload does.
+const SWITCHES_OFF: &str = "[server]\ndispatch = \"entry\"\nstatic = false\n";
+const SWITCHES_ON: &str = "[server]\ndispatch = \"path\"\nstatic = true\nhealth_path = \"/up\"\n\
+                           trusted_proxies = [\"127.0.0.1/32\"]\n";
+
+/// The keys of `[server]` a request reads from the snapshot it cloned take the
+/// reloaded value in the next request: `dispatch` runs the file the path names,
+/// `static` sends a stylesheet, `health_path` answers the probe, and
+/// `trusted_proxies` believes the proxy's `X-Forwarded-For`.
+#[test]
+fn a_changed_server_block_reaches_the_next_request() {
+    let server = Server::start(
+        "server-block",
+        SWITCHES_OFF,
+        &[
+            ("app.nvs", ADDRESSED),
+            ("other.nvs", "<?nvs\necho \"other\";\n"),
+            ("style.css", "body {}\n"),
+        ],
+    );
+    let forwarded = [("x-forwarded-for", "203.0.113.9")];
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "direct"
+    });
+    for path in ["/other.nvs", "/style.css", "/up"] {
+        let answer = server.get(path);
+        assert_eq!(
+            answer.body, "direct",
+            "`{path}` before the reload: {answer:?}"
+        );
+    }
+    let answer = server.get_with("/app.nvs", &forwarded);
+    assert_eq!(answer.body, "direct", "a proxy nobody trusts was believed");
+
+    let report = server.reload(SWITCHES_ON);
+    for key in ["dispatch", "static", "health_path", "trusted_proxies"] {
+        assert!(
+            report.contains(&format!("applied: server.{key}\n")),
+            "the reload did not name `server.{key}` as applied: {report}"
+        );
+    }
+    server.awaits("/other.nvs", "the file the path names", |answer| {
+        answer.status == 200 && answer.body == "other"
+    });
+    let sent = server.get("/style.css");
+    assert_eq!(sent.body, "body {}\n", "{sent:?}");
+    let probe = server.get("/up");
+    assert!(
+        probe.status == 200 && probe.body != "direct",
+        "the health path did not answer the probe: {probe:?}"
+    );
+    let answer = server.get_with("/app.nvs", &forwarded);
+    assert_eq!(
+        answer.body, "forwarded",
+        "the trusted proxy was not believed"
+    );
 }
 
 /// A SQLite queue with one worker, whose `[queue] visibility` is `visibility`
@@ -1391,10 +1473,10 @@ fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
     let status = server.ctl("status");
     let line = status
         .lines()
-        .find(|line| line.starts_with("restart pending: server"))
+        .find(|line| line.starts_with("restart pending: server.workers"))
         .unwrap_or_else(|| panic!("`nvs ctl status` does not list the key: {status}"));
     assert!(
-        line.contains("running not written") && line.contains("workers = 1"),
+        line.contains("running not written") && line.contains("written 1)"),
         "the pending line does not give both values: {line}"
     );
 

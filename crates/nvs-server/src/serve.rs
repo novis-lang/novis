@@ -552,8 +552,8 @@ impl Draining {
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
-/// valve, the published tree, and the header set and cross-origin policy that
-/// tree configures.
+/// valve, the published tree, and the header set, cross-origin policy and proxy
+/// list that tree configures.
 ///
 /// One argument rather than one per policy because these are the *shared* half
 /// of a connection's context — an [`Arc`] each, so every core answers under the
@@ -565,12 +565,9 @@ impl Draining {
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
     admission: Arc<Admission>,
-    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s `[server] trusted_proxies`, resolved: who may assert a
-    /// client address or a scheme. Empty is the default and means no forwarded
-    /// header is read at all — [`crate::forwarded`] owns that difference.
-    trusted: Arc<Trusted>,
-    /// The header set and the cross-origin policy of the last snapshot a
-    /// request was answered under, shared by every core ([`Serving::policy`]).
+    /// The header set, the cross-origin policy and the proxy list of the last
+    /// snapshot a request was answered under, shared by every core
+    /// ([`Serving::policy`]).
     policy: Arc<RwLock<Arc<Policy>>>,
     /// The tree this instance is serving — `rule:config/the-config-is-an-immutable-snapshot`'s
     /// published snapshot, which every request reads through a clone taken at
@@ -587,8 +584,8 @@ pub struct Serving {
     current: Arc<nvs_config::Current>,
     /// `rule:concurrency/connection-bounds-are-finite`'s table, for every
     /// connection this loop frames. Beside the admission ceiling above it
-    /// because it is the same kind of number read at the same moment: the whole
-    /// `[server]` block is `Boot`-class, so these are resolved once and a
+    /// because it is the same kind of number read at the same moment:
+    /// `[server.connection]` is `Boot`-class, so these are resolved once and a
     /// connection already open keeps what it was accepted under.
     ///
     /// Not an [`Arc`], and the only field here that is not: it is a table of
@@ -624,9 +621,10 @@ impl Serving {
 
     /// [`new`](Self::new) over a holder somebody else publishes into.
     ///
-    /// `secure` and `cors` are the policies for the snapshot `current` holds
-    /// now. A snapshot published later gets policies derived from its own
-    /// `[http]` block ([`Serving::policy`]).
+    /// `secure`, `cors` and `trusted` are the policies for the snapshot
+    /// `current` holds now. A snapshot published later gets policies derived
+    /// from its own `[http]` block and `[server] trusted_proxies`
+    /// ([`Serving::policy`]).
     #[must_use]
     pub fn live(
         admission: Arc<Admission>,
@@ -639,23 +637,25 @@ impl Serving {
             of: current.load(),
             secure,
             cors,
+            trusted,
         };
         Self {
             admission,
-            trusted,
             policy: Arc::new(RwLock::new(Arc::new(policy))),
             current,
             bounds: crate::bounds::Connection::default(),
         }
     }
 
-    /// The header set and the cross-origin policy a request that took
-    /// `snapshot` is answered under.
+    /// The header set, the cross-origin policy and the proxy list a request
+    /// that took `snapshot` is answered under.
     ///
-    /// `[http.headers]` and `[http.cors]` are `Reload`-class
-    /// (`rule:config/reloadability-is-its-own-field`), so a reload that moves
-    /// either reaches the next request. Rendering them checks and builds every
-    /// header value, so it happens once per snapshot and not once per request:
+    /// `[http.headers]`, `[http.cors]` and `[server] trusted_proxies` are
+    /// `Reload`-class (`rule:config/reloadability-is-its-own-field`), so a
+    /// reload that moves any of them reaches the next request. An entry of the
+    /// proxy list that names no network is dropped here without a note: the
+    /// boot is where one is reported. Rendering the policies checks and builds
+    /// every header value, so it happens once per snapshot and not once per request:
     /// the first request under a new snapshot derives them and stores them for
     /// every core, and each request after it pays a read lock and a pointer
     /// comparison. Two requests under two snapshots at once can derive in
@@ -679,10 +679,19 @@ impl Serving {
             return held;
         }
         let http = snapshot.config.http.as_ref();
+        let (trusted, _) = Trusted::of(
+            snapshot
+                .config
+                .server
+                .as_ref()
+                .and_then(|server| server.trusted_proxies.as_deref())
+                .unwrap_or_default(),
+        );
         let derived = Arc::new(Policy {
             of: Arc::clone(snapshot),
             secure: Arc::new(Secure::of(http)),
             cors: Arc::new(Cors::of(http)),
+            trusted: Arc::new(trusted),
         });
         *self
             .policy
@@ -708,7 +717,7 @@ impl Serving {
     }
 }
 
-/// The two policies one published snapshot's `[http]` block configures.
+/// The three policies one published snapshot configures.
 #[derive(Debug)]
 struct Policy {
     /// The snapshot these were derived from. Only its address is compared.
@@ -721,6 +730,11 @@ struct Policy {
     /// default — [`crate::cors`] owns what that means and why the refusal is
     /// taken here rather than in an application.
     cors: Arc<Cors>,
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// `[server] trusted_proxies`, resolved: who may assert a client address
+    /// or a scheme. Empty is the default and means no forwarded header is read
+    /// at all — [`crate::forwarded`] owns that difference.
+    trusted: Arc<Trusted>,
 }
 
 /// The isolate answering one request, held by the future that is waiting for it.
@@ -1142,7 +1156,7 @@ where
         // `rule:http-server/secure-headers-with-nothing-written`'s effective scheme is `https` here and nowhere else:
         // Novis terminates no TLS (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`), so a trusted proxy's
         // `X-Forwarded-Proto` is the only thing that can assert it.
-        let origin = match crate::forwarded::walk(arrival, &serving.trusted, request.headers()) {
+        let origin = match crate::forwarded::walk(arrival, &policy.trusted, request.headers()) {
             Ok(origin) => origin,
             // § 6's one refusal: the walk stopped on a token that was about to
             // become the client address and is not one.
@@ -2129,7 +2143,7 @@ impl Listening for nvs_host::NvsUnixListener {
 /// before the loop is, and it is what the probe is answered from.
 ///
 /// `waits` is handed to every connection unchanged and is never re-read: ADR
-/// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
+/// 0097 § 5 makes the waits `Boot`-class precisely because `header_timeout`
 /// and `keepalive_timeout` apply before any Novis code exists on a connection,
 /// so a reload that moved them under a socket already accepted would be a
 /// promise two of the four could not keep.

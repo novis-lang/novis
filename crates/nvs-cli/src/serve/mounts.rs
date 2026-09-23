@@ -35,10 +35,14 @@
 //! reload published last. Where it moved, the pass folds it into the rows the
 //! last expansion gave (`super::fall_back_to`), asks the origin check of every
 //! row that changed, and publishes. `[[server.mount]]` and `[server] root` are
-//! read from the tree the process booted on, because `[server]` is
-//! `Boot`-class. A named file over a tree that writes no `[[server.mount]]` is
-//! one row that is never expanded again, and its origin follows a reload the
-//! same way.
+//! read from the tree the process booted on, because both are `Boot`-class. A
+//! named file over a tree that writes no `[[server.mount]]` is one row that is
+//! never expanded again, and its origin follows a reload the same way.
+//!
+//! **The table's three switches follow a reload.** `[server] dispatch`,
+//! `static` and `health_path` are read from the snapshot the request cloned
+//! ([`Local::table`]). A core builds a new table when one of them differs from
+//! the table it holds, and otherwise keeps it.
 //!
 //! **What it spends:** one `stat` per directory the expansion looked in, per
 //! `revalidate_freq`, off the request path. Two sets of rows live during a
@@ -98,10 +102,29 @@ impl Mounts {
 /// One core's table over the process's [`Mounts`].
 pub(super) struct Local {
     mounts: Arc<Mounts>,
-    /// The configuration the table's switches are read from: the dispatch,
-    /// the static-file switch and the health path. All three are `Boot`-class.
-    snapshot: Arc<nvs_config::Snapshot>,
-    built: RefCell<(u64, Rc<Table>)>,
+    built: RefCell<Built>,
+}
+
+/// The table a core built, and what it was built from.
+struct Built {
+    /// The generation of the rows it holds.
+    generation: u64,
+    /// The snapshot its switches were read from. Compared by pointer first,
+    /// so a request under the same snapshot compares nothing else.
+    of: Arc<nvs_config::Snapshot>,
+    table: Rc<Table>,
+}
+
+/// The three `[server]` keys a table is built with: the dispatch, the
+/// static-file switch and the health path.
+fn switches(config: &nvs_config::Config) -> (Option<&str>, Option<bool>, Option<&str>) {
+    config.server.as_ref().map_or((None, None, None), |server| {
+        (
+            server.dispatch.as_deref(),
+            server.serve_static,
+            server.health_path.as_deref(),
+        )
+    })
 }
 
 impl Local {
@@ -110,22 +133,38 @@ impl Local {
         let table = Rc::new(Table::from_config(rows.to_vec(), &snapshot.config));
         Self {
             mounts,
-            snapshot,
-            built: RefCell::new((generation, table)),
+            built: RefCell::new(Built {
+                generation,
+                of: snapshot,
+                table,
+            }),
         }
     }
 
-    /// The table a request selects its mount from: the one this core built,
-    /// unless the rows were replaced since, and then one built over the new
-    /// rows.
-    pub(super) fn table(&self) -> Rc<Table> {
+    /// The table a request under `snapshot` selects its mount from. This is
+    /// the table the core built, unless the rows were replaced since or
+    /// `snapshot` sets different switches. Then the core builds a new one.
+    ///
+    /// A request under the snapshot the table was built from pays one atomic
+    /// load and one pointer comparison.
+    pub(super) fn table(&self, snapshot: &Arc<nvs_config::Snapshot>) -> Rc<Table> {
         let standing = self.mounts.generation.load(Ordering::Acquire);
-        if self.built.borrow().0 != standing {
-            let (generation, rows) = self.mounts.rows();
-            let table = Rc::new(Table::from_config(rows.to_vec(), &self.snapshot.config));
-            *self.built.borrow_mut() = (generation, table);
+        let mut built = self.built.borrow_mut();
+        let same_rows = built.generation == standing;
+        if same_rows && Arc::ptr_eq(&built.of, snapshot) {
+            return Rc::clone(&built.table);
         }
-        Rc::clone(&self.built.borrow().1)
+        if same_rows && switches(&built.of.config) == switches(&snapshot.config) {
+            built.of = Arc::clone(snapshot);
+            return Rc::clone(&built.table);
+        }
+        let (generation, rows) = self.mounts.rows();
+        *built = Built {
+            generation,
+            of: Arc::clone(snapshot),
+            table: Rc::new(Table::from_config(rows.to_vec(), &snapshot.config)),
+        };
+        Rc::clone(&built.table)
     }
 }
 
