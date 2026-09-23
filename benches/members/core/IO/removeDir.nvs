@@ -1,0 +1,27 @@
+<?nvs
+// Deletes an empty folder, as a program does when it cleans up after a job.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $folders = [
+            Core\Path::join($dir, "a"),
+            Core\Path::join($dir, "b"),
+            Core\Path::join($dir, "c"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The folder in each round depends on the round before, so no round can be left out.
+            string $folder = $folders[($total % 3) as int];
+            Core\IO::makeDir($folder);
+            Core\IO::removeDir($folder);
+            $total = $total + ($i % 2) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000) > 0 ? "done" : "no folder was deleted", "\n";

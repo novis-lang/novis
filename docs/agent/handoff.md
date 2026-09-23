@@ -2,28 +2,25 @@
 
 ## State
 
-Goal `core-io-2-2` is under way. `Core\IO::open`, `read` and `readText` have every feature proof:
-the description, three examples, an attack, a bench with its figure in `docs/perf/members.ndjson`,
-and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/io.rs`'s test module.
-`read`'s reference card now says the file must be UTF-8 and that a file that is not throws a
-`RuntimeError`. Ten members of the goal are left, from `remove` to `writeStream`.
+Goal `core-io-2-2` is under way. `Core\IO::open`, `read`, `readText`, `remove`, `removeDir` and
+`size` have every feature proof: the description, three examples, an attack, a bench with its
+figure in `docs/perf/members.ndjson`, and a Rust `#[test]` with its `covers:` marker in
+`crates/nvs-stdlib/src/io.rs`'s test module. Seven members of the goal are left: `write`,
+`writeStream`, `stat`, `walk`, `temporaryDir`, `within` and `stdin`.
 
 ## Next group
 
-**Core\IO filesystem members, one per slice** — one file set: `crates/nvs-stdlib/src/io.rs` (the
-registry rows and the test module at its end) plus each member's new proof paths. Take them in
-this order:
+**Core\IO writing members, one per slice** — one file set: `crates/nvs-stdlib/src/io.rs` (the
+registry rows and the test module at its end) plus each member's new proof paths. Every proof
+program under `docs/examples/core/IO`, `tests/hostile/core/IO` and `benches/members/core/IO` is
+granted `fs.read` and `fs.write` everywhere by the root `nvs.toml`, so an attack must never name a
+real file outside `Core\IO::temporaryDir()`. Take them in this order:
 
-- [ ] **`Core\IO::remove`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:250`
-- [ ] **`Core\IO::removeDir`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:268`
-- [ ] **`Core\IO::size`** — owes what `python tools/dossier.py --id 'Core\IO::size'` prints (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:196`
+- [ ] **`Core\IO::write`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:108`
+- [ ] **`Core\IO::writeStream`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:132`
+- [ ] **`Core\IO::stat`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/io.rs:220`
 
 ## Backlog
 
-- `Core\IO::open`'s card says a directory opened with `Read` throws an `IOError`. On Linux
-  `std::fs::OpenOptions` opens a directory for reading, so only the first read fails. Not checked
-  under WSL; `crates/nvs-runtime/src/capability.rs`'s `open` owns it.
-- `tests/hostile/core/Html/sanitize/01-tricky-markup-and-a-huge-document.nvs` ran past 60 s under
-  `dossier.py --run all` with 8 at a time, once. It was not re-run alone; its owner is `crates/nvs-stdlib/src/html.rs`.
-- The rest of the goal after the next group: `stat`, `stdin`, `temporaryDir`, `walk`, `within`,
-  `write`, `writeStream`, in that order (`docs/agent/loop-goal.md`).
+- `Core\IO::walk`, `temporaryDir`, `within` and `stdin` owe every proof but the description — `python tools/dossier.py --owed --only 'Core\IO::walk'`; rows at `crates/nvs-stdlib/src/io.rs:293`, `:308`, `:333`, `:385`.
+- `REMOVE_DOC`'s return line ("throws rather than answering quietly") is not yet in the voice of `AGENTS.md` § *Text an end user reads* — goal `core-class-cards` owns the cards.

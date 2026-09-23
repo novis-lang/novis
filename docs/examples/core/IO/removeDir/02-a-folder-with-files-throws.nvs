@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `Core\IO::removeDir` throws an `IOError` when the folder is not empty.
+
+string $folder = Core\Path::join(Core\IO::temporaryDir(), "photos");
+Core\IO::makeDir($folder);
+Core\IO::write(Core\Path::join($folder, "beach.jpg"), "image data");
+
+// The folder has a file in it, so `removeDir` throws. This prints "the folder is not empty".
+try {
+    Core\IO::removeDir($folder);
+    echo "deleted", "\n";
+} catch (IOError $e) {
+    echo "the folder is not empty", "\n";
+}
+
+// Nothing was deleted. This prints "beach.jpg is still here".
+if (Core\IO::exists(Core\Path::join($folder, "beach.jpg"))) {
+    echo "beach.jpg is still here", "\n";
+}

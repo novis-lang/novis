@@ -4160,6 +4160,85 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// `Core\IO::remove` deletes a file, and a second call for the same name throws naming the
+    /// member and the path. A folder throws and is left in place, and a context granting
+    /// `fs.read` alone throws naming `fs.write` and leaves the file.
+    // covers: Core\IO::remove
+    #[test]
+    fn core_io_remove_deletes_a_file_and_throws_for_a_missing_name_or_a_folder() {
+        let root = scratch("remove");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("a folder to work in");
+        let file = root.join("gone.txt");
+        std::fs::write(&file, b"x").expect("a file to delete");
+        let mut ctx = writing();
+        call_with(nvs_core_io_remove, &mut ctx, &[spelled(&file)]).expect("a removal");
+        assert!(!file.exists(), "the file is gone");
+
+        let again = call_with(nvs_core_io_remove, &mut ctx, &[spelled(&file)])
+            .expect_err("nothing is left to delete");
+        assert!(again.contains(r"Core\IO::remove"), "{again}");
+        assert!(again.contains("gone.txt"), "{again}");
+
+        call_with(nvs_core_io_remove, &mut ctx, &[spelled(&root)])
+            .expect_err("a folder is `removeDir`'s argument");
+        assert!(root.is_dir(), "a refused removal leaves the folder");
+
+        let kept = root.join("kept.txt");
+        std::fs::write(&kept, b"x").expect("a file to keep");
+        let refused = call_with(nvs_core_io_remove, &mut reading("1MiB"), &[spelled(&kept)])
+            .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(kept.exists(), "a refused call deletes nothing");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// `Core\IO::removeDir` deletes an empty folder, and a folder with a file in it throws and
+    /// keeps both. A file and a missing name throw, and a context granting `fs.read` alone throws
+    /// naming `fs.write` and leaves the folder.
+    // covers: Core\IO::removeDir
+    #[test]
+    fn core_io_remove_dir_deletes_an_empty_folder_and_throws_for_one_with_entries() {
+        let root = scratch("remove-dir");
+        let _ = std::fs::remove_dir_all(&root);
+        let empty = root.join("empty");
+        std::fs::create_dir_all(&empty).expect("an empty folder");
+        let mut ctx = writing();
+        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&empty)]).expect("a removal");
+        assert!(!empty.exists(), "the folder is gone");
+
+        let full = root.join("full");
+        let inside = full.join("keep.txt");
+        std::fs::create_dir_all(&full).expect("a folder to fill");
+        std::fs::write(&inside, b"x").expect("a file inside");
+        let failed = call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&full)])
+            .expect_err("a folder with entries is not empty");
+        assert!(failed.contains(r"Core\IO::removeDir"), "{failed}");
+        assert!(
+            inside.exists(),
+            "a refused removal keeps what the folder has"
+        );
+
+        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&inside)])
+            .expect_err("a file is `remove`'s argument");
+        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&empty)])
+            .expect_err("nothing is left to delete");
+
+        let kept = root.join("kept");
+        std::fs::create_dir_all(&kept).expect("a folder to keep");
+        let refused = call_with(
+            nvs_core_io_remove_dir,
+            &mut reading("1MiB"),
+            &[spelled(&kept)],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(kept.is_dir(), "a refused call deletes nothing");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// `Core\IO::list(path)` under `ctx`, answering the names it returned, sorted, or the
     /// message the refusal left.
     fn listed(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
