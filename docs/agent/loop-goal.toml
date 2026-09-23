@@ -3807,11 +3807,11 @@ stage = "1 floor"
 name = "nvs-config (the validate default)"
 args = ["test", "-p", "nvs-config"]
 tests = [
-  # `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `validate` STARTUP default is an `rule:config/a-startup-default-is-never-flipped` row, chosen by the
-  # run mode before any request exists. It belongs to whichever module reads
-  # `[opcache]` -- `nvs_config::cache` -- and NOT to `nvs_config::mode`, whose
-  # own doc says § 3a's startup rows are deliberately outside its table.
-  "the_validate_default_is_selected_by_the_run_mode",
+  # `rule:config/opcache-revalidation-is-system-class`: `[opcache] validate` defaults to `mtime`
+  # in every run mode, and a written value still wins. It belongs to the module that reads
+  # `[opcache]` -- `nvs_config::cache` -- and not to `nvs_config::mode`, because no mode row
+  # chooses it.
+  "validate_defaults_to_mtime_in_production_and_development",
 ]
 
 # ---------------------------------------------------------------------------------------------------
