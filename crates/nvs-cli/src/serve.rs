@@ -153,6 +153,8 @@ use nvs_server::{
 use crate::script::Compiler;
 use crate::service::{Notify, State};
 
+mod mounts;
+
 /// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
 /// stopped.
@@ -369,7 +371,12 @@ pub(crate) fn run(
     // file, at `/`, with the directory it sits in as the mount root. The module
     // doc's § *Decision* owns which of these a run gets and why the argument
     // has the last word over neither.
-    let mut mounts = match table_for(path, &snapshot, &origins) {
+    //
+    // The expansion is read through `mounts::Stamping`, so the directories it
+    // looked in are stamped before it looked: those stamps are where the
+    // background expansion below starts comparing from.
+    let stamping = mounts::Stamping::default();
+    let mut mounts = match table_for(path, &snapshot, &origins, &stamping) {
         Ok(mounts) => mounts,
         Err(NoTable::Reported(diagnostic)) => return report(*diagnostic, &sources),
         Err(NoTable::Said(refusal)) => {
@@ -428,10 +435,26 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
+    // The rows every core answers from. A tree that writes `[[server.mount]]`
+    // has them expanded again as its directories change, on the same thread
+    // as the check below (`mounts`'s module doc). A named file over a tree
+    // that writes none is one row, and that row never changes.
+    let shared = Arc::new(mounts::Mounts::new(mounts.clone()));
+    let rescan: Option<crate::script::Also> = writes_mounts(&snapshot).then(|| {
+        let mut rescan = mounts::Rescan::new(
+            Arc::clone(&snapshot),
+            origins,
+            sources,
+            Arc::clone(&shared),
+            stamping.stamps(),
+        );
+        Box::new(move |compiler: &Compiler| rescan.pass(compiler)) as crate::script::Also
+    });
+    let mounts = shared;
     // From here an edit reaches the server through this thread and no request:
     // a request resolves a path to the unit its pointer names, and this check
     // is what moves the pointer (`crate::script::watch`). Held for the run.
-    let _watching = crate::script::watch(&compiler);
+    let _watching = crate::script::watch(&compiler, rescan);
 
     // Every socket this process opens, in the one order [`bind_sockets`] owns:
     // the control endpoint, then every address the set named — all of it before
@@ -766,8 +789,9 @@ struct Core {
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
-    /// § 4's mounts, which every core turns into its own [`Table`].
-    mounts: Vec<Mounted>,
+    /// § 4's rows, which every core turns into its own [`Table`], and turns
+    /// again each time they are replaced (`mounts::Local`).
+    mounts: Arc<mounts::Mounts>,
     /// The tree this process booted on, read by every core and written by none.
     snapshot: Arc<nvs_config::Snapshot>,
     /// `rule:config/the-config-is-an-immutable-snapshot`'s holder, which is where
@@ -825,8 +849,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     let stopped = Rc::new(Cell::new(false));
     // This core's own table over § 4's set, which is the same set on every
     // core: what is per-core is the structure, because an `Rc` graph belongs to
-    // the thread that reads it.
-    let table = Rc::new(Table::from_config(mounts, &snapshot.config));
+    // the thread that reads it. It is rebuilt when the set is replaced.
+    let tables = Rc::new(mounts::Local::new(mounts, Arc::clone(&snapshot)));
 
     // Every request goes through § 4's five steps, and what they chose is either
     // a file to send — `nvs_server::statics`, the same policy a configured
@@ -883,7 +907,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         .map(|((cpu, watchdog), view)| Rc::new(watchdog.register(cpu, view)));
     let handler = Rc::new({
         let compiler = Arc::clone(&compiler);
-        let table = Rc::clone(&table);
+        let tables = Rc::clone(&tables);
         let draining = draining.clone();
         let watched = watched.clone();
         // The holder, not a rate read out of it here: `[trace] sample` reloads
@@ -901,6 +925,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
                 return Reply::not_implemented();
             }
+            let table = tables.table();
             let selected = match table.select(&request, &OnDisk) {
                 // Step 0, ahead of every mount: § 5's probe says the process is
                 // alive, which is a fact this loop holds and no program is asked
@@ -1805,17 +1830,16 @@ enum NoTable {
 /// not mount is a request nobody could make: the command was told to serve it,
 /// so serving the table without it would be answering with somebody else's
 /// application.
+///
+/// `files` is the disk the expansion reads, which boot passes as
+/// `mounts::Stamping`.
 fn table_for(
     path: Option<&Path>,
     snapshot: &nvs_config::Snapshot,
     origins: &std::collections::BTreeMap<String, nvs_config::resolve::Origin>,
+    files: &dyn nvs_config::resolve::Files,
 ) -> Result<Vec<Mounted>, NoTable> {
-    let deployed = snapshot
-        .config
-        .server
-        .as_ref()
-        .is_some_and(|server| !server.mount.is_empty());
-    if !deployed {
+    if !writes_mounts(snapshot) {
         let Some(path) = path else {
             return Err(NoTable::Said(
                 "no file was named and the configuration writes no `[[server.mount]]`; name the \
@@ -1827,7 +1851,7 @@ fn table_for(
             .map(|mount| vec![mount])
             .map_err(NoTable::Said);
     }
-    let mounts = nvs_config::mount::expand(&snapshot.config, origins, &crate::config::LocalFiles)
+    let mounts = nvs_config::mount::expand(&snapshot.config, origins, files)
         .map_err(|diagnostic| NoTable::Reported(Box::new(diagnostic)))?;
     if mounts.is_empty() {
         return Err(NoTable::Said(
@@ -1849,6 +1873,16 @@ fn table_for(
         )));
     }
     Ok(mounts)
+}
+
+/// Whether the tree writes a `[[server.mount]]` block, which is what makes
+/// [`table_for`] expand the configuration's table rather than serve one file.
+fn writes_mounts(snapshot: &nvs_config::Snapshot) -> bool {
+    snapshot
+        .config
+        .server
+        .as_ref()
+        .is_some_and(|server| !server.mount.is_empty())
 }
 
 /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback: a row
@@ -1900,16 +1934,28 @@ fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
 fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), String> {
     let entry = mount.entry.to_string_lossy().into_owned();
     let (_program, routes) = compiler.compiled(&entry)?;
-    if routes.absolute_links() && mount.origin.is_none() {
-        return Err(format!(
-            "the mount at `{}` serves `{entry}`, which builds an absolute link, and no origin \
+    match unreached_origin(mount, &routes) {
+        Some(refusal) => Err(refusal),
+        None => Ok(()),
+    }
+}
+
+/// [`compiled_under`]'s check of a unit that compiled: the sentence naming the
+/// mount, the entry and the two keys that resolve an origin for it, where the
+/// unit builds an absolute link under a mount that resolved no origin, and
+/// `None` otherwise. `mounts`' background expansion asks the same of a row it
+/// did not hold before.
+fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Option<String> {
+    (routes.absolute_links() && mount.origin.is_none()).then(|| {
+        format!(
+            "the mount at `{}` serves `{}`, which builds an absolute link, and no origin \
              resolves for it. `rule:routing/an-origin-is-per-mount-and-checked-at-boot`: give \
              this mount's `[[server.mount]]` block an `origin`, or `[[app]] origin` for every \
              mount that has none of its own",
-            mount.prefix
-        ));
-    }
-    Ok(())
+            mount.prefix,
+            mount.entry.display()
+        )
+    })
 }
 
 /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s origin, from the
@@ -3940,7 +3986,12 @@ mod tests {
             crate::config::Init::Never,
         )
         .expect("the tree this case wrote resolves");
-        table_for(named.as_deref(), &snapshot, &origins)
+        table_for(
+            named.as_deref(),
+            &snapshot,
+            &origins,
+            &crate::config::LocalFiles,
+        )
     }
 
     /// A start that names no file serves the configuration's table whole, and a

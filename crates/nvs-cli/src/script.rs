@@ -569,6 +569,13 @@ impl Compiler {
         *shared(&self.env)
     }
 
+    /// `[opcache] settle`: how long a changed tree must be quiet before it is
+    /// read. The mount table's background expansion waits for it too
+    /// (`crate::serve`'s `mounts`).
+    pub(crate) fn settle(&self) -> Duration {
+        self.revalidation.settle
+    }
+
     /// How many compiled units this cache holds right now.
     ///
     /// The number `rule:config/a-reload-names-what-it-could-not-apply`'s report
@@ -1357,10 +1364,17 @@ impl Drop for Watch {
     }
 }
 
+/// A second check [`watch`]'s thread runs after each [`Compiler::revalidate`],
+/// answering the same way: how long until a change it held back is quiet, or
+/// `None`.
+pub(crate) type Also = Box<dyn FnMut(&Compiler) -> Option<Duration> + Send>;
+
 /// Starts the background check of
 /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`: one
-/// thread that runs [`Compiler::revalidate`] once per `revalidate_freq`, or
-/// sooner where a change it held back becomes quiet before that.
+/// thread that runs [`Compiler::revalidate`], and then `also` where there is
+/// one, once per `revalidate_freq`, or sooner where a change either held back
+/// becomes quiet before that. `nvs serve` passes its mount table's expansion
+/// as `also`.
 ///
 /// The thread holds the compiler weakly, so it stops by itself when the last
 /// owner drops the compiler. A pass that panics beneath the front end is
@@ -1368,7 +1382,7 @@ impl Drop for Watch {
 /// is reported once, and then no edit reaches this process.
 ///
 /// **What it spends:** one thread per process, asleep between passes.
-pub(crate) fn watch(compiler: &Arc<Compiler>) -> Watch {
+pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
     let stop = Arc::new((Mutex::new(false), Condvar::new()));
     let tick = compiler.revalidation.freq.max(FLOOR);
     let weak = Arc::downgrade(compiler);
@@ -1393,9 +1407,17 @@ pub(crate) fn watch(compiler: &Arc<Compiler>) -> Watch {
                 let held = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     compiler.revalidate()
                 }));
+                let also_held = also.as_mut().and_then(|also| {
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| also(&compiler)))
+                        .ok()
+                        .flatten()
+                });
                 next = held
                     .ok()
                     .flatten()
+                    .into_iter()
+                    .chain(also_held)
+                    .min()
                     .map_or(tick, |wait| wait.min(tick))
                     .max(FLOOR);
             }

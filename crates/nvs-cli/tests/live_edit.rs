@@ -79,23 +79,29 @@ impl Server {
     ///
     /// As [`Server::start`] does, and when that first command fails.
     fn start_after(case: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
-        Self::launch(case, files, &[], first, "app.nvs")
+        Self::launch(case, files, &[], first, Some("app.nvs"))
     }
 
     /// [`Server::start`], which also makes each link in `links` point at its
     /// directory ([`point`]) and serves `entry` rather than `app.nvs`.
     fn serving(case: &str, files: &[(&str, &str)], links: &[(&str, &str)], entry: &str) -> Self {
-        Self::launch(case, files, links, &[], entry)
+        Self::launch(case, files, links, &[], Some(entry))
+    }
+
+    /// [`Server::start`] with no file named, so the server answers from the
+    /// `[[server.mount]]` table its `nvs.toml` writes.
+    fn mounting(case: &str, files: &[(&str, &str)]) -> Self {
+        Self::launch(case, files, &[], &[], None)
     }
 
     /// Writes `files`, makes `links`, runs `first` unless it is empty, and
-    /// starts `nvs serve entry`.
+    /// starts `nvs serve entry`, or `nvs serve` where `entry` is `None`.
     fn launch(
         case: &str,
         files: &[(&str, &str)],
         links: &[(&str, &str)],
         first: &[&str],
-        entry: &str,
+        entry: Option<&str>,
     ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-edit-{case}-{}", std::process::id()));
@@ -123,7 +129,9 @@ impl Server {
         }
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .args(["serve", entry, "--listen", "127.0.0.1:0"])
+            .arg("serve")
+            .args(entry)
+            .args(["--listen", "127.0.0.1:0"])
             .current_dir(&dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -1096,4 +1104,109 @@ fn point(link: &Path, target: &Path) {
             String::from_utf8_lossy(&made.stderr)
         );
     }
+}
+
+/// A configuration that checks every 100ms, serves out of `www`, mounts every
+/// `www/<name>/index.nvs` at `/<name>`, and writes `more` after that.
+fn scanning(more: &str) -> String {
+    format!(
+        "{}[server]\nroot = \"www\"\n\n[[server.mount]]\nscan = \"*/index.nvs\"\n\
+         prefix = \"/{{1}}\"\n{more}",
+        checking_every_100ms("100ms")
+    )
+}
+
+/// A module deployed under the scan after boot is served at its prefix, and the
+/// module that was there already still is.
+#[test]
+fn a_new_module_under_a_mount_scan_is_served_without_a_restart() {
+    let server = Server::mounting(
+        "scan-new",
+        &[
+            ("nvs.toml", &scanning("")),
+            ("www/blog/index.nvs", &printing("blog")),
+        ],
+    );
+    server.awaits_body("/blog", "blog");
+    assert_eq!(
+        server.get("/shop").status,
+        404,
+        "no module is at `/shop` yet"
+    );
+
+    server.write("www/shop/index.nvs", &printing("shop"));
+    server.awaits_body("/shop", "shop");
+    server.awaits_body("/blog", "blog");
+}
+
+/// A module whose entry file is removed answers `404`, and the other module is
+/// still served.
+#[test]
+fn a_removed_module_under_a_mount_scan_answers_404() {
+    let server = Server::mounting(
+        "scan-gone",
+        &[
+            ("nvs.toml", &scanning("")),
+            ("www/blog/index.nvs", &printing("blog")),
+            ("www/shop/index.nvs", &printing("shop")),
+        ],
+    );
+    server.awaits_body("/shop", "shop");
+
+    server.remove("www/shop/index.nvs");
+    server.awaits("/shop", "`/shop` answering 404", |answer| {
+        answer.status == 404
+    });
+    server.awaits_body("/blog", "blog");
+}
+
+/// A module deployed under the scan that does not compile fails the requests
+/// for its own prefix, and the other module is still served. Its fix is served
+/// without a restart.
+#[test]
+fn a_new_scanned_module_that_does_not_compile_fails_only_its_own_requests() {
+    let server = Server::mounting(
+        "scan-broken",
+        &[
+            ("nvs.toml", &scanning("")),
+            ("www/blog/index.nvs", &printing("blog")),
+        ],
+    );
+    server.awaits_body("/blog", "blog");
+
+    server.write("www/shop/index.nvs", "<?nvs\necho \"broken\"\n");
+    server.awaits("/shop", "the broken module failing `/shop`", |answer| {
+        answer.status >= 500
+    });
+    server.awaits_body("/blog", "blog");
+
+    server.write("www/shop/index.nvs", &printing("fixed"));
+    server.awaits_body("/shop", "fixed");
+}
+
+/// A mount that names its entry file answers `404` while that file is gone,
+/// and is served again once the file is back.
+#[test]
+fn an_explicit_mount_entry_that_appears_is_served_without_a_restart() {
+    let server = Server::mounting(
+        "explicit",
+        &[
+            (
+                "nvs.toml",
+                &scanning("\n[[server.mount]]\nprefix = \"/admin\"\nentry = \"admin/app.nvs\"\n"),
+            ),
+            ("www/blog/index.nvs", &printing("blog")),
+            ("www/admin/app.nvs", &printing("admin")),
+        ],
+    );
+    server.awaits_body("/admin", "admin");
+
+    server.remove("www/admin/app.nvs");
+    server.awaits("/admin", "`/admin` answering 404", |answer| {
+        answer.status == 404
+    });
+
+    server.write("www/admin/app.nvs", &printing("back"));
+    server.awaits_body("/admin", "back");
+    server.awaits_body("/blog", "blog");
 }
