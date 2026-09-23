@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a file that was saved in the Latin-1 character set.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "city.txt");
+// `encodeText` gives the Latin-1 bytes of the text. In Latin-1, "ö" is one byte.
+array<bytes> $parts = [Core\Encoding::encodeText("Köln\n", Core\Charset::Latin1)];
+Core\IO::writeStream($path, $parts, {overwrite: true});
+
+// The `charset` option says how the file was saved. This prints "Köln".
+echo Core\IO::readText($path, {charset: Core\Charset::Latin1});
+
+// Without the option, `readText` reads UTF-8. These bytes are not UTF-8, so it throws an error.
+try {
+    Core\IO::readText($path);
+} catch (RuntimeError $e) {
+    echo "the file is not UTF-8\n";
+}
