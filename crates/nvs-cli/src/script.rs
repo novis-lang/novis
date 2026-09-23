@@ -162,7 +162,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{
+    Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
+};
 use std::time::{Duration, SystemTime};
 
 use nvs_config::cache::{
@@ -493,9 +495,15 @@ pub(crate) struct Compiler {
     /// two of them, and the write happens once per reload that changes the set.
     ///
     env: RwLock<EnvHash>,
-    /// `[opcache] validate`, `revalidate_freq` and `settle`, read once for the
-    /// same reason: all three are `System`-class, so no request can move them.
-    revalidation: Revalidation,
+    /// `[opcache] validate`, `revalidate_freq` and `settle`. All three are
+    /// `System`-class, so no request can move them, and all three reload, so a
+    /// reload can ([`Self::reconfigure`]). Behind a lock for [`Self::env`]'s
+    /// reason: one uncontended read per check, and a write per reload.
+    revalidation: RwLock<Revalidation>,
+    /// The signal of the [`watch`] thread checking this cache, so that
+    /// [`Self::reconfigure`] can wake it. Empty until [`watch`] runs, and after
+    /// its thread ends.
+    watcher: Mutex<Weak<Signal>>,
     /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk cache, resolved from the same block and once for
     /// the same reason — or [`None`] for a host that consults none.
     ///
@@ -558,7 +566,8 @@ impl Compiler {
             units: RwLock::new(HashMap::new()),
             traces: RwLock::new(HashMap::new()),
             env: RwLock::new(env_hash(config)),
-            revalidation: Revalidation::from_config(config),
+            revalidation: RwLock::new(Revalidation::from_config(config)),
+            watcher: Mutex::new(Weak::new()),
             cache: crate::cache::from_config(config),
             compiles: AtomicU64::new(0),
         }
@@ -569,11 +578,46 @@ impl Compiler {
         *shared(&self.env)
     }
 
+    /// The `[opcache]` policy in force now.
+    fn revalidation(&self) -> Revalidation {
+        *shared(&self.revalidation)
+    }
+
     /// `[opcache] settle`: how long a changed tree must be quiet before it is
     /// read. The mount table's background expansion waits for it too
     /// (`crate::serve`'s `mounts`).
     pub(crate) fn settle(&self) -> Duration {
-        self.revalidation.settle
+        self.revalidation().settle
+    }
+
+    /// Moves `[opcache] validate`, `revalidate_freq` and `settle` to what
+    /// `config` writes, which is how a reload reaches them
+    /// (`rule:config/reloadability-is-its-own-field`). The next check reads the
+    /// new policy.
+    ///
+    /// A policy that moved wakes [`watch`]'s thread, which runs a pass and then
+    /// waits the new `revalidate_freq`. Without the wake, a server that booted
+    /// with a long interval would wait that interval out once more before the
+    /// shorter one applied.
+    pub(crate) fn reconfigure(&self, config: &Config) {
+        let next = Revalidation::from_config(config);
+        {
+            let mut held = exclusive(&self.revalidation);
+            if *held == next {
+                return;
+            }
+            *held = next;
+        }
+        let watcher = self
+            .watcher
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .upgrade();
+        if let Some(signal) = watcher {
+            let (state, wakes) = &*signal;
+            state.lock().unwrap_or_else(PoisonError::into_inner).retimed = true;
+            wakes.notify_all();
+        }
     }
 
     /// How many compiled units this cache holds right now.
@@ -700,7 +744,7 @@ impl Compiler {
         written: &Path,
         known: Option<PathEntry>,
     ) -> Result<Observed, Answer> {
-        let observed = match observe(written, self.revalidation.validate, known) {
+        let observed = match observe(written, self.revalidation().validate, known) {
             Ok(observed) => observed,
             Err(error) => {
                 if let Some(answer) = known.and_then(|e| self.answer_at(written, e.serving())) {
@@ -872,7 +916,7 @@ impl Compiler {
             .map(|stamp| stamp.modified)
             .filter(|modified| *modified <= now)
             .max()?;
-        (newest + self.revalidation.settle)
+        (newest + self.revalidation().settle)
             .duration_since(now)
             .ok()
             .filter(|wait| !wait.is_zero())
@@ -940,7 +984,7 @@ impl Compiler {
     /// one moved.
     fn revalidate_trace(&self, path: &Path, content: Digest) {
         let entry = (path.to_path_buf(), content);
-        let validate = self.revalidation.validate;
+        let validate = self.revalidation().validate;
         let checked = SystemTime::now();
         let (was, found) = {
             let traces = shared(&self.traces);
@@ -1013,7 +1057,7 @@ impl Compiler {
             || describes_the_disk(
                 written,
                 trace,
-                self.revalidation.validate,
+                self.revalidation().validate,
                 SystemTime::now(),
             )
             .is_none()
@@ -1345,18 +1389,31 @@ impl Compiler {
 /// `revalidate_freq` of zero checks this often, and does not spin a core.
 const FLOOR: Duration = Duration::from_millis(10);
 
+/// What wakes [`watch`]'s thread before its interval is over.
+#[derive(Debug, Default)]
+struct Wake {
+    /// The [`Watch`] was dropped, and the thread ends.
+    stopped: bool,
+    /// [`Compiler::reconfigure`] moved the policy, and the thread runs a pass
+    /// now and then waits the new interval.
+    retimed: bool,
+}
+
+/// [`Wake`] and the condition variable its thread waits on.
+type Signal = (Mutex<Wake>, Condvar);
+
 /// The thread [`watch`] starts. Dropping this stops the thread and waits for
 /// it, so no check outlives the run that started it.
 #[derive(Debug)]
 pub(crate) struct Watch {
-    stop: Arc<(Mutex<bool>, Condvar)>,
+    stop: Arc<Signal>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Drop for Watch {
     fn drop(&mut self) {
-        let (stopped, wakes) = &*self.stop;
-        *stopped.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        let (state, wakes) = &*self.stop;
+        state.lock().unwrap_or_else(PoisonError::into_inner).stopped = true;
         wakes.notify_all();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
@@ -1383,23 +1440,27 @@ pub(crate) type Also = Box<dyn FnMut(&Compiler) -> Option<Duration> + Send>;
 ///
 /// **What it spends:** one thread per process, asleep between passes.
 pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
-    let stop = Arc::new((Mutex::new(false), Condvar::new()));
-    let tick = compiler.revalidation.freq.max(FLOOR);
+    let stop: Arc<Signal> = Arc::new((Mutex::new(Wake::default()), Condvar::new()));
+    *compiler
+        .watcher
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Arc::downgrade(&stop);
     let weak = Arc::downgrade(compiler);
     let stopping = Arc::clone(&stop);
+    let mut next = compiler.revalidation().freq.max(FLOOR);
     let spawned = std::thread::Builder::new()
         .name("nvs-revalidate".to_owned())
         .spawn(move || {
-            let (stopped, wakes) = &*stopping;
-            let mut next = tick;
+            let (state, wakes) = &*stopping;
             loop {
-                let guard = stopped.lock().unwrap_or_else(PoisonError::into_inner);
-                let (guard, _) = wakes
-                    .wait_timeout_while(guard, next, |stopped| !*stopped)
+                let guard = state.lock().unwrap_or_else(PoisonError::into_inner);
+                let (mut guard, _) = wakes
+                    .wait_timeout_while(guard, next, |wake| !wake.stopped && !wake.retimed)
                     .unwrap_or_else(PoisonError::into_inner);
-                if *guard {
+                if guard.stopped {
                     return;
                 }
+                guard.retimed = false;
                 drop(guard);
                 let Some(compiler) = weak.upgrade() else {
                     return;
@@ -1412,6 +1473,9 @@ pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
                         .ok()
                         .flatten()
                 });
+                // Read again each pass, so a reload's interval is the one this
+                // thread waits next.
+                let tick = compiler.revalidation().freq.max(FLOOR);
                 next = held
                     .ok()
                     .flatten()

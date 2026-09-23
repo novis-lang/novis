@@ -30,11 +30,13 @@ const BOOT: Duration = Duration::from_secs(60);
 /// The time between two requests of one poll.
 const POLL: Duration = Duration::from_millis(50);
 
-/// `[mode] default` written out, and the background check run every 100ms, so
-/// a case does not depend on what a configuration with nothing in it starts
-/// with.
-const PRODUCTION: &str =
-    "[mode]\ndefault = \"production\"\n\n[opcache]\nrevalidate_freq = \"100ms\"\n";
+/// `[mode] default` written out, so a case does not depend on what a
+/// configuration with nothing in it starts with.
+const PRODUCTION: &str = "[mode]\ndefault = \"production\"\n";
+
+/// The background check run every 100ms. [`controlled`] writes it unless the
+/// case writes an `[opcache]` block of its own.
+const QUICK_CHECKS: &str = "[opcache]\nrevalidate_freq = \"100ms\"\n";
 
 /// One answer: the status code, the header lines and the body, as text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -285,11 +287,16 @@ fn endpoint(dir: &Path, case: &str) -> PathBuf {
     }
 }
 
-/// `nvs.toml`: [`PRODUCTION`], `[control] socket` naming `socket`, and then
-/// `config`.
+/// `nvs.toml`: [`PRODUCTION`], [`QUICK_CHECKS`] where `config` has no
+/// `[opcache]` block, `[control] socket` naming `socket`, and then `config`.
 fn controlled(socket: &Path, config: &str) -> String {
+    let checks = if config.contains("[opcache]") {
+        ""
+    } else {
+        QUICK_CHECKS
+    };
     format!(
-        "{PRODUCTION}\n[control]\nsocket = '{}'\n\n{config}",
+        "{PRODUCTION}\n{checks}\n[control]\nsocket = '{}'\n\n{config}",
         socket.display()
     )
 }
@@ -322,7 +329,8 @@ echo Core\Router::urlAbsolute("Docs::here", []);
 
 /// `[[app]] origin` is folded into the row a request selects, so a reload that
 /// moves it has to fold it again: a request after the reload links from the
-/// new origin, and none links from the old one any more.
+/// new origin, and none links from the old one any more. The reload's answer
+/// names `app` as applied.
 #[test]
 fn a_changed_app_origin_reaches_the_mount_rows() {
     let server = Server::start(
@@ -334,7 +342,11 @@ fn a_changed_app_origin_reaches_the_mount_rows() {
         answer.status == 200 && answer.body.contains("https://one.example.test/here")
     });
 
-    server.reload(&app_at("https://two.example.test"));
+    let report = server.reload(&app_at("https://two.example.test"));
+    assert!(
+        report.contains("applied: app\n"),
+        "the reload that moved `[[app]] origin` did not name `app` as applied: {report}"
+    );
     server.awaits("/here", "a link from the reloaded origin", |answer| {
         answer.status == 200 && answer.body.contains("https://two.example.test/here")
     });
@@ -347,6 +359,65 @@ fn a_changed_app_origin_reaches_the_mount_rows() {
 
 /// A program that answers every request with one word.
 const PLAIN: &str = "<?nvs\necho \"ok\";\n";
+
+/// A program that answers every request with `word`.
+fn saying(word: &str) -> String {
+    format!("<?nvs\necho \"{word}\";\n")
+}
+
+/// An `[opcache]` block with these two keys.
+fn opcache(freq: &str, settle: &str) -> String {
+    format!("[opcache]\nrevalidate_freq = \"{freq}\"\nsettle = \"{settle}\"\n")
+}
+
+/// `[opcache]` reloads into the unit cache. A long `settle` holds an edit back
+/// until a reload shortens it. A long `revalidate_freq` holds the next edit
+/// back until a reload shortens that too, and the reload does not wait out the
+/// hour the server was already waiting.
+#[test]
+fn a_changed_opcache_block_reaches_the_unit_cache() {
+    let app = |server: &Server| server.dir.join("app.nvs");
+    let server = Server::start(
+        "opcache",
+        &opcache("100ms", "1h"),
+        &[("app.nvs", &saying("one"))],
+    );
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "one"
+    });
+
+    write_file(&app(&server), &saying("two"));
+    thread::sleep(Duration::from_millis(500));
+    let held = server.get("/");
+    assert_eq!(
+        held.body, "one",
+        "an edit reached a request inside `settle`"
+    );
+
+    let report = server.reload(&opcache("1h", "0s"));
+    for key in ["opcache.revalidate_freq", "opcache.settle"] {
+        assert!(
+            report.contains(&format!("applied: {key}\n")),
+            "the reload did not name `{key}` as applied: {report}"
+        );
+    }
+    server.awaits("/", "the edit, once `settle` is short", |answer| {
+        answer.status == 200 && answer.body == "two"
+    });
+
+    write_file(&app(&server), &saying("three"));
+    thread::sleep(Duration::from_millis(500));
+    let held = server.get("/");
+    assert_eq!(
+        held.body, "two",
+        "an edit was checked inside `revalidate_freq`"
+    );
+
+    server.reload(&opcache("100ms", "0s"));
+    server.awaits("/", "the edit, once `revalidate_freq` is short", |answer| {
+        answer.status == 200 && answer.body == "three"
+    });
+}
 
 /// `[http.headers]` reloads: the header set every response carries is the one
 /// the tree a request started under configures, so a reload that moves

@@ -157,8 +157,10 @@ impl Process {
         // After the publish, from the tree that is now serving: the report's
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
+        let serving = self.current.load();
         self.compiler
-            .rekey(nvs_config::cache::env_hash(&self.current.load().config));
+            .rekey(nvs_config::cache::env_hash(&serving.config));
+        self.compiler.reconfigure(&serving.config);
         Ok(report)
     }
 
