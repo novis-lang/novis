@@ -6,9 +6,10 @@
 //! beside on a port the platform chose, reads the port back from the
 //! `listening on` line, and answers each request over a fresh HTTP/1.0
 //! connection, so the body ends where the connection does and no framing is
-//! parsed. An edit is observed by polling: [`Server::awaits`] asks until the
-//! answer is the one wanted or [`BOUND`] runs out, and the failure message says
-//! what the last answer was. The bound is far above what the rule allows an
+//! parsed. A WebSocket is opened by [`Server::websocket`], which reads short
+//! text frames and nothing else. An edit is observed by polling:
+//! [`Server::awaits`] asks until the answer is the one wanted or [`BOUND`] runs
+//! out, and the failure message says what the last answer was. The bound is far above what the rule allows an
 //! idle server — `revalidate_freq` plus `settle` — so a pass is never a race
 //! against a slow machine, and a fail means the edit never arrived.
 //!
@@ -68,12 +69,36 @@ impl Server {
     /// line within [`BOOT`]; the message carries what it wrote to standard
     /// error.
     fn start(case: &str, files: &[(&str, &str)]) -> Self {
+        Self::start_after(case, files, &[])
+    }
+
+    /// [`Server::start`], which first runs `nvs` with `first` as its arguments
+    /// in the program's directory, unless `first` is empty.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::start`] does, and when that first command fails.
+    fn start_after(case: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-edit-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
         for (path, text) in files {
             write_file(&dir.join(path), text);
+        }
+        if !first.is_empty() {
+            let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .args(first)
+                .current_dir(&dir)
+                .stdin(Stdio::null())
+                .output()
+                .expect("the `nvs` binary this test was built beside starts");
+            assert!(
+                ran.status.success(),
+                "`nvs {}` failed: {}",
+                first.join(" "),
+                String::from_utf8_lossy(&ran.stderr)
+            );
         }
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -222,6 +247,42 @@ impl Server {
         write_file(&self.dir.join(path), text);
     }
 
+    /// Opens a WebSocket on `path`, on a connection of its own.
+    ///
+    /// # Panics
+    ///
+    /// When the server does not answer `101`.
+    fn websocket(&self, path: &str) -> WebSocket {
+        let mut stream = TcpStream::connect(self.addr)
+            .unwrap_or_else(|error| panic!("{} does not answer: {error}", self.addr));
+        stream
+            .set_read_timeout(Some(BOUND))
+            .expect("a read timeout is set");
+        write!(
+            stream,
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: \
+             Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: \
+             13\r\n\r\n"
+        )
+        .expect("the upgrade is sent");
+        // Read a byte at a time, so no frame after the header block is taken
+        // with it.
+        let mut head = Vec::new();
+        let mut byte = [0; 1];
+        while !head.ends_with(b"\r\n\r\n") {
+            stream
+                .read_exact(&mut byte)
+                .unwrap_or_else(|error| panic!("the upgrade of `{path}` was cut off: {error}"));
+            head.push(byte[0]);
+        }
+        let head = String::from_utf8_lossy(&head);
+        assert!(
+            head.starts_with("HTTP/1.1 101 "),
+            "`{path}` did not switch protocols: {head}"
+        );
+        WebSocket { stream }
+    }
+
     /// Deletes `path`, relative to the program's directory.
     fn remove(&self, path: &str) {
         let path = self.dir.join(path);
@@ -236,6 +297,48 @@ impl Drop for Server {
         let _ = self.child.kill();
         let _ = self.child.wait();
         let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// One open WebSocket, which sends and reads short text frames only.
+///
+/// Dropping it closes the connection.
+struct WebSocket {
+    stream: TcpStream,
+}
+
+impl WebSocket {
+    /// Sends `text` as one frame and returns the text of the next frame.
+    ///
+    /// # Panics
+    ///
+    /// When `text` or the answer is 126 bytes or longer, or the answer is not
+    /// one unmasked text frame.
+    fn ask(&mut self, text: &str) -> String {
+        const MASK: [u8; 4] = [0x37, 0xfa, 0x21, 0x3d];
+        let len = u8::try_from(text.len())
+            .ok()
+            .filter(|len| *len < 126)
+            .expect("a frame this client sends is shorter than 126 bytes");
+        // A final text frame, masked: a client must mask every frame it sends.
+        let mut frame = vec![0x81, 0x80 | len];
+        frame.extend_from_slice(&MASK);
+        frame.extend(text.bytes().zip(MASK.iter().cycle()).map(|(b, m)| b ^ m));
+        self.stream.write_all(&frame).expect("the frame is sent");
+
+        let mut head = [0; 2];
+        self.stream
+            .read_exact(&mut head)
+            .unwrap_or_else(|error| panic!("no frame answered `{text}`: {error}"));
+        assert!(
+            head[0] == 0x81 && head[1] < 126,
+            "`{text}` was answered by a frame this client does not read: {head:?}"
+        );
+        let mut body = vec![0; usize::from(head[1])];
+        self.stream
+            .read_exact(&mut body)
+            .unwrap_or_else(|error| panic!("the answer to `{text}` was cut off: {error}"));
+        String::from_utf8(body).expect("a text frame is UTF-8")
     }
 }
 
@@ -498,5 +601,154 @@ fn a_reverted_edit_is_answered_from_the_unit_already_compiled() {
         compiled,
         "the reverted version was compiled again: {}",
         server.said()
+    );
+}
+
+/// A deployment with a SQLite queue, one worker and a `[[schedule]]` entry that
+/// fires every minute, where the queued job and the scheduled script are one
+/// file. `max_attempts = 1` moves a job that throws to the dead-letter table at
+/// once, so no retry of an older job writes a line after the edit.
+const QUEUED: &str = r#"[mode]
+default = "production"
+
+[capabilities.script]
+spawn = ["jobs/"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+[queue]
+connection = "jobs"
+workers = 1
+max_attempts = 1
+
+[[schedule]]
+name = "nightly"
+cron = "* * * * *"
+script = "jobs/work.nvs"
+scope = "host"
+"#;
+
+/// An entry file that pushes one job per request.
+const PUSHING: &str = "<?nvs\nCore\\Queue::push(\"jobs/work.nvs\");\necho \"pushed\";\n";
+
+/// A job whose every run throws `ran <word>`. A job that returns writes
+/// nothing, and a throw is the one outcome both a worker and a fire report on
+/// standard error.
+fn throwing(word: &str) -> String {
+    format!("<?nvs\nthrow new RuntimeError(\"ran {word}\");\n")
+}
+
+/// A queue worker and a scheduled fire resolve their script through the
+/// compiler requests use. The first job compiles the script before the edit, so
+/// a worker or a fire holding that unit past the edit reports `ran first`.
+///
+/// The fire comes at the next minute, so this case waits up to a minute more
+/// than the others. Only fires written after a job ran the edit are read: until
+/// then the edit may not have reached the compiler yet.
+#[test]
+fn a_queue_job_and_a_scheduled_fire_run_the_edited_code() {
+    let server = Server::start_after(
+        "queued",
+        &[
+            ("nvs.toml", QUEUED),
+            ("app.nvs", PUSHING),
+            ("jobs/work.nvs", &throwing("first")),
+        ],
+        &["queue", "migrate"],
+    );
+    server.awaits_body("/", "pushed");
+    server.awaits_said("`jobs/work.nvs` threw RuntimeError: ran first");
+
+    // One job per push, pushed until one runs the edit, far slower than
+    // `POLL` so the queue never holds more than a few.
+    server.write("jobs/work.nvs", &throwing("second"));
+    let started = Instant::now();
+    while !server
+        .said()
+        .contains("`jobs/work.nvs` threw RuntimeError: ran second")
+    {
+        assert!(
+            started.elapsed() <= BOUND,
+            "no queued job ran the edit within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        server.awaits_body("/", "pushed");
+        thread::sleep(POLL * 10);
+    }
+
+    let seen = server.said().len();
+    let fired = "the scheduled entry `nightly` threw";
+    let started = Instant::now();
+    let line = loop {
+        let said = server.said();
+        if let Some(line) = said[seen..].lines().find(|line| line.contains(fired)) {
+            break line.to_owned();
+        }
+        assert!(
+            started.elapsed() <= BOUND + Duration::from_secs(60),
+            "the entry did not fire within a minute of the edit; the server wrote: {said}"
+        );
+        thread::sleep(POLL * 10);
+    };
+    assert!(
+        line.ends_with("ran second"),
+        "a fire after a job ran the edit ran the code from before it: {line}"
+    );
+}
+
+/// A deployment that may open the connection scripts under `sockets/`.
+const SOCKETS: &str =
+    "[mode]\ndefault = \"production\"\n\n[capabilities.script]\nspawn = [\"sockets/\"]\n";
+
+/// An entry file that turns every request into a WebSocket run by
+/// `sockets/echo.nvs`.
+const UPGRADING: &str = "<?nvs\nCore\\Socket::upgrade(\"sockets/echo.nvs\");\n";
+
+/// A connection script that answers every frame with `word`.
+fn answering(word: &str) -> String {
+    format!(
+        "<?nvs\nvar $conn = Core\\Socket::current();\nvar $msg = $conn->receive();\nwhile ($msg != \
+         null) {{\n    $conn->send(\"{word}\");\n    $msg = $conn->receive();\n}}\n"
+    )
+}
+
+/// A connection runs the code it was opened with until it closes. A connection
+/// opened after the edit runs the edit, and the one opened before it still
+/// answers from the old code.
+#[test]
+fn a_running_websocket_keeps_the_code_it_started_with() {
+    let server = Server::start(
+        "websocket",
+        &[
+            ("nvs.toml", SOCKETS),
+            ("app.nvs", UPGRADING),
+            ("sockets/echo.nvs", &answering("first")),
+        ],
+    );
+    let mut running = server.websocket("/");
+    assert_eq!(running.ask("hello"), "first");
+
+    server.write("sockets/echo.nvs", &answering("second"));
+    let started = Instant::now();
+    loop {
+        let answer = server.websocket("/").ask("hello");
+        if answer == "second" {
+            break;
+        }
+        assert!(
+            started.elapsed() <= BOUND,
+            "no new connection ran the edit within {BOUND:?}; the last one answered `{answer}`, \
+             and the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+
+    assert_eq!(
+        running.ask("hello"),
+        "first",
+        "a connection opened before the edit changed code while it ran"
     );
 }
