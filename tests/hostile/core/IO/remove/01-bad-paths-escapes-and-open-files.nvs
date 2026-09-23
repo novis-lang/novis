@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program deletes many files and paths that are not files. It tries to leave its folder
+// with "..", and it deletes a file that is still open. Each step must work or throw an error.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+
+// 1. 5000 files are written and deleted again. Every deletion must work, and the folder must be
+// empty at the end.
+uint $i = 0;
+while ($i < 5000) {
+    string $file = Core\Path::join($dir, 'file-' . $i . '.txt');
+    Core\IO::write($file, 'x');
+    Core\IO::remove($file);
+    $i = $i + 1;
+}
+if (Core\Arr::count(Core\IO::list($dir)) != 0) {
+    throw new LogicError('a deleted file is still in the folder');
+}
+echo 'step 1: done', "\n";
+
+// 2. Paths that are not a file: empty, a folder, a missing file, a file deleted twice, a null byte,
+// "." and a very long name. Each call must throw an `IOError` or a `RuntimeError`.
+string $once = Core\Path::join($dir, 'once.txt');
+Core\IO::write($once, 'x');
+Core\IO::remove($once);
+array<string> $bad = [
+    '',
+    $dir,
+    Core\Path::join($dir, 'missing.txt'),
+    $once,
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, '.'),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::remove($badPath);
+        throw new LogicError('a path that is not a file was deleted');
+    } catch (RuntimeError $refused) {
+    }
+}
+if (!Core\IO::isDir($dir)) {
+    throw new LogicError('the folder was deleted by `remove`');
+}
+echo 'step 2: done', "\n";
+
+// 3. Paths that use ".." to leave the folder and point at names that do not exist. Each call
+// must throw an error. No file outside the folder may be deleted.
+array<string> $escapes = [
+    Core\Path::join($dir, '..', 'missing-outside.txt'),
+    Core\Path::join($dir, '..', '..', '..', '..', 'missing-outside.txt'),
+    $dir . '/../../missing-outside.txt',
+    $dir . '\\..\\..\\missing-outside.txt',
+    Core\Path::join($dir, Core\Str::repeat('../', 5000), 'missing-outside.txt'),
+];
+foreach ($escapes as string $escape) {
+    try {
+        Core\IO::remove($escape);
+        throw new LogicError('a name that does not exist was deleted');
+    } catch (RuntimeError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. A file is deleted while a handle still has it open. The deletion may work or throw an
+// `IOError`. Then the handle is read and closed, which must work or throw an error.
+string $open = Core\Path::join($dir, 'open.txt');
+Core\IO::write($open, 'still here');
+Core\IO\File $handle = Core\IO::open($open, Core\IO\FileMode::Read);
+try {
+    Core\IO::remove($open);
+} catch (IOError $locked) {
+}
+try {
+    $handle->read(100);
+    $handle->close();
+} catch (RuntimeError $gone) {
+}
+echo 'step 4: done', "\n";

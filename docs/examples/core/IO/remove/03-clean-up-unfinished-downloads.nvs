@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program deletes the unfinished downloads in a folder and keeps the finished files.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "downloads");
+Core\IO::makeDir($dir);
+Core\IO::write(Core\Path::join($dir, "invoice-1.pdf"), "finished");
+Core\IO::write(Core\Path::join($dir, "invoice-2.pdf.part"), "half");
+Core\IO::write(Core\Path::join($dir, "photo.jpg.part"), "half");
+
+// An unfinished download has a name that ends with ".part". Each of these files is deleted.
+foreach (Core\IO::list($dir) as string $name) {
+    if (Core\Str::endsWith($name, ".part")) {
+        Core\IO::remove(Core\Path::join($dir, $name));
+    }
+}
+
+// Only the finished file is left. This prints "invoice-1.pdf".
+foreach (Core\Arr::sort(Core\IO::list($dir)) as string $name) {
+    echo $name, "\n";
+}
