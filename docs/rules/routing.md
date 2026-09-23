@@ -659,7 +659,7 @@ change under a running process — `[server]` is `Boot`-class as a whole
 folded into the rows again, and the same check is asked of every row whose origin changed, so a row that
 no longer resolves one is left out of the table and the reason is logged.
 
-<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
 
 <a id="routing-table-is-opt-in"></a>
 

@@ -38,7 +38,8 @@
         "0005",
         "0106",
         "0161",
-        "0186"
+        "0186",
+        "0219"
       ],
       "divergesFromPhp": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool",
       "seeAlso": [
@@ -234,7 +235,8 @@
       "status": "shipped",
       "because": [
         "0097",
-        "0106"
+        "0106",
+        "0219"
       ],
       "divergesFromPhp": "php-fpm's `pm.max_children` queues on the socket and the proxy reports a 504; here the origin answers `503` with `Retry-After: 1` itself, and no custom error page runs",
       "seeAlso": [
@@ -248,12 +250,13 @@
     },
     {
       "id": "http-server/admission-is-arithmetic-not-a-number",
-      "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged once at boot",
+      "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged at boot and by every reload",
       "status": "shipped",
       "because": [
         "0106",
         "0097",
-        "0004"
+        "0004",
+        "0219"
       ],
       "divergesFromPhp": "`pm.max_children` is a free number and the out-of-memory killer enforces its product with memory; here the ceiling is derived from the budget, the configured number is clamped rather than trusted, and the overflow is a `503`",
       "seeAlso": [
@@ -311,7 +314,8 @@
       "because": [
         "0097",
         "0091",
-        "0197"
+        "0197",
+        "0219"
       ],
       "divergesFromPhp": "`try_files $uri /index.php` is the development sequence only; in production a URL naming an existing `.nvs` file still runs the mount's entry",
       "seeAlso": [
@@ -754,7 +758,8 @@
       "because": [
         "0139",
         "0059",
-        "0005"
+        "0005",
+        "0219"
       ],
       "divergesFromPhp": "`session.save_handler = files` and an APCu-backed handler have no counterpart; the choices are the shared tier or the database, and `local` is `E0626` where it is written rather than a session that forgets people",
       "seeAlso": [

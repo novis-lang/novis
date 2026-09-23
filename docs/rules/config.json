@@ -404,7 +404,8 @@
       "because": [
         "0078",
         "0005",
-        "0103"
+        "0103",
+        "0219"
       ],
       "divergesFromPhp": "nothing is re-read on the request path — no `.user.ini` scan, no per-directory override — and a reload that fails leaves the old configuration serving rather than half of each",
       "seeAlso": [
@@ -471,7 +472,8 @@
         "0078",
         "0005",
         "0154",
-        "0175"
+        "0175",
+        "0219"
       ],
       "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
       "seeAlso": [
@@ -650,7 +652,8 @@
       "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
       "status": "shipped",
       "because": [
-        "0078"
+        "0078",
+        "0219"
       ],
       "divergesFromPhp": "a changed listen address is named in the reply rather than silently ignored until the next restart",
       "seeAlso": [
@@ -670,7 +673,8 @@
       "because": [
         "0078",
         "0103",
-        "0042"
+        "0042",
+        "0219"
       ],
       "divergesFromPhp": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back",
       "seeAlso": [
@@ -828,7 +832,8 @@
         "0091",
         "0017",
         "0097",
-        "0218"
+        "0218",
+        "0219"
       ],
       "seeAlso": [
         "config/a-mode-is-five-defaults",

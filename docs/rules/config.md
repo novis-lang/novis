@@ -597,7 +597,7 @@ is never polled from the request path; a reload is pushed by the operator. Two s
 a swap, plus one per in-flight request still holding an older one — kilobytes each, bounded by
 concurrency, never by reloads performed.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -695,7 +695,7 @@ set arms from the next tick. A changed `Boot` key **does not take effect**: the 
 carries the running value forward, and the reload names the key
 ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -957,7 +957,7 @@ invalidates every unit and an unchanged one invalidates none. What a reload cann
 extension removed while source still references it — those units fail when next resolved
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
 
-<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-one-local-control-socket"></a>
 
@@ -988,7 +988,7 @@ snapshots. **No control operation runs user Novis code, ever** — one that coul
 The wire shape is unstable until 1.0: every response carries the server version, and `nvs ctl`
 refuses a mismatch. Every reload is written to `Core\Log` with its outcome.
 
-<sub>See also [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/no-network-control-surface`](config.md#config-no-network-control-surface), [`security/no-eval`](security.md#security-no-eval), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/no-network-control-surface`](config.md#config-no-network-control-surface), [`security/no-eval`](security.md#security-no-eval), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-no-network-control-surface"></a>
 
@@ -1204,7 +1204,7 @@ tables, and which table a future directive belongs in is decided by its changeab
 (`nvs_config::cache::Revalidation::from_config`). `dispatch` and `static` are not derived from the
 mode yet: an unwritten switch is production's value in both modes.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 

@@ -624,7 +624,8 @@
         "0074",
         "0075",
         "0004",
-        "0177"
+        "0177",
+        "0219"
       ],
       "divergesFromPhp": "there is no unbounded wait to configure your way into: an idle, a lifetime and a send timeout all apply before any configuration is written",
       "seeAlso": [

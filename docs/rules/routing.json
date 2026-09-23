@@ -505,7 +505,8 @@
         "0102",
         "0097",
         "0005",
-        "0078"
+        "0078",
+        "0219"
       ],
       "divergesFromPhp": "a multi-tenant deployment configures one origin line with a capture in it rather than computing a base URL per request",
       "seeAlso": [
