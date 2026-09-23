@@ -144,6 +144,190 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
+# 13 check(s) carried from docs/agent/goals/side/restart-free.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- every file a program reached is watched, in every mode. Goal prose stage 2.
+#
+# `live_edit` starts the real `nvs serve` on a free port over a program in a temporary directory,
+# edits the tree, and polls until the answer changes or a bound expires. None of these tests exists
+# yet: writing one is how an item finishes.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli live_edit (an edit to any file a program reached reaches the next request, in production)"
+args = ["test", "-p", "nvs-cli", "--test", "live_edit"]
+tests = [
+  "an_edit_to_the_entry_file_reaches_the_next_request_in_production",
+  "an_edit_to_an_autoloaded_class_reaches_the_next_request",
+  "an_edit_to_a_required_file_reaches_the_next_request",
+  "a_new_class_file_under_an_autoload_root_is_found_without_a_restart",
+  "a_file_that_shadows_an_autoload_probe_miss_takes_over_without_a_restart",
+  "a_new_module_under_a_discovery_directory_joins_implementing_without_a_restart",
+  "a_deleted_required_file_fails_the_requests_that_reach_it",
+  "a_broken_edit_fails_requests_and_its_fix_recovers_them",
+  "a_reverted_edit_is_answered_from_the_unit_already_compiled",
+  "a_queue_job_and_a_scheduled_fire_run_the_edited_code",
+  "a_running_websocket_keeps_the_code_it_started_with",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (`validate = never` is gone, and `mtime` is the default in both modes)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "validate_never_does_not_load_and_names_mtime_and_hash",
+  "validate_defaults_to_mtime_in_production_and_development",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the check leaves the request path, and a deploy is compiled once, whole.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli live_edit (no request revalidates, a deploy is compiled once from a quiet tree, a link switch is atomic)"
+args = ["test", "-p", "nvs-cli", "--test", "live_edit"]
+tests = [
+  "a_request_makes_no_filesystem_call_to_revalidate",
+  "a_change_is_compiled_before_it_is_swapped_in",
+  "an_idle_server_takes_an_edit_within_revalidate_freq_and_settle",
+  "a_copy_that_pauses_less_than_settle_is_compiled_once_from_the_finished_tree",
+  "a_file_that_changes_during_a_compile_discards_that_compile",
+  "a_link_switch_during_a_compile_never_builds_a_program_from_both_releases",
+]
+
+# The unit table is `nvs-cli`'s own, and `nvs-cli` is a binary with no library, so what it holds
+# is only readable from a unit test beside it. Ten thousand edits through a running server would
+# also cost a `revalidate_freq` each.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli script (units held stay bounded after ten thousand edits)"
+args = ["test", "-p", "nvs-cli", "--bin", "nvs", "units_held_stay_bounded"]
+tests = [
+  "units_held_stay_bounded_after_ten_thousand_edits",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (`[opcache] settle` is a System directive with a mode default)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "settle_defaults_to_one_second_in_production_and_100ms_in_development",
+  "settle_is_system_class_and_reloadable",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the mount table follows the disk.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli live_edit (a scanned module that appears is served, and one that goes answers 404)"
+args = ["test", "-p", "nvs-cli", "--test", "live_edit"]
+tests = [
+  "a_new_module_under_a_mount_scan_is_served_without_a_restart",
+  "a_removed_module_under_a_mount_scan_answers_404",
+  "a_new_scanned_module_that_does_not_compile_fails_only_its_own_requests",
+  "an_explicit_mount_entry_that_appears_is_served_without_a_restart",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- every reloadable key really reloads, and a census keeps it that way.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli live_config (each key that claimed to reload and did not now takes effect in a real request)"
+args = ["test", "-p", "nvs-cli", "--test", "live_config"]
+tests = [
+  "a_changed_http_headers_block_reaches_the_next_response",
+  "a_changed_cors_block_reaches_the_next_response",
+  "a_changed_opcache_block_reaches_the_unit_cache",
+  "a_changed_memory_limit_moves_the_admission_ceiling",
+  "a_changed_schedule_roster_is_armed_from_the_next_tick",
+  "a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed",
+  "changed_metrics_and_trace_blocks_rebuild_their_exporters",
+  "a_changed_app_origin_reaches_the_mount_rows",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the census: every directive has a live proof or is reported as needing a restart)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "every_directive_has_a_live_apply_proof_or_a_restart_proof",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the configuration applies itself, and only three keys need a restart.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli live_config (a saved file is applied, a broken one is logged, a restart key is reported pending)"
+args = ["test", "-p", "nvs-cli", "--test", "live_config"]
+tests = [
+  "a_saved_configuration_file_is_applied_without_a_reload",
+  "a_half_written_configuration_file_is_logged_and_the_running_one_kept",
+  "a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status",
+  "a_changed_session_backend_applies_to_new_requests",
+  "a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job",
+  "a_changed_control_socket_moves_the_control_endpoint",
+  "a_changed_server_timeout_applies_to_the_next_connection",
+  "watching_the_configuration_costs_no_request_a_filesystem_call",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (only listen, socket_mode and workers are Boot)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "only_listen_socket_mode_and_workers_need_a_restart",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the template and the reference say it, and the proofs exist.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the template marks exactly the restart keys `# restart required`)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "every_restart_key_is_marked_restart_required_in_the_template_and_no_other_is",
+]
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+# Scoped to the section this goal adds. The whole roster owes hundreds of `Core` members that
+# main's dossier goals drain, and no side goal can close those.
+name = "dossier: the running-server section owes no proof"
+argv = ["python", "tools/dossier.py", "--gate", "--only", "tools:server/what-reaches-a-running-server"]
+want = ["nothing owed in 1 named feature"]
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+# Scoped to the programs this goal writes or rewrites. Hundreds of others across the three trees
+# miss the bounds, and main's comment work owns them.
+name = "dossier: every program this goal writes or rewrites carries comments inside the plain-comment bounds"
+argv = ["python", "tools/dossier.py", "--comments",
+        "docs/examples/config/cache-shared", "docs/examples/config/io-temp_root",
+        "docs/examples/config/opcache", "tests/hostile/config/opcache",
+        "docs/examples/tools/server", "tests/hostile/tools/server"]
+want = ["each inside the bounds"]
+
+
 # 995 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
