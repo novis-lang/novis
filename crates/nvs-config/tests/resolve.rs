@@ -9,9 +9,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use nvs_config::directive::lookup;
 use nvs_config::resolve::{Files, MAX_INCLUDE_DEPTH, Resolved, Roots, resolve, roots};
 use nvs_config::trust::Untrusted;
-use nvs_config::{Setting, tree};
+use nvs_config::{Apply, DIRECTIVES, Setting, tree};
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
 /// A path written the way an ADR writes one, as a path the host spells its own way.
@@ -228,6 +229,87 @@ fn the_shipped_defaults_resolve_to_the_default_tree() {
     assert_eq!(resolved.config, nvs_config::Config::default());
     assert!(resolved.files.is_empty());
     assert!(resolved.overrides.is_empty());
+}
+
+/// `rule:config/reloadability-is-its-own-field` as the operator reads it: a setting line in the
+/// shipped file ends `restart required` exactly when the registry's row for its key is
+/// [`Apply::Boot`]. Both directions are checked — a marked key that reloads is a false warning, and
+/// a `Boot` row with no marked line is a restart the file never mentions.
+// covers: tools:server/what-reaches-a-running-server
+#[test]
+fn every_restart_key_is_marked_restart_required_in_the_template_and_no_other_is() {
+    let mut block = String::new();
+    let mut marked = BTreeSet::new();
+    let mut spelled = BTreeSet::new();
+    for line in nvs_config::default_file().lines() {
+        let line = line.trim();
+        let bare = line.strip_prefix('#').unwrap_or(line);
+        if bare.starts_with('[') {
+            block = bare.trim_matches(|c| c == '[' || c == ']').to_string();
+            continue;
+        }
+        // A setting has its key directly after the `#`; prose always has a space there.
+        let Some((key, rest)) = bare.split_once('=') else {
+            continue;
+        };
+        let key = key.trim_end();
+        let is_key = key.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+            && key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
+        if !is_key {
+            continue;
+        }
+        let dotted = if block.is_empty() {
+            key.to_string()
+        } else {
+            format!("{block}.{key}")
+        };
+        let note = trailer(rest);
+        assert!(
+            !note.contains("restart") || note.ends_with("; restart required"),
+            "`{dotted}` spells its restart note as `# {note}`: it ends `; restart required`",
+        );
+        let boot = lookup(&dotted).is_some_and(|row| row.apply == Apply::Boot);
+        let says = note.ends_with("; restart required");
+        assert_eq!(
+            says, boot,
+            "`{dotted}` says `# {note}`, and its registry row is `Boot`: {boot}"
+        );
+        spelled.insert(dotted.clone());
+        if says {
+            marked.insert(dotted);
+        }
+    }
+    let boot: BTreeSet<String> = DIRECTIVES
+        .iter()
+        .filter(|row| row.apply == Apply::Boot)
+        .map(|row| row.key.to_string())
+        .collect();
+    assert!(
+        !boot.is_empty(),
+        "the registry names the keys a restart applies"
+    );
+    assert_eq!(
+        marked, boot,
+        "every `Boot` row has a marked line: spelled {spelled:?}"
+    );
+}
+
+/// The text past a setting's first `#` outside a string: the note that says what leaving it unset
+/// does. TOML has no other `#` outside a string, so the two quote characters are the whole scan.
+fn trailer(rest: &str) -> String {
+    let mut quote = None;
+    for (at, c) in rest.char_indices() {
+        match quote {
+            Some(open) if c == open => quote = None,
+            Some(_) => {}
+            None if c == '"' || c == '\'' => quote = Some(c),
+            None if c == '#' => return rest[at + 1..].trim().to_string(),
+            None => {}
+        }
+    }
+    String::new()
 }
 
 /// § 1 step 3 from the other side: the file this project ships is the shipped defaults written out,

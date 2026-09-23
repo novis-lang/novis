@@ -110,7 +110,9 @@ pub use value::{Quantity, Unit};
 ///
 /// Every setting line ends with a note saying what leaving the key unset does — `# default`,
 /// `# default: <what unset gives>` or `# example` — because the value beside a commented-out key
-/// does not say on its own whether it is the default or a suggestion.
+/// does not say on its own whether it is the default or a suggestion. A key a running server
+/// cannot apply a change to adds `; restart required`, and exactly the registry's
+/// [`Apply::Boot`] rows do (`rule:config/reloadability-is-its-own-field`).
 /// `python tools/directives.py --check-template` holds the file to the tree beside it — a key the
 /// parser gained and the file omits, a key spelled twice, a key that parses and does nothing
 /// without saying so, and a setting line whose note is missing, disagrees with another spelling of

@@ -161,8 +161,11 @@ UNIMPLEMENTED = "NOT IMPLEMENTED"
 #: The trailer every setting line in the default file ends with: what leaving the key
 #: unset does. `default` alone says the value shown is it; `default: <text>` says unset
 #: gives what the text says, and the value shown is one an operator could write instead;
-#: `example` says there is nothing to call a default.
-NOTE = re.compile(r"^(?P<kind>default|example)(?::\s*(?P<text>\S.*?))?\s*$")
+#: `example` says there is nothing to call a default. Either may end `; restart required`,
+#: which `nvs-config`'s own tests hold to the registry's `Boot` rows, so it is no part of
+#: what unset means and is left out of `text`.
+NOTE = re.compile(
+    r"^(?P<kind>default|example)(?::\s*(?P<text>\S.*?))?(?:\s*;\s*restart required)?\s*$")
 
 #: The defaults the config crate ships itself, and the setting each field of them is. A
 #: `# default` line for one of these keys has to show the code's value. Every other

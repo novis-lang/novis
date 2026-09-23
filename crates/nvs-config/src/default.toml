@@ -425,8 +425,10 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload
-# (`rule:http-server/the-server-block-is-boot-class`).
+# [server] — a running server applies a change to this block itself, except to the three keys
+# whose line ends `restart required`: `listen`, `socket_mode` and `workers`. A change to one of
+# those takes effect at the next start, and a reload names it until then
+# (`rule:config/reloadability-is-its-own-field`).
 # ----------------------------------------------------------------------------------------------
 
 [server]
@@ -435,12 +437,12 @@
 # flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
 # and Windows listens on TCP loopback.
 #root = "/srv/app"                    # example
-#listen = ["127.0.0.1:8000"]          # default
+#listen = ["127.0.0.1:8000"]          # default; restart required
 # Unix-socket entries only, and the whole of who may connect to one: a connection over a Unix
 # socket names its own client address, so this is `rule:config/ownership-is-the-trust-boundary`'s
 # question asked of a socket rather than of a file. `0660` with the key left out — the owner's
 # account and the socket's group, and adding a tenant to that group grants them that address.
-#socket_mode = "0660"                 # default
+#socket_mode = "0660"                 # default; restart required
 
 # How a request finds its entry file: `entry` or `path`
 # (`rule:config/a-startup-default-is-never-flipped`).
@@ -455,7 +457,7 @@
 # The in-flight ceiling, and how many cores accept over this machine's own available parallelism
 # (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
 #max_in_flight = 10000                # default
-#workers = 4                          # default: one per core
+#workers = 4                          # default: one per core; restart required
 # The connection waits — the header read, the body idle, the write idle and the keep-alive idle
 # wait — each idle rather than total, and each finite with nothing configured. A bare number is
 # seconds, so `"10s"` and `10` are the same wait.
