@@ -434,6 +434,31 @@ CAPTURE = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": 
            "stdin": subprocess.DEVNULL}
 
 
+def run_proof(argv: list[str], proof: Path, **kwargs) -> subprocess.CompletedProcess:
+    """One run of a proof program, under `CAPTURE`. A proof with a sibling `<name>.in` reads that
+    file as its standard input and every other proof reads nothing, so a member such as
+    `Core\\IO::stdin` can be shown with real input and still never reach a terminal. The file is
+    opened again for every run, because a bench runs the same program many times and each one reads
+    the input from its first byte; it is handed over as a descriptor, so its bytes arrive exactly as
+    written, including ones that are not UTF-8."""
+    feed = proof.with_suffix(".in")
+    if not feed.is_file():
+        return subprocess.run(argv, **kwargs, **CAPTURE)
+    with feed.open("rb") as handle:
+        return subprocess.run(argv, **kwargs, **{**CAPTURE, "stdin": handle})
+
+
+def proof_digest(proof: Path) -> str:
+    """What a green verdict on `proof` is remembered against: its own bytes, and those of the
+    `.out` and `.in` beside it when they exist, since changing either changes the verdict."""
+    digest = hashlib.sha1(proof.read_bytes()).hexdigest()[:16]
+    for suffix in (".out", ".in"):
+        sibling = proof.with_suffix(suffix)
+        if sibling.is_file():
+            digest += hashlib.sha1(sibling.read_bytes()).hexdigest()[:16]
+    return digest
+
+
 def read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
@@ -1254,7 +1279,7 @@ def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
     if UNIMPL_RE.search(source):
         return "skip", "marked `requires: unimplemented`"
     try:
-        out = subprocess.run([str(nvs), "run", rel(path)], timeout=60, cwd=ROOT, **CAPTURE)
+        out = run_proof([str(nvs), "run", rel(path)], path, timeout=60, cwd=ROOT)
     except subprocess.TimeoutExpired:
         return "fail", "timed out after 60s"
     want = declared_exit(source)
@@ -1327,7 +1352,7 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
                 "--errors-for-leak-kinds=definite", *argv]
         limit *= 20
     try:
-        out = subprocess.run(argv, timeout=limit, **CAPTURE)
+        out = run_proof(argv, path, timeout=limit)
     except subprocess.TimeoutExpired as expired:
         return "fail", f"still running after {limit:.0f}s -- unbounded{reached(expired)}"
     except OSError as exc:
@@ -1448,11 +1473,8 @@ def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bo
     tag = f"{what}:{'valgrind' if valgrind else 'plain'}"
     todo, cached = [], 0
     for path in files:
-        digest = hashlib.sha1(path.read_bytes()).hexdigest()[:16]
+        digest = proof_digest(path)
         expected = green.get(f"{tag}:{rel(path)}")
-        out_file = path.with_suffix(".out")
-        if what == "examples" and out_file.exists():
-            digest += hashlib.sha1(out_file.read_bytes()).hexdigest()[:16]
         if expected == [digest, bkey]:
             cached += 1
         else:
@@ -1527,7 +1549,7 @@ def time_program(nvs: Path, path: Path, reps: int) -> tuple[float, float]:
     spent: list[int] = []
     for _ in range(reps):
         started = time.perf_counter_ns()
-        out = subprocess.run([str(nvs), "run", str(path)], timeout=600, **CAPTURE)
+        out = run_proof([str(nvs), "run", str(path)], path, timeout=600)
         spent.append(time.perf_counter_ns() - started)
         if out.returncode != 0:
             raise RuntimeError(f"{rel(path)} exited {out.returncode}: "
@@ -1539,7 +1561,7 @@ def time_program(nvs: Path, path: Path, reps: int) -> tuple[float, float]:
 def count_program(nvs: Path, path: Path) -> dict[str, int]:
     """`rule:testing/bench-counters`'s four totals for one run of `path`, off the line `nvs run
     --count` prints. One run, because the answer is the same every time."""
-    out = subprocess.run([str(nvs), "run", "--count", str(path)], timeout=600, **CAPTURE)
+    out = run_proof([str(nvs), "run", "--count", str(path)], path, timeout=600)
     if out.returncode != 0:
         raise RuntimeError(f"{rel(path)} exited {out.returncode} under --count: "
                            f"{(out.stderr.strip().splitlines() or [''])[0]}")
@@ -3338,7 +3360,7 @@ def bless(nvs: Path, targets: list[Path]) -> int:
     """
     failed = 0
     for path in targets:
-        out = subprocess.run([str(nvs), "run", rel(path)], timeout=120, cwd=ROOT, **CAPTURE)
+        out = run_proof([str(nvs), "run", rel(path)], path, timeout=120, cwd=ROOT)
         if out.returncode != declared_exit(read(path)):
             print(f"  FAIL  {rel(path)} exited {out.returncode}:")
             print("        " + safe(out.stderr.strip().replace("\n", "\n        ")))

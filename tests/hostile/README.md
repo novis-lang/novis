@@ -113,6 +113,10 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // dossier: known-gap <file>    it breaks something; the fix is recorded there, not here
     // requires: unimplemented      skip: the feature does not run yet
 
+A case runs with nothing on its standard input. A sibling `<name>.in` is sent to it instead, byte
+for byte, so an attack on a member that reads input can deliver bytes no `.nvs` file can spell —
+[docs/examples/README.md](../../docs/examples/README.md) § *A file for standard input* is the rule.
+
 A case needing longer than a few seconds is usually measuring the machine rather than the runtime —
 raise the ceiling deliberately, and say in the comment why this one earns it.
 

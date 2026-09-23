@@ -146,6 +146,14 @@ example naming it — `// dossier: known-gap crates/…/foo.rs -- what is wrong`
 `known-gap` instead of a failure, and a marked example that passes fails the sweep, so the marker
 comes off with the fix.
 
+## A file for standard input — `<name>.in`
+
+An example runs with nothing on its standard input, so a program reading it sees the empty string
+at once. An example that shows reading input puts that input beside it, under its own name with
+`.in` in place of `.nvs`: `01-count-the-lines-of-the-input.in`. `--bless` and the sweep then send
+the file to the program's standard input, byte for byte, and the website shows it beside the
+example. `tests/hostile/` and `benches/members/` read a `.in` file the same way.
+
 ## `// dossier: exit 1`
 
 An example runs to its last line and exits `0`, and that is the default because an example is a

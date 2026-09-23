@@ -66,6 +66,10 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   `lower_array_key`) — and that render is two allocations per read, which a bench declaring
   `allocations 0` then fails on. Above, `($total % 4) as int` is what keeps the read free, and the
   count columns are what made this visible.
+- **A bench reads nothing on standard input** unless a sibling `<name>.in` is there, which every
+  timed and counted run is then sent from its first byte
+  ([docs/examples/README.md](../../docs/examples/README.md) § *A file for standard input*). Input
+  can be read once per run, so a bench of `Core\IO::stdin` declares `iterations 1`.
 - **Size it to run in well under a second.** The sweep runs one program per feature and there are
   hundreds; a bench that takes ten seconds costs an hour across the tree. Raise `iterations` until
   the reading is stable, not until it is long.

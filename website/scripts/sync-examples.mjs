@@ -7,8 +7,8 @@
  *
  * So `website/examples/` is a **tool-owned mirror** — the same rule the ADR pages already follow.
  * It is emptied and rewritten on every sync, and a file edited here is lost on the next one; edit
- * `../docs/examples/<the same path>` instead. Only `.nvs` programs, their `.out` files and each
- * feature's `about.md` description are copied; anything else in the source tree (a README) stays
+ * `../docs/examples/<the same path>` instead. Only `.nvs` programs, their `.out` files, the `.in`
+ * files some of them read as standard input and each feature's `about.md` description are copied; anything else in the source tree (a README) stays
  * in the repository.
  *
  * `npm run examples:check` still runs whatever is in `website/examples/` through the real binary,
@@ -30,7 +30,7 @@ if (!fs.existsSync(source)) {
   process.exit(1)
 }
 
-const wanted = new Set(['.nvs', '.out'])
+const wanted = new Set(['.nvs', '.out', '.in'])
 const copied = []
 
 function walk(dir, relative = '') {
