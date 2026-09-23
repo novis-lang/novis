@@ -97,6 +97,9 @@ impl Server {
             .join(format!("live-config-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
+        if config.contains("file_cache_dir") {
+            private(&dir);
+        }
         for (path, text) in files {
             write_file(&dir.join(path), text);
         }
@@ -183,6 +186,16 @@ impl Server {
     ///
     /// When the server does not answer, or answers something that is not HTTP.
     fn get_with(&self, path: &str, headers: &[(&str, &str)]) -> Answer {
+        self.send("GET", path, headers)
+    }
+
+    /// One `method` request for `path` with an empty body, sending `headers`,
+    /// on a connection of its own.
+    ///
+    /// # Panics
+    ///
+    /// When the server does not answer, or answers something that is not HTTP.
+    fn send(&self, method: &str, path: &str, headers: &[(&str, &str)]) -> Answer {
         let mut stream = TcpStream::connect(self.addr)
             .unwrap_or_else(|error| panic!("{} does not answer: {error}", self.addr));
         stream
@@ -192,9 +205,14 @@ impl Server {
             .iter()
             .map(|(name, value)| format!("{name}: {value}\r\n"))
             .collect();
+        let length = if method == "GET" {
+            ""
+        } else {
+            "Content-Length: 0\r\n"
+        };
         write!(
             stream,
-            "GET {path} HTTP/1.0\r\nHost: localhost\r\n{extra}\r\n"
+            "{method} {path} HTTP/1.0\r\nHost: localhost\r\n{length}{extra}\r\n"
         )
         .expect("the request is sent");
         let mut raw = Vec::new();
@@ -327,18 +345,62 @@ fn endpoint(dir: &Path, case: &str) -> PathBuf {
     }
 }
 
-/// `nvs.toml`: [`PRODUCTION`], [`QUICK_CHECKS`] where `config` has no
-/// `[opcache]` block, `[control] socket` naming `socket`, and then `config`.
+/// `nvs.toml`: [`PRODUCTION`] where `config` has no `[mode]` block,
+/// [`QUICK_CHECKS`] where it has no `[opcache]` block, `[control] socket`
+/// naming `socket`, and then `config`.
 fn controlled(socket: &Path, config: &str) -> String {
+    let mode = if config.contains("[mode]") {
+        ""
+    } else {
+        PRODUCTION
+    };
     let checks = if config.contains("[opcache]") {
         ""
     } else {
         QUICK_CHECKS
     };
     format!(
-        "{PRODUCTION}\n{checks}\n[control]\nsocket = '{}'\n\n{config}",
+        "{mode}\n{checks}\n[control]\nsocket = '{}'\n\n{config}",
         socket.display()
     )
+}
+
+/// Makes `dir` writable by this account alone. `[opcache] file_cache_dir` is
+/// not used when it, or the directory that contains it, is writable by others.
+/// [`Server::start_after`] calls this for a case that names one, before it
+/// writes the case's files. On Windows a new directory lets every signed-in
+/// account write to it, so this replaces its access list with one entry for
+/// this account.
+///
+/// # Panics
+///
+/// When the access list or the mode cannot be changed.
+fn private(dir: &Path) {
+    #[cfg(windows)]
+    {
+        let me = nvs_repo::spawn("whoami", &[])
+            .output()
+            .expect("`whoami` starts");
+        let me = String::from_utf8_lossy(&me.stdout).trim().to_owned();
+        let ran = nvs_repo::spawn("icacls", &[])
+            .arg(dir)
+            .args(["/inheritance:r", "/grant:r", &format!("{me}:(OI)(CI)F")])
+            .output()
+            .expect("`icacls` starts");
+        assert!(
+            ran.status.success(),
+            "`icacls` could not make `{}` private: {}",
+            dir.display(),
+            String::from_utf8_lossy(&ran.stdout)
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap_or_else(
+            |error| panic!("`{}` could not be made private: {error}", dir.display()),
+        );
+    }
 }
 
 /// Writes `text` to `path`, creating any directory it needs.
@@ -571,19 +633,22 @@ fn a_changed_memory_limit_moves_the_admission_ceiling() {
     });
 }
 
-/// A SQLite queue with one worker, whose `[queue] visibility` is `visibility`.
-/// `max_attempts = 1` moves a job that throws to the dead-letter table at
-/// once, so no retry of an older job writes a line after the reload.
-fn queue(visibility: &str) -> String {
+/// A SQLite queue with one worker, whose `[queue] visibility` is `visibility`
+/// and whose `[queue] max_attempts` is `attempts`. The boot writes `1`, which
+/// moves a job that throws to the dead-letter table at once, so no retry of a
+/// job pushed before the reload writes a line after it.
+fn queue(visibility: &str, attempts: u32) -> String {
     format!(
         "[capabilities.script]\nspawn = [\"jobs/\"]\n\n[db.jobs]\ndriver = \"sqlite\"\npath = \
-         \"jobs.db\"\n\n[queue]\nconnection = \"jobs\"\nworkers = 1\nmax_attempts = 1\nvisibility \
-         = \"{visibility}\"\n"
+         \"jobs.db\"\n\n[queue]\nconnection = \"jobs\"\nworkers = 1\nmax_attempts = \
+         {attempts}\nvisibility = \"{visibility}\"\n"
     )
 }
 
-/// An entry file that pushes one job per request.
-const PUSHING: &str = "<?nvs\nCore\\Queue::push(\"jobs/work.nvs\");\necho \"pushed\";\n";
+/// An entry file that pushes one job per request, and prints the `[queue]
+/// max_attempts` the push read.
+const PUSHING: &str = "<?nvs\nCore\\Queue::push(\"jobs/work.nvs\");\necho \"pushed \", \
+                       Core\\Config::get('queue.max_attempts');\n";
 
 /// A job that throws the `[queue] visibility` it reads. A throw is what the
 /// worker reports on standard error.
@@ -592,17 +657,18 @@ const READING: &str =
 
 /// A queue job runs under the snapshot in force when a worker claims it, and
 /// not under the one the worker started with. After a reload moves `[queue]
-/// visibility`, a job pushed afterwards reads the new value.
+/// visibility`, a job pushed afterwards reads the new value. The same reload
+/// moves `[queue] max_attempts`, and every push after it reads the new value.
 #[test]
 fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
     const THREW: &str = "`jobs/work.nvs` threw RuntimeError: visibility ";
     let server = Server::start_after(
         "queue",
-        &queue("5m"),
+        &queue("5m", 1),
         &[("app.nvs", PUSHING), ("jobs/work.nvs", READING)],
         &["queue", "migrate"],
     );
-    server.awaits("/", "the first push", |answer| answer.body == "pushed");
+    server.awaits("/", "the first push", |answer| answer.body == "pushed 1");
     let started = Instant::now();
     while !server.said().contains(&format!("{THREW}5m")) {
         assert!(
@@ -613,11 +679,13 @@ fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
         thread::sleep(POLL);
     }
 
-    let report = server.reload(&queue("7m"));
-    assert!(
-        report.contains("applied: queue.visibility\n"),
-        "the reload did not name `queue.visibility` as applied: {report}"
-    );
+    let report = server.reload(&queue("7m", 2));
+    for key in ["queue.max_attempts", "queue.visibility"] {
+        assert!(
+            report.contains(&format!("applied: {key}\n")),
+            "the reload did not name `{key}` as applied: {report}"
+        );
+    }
 
     // One job per push, pushed until a job runs, far slower than `POLL` so the
     // queue never holds more than a few.
@@ -632,7 +700,9 @@ fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
             started.elapsed() <= BOUND,
             "no job pushed after the reload ran within {BOUND:?}; the server wrote: {said}"
         );
-        server.awaits("/", "a push", |answer| answer.body == "pushed");
+        server.awaits("/", "a push under the reloaded `max_attempts`", |answer| {
+            answer.body == "pushed 2"
+        });
         thread::sleep(POLL * 10);
     };
     assert!(
@@ -876,6 +946,15 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("cache.local.max_size", "\"32M\"", "\"16M\""),
     ("cache.process.max_size", "\"32M\"", "\"16M\""),
     ("cache.process.fill_wait", "\"5s\"", "\"4s\""),
+    ("log.handler", "\"jobs/one.nvs\"", "\"jobs/two.nvs\""),
+    ("log.target", "\"stderr\"", "\"file:app.log\""),
+    ("debug.inline", "false", "true"),
+    (
+        "http.client.proxy.url",
+        "\"http://127.0.0.1:3128\"",
+        "\"http://127.0.0.1:3129\"",
+    ),
+    ("http.client.proxy.resolve", "\"local\"", "\"proxy\""),
 ];
 
 /// `nvs.toml` writing every [`REQUEST_READ`] key, with its reloaded value when
@@ -941,4 +1020,253 @@ fn every_request_read_directive_takes_the_reloaded_value_in_the_next_request() {
     for line in reloaded.body.lines() {
         assert!(!line.ends_with("=none"), "the reload unset `{line}`");
     }
+}
+
+/// A `[mode]` block with this default and this ceiling.
+fn mode(default: &str, ceiling: &str) -> String {
+    format!("[mode]\ndefault = \"{default}\"\nceiling = \"{ceiling}\"\n")
+}
+
+/// A program that prints the mode a request starts in and the ceiling it may
+/// select.
+const MODES: &str = "<?nvs\necho Core\\Config::get(\"mode.default\"), \" \", \
+                     Core\\Config::get(\"mode.ceiling\");\n";
+
+/// `[mode]` reloads: a server that booted in `development` starts the next
+/// request in `production` once a reload writes it, under the reloaded ceiling.
+#[test]
+fn a_changed_mode_block_reaches_the_next_request() {
+    let server = Server::start(
+        "mode",
+        &mode("development", "development"),
+        &[("app.nvs", MODES)],
+    );
+    server.awaits("/", "the boot's mode", |answer| {
+        answer.status == 200 && answer.body == "development development"
+    });
+
+    server.reload(&mode("production", "production"));
+    server.awaits("/", "the reloaded mode", |answer| {
+        answer.status == 200 && answer.body == "production production"
+    });
+}
+
+/// An `[[include]]` entry naming `more.toml`.
+const INCLUDING: &str = "[[include]]\npath = \"more.toml\"\n";
+
+/// `more.toml` setting `[limits] max_script_depth` to `depth`.
+fn included(depth: u32) -> String {
+    format!("[limits]\nmax_script_depth = {depth}\n")
+}
+
+/// `[[include]]` is read again on every reload: a key that changes in the
+/// included file, and nowhere else, reaches the next request.
+#[test]
+fn a_changed_included_file_reaches_the_next_request() {
+    let server = Server::start(
+        "include",
+        INCLUDING,
+        &[
+            ("more.toml", &included(64)),
+            (
+                "app.nvs",
+                "<?nvs\necho Core\\Config::get(\"limits.max_script_depth\");\n",
+            ),
+        ],
+    );
+    server.awaits("/", "the included file's value", |answer| {
+        answer.status == 200 && answer.body == "64"
+    });
+
+    write_file(&server.dir.join("more.toml"), &included(32));
+    server.reload(INCLUDING);
+    server.awaits("/", "the included file's reloaded value", |answer| {
+        answer.status == 200 && answer.body == "32"
+    });
+}
+
+/// A grant to read the files under `data/`.
+const READ_GRANT: &str = "[capabilities.fs]\nread = [\"data\"]\n";
+
+/// `[capabilities]` reloads: a call a grant allowed fails in the next request
+/// once a reload removes the grant.
+#[test]
+fn a_grant_a_reload_removes_fails_the_next_call() {
+    let server = Server::start(
+        "capabilities",
+        READ_GRANT,
+        &[
+            ("data/note.txt", "hello"),
+            (
+                "app.nvs",
+                "<?nvs\necho Core\\IO::read(\"data/note.txt\");\n",
+            ),
+        ],
+    );
+    server.awaits("/", "a read under the grant", |answer| {
+        answer.status == 200 && answer.body == "hello"
+    });
+
+    server.reload("");
+    let refused = server.awaits("/", "the read failing without the grant", |answer| {
+        answer.status != 200
+    });
+    assert!(
+        !refused.body.contains("hello"),
+        "a read with no grant returned the file: {refused:?}"
+    );
+}
+
+/// An `[opcache]` block that writes compiled programs to `cache/`, with the
+/// `[[extension]]` entry `extension` after it.
+fn file_cache(extension: &str) -> String {
+    format!("[opcache]\nrevalidate_freq = \"100ms\"\nfile_cache_dir = \"cache\"\n\n{extension}")
+}
+
+/// How many compiled programs `dir` holds, in its subdirectories.
+fn artifacts(dir: &Path) -> usize {
+    let Ok(shards) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    shards
+        .filter_map(Result::ok)
+        .filter_map(|shard| std::fs::read_dir(shard.path()).ok())
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|file| file.path().extension().is_some_and(|ext| ext == "nvsc"))
+        .count()
+}
+
+/// `[[extension]]` reloads into both caches of compiled programs. A reload
+/// that adds an extension compiles the program again, and the file cache gets
+/// a second program, written for the new set of extensions. The case writes a
+/// file into `cache/`, so the directory exists inside the private one.
+#[test]
+fn a_changed_extension_set_compiles_every_program_again() {
+    let server = Server::start(
+        "extension",
+        &file_cache(""),
+        &[("app.nvs", PLAIN), ("cache/.keep", "")],
+    );
+    let cache = server.dir.join("cache");
+    server.awaits("/", "the first answer", |answer| answer.body == "ok");
+    assert_eq!(
+        artifacts(&cache),
+        1,
+        "the boot did not write one program to the file cache; the server wrote: {}",
+        server.said()
+    );
+
+    let report = server.reload(&file_cache(
+        "[[extension]]\npath = \"ext/one.nvsx\"\nsha256 = \
+         \"1111111111111111111111111111111111111111111111111111111111111111\"\n",
+    ));
+    assert!(
+        report.contains("applied: extension\n"),
+        "the reload did not name `extension` as applied: {report}"
+    );
+    server.awaits("/", "an answer after the reload", |answer| {
+        answer.body == "ok" && artifacts(&cache) == 2
+    });
+}
+
+/// A program with one `POST` route, which the door checks for a CSRF token.
+const FORM: &str = r#"<?nvs
+class Form {
+    #[Core\Route(path: "/form", method: Core\Http\Method::Post, name: "Form::send")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function send(): string { return "sent"; }
+}
+
+echo "ok";
+"#;
+
+/// A CSRF key of 32 octets, each `octet`, written as URL-safe base64 with no
+/// padding.
+fn csrf_text(octet: u8) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let bytes = [octet; nvs_runtime::csrf::KEY_LEN];
+    let mut text = String::new();
+    for chunk in bytes.chunks(3) {
+        let word = chunk.iter().enumerate().fold(0_u32, |word, (at, byte)| {
+            word | u32::from(*byte) << (16 - 8 * at)
+        });
+        for at in 0..=chunk.len() {
+            let index = (word >> (18 - 6 * at)) & 63;
+            text.push(char::from(ALPHABET[index as usize]));
+        }
+    }
+    text
+}
+
+/// A token for a request with no session cookie, signed with the key of 32
+/// octets, each `octet`.
+fn csrf_token(octet: u8) -> String {
+    nvs_runtime::csrf::Key::new(&[octet; nvs_runtime::csrf::KEY_LEN])
+        .expect("32 octets are a key")
+        .issue(&[9; nvs_runtime::csrf::NONCE_LEN], "", "live_config")
+        .expect("an empty session seals")
+}
+
+/// `[http] csrf_key` and `csrf_key_file` reload at the door: a token signed
+/// with the key a reload replaced is refused in the next request, and one
+/// signed with the new key is accepted. A reload reads the key file again.
+#[test]
+fn a_rotated_csrf_key_refuses_the_old_token_at_the_door() {
+    let post = |server: &Server, octet: u8, what: &str, status: u16| {
+        let token = csrf_token(octet);
+        let started = Instant::now();
+        loop {
+            let answer = server.send("POST", "/form", &[("X-CSRF-Token", &token)]);
+            if answer.status == status {
+                return;
+            }
+            assert!(
+                started.elapsed() <= BOUND,
+                "{what} did not happen within {BOUND:?}; the last answer was {answer:?}, and \
+                 the server wrote: {}",
+                server.said()
+            );
+            thread::sleep(POLL);
+        }
+    };
+    let server = Server::start(
+        "csrf",
+        &format!("[http]\ncsrf_key = \"{}\"\n", csrf_text(1)),
+        &[("app.nvs", FORM)],
+    );
+    post(
+        &server,
+        1,
+        "a token signed with the boot's key passing",
+        200,
+    );
+    let bare = server.send("POST", "/form", &[]);
+    assert_eq!(bare.status, 403, "a post with no token passed: {bare:?}");
+
+    let file = "[http]\ncsrf_key_file = \"csrf.key\"\n";
+    write_file(&server.dir.join("csrf.key"), &csrf_text(2));
+    server.reload(file);
+    post(&server, 1, "the boot's token refused after the reload", 403);
+    post(
+        &server,
+        2,
+        "a token signed with the file's key passing",
+        200,
+    );
+
+    write_file(&server.dir.join("csrf.key"), &csrf_text(3));
+    server.reload(file);
+    post(
+        &server,
+        2,
+        "the old file's token refused after the reload",
+        403,
+    );
+    post(
+        &server,
+        3,
+        "a token signed with the rewritten file's key passing",
+        200,
+    );
 }
