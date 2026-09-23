@@ -27196,8 +27196,6 @@ long-running host — at a reload, or only at boot.
 | `server.listen` | operator only — a request cannot change it | at boot only |
 | `server.socket_mode` | operator only — a request cannot change it | at boot only |
 | `server.workers` | operator only — a request cannot change it | at boot only |
-| `server.root` | operator only — a request cannot change it | at boot only |
-| `server.mount` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `opcache.file_cache_dir` | operator only — a request cannot change it | at boot only |
 | `session` | operator only — a request cannot change it | at boot only |
