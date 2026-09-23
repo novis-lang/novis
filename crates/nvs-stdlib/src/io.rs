@@ -1808,6 +1808,13 @@ const METADATA_IS_FILE_SLOT: usize = 2;
 /// See [`METADATA_SIZE_SLOT`].
 const METADATA_IS_DIR_SLOT: usize = 3;
 
+/// `Core\IO\Metadata`'s class card — `rule:core-api/reference-card`.
+const METADATA_CARD: ClassDoc = ClassDoc {
+    short: "What `Core\\IO::stat` returns about one path: its size, when it was last changed, and \
+            whether it is a file or a directory. All four are read at the same moment. They do not \
+            change when the file changes later, so call `stat` again to get new values.",
+};
+
 /// Spec § 14's `stat`, as the value it answers with: one `stat` call's whole
 /// answer about one path, frozen at the moment it was asked.
 ///
@@ -1862,7 +1869,7 @@ const METADATA_IS_DIR_SLOT: usize = 3;
 /// own doc argues it belongs.
 pub(crate) const METADATA: CoreClass = CoreClass {
     name: METADATA_NAME,
-    doc: None,
+    doc: Some(&METADATA_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -4280,6 +4287,162 @@ mod tests {
         assert!(refused.contains("fs.read"), "{refused}");
 
         let _ = std::fs::remove_file(&file);
+    }
+
+    /// `Core\IO::stat(path)` under `ctx`, as the `Core\IO\Metadata` a program holds. The caller
+    /// owns the one reference returned.
+    fn stat_on(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Value {
+        call_with(nvs_core_io_stat, ctx, &[spelled(path)]).expect("a path the case created")
+    }
+
+    /// One `Core\IO\Metadata` member on `metadata`, as a program calls it. The caller owns the
+    /// one reference returned.
+    fn asked(ctx: &mut nvs_runtime::Ctx, member: nvs_runtime::NvsFn, metadata: Value) -> Value {
+        nvs_runtime::call(member, ctx, &[metadata]).expect("a member of a snapshot cannot fail")
+    }
+
+    /// `Core\IO\Metadata::size` returns the byte count `stat` read, so "Café" is 5 and an empty
+    /// file is 0. The value is a snapshot: after the file grows it still returns 5, however
+    /// often it is asked, and only a new `stat` returns the new size.
+    // covers: Core\IO\Metadata::size
+    #[test]
+    fn core_io_metadata_size_counts_bytes_and_does_not_follow_the_file() {
+        let path = scratch("metadata-size.txt");
+        std::fs::write(&path, "Café".as_bytes()).expect("a file to measure");
+        let mut ctx = reading("1MiB");
+        let size_of = |ctx: &mut nvs_runtime::Ctx, metadata| {
+            asked(ctx, nvs_core_io_metadata_size, metadata)
+                .as_uint()
+                .expect("`size` returns a uint")
+        };
+        let before = stat_on(&mut ctx, &path);
+        assert_eq!(size_of(&mut ctx, before), 5, "four characters, five bytes");
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .and_then(|mut file| std::io::Write::write_all(&mut file, b" au lait"))
+            .expect("the file grows");
+        assert_eq!(size_of(&mut ctx, before), 5);
+        assert_eq!(
+            size_of(&mut ctx, before),
+            5,
+            "asking twice reads the same snapshot"
+        );
+        let after = stat_on(&mut ctx, &path);
+        assert_eq!(size_of(&mut ctx, after), 13);
+        std::fs::write(&path, b"").expect("the file is emptied");
+        let empty = stat_on(&mut ctx, &path);
+        assert_eq!(size_of(&mut ctx, empty), 0);
+        for metadata in [before, after, empty] {
+            let_go(metadata);
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\Metadata::modifiedAt` returns the time the operating system recorded when
+    /// `stat` ran, to the second a test set it to. Setting a later time leaves the held value
+    /// on the old one, and a new `stat` returns the later one.
+    // covers: Core\IO\Metadata::modifiedAt
+    #[test]
+    fn core_io_metadata_modified_at_returns_the_recorded_time_of_its_own_stat() {
+        let path = scratch("metadata-modified-at.txt");
+        std::fs::write(&path, b"dated").expect("a file to date");
+        let set = |seconds: u64| {
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|handle| {
+                    handle.set_modified(
+                        std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds),
+                    )
+                })
+                .expect("a modification time the test chose");
+        };
+        let mut ctx = reading("1MiB");
+        let iso_of = |ctx: &mut nvs_runtime::Ctx, metadata| {
+            let instant = asked(ctx, nvs_core_io_metadata_modified_at, metadata);
+            let iso = crate::time::instant_iso(instant).expect("`modifiedAt` returns an Instant");
+            let_go(instant);
+            iso
+        };
+        set(1_700_000_000);
+        let before = stat_on(&mut ctx, &path);
+        set(1_800_000_000);
+        assert_eq!(iso_of(&mut ctx, before), "2023-11-14T22:13:20Z");
+        let after = stat_on(&mut ctx, &path);
+        assert_eq!(iso_of(&mut ctx, after), "2027-01-15T08:00:00Z");
+        assert_eq!(
+            iso_of(&mut ctx, before),
+            "2023-11-14T22:13:20Z",
+            "a new `stat` does not move the value taken before it"
+        );
+        let_go(before);
+        let_go(after);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `isFile` and `isDir` of one `Core\IO\Metadata`, in that order.
+    fn kind_of(ctx: &mut nvs_runtime::Ctx, metadata: Value) -> (bool, bool) {
+        (
+            asked(ctx, nvs_core_io_metadata_is_file, metadata)
+                .as_bool()
+                .expect("`isFile` returns a bool"),
+            asked(ctx, nvs_core_io_metadata_is_dir, metadata)
+                .as_bool()
+                .expect("`isDir` returns a bool"),
+        )
+    }
+
+    /// `Core\IO\Metadata::isFile` is `true` for a regular file and `false` for a directory, and
+    /// `isDir` gives the other answer. When the file is replaced by a directory of the same
+    /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
+    // covers: Core\IO\Metadata::isFile
+    #[test]
+    fn core_io_metadata_is_file_answers_the_kind_its_stat_saw() {
+        let path = scratch("metadata-is-file");
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::write(&path, b"a file").expect("a file to ask about");
+        let mut ctx = reading("1MiB");
+        let before = stat_on(&mut ctx, &path);
+        assert_eq!(kind_of(&mut ctx, before), (true, false));
+        std::fs::remove_file(&path).expect("the file goes");
+        std::fs::create_dir(&path).expect("a directory takes its name");
+        assert_eq!(
+            kind_of(&mut ctx, before),
+            (true, false),
+            "the snapshot keeps its kind"
+        );
+        let after = stat_on(&mut ctx, &path);
+        assert_eq!(kind_of(&mut ctx, after), (false, true));
+        let_go(before);
+        let_go(after);
+        let _ = std::fs::remove_dir(&path);
+    }
+
+    /// `Core\IO\Metadata::isDir` is `true` for a directory and `false` for a regular file, and
+    /// `isFile` gives the other answer. When the directory is replaced by a file of the same
+    /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
+    // covers: Core\IO\Metadata::isDir
+    #[test]
+    fn core_io_metadata_is_dir_answers_the_kind_its_stat_saw() {
+        let path = scratch("metadata-is-dir");
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir(&path).expect("a directory to ask about");
+        let mut ctx = reading("1MiB");
+        let before = stat_on(&mut ctx, &path);
+        assert_eq!(kind_of(&mut ctx, before), (false, true));
+        std::fs::remove_dir(&path).expect("the directory goes");
+        std::fs::write(&path, b"a file").expect("a file takes its name");
+        assert_eq!(
+            kind_of(&mut ctx, before),
+            (false, true),
+            "the snapshot keeps its kind"
+        );
+        let after = stat_on(&mut ctx, &path);
+        assert_eq!(kind_of(&mut ctx, after), (true, false));
+        let_go(before);
+        let_go(after);
+        let _ = std::fs::remove_file(&path);
     }
 
     /// `Core\IO::modifiedAt` answers the time the operating system recorded, to the second a

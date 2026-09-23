@@ -662,6 +662,29 @@ root = "benches/members/core/IO-File"
 read = true
 write = true
 
+# `Core\IO\Metadata`'s proof programs make the files and folders they `stat` under
+# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
+[[app]]
+root = "docs/examples/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "benches/members/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `Core\Db::open`'s five proof programs are the first in this repository to open a
 # database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
 # at `:memory:`, which is what keeps them container-free and their output the same on

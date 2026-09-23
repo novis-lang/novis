@@ -2,6 +2,7 @@
 a Core\IO\Metadata answers about the moment its `stat` was made and never about the file afterwards — a value taken before an append still reports the old size while a fresh one reports the new, and the second modification time is never before the first — spec § 14
 --FILE--
 <?nvs
+// covers: Core\IO\Metadata::size, Core\IO\Metadata::modifiedAt, Core\IO\Metadata::isFile, Core\IO\Metadata::isDir
 // What `stat` buys is one syscall for four questions; what it costs is that
 // the answers are frozen. This is the bound on both sides: the same member of
 // the same value, asked before and after the file changed under it, and a

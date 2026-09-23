@@ -5244,7 +5244,6 @@ mod tests {
         r"Core\Http\Part",
         r"Core\Http\Target",
         r"Core\IO\Lines",
-        r"Core\IO\Metadata",
         r"Core\IO\Walk",
         r"Core\Json",
         r"Core\Jwe",
