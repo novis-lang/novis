@@ -1,0 +1,26 @@
+<?nvs
+// Reads the body of a streamed reply piece by piece, as a program does when it downloads a file.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies come from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://files.example.com/a.bin", 200, {body: Core\Str::repeat("a", 64)});
+        Core\Test::answerHttp("https://files.example.com/b.bin", 200, {body: Core\Str::repeat("b", 96)});
+        array<string> $urls = ["https://files.example.com/a.bin", "https://files.example.com/b.bin"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // A body can be read only once, so each round opens a new stream.
+            // The reply in each round depends on the round before, so no round can be left out.
+            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            foreach ($download->chunks() as tainted bytes $piece) {
+                $total = $total + Core\Bytes::length($piece);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows that the body of a stream can be read only once.
+
+Core\Test::answerHttp("https://files.example.com/logo.png", 200, {body: "PNG image data"});
+
+Core\Http\Stream $image = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/logo.png");
+uint $size = 0;
+foreach ($image->chunks() as tainted bytes $piece) {
+    $size = $size + Core\Bytes::length($piece);
+}
+// This prints "14 bytes".
+echo $size, " bytes\n";
+
+// The body was already read, so a second call to `chunks()` throws a `LogicError`.
+try {
+    foreach ($image->chunks() as tainted bytes $again) {
+        echo "the body was read again\n";
+    }
+} catch (LogicError $error) {
+    echo "the body cannot be read twice\n";
+}

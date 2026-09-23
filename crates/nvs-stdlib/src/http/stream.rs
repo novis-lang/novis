@@ -176,11 +176,18 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
+/// `Core\Http\Stream`'s own card — `rule:core-api/reference-card`.
+const STREAM_CARD: ClassDoc = ClassDoc {
+    short: "A reply whose body is read while it arrives. `status()` and the header readers work \
+            at any time. The body is read once, with one of `events()`, `lines()`, `chunks()` or \
+            `saveTo()`.",
+};
+
 /// What `Core\Http\Client::stream` answers: the head, and a body no member has
 /// framed yet.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
-    doc: None,
+    doc: Some(&STREAM_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -490,11 +497,17 @@ pub(crate) const LINES: CoreClass = CoreClass {
 /// `chunks()`' walk. See [`EVENTS`].
 pub(crate) const CHUNKS: CoreClass = CoreClass {
     name: CHUNKS_NAME,
-    doc: None,
+    doc: Some(&CHUNKS_CARD),
     methods: &[],
     instance: &[],
     slots: &["body", "current"],
     constants: &[],
+};
+
+/// `Core\Http\Chunks`' own card — `rule:core-api/reference-card`.
+const CHUNKS_CARD: ClassDoc = ClassDoc {
+    short: "The pieces of a streamed reply's body, in the order they arrived. A `foreach` over \
+            `Core\\Http\\Stream::chunks()` gives each piece as `tainted bytes`.",
 };
 
 /// What one `advance()` frames off the octets, which is the whole of what the
@@ -1387,5 +1400,140 @@ mod tests {
             Some("7"),
             "the id stays in force, and one with a NUL in it is ignored"
         );
+    }
+
+    /// `chunks()` takes the body: the reader's key moves out of the stream into
+    /// a walk positioned before its first chunk, the stream records `chunks` as
+    /// the reader that took it, and a second `chunks()` throws naming it. A
+    /// member that left the key behind would hand both walks the same reader,
+    /// and one that answered the second call with an empty walk would read like
+    /// a body that was empty.
+    // covers: Core\Http\Stream::chunks
+    #[test]
+    fn chunks_takes_the_body_and_a_second_call_is_refused() {
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                Value::null(),
+                Value::uint(41),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let walk = nvs_runtime::call(super::nvs_core_http_stream_chunks, &mut ctx, &[stream])
+            .expect("nothing has read the body yet");
+        let walked = walk.obj_ptr().expect("a walk is an object");
+        assert_eq!(crate::instance::slot(walked, 0).as_uint(), Some(41));
+        assert_eq!(crate::instance::slot(walked, 1).tag(), Some(Tag::Null));
+
+        let taken = stream.obj_ptr().expect("a stream is an object");
+        assert_eq!(crate::instance::slot(taken, 2).tag(), Some(Tag::Null));
+        assert_eq!(crate::instance::slot(taken, 3).as_text(), Some("chunks"));
+
+        let again = nvs_runtime::call(super::nvs_core_http_stream_chunks, &mut ctx, &[stream]);
+        assert!(again.is_err(), "a second reader walked the body");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message.contains(
+                "Core\\Http\\Stream::chunks(): this stream's body was read by `chunks()`"
+            ),
+            "{message}"
+        );
+    }
+
+    /// `events()` takes the body into a walk that carries no id yet, and the
+    /// next reader throws naming `events` whichever reader it is. The walk
+    /// starts with an empty `lastId` slot: one that started with a stale id
+    /// would hand it to the first event that sets none.
+    // covers: Core\Http\Stream::events
+    #[test]
+    fn events_takes_the_body_with_no_id_in_force_and_lines_is_refused() {
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                Value::null(),
+                Value::uint(7),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let walk = nvs_runtime::call(super::nvs_core_http_stream_events, &mut ctx, &[stream])
+            .expect("nothing has read the body yet");
+        let walked = walk.obj_ptr().expect("a walk is an object");
+        assert_eq!(crate::instance::slot(walked, 0).as_uint(), Some(7));
+        assert_eq!(crate::instance::slot(walked, 1).tag(), Some(Tag::Null));
+        assert_eq!(crate::instance::slot(walked, 2).tag(), Some(Tag::Null));
+
+        let taken = stream.obj_ptr().expect("a stream is an object");
+        assert_eq!(crate::instance::slot(taken, 3).as_text(), Some("events"));
+
+        let late = nvs_runtime::call(super::nvs_core_http_stream_lines, &mut ctx, &[stream]);
+        assert!(late.is_err(), "`lines()` walked a body `events()` took");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message
+                .contains("Core\\Http\\Stream::lines(): this stream's body was read by `events()`"),
+            "{message}"
+        );
+    }
+
+    /// `header()` reads the head, which a body reader does not take: it joins a
+    /// field that arrived twice with `, ` before and after `chunks()` took the
+    /// body, matches the name in any case, answers `null` for a field that never
+    /// arrived, and throws for `Set-Cookie`, naming `headers` as the reader.
+    // covers: Core\Http\Stream::header
+    #[test]
+    fn header_reads_the_head_after_the_body_is_taken_and_refuses_set_cookie() {
+        let lines = [
+            ("x-trace".to_owned(), "one".to_owned()),
+            ("set-cookie".to_owned(), "a=1".to_owned()),
+            ("x-trace".to_owned(), "two".to_owned()),
+        ];
+        let stream = crate::instance::build(
+            &STREAM,
+            [
+                Value::int(200),
+                crate::http::header_map(&lines),
+                Value::uint(3),
+                Value::null(),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+        let mut header = |name: &str| {
+            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            nvs_runtime::call(
+                super::nvs_core_http_stream_header,
+                &mut ctx,
+                &[stream, name],
+            )
+        };
+        assert_eq!(
+            header("X-Trace").expect("a field").as_text(),
+            Some("one, two")
+        );
+        assert_eq!(header("x-absent").expect("no field").tag(), Some(Tag::Null));
+        assert!(header("Set-Cookie").is_err(), "two cookies were joined");
+
+        nvs_runtime::call(super::nvs_core_http_stream_chunks, &mut ctx, &[stream])
+            .expect("nothing has read the body yet");
+        let mut header = |name: &str| {
+            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            nvs_runtime::call(
+                super::nvs_core_http_stream_header,
+                &mut ctx,
+                &[stream, name],
+            )
+        };
+        assert_eq!(
+            header("x-trace")
+                .expect("the head outlives the body")
+                .as_text(),
+            Some("one, two")
+        );
+        assert!(header("set-cookie").is_err());
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(message.contains("headers(\"set-cookie\")"), "{message}");
     }
 }

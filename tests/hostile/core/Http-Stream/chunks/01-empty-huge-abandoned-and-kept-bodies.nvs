@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a server sends an empty body, a very large body, and many bodies that the
+// program stops reading or never frees. `chunks()` must give every byte exactly once,
+// or throw an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+Core\Test::answerHttp('https://files.example.com/empty', 200, { body: '' });
+Core\Test::answerHttp('https://files.example.com/large', 200, { body: Core\Str::repeat('z', 8000000) });
+Core\Test::answerHttp('https://files.example.com/small/*', 200, { body: 'a small file' });
+Core\Test::answerHttp('https://big.example.com/*', 200, { body: Core\Str::repeat('k', 60000) });
+
+// 1. An empty body. The loop must not run at all.
+var $empty = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/empty');
+foreach ($empty->chunks() as tainted bytes $piece) {
+    throw new LogicError('an empty body gave a piece');
+}
+echo 'step 1: done', "\n";
+
+// 2. A body of 8000000 bytes. The pieces together must have exactly that size.
+var $large = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/large');
+uint $size = 0;
+foreach ($large->chunks() as tainted bytes $piece) {
+    $size = $size + Core\Bytes::length($piece);
+}
+if ($size != 8000000) {
+    throw new LogicError(Core\Str::format('the large body had %d bytes', $size));
+}
+echo 'step 2: done', "\n";
+
+// 3. The same walk is used in two loops. The second loop must not run,
+//    because the first loop already read the whole body.
+var $once = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/small/once');
+Core\Http\Chunks $walk = $once->chunks();
+foreach ($walk as tainted bytes $piece) {
+}
+foreach ($walk as tainted bytes $piece) {
+    throw new LogicError('a finished walk gave another piece');
+}
+echo 'step 3: done', "\n";
+
+// 4. 20000 streams are opened. The program stops each loop after the first piece,
+//    or never starts the loop at all.
+uint $n = 0;
+while ($n < 20000) {
+    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://files.example.com/small/%d', $n));
+    if ($n % 2 == 0) {
+        foreach ($stream->chunks() as tainted bytes $piece) {
+            break;
+        }
+    } else {
+        $stream->chunks();
+    }
+    $n = $n + 1;
+}
+echo 'step 4: done', "\n";
+
+// 5. Every piece of every stream is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+array<tainted bytes> $kept = [];
+uint $m = 0;
+while (true) {
+    var $big = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $m));
+    foreach ($big->chunks() as tainted bytes $piece) {
+        $kept[] = $piece;
+    }
+    $m = $m + 1;
+}

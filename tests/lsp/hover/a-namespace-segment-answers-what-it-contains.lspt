@@ -11,7 +11,7 @@ hover
 namespace Core\Http
 ```
 
-- `Chunks`
+- `Chunks` — The pieces of a streamed reply's body, in the order they arrived. A `foreach` over `Core\Http\Stream::chunks()` gives each piece as `tainted bytes`.
 - `Client`
 - `Event` — One server-sent event: its data, its name and its id. A `foreach` over `Core\Http\Stream::events()` gives one for each event the server finished sending.
 - `Events`
@@ -21,6 +21,6 @@ namespace Core\Http
 - `Part`
 - `Response` — The reply to an outbound HTTP call: its status code, its headers, its body, and the TLS connection it came over. `Core\Http\Client::get()` returns one.
 - `Socket` — A WebSocket connection your program opened to another server: it sends and receives messages until one side closes it. `Core\Http\Client::openSocket()` returns one.
-- `Stream`
+- `Stream` — A reply whose body is read while it arrives. `status()` and the header readers work at any time. The body is read once, with one of `events()`, `lines()`, `chunks()` or `saveTo()`.
 - `Target`
 - `TlsInfo` — The details of the TLS connection a reply came over: the TLS version, the cipher, the server's certificates, and whether they were checked. `Core\Http\Response::tls()` returns one.
