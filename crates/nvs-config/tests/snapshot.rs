@@ -476,6 +476,7 @@ fn written_at<'a>(table: &'a toml::Table, dotted: &str) -> Option<&'a toml::Valu
 /// running value. `every_directive_has_a_live_apply_proof_or_a_restart_proof` in
 /// `tests/directives.rs` names this case as the restart proof of every `Boot` row, so a `Boot` row
 /// with no line in [`BOOT_CHANGES`] fails here.
+// covers: directive:server.listen, directive:server.socket_mode, directive:server.workers
 #[test]
 fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
     use nvs_config::directive::{Apply, DIRECTIVES};

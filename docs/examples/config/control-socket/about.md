@@ -1,13 +1,13 @@
-Names the local socket an administrator reaches a running server on.
+The local socket an administrator uses to control a running server.
 
-Everything done to a live server goes through it: reloading the configuration, printing what is
-currently in force. There is no network listener, no token and nothing to log into — the socket belongs
-to the account the server runs as, and the server refuses to start if any other account on the machine
-could write the directory holding it. An address another machine could dial is refused for the same
-reason. Writing nothing at all, or `false`, leaves the server with no control surface.
+Commands such as `nvs ctl reload` and `nvs ctl status` use it. There is no network port, no password
+and nothing to log in to. The socket belongs to the account the server runs as. The server does not
+start if another account on the machine can write to the directory that contains it. An address that
+another machine can connect to is not allowed. With nothing set, or with `false`, the server has no
+control socket.
 
-**In plain words:** a service door with no handle on the outside of the building. You have to already be
-on the machine to be standing in front of it.
+**In plain words:** a service door with no handle on the outside of the building. You must already
+be on the machine to use it.
 
-**Good to know:** it exists only where a long-running server does, and moving it takes a restart,
-because the socket is created once, when the server starts.
+**Good to know:** only a long-running server has one. If you change the path in the file, the server
+creates the new socket before it closes the old one.

@@ -1,12 +1,12 @@
 <?nvs
-// `[server]` is the HTTP server itself — where it accepts, how it finds the
-// code for a request, and how long it waits:
+// Shows how to read the `[server]` block: where the server listens, which proxies
+// it trusts, and how long it waits for a request's headers.
 //
 //     [server]
 //     listen            = ["127.0.0.1:8000"]  # or an absolute path: a Unix socket
 //     root              = "/www"
 //     dispatch          = "entry"
-//     trusted_proxies   = []                  # believe no forwarding header
+//     trusted_proxies   = []                  # trust no forwarding header
 //     header_timeout    = "10s"
 //     keepalive_timeout = "75s"
 
@@ -14,17 +14,13 @@ echo 'listening on:   ', Core\Config::get('server.listen') ?? '(nothing written 
 echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(nothing written — ten seconds)', "\n";
 echo 'believed proxy: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written — no forwarding header is believed)', "\n";
 
-// Every key here needs a restart, and that is a property of what they bound
-// rather than a gap. The header wait is already counting before any of this
-// program exists on the connection, so a server that let a request move it
-// would be promising something it cannot keep.
+// A program cannot change any setting in this block. `Core\Config::set`
+// returns `false`, so each line below prints `refused`.
 echo 'listen somewhere else:  ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
 
-// The proxy list is the one an attacker wants most: with nothing in it no
-// forwarding header is believed, so a program that could add an entry would be
-// choosing which client address the rest of the deployment logs and rate-limits.
+// A trusted proxy decides which client address the logs and rate limits use.
+// With an empty list, the server trusts no forwarding header.
 echo 'believe my proxy:       ', Core\Config::set('server.trusted_proxies', '0.0.0.0/0') ? 'accepted' : 'refused', "\n";
 
-// And the waits, which are what stops a connection that sends one byte a minute
-// from holding a slot forever.
+// The header timeout closes a connection that sends its headers too slowly.
 echo 'wait all day for me:    ', Core\Config::set('server.header_timeout', '86400s') ? 'accepted' : 'refused', "\n";

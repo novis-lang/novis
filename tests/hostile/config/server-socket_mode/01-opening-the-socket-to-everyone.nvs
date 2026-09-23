@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request tries to change the permissions of the server's Unix sockets,
+// so that every account on the machine may connect. Every attempt below should fail.
+// hostile: timeout-ms 20000
+
+// 1. Try permissive values, and values that are not permissions at all.
+array<string> $modes = [
+    '0666',
+    '0777',
+    '777',
+    '0o777',
+    '0x1ff',
+    '511',
+    '-1',
+    '99999',
+    'rwxrwxrwx',
+    'true',
+    '',
+    "0660\u{0000}0777",
+    Core\Str::repeat('7', 100000),
+];
+foreach ($modes as string $mode) {
+    Core\Config::set('server.socket_mode', $mode);
+    Core\Config::set('app.0.server.socket_mode', $mode);
+    Core\Config::restore('server.socket_mode');
+}
+
+// 2. Try other ways to write the name of the setting, and the address beside it.
+array<string> $keys = ['SERVER.SOCKET_MODE', 'server.socket_mode ', 'server..socket_mode', 'server.listen'];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '0777');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Try 200000 times in a loop, and count how often the value read back changes.
+uint $changes = 0;
+string $standing = Core\Config::get('server.socket_mode') ?? '(not set)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('server.socket_mode', '0777');
+    Core\Config::restore('server.socket_mode');
+    if ((Core\Config::get('server.socket_mode') ?? '(not set)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes:     ', $changes, "\n";
+echo 'socket mode: ', Core\Config::get('server.socket_mode') ?? '(not set)', "\n";

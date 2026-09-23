@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request tries to change how many workers the server runs. More workers
+// use more of the machine, and zero stops the server. Every attempt below should fail.
+// hostile: timeout-ms 20000
+
+// 1. Try very large counts, zero, negative counts and values that are not numbers.
+array<string> $counts = [
+    '0',
+    '1',
+    '-1',
+    '64',
+    '4294967295',
+    '4294967296',
+    '18446744073709551616',
+    '1e9',
+    '0x10',
+    ' 8 ',
+    "8\u{0000}",
+    '8.0',
+    'true',
+    '',
+    Core\Str::repeat('9', 100000),
+];
+foreach ($counts as string $count) {
+    Core\Config::set('server.workers', $count);
+    Core\Config::set('app.0.server.workers', $count);
+    Core\Config::restore('server.workers');
+}
+
+// 2. Try other ways to write the name of the setting.
+array<string> $keys = ['SERVER.WORKERS', 'server.workers ', 'server..workers', 'server.max_in_flight'];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '1000000');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Try 200000 times in a loop, and count how often the value read back changes.
+uint $changes = 0;
+string $standing = Core\Config::get('server.workers') ?? '(not set)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('server.workers', '1024');
+    Core\Config::restore('server.workers');
+    if ((Core\Config::get('server.workers') ?? '(not set)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'workers: ', Core\Config::get('server.workers') ?? '(not set)', "\n";

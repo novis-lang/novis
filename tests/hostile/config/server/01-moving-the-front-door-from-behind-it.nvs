@@ -88,11 +88,7 @@ foreach ($bounds as string $bound) {
     Core\Config::restore($bound);
 }
 
-// 4. All of it as fast as the runtime will take it, reading back every round.
-//    The block is bound at boot, so a write that nevertheless reached the
-//    published snapshot would not move a listener until a restart acted on it —
-//    but it is the snapshot a reload carries forward, and that is the one place
-//    this could ever become visible from inside a request.
+// 4. Try 200000 times in a loop, and count how often the value read back changes.
 uint $changes = 0;
 string $standing = Core\Config::get('server.listen') ?? '(nothing written)';
 uint $i = 0;

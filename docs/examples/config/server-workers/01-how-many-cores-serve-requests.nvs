@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read `[server] workers`, the number of workers that accept and serve requests.
+//
+//     [server]
+//     workers = 4   # when not set: one worker for each CPU core
+
+echo 'workers:        ', Core\Config::get('server.workers') ?? 'one for each CPU core (the default)', "\n";
+
+// A program cannot change this setting, so this prints `refused`.
+echo 'use 64 workers: ', Core\Config::set('server.workers', '64') ? 'accepted' : 'refused', "\n";
+
+// The server creates its workers when it starts. A new value takes effect after a restart.

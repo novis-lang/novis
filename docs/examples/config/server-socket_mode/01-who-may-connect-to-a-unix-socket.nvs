@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read `[server] socket_mode`, the file permissions of the server's Unix sockets.
+//
+//     [server]
+//     listen      = ["/run/nvs/web.sock"]
+//     socket_mode = "0660"   # the owner and the socket's group may connect
+
+// When the file does not set it, the value is `0660`.
+echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '0660 (the default)', "\n";
+
+// Every account that may write to the socket may connect to the server.
+// A program cannot change this setting, so this prints `refused`.
+echo 'let everyone connect: ', Core\Config::set('server.socket_mode', '0666') ? 'accepted' : 'refused', "\n";
+
+// The server uses this value when it creates a socket. A new value takes effect after a restart.

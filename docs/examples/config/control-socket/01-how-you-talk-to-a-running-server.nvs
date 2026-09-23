@@ -1,25 +1,17 @@
 <?nvs
-// `[control] socket` is how an administrator talks to a running Novis server:
-// one local socket on the machine the server is on, and nothing else. There is
-// no port to open, no token to hand out and nothing to log into — who owns the
-// socket is the authentication, and the server refuses to start if any other
-// account on the machine could write the directory holding it.
-//
-// This checkout writes the one value that turns it off, because nothing here is
-// a long-running server:
+// Shows how to read `[control] socket`, the local socket an administrator uses to
+// control a running server. This example sets it to `false`, which turns it off:
 //
 //     [control]
 //     socket = false
 
 echo 'control socket: ', Core\Config::get('control.socket') ?? '(none)', "\n";
 
-// A server writes a path instead — `/run/nvs/control.sock`, or a pipe name such
-// as `\\.\pipe\nvs-control` on Windows — and `nvs ctl reload` and `nvs ctl config`
-// then reach it over that path. What can never be written here is a host and a
-// port: an address another machine could dial is refused when the server starts,
-// rather than being put behind a password.
+// A server sets a path, such as `/run/nvs/control.sock`, or `\\.\pipe\nvs-control` on Windows.
+// `nvs ctl reload` and `nvs ctl status` connect to that path.
 
-// Where it lives is the operator's decision and a restart's work, never a
-// running program's. The socket is created once, when the server starts, so a
-// different name means a different server.
+// A host and a port are not allowed. Another machine could connect to them.
+
+// Only the person who runs the server may change where the socket is.
+// A program cannot, so this prints `no`.
 echo 'move it:        ', Core\Config::set('control.socket', '/tmp/mine.sock') ? 'yes' : 'no', "\n";

@@ -1,24 +1,18 @@
 <?nvs
-// `[queue] connection` names the database block the job table lives in. There
-// is no default one: a deployment that queues work says where the rows go.
+// Shows how to read `[queue] connection`, the database block where queued jobs are stored.
+// There is no default. A deployment that uses the queue must set it.
 
 echo 'jobs are stored in: ', Core\Config::get('queue.connection') ?? '(nothing written — this deployment queues no work)', "\n";
 echo 'workers here:       ', Core\Config::get('queue.workers') ?? '(nothing written)', "\n";
 
-// The connection to name is the application's own. An enqueue is then a row in
-// the same transaction as the write that caused it, so a job for an order that
-// was rolled back never exists to be worked.
+// Use the application's own database. Then a job is added in the same transaction
+// as the work that caused it, and a rolled-back transaction creates no job.
 
-// The key belongs to whoever runs the deployment. A program that could name its
-// own connection would be putting this deployment's work into a database it was
-// never granted — and claiming somebody else's jobs out of the table it reads.
+// A program cannot change this setting. `Core\Config::set` returns `false`, so this prints `refused`.
 echo 'store them elsewhere:      ', Core\Config::set('queue.connection', 'somewhere-else') ? 'accepted' : 'refused', "\n";
 
-// And not the value already in force either: the refusal is about who may write
-// the key, not about which value happens to be dangerous.
+// The same is true for the value that is already set.
 echo 'write the same one back:   ', Core\Config::set('queue.connection', Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'refused', "\n";
 
-// Moving it is a restart in any case, even for the operator: workers dial this
-// connection when the process starts, so editing the file and reloading names
-// the key and carries the running value forward rather than stranding every
-// claim already in flight against a database nobody will read.
+// The server applies a new value in the file while it runs. Workers on the old
+// connection put their current job back, and new workers use the new connection.

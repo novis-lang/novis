@@ -1,18 +1,15 @@
-How many queued jobs this instance works at once.
+How many queued jobs this instance works on at the same time.
 
-A deployment usually runs the same build on several instances, and this key is what makes them
-different: some of them work the queue and some only add to it. Writing zero is a deployment rather
-than a disabled queue — the instance enqueues jobs exactly as before and lets another one claim and
-run them, which is how a web fleet hands its slow work to a pool sized for that work instead of for
-requests.
+A deployment often runs the same program on several instances. This setting makes them different:
+some instances work on the queue, and some only add jobs to it. With `0`, the instance still adds
+jobs, and another instance runs them. This way a web server can give its slow work to other
+machines.
 
-**In plain words:** zero means "I add the work, somebody else does it". A queue is turned off by
-leaving the block out altogether, not by hiring nobody.
+**In plain words:** `0` means "I add the work, somebody else does it". To turn the queue off, leave
+out the `[queue]` block.
 
-The key belongs to whoever runs the deployment, and it is read once when the process starts. A
-worker is a task the runtime spawns, so applying a new count means starting or stopping tasks rather
-than reading a different number — an edited file and a reload name this key and carry the running
-count forward until the next restart.
+A program cannot change this setting. The server applies a new value while it runs, and starts or
+stops workers. A worker that stops first puts its current job back in the queue.
 
-The example prints how many workers this instance runs and is turned away both hiring itself more of
-them and sending its share of the work to everybody else.
+The example prints how many workers this instance runs. Then it tries to change the count, and
+`Core\Config::set` returns `false`.

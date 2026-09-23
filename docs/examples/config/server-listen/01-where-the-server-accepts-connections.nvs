@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read `[server] listen`, the addresses where the server accepts connections.
+//
+//     [server]
+//     listen = ["127.0.0.1:8000"]   # an address and a port, or the path of a Unix socket
+
+// When the file does not set it, the server listens on 127.0.0.1, port 8000.
+echo 'listening on:            ', Core\Config::get('server.listen') ?? '127.0.0.1:8000 (the default)', "\n";
+
+// A program cannot change this setting. `Core\Config::set` returns `false`, so this prints `refused`.
+echo 'listen on every address: ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
+
+// A new value in the file takes effect after a restart. Until then, `nvs ctl status` shows it.

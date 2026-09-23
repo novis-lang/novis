@@ -1,19 +1,16 @@
-Everything about the HTTP server itself: where it listens, how it finds the code for a request, and
-how long it waits.
+Settings for the HTTP server itself: where it listens, how it finds the code for a request, and how
+long it waits.
 
-One block holds the addresses or Unix sockets to accept on, the directory every mount must resolve
-inside, whether a request is routed by entry point or by path, whether static files are served at
-all, which proxies are believed about a client's address, the in-flight ceiling, how many cores
-accept, four idle waits, and how long a connection keeps being served once the server has begun
-stopping.
+The block has the addresses or Unix sockets to listen on, the directory every mount must be inside,
+whether a request is routed by entry file or by path, and whether static files are served. It also
+has the proxies whose forwarding headers are trusted, the limit on requests in progress, the number
+of workers, four idle timeouts, and how long the server keeps serving while it stops.
 
-**In plain words:** this is the shape of the front door. With nothing written, it is a loopback
-address on port 8000 — the proxied shape and the development one at once.
+**In plain words:** this is the front door of your application. When nothing is set, the server
+listens on `127.0.0.1`, port `8000`.
 
-The whole block needs a restart to change, and that is a property rather than an omission: the
-header and keep-alive waits apply before any of this deployment's code exists on the connection, so
-promising that a running server could move them would be promising something the block cannot keep.
-A reload over an edited block therefore names the key and carries the running value forward.
+The server applies a change to this block while it runs. Three settings need a restart: `listen`,
+`socket_mode` and `workers`. A program cannot change any setting in this block.
 
-The example prints what this server listens on and how long it waits, and is turned away moving any
-of it.
+The example prints the address, the header timeout and the trusted proxies. Then it tries to change
+them, and `Core\Config::set` returns `false` each time.

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request tries to change the addresses the server listens on. Only the
+// person who runs the server may set them, so every attempt below should fail.
+// hostile: timeout-ms 20000
+
+// 1. Try every way to write "all addresses", and some broken addresses.
+array<string> $addresses = [
+    '0.0.0.0:80',
+    '0.0.0.0:0',
+    '[::]:80',
+    '[::ffff:0.0.0.0]:80',
+    '*:80',
+    ':80',
+    '0:80',
+    '2130706433:80',
+    '127.1:80',
+    '/tmp/nvs.sock',
+    "127.0.0.1:8000\u{0000}0.0.0.0:80",
+    "127.0.0.1:8000\n0.0.0.0:80",
+    '127.0.0.1:8000,0.0.0.0:80',
+    '',
+    Core\Str::repeat('0.0.0.0:80,', 100000),
+];
+foreach ($addresses as string $address) {
+    Core\Config::set('server.listen', $address);
+    Core\Config::set('server.listen.0', $address);
+    Core\Config::set('app.0.server.listen', $address);
+    Core\Config::restore('server.listen');
+}
+
+// 2. Try other ways to write the name of the setting.
+array<string> $keys = ['SERVER.LISTEN', 'server..listen', 'server.listen ', 'server', 'server.listen.1'];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '0.0.0.0:80');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Try 200000 times in a loop, and count how often the value read back changes.
+uint $changes = 0;
+string $standing = Core\Config::get('server.listen') ?? '(not set)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('server.listen', '0.0.0.0:80');
+    Core\Config::restore('server.listen');
+    if ((Core\Config::get('server.listen') ?? '(not set)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'listen:  ', Core\Config::get('server.listen') ?? '(not set)', "\n";
