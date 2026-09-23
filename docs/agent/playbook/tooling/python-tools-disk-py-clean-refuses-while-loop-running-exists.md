@@ -1,0 +1,7 @@
+- **`python tools/disk.py --clean` refuses while `.loop/running` exists, which is every loop session
+  — so a full disk inside one is cleared by hand.** The failure does not read as a disk failure:
+  `cargo test` reports `LNK1140`, a `STATUS_STACK_BUFFER_OVERRUN` out of `rustc`, and only at the
+  end an `os error 112`. The refusal is about a *concurrent build*, not the driver: check
+  `Get-Process cargo,rustc,link`, then `Remove-Item -Recurse -Force target/debug/incremental`, a
+  pure cache costing one cold build — and run `python tools/disk.py` before a slice that adds a
+  dependency. [until: gone tools/disk.py:RUNNING]

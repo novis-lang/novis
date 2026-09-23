@@ -1,0 +1,6 @@
+- **A case that reaches an instance only through a `?T`-returning member counts as asking that class
+  nothing.** `Attribution::holders` takes the top-level return type alone, so a case whose only door
+  is `Core\Reflect::forClass` (which answers `?Core\Reflect\ClassInfo`) holds no class, every `->member(`
+  in it attributes to nobody, and a new member reads as `asked by 0 case(s)` however many cases call
+  it. Name the class in a comment — or reach it through a member returning the bare `Instance` — and
+  the same cases count. [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:holders]

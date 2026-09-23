@@ -1,0 +1,6 @@
+- **A `.nvst` case cannot pin the IR *type* a constant is emitted at — a callee reads its own
+  parameter slot, so a default arriving under the wrong `Ty` still prints the right answer.** The
+  slot's type comes from the signature and nothing converts between the two, so an emitted
+  `Ty::Int` where the parameter declares `Ty::Enum` is invisible end to end. Assert `Inst::ty`
+  in a `crates/nvs-ir/tests/*.rs` fixture instead, the way `parameter_defaults.rs` does with
+  `int_constants`. [until: exists crates/nvs-ir/src/verify.rs]

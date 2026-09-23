@@ -1,0 +1,7 @@
+- **An ADR cross-reference can name a section that says nothing about the thing citing it.** ADR 0099
+  § 3's hover row sends a `Core` signature row's rendering to "as ADR 0088 § 5 writes it", and that
+  section is `Core\Out::capture` answering the sink's carrier — 0088 decides no rendering anywhere, so
+  the spelling was undecided rather than specified. Read the section a pointer names before treating it
+  as the specification, and when it does not hold the answer, decide it in the module doc and say so
+  rather than hunting for a record that does not exist.
+  [until: gone docs/decisions/0099.md:signature row rendered as]

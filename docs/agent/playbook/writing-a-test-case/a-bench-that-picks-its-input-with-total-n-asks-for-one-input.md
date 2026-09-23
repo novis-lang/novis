@@ -1,0 +1,6 @@
+- **A bench that picks its input with `$total % N` asks for one input forever when every round adds
+  the same amount to `$total`.** The chain is still real — the round depends on the one before it —
+  but the index never moves, so a bench claiming to measure two keys measures the first one a
+  million times and says nothing about the other. Vary the increment by what the round answered, or
+  add `$i` to it, and read the printed total before recording a figure: a total that is exactly
+  `rounds * <one weight>` is the tell. [until: reviewed 2026-09-21]

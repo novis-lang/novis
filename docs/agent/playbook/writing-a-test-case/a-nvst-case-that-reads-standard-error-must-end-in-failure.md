@@ -1,0 +1,5 @@
+- **A `.nvst` case that reads standard error must end in failure, and the runner blames the program
+  rather than the section.** `crates/nvs-test/src/run.rs` makes any case with an `--EXPECT-ERROR--`
+  section exit non-zero, so a `#[Command]` case that echoes `Core\Command::run()`'s status and
+  returns reports `expected the run to fail, and it succeeded`. End the case with `exit($status as
+  int);`, and prefer `--EXPECTF-ERROR--` with a trailing `%A`. [until: reviewed 2026-09-06]

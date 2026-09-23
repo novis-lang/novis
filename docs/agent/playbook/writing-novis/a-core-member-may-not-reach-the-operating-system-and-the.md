@@ -1,0 +1,10 @@
+- **A `Core` member may not reach the operating system, and the gate that says so is a list of
+  spellings rather than of effects.** `nvs_stdlib_reaches_the_os_only_through_the_gate`
+  (`crates/nvs-stdlib/tests/capability.rs`) forbids literals such as `std::fs`,
+  `std::process::Command` and `std::env::var` in this crate's `src/`, so a member reading an
+  environment variable fails while `std::io::stdin().is_terminal()` or a raw `libc::ioctl` beside it
+  passes unremarked. Neither is a judgement about capabilities:
+  `rule:security/capability-check-at-the-door` puts the reaching in `nvs-runtime`
+  (`nvs_runtime::terminal`, a module beside `capability` because a door that asks no `Cap` is not a
+  door), never a `registry::CAPABILITIES` row — decide the crate before the first line, since moving
+  it afterwards is a rewrite. [until: gone crates/nvs-stdlib/tests/capability.rs:const FORBIDDEN]

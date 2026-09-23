@@ -1,0 +1,6 @@
+- **`tools/leak-check.sh` greps *every* loss record, so the frames under its `exit 97` are usually
+  not the leaking stack.** Its `grep -E "definitely lost|nvs_stdlib|nvs_ir|nvs_runtime::" | head
+  -12` matches crate frames in *possibly lost* and *still reachable* records too, and the twelve
+  lines run out before the leak. The run is kept in `/tmp/leak-err` inside WSL: `wsl.exe -- grep -n
+  -B2 -A14 "definitely lost" /tmp/leak-err` shows the blocks that are yours.
+  [until: gone tools/leak-check.sh:head -12]

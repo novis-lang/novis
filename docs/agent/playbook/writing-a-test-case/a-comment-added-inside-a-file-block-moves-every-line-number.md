@@ -1,0 +1,8 @@
+- **A comment added inside a `--FILE--` block moves every line number its `--EXPECTF-ERROR--`
+  pins, and the offset is four: source line 1 is the `<?nvs` on file line 4.** Rewording the
+  prose above the code in
+  `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`
+  turned a green case red with a `case.nvs:18` against a `case.nvs:19` and nothing else changed.
+  Keep a comment rewrite the same number of lines when the case pins a diagnostic, or update the
+  expectation in the same edit — and read the failure's `-->` before looking at the message, since
+  the message is what you did not touch. [until: reviewed 2026-09-15]

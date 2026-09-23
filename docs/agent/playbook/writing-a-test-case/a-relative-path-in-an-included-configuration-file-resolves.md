@@ -1,0 +1,6 @@
+- **A relative path in an included configuration file resolves against that file's own directory,
+  `[[app]] root` included.**
+  `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` keys `root =
+  "srv/www/shop"` written in `conf.d/shop.toml` on `conf.d/srv/www/shop`, and the refusal is `E0605
+  cannot read`, which reads as a broken fixture. Write the `..` the operator would have to write.
+  [until: reviewed 2026-09-06]

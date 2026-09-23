@@ -1,0 +1,6 @@
+- **Never put `--ORACLE--` in a `tests/conformance/` case.** CI runs that suite on three hosted
+  runners with no PHP, so an oracle section makes the runner *skip the whole case* there. Verify
+  against PHP while authoring — `php -r '…'` is on `PATH` under Windows and inside WSL
+  ([docs/setup.md](../../../setup.md)) — then drop the section or put the case in `tests/differential/`,
+  where an oracle belongs; and a trailing space before a `\n` is unreliable in an `--EXPECT--`
+  block, so echo a sentinel after it. [until: reviewed 2026-09-06]

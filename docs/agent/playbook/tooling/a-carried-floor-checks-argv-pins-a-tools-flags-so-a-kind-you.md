@@ -1,0 +1,6 @@
+- **A carried floor check's `argv` pins a tool's *flags*, so a kind you retire inside that tool
+  cannot take its flag with it.** A floor is carried verbatim from the goal that closed, so
+  `owners.py --check --reasons` is still a floor `[[check]]` after `--reasons` stands for nothing,
+  and an argparse that dropped it would exit 2 on a stage that passed sessions ago. Leave the flag
+  accepted and doing nothing, say that in its `--help`, and fold what it used to add into the gate's
+  default. [until: gone tools/owners.py:--reasons]

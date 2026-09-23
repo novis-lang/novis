@@ -1,0 +1,6 @@
+- **A `.nvst` case whose program ends non-zero must carry an `--EXPECTF-ERROR--` section even when
+  it writes nothing to stderr.** `crates/nvs-test/src/run.rs` is the one rule for the exit status,
+  so an `exit(42)` case fails with `expected the run to succeed` and no hint that a section is
+  missing. `%A` matches an empty stderr;
+  `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is the shape.
+  [until: gone crates/nvs-test/src/run.rs:error expectation must fail]

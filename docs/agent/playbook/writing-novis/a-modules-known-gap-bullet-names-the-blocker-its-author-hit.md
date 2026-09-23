@@ -1,0 +1,6 @@
+- **A module's known-gap bullet names the blocker its author hit, not every blocker between there
+  and the feature.** A gap that reads as one missing type can hide two more layers behind it, so
+  reading it as a work estimate sizes a slice at a third of its cost. Spend three greps, one per
+  layer — is the member callable, can the pass name the thing, does the pass have the input — before
+  budgeting; `crates/nvs-types/src/intrinsics.rs`'s gap list is where the layered answer for the
+  literal-host check lives. [until: reviewed 2026-09-06]

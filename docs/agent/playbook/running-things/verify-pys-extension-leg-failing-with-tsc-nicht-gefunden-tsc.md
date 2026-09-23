@@ -1,0 +1,5 @@
+- **`verify.py`'s `extension` leg failing with `"tsc" ... nicht gefunden` (tsc not found) is a missing
+  `editors/vscode/node_modules`, not the change under test.** The directory is git-ignored, so nothing
+  in the tree restores it once it is gone, and the leg runs whenever the Core registry moves. Run `npm ci
+  --no-audit --no-fund` in `editors/vscode` (it reads the committed lockfile) and re-run `verify.py`.
+  [until: reviewed 2026-09-23]

@@ -1,0 +1,7 @@
+- **`every_error_path_is_asserted_or_declared_unreachable` stops its upward scan at the first
+  `Fault::`, including one inside the declaration itself.** A comment saying "it is a `Fault::fatal`
+  rather than a throw" is read as its own site's boundary, and `DECLARATION_WINDOW` is 8 lines from
+  the phrase to the `Fault::`, which `cargo fmt` can push past by breaking a method chain. Name the
+  mechanism without the prefix ("fatal rather than thrown") and put the comment directly over a bare
+  `Err(Fault::fatal(…))` rather than over a closure chain.
+  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted]

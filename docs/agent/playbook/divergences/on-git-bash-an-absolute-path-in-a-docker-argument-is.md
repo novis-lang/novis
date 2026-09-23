@@ -1,0 +1,6 @@
+- **On Git Bash, an absolute path in a `docker` argument is rewritten to a Windows one before docker
+  sees it.** MSYS path conversion rewrites any argument that looks like a POSIX path, so `docker run
+  --rm img cat /etc/debian_version` reads `C:/Program Files/Git/etc/debian_version`, and `docker
+  exec`, volume flags and container-side commands all suffer it. `MSYS_NO_PATHCONV=1` in front of
+  the call is the whole fix; the tell is an error naming a path under `C:/Program Files/Git/` you
+  never typed. [until: reviewed 2026-09-06]

@@ -1,0 +1,5 @@
+- **A local declared inside a loop body stays declared for the rest of the enclosing scope, so a
+  second loop cannot reuse the name.** `bytes $sealed` inside one `while` and `bytes $sealed` inside
+  the next is `E0406: $sealed is already declared`, which reads as a scoping bug rather than as the
+  rule. Give the second pass its own name (`$stored`, `$openedKey`) when a program walks the same
+  shape twice, which every "seal it, then read it back" example does. [until: reviewed 2026-09-21]

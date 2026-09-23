@@ -1,0 +1,4 @@
+- **Two `catch` clauses on one `try` cannot share a variable name, even though only one of them
+  can ever run.** `catch (RuntimeError $refused) {} catch (IOError $refused) {}` does not compile:
+  it reports `E0406` "`$refused` is already declared" at the second clause. Give each clause its
+  own variable (`$refused`, `$failed`) when a proof catches two classes. [until: reviewed 2026-09-23]

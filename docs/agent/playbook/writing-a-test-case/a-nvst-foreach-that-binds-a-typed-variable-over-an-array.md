@@ -1,0 +1,6 @@
+- **A `.nvst` `foreach` that binds a *typed* variable over an array **literal** is `E0401: expected
+  'string', found 'mixed'`, and the diagnostic points at the binding.** An array literal in an
+  unannotated position interns as `array<mixed>`, so its elements are `mixed` whatever was written
+  inside it, and the binding is the first place that becomes a mismatch. Declare the subject first —
+  `array<string> $names = [...]; foreach ($names as string $name)` — which is what the corpus already
+  does everywhere a `foreach` binding carries a type. [until: reviewed 2026-09-10]

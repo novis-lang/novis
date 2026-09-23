@@ -1,0 +1,7 @@
+- **`holes.py`'s count is not the number of `panic!`s, and widening its recognizer to the construct
+  counts engine invariants as holes.** Most panic-family sites in `nvs-ir` and `nvs-codegen` are
+  invariants no program reaches ("`foreach` lost the `Env` binding it walks") and will outlive the
+  last hole, and wording cannot separate the two in either direction. The recognizer takes the
+  construct **and** the claim's shape ("only lowers X", "has no arm for"); the fix is to make the
+  *source* declare its kind, as `CodegenError` does with `Internal` versus `Unsupported`, and an
+  audit of every site is the work, not the pattern. [until: gone tools/holes.py:REFUSAL]

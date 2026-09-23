@@ -1,0 +1,5 @@
+- **Never scan re-wrapped prose line by line for anything holding a space.** `orient.py` and
+  `brief.py` fill a plan field at width 100, so a change anywhere earlier in the field reflows every
+  line after it, and a `rule:` token, a `file.rs:NN` anchor, a `§ N` or a `Core\Foo::bar` can break
+  at its space. Scan the whole text and let the pattern's own `\s+` decide; line-oriented reading is
+  only safe for things a line *is* — a heading, a table row, an indent. [until: reviewed 2026-09-06]

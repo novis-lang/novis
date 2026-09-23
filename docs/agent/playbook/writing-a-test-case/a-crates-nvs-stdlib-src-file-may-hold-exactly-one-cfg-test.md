@@ -1,0 +1,8 @@
+- **A `crates/nvs-stdlib/src/` file may hold exactly one `#[cfg(test)]`, and a second one fails a
+  test three directories away.** `crates/nvs-stdlib/tests/capability.rs`'s OS-gate scan stops at
+  the first one in a file, so it asserts there is only one — a `#[cfg(test)] fn` fixture above the
+  test module hides every real member under it from the scan, and the failure names the file rather
+  than the rule. Put a shared fixture *inside* the test module and make the module `pub(crate) mod
+  tests`, which is what `crates/nvs-stdlib/src/keyring.rs` does for the ring builders its own tests
+  and `signature.rs`'s both use.
+  [until: gone crates/nvs-stdlib/tests/capability.rs:has more than one]

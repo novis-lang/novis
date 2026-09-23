@@ -1,0 +1,6 @@
+- **`docs/agent/loop-goal.toml` and `docs/agent/goals/<goal>.toml` drift, and the live one is the
+  half that is right.** They are byte-identical by construction and the next `goal-switch.py`
+  restores the goal file over the live one, so every session that improves a check and does not copy
+  it back is queueing a silent revert of module paths, `[docker]` services or a fixture's
+  expectations. `git diff docs/agent/goals/` right after the `cp` is the whole check, and what it
+  prints is other sessions' work about to be lost. [until: reviewed 2026-09-06]

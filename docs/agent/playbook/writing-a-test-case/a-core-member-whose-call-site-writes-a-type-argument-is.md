@@ -1,0 +1,6 @@
+- **A `Core` member whose call site writes a type argument is never credited by a call, so
+  `dossier.py` reports `tests 0 case(s)` over cases that plainly pin it.** The detector matches
+  `Core\Arr::shapeAs(` and the source reads `Core\Arr::shapeAs<{n: int}>(`, so three green conformance
+  cases went uncounted and the member read as owing both its tests. Grep `tests/` for the member
+  before writing anything, and where the claim is already pinned the whole edit is `// covers: <the
+  member>` on one `.nvst` and one Rust `#[test]`. [until: reviewed 2026-09-20]

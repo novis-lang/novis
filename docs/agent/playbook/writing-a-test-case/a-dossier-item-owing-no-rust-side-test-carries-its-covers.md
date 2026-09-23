@@ -1,0 +1,7 @@
+- **A dossier item owing "no Rust-side test carries its `covers:` marker" can be a marker to add
+  rather than a test to write.** `Core\Csv::rows` already had two `#[test]`s in `csv.rs`'s own test
+  module — one of them the bound that the walk holds a chunk and a record rather than the document,
+  which no `.nvst` can see — and `--id` reported `0 Rust` only because neither carried the comment
+  that attributes a Rust test. `grep -n '#\[test\]' -A 1` over the implementing file before
+  budgeting the test: where a name for the claim already resolves, the slice is two comment lines.
+  [until: reviewed 2026-09-21]

@@ -1,0 +1,7 @@
+- **An `.lspt` case whose cursor lands on a construct no case had reached costs twelve more cases, not
+  one.** `nvs_lsp::coverage`'s vocabulary is every construct some cursor resolved to, so three cases
+  before a `}`, a `)` and a `]` opened `Block`, `Paren` and `ArrayLiteral` as columns and
+  `every_request_answers_every_construct` demanded four cursor rows and a whole-document row at each.
+  Price it with `nvs lsp-test tests/lsp/ --coverage` first, and put a claim about *many* cursors in a
+  `-p nvs-lsp` test, where it opens no column.
+  [until: gone crates/nvs-lsp/src/coverage.rs:which is the ratchet]

@@ -1,0 +1,7 @@
+- **A panic's message names the shape it was written for, not the shape that reaches it.**
+  `stmt.rs`'s property-write panic still blamed "a receiver erased to a plain `object`" after that
+  half had landed; what actually reached it was a computed member name and an undeclared property on
+  a class kind the checker excused, and believing the message would have rebuilt a feature that was
+  there. Enumerate the arms of whatever records the table entry and probe one scratch
+  `.agent-tmp/*.nvs` per arm before taking the panic's own account of itself.
+  [until: reviewed 2026-09-06]

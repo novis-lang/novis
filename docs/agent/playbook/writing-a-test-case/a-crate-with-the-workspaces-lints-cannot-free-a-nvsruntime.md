@@ -1,0 +1,6 @@
+- **A crate with the workspace's lints cannot free a `nvs_runtime::Value`, so a test in one leaks
+  every string it builds.** `Value::release` is `unsafe`, `unsafe_code` is `forbid` at the workspace
+  root, and `forbid` is the one level no `#[expect]` can lift. Split the decision from the
+  allocation with a private enum holding the parsed scalar plus one `into_value` arm per variant,
+  and assert the enum; `NvsStr` has a safe `Drop`, and `crates/nvs-db/src/pg.rs`'s `PgScalar` is the
+  worked example. [until: gone Cargo.toml:unsafe_code = "forbid"]

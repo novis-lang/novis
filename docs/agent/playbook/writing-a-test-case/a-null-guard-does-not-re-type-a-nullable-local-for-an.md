@@ -1,0 +1,6 @@
+- **A `!= null` guard does not re-type a nullable local for an *argument* position; `as string`
+  inside the guarded branch does.** `rule:expressions/nullable-conversion`'s narrowing only lets
+  `->` reach a member of a `?Foo`, so `Core\Str::replace($r, …)` inside `if ($r != null)` is `E0401:
+  expected string, found string|null`, and declaring the local `?string` changes nothing. Write `$r
+  as string` in the branch (a checked `rule:types/conversion`), or `$r ?? "<null>"` where the value
+  is only echoed. [until: reviewed 2026-09-06]

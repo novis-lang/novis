@@ -1,0 +1,5 @@
+- **A `.nvst` case cannot put non-UTF-8 octets on disk, so a binary probe file has no writer
+  today.** `Core\IO::write` and `Core\IO\File::write` take `CoreTy::Text(Qual::Neutral)`, so writing
+  a `bytes` is `E0401`, and a NUL or lone `0xFF` cannot travel through an argument vector either. A
+  bytes row on `Core\IO` or `Core\Storage::put` is a member change, not a case.
+  [until: gone crates/nvs-stdlib/src/io.rs:CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)]

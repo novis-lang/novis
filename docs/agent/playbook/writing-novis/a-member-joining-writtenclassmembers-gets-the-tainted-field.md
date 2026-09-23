@@ -1,0 +1,7 @@
+- **A member joining `WRITTEN_CLASS_MEMBERS` gets the `tainted`-field check for a written *class* and
+  not for a written *shape*.** `written_class_of` records a `DecodeSite` on the member name alone
+  (`crates/nvs-types/src/expr/args.rs:1649`), but reaches `check_shape_decode_site` behind an **owner**
+  list a few lines down — so a reject case written as `jsonAs<{name: string}>()` compiles and runs
+  while the same case written as a `#[Json\Derive]` class is refused, which reads as the rule not
+  applying rather than as one roster with two halves. Add the owner to that list in the same edit that
+  adds the registry row. [until: gone crates/nvs-types/src/expr/args.rs:owner_name]

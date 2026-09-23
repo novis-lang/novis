@@ -1,0 +1,6 @@
+- **A handoff item's anchor can name the wrong file, and `orient.py` inlines that window as if it
+  were evidence.** This goal's stage-3 item pointed at `crates/nvs-ir/src/lower/call.rs:713` for the
+  `WRITTEN_CLASS_MEMBERS` call site, so the pack printed `emit_const_shape` — a shape *literal*'s
+  emitter — and the real lowering is `lower/expr.rs:3212` and `:3441` plus `lower/closure.rs:621`.
+  One `grep -n` for the symbol the item names, before reading the window it inlined, is the whole
+  fix. [until: reviewed 2026-09-06]

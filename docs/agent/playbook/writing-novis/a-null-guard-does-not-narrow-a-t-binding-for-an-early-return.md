@@ -1,0 +1,5 @@
+- **A `== null` guard does not narrow a `?T` binding for an early return — `as T` states the
+  narrowing.** `if ($found == null) { return "none"; } return $found;` is `E0403: this method
+  declares `string` but returns `string|null``, and inverting the guard fails identically. `return
+  $found as string;` compiles; a `?uint` needs the same cast because `echo` has no `uint` row, so
+  one `Show::render(?T $found): string` covers both. [until: reviewed 2026-09-06]

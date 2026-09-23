@@ -1,0 +1,7 @@
+- **A Rust test can be leaning on a request having *no* handler, and its title says nothing about
+  which one.** `nvs-lsp`'s `a_tree_of_cases_reports_one_summary_line` builds a two-case tree it
+  expects to score `0 passed, 2 failed`, and one of those cases failed only because `answer` had no
+  `completion` arm — so landing the arm turned a fixture into a pass and broke a test about summary
+  lines. Before implementing a `.lspt` request, grep the crate's own tests for its name and re-point
+  any fixture that was failing for want of a handler at a genuinely mismatched `--EXPECT--`.
+  [until: reviewed 2026-09-08]

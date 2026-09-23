@@ -1,0 +1,6 @@
+- **`int / int` answers a float in Novis, so `($size / 16) as int` throws at run time whenever the
+  division is not exact.** A bench computing a piece size that way died with `cannot convert this
+  value to int` on a frame whose length was odd, which reads as the member being broken rather than
+  the arithmetic. Pick the divisor-free spelling in a proof — a fixed piece size with a `$take`
+  clamp for the last one — rather than a cast that depends on the input's length.
+  [until: reviewed 2026-09-21]

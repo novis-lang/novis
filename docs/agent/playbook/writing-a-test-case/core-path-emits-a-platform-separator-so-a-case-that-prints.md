@@ -1,0 +1,6 @@
+- **`Core\Path` emits a platform separator, so a case that prints or counts a built path is
+  leg-dependent.** Normalize a printed path with `Core\Str::replace($p, Core\Path::SEPARATOR, "/")`,
+  and count what a member dropped by `Core\Str::length($rebuilt) != Core\Str::length($p)` rather
+  than by string inequality, which counts every re-rendered separator on one leg only. A `Core\Time`
+  case has the same hazard elsewhere: never assert `Zone::system()`'s answer or a wall-clock value.
+  [until: reviewed 2026-09-06]

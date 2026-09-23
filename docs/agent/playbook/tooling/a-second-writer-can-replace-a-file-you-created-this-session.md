@@ -1,0 +1,6 @@
+- **A second writer can replace a file you created *this session*, and the only notice is a "changed
+  on disk" line.** Two concurrent runs of one slice produce two implementations of the same new
+  module and two conformance cases for it, and the second Write silently wins. Do not revert — the
+  tree is only consistent with the newer one — but re-read the file before every later edit, delete
+  the duplicate case rather than shipping both, and look for it in the `git status --short` you run
+  before staging, which is the only place it shows. [until: reviewed 2026-09-06]

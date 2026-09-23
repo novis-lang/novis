@@ -1,0 +1,7 @@
+- **A file in `nvs-stdlib` gets exactly one `#[cfg(test)]`; a second fails a test in another
+  directory that never names it.** `crates/nvs-stdlib/tests/capability.rs`'s
+  `nvs_stdlib_reaches_the_os_only_through_the_gate` scans every `src/` file down to its first
+  `#[cfg(test)]` and asserts there is only one, since a second higher up would hide the whole file.
+  A `#[cfg(test)] pub(crate) fn` beside `mod tests` trips it; put the fixture inside `mod tests` and
+  reach it as `crate::tests::<name>`.
+  [until: gone crates/nvs-stdlib/tests/capability.rs:reaches_the_os_only_through_the_gate]

@@ -1,0 +1,6 @@
+- **SQLite reports no `notnull` for a primary-key column, so an introspected `INTEGER PRIMARY KEY`
+  reads back nullable and no `Table` can be built from the row.** `pragma_table_info` sets `notnull`
+  only where the text said `NOT NULL`; a rowid alias's is implicit. The fix belongs in the catalog
+  statement — `crates/nvs-db/src/catalog.rs`'s `p."notnull" = 0 AND p.pk = 0` — and an introspected
+  fixture is asserted against the `Schema` it produced, never against the catalog's own words.
+  [until: gone crates/nvs-db/src/catalog.rs:notnull]

@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` check runs before the program legs only if its `stage` string starts with
+  `0`.** `tools/loop.py` builds its catch-up class with `startswith("0")` (a stage naming `floor`
+  also counts); position in the file and what the prose calls the stage do not matter, so a `"S
+  inout"` block sitting above the Stage 0 blocks still runs after the whole floor. Name a stage that
+  must be reported first `0`-something (`"0a inout"`), say in its comment that the digit is
+  load-bearing, and read the real run order with `python tools/loop.py --list`.
+  [until: gone tools/loop.py:startswith("0")]

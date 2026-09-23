@@ -1,0 +1,6 @@
+- **A `$` inside a double-quoted string interpolates, and the escape is `\$`.** A character class
+  written out (`!#$%&'*+-/=?^_`) or a `printf` template (`"%1$s %2$d"`) has its `$…` read as a
+  variable, so the diagnostics are `E0301`s about undeclared `$s` and `$d` that blame the fixture's
+  subject. Escape it (`"!#\$%&…"`) or single-quote it (`'%1$s %2$d'` folds to the same
+  `ConstArg::Str` and interpolates nothing); a backtick and an apostrophe need nothing inside double
+  quotes. [until: reviewed 2026-09-06]

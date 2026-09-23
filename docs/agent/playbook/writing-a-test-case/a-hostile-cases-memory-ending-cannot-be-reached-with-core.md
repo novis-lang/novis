@@ -1,0 +1,5 @@
+- **A hostile case's memory ending cannot be reached with `Core\Arr::append` in a loop.** Each call
+  copies the array, so growing to the 256 MiB ceiling one entry at a time is quadratic, and 200,000
+  appends of a one-element array did not finish inside 200 s — well past any `timeout-ms`. Seed the
+  list with the values the attack is about and double it with `Core\Arr::appendAll($kept, $kept)`,
+  which reaches the ceiling in under a second. [until: reviewed 2026-09-20]

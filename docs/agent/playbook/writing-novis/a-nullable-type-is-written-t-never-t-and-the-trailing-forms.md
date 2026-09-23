@@ -1,0 +1,6 @@
+- **A nullable type is written `?T`, never `T?`, and the trailing form's seven errors name none of
+  that.** `Throwable? $step = $chain;` reports `E0319: `Throwable` is not a constant that exists`
+  first and then six cascading `$step is not declared` lines, so the whole report reads as a missing
+  declaration rather than as a misplaced `?`. Copy the spelling from a case that already uses one —
+  `tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst:8` — rather
+  than working back from the diagnostic. [until: reviewed 2026-09-19]

@@ -1,0 +1,6 @@
+- **A red valgrind sweep is `ring`'s assembly or the fixture's exit status before it is your
+  refcounts.** Memcheck cannot follow AES-NI masking, so a TLS `[db.main]` fixture reports
+  `Memcheck:Cond` in `ring::aead` (`tools/valgrind.supp` holds those), and valgrind passes the exit
+  status through, so `examples/limits.nvs` (exit 1 by design) reads as a leak without
+  `--error-exitcode=97`. `grep -c "definitely lost"` the stderr first: `0` means neither cause is
+  yours. [until: reviewed 2026-09-06]

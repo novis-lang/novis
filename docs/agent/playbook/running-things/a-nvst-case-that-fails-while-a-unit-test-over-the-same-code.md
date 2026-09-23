@@ -1,0 +1,6 @@
+- **A `.nvst` case that fails while a unit test over the same code passes means the binary is
+  stale, not the logic.** `cargo build --workspace` then an edit then `cargo test -p nvs-types`
+  leaves `target/debug/nvs.exe` at the *pre-edit* behaviour, and the resulting diagnostic looks
+  exactly like a real bug in whatever you just wrote — a checker relaxation reads as an ordering
+  bug in your own comparison. Rebuild with `cargo build` before believing a `.nvst`
+  failure that a `-p <crate>` test contradicts. [until: reviewed 2026-09-08]

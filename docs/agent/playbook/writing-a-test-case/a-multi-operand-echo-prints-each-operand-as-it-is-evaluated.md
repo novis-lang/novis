@@ -1,0 +1,6 @@
+- **A multi-operand `echo` prints each operand as it is evaluated, so a call that throws in the
+  middle of one leaves the earlier operands already on stdout.** `echo $name, ": ", Thing::of($x),
+  "\n"` writes `$name` and the separator before the throw, and the `catch` arm that prints the same
+  prefix again produces a blessed `.out` reading `Hallbeck: Hallbeck: skipped, …` — which looks like
+  a runtime bug and is not one. In an example or a case whose `try` calls something, bind the value
+  to a local inside the `try` and `echo` only once it exists. [until: reviewed 2026-09-19]

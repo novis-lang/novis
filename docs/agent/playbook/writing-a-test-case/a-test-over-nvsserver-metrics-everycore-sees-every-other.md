@@ -1,0 +1,7 @@
+- **A test over `nvs_server::metrics::every_core` sees every other test in the binary that served a
+  request, because the roster is one per process.** Asserting a length or a total is therefore a race
+  against whatever the harness scheduled alongside, and it passes alone and fails under `cargo test`.
+  Give the case its own `route` label and assert on that series by name
+  (`crates/nvs-runtime/src/metrics.rs:1249`), and hold the cores alive across the gather with a
+  `Barrier` — a thread that exited is indistinguishable from one the roster never reached.
+  [until: gone crates/nvs-runtime/src/metrics.rs:static CORES]

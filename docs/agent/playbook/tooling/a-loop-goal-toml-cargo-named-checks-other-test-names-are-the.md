@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` `cargo-named` check's *other* test names are the specification for the design
+  question the rule left open.** A sibling name such as
+  `a_cli_runs_record_is_still_level_and_msg_alone` bounds what the first test may assume — stamping
+  `ts` unconditionally would have broken
+  `application_code_and_the_engine_floor_produce_schema_identical_records`. Read a check's whole
+  `tests` list as one sentence before writing the first of them; a sibling name is cheaper than
+  re-deriving the bound from the rule. [until: reviewed 2026-09-06]

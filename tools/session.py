@@ -115,6 +115,7 @@ import posixpath
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -126,7 +127,6 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 AGENT = DOCS / "agent"
 PLAN = DOCS / "implementation-plan.md"
-PLAYBOOK = AGENT / "playbook.md"
 #: The most a new `## playbook:` bullet may weigh, trailer included. A bullet is charged to every
 #: session whose item names its file, and at a median 849 bytes the file had become the sessions'
 #: changelog rather than their traps; the shape (three sentences, ~400 B) is
@@ -210,13 +210,16 @@ def _checked(cmd: list[str]) -> subprocess.CompletedProcess:
 
 
 class Section:
-    __slots__ = ("kind", "arg", "body", "line", "added")
+    __slots__ = ("kind", "arg", "body", "line", "added", "targets")
 
     def __init__(self, kind: str, arg: str, body: str, line: int):
         self.kind, self.arg, self.body, self.line = kind, arg, body, line
         #: Paths `wrap()` added to a `## commit:` because this wrap wrote them and no section
         #: named them. Reported rather than applied silently; see `written_paths`.
         self.added: list[str] = []
+        #: A `## playbook:` section's bullets and the file each is written to; see
+        #: `playbook_targets`.
+        self.targets: list[tuple[Path, str]] | None = None
 
 
 def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
@@ -421,7 +424,7 @@ def written_paths(sections: list[Section]) -> list[str]:
             if entry is not None:
                 out.append(rel_path(entry["path"]))
         elif s.kind == "playbook":
-            out.append(rel_path(PLAYBOOK))
+            out += [rel_path(p) for p, _body in playbook_targets(sections, s)]
         elif s.kind == "handoff":
             out.append(rel_path(HANDOFF))
     return list(dict.fromkeys(out))
@@ -589,11 +592,9 @@ def validate(sections: list[Section]) -> list[str]:
             elif not entry["path"].exists():
                 errors.append(f"`## milestone: {s.arg}` -- {entry['rel']} does not exist")
         elif s.kind == "playbook":
-            text = PLAYBOOK.read_text(encoding="utf-8")
-            if not heading_index(text, s.arg):
-                heads = re.findall(r"^## (.+)$", text, flags=re.M)
-                errors.append(f"`## playbook: {s.arg}` -- no such heading. "
-                              f"playbook.md has: {', '.join(heads)}")
+            if playbookmod.section_dir(s.arg) is None:
+                errors.append(f"`## playbook: {s.arg}` -- no such section. The playbook has: "
+                              f"{', '.join(playbook_headings())}")
             if not s.body.lstrip().startswith("-"):
                 errors.append(f"`## playbook: {s.arg}` -- a playbook entry is a `- ` bullet")
             else:
@@ -617,6 +618,8 @@ def validate(sections: list[Section]) -> list[str]:
                             f"{which} declares nothing that retires it. End it with "
                             f"`[until: <kind> <arg>]`; the five kinds are in tools/playbook.py's "
                             f"module doc.")
+                    else:
+                        errors += reviewed_refusals(which, b["body"])
                     weight = len(b["body"].strip().encode("utf-8"))
                     if weight > PLAYBOOK_BULLET_MAX:
                         errors.append(
@@ -673,6 +676,33 @@ def validate(sections: list[Section]) -> list[str]:
             f"not yours. A slice you committed by hand earlier in this session is still yours.")
     errors += rulebook_findings() + record_findings() + migration_findings() + manifest_findings()
     return errors
+
+
+def reviewed_refusals(which: str, body: str) -> list[str]:
+    """Why a new bullet may not end with `[until: reviewed <date>]`, if it may not.
+
+    A `reviewed` trailer is the one kind nothing retires: it only asks a reader to look again. So
+    a new bullet takes it only when no mechanical kind fits. A bullet that names a path in the
+    tree has one: its trap ends when the path, or a word in it, goes. And a date is the day
+    somebody read the bullet, so a date after today records no reading."""
+    kind, arg = playbookmod.declaration(body)
+    if kind != "reviewed":
+        return []
+    out = []
+    try:
+        if date.fromisoformat(arg) > date.today():
+            out.append(f"{which} is dated {arg}, which is after today. A `reviewed` date is the day "
+                       f"the bullet was read: write today's date.")
+    except ValueError:
+        out.append(f"{which} -- `{arg}` is not a YYYY-MM-DD date.")
+    named = [p for p in dict.fromkeys(playbookmod.named_paths(body)) if (ROOT / p).exists()]
+    if named:
+        out.append(
+            f"{which} names `{named[0]}` and ends with `[until: reviewed ...]`. A trap about a path "
+            f"ends when that path changes, so declare that instead: `[until: gone {named[0]}:<a "
+            f"word the trap depends on>]`, `[until: exists <path>]` for a fix that is not there "
+            f"yet, or `[until: test <fn>]` for a hole a test will close.")
+    return out
 
 
 def validate_commit(s: Section) -> list[str]:
@@ -791,7 +821,10 @@ LINK_WHY = {
 #: Where a wrap section's body lands, for the links inside it: a body's links resolve from the file
 #: it is written INTO, not from anywhere this tool runs. `milestone` is absent because its
 #: destination is one lookup per id, and `commit`/`status` because neither is a rendered file.
-BODY_HOME = {"handoff": HANDOFF, "playbook": PLAYBOOK, "plan": PLAN, "plan-edit": PLAN}
+#: A playbook bullet lands in a file of its own, one directory below `docs/agent/playbook/`, and
+#: every section's directory is at that depth, so the first one stands for all of them.
+BODY_HOME = {"handoff": HANDOFF, "plan": PLAN, "plan-edit": PLAN,
+             "playbook": playbookmod.PLAYBOOK_DIR / playbookmod.SECTIONS[0][0] / "bullet.md"}
 
 
 #: Where `loop.py` leaves the commit the running session opened on. Absent outside the loop, and
@@ -1284,7 +1317,7 @@ def playbook_collisions(heading: str, body: str) -> list[str]:
     Only what this append would *introduce* is reported. A selector already unreachable in the
     committed file is `playbook.py --check`'s finding to raise, and blocking this wrap over it
     would charge one session for another session's collision."""
-    text = PLAYBOOK.read_text(encoding="utf-8")
+    text = playbookmod.read()
     after = playbook_with(text, heading, body)
     if after is None:
         return []  # validate() reports the missing heading itself
@@ -1300,14 +1333,33 @@ def playbook_collisions(heading: str, body: str) -> list[str]:
     return sorted(unreachable(after) - unreachable(text))
 
 
+def playbook_targets(sections: list[Section], s: Section) -> list[tuple[Path, str]]:
+    """Each bullet of a `## playbook:` section and the new file it is written to.
+
+    Worked out once for every playbook section in the wrap, in order, and kept on the section: the
+    commit paths are listed before anything is written, and the files written must be those."""
+    if s.targets is None:
+        taken: set[Path] = set()
+        for x in sections:
+            if x.kind != "playbook":
+                continue
+            x.targets = []
+            for b in playbookmod.blocks(x.body):
+                path = playbookmod.new_fragment(x.arg, b["body"], frozenset(taken))
+                if path is not None:
+                    taken.add(path)
+                    x.targets.append((path, b["body"].rstrip() + "\n"))
+    return s.targets
+
+
 def apply_playbook(s: Section, dry: bool) -> str:
-    text = PLAYBOOK.read_text(encoding="utf-8")
-    new = playbook_with(text, s.arg, s.body)
-    assert new is not None  # validate() proved the heading is there
-    n = len(s.body.rstrip().split("\n"))
+    targets = playbook_targets([s], s) if s.targets is None else s.targets
     if not dry:
-        PLAYBOOK.write_text(new, encoding="utf-8", newline="")
-    return f"playbook: + {n} line(s) under {s.arg!r}"
+        for path, body in targets:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body, encoding="utf-8", newline="\n")
+    return f"playbook: + {len(targets)} bullet(s) under {s.arg!r}: " + \
+        ", ".join(rel_path(p) for p, _body in targets)
 
 
 def apply_handoff(s: Section, dry: bool) -> str:
@@ -1622,10 +1674,10 @@ def stale_edits() -> list[tuple[str, str, str]]:
 def playbook_headings() -> list[str]:
     """The `## ` headings a `## playbook:` section may name.
 
-    Thirteen `grep -n "^## " docs/agent/playbook.md` calls over one 19-session run, every one of
-    them in the tail, asking a question the file answers the same way every time.
+    Thirteen `grep -n "^## "` calls over the playbook in one 19-session run, every one of them in
+    the tail, asking a question that has the same answer every time.
     """
-    return re.findall(r"^## (.+)$", PLAYBOOK.read_text(encoding="utf-8"), flags=re.M)
+    return [head for _dir, head in playbookmod.SECTIONS]
 
 
 def check() -> int:
@@ -1822,7 +1874,7 @@ def template() -> int:
     # The docs this wrap writes, committed by this wrap. It is pre-filled because leaving it to
     # be remembered did not work: 9 of 19 sessions in one run ended with a hand-rolled `git add`
     # of exactly these three paths, after the wrap had already written all three.
-    docs = [PLAYBOOK, HANDOFF] if SIDE else [PLAN, PLAYBOOK, HANDOFF]
+    docs = [playbookmod.PLAYBOOK_DIR, HANDOFF] if SIDE else [PLAN, playbookmod.PLAYBOOK_DIR, HANDOFF]
     say(f"## commit: {' '.join(rel_path(p) for p in docs)}")
     say("docs(agent): what the handoff now says" if SIDE
         else "docs(agent): what the plan and the handoff now say")

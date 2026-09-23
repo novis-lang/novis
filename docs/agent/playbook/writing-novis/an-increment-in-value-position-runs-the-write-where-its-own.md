@@ -1,0 +1,7 @@
+- **An increment in value position runs the write where its own branch runs, and `echo` prints
+  operand by operand.** `if ($no && ($k++ > 0))` leaves `$k` at `0`, `$absent ?? $s++` increments
+  only when the left side is `null`, and a `match` arm's increment runs only for the arm that
+  matched — all PHP-identical, all easy to write an expectation against as though the operand were
+  unconditional. `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` before `make` runs,
+  so a case whose operand has a side effect has to expect the interleaving.
+  [until: reviewed 2026-09-06]

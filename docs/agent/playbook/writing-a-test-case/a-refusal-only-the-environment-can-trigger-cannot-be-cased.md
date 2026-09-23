@@ -1,0 +1,5 @@
+- **A refusal only the environment can trigger cannot be cased, and the error-path gate counts it as
+  owed, not exempt.** `Core\IO::stdin` throwing when stdin is a terminal asked for a case that
+  cannot exist (a case runs through `Command::output` with `Stdio::null`), and an "unreachable from
+  source" comment would be a lie. Fix the condition or move the rule where it can be asserted.
+  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str]

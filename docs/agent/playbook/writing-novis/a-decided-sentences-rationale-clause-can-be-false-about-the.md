@@ -1,0 +1,6 @@
+- **A `Decided:` sentence's rationale clause can be false about the tree, and the decision still
+  stands.** `crates/nvs-runtime/src/record.rs` gap 2 was answered "statically typed dumps already
+  render the case", and nothing in the workspace builds a `nvs_render::Node::EnumCase` at all — the
+  three renderings read the kind and no producer writes it. Build or strike the gap exactly as
+  decided, and write the prose that replaces it from what you grepped, never from the rationale.
+  [until: reviewed 2026-09-17]

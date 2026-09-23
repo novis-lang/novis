@@ -1,0 +1,7 @@
+- **A `Ctx` that outlives the `Unit` whose code it ran reads freed class descriptors, and the crash
+  lands nowhere near the cause.** Compiled code bakes each `ClassDesc`'s address in, so an exception
+  left on the context points into the `Rc<ClassTable>` the `Unit` owns; drop the unit first and
+  `ctx.pending()` reads freed memory — a wrong message, or a *misaligned pointer dereference* inside
+  `nvs_runtime::object::drop_one`, intermittently. `nvs_codegen::Unit::install_in` is the one
+  spelling: call it before running any of a unit's code, whether or not you care about `catch`.
+  [until: reviewed 2026-09-06]

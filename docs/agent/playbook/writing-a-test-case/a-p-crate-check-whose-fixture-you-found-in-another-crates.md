@@ -1,0 +1,7 @@
+- **A `-p <crate>` check whose fixture you found in another crate's tests can already have a twin in
+  the target crate's own `#[cfg(test)]` module.** `crates/nvs-host/tests/limits.rs`'s `closure_of` is
+  the visible builder of a registered handler, but `crates/nvs-runtime/src/ctx/hooks.rs`'s test module
+  holds `hook_of`, which builds the same arity-1 closure out of `ClassTable`, `MethodRow` and the
+  `CLOSURE_*` constants — all of them `nvs-runtime`'s own surface, so nothing has to move crates.
+  Grep the crate the check names for `ClassTable::new` before concluding its `args` is the wrong half.
+  [until: gone crates/nvs-runtime/src/ctx/hooks.rs:fn hook_of]

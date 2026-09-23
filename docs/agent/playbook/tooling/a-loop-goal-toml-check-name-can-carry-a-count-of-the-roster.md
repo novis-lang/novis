@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` check name can carry a *count* of the roster the goal itself grows, and the
+  count is stale the day the goal lands.** `runs_answers_true_for_three_drivers_and_false_for_sql_server_alone`
+  was drafted while `nvs_stdlib::queue::runs` answered true for three drivers, and goal
+  `sqlite-queue` makes it four, so the drafted name could only be satisfied by a test whose name
+  lies about what it asserts. Rename the check in both toml copies to the claim with the count
+  taken out — in a name of that shape the claim is the half after the `and`, and the count is
+  decoration — rather than writing the test under the drafted name. [until: reviewed 2026-09-10]

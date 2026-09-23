@@ -1,0 +1,6 @@
+- **A balance assertion across a primitive that *reports* a refusal reads the report as a leak.**
+  `abi::report_refusal` runs `Ctx::memory_breach`, which `format!`s the message the `FATAL` carries,
+  so `nvs_array_append`'s refusal moves `budget::live_bytes` by a couple of hundred bytes while
+  `nvs_array_set`'s moves it by nothing. Assert "allocated nothing" on the primitives that answer a
+  degenerate value, and assert the status plus the unchanged operand on the ones that answer a
+  status. [until: gone crates/nvs-runtime/src/ctx/limits.rs:pub fn memory_breach]

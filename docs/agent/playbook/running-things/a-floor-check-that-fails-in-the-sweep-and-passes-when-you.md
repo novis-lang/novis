@@ -1,0 +1,7 @@
+- **A floor check that fails in the sweep and passes when you run it by hand can be
+  load-dependent rather than flaky.** `examples/queue-purge.nvs` took 1.3s alone and 2.8s under
+  sixteen busy cores, and its queue worker held a connection carrying a spent 2s handshake
+  deadline that only ever fires on a read which has to wait, so the defect was invisible on an
+  idle machine and certain under the sweep's overlapped release build, ThreadSanitizer and fuzz
+  legs. Before calling a red floor check a flake, re-run it with the machine loaded and compare
+  the run's wall-clock against every deadline the path files. [until: reviewed 2026-09-20]

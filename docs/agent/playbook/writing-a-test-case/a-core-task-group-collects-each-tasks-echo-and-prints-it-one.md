@@ -1,0 +1,8 @@
+- **A `Core\Task` group collects each task's `echo` and prints it one whole task at a time, so an
+  `echo` trace cannot show that two tasks interleaved.** Two tasks printing `starts` and `wakes`
+  around a `Core\Time::sleep` come out as `long, long, short, short` however they really ran, and
+  the order tasks *start* in is not the order the fields were written — a group whose `slow` field
+  is written before `quick` traces `quick starts` first. Write the trace into a
+  `public static string` and echo it after the group returns, which is what
+  `tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst` does.
+  [until: reviewed 2026-09-20]

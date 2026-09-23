@@ -1,0 +1,6 @@
+- **An example that prints generated output can bake its own file name into the blessed `.out`.**
+  `Core\Command::completions` registers a script against the program's name, which under `nvs run`
+  is the file's stem, so `02-the-script-is-written-from-your-commands.nvs` blessed a bash function
+  called `__02_the_script_is_written_from_your_commands_complete`. Keep the slug short for any
+  example whose output quotes the program's own name, and read the blessed lines rather than
+  trusting the exit status. [until: reviewed 2026-09-18]

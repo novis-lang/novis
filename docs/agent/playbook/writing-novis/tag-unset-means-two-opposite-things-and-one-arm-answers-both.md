@@ -1,0 +1,7 @@
+- **`Tag::Unset` means two opposite things, and one arm answers both.** A `lateinit` slot still
+  throws under `??` and `isset`, while the same tag on a `$shape{…}` class means the subject carried
+  no such optional key, which `rule:types/shape-type` reads as absent. `ClassDesc::is_shape` splits
+  them at `crates/nvs-runtime/src/object.rs:3460`, so an edit there runs both
+  `a-property-that-was-never-written-is-read-as-a-throw.nvst` and
+  `an-optional-field-is-absent-and-a-nullable-one-is-null.nvst`.
+  [until: exists docs/rules/classes/an-unwritten-property-read-throws.md:shape]

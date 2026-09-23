@@ -1,0 +1,6 @@
+- **A new `nvs.toml` key its boot validator names by string already counts as read.**
+  `tools/directives.py` scans non-test crate source for the dotted key as a literal, and a refusal in
+  `crates/nvs-config/src/http.rs` is one — so the `[unread:]` trailer and the `NOT IMPLEMENTED` note a
+  key nothing *applies* looks like it owes are refused, by that gate and by
+  `no_key_with_a_reader_still_claims_to_be_unread`. Land the key with its refusal and no trailer, and
+  say in the handoff that nothing acts on the value yet. [until: reviewed 2026-09-13]

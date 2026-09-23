@@ -1,0 +1,6 @@
+- **A `docs/examples/config/<directive>/` example prints `(unset)` for its own key unless the
+  repository-root `nvs.toml` writes it**, because that file is the configuration every example runs
+  under and nothing supplies a second one. Its cache blocks say why they are written at exactly the
+  figures the code ships: a page printing `(unset)` teaches nothing about a key an operator is about
+  to write. Write the key at its shipped default, so the tree behaves identically, and say so in a
+  comment beside it. [until: reviewed 2026-09-18]

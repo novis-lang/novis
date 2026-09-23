@@ -1,0 +1,8 @@
+- **An oversized allocation refuses differently under `try.py` than under `nvs test`.** A scratch
+  `Core\Random::bytes(9223372036854775807)` run through `python tools/try.py` dies as
+  `FATAL: the request exceeded its memory limit`, while the same line inside a `tests/conformance/`
+  case throws the allocator's own catchable `…is larger than any buffer this process could hold` —
+  the two runners hand the request different ceilings, and the scratch pad's answer is the wrong one
+  to freeze into an `--EXPECT--`. Author the row wherever you like, then run it with
+  `target/debug/nvs test <case>.nvst` before believing what it printed.
+  [until: reviewed 2026-09-17]

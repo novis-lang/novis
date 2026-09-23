@@ -1,0 +1,6 @@
+- **A new directory under `benches/` breaks the whole workspace, and the error names a crate you
+  never wrote.** `Cargo.toml`'s `members` glob is `benches/*`, so a non-crate directory there makes
+  every `cargo` command fail with *"failed to read `…/benches/<dir>/Cargo.toml`"* — and nothing
+  fails until the next `cargo` invocation, which may be a container later. Add it to the `exclude`
+  list beside that glob, and run `cargo metadata --no-deps` as the cheap check.
+  [until: gone Cargo.toml:benches/*]

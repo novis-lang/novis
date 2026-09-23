@@ -1,0 +1,7 @@
+- **A `-p nvs-stdlib` test *can* run a real statement, on exactly one driver.** The bullets above
+  are right that no `nvs_db::Connection` can be built there, and wrong by implication that no
+  statement can run: `nvs_db::sqlite::open` is public and answers a bare `SqliteConn`, so an
+  in-memory database is a real engine needing no container and no `NVS_DB_MATRIX_DRIVER`. Reach for
+  it when the subject is a *statement* rather than a member, build the schema from the value the
+  product uses so the fixture cannot drift, and see `crates/nvs-stdlib/tests/queue_sqlite.rs`.
+  [until: reviewed 2026-09-10]

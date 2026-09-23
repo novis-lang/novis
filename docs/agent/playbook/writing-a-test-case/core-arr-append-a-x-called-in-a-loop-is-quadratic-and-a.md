@@ -1,0 +1,7 @@
+- **`Core\Arr::append($a, $x)` called in a loop is quadratic, and a hostile case built that way runs
+  for minutes rather than seconds.** The call holds a second reference to the array while it builds
+  its answer, so copy-on-write copies the whole thing every round — twenty thousand appends copied
+  on the order of two hundred million elements, four and a half minutes in a debug build, where the
+  identical loop finished in under two seconds once it stopped. Grow an array in a loop with
+  `$a[] = $x` and keep `Core\Arr::append` for the one-off where a second array is what you actually
+  want. [until: reviewed 2026-09-19]

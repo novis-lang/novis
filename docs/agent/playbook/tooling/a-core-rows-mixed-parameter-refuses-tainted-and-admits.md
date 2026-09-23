@@ -1,0 +1,7 @@
+- **A `Core` row's `mixed` parameter refuses `tainted` and admits `secret`**, so a comment beside one
+  saying "the value is refused" is about one axis only. `CoreTy::Mixed` interns as `mixed`, which the
+  assignment relation widens onto every qualifier bit, so the `secret` axis is a call-site rule instead —
+  `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_*_argument` family, one per carrier of the graph
+  copy. Before pinning a `secret` refusal at a `mixed` parameter, run the three-line program and read the
+  output: nothing reported means that carrier has not joined the family yet.
+  [until: reviewed 2026-09-13]

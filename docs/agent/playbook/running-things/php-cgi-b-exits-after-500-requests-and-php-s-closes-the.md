@@ -1,0 +1,6 @@
+- **`php-cgi -b` exits after 500 requests and `php -S` closes the connection to frame its body, so a
+  client sees a reset socket and an empty body.** The FastCGI SAPI honours `PHP_FCGI_MAX_REQUESTS`
+  and recycles the process at that count, which arrives as `WinError 10054` mid-run; PHP's built-in
+  server answers `Connection: close` with no `Content-Length`. Set `PHP_FCGI_MAX_REQUESTS=0` in the
+  child's environment as `tools/bench.py` does, and read to EOF when a response carries neither
+  header. [until: reviewed 2026-09-06]

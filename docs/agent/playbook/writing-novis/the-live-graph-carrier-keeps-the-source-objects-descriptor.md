@@ -1,0 +1,8 @@
+- **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s
+  *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode`
+  resolves a class by name and refuses one the program does not declare, but `copy_graph` never
+  resolved anything, because both sides of a `clone` are one program — at the isolate boundary they
+  are not, since `nvs-cli` compiles one unit per written path (`copy_graph_into(value,
+  Some(&resolve))` and `Live::admit` carry the rule there). Do not read a refusal in `graph.rs` as
+  covering both carriers; the `Carrier` trait is the list of what they share.
+  [until: reviewed 2026-09-06]

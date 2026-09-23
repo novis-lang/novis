@@ -1,0 +1,5 @@
+- **A compiled `parse`'s throw reaches a test as `Fault::Pending`, not `Fault::Thrown`, and its
+  sentence is on the context.** `call_static` leaves the implementor's message pending rather than
+  building a fault around it, so an arm matching `Fault::Thrown(_, said)` — what the *engine's own*
+  refusals look like one arm along — panics on a refusal that worked. Match `Fault::Pending(_)` and
+  read `ctx.take_pending()`, as `crate::command`'s `parse_each` does. [until: reviewed 2026-09-08]

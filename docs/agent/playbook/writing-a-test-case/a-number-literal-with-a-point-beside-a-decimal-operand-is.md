@@ -1,0 +1,6 @@
+- **A number literal with a point beside a `decimal` operand is `E0455`, and the literal is the
+  `float` half.** `decimal $carried = 1.00; $carried + 100.00;` does not compile, because a literal
+  takes its type from a declared target or a parameter and not from the other operand, while
+  `rule:types/arithmetic` gives `decimal ⊕ float` no common type. Declare the constant as its own
+  `decimal` binding, or write `as decimal`; an integer literal needs neither, since `decimal ⊕ int`
+  is a row of that table. [until: reviewed 2026-09-22]

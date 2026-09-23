@@ -1,0 +1,5 @@
+- **A `secret` cannot be measured from source, so a width invariant is asserted through the members
+  bounded by it.** `Core\Bytes::length($key)` on a `secret bytes` is `E0401`, because
+  `rule:security/secret-qualifier` does not widen downwards. Assert every draw is accepted by the
+  members that refuse every other width, and name the width over plain `bytes`, as
+  `crypto-names-the-key-length-bound-on-both-sides.nvst` does. [until: reviewed 2026-09-06]

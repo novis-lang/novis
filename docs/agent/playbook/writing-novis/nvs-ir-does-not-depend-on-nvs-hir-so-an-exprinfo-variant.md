@@ -1,0 +1,8 @@
+- **`nvs-ir` does not depend on `nvs-hir`, so an `ExprInfo` variant carrying a `QName` cannot be
+  destructured by name there.** `nvs_types::expr_table::ExprInfo` names `nvs_hir::QName` freely and
+  `nvs-ir` gets away with it only because every site calls `class.to_string()` without writing the
+  type; a lowering helper wanting a `&[nvs_hir::QName]` fails with `unresolved module or unlinked
+  crate nvs_hir` at the signature, which reads as a missing `use` and is not one. Convert to
+  `String` at the `self.exprs.lookup(...)` site and let the helper take `&[String]`; adding the
+  dependency would put the whole HIR in the lowering crate's graph for one type name.
+  [until: reviewed 2026-09-06]

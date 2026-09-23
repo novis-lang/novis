@@ -1,0 +1,6 @@
+- **A new `CoreTy` variant does not fail `cargo build`; it fails `cargo test -p nvs-stdlib` in
+  `crates/nvs-stdlib/src/ast.rs`.** `CoreTy` is `#[non_exhaustive]`, so the out-of-crate matches in
+  `nvs-cli/src/meta.rs` and `nvs-types/src/core_lib.rs` carry wildcards, while `ast.rs`'s `mentions`
+  is exhaustive on purpose and lives under `#[cfg(test)]`. Add the `mentions` arm in the same edit
+  as the variant, and do not trust a green `cargo check`.
+  [until: gone crates/nvs-stdlib/src/ast.rs:fn mentions]

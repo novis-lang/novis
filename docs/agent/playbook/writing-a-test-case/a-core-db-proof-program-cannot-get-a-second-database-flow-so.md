@@ -1,0 +1,7 @@
+- **A `Core\Db` proof program cannot get a second database flow, so one file may abandon at most
+  one walk.** Two `Core\Db::connect('notes')` calls on a `:memory:` block answer the *same*
+  connection — the second finds the first's tables — so the busy `LogicError`'s advice to "open a
+  second connection" is unreachable from a proof, and every step after an abandoned walk meets the
+  parked stream rather than its own subject. Keep one such step, last, and pin the rest from a
+  `.nvst` whose final statement is the one that parks the connection.
+  [until: reviewed 2026-09-22]

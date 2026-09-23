@@ -1,0 +1,6 @@
+- **An interface method needs `public` in a `.nvst` case but not in a `nvs-types` unit fixture.**
+  `crates/nvs-types/tests/common`'s `check_src` runs `parse` → `resolve` → `check_program` and
+  nothing else; the casing/visibility pass `nvs-cli`'s `front_end` runs
+  (`crates/nvs-syntax/src/casing.rs`, `E0122`) is not in it. So `interface Labelled { function
+  label(): string; }` is a fine unit fixture and a broken case file, and the fix is one keyword
+  rather than a hunt. [until: reviewed 2026-09-06]

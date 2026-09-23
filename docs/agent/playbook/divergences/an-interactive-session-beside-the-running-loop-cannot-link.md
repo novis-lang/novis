@@ -1,0 +1,7 @@
+- **An interactive session beside the running loop cannot link `nvs-cli`, and the error names a file
+  rather than a cause.** `cargo build` stops at `failed to remove file <repo>\target\debug\nvs.exe`
+  / `os error 5` because Windows will not replace a running image and the loop's `.nvst` trees run
+  one for minutes. `Get-CimInstance Win32_Process -Filter "Name='nvs.exe'"` shows it is live work —
+  PIDs change between two calls — so retry rather than kill; the same collision fails
+  `log::tests::the_engine_floor_rotates_and_rate_limits_itself` on a shared rotation path.
+  [until: reviewed 2026-09-06]

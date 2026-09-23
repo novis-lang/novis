@@ -1,0 +1,7 @@
+- **Registering a `Core` class is gated by the three-case conformance floor, so a class nothing
+  builds yet has to open its floor with refusals.** `Core\Sse\Message` has no constructor and no
+  member handing one back, so its three cases are compile-error cases that still type-check the
+  whole file. Run `target/debug/nvs.exe test tests/conformance/core/<case>.nvst` and paste the
+  diagnostic back rather than predicting it: a missing member is *no method named* on an arrow and
+  *no member named* on a `new`, and a `return` of an unknown call raises a second error the expected
+  block would then have to carry. [until: reviewed 2026-09-11]

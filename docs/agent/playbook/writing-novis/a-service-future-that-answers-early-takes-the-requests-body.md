@@ -1,0 +1,7 @@
+- **A service future that answers early takes the request's body pump down with it, and the request is
+  still reading.** `serve.rs`'s `Reply::Run` arm owns `Supply` and pumps it from the `poll_fn` it parks
+  in, so a head answered while the isolate runs ends that future and leaves a program parked on a pull
+  nothing will ever feed — a hang with no error anywhere, not a failed read. Anything that lets a
+  request answer before it ends has to move the supply onto the connection with it, which is what
+  `Streamed::supply` and the pump at the top of the drive loop are.
+  [until: reviewed 2026-09-11]

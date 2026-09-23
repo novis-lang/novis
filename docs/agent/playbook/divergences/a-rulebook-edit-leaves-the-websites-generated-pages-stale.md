@@ -1,0 +1,7 @@
+- **A rulebook edit leaves the website's generated pages stale, and `verify.py` does not look at
+  them.** `docs/rules/*.md`, `ground-rules.md` and `divergences.md` come from `python tools/rules.py
+  --render`, but `website/src/content/docs/docs/rules/` and `website/src/data/rules.json` come from
+  `npm --prefix website run sync:rules`, which nothing in the verification pipeline runs. Expect that
+  sync to also rewrite chapters you never touched — it catches up every status change landed since
+  the last one — so commit the catch-up separately from your own change.
+  [until: gone website/scripts/sync-rules.mjs]

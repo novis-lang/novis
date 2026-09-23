@@ -1,0 +1,7 @@
+- **A new item-producing function in `nvs-lsp`'s completion fails a test that names no arm you
+  touched.** `every_completion_source_names_a_compiler_table` reads that module's own source and
+  compares every function returning a `CompletionItem` against the `SOURCED` table beside it, so an
+  arm added without a row fails in `crates/nvs-lsp/tests/completion.rs` rather than where it was
+  written. Add the row — the function's name, and a needle from its body naming the compiler table it
+  reads — and widen the array's declared length.
+  [until: gone crates/nvs-lsp/tests/completion.rs:const SOURCED]

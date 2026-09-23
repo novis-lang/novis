@@ -1,0 +1,6 @@
+- **A parser refusal that yields `ExprKind::Error` doubles its own `--EXPECTF-ERROR--` block.**
+  `Error` types as `mixed`, so every binding fed by one reports an `E0401` beside the refusal that
+  caused it, once per site. Prefer handing the *operand* back in place of the refused prefix;
+  `parse_unary` in `crates/nvs-syntax/src/parser/expr.rs` keeps `Error` only for a cast naming a
+  type it cannot produce. Decide which a new refusal wants before writing the expected block.
+  [until: reviewed 2026-09-06]

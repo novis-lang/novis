@@ -1,0 +1,6 @@
+- **A `decimal` class constant declares cleanly and fails at the *read*, with `E0792: has no
+  compile-time value to inline`.** A constant is inlined at every use site, and
+  `crates/nvs-types/src/defaults.rs`'s module doc says the `ConstArg` variant carrying
+  `InstKind::ConstDecimal` is unbuilt, so the grid folds the literal to nothing — the declaration
+  itself says nothing about it. Keep the rate as an `int` percentage and divide, or write the
+  literal at the use site. [until: exists crates/nvs-types/src/defaults.rs:ConstArg::Decimal]

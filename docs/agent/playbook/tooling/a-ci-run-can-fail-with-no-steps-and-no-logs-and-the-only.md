@@ -1,0 +1,7 @@
+- **A CI run can fail with no steps and no logs, and the only place GitHub says why is the check
+  run's *annotations*.** `gh run list` reports `"conclusion":"failure"`, every job ends two seconds
+  after it started with `steps: 0`, and `gh run view <id> --log-failed` answers `log not found` —
+  which reads like a broken `gh` or a stale run rather than what it is, jobs that were never started.
+  `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations` prints the sentence itself, the job
+  id being the one in that `log not found`, and nothing else in the API carries it.
+  [until: reviewed 2026-09-18]

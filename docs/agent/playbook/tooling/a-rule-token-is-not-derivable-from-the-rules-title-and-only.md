@@ -1,0 +1,6 @@
+- **A `rule:` token is not derivable from the rule's title, and only `rules.py --check` says so.** Three
+  citations written from a remembered title were each one word off the real id —
+  `member-names-are-full-words` for `members-are-full-words`, `a-unit-is-a-type` for `units-are-types`,
+  `library-placement-tests` for `tier-placement`. Grep the topic's JSON for `"id"`, or paste the token into
+  `python tools/peek.py rule:<id>` and see whether a fragment comes back.
+  [until: reviewed 2026-09-13]

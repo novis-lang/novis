@@ -1,0 +1,5 @@
+- **A `Core` value type's slots are observable through `Core\Debug::render`, which is how a case
+  asks what a `Cli\Style` holds.** A captured stream is `ColorDepth::None`, and `--ENV--`
+  `CLICOLOR_FORCE=1` works on Linux but not Windows, where `enable_virtual_terminal()` fails
+  `GetConsoleMode` on a pipe. `Core\Debug::render($value) as string` prints the slots on every host;
+  compare whole renderings. [until: reviewed 2026-09-06]

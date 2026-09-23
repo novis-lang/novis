@@ -1,0 +1,6 @@
+- **A `[cache.process] max_size` case is sized against a shard's *share*: the tier is 64 shards and each
+  evicts against `max_size / 64`.** A cap of `3K` — the local tier's own eviction case's figure — leaves
+  a shard 48 bytes, under `ENTRY_OVERHEAD`, so every entry is forgotten as it arrives and the case
+  asserts nothing. Keep an entry under the share, cross the whole cap several times over, and assert the
+  bound rather than which key went, because which shard a key lands in is a hash's business.
+  [until: reviewed 2026-09-13]

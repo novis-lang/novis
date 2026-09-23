@@ -1,0 +1,7 @@
+- **An options-bag member refuses a non-literal options argument with `E0453`, not with a type
+  mismatch.** A case pinning "the filter is one trailing shape" by writing
+  `Core\Queue::purge("email", Core\Queue\State::Dead)` reads as an `E0401` about the shape's type,
+  and the answer is `an options argument must be written out as {...} at the call site` — the
+  options are flattened one per argument, so there is nothing for a value to be checked against.
+  Write the case, run `target/debug/nvs.exe test <file>`, and paste back the line it printed.
+  [until: reviewed 2026-09-10]

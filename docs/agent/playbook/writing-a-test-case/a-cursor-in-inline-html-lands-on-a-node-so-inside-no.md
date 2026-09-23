@@ -1,0 +1,5 @@
+- **A cursor in inline HTML lands on a node, so "inside no production" is narrower than it looks.**
+  `InlineHtml` is one of `nvs_syntax::walk`'s own kinds, and so are `Error` and every operator, so
+  `SyntaxIndex::at` answers something for a cursor almost anywhere in a file. The offsets that are
+  genuinely inside nothing are the trivia runs between two nodes — a blank line between two
+  statements is the one to reach for. [until: reviewed 2026-09-08]

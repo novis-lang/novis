@@ -1,0 +1,6 @@
+- **A `catch` binding declared inside a loop body still belongs to the function, so a later
+  file-scope `catch` cannot reuse its name.** Several file-scope `try`s each binding `$e` compile,
+  but once one is inside a `for` or `foreach`, every later clause reports `E0406: `$e` is already
+  declared` pointing at the loop's clause. Give each `catch` in a case its own name (`$capped`,
+  `$zero`, `$beyond`); in the same family, `Core\Str::repeat` takes a `uint`, so an `int` counter
+  needs `$d as uint` at the argument or it is `E0401`. [until: reviewed 2026-09-06]

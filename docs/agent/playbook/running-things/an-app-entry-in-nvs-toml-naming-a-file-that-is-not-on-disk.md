@@ -1,0 +1,7 @@
+- **An `[[app]] entry` in `nvs.toml` naming a file that is not on disk yet stops every program in
+  the repository, not only the one the block is about.** `E0605` is raised while the configuration
+  tree is read, so a block written ahead of the proof it grants leaves `nvs run` and `dossier.py
+  --bless` refusing files that have nothing to do with it, and the error names the missing *entry*
+  rather than the program that was run. Write the `.nvs` first and its block second, or put both in
+  one edit, and read the path in an `E0605` before believing it is about the file you just asked for.
+  [until: reviewed 2026-09-19]

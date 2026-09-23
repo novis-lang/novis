@@ -1,0 +1,7 @@
+- **A shape field whose name is a PHP keyword cascades into a hundred parse errors, and the first one
+  reads as a defect in the field's *type*.** `{list: array<string>}` fails at `list`, which lexes as a
+  keyword rather than an `Ident`, so `parse_shape_type`'s `expect(TokenKind::Ident, "a field name")`
+  points at the name while every error after it blames the `<` of the type beside it — which reads
+  exactly like a shape that cannot hold an `array<T>`. Rename the field before believing the type is at
+  fault: `{items: array<string>}` parses, takes `tainted`'s distribution and is silent.
+  [until: reviewed 2026-09-08]

@@ -1,0 +1,7 @@
+- **A rule the compiler enforces at the call site has no enforcement on the erased path, and nothing
+  in the tree says so.** `rule:classes/property-observer-pipeline`'s `onPropertySet` is emitted
+  beside every `FieldSet` from the declaration, but a write through a `mixed` receiver has none, so
+  `nvs_object_slot_set` stored the slot and told nobody. Ask of any compile-time-answered rule what
+  `SlotGet`/`SlotSet`, `call_erased_method` and `value_to_string`'s `Tag::Object` arm do;
+  `nvs_runtime::write_erased_property` holds the write half and `nvs_object_slot_get` still has the
+  gap. [until: reviewed 2026-09-06]

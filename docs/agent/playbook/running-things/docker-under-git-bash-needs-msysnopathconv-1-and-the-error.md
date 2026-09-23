@@ -1,0 +1,5 @@
+- **`docker` under Git Bash needs `MSYS_NO_PATHCONV=1`, and the error names a path you never
+  wrote.** MSYS rewrites every argument starting with `/` — the container's `/bin/sh`, a `cp` of
+  `/certs/ca.crt` — into a Windows path before `docker` sees it, so the failure is `stat C:/Program
+  Files/Git/usr/bin/sh: no such file or directory`. Prefix the command; a relative `-f
+  tests/db/compose.yaml` is unaffected. [until: reviewed 2026-09-06]

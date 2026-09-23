@@ -1,0 +1,5 @@
+- **An `echo` whose later argument throws has already printed its earlier ones.** A `.nvst` case
+  printing a label and the read in one `echo` inside a `try` writes `uint over below: ` before the
+  refusal, so the `catch`'s own line lands behind it and `--EXPECT--` never matches, while the
+  member is doing exactly what it should. Do the read on its own line, then echo what came back.
+  [until: reviewed 2026-09-21]

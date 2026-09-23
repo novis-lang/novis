@@ -1,0 +1,7 @@
+- **A fixture that exits nonzero *by design* fails the valgrind sweep, and the failure reads as a
+  leak.** `tools/loop.py` runs `valgrind --error-exitcode=1` and grades the fixture on its exit
+  status, so a `FATAL` fixture reports as `valgrind <file>: exit 1` with its own stderr as the
+  "error". Check whether the fixture's own `[[check]]` says `exit = "nonzero"` before looking for a
+  leak, and name it under `[valgrind] skip` in both the live goal file and its `docs/agent/goals/`
+  twin — that entry is load-bearing and a goal switch has lost it before.
+  [until: gone tools/loop.py:error-exitcode]

@@ -1,0 +1,7 @@
+- **A `static` method's slot 0 is the *called class*, not an empty receiver.** Calling one from Rust
+  (`nvs_runtime::abi::call` on a `Unit::function("Class::method")` address) with a `null` first slot
+  segfaults inside the callee, nowhere a message could print:
+  `rule:statements/static-is-a-member-modifier`'s late static binding puts a `ClassDesc` there,
+  `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and `Value::class_desc` is the
+  encoding. An instance method's slot 0 is the receiver, so the trap shows only the first time
+  native code calls a `static` one. [until: reviewed 2026-09-06]

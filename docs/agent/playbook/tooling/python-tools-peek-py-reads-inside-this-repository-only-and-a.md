@@ -1,0 +1,6 @@
+- **`python tools/peek.py` reads inside this repository only, and a path outside it answers `NO SUCH
+  FILE` rather than an error you can act on.** A glob that resolved fine in the shell a call earlier
+  gets the same answer. Reading a dependency's own source
+  (`~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/src/…`, found with `ls -d`) is the
+  Read tool's job, and it is worth doing before writing by hand a wire field the crate already
+  models. [until: gone tools/peek.py:NO SUCH FILE]

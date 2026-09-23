@@ -116,7 +116,7 @@ def call_text(call):
 
 BUCKETS = (
     ("goal", ("docs/agent/goals/", "loop-goal")),
-    ("orientation", ("orient.py", "brief.py", "docs/agent/handoff.md", "docs/agent/playbook.md",
+    ("orientation", ("orient.py", "brief.py", "docs/agent/handoff.md", "docs/agent/playbook",
                      "docs/agent/conventions.md", "AGENTS.md", "CLAUDE.md")),
     ("process docs", ("docs/agent/",)),
     ("adr", ("docs/adr/", "docs/decisions/")),

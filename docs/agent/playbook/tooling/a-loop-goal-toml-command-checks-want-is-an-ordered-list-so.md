@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` `command` check's `want` is an *ordered* list, so two names in it
+  assert an order as much as a presence.** `nvs schema dump`'s wanted `nvs_jobs` before
+  `nvs_dead_jobs`, which no server answers: every catalog query in `nvs_db::catalog` orders
+  by table name, so the dump is alphabetical and the check read as unwritten work forever.
+  Before writing output to satisfy a `want`, ask whether the order it names is one the data
+  can have — and when it is not, fix the `want` and say in a comment which ordering is real.
+  [until: reviewed 2026-09-06]

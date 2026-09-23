@@ -1,0 +1,5 @@
+- **`plan.py --get <Field>` prints a field whole, so weigh it against what the field costs.** It is
+  the right call when you need the field's exact wording, which a `## plan-edit:` fragment has to
+  quote. To confirm an edit *landed*, `grep -n` the phrase in `docs/implementation-plan.md` instead
+  — the `> `-prefixed lines are the same fact for a fraction of the cost, and `--wrap` already told
+  you. [until: reviewed 2026-09-06]

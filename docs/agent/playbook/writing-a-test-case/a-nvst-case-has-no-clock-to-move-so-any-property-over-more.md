@@ -1,0 +1,6 @@
+- **A `.nvst` case has no clock to move, so any property over more than one time step is a Rust
+  test.** `Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, and a case is
+  top-level statements never inside one (`test-advance-refuses-without-a-fixed-clock.nvst` says so).
+  A case can only watch `Core\Time::sleep` across a wall-clock second, asserting the biconditional
+  *the answer moved exactly when the step did* rather than "unchanged" (flaky one run in thirty);
+  the step axis belongs in the module's own `#[cfg(test)] mod tests`. [until: reviewed 2026-09-06]

@@ -1,0 +1,5 @@
+- **A spread argument lowers, so a case that composes a variadic member composes it rather than
+  folding by hand.** `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s doc comment
+  writes the round trip. A helper over the `array<string>` still fits when the *pieces* are the
+  subject; inside it an array is indexed by the *string* of the offset (`$parts[$i as string]`), and
+  an `int` counter compares against `Core\Arr::count($parts) as int`. [until: reviewed 2026-09-06]

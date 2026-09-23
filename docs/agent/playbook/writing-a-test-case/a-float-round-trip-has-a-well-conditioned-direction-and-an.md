@@ -1,0 +1,6 @@
+- **A float round trip has a well-conditioned direction and an ill-conditioned one; pick the
+  direction rather than loosening the tolerance.** Composing a member with its inverse amplifies the
+  inner answer's last digits where the outer member is steep, so one way round is host-independent
+  and the other measures libm: `asinh(sinh($x))` and `acosh(cosh($x))` are contractions, while
+  `atanh` amplifies by `1 / (1 - $y * $y)`, so that trip is `tanh(atanh($y))` over `(-1, 1)`.
+  [until: reviewed 2026-09-06]

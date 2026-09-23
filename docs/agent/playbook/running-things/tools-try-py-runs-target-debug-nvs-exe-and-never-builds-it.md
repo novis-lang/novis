@@ -1,0 +1,5 @@
+- **`tools/try.py` runs `target/debug/nvs.exe` and never builds it, so a member you just added
+  reports `E0405` as if its registry row never landed.** The driver builds that binary at session
+  start and nothing afterwards refreshes it — a green `cargo test -p nvs-stdlib` does not, because a
+  test binary is its own. One `cargo build` before `try.py` is the fix, not anything in
+  `registry.rs`. [until: gone tools/try.py]

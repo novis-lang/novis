@@ -1,0 +1,7 @@
+- **`Core\Json::encode` refuses a `bytes` value, so it is the way round an `array<mixed>` only while
+  every element is a scalar or a string.** `Core\Bytes::unpack`'s answer is where that bites: a
+  format holding an `a`, `A` or `Z` field yields a buffer element, and encoding the list throws
+  *"Core\Json::encode(): tag 11 has no JSON encoding"*, which reads as a bug in the case rather than
+  the missing row it is. Render such a case with `Core\Arr::count` for the shape and
+  `Core\Encoding::toHex` per buffer, and keep `Json::encode` for the numeric formats.
+  [until: reviewed 2026-09-06]

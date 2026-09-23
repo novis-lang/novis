@@ -1,0 +1,5 @@
+- **Message tags written as `[b'D', b'H', b'q', b'W']` fail `clippy` under `-D warnings`
+  (`byte_char_slices`).** The failure arrives from `verify.py`'s clippy step rather than from `cargo
+  test`. Write the tags as `*b"DHqW"`, since iterating a dereferenced byte-string literal yields the
+  same `u8`s, and expect the same lint on any protocol case that sweeps field or message tags.
+  [until: reviewed 2026-09-06]

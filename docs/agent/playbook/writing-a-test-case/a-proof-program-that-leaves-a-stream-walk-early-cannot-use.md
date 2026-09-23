@@ -1,0 +1,8 @@
+- **A proof program that leaves a `stream` walk early cannot use that connection again.** `break` out
+  of a `foreach` over `Core\Db\Connection::stream` and the next statement on the same connection
+  throws `LogicError`, because the walk holds the connection until the request ends — the module doc
+  at `crates/nvs-stdlib/src/db/stream.rs` states that as the member's price, and
+  `rule:core-classes/a-stream-parks-its-read-on-the-connection`'s "returns to `Idle`" is the pooled
+  reset rather than something the program gets back. Bound the result with `limit` in the statement
+  instead, and where a case really has to abandon a walk, make that its last step.
+  [until: reviewed 2026-09-21]

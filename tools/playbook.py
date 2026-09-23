@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Pick the playbook bullets a goal actually needs, and report the ones that have gone stale.
 
-`docs/agent/playbook.md` is append-mostly by decision -- every trap a session writes down is
-charged to every session after it -- and three things bound what that costs. A bullet has a shape
+The playbook is one file per bullet under `docs/agent/playbook/<section>/`, and
+`docs/agent/playbook.md` is its contract. It is append-mostly by decision -- every trap a session
+writes down is charged to every session after it -- and three things bound what that costs. A bullet has a shape
 (docs/agent/conventions.md § *A playbook bullet*: three sentences, about 400 B) and a weight
 `session.py --wrap` refuses past its `PLAYBOOK_BULLET_MAX`; every bullet declares what retires it,
 and the wrap deletes it the day that holds; and `orient.py` slices the file twice -- by the goal's
@@ -124,7 +125,22 @@ import goals as goalsmod  # noqa: E402  -- the chain's one reader
 import orient as orientmod  # noqa: E402  -- bullet parsing lives there and is not reimplemented
 
 ROOT = Path(__file__).resolve().parent.parent
+#: The playbook's contract: what a bullet is, what it is not, and where the bullets are.
 PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
+#: The bullets, one file each: `<section directory>/<slug>.md` holds exactly one `- ` bullet.
+#: A new trap is a new file and a retired one is a deleted file, so two runs that each add a
+#: bullet never edit the same file.
+PLAYBOOK_DIR = ROOT / "docs" / "agent" / "playbook"
+#: The sections, in the order `read` joins them: each one's directory, and the heading a
+#: `[context] playbook` selector and a wrap's `## playbook:` section name it by.
+SECTIONS = (
+    ("tooling", "Tooling"),
+    ("running-things", "Running things"),
+    ("writing-a-test-case", "Writing a test case"),
+    ("splitting-a-file", "Splitting a file that got too big"),
+    ("writing-novis", "Writing Novis itself"),
+    ("divergences", "Divergences and refusals already pinned"),
+)
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 HANDOFF = ROOT / "docs" / "agent" / "handoff.md"
 GUARD_DEBT = ROOT / "docs" / "agent" / "guard-name-debt.md"
@@ -136,16 +152,15 @@ EXPIRY = re.compile(r"\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*
 #: Anything that looks like a trailer but did not parse as one, so a typo is a finding and not a
 #: bullet that silently declares nothing.
 EXPIRY_LIKE = re.compile(r"\[until:[^\]]*\]?\s*$")
-#: How old a `reviewed` date may be before `--check` lists the bullet as owed a re-read. Sixty
-#: days: the file grew from 86 bullets to over a thousand in a fortnight, so a claim two months
-#: old has outlived most of the tree it was written against.
-REVIEW_DAYS = 60
+#: How old a `reviewed` date may be before `--check` lists the bullet as owed a re-read. Fourteen
+#: days: the tree a claim was checked against changes that much in a fortnight. A date in the
+#: future is owed a re-read too, because it records no reading.
+REVIEW_DAYS = 14
 
 #: The other three append-mostly files and which of their blocks must declare. A block is a `- `
 #: bullet or a `NNN. ` entry at column 0; the predicate takes the section heading it sits under
-#: and the block's first line.
+#: and the block's first line. Every playbook bullet must declare, and `declaring` adds its files.
 DECLARING = {
-    PLAYBOOK: lambda head, first: True,
     GUARD_DEBT: lambda head, first: first.startswith("- ["),
     CARRIED_GAPS: lambda head, first: head == "Unowned",
     CARRIED_REFUSALS: lambda head, first: bool(re.match(r"^9\d\d\. ", first)),
@@ -259,7 +274,7 @@ def report_growth(indent: str = "") -> None:
     which bounds what any one session PAYS regardless of what the file holds."""
     try:
         out = subprocess.run(
-            ["git", "log", "--numstat", "--format=%H %at", "--", str(PLAYBOOK.relative_to(ROOT))],
+            ["git", "log", "--numstat", "--format=%H %at", "--", str(PLAYBOOK_DIR.relative_to(ROOT))],
             cwd=ROOT, capture_output=True, text=True, timeout=30,
         ).stdout
     except (OSError, subprocess.SubprocessError):
@@ -292,8 +307,61 @@ def report_growth(indent: str = "") -> None:
     print(f"{indent}  Read this when deciding whether a pass should prune, and nothing else.")
 
 
-def read() -> str:
-    return PLAYBOOK.read_text(encoding="utf-8")
+def fragments() -> list[tuple[str, Path]]:
+    """(section heading, file) for every bullet, sections in `SECTIONS` order, files by name."""
+    return [(head, p) for d, head in SECTIONS for p in sorted((PLAYBOOK_DIR / d).glob("*.md"))]
+
+
+def read(skip: frozenset[Path] = frozenset()) -> str:
+    """Every bullet file joined into one text, each section's under its `## ` heading.
+
+    Every reader parses this text and never the files one by one, so a selector, a collision and a
+    score mean exactly what they meant when the bullets were one file. `skip` leaves files out,
+    which is how `retire` asks what a selector reaches once they are deleted."""
+    parts = []
+    for d, head in SECTIONS:
+        parts.append(f"## {head}\n")
+        for p in sorted((PLAYBOOK_DIR / d).glob("*.md")):
+            if p not in skip:
+                parts.append(p.read_text(encoding="utf-8").rstrip() + "\n")
+    return "\n".join(parts)
+
+
+def section_dir(heading: str) -> Path | None:
+    """The directory of the section a wrap's `## playbook: <heading>` names, matched on its words."""
+    def norm(t: str) -> str:
+        return re.sub(r"\s+", " ", re.sub(r"[`*_#]", "", t)).strip().lower()
+    return next((PLAYBOOK_DIR / d for d, head in SECTIONS if norm(head) == norm(heading)), None)
+
+
+def slug(lead: str) -> str:
+    """A bullet's file name, without `.md`: the words of its lead-in, lower case, at most 60 chars."""
+    out = ""
+    for w in re.findall(r"[a-z0-9]+", re.sub(r"[`*_\"'’“”]", "", lead).lower()):
+        nxt = f"{out}-{w}" if out else w
+        if len(nxt) > 60:
+            break
+        out = nxt
+    return out or "bullet"
+
+
+def new_fragment(heading: str, body: str, taken: frozenset[Path] = frozenset()) -> Path | None:
+    """The file a new bullet is written to: its lead-in's `slug` under its section's directory,
+    with `-2`, `-3` ... added when that name is on disk or in `taken`. None for an unknown section."""
+    where = section_dir(heading)
+    if where is None:
+        return None
+    found = orientmod.bullets(body.strip())
+    base = slug(found[0][0] if found else body)
+    path, n = where / f"{base}.md", 2
+    while path.exists() or path in taken:
+        path, n = where / f"{base}-{n}.md", n + 1
+    return path
+
+
+def declaring() -> list[tuple[Path, object]]:
+    """Every file whose blocks must declare what retires them, with the predicate for which do."""
+    return [(p, lambda head, first: True) for _head, p in fragments()] + list(DECLARING.items())
 
 
 def sections(text: str) -> list[str]:
@@ -421,6 +489,8 @@ def holds(kind: str, arg: str, today: date) -> tuple[bool | None, str]:
         except ValueError:
             return None, f"`{arg}` is not a YYYY-MM-DD date"
         age = (today - when).days
+        if age < 0:
+            return False, f"dated {-age} days ahead -- owed a re-read, since no one read it then"
         if age > REVIEW_DAYS:
             return False, f"reviewed {age} days ago -- owed a re-read"
         return False, f"reviewed {age} days ago"
@@ -478,7 +548,7 @@ def expiry_report(today: date | None = None) -> tuple[list[dict], list[dict], li
     """Over the four files: (expired, owed a re-read, undeclared or malformed, owner-retired rows)."""
     today = today or date.today()
     expired, owed, bad, rows = [], [], [], []
-    for path, must in DECLARING.items():
+    for path, must in declaring():
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
@@ -521,8 +591,8 @@ def expiry_report(today: date | None = None) -> tuple[list[dict], list[dict], li
 def report_expiry(today: date | None = None) -> tuple[int, int]:
     """Print the four expiry findings; return (expired count, undeclared-or-malformed count)."""
     expired, owed, bad, rows = expiry_report(today)
-    declared = sum(1 for p in DECLARING if p.exists() for b in blocks(p.read_text(encoding="utf-8"))
-                   if declaration(b["body"]))
+    declared = sum(1 for p, _must in declaring() if p.exists()
+                   for b in blocks(p.read_text(encoding="utf-8")) if declaration(b["body"]))
     print("== BULLETS WHOSE RETIREMENT CONDITION HOLDS  (delete them: `python tools/playbook.py --retire`)")
     for e in expired:
         print(f"  {e['file']}:{e['line']}  {e['lead']}")
@@ -533,7 +603,7 @@ def report_expiry(today: date | None = None) -> tuple[int, int]:
         print(f"\n  {len(expired)} bullet(s). Each is mechanically dead: the thing it waited for is on disk,")
         print("  or the thing it was about is gone. `git log -S` keeps the text; the file need not.")
 
-    print(f"\n== BULLETS OWED A RE-READ  (`reviewed` more than {REVIEW_DAYS} days ago)")
+    print(f"\n== BULLETS OWED A RE-READ  (`reviewed` more than {REVIEW_DAYS} days ago, or dated ahead)")
     for e in owed:
         print(f"  {e['file']}:{e['line']}  {e['lead']}  -- {e['why']}")
     if not owed:
@@ -607,10 +677,19 @@ def retire(expired: list[dict], dry: bool) -> list[str]:
     by_file: dict[Path, list[dict]] = {}
     for e in expired:
         by_file.setdefault(e["path"], []).append(e)
+    bullet_files = {p for _head, p in fragments()}
     before = read()
-    after = before
+    after = read(frozenset(p for p in by_file if p in bullet_files))
     changed: list[str] = []
     for path, entries in by_file.items():
+        if path in bullet_files:
+            # A bullet file holds one bullet, so retiring it deletes the file.
+            for e in entries:
+                print(f"  retire  {e['file']}  {e['lead']}  -- {e['why']}")
+            if not dry:
+                path.unlink()
+            changed.append(entries[0]["file"])
+            continue
         lines = path.read_text(encoding="utf-8").split("\n")
         for e in sorted(entries, key=lambda x: -x["start"]):
             print(f"  retire  {e['file']}:{e['line']}  {e['lead']}  -- {e['why']}")
@@ -620,8 +699,6 @@ def retire(expired: list[dict], dry: bool) -> list[str]:
             if 0 < e["start"] < len(lines) and not lines[e["start"]].strip() and not lines[e["start"] - 1].strip():
                 del lines[e["start"]]
         text = "\n".join(lines)
-        if path == PLAYBOOK:
-            after = text
         if not dry:
             path.write_text(text, encoding="utf-8", newline="\n")
         changed.append(entries[0]["file"])
@@ -913,7 +990,7 @@ def run_gap(text: str, every: list[dict], floor: int) -> int:
 
 def run_index(text: str, every: list[dict]) -> int:
     total = nbytes(text)
-    print(f"docs/agent/playbook.md: {total} bytes, {len(every)} bullets in "
+    print(f"docs/agent/playbook/: {total} bytes, {len(every)} bullets in "
           f"{len(sections(text))} sections")
     for head in sections(text):
         mine = [b for b in every if b["section"] == head]
@@ -1084,8 +1161,22 @@ def run_dupes(every: list[dict], floor: float) -> int:
     return 0
 
 
+def named_paths(body: str) -> list[str]:
+    """Every repo path a bullet names in backticks, braces expanded, whether or not it exists."""
+    out = []
+    for raw in re.findall(r"`([^`]+)`", body):
+        cand = PATH_TRIM.sub("", raw.strip().split()[0] if raw.strip() else "")
+        # `*` and `<` are the spellings of a path a bullet never claimed exists; an elision
+        # -- `tests/conformance/io/…` -- is a third, and the bullet that spells one is often
+        # the trap that the layout it names is the one the tree did NOT take.
+        if not cand.startswith(TREE_DIRS) or any(m in cand for m in ("*", "<", "…", "...")):
+            continue
+        out += brace_expand(cand)
+    return out
+
+
 def run_check(text: str, every: list[dict]) -> int:
-    print(f"docs/agent/playbook.md: {nbytes(text)} bytes, {len(every)} bullets\n")
+    print(f"docs/agent/playbook/: {nbytes(text)} bytes, {len(every)} bullets\n")
 
     _expired, undeclared = report_expiry()
 
@@ -1095,21 +1186,14 @@ def run_check(text: str, every: list[dict]) -> int:
     deliberate: list[tuple[str, str, str]] = []
     for b in every:
         gone = []
-        for raw in re.findall(r"`([^`]+)`", b["body"]):
-            cand = PATH_TRIM.sub("", raw.strip().split()[0] if raw.strip() else "")
-            # `*` and `<` are the spellings of a path a bullet never claimed exists; an elision
-            # -- `tests/conformance/io/…` -- is a third, and the bullet that spells one is often
-            # the trap that the layout it names is the one the tree did NOT take.
-            if not cand.startswith(TREE_DIRS) or any(m in cand for m in ("*", "<", "…", "...")):
+        for one in named_paths(b["body"]):
+            if (ROOT / one).exists():
                 continue
-            for one in brace_expand(cand):
-                if (ROOT / one).exists():
-                    continue
-                why = DELIBERATE_STALE.get((b["selector"], one))
-                if why is not None:
-                    deliberate.append((b["selector"], one, why))
-                else:
-                    gone.append(one)
+            why = DELIBERATE_STALE.get((b["selector"], one))
+            if why is not None:
+                deliberate.append((b["selector"], one, why))
+            else:
+                gone.append(one)
         if gone:
             stale += 1
             print(f"  {b['selector']}")
@@ -1222,8 +1306,8 @@ def main() -> int:
     except AttributeError:
         pass
 
-    if not PLAYBOOK.exists():
-        print(f"playbook.py: no {PLAYBOOK.relative_to(ROOT).as_posix()}")
+    if not PLAYBOOK_DIR.is_dir():
+        print(f"playbook.py: no {PLAYBOOK_DIR.relative_to(ROOT).as_posix()}/")
         return 2
 
     text = read()

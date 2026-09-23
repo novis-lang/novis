@@ -1,0 +1,6 @@
+- **A test that a method table was bound needs a call the compiler cannot devirtualize, and
+  `static::m()` is the reliable one.** `$obj->m()` on a known class lowers to a direct
+  `InstKind::Call`; late static binding lowers to `InstKind::CallVirtual`. Use a `Base` whose
+  `shout()` calls `static::speak()` and a `Derived` overriding `speak`, assert on
+  `Derived::shout()`, then delete the binding call, watch it fail, and put it back.
+  [until: reviewed 2026-09-06]

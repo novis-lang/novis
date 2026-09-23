@@ -1,0 +1,7 @@
+- **A unit test handing a member a class with a derived JSON codec owes that class a native
+  constructor.** `ClassTable::define` plus `crates/nvs-runtime/src/object.rs:1194`'s `set_codec` looks
+  like the whole fixture, but hydration runs the class's *real* constructor through
+  `crates/nvs-runtime/src/object.rs:2798`, which faults on a class with no `CONSTRUCTOR` row — and
+  `crates/nvs-stdlib/tests/allocation_policy.rs:288`, the nearest shape, declares none. Budget the
+  fixture as its own slice, and leak the table, because a descriptor's address is its identity.
+  [until: reviewed 2026-09-08]

@@ -1,0 +1,7 @@
+- **A handler closure in `nvs-cli` takes its parameter type from its first statement, and the
+  annotation cannot be spelled from `hyper`.** `move |request| { … }` compiles only because
+  `table.select(&request, &OnDisk)` pins it to `Request<Incoming>`; a read placed above that line is
+  `E0282: type annotations needed`, and `nvs-cli` has no `hyper` dependency on purpose
+  (`rule:packaging/a-c-dependency-answers-two-questions`). Annotate the parameter with
+  `nvs_server`'s re-exported `Request` and `Incoming` rather than reordering the body.
+  [until: reviewed 2026-09-06]

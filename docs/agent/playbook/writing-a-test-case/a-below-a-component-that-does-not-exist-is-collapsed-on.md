@@ -1,0 +1,7 @@
+- **A `..` below a component that does not exist is collapsed on Windows and refused everywhere
+  else; no case may assert either.** `Core\IO::within($base, "nothing/..")` answers `$base` on
+  Windows and throws `IOError` on Linux, because `nvs_config::capability::resolved` asks the
+  platform canonicalizer first and Win32 normalizes `nothing\..` out before the syscall while
+  `realpath` stops at the missing component. Use a `..` whose parent exists
+  (`io-within-resolves-and-then-proves-containment.nvst` does) or a name that merely contains `..`.
+  [until: reviewed 2026-09-06]

@@ -1,0 +1,7 @@
+- **A member answering `CoreTy::Instance(C)` panics at run time while `C` has no instance member
+  and no slot**, because `crates/nvs-stdlib/src/instance.rs:270` skips such a class when it builds
+  the descriptor table, so the call compiles and type-checks and then dies in `FATAL: … is not a
+  `Core` class with instances`. It reads like a registry wiring mistake and is an ordering fact.
+  Land the class's first instance member in the slice that first answers one — the conformance floor
+  wants it too, a handle with no members having no three questions to be asked.
+  [until: reviewed 2026-09-11]

@@ -1,0 +1,7 @@
+- **A case that completes a TLS handshake builds the process's one outbound client, and every
+  other module's `https` case then panics `AlreadyExists`.** `nvs_host::tls::configure` settles
+  one client per process and refuses a call made after any session has run, so a `cache` case
+  dialling `rediss://` ahead of `http::transport`'s `trusted()` decided nine of its cases'
+  outcomes from another module. Call `crate::tests::outbound_client()` before opening a session —
+  it is the one place the client is built, and the `OnceLock` is what makes test order stop
+  mattering. [until: gone crates/nvs-stdlib/src/lib.rs:outbound_client]

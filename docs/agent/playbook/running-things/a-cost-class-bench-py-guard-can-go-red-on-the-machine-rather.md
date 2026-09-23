@@ -1,0 +1,7 @@
+- **A cost-class `bench.py` guard can go red on the machine rather than the tree, and its `start
+  floor` line is the tell.** One sweep read a 77.5 ms floor where an idle box reads 4.6, and load
+  here dilates a process multiplicatively, so the subtraction left 200 ms of machine — the spread
+  gave nothing away, that run's median sitting 4% over its minimum. Read the floor line before the
+  verdict: `--warm-start` abstains above `QUIET_FLOOR_MS`, a floor level rather than a multiple of
+  the budget, and a figure it does report is a minimum over twenty-five reps.
+  [until: gone tools/bench.py:QUIET_FLOOR_MS]

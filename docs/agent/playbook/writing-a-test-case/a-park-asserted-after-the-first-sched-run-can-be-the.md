@@ -1,0 +1,7 @@
+- **A park asserted after the first `sched.run()` can be the connect's, not the read's.**
+  `NvsTcp::connect_timeout` goes through `finish_connecting`, which parks wherever the platform says
+  the handshake is still in flight, so `report.parked == 1` can hold with the read never having
+  reached the reactor. Turn until the origin thread signals it holds the request, sending that
+  signal before it writes any reply bytes;
+  `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` in
+  `crates/nvs-stdlib/src/http/transport.rs` is the shape. [until: reviewed 2026-09-06]

@@ -1,0 +1,5 @@
+- **A `Core` member test's own argument bag cannot leave `headers` as `Value::null()`.** The
+  compiler always passes an empty array there, so the member answers `Fatal(… expected Array for
+  headers, got tag 0)` before it reaches what the case is about — while an unwritten *body* key is
+  `Value::unset()`. Write `Value::array(NvsArray::new())` into that slot and release it beside the
+  URL. [until: reviewed 2026-09-13]

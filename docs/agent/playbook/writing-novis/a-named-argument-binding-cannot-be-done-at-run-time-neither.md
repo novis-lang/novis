@@ -1,0 +1,6 @@
+- **A named-argument binding cannot be done at run time: neither `nvs_runtime::MethodRow` nor
+  `nvs_types::ResolvedCall` carries parameter names.** Every existing site binds names to positions
+  in `nvs_types::expr::calls` and lowers the result, so a feature binding a runtime map to a
+  callee's parameters must record the names somewhere new and emit them from the lowering. And
+  `nvs_runtime::abi::call` requires `arity` initialized values, so a call built with fewer is
+  unsound rather than wrong. [until: reviewed 2026-09-06]

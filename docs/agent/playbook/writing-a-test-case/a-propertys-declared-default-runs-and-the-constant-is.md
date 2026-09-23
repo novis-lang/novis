@@ -1,0 +1,8 @@
+- **A property's declared default runs, and the constant is checked — a literal of the declared type,
+  `= []`, `= null` where the type admits one, an enum case and another class's `const` are the
+  constants it accepts.** `public int $n = 4;` reaches the slot of every fresh instance, inherited
+  defaults included, because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor
+  carries. A union is read one level deep, so `?string $label = "plain"` and `"read"|"write" $mode =
+  "read"` place against the member the literal inhabits. A `decimal` and a non-empty array literal
+  are still `E0472` at a property, and a `static` property is skipped entirely since it occupies no
+  instance slot. [until: reviewed 2026-09-06]

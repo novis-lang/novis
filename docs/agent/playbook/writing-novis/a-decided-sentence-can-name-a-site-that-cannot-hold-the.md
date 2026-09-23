@@ -1,0 +1,7 @@
+- **A `Decided:` sentence can name a site that cannot hold the check it asks for.** `test.rs` gap 2's
+  answer was *assert it when a `Ctx` is built*, and there is no such moment: a context takes its
+  exception class table after construction, through `nvs_codegen::Classes::install_in`, for the reason
+  `Ctx::set_runtime_error_class`'s own doc carries. Build the check at the one place the omission is
+  observable as a *wrong answer*, state the requirement where the contract already lives, and say in
+  the handoff that the site moved — never quietly take the sheet's other option.
+  [until: reviewed 2026-09-17]

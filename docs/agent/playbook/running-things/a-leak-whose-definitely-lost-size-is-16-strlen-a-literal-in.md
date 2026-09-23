@@ -1,0 +1,6 @@
+- **A leak whose "definitely lost" size is `16 + strlen(a literal in the probe)` is a temporary
+  abandoned on a throwing edge**, and the allocating stack carrying no `nvs_` frame at all is the
+  confirmation. Most such edges are closed by `nvs_ir::lower::Lowering`'s owned-temporaries stack,
+  so a probe that `catch`es a throw from a `Core` member taking a `string` is a fair leak check.
+  What is still open is named in that field's own doc comment, plus the producers that release
+  inline — a normalized subscript key, a `match` subject. [until: reviewed 2026-09-06]

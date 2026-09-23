@@ -1,0 +1,8 @@
+- **A new `CoreTy` variant that wraps another type silently falsifies every `_ => {}` walker in
+  `crates/nvs-stdlib/src/registry.rs`.** Each recursive `match` over `CoreTy` — `collect_written`
+  and the ones inside `mod tests` — ends in a wildcard under "a variant that carries no nested type
+  carries no variable either", and `CoreTy` is `#[non_exhaustive]`, so a `Classified(Qual, &'static
+  CoreTy)` wrapper compiles clean while making `written()`, the nullable check and the enum-case
+  check blind to what it wraps. Add a leaf instead, as `CoreTy::Text(Qual)` / `CoreTy::Blob(Qual)`
+  are, and change only the sites that name the sibling leaf specifically
+  (`nvs_types::core_lib::lower` and one registry test). [until: reviewed 2026-09-06]

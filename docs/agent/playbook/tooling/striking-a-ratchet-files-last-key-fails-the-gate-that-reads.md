@@ -1,0 +1,6 @@
+- **Striking a ratchet file's last key fails the gate that reads it, and the message's first
+  branch is the wrong one.** `every_outstanding_key_names_an_owner` in
+  `spec_registry_coverage.rs` asserted `checked > 0` and offers "delete the parity program" before
+  "the reader broke"; the files are how the next spec section is walked and `owner_problem`'s own
+  cases already exercise the arithmetic. Assert the empty file still holds its header instead of
+  taking either branch. [until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs:RATCHETS]

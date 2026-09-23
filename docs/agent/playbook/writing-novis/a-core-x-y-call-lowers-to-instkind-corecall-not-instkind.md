@@ -1,0 +1,7 @@
+- **A `Core\X::y()` call lowers to `InstKind::CoreCall`, not `InstKind::Call`.** `Call` is a method
+  the program itself declared; a `Core` member goes to `CoreCall`, which codegen hands to
+  `emit_helper` under `rule:errors/propagation`'s fixed signature
+  (`crates/nvs-codegen/src/emit.rs:585`), so a change to what a `Core` call site carries written
+  against `Call` reaches nothing. Read the `emit` arm for the variant first, and copy
+  `InstKind::ShapeCodecConst` when what you add is a compile-time constant the member reads off
+  its own `args`. [until: gone crates/nvs-ir/src/ir.rs:CoreCall]

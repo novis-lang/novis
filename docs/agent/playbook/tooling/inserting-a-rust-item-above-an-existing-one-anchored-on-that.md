@@ -1,0 +1,6 @@
+- **Inserting a Rust item above an existing one, anchored on that item's `#[attribute]` line, steals
+  its doc comment.** Every `///` above an item attaches to whatever item comes next, so the old doc
+  lands on the new function and the only report is `missing documentation` naming the *old* one, which
+  reads as a doc you forgot on code you did not touch. Anchor the insertion on the first line of the
+  target's own doc block instead, so the doc travels with the item it describes.
+  [until: reviewed 2026-09-15]

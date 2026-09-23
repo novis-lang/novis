@@ -1,0 +1,6 @@
+- **A route table is on the unit, not on whichever context is in hand, and a `#[Test]` isolate's own
+  context has none.** `nvs run` installs the table on the script's context (`main.rs`'s
+  `set_routes`), but a `#[Test]` method runs in an isolate sharing only compiled code, so a match
+  off `ctx.routes()` in a `Core` member answers `null` silently and looks like an empty table. Match
+  on the side holding the compiled unit, and treat `ctx.routes()` in a helper that may run under
+  `nvs test` as a bug. [until: reviewed 2026-09-06]

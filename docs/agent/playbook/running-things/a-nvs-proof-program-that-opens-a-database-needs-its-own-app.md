@@ -1,0 +1,6 @@
+- **A `.nvs` proof program that opens a database needs its own `[[app]]` grant in the root
+  `nvs.toml`, and a grant naming a file not yet on disk breaks every other program in the tree.**
+  `db.connect` is granted per entry path, and a block whose `entry` names a missing path fails every
+  `nvs run` with `E0605` about that path rather than about the program asked for. Write the grant
+  and the file in one edit, copying the `Db-Row` group in `nvs.toml`: one block per example, per
+  attack and per bench. [until: reviewed 2026-09-21]

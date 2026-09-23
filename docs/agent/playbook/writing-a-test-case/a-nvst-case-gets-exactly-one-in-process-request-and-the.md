@@ -1,0 +1,6 @@
+- **A `.nvst` case gets exactly one in-process request, and the child's deferred output has nowhere
+  to go.** `Core\Test::request` is refused from inside the request it answers, and `runner.rs`'s
+  `answer` takes the `Completion` before the deferred queue drains, so an `afterResponse` `echo`
+  reaches a buffer nobody reads. Pin a cross-request claim at the boot (`[session] backend =
+  "local"` is `E0626`) and an after-the-answer claim from the caller's side.
+  [until: reviewed 2026-09-06]

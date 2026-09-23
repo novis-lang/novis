@@ -1,0 +1,7 @@
+- **A `Fault::fatal` site behind an `array<T>`, `array<array<string>>` or `uint` parameter is
+  unreachable from source and is owed no case.** A `mixed` subject, a `?array<string>` and a `mixed`
+  count all stop at the checker as `E0401`, and `rule:types/conversion`'s `array<T> as array<U>`
+  does not lower, so `Core\Test::assertCount`'s two sites and `Core\Csv::format`'s column guard
+  cannot be reached. Three `nvs run` probes on a scratch file settle it in one call; the assertion
+  members read as if a bad subject were a runtime question, and it is a signature question.
+  [until: reviewed 2026-09-06]

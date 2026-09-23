@@ -102,7 +102,7 @@ import goals as goalsmod  # noqa: E402  -- which goal this pack is for has one h
 SIDE = goalsmod.side_goal()
 if SIDE:
     GOAL_TOML, GOAL_MD, HANDOFF = SIDE.toml, SIDE.md, SIDE.handoff
-PLAYBOOK = AGENT / "playbook.md"
+PLAYBOOK = AGENT / "playbook"
 CONVENTIONS = AGENT / "conventions.md"
 RUNNING = ROOT / ".loop" / "running"
 INTERRUPTED = ROOT / ".loop" / "interrupted.json"
@@ -1387,7 +1387,7 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
         if shape in m.shapes and implied not in m.shapes:
             problems.append(f"{where}: shapes names {shape!r} without {implied!r}")
 
-    playbook_text = read(PLAYBOOK)
+    playbook_text = playbook.read()
     for selector in m.playbook:
         hits, complaint = slice_bullets(playbook_text, selector)
         if complaint:
@@ -1517,9 +1517,9 @@ def run_playbook(wanted: list[str]) -> None:
     cannot see is a trap you pay for twice."""
     if not wanted:
         return
-    text = read(PLAYBOOK)
-    if not text:
-        warn(f"{rel(PLAYBOOK)} is missing")
+    text = playbook.read()
+    if not playbook.fragments():
+        warn(f"{rel(PLAYBOOK)}/ holds no bullet")
         return
 
     triage, _ = slice_bullets(text, TRIAGE)
@@ -1572,7 +1572,7 @@ def run_playbook(wanted: list[str]) -> None:
 
     section(
         TRAPS_TITLE,
-        f"{rel(PLAYBOOK)}, filtered to [context] playbook"
+        f"{rel(PLAYBOOK)}/, filtered to [context] playbook"
         + (f", then to the {len(terms)} path(s) your item names" if terms else ""),
     )
     at_whole = len(out)

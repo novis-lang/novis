@@ -1,0 +1,7 @@
+- **A poll asked to wait a bounded time can come back early, so "0 woken" is not "nothing can wake
+  these tasks".** A platform rounds a wait to its own timer granularity and returns a fraction of a
+  millisecond before the deadline, and `run_until_idle` breaks on `Some(0)`, so a timer written
+  straight into `Reactor::turn` abandons a lone sleeping task and the test hangs on an assert rather
+  than the clock; `turn` retries until it has genuinely reached the earliest deadline
+  (`crates/nvs-host/src/reactor.rs`). The giveaway that it is this and not a lost wake: the same
+  code with a second runnable task passes. [until: reviewed 2026-09-06]

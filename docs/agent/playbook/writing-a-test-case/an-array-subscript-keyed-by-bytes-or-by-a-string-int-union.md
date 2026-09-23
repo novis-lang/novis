@@ -1,0 +1,5 @@
+- **An array subscript keyed by `bytes` or by a `string|int` union is an ICE in `nvs-ir`, not a
+  diagnostic.** `lower_array_key` has arms for `Str`, `Int` and `Uint` only, so `$seen[$k] = true;`
+  over a `string|int $k` the checker admitted panics ("an array key lowered to …"). Write `$seen[$k
+  as string]`, the spelling key normalization maps an integer onto; the fix proper is a `nvs-types`
+  diagnostic. [until: gone crates/nvs-ir/src/lower/expr.rs:an array key lowered to]

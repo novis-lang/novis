@@ -1,0 +1,5 @@
+- **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
+  `Core\X::y()` is waved through by `nvs_hir::members`; once `X` is in `registry::CLASSES`, an
+  unknown member on it is a diagnostic. Adding a class can turn a fixture that "compiled" into one
+  that reports — which is the point, but check the fixtures that name it.
+  [until: reviewed 2026-09-06]

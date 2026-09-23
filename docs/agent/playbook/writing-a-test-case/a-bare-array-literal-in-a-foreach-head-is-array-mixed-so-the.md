@@ -1,0 +1,5 @@
+- **A bare array literal in a `foreach` head is `array<mixed>`, so the binding cannot be typed.**
+  Nothing in `foreach ([1, 2] as int $d)` gives the literal a target to take its element type from,
+  so the checker settles on `mixed` and then refuses the `int` binding. Declare the list first —
+  `array<int> $ds = [1, 2]; foreach ($ds as int $d)` — which every proof program under
+  `docs/examples/` and `tests/hostile/` has to do anyway. [until: reviewed 2026-09-19]

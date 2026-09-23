@@ -1,0 +1,6 @@
+- **Before writing a depth case, read the landed neighbour's whole `--FILE--`, not the handoff's
+  summary of it.** A handoff item is written by a session that had the module open and the neighbour
+  case closed, so its summary of a landed file is the part most likely to be stale; one said a case
+  "feeds two chunks" when it swept five widths across four subjects. The uncovered claims are the
+  ones the landed case's own text does not make, and only its text says which those are.
+  [until: reviewed 2026-09-06]

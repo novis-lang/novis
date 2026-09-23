@@ -1,0 +1,6 @@
+- **A new refusal in `check_expr` fires before `check_write_target`, so it double-reports every
+  receiver that already has a better code.** `$erased->rows["0"] = "z"` printed `E0482` and `E0480`;
+  the ordering is fixed because `check_write_target` reads the `ExprInfo` the target's own check
+  records. Suppress with a lookup the early arm can already do — the chain root's recorded
+  `HookedProperty`/`ShapeProperty`, or a syntactic `nullsafe: true` — gated on the level being an
+  assignment target, so a plain read keeps its only diagnostic. [until: reviewed 2026-09-06]

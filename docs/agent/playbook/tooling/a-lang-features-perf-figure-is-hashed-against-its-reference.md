@@ -1,0 +1,6 @@
+- **A `lang:` feature's perf figure is hashed against its *reference chapter*, so one word changed in
+  `docs/reference/lang/*.md` re-stales every figure in that chapter's group.** The repair is one
+  `python tools/dossier.py --record-perf --group '<group>'`, which re-measures only what has no current
+  figure — but it has to come after the session's **last** chapter edit, or it is paid twice, which is
+  what happened here when a proof turned up two stale sentences in the chapter it was proving. Write the
+  proofs, fix the prose, then record. [until: reviewed 2026-09-19]

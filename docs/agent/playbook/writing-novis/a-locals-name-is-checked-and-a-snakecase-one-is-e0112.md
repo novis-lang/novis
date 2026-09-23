@@ -1,0 +1,5 @@
+- **A local's name is checked, and a snake_case one is `E0112`.** `int $words_n = …` is *"local
+  variable names must be camelCase, e.g. `wordsN`"*, so a counter or table name costs a whole run of
+  the case to learn what the name could have avoided. Write `$wordsN` from the first draft; a
+  `.nvst` wants several near-identical names at once (one `catch` binding per clause, all
+  function-scoped), which is where the underscore creeps in. [until: reviewed 2026-09-06]

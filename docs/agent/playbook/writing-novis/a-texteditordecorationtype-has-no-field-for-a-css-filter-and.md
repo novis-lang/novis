@@ -1,0 +1,10 @@
+- **A `TextEditorDecorationType` has no field for a CSS filter, and `textDecoration` is the one that
+  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx);
+  clip-path: inset(0)"` — the declaration is closed with `none` and the rest follows it, several
+  properties deep. The clip is not optional: a blur bleeds about its radius past the decorated
+  range, and `overflow` cannot cut it back because a decoration is a non-replaced inline box, while
+  the `display: inline-block` that would make `overflow` apply moves the character cells a
+  decoration may never move. Anything put in that field is CSS the extension chooses on the user's
+  behalf, so it stays geometric: a colour belongs in a `ThemeColor` field, which
+  `rule:ide/novis-ships-names-not-colours` is about.
+  [until: gone editors/vscode/src/redactions.ts:filter: blur]

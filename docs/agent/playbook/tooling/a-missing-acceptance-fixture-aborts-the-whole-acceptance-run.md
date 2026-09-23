@@ -1,0 +1,6 @@
+- **A missing acceptance *fixture* aborts the whole acceptance run before a single check runs, and
+  that is the ordinary state of a goal's first session.** `loop.py`'s `begin` walks the goal's
+  `files` list and returns on the first path not on disk, so the ledger reads `0s over 1 check(s)`,
+  every other check measures nothing, and the one-line report reads like one fixture failing. Write
+  every file the `files` list names in one slice, as the program it is meant to be, and let each
+  fail its own `exact` check with a real diagnostic. [until: gone tools/loop.py:def begin]

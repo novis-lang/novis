@@ -1,0 +1,7 @@
+- **Closing a conversion gap turns the conformance case that pinned the gap red, and the case's name
+  does not say which type it used.**
+  `command-run-throws-for-a-parameter-no-argument-converts-into.nvst` reached `Core\Command::run`'s
+  `ArgConv::Unconverted` refusal through `decimal`, so landing the `decimal` arm left it asserting
+  nothing, and its `--EXPECT--` failed at the full verify rather than at the edit. `grep -rln '<the
+  type>' tests/conformance/` before widening any roster, and rewrite the case with a type still on
+  the far side of the gap. [until: reviewed 2026-09-06]

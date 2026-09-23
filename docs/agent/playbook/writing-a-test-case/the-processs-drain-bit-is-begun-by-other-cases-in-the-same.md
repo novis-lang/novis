@@ -1,0 +1,7 @@
+- **The process's drain bit is begun by other cases in the same test binary, so a new case may not
+  rest on it.** `nvs-cli`'s serve cases end an in-process server by dropping `EndsTheServer`, which
+  calls `nvs_server::Draining::process().begin()`, and that bit is one per process rather than one
+  per case — a case reading it reads whatever its neighbours have already done to it. Take
+  `nvs_runtime::Drain::detached()` for anything a case has to be able to *not* drain, and end what
+  the case started by withdrawing it rather than by draining the process.
+  [until: gone crates/nvs-cli/src/serve.rs:struct EndsTheServer]

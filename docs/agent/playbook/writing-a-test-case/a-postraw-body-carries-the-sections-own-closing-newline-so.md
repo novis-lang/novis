@@ -1,0 +1,5 @@
+- **A `--POST_RAW--` body carries the section's own closing newline, so `echo Core\Request::body(),
+  "\n"` prints a blank line the `--EXPECT--` does not have.** `--POST--` does not — it is a field
+  list the runner re-encodes — so a case copied from a form-bodied neighbour fails on a line that
+  looks identical in the diff. Echo a raw body with no separator of your own, and say so in a
+  comment beside it. [until: reviewed 2026-09-08]

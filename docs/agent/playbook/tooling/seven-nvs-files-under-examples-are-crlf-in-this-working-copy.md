@@ -1,0 +1,8 @@
+- **Seven `.nvs` files under `examples/` are CRLF in this working copy, so a formatter stage that
+  writes a line break has to write the file's own.** `.gitattributes` says `eol=lf` and git
+  normalizes them on the way into the index, but the checked-out bytes here are CRLF, so an inserted
+  `"\n"` leaves one line of a file ending differently from every other and
+  `crates/nvs-fmt/tests/identity.rs:36` fails on exactly those seven with a diff that prints as
+  nothing. Take the break from the text once per file, the way `crates/nvs-fmt/src/brace.rs`'s
+  `line_break` does, rather than writing `"\n"` at each site.
+  [until: gone crates/nvs-fmt/src/brace.rs:line_break]

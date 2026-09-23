@@ -1,0 +1,8 @@
+- **A `loop-goal.toml` check can name a test in a crate that cannot host it, and its `args` is the
+  half that is wrong.** A `-p nvs-hir` check listing
+  `an_implementor_without_a_no_argument_constructor_is_named` asks a question only `nvs-types`'
+  checking pass can answer, since `nvs_hir::implementors` never sees a signature. Move the name to
+  the check whose crate owns the diagnostic rather than inventing a test, then copy
+  `docs/agent/loop-goal.toml` over `docs/agent/goals/<goal>.toml` — they are byte-identical by
+  construction, and the next `goal-switch.py` restores the goal file over the live one.
+  [until: reviewed 2026-09-06]

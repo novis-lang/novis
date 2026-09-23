@@ -1,0 +1,6 @@
+- **A `rule:` target after an option on `peek.py`'s command line is refused as an unrecognized
+  argument.** The option ends the positional run argparse is collecting targets into, so
+  `peek.py a.rs:1-20 --context 5 rule:types/conversion` fails outright while the same call with the
+  `rule:` token written before `--context` reads both. Put every target first and every option
+  last, which is the order the tool's own usage line prints them in.
+  [until: reviewed 2026-09-13]

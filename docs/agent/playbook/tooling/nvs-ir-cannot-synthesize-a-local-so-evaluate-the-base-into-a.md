@@ -1,0 +1,7 @@
+- **`nvs-ir` cannot synthesize a local, so "evaluate the base into a temporary and rewrite over it"
+  is not a move a lowering has.** `ExprKind::Variable` holds a `Span` and `lower_expr` reads the
+  name out of `self.src`, so a name no source file spells has no representation. Use
+  `Lowering::staged_targets`: lower the sub-expression once, record `(span, value, ty)`, and let
+  `lower_expr` answer from that table first — `aliasing_read` must answer `true` for a staged span
+  and the stager must `own_temporary` a refcounted staged value; neither half is optional.
+  [until: reviewed 2026-09-06]

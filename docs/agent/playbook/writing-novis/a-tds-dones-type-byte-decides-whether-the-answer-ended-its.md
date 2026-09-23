@@ -1,0 +1,6 @@
+- **A TDS `DONE`'s type byte decides whether the answer ended; its `DONE_MORE` status bit does
+  not.** `DONEINPROC` (`0xFF`) ends one statement inside a procedure and is never the last token —
+  `sp_prepexec` sends the `RETURNVALUE` after it — so a reader keyed on `more()` ends early and then
+  refuses with "carried N byte(s) after the DONE that ended it". Read `crate::tds::Done`'s `in_proc`
+  field beside the status bits, and test against a real RPC transcript rather than one ending in a
+  plain `DONE`. [until: gone crates/nvs-db/src/tds/token.rs:pub in_proc: bool]

@@ -1,0 +1,5 @@
+- **A `?string` does not narrow into a `string` return position, and the fix is `as` rather than a
+  different `if`.** `if ($v == null) { return "<none>"; } return $v;` is `E0403: this method
+  declares `string` but returns `string|null``, and inverting the test reports the same one line up.
+  Write `return $v as string;` after the null test; the same `as` re-supplies the type inside an
+  expression (`Core\Str::slice($s, ($at as uint) as int)`). [until: reviewed 2026-09-06]

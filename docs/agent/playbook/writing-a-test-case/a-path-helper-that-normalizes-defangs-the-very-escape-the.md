@@ -1,0 +1,7 @@
+- **A path helper that normalizes `..` defangs the very escape the case was written to assert.**
+  `crates/nvs-config/tests/request.rs`'s `p()` resolves `.` and `..` away, so a `..` case built with
+  it hands `Capabilities::allows` a path that has already escaped and passes on the sibling-root
+  rule rather than on `rule:security/path-scope-canonicalise-then-prefix`.
+  `crates/nvs-config/tests/capability.rs` keeps `raw()` (what the caller wrote) and `lexical()`
+  (what the filesystem answers) apart; only the fake `Files` may turn one into the other.
+  [until: reviewed 2026-09-06]

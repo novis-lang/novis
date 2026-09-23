@@ -1,0 +1,5 @@
+- **`bool as string` renders `false` as the empty string**, so a line built out of `as string` over
+  predicates silently loses its false columns and still looks like a shorter tally. `bool as int` is
+  not a conversion at all — it is `E0708`, whose help line names the spelling to use — so the way to
+  show a predicate's answer is `$b ? 1 : 0`, or a two-line helper returning a character.
+  [until: reviewed 2026-09-06]

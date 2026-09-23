@@ -1,0 +1,6 @@
+- **About twenty nested parentheses already reach the parser's recursion limit, and a hostile case
+  that trips it fails.** The limit is 96 levels and one parenthesised expression costs several, so
+  `((((...))))` written to look extreme stops the program being read at all — which
+  `tests/hostile/README.md` counts as a failure, because an attack that does not compile was never
+  delivered. Keep a depth attack in a hostile file well under it, or build the nesting at run time
+  out of values. [until: reviewed 2026-09-19]

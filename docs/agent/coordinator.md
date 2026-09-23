@@ -50,7 +50,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `tools/respawn.py` | What starts `loop.py` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Never run by hand — `python tools/loop.py` starts it. |
 | `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
-| `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
+| `docs/agent/playbook.md` | The traps a session paid for once: the contract here, one file per bullet under `docs/agent/playbook/`. Append-mostly, and outlives every session. |
 | `docs/agent/conventions.md` | The shape of everything the repo writes, so no session re-derives it from an existing example. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |

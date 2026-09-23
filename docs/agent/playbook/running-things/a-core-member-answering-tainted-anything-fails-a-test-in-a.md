@@ -1,0 +1,7 @@
+- **A `Core` member answering `tainted` anything fails a test in a crate you did not edit.**
+  `nvs-types`'s `a_verified_signature_does_not_launder_its_claims` holds a hand-written closed
+  roster of every qualified answer, so `-p nvs-stdlib` stays green and the gate stops at
+  `-p nvs-types --lib`. Adding one member is three edits in `crates/nvs-types/src/core_lib.rs` —
+  the set entry, the doc paragraph naming that class's members, and the count in the assertion's
+  own sentence — none of which is in conventions.md's five-edit recipe.
+  [until: reviewed 2026-09-10]

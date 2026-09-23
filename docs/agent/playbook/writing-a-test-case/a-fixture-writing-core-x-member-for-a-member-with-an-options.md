@@ -1,0 +1,6 @@
+- **A fixture writing `Core\X::member(...)` for a member with an options bag panics in lowering
+  rather than failing to check.** The thunk a first-class callable synthesizes asks each parameter
+  for one erased type, and a `Core` options bag has none — it is flattened a slot at a time at an
+  ordinary call and never at a thunk. Use a member with no options bag for a callable-reference
+  fixture, or assert through an ordinary call; the panic is in `crates/nvs-ir/src/lower/mod.rs`.
+  [until: gone crates/nvs-ir/src/lower/mod.rs:shape parameter was erased]

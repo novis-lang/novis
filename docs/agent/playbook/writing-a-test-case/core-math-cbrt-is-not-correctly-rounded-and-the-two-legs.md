@@ -1,0 +1,6 @@
+- **`Core\Math::cbrt` is not correctly rounded and the two legs disagree, so an *irrational* cube
+  root's round trip cannot be frozen either way.** `cbrt(2.0)` cubed is exactly `2.0` under glibc
+  and a last digit short of it under MSVC; `sqrt` is the only root member IEEE 754 requires to be
+  correctly rounded, so only its inexact rows are the same on every platform. A *perfect* cube does
+  round trip on both legs, because the answer is representable and every libm's final refinement
+  lands on it — assert that half and not the irrational one. [until: reviewed 2026-09-06]

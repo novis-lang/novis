@@ -1,0 +1,8 @@
+- **A generated dossier goal can arrive already satisfied, and its item anchors can name a different
+  member.** `docs/agent/goals/dossier/*.md` is written once by `--emit-goals`, so an earlier goal's
+  `--partition --group` fan-out covers the whole class rather than its own `--only` list, and goal
+  `core-arr-4-4`'s anchor `crates/nvs-stdlib/src/arr.rs:533` named `column` while its item was
+  `range`. Run the goal's own `dossier.py --verify --only ...` line before reading any anchor: when
+  it prints `nothing owed` and two `0 failed` lines the slices are already on disk, and the session's
+  work is whatever that check does not count — the descriptions first.
+  [until: reviewed 2026-09-20]

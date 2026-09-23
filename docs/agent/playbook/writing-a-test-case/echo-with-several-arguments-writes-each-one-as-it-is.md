@@ -1,0 +1,6 @@
+- **`echo` with several arguments writes each one as it is evaluated, so a call in argument position
+  that echoes puts its own lines in the middle of yours.** `echo "  bump gave ", $l->bump(), "\n";`
+  on a `PropertyObserver` class prints `  bump gave ` first, then the observer's lines, then `1` —
+  which reads as a broken pipeline rather than as evaluation order, and costs a blessed `.out` or an
+  `--EXPECT--` block to discover. Assign the call to a variable first and echo the variable when the
+  callee can print anything: `int $bumped = $l->bump();`. [until: reviewed 2026-09-19]

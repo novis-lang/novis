@@ -1,0 +1,6 @@
+- **`as` binds tighter than arithmetic, and `false as string` is the empty string.** `$which[$i - 1
+  as string]` parses as `$which[$i - (1 as string)]` and fails `E0716: '-' has no meaning for
+  'string'`, so a computed index needs its own parentheses, `($i - 1) as string`. A `bool` printed
+  with `as string` renders `1` for true and *nothing* for false, so a column of booleans in
+  `--EXPECT--` silently changes width and passes review; `$b ? "y" : "n"` keeps such a row legible.
+  [until: reviewed 2026-09-06]

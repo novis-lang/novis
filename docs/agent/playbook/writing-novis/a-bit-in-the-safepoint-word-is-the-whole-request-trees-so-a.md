@@ -1,0 +1,8 @@
+- **A bit in the safepoint word is the whole request tree's, so a per-context request cannot live
+  there.** `Ctx::child` and `Ctx::isolate` share the word, which made one task's cancellation stop
+  its siblings and its parent — and the only case that caught it was
+  `tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst`, reporting a
+  *later* call as returned rather than timed out. Before adding a flag, ask whether one context
+  raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
+  `cancelled` is, and not a bit in `SafepointFlags`.
+  [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]

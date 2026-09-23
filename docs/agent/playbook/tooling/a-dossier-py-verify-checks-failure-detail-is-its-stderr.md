@@ -1,0 +1,6 @@
+- **A `dossier.py --verify` check's failure detail is its *stderr*, which is the release-binary
+  notice, while the reason it failed is on stdout.** The acceptance report for goal `lang-iteration`
+  read `exit 1 -- dossier: target/release/nvs.exe is missing or older than the tree`, which is a line
+  `current_binary` prints before it builds that binary itself; the real reason was the gate line
+  saying three features owed every proof. Run the check's own argv and read stdout — `dossier gate:`
+  names what is owed — rather than rebuilding anything by hand. [until: reviewed 2026-09-19]

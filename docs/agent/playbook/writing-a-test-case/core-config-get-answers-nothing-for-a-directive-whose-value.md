@@ -1,0 +1,7 @@
+- **`Core\Config::get` answers nothing for a directive whose value is a list, so writing one into
+  `nvs.toml` to make an example page print a value buys nothing.** `[http.client.tls] roots =
+  ["bundled"]` is exactly what this checkout trusts and the page still printed `(nothing)`, because
+  `nvs_config::request`'s `get` returns `None` for a key naming a table or a list rather than a
+  rendering nothing could set back. Run the example against the binary before writing a line into
+  `nvs.toml` for a page's sake — a scalar sibling in the same block, `min_version` here, is what makes
+  a page print a value. [until: reviewed 2026-09-18]

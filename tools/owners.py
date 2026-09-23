@@ -150,7 +150,7 @@ PLAN = ROOT / "docs" / "implementation-plan.md"
 CARRIED_GAPS = ROOT / "docs" / "agent" / "carried-gaps.md"
 CARRIED_REFUSALS = ROOT / "docs" / "agent" / "carried-refusals.md"
 GUARD_DEBT = ROOT / "docs" / "agent" / "guard-name-debt.md"
-PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
+PLAYBOOK = ROOT / "docs" / "agent" / "playbook"
 
 #: The ratchets, as a glob: the set is whatever `crates/nvs-stdlib/tests/` holds, so a fifth one
 #: joins the register by being written rather than by being listed here.
@@ -431,14 +431,13 @@ def until_bullets() -> list[dict]:
     says so -- so it is a bullet nothing is owed for, and counting it here would make this register
     a count of the playbook rather than of what the tree still owes.
     """
-    if not PLAYBOOK.is_file():
-        return []
     found = []
-    for b in playbookmod.blocks(PLAYBOOK.read_text(encoding="utf-8")):
-        decl = playbookmod.declaration(b["body"])
-        if decl and decl[0] != "reviewed":
-            found.append({"file": rel(PLAYBOOK), "line": b["start"] + 1,
-                          "lead": one_line(b["lead"]), "owner": ""})
+    for _head, path in playbookmod.fragments():
+        for b in playbookmod.blocks(path.read_text(encoding="utf-8")):
+            decl = playbookmod.declaration(b["body"])
+            if decl and decl[0] != "reviewed":
+                found.append({"file": rel(path), "line": b["start"] + 1,
+                              "lead": one_line(b["lead"]), "owner": ""})
     return found
 
 

@@ -1,0 +1,7 @@
+- **A new `nvs_ir::Helper` variant is four edits and the fourth one is not a `match`.** Three are
+  exhaustive matches the compiler makes you write — the variant, `nvs-ir`'s `print.rs` name and
+  `nvs-codegen`'s symbol name — and the fourth is a row in `nvs_runtime::helpers::symbols()`, a
+  hand-kept `Vec` nothing checks; miss it and everything builds and passes until the first program
+  reaching the helper dies inside `cranelift-jit` with *"can't resolve symbol nvs_your_helper"*.
+  Grep the symbol name you just added and expect **three** hits outside the runtime's own
+  definition. [until: gone crates/nvs-runtime/src/helpers.rs:fn symbols]

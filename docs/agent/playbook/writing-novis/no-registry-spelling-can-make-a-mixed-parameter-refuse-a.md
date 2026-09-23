@@ -1,0 +1,6 @@
+- **No registry spelling can make a `mixed` parameter refuse a qualifier, so a gap reading as a
+  missing `CoreTy` is a missing call-site rule.** A `Qual` never refuses on its own — `expr::args`
+  only *narrows* the compared type for a mark that admits one, so every refusal is `is_assignable`'s,
+  and `crates/nvs-types/src/expr/assign.rs:70` accepts every qualified atom into `mixed`. Write it
+  beside its siblings in `nvs_types::expr::quals`, over the written argument, and file its check
+  under the crate that owns the diagnostic. [until: reviewed 2026-09-10]

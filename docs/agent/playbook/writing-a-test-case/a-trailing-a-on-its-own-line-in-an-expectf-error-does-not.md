@@ -1,0 +1,5 @@
+- **A trailing `%A` on its own line in an `--EXPECTF-ERROR--` does not match nothing.** When the
+  output a `%A` was absorbing goes away, the case fails with an identical-looking expected and
+  actual block, because the diff prints the pattern rather than what it expanded to and the only
+  visible difference is the extra `%A` line. Delete the wildcard when the output it covered goes
+  away; a `%A` is an absorber, not an optional tail. [until: reviewed 2026-09-06]

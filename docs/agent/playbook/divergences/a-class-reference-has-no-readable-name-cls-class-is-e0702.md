@@ -1,0 +1,6 @@
+- **A class reference has no readable name: `$cls::class` is `E0702`.** A `class<T>` value is the
+  run-time descriptor and `::class` needs a class named at compile time, so `nvs-cli` reports *"this
+  names no class the compiler can resolve"* and points at `Core\Reflect`
+  (`rule:classes/no-free-functions-or-constants`). A `.nvst` case that wants to show which class was
+  selected calls an overridden member and reads the answer, as the class-reference cases under
+  `tests/conformance/class/` do. [until: reviewed 2026-09-06]

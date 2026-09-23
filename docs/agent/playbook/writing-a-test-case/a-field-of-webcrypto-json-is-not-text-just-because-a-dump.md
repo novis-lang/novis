@@ -1,0 +1,7 @@
+- **A field of `webcrypto.json` is not text just because a dump printed it as one.** `iterations`,
+  `clock` and `lifetime` are JSON numbers and `deterministic` is a bool, so
+  `webcrypto::text(case, "/iterations")` compiles and then panics at run time with *has no text at
+  /iterations*, and a Python dump through `str()` prints all four as quoted strings and hides it. Read a
+  count with `webcrypto::number` (`crates/nvs-stdlib/src/tests/vectors.rs:89`) and print
+  `type(v[k]).__name__` rather than the value when checking what a pointer will answer.
+  [until: reviewed 2026-09-12]

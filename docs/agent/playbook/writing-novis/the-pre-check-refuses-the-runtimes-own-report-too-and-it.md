@@ -1,0 +1,5 @@
+- **The pre-check refuses the runtime's own report too, and it fails as an empty string.** A request
+  reaching `rule:errors/on-limit`'s tier 1 is past its balance, so every `NvsStr::new` on the
+  reporting path answers the immortal empty and the handler gets a record whose keys are `""`. Hold
+  `nvs_runtime::budget::Reporting` across the whole escalation, as `Ctx::run_limit_handler` and
+  `nvs_host::ladder` do. [until: gone crates/nvs-runtime/src/budget.rs:pub struct Reporting]

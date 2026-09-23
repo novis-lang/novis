@@ -1,0 +1,5 @@
+- **A `--release` acceptance check costs a thin-LTO relink of every test binary, not just the one
+  holding the guard.** At `codegen-units = 1` any upstream touch relinks them all, so a `--release`
+  check in `loop-goal.toml` names its test file, and the rest of the package gets a second, debug
+  check where the guards skip themselves via `#[cfg_attr(debug_assertions, ignore)]`. No cheaper
+  profile: the cost class is a claim about the profile Novis ships. [until: reviewed 2026-09-06]

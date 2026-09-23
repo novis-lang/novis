@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` `command` check is not ordered before a fixture by sitting above it.** The
+  sweep runs the floor's programs before any command, so two `nvs queue migrate` blocks written
+  above `examples/queue.nvs` to converge its table ran a hundred checks after it, and a column
+  added to the queue's schema left all three queue fixtures claiming nothing. File order orders a
+  tier and `tools/loop.py`'s `Goal.setup_checks` orders the tiers, so a check preparing something
+  outside the tree carries `setup = true`, and `memoize = false` beside it.
+  [until: gone tools/loop.py:setup_checks]

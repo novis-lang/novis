@@ -1,0 +1,5 @@
+- **`holes.py --item N` groups a refusal site by the *file* an item anchors, so a site in a file
+  another item names is filed there.** The tool's totals are right; only the attribution is a guess,
+  so an item reads as closed while its headline half is unwritten. When an item's prose names a
+  shape, grep the shape (`grep -rn '&\$x' crates/nvs-ir/src`) before believing the site list is the
+  whole item. [until: gone tools/holes.py:--item]

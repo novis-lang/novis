@@ -1,0 +1,7 @@
+- **A `-p nvs-stdlib` test can hand a `Core` member a compiled class, and the installation point is
+  named for something else.** `Ctx::class_desc`, the one route from a native member to a program's
+  class, reads the table through `Ctx::set_runtime_error_class`'s handle and nothing else, so a
+  dispatch test installs an `ErrorClass::new(Rc::new(table), id)` over an unrelated class. The row
+  is `MethodRow { arity }` excluding the receiver and slot 0 is the called class as a
+  `Value::class_desc`; `crates/nvs-stdlib/src/command.rs`'s `dispatching` is the shape.
+  [until: reviewed 2026-09-06]

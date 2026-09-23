@@ -1,0 +1,5 @@
+- **An integer literal in a `??` fallback keeps its own `int`, so a `uint` binding refuses the whole
+  expression.** `uint $page = ($q["page"] as ?uint) ?? 1;` is `E0401: expected `uint`, found
+  `uint|int``, because the literal takes no hint from the `as ?uint` beside it. Declare the fallback
+  as a binding of the target type — `uint $firstPage = 1;` — rather than writing `?? (1 as uint)`,
+  which reads as a conversion nobody asked for. [until: reviewed 2026-09-19]

@@ -1,0 +1,7 @@
+- **A `ParseError`'s `issues` come in *name* order from a shape door and in *declaration* order from a
+  class door**, so an expectation written from the shape written at the call site is red for any field
+  set that is not already alphabetical. `Core\Arr::shapeAs<{ok: int, bad: int, alsoOk: string, alsoBad:
+  bool}>` reports `alsoBad` before `bad`, while a `#[Core\Json\Derive]` class declaring `zeta, alpha,
+  mid` reports them in exactly that order. Run the program before writing the `--EXPECT--` block, and
+  name fields whose two orders differ when the order is what a case pins.
+  [until: reviewed 2026-09-19]

@@ -1,0 +1,6 @@
+- **A bare `[`Ctx`]` intra-doc link fails in a module that does not `use` the type, and `verify.py`
+  is not what tells you.** Siblings write `[`Ctx`](crate::Ctx)`; the bare form is `error: unresolved
+  link` under `-D rustdoc::broken-intra-doc-links`, as are a link to a `#[cfg(test)]` item and a
+  redundant explicit target, both woken by making a `mod` public — and the doc gate is not part of
+  `python tools/verify.py`, so a green session leaves it red. Run `python tools/verify.py --doc`
+  once when a session writes a module doc that links across modules. [until: reviewed 2026-09-06]

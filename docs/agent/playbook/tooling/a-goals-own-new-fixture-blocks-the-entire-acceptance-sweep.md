@@ -1,0 +1,7 @@
+- **A goal's own new fixture blocks the *entire* acceptance sweep until it exists, and then masks
+  every cargo check until it passes.** `tools/loop.py`'s `begin()` refuses if a `files` entry is not
+  on disk, and `_check` runs all program checks before any cargo check, so a fixture written against
+  a later stage's surface fails on `exit 1` and the `cargo-named` stages never run; the tell is a
+  ledger line reading `over 1 check(s)`. Write the fixture anyway, and check whether the surface its
+  `want` names exists before reading the earliest failure as this session's work.
+  [until: reviewed 2026-09-06]

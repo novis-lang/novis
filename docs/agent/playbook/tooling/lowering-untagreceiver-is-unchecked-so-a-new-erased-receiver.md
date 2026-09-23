@@ -1,0 +1,7 @@
+- **`Lowering::untag_receiver` is unchecked, so a *new* erased receiver may not go through it.**
+  Every tagged receiver that reaches a member arrives with a tag `nvs_types` already proved, so a
+  `mixed` receiver is the first with no proof, and `Untag` over an `int` payload is a pointer the
+  next instruction dereferences, not a panic a test log would show. `ReceiverProof` in
+  `crates/nvs-ir/src/lower/expr.rs` is the switch; put the check in the runtime helper that already
+  checks the *name*, not in a fallible untag, which would need the receiver staged as an owned
+  temporary first. [until: gone crates/nvs-ir/src/lower/expr.rs:ReceiverProof]

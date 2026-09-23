@@ -1,0 +1,7 @@
+- **`echo` of a `float` prints the way PHP's default precision does, so an example cannot show
+  float inexactness by printing one.** `Core\Arr::sum([0.1, 0.2])` prints `0.3` rather than
+  `0.30000000000000004`, and a comment promising the long digits is wrong the moment `--bless`
+  writes the `.out`. Show the difference with a comparison —
+  `Core\Arr::sum($shares) == 0.3 ? 'yes' : 'no'` prints `no` — which is what
+  `docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs` already does.
+  [until: reviewed 2026-09-20]

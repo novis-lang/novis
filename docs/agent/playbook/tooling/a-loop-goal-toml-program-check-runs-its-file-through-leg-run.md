@@ -1,0 +1,7 @@
+- **A `loop-goal.toml` program check runs its `file` through `leg.run`, which prepends `run`, so
+  reproducing one by hand as `nvs <file>` answers `unrecognized subcommand` and reads as a misfiled
+  check.** Every `exact`, `ordered`, `contains` and `min-bytes` check in the list omits `args` for
+  exactly that reason (`tools/loop.py:1449`), so a missing `args = ["run"]` is never what is wrong
+  with a red one. Reproduce a program check as `target/debug/nvs.exe run <file>` and judge stdout
+  alone — `exact` compares `stdout_lines` and never reads stderr, so a fixture whose stderr is full
+  of warnings can still be green. [until: reviewed 2026-09-11]

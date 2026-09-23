@@ -1,0 +1,6 @@
+- **A `.nvst` case configures its run through `--FILE nvs.toml--`, and a scratch probe at the repo
+  root does not.** `crates/nvs-test/src/run.rs` runs every case in a temp directory with each
+  `--FILE <path>--` section written into it. The repo's `nvs.toml` sets `origin =
+  "https://example.test"`, so `nvs run scratch.nvs` from the root answers `Core\Router::urlAbsolute`
+  and proves nothing. Probe from a scratch directory carrying the case's `nvs.toml`.
+  [until: reviewed 2026-09-06]

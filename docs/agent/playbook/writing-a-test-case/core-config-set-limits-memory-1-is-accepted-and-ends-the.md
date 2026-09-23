@@ -1,0 +1,6 @@
+- **`Core\Config::set('limits.memory', '1')` is accepted and ends the request on the spot**, because
+  a request lowering its own budget is always allowed and one byte is a ceiling the next allocation
+  passes. An attack that churns a budget down to its smallest accepted value therefore fatals at
+  round zero, and every section under it never runs while the case still reports as a pass — a clean
+  fatal is one. Churn between values the program still fits in, and put the deliberate exhaustion
+  last. [until: reviewed 2026-09-18]

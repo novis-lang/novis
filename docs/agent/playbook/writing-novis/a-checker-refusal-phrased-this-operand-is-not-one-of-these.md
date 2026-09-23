@@ -1,0 +1,7 @@
+- **A checker refusal phrased "this operand is not one of these rows" does not cover a `mixed`
+  operand, and the hole opens one crate down.** `reject_unary_arith_operand` decides from
+  `equality_domain`, which answers `None` for `mixed` or a union, and `!matches!(…, None |
+  Some(Numeric))` takes `None` as accepted — rightly, the deferral is what `mixed` is for — so `-$m`
+  walked past the checker into `nvs-codegen`'s representation catch-all. Every such site owes a
+  tagged answer in the runtime or a diagnostic naming `mixed` explicitly; running the shape in a
+  scratch `.agent-tmp/*.nvs` tells the two apart in one call. [until: reviewed 2026-09-06]

@@ -1,0 +1,6 @@
+- **A driver's stream type has more than one default type parameter to move, and the compiler blames
+  the caller rather than the type.** Giving `pg.rs` a `PgStream` meant changing `Wire<S = …>`'s
+  default *and* `PgRows<'a, S = …>`'s, and the one error was an `expected &mut Wire<NvsTls>, found
+  &mut Wire` on `PgConn::query`'s call to `start_statement`, which reads as a bug in the free
+  function. Before widening a driver's transport, `grep -n '= NvsTls<NvsTcp>'` in that module and
+  move every default in one edit. [until: reviewed 2026-09-09]

@@ -1,0 +1,5 @@
+- **The coverage gates read a case's `--FILE--` alone, so a class named only in the `--TEST--` title
+  attributes nothing.** `Attribution::holders` attributes a `->member(` only to classes named in the
+  body or a registered return type. Write the receiver's class name inside the body, in a comment if
+  nowhere else, or `every_part_one_member_has_a_conformance_case` fails naming the member.
+  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders]

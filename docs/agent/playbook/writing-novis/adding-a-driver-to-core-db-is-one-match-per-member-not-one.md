@@ -1,0 +1,6 @@
+- **Adding a driver to `Core\Db` is one match per member, not one match, and `open`'s arm looks like
+  all of it.** `nvs_db::Connection` is destructured at seven sites under `crates/nvs-stdlib/src/db/`
+  and six end in `other => driverless(...)`, so an arm added to `open` alone hands out a connection
+  that refuses every statement, with no compile error. Count the `Connection::` matches before
+  pricing the slice; a driver sharing MySQL's protocol also needs a seam where
+  `mysql_rows`/`mysql_write` take `&mut nvs_db::MySqlConn` by name. [until: reviewed 2026-09-06]

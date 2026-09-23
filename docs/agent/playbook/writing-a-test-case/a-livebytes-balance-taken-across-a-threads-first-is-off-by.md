@@ -1,0 +1,5 @@
+- **A `live_bytes` balance taken across a thread's first `[]` is off by one `ArrayHeader`.**
+  `nvs_array_new` hands out a per-thread singleton, so the first call on a thread allocates a header
+  that is never freed, and a balance test outside `nvs-runtime` running compiled code reads it as a
+  leak. Call `nvs_runtime::prime_empty_array()` before `let before = live_bytes()`.
+  [until: gone crates/nvs-runtime/src/array.rs:pub fn prime_empty_array]

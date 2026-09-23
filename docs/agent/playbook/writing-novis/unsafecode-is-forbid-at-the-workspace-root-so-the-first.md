@@ -1,0 +1,8 @@
+- **`unsafe_code` is `forbid` at the workspace root, so the first `unsafe` in a crate is a manifest
+  edit before it is a code edit.** `-F unsafe-code` cannot be turned off by any attribute —
+  `#[expect(unsafe_code)]` still fails with *usage of an unsafe block*, and the note names the
+  command line rather than the lint table. Replace that crate's `[lints] workspace = true` with
+  `[lints.rust]` + `[lints.clippy]` copied verbatim from `Cargo.toml`'s `[workspace.lints.*]` (both
+  tables, or the crate silently loses every clippy lint), set `unsafe_code = "deny"`, and say in a
+  comment which call needs it — `crates/nvs-config/Cargo.toml` is the shape.
+  [until: gone Cargo.toml:unsafe_code = "forbid"]

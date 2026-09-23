@@ -1,0 +1,6 @@
+- **`Core\ObjectSet`'s `union`, `intersect` and `diff` answer a set no declaration accepts, so a
+  derived set is only *chained*.** Their `return_ty` is `CoreTy::Instance(NAME)`, no type argument,
+  so `Core\ObjectSet<Tag> $u = $a->union($b);` is `E0401` and bare `Core\ObjectSet $u` is `E0442`.
+  Write every law as one chain (`$a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0`);
+  `Core\ObjectMap` is the same.
+  [until: gone crates/nvs-stdlib/src/objset.rs:return_ty: CoreTy::Instance(NAME)]

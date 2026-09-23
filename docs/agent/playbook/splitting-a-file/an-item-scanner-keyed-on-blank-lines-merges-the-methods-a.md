@@ -1,0 +1,6 @@
+- **An item scanner keyed on blank lines merges the methods a file wrote with none between them.**
+  `ctx.rs`'s last four `Ctx` methods run `}` straight into the next `///`, so a blank-line-only rule
+  found no start after the first and filed all four into one slice — silently, because the partition
+  still reconstructs. The second condition is *the previous line was the `}` that closed an item*,
+  and it has to be `}` specifically: a multi-line `#[expect(…)]` also returns the depth to zero, at
+  the `)]` one line above the item it is attached to. [until: reviewed 2026-09-06]

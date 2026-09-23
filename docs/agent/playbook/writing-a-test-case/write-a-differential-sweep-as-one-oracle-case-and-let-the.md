@@ -1,0 +1,6 @@
+- **Write a differential sweep as one `--ORACLE--` case and let the runner partition it.** An oracle
+  failure prints PHP's whole output beside Novis's, so one run says which subjects agree; the rest
+  become a second case with an `--ORACLE-DIVERGES--` line. Substitute control bytes on both sides
+  first (`Core\Str::replaceAll` against PHP's `strtr`), because
+  `rule:tooling/terminal-output-is-a-sink` renders a band wider than CR and LF.
+  [until: reviewed 2026-09-06]

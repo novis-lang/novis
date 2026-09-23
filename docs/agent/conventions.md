@@ -615,9 +615,12 @@ the Write tool; `--set` re-wraps that one field and leaves every other byte of t
 
 Three sentences and about 400 bytes; `session.py --wrap` refuses a new bullet past 700. The first
 sentence is the bullet's selector — a goal manifest fetches it by the opening words of that bold text — so it
-states the trap and not the story. The trailer is required, and `tools/playbook.py`'s module doc is the
-only home of its five kinds: prefer the mechanical ones (`test`, `exists`, `gone`, `rule`) over
-`reviewed`, because those are what let the wrap delete the bullet for you the day it stops being true.
+states the trap and not the story. It is also the bullet's file name: the wrap writes each bullet to
+`docs/agent/playbook/<section>/<lead-in words>.md`. The trailer is required, and `tools/playbook.py`'s
+module doc is the only home of its five kinds. Use a mechanical one (`test`, `exists`, `gone`, `rule`):
+those let the wrap delete the bullet the day it stops being true. The wrap refuses `reviewed` on a new
+bullet that names a path in the tree, because `gone <path>:<word>` fits it, and refuses a `reviewed`
+date after today.
 
 What does **not** go in: the session's narrative (which stage, which check, what was tried first —
 `git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,

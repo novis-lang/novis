@@ -1,0 +1,6 @@
+- **Changing what an `extern "C"` primitive owns breaks its Rust-side test callers as a use-after-free,
+  not as a type error.** A test hands those primitives raw pointers, so nothing checks who owns the
+  reference: a case that goes on using an operand the call now consumes reads freed memory, and it
+  surfaces as a misaligned-pointer abort in an unrelated assertion. Grep every call in
+  `crates/nvs-runtime/{src,tests}` before the edit and give each one a reference of its own —
+  `string.rs`'s `lent` helper is the shape. [until: reviewed 2026-09-17]

@@ -1,0 +1,5 @@
+- **A `## commit:` section cannot name a path the session renamed away, so `git mv`'s staged deletion
+  is left out and the rename lands half-committed.** `session.py --wrap` refuses a path that does not
+  exist, and it commits by pathspec, so the old filename stays staged in the index while the new one
+  goes in — a fresh checkout of that commit carries both. Name only the new path in the section, then
+  commit the leftover deletion straight after the wrap. [until: reviewed 2026-09-12]

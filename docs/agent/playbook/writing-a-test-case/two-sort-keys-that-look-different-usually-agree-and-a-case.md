@@ -1,0 +1,6 @@
+- **Two sort keys that look different usually agree, and a case that does not separate them pins
+  nothing.** `rule:programs/implementing`'s `implementors` sorts by `QName::segments()`, and the
+  obvious counter-example to a rendered-string sort agrees; they part only where one segment is a
+  proper *prefix* of the other and the longer one's next byte is below `\` (0x5C): `App\Sub\A`
+  against `App\SubA`. Work the divergence out on paper before writing the fixture.
+  [until: reviewed 2026-09-06]

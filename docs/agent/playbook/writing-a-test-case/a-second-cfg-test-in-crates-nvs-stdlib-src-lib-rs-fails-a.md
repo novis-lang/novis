@@ -1,0 +1,5 @@
+- **A second `#[cfg(test)]` in `crates/nvs-stdlib/src/lib.rs` fails a guard test, not the build.**
+  `crates/nvs-stdlib/tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` scans
+  a source file down to its *first* one and asserts there is one, so a test-only `mod` among the
+  shipped ones hides everything under it. Declare a helper the whole crate's cases share inside the
+  foot of `lib.rs`, as `granting` is. [until: gone crates/nvs-stdlib/tests/capability.rs:has more than one]

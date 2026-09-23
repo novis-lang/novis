@@ -1,0 +1,6 @@
+- **An expression-bodied `fn (): void => Something();` panics `nvs-codegen`, and the block-bodied
+  form of the same closure does not.** `Core\Out::capture(fn (): void => M::run())` dies with
+  `nvs-codegen does not lower an operand used before it is defined`, while `fn (): void => {
+  M::run(); }` and `fn (): int => M::n()` both run, so it is the `void` return that is unlowerable.
+  Write the braces; the panic names neither the closure nor its return type.
+  [until: reviewed 2026-09-06]

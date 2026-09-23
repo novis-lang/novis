@@ -1,0 +1,7 @@
+- **A `## plan-edit:` `--- old` fragment cannot span a run of two spaces in the field, and the
+  refusal reads as if the words were wrong.** `session.py` normalizes its fragments with `"
+  ".join(text.split())`, but `plan.py`'s `find_fields` joins the field's *lines* and leaves the
+  spacing inside one, so a stray double space in the plan matches no normalized quote; the tell is a
+  refusal quoting your fragment back word for word. Quote a shorter run on one side of the anomaly,
+  or two runs as two pairs — `python tools/plan.py --get 'Open now'` prints the field with the
+  double space invisible. [until: gone tools/session.py:def normalize]

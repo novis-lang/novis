@@ -1,0 +1,5 @@
+- **An awk fatal inside `$(…)` leaves the variable empty, and a hook that only checks the variable
+  then fails OPEN.** `\[` in a *dynamic* awk regex (one built from a string) is consumed by the
+  string literal first, so awk sees a bare `[`, dies with `invalid regexp`, and the surrounding `[
+  -z "$offenders" ] && exit 0` allows the commit. Write it `[[]`, and always capture `$?` from the
+  awk itself and refuse on a non-zero status — a gate must fail closed. [until: reviewed 2026-09-06]
