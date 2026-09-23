@@ -1,0 +1,27 @@
+<?nvs
+// Reads the size from a result of `stat`, as a program does when it checks an upload against a limit.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result asked in each round depends on the round before.
+            $total = $total + $infos[($total % 3) as int]->size() + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+string $dir = Core\IO::temporaryDir();
+array<Core\IO\Metadata> $infos = [];
+array<string> $contents = ["x", "xxxxx", "xxxxxxxxxx"];
+foreach ($contents as string $content) {
+    string $path = Core\Path::join($dir, "size-" . (Core\Str::length($content) as string) . ".dat");
+    Core\IO::write($path, $content);
+    $infos[] = Core\IO::stat($path);
+}
+echo Bench::run($infos, 400000), "\n";

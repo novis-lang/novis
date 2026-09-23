@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check if a file is empty before the program reads it.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "queue.txt");
+Core\IO::write($path, "");
+
+// An empty file has a size of 0. This prints "nothing to do".
+if (Core\IO::stat($path)->size() == 0) {
+    echo "nothing to do", "\n";
+} else {
+    echo Core\IO::read($path);
+}
+
+// After a write, the size is not 0, so this prints "send the report".
+Core\IO::write($path, "send the report\n");
+if (Core\IO::stat($path)->size() == 0) {
+    echo "nothing to do", "\n";
+} else {
+    echo Core\IO::read($path);
+}
