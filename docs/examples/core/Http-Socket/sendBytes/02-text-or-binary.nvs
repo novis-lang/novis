@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `send()` sends a text message and `sendBytes()` sends a binary message.
+
+// A fixed server, so the example runs without a network.
+Core\Test::answerSocket("wss://chat.example.com/room", []);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://chat.example.com/room");
+$socket->send("ok");
+$socket->sendBytes("ok" as bytes);
+
+// A text message has its content in `text()`, and a binary message has it in `bytes()`.
+// This prints `text` for the first message and `binary` for the second.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    if ($sent->text() != null) {
+        echo "text\n";
+    } else {
+        echo "binary\n";
+    }
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Shows a device that sends each sensor reading to a server as a small binary message.
+
+// A fixed server, so the example runs without a network.
+Core\Test::answerSocket("wss://sensors.example.com/readings", []);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://sensors.example.com/readings");
+
+// Each reading is the sensor number in two bytes and the temperature in four bytes.
+// `Core\Bytes::pack` writes the two numbers, so each message is six bytes long.
+array<int> $temperatures = [21, 22, -3];
+uint $sensor = 1;
+foreach ($temperatures as int $temperature) {
+    $socket->sendBytes(Core\Bytes::pack("nN", $sensor, $temperature));
+    $sensor = $sensor + 1;
+}
+$socket->close();
+
+// This prints each message as hexadecimal digits.
+// The first line is `000100000015`: sensor 1 and a temperature of 21.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    echo Core\Encoding::toHex($sent->bytes() ?? ("" as tainted bytes)), "\n";
+}

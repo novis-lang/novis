@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program sends a binary message of sixteen megabytes and two hundred thousand small ones.
+// Then it sends an empty one, and keeps sending on a closed connection.
+// Each step must finish or throw an error. Nothing may crash.
+
+Core\Test::answerSocket('wss://sink.example.com/in', []);
+
+// 1. One binary message of sixteen megabytes, with every byte set to zero.
+Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://sink.example.com/in');
+$socket->sendBytes(Core\Bytes::fill(16777216, 0));
+echo 'step 1: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 2. Two hundred thousand binary messages of eight bytes, each one different.
+uint $i = 0;
+while ($i < 200000) {
+    $socket->sendBytes(Core\Bytes::pack('J', $i));
+    $i = $i + 1;
+}
+echo 'step 2: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 3. An empty binary message, and binary data received from the server sent back unchanged.
+Core\Test::answerSocket('wss://echo.example.com/in', [Core\Bytes::fill(3, 255)]);
+Core\Http\Socket $echo = Core\Http\Client::openSocket('wss://echo.example.com/in');
+$echo->sendBytes('' as bytes);
+?Core\Socket\Message $heard = $echo->receive();
+$echo->sendBytes($heard?->bytes() ?? ('' as tainted bytes));
+echo 'step 3: ', Core\Arr::count(Core\Test::sentSocket()), "\n";
+
+// 4. After `close()`, a hundred thousand more sends. Each one must throw a `LogicError`.
+$socket->close();
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $socket->sendBytes('late' as bytes);
+    } catch (LogicError $closed) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+if ($refused != 100000) {
+    throw new LogicError('a closed connection accepted a message');
+}
+echo 'step 4: ', $refused, "\n";
