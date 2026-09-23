@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a server sends event names that are repeated, very long, unusual, or sent
+// without any data. Each `name()` call must return the name of its own event, or the
+// stream must throw an error.
+// hostile: timeout-ms 30000
+
+// Every reply comes from a table, so nothing is sent over a network.
+
+// 1. One event with 100000 `event` lines. Only the last line counts.
+Core\Test::answerHttp('https://feed.example.com/renamed', 200, { body: Core\Str::repeat("event: first\n", 99999) . "event: last\ndata: x\n\n" });
+var $renamed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/renamed');
+foreach ($renamed->events() as Core\Http\Event $event) {
+    if ($event->name() != 'last') {
+        throw new LogicError('an earlier event line was used');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. 100000 blocks that have a name but no data, then one event with no name.
+//    A block without data is not an event, so its name must not reach the next event.
+Core\Test::answerHttp('https://feed.example.com/left-behind', 200, { body: Core\Str::repeat("event: ghost\n\n", 100000) . "data: real\n\n" });
+var $leftBehind = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/left-behind');
+uint $count = 0;
+foreach ($leftBehind->events() as Core\Http\Event $event) {
+    if ($event->name() != null) {
+        throw new LogicError('a name from a block without data reached an event');
+    }
+    $count = $count + 1;
+}
+if ($count != 1) {
+    throw new LogicError('a block without data was given as an event');
+}
+echo 'step 2: ', $count, "\n";
+
+// 3. Names that are empty, or have a colon, a leading space, a NUL byte or a terminal
+//    escape code. `name()` must return each one exactly as it is in the list.
+array<string> $sent = ['', 'a:b', ' two', "nul\0byte", "\x1b[2Jclear"];
+string $body = '';
+foreach ($sent as string $name) {
+    $body = $body . 'event: ' . $name . "\ndata: x\n\n";
+}
+Core\Test::answerHttp('https://feed.example.com/odd', 200, { body: $body });
+var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/odd');
+uint $k = 0;
+foreach ($odd->events() as Core\Http\Event $event) {
+    if ($event->name() != $sent[$k as int]) {
+        throw new LogicError(Core\Str::format('name %d was changed', $k));
+    }
+    $k = $k + 1;
+}
+echo 'step 3: ', $k, "\n";
+
+// 4. A name that fills a whole line, and a name one character longer than a line
+//    may be. The first must be returned. The second must throw a `RuntimeError`.
+Core\Test::answerHttp('https://feed.example.com/fits', 200, { body: 'event: ' . Core\Str::repeat('n', 65529) . "\ndata: x\n\n" });
+Core\Test::answerHttp('https://feed.example.com/over', 200, { body: 'event: ' . Core\Str::repeat('n', 65530) . "\ndata: x\n\n" });
+var $fits = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/fits');
+foreach ($fits->events() as Core\Http\Event $event) {
+    echo 'step 4: ', Core\Str::length($event->name() ?? ''), "\n";
+}
+try {
+    var $over = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/over');
+    foreach ($over->events() as Core\Http\Event $event) {
+        throw new LogicError('a name longer than a line was given');
+    }
+} catch (RuntimeError $tooLong) {
+    echo 'step 4: refused', "\n";
+}
