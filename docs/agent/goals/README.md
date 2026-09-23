@@ -160,6 +160,30 @@ Four rules bind every one of them, and they are the reason the run can be left a
    start-up — retiring is the claim that a goal's checks are already somebody's floor, and that claim
    is false anywhere but behind the run.
 
+## Side goals
+
+**A side goal is a goal the chain never walks.** It is `side/<slug>.md` plus, until it is retired, a
+sibling `<slug>.toml` and `<slug>.handoff.md`: the same three files, the same shapes and the same rules
+as a chain goal, with three differences.
+
+- **No number.** Nothing walks to it, so it has no position: its `.md` opens `# Side goal — <title>`,
+  and prose names it by its slug as it names any goal. A numbered file under `side/` is refused by
+  `chain.py --check`, because the chain would never reach it.
+- **It runs only when named.** `python tools/loop.py --side <slug>`, typed in the main tree, runs that
+  goal and nothing else, in a worktree of its own at `.agent-tmp/worktrees/side/<slug>` on branch
+  `side/<slug>`. A chain run never installs it. Several side runs and the chain run may run at once.
+- **It lands instead of switching.** When its list is green the side run rebases onto `main`, runs
+  `verify.py` and its whole list again, waits until `main` is clean and the chain run has reached a
+  session boundary, and fast-forwards `main`. Its checks join the installed goal's floor as it lands,
+  its `.toml` and `.handoff.md` are retired, and the worktree and branch are removed. Then the side run
+  ends.
+
+Its list runs over **main's carried floor** as well as its own checks, so a side branch cannot land
+anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side session
+writes no plan section and never edits the chain run's files; the driver tells it so ahead of the
+prompt. [tools/side.py](../../../tools/side.py) is the mechanism, the handshake with the chain run and
+the landing order; `python tools/side.py --status` lists every side goal and who holds the merge lock.
+
 ## Starting the chain
 
 Three steps.

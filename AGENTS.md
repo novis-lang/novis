@@ -329,7 +329,9 @@ Step 5 above, in detail:
   the plan's `Carried by` cells are derived from it, so a milestone number says nothing about what
   is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
   `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `brief.py` prints the live
-  goal; `plan.py --check` gates it.
+  goal; `plan.py --check` gates it. **A side goal is off the chain**: `docs/agent/goals/side/<slug>`,
+  run only by `loop.py --side <slug>` in its own worktree and landed on `main` when green —
+  [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
 - **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
   in a code comment, in a commit message, in an owner column, **and in what a tool prints**. A
   number is fine as a *position* beside a total (`29 of 43`), which is what it is; what is never

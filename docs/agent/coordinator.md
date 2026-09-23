@@ -412,6 +412,12 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`
 (with `--full`, consulting no memo), `--list`, `--no-status`.
 
+    python tools/loop.py --side <slug>          # one side goal, in its own worktree, landed when green
+    python tools/loop.py --side <slug> --land   # no session: verify that branch over main and land it
+
+`--side` runs a **side goal** and nothing else, beside the chain run or without one; `python tools/side.py
+--status` lists them. [goals/README.md](goals/README.md) § *Side goals* is what one is.
+
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
 `acceptance check`), the tool call it is on, and how long this phase has been going. Above it, one grey
@@ -559,10 +565,11 @@ just done by hand.
 that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry`, one in `nvs_stdlib`'s
 `symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
 the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
-What is unchanged is everything above: **one working tree and one handoff file.** A second lane needs a
-git worktree of its own and a handoff of its own before any of that matters, and neither exists. So the
-splits are necessary and not sufficient — treat this as a smaller remaining problem than it was, not a
-solved one.
+The chain run itself is still **one working tree and one handoff file**. A second lane is a **side goal**:
+`loop.py --side <slug>` runs one goal in a git worktree of its own, with its own handoff, and lands it on
+`main` unattended once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract,
+[tools/side.py](../../tools/side.py) the mechanism). What it does not do is split the chain: a side goal
+is written by hand for work that can run beside the chain, and the chain still walks one goal at a time.
 
 **Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a
 session's clock is fixed cost — orientation before the first edit, then verify, docs and commit after the
@@ -583,6 +590,7 @@ has already been 4, then 2, then 1 within a single afternoon as better evidence 
 why the script exists and the sentence does not.
 [loop-authoring.md](loop-authoring.md) § *Measure first* makes running it step zero of any new goal.
 
-Parallel lanes are the *second* lever, worth roughly the same speedup for far more machinery — a worktree
-and a handoff per lane, and unattended merges. They are also the one that does *not* care about the
-context ceiling, since each lane is its own session; revisit them once reading-less has been tried.
+Parallel lanes are the *second* lever, and side goals are the form they took: a worktree and a handoff per
+lane, and an unattended merge that waits for the chain run's session boundary. They do not care about the
+context ceiling, since each lane is its own session; what they spend is a second checkout and a second
+`target/` for as long as the side run lives.
