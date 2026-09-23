@@ -1,0 +1,26 @@
+<?nvs
+// Moves a file to a new name, as a program does when it replaces a file safely.
+// bench: iterations 2000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, "first.txt"),
+            Core\Path::join($dir, "second.txt"),
+        ];
+        Core\IO::write($paths[0], "content");
+        uint $at = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round moves the file from where the round before left it.
+            Core\IO::move($paths[($at % 2) as int], $paths[(($at + 1) % 2) as int]);
+            $at = $at + 1;
+            $i = $i + 1;
+        }
+        return Core\IO::size($paths[($at % 2) as int]);
+    }
+}
+
+echo Bench::run(2000) > 0 ? "done" : "the file lost its content", "\n";

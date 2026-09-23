@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program moves a file onto itself, into itself, back and forth many times, and to
+// names that cannot exist. `move` must move the file or throw an `IOError`, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, 'data.txt');
+Core\IO::write($file, 'hello');
+
+// 1. A file moved onto its own name. The content must still be there.
+Core\IO::move($file, $file);
+if (Core\IO::read($file) != 'hello') {
+    throw new LogicError('a file moved onto itself lost its content');
+}
+echo 'step 1: done', "\n";
+
+// 2. A file moved two thousand times between two names. The content must arrive whole.
+string $other = Core\Path::join($dir, 'data-2.txt');
+uint $round = 0;
+while ($round < 1000) {
+    Core\IO::move($file, $other);
+    Core\IO::move($other, $file);
+    $round = $round + 1;
+}
+if (Core\IO::read($file) != 'hello' || Core\IO::exists($other)) {
+    throw new LogicError('a file moved back and forth changed');
+}
+echo 'step 2: done', "\n";
+
+// 3. A folder moved into itself. It must throw an `IOError` and leave the folder in place.
+string $folder = Core\Path::join($dir, 'folder');
+Core\IO::makeDir($folder);
+try {
+    Core\IO::move($folder, Core\Path::join($folder, 'inside'));
+    throw new LogicError('a folder moved into itself');
+} catch (IOError $intoItself) {
+}
+if (!Core\IO::isDir($folder)) {
+    throw new LogicError('a refused move lost the folder');
+}
+echo 'step 3: done', "\n";
+
+// 4. Destinations that cannot exist. Each must throw an `IOError` and leave the file in place.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($file, 'inside'),
+    Core\Path::join($dir, Core\Str::repeat('a/', 5000), 'x.txt'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::move($file, $badPath);
+        throw new LogicError('a file moved to a path that cannot exist');
+    } catch (IOError $refused) {
+    }
+    if (Core\IO::read($file) != 'hello') {
+        throw new LogicError('a refused move changed the file');
+    }
+}
+echo 'step 4: done', "\n";
