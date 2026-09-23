@@ -1,0 +1,21 @@
+<?nvs
+// Flushes an open file after each write, as a program does when it writes a log line by line.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), "flush.log");
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $file->flush();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "done" : "nothing was flushed", "\n";

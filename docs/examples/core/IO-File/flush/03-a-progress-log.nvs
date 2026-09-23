@@ -1,0 +1,16 @@
+<?nvs
+// Shows a long job that writes one line per finished step to a log, and flushes after each line.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "import.log");
+array<string> $steps = ["customers", "orders", "invoices"];
+
+Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Write);
+foreach ($steps as string $step) {
+    // A person can watch this log while the job runs. Each line is in the file after `flush`.
+    $log->write("imported " . $step . "\n");
+    $log->flush();
+}
+$log->close();
+
+// This prints the three lines of the log.
+echo Core\IO::readText($path);

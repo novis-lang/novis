@@ -1,0 +1,3 @@
+before flush: 42
+after flush: 42
+the handle is closed

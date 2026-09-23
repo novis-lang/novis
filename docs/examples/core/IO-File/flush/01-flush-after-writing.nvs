@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to call `flush` after writing, and that the text is in the file.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+$file->write("Hello\n");
+$file->flush();
+
+// The handle is still open. `Core\IO::readText` reads the file and prints "Hello".
+echo Core\IO::readText($path);
+$file->close();

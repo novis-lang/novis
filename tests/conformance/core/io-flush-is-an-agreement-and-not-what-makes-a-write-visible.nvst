@@ -2,6 +2,7 @@
 `Core\IO\File::flush` is an agreement between two handles rather than the thing that makes a write visible — every write has already reached the operating system by the time it returns, so a second reader has each one before any flush and the flush after it changes nothing, at sizes on both sides of any buffer a layer might plausibly keep — spec § 14
 --FILE--
 <?nvs
+// covers: Core\IO\File::flush
 // The member is written around a claim its existing cases cannot tell apart
 // from its opposite: Novis holds no buffer of its own in front of the
 // descriptor, so `flush` is `Write::flush` and nothing more. A case that

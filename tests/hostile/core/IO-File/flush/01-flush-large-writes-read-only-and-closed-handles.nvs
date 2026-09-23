@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a program flushes very often, after a very large write, on a handle that can only read,
+// and on a closed handle. Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-flush');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+
+// 1. A handle flushes 100000 times with nothing written.
+Core\IO\File $idle = Core\IO::open($path, Core\IO\FileMode::Write);
+uint $i = 0;
+while ($i < 100000) {
+    $idle->flush();
+    $i = $i + 1;
+}
+$idle->close();
+echo 'step 1: done', "\n";
+
+// 2. A text of 8 MB is written and flushed. The file must then have all of it.
+Core\IO\File $big = Core\IO::open($path, Core\IO\FileMode::Write);
+$big->write(Core\Str::repeat('y', 8000000));
+$big->flush();
+$big->close();
+if (Core\IO::size($path) != 8000000) {
+    throw new LogicError('the flushed file lost bytes');
+}
+echo 'step 2: done', "\n";
+
+// 3. A handle that can only read is flushed. This must work or throw an `IOError`.
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+try {
+    $reader->flush();
+} catch (IOError $refused) {
+}
+$reader->close();
+echo 'step 3: done', "\n";
+
+// 4. Two handles write to the same file and flush one after the other, 1000 times.
+Core\IO\File $a = Core\IO::open($path, Core\IO\FileMode::Append);
+Core\IO\File $b = Core\IO::open($path, Core\IO\FileMode::Append);
+$i = 0;
+while ($i < 1000) {
+    $a->write('a');
+    $b->flush();
+    $b->write('b');
+    $a->flush();
+    $i = $i + 1;
+}
+$a->close();
+$b->close();
+echo 'step 4: done', "\n";
+
+// 5. A closed handle is flushed 1000 times. Each `flush` must throw a `RuntimeError`.
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $a->flush();
+    } catch (RuntimeError $e) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle was flushed without an error');
+}
+echo 'step 5: done', "\n";
