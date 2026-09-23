@@ -723,8 +723,10 @@ answer is the wrong one.
 
 The roster is a type with no local variant, and every store operation is written against the
 shared tier's connection rather than the tier enum, so the per-core map is absent rather than
-merely unselected. The key is `System` class and `Boot` apply ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)): where a fleet's sessions live is a
-deployment decision, and moving it mid-flight would strand every live session. An absent block is
+merely unselected. The key is `System` class ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)), because where a fleet's sessions live is a
+deployment decision. It reloads: a request reads the block from the snapshot it cloned, so a
+changed backend reaches the next request, and no record moves from the old store to the new one,
+which signs every user out. An absent block is
 not a default backend ([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
 
 <sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0005](../decisions/0005.md), [0219](../decisions/0219.md).</sub>

@@ -497,11 +497,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",
     ),
     (
-        "session",
-        "[session]\nbackend = \"shared\"\n",
-        "[session]\nbackend = \"db\"\n",
-    ),
-    (
         "queue.connection",
         "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\n",
         "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"jobs\"\n",

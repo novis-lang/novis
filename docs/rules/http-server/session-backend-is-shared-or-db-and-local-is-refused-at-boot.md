@@ -17,6 +17,8 @@ answer is the wrong one.
 
 The roster is a type with no local variant, and every store operation is written against the
 shared tier's connection rather than the tier enum, so the per-core map is absent rather than
-merely unselected. The key is `System` class and `Boot` apply (`rule:config/system-means-a-request-may-not-set-it`): where a fleet's sessions live is a
-deployment decision, and moving it mid-flight would strand every live session. An absent block is
+merely unselected. The key is `System` class (`rule:config/system-means-a-request-may-not-set-it`), because where a fleet's sessions live is a
+deployment decision. It reloads: a request reads the block from the snapshot it cloned, so a
+changed backend reaches the next request, and no record moves from the old store to the new one,
+which signs every user out. An absent block is
 not a default backend (`rule:http-server/no-session-block-means-no-store`).

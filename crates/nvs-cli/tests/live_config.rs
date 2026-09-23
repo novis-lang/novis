@@ -916,6 +916,140 @@ fn a_changed_schedule_roster_is_armed_from_the_next_tick() {
     }
 }
 
+/// A stand-in shared store on a loopback port of its own. It reads each
+/// command, answers `$-1` (nothing stored) to a `GET` and `+OK` to every
+/// other one, and keeps the name of each command it read.
+struct Store {
+    addr: SocketAddr,
+    commands: Arc<Mutex<Vec<String>>>,
+}
+
+impl Store {
+    /// Binds a free port and answers every connection on a thread of its own.
+    fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port is free");
+        let addr = listener
+            .local_addr()
+            .expect("a bound socket has an address");
+        let commands = Arc::new(Mutex::new(Vec::new()));
+        let kept = Arc::clone(&commands);
+        thread::spawn(move || {
+            for stream in listener.incoming().map_while(Result::ok) {
+                let kept = Arc::clone(&kept);
+                thread::spawn(move || answered(stream, &kept));
+            }
+        });
+        Self { addr, commands }
+    }
+
+    /// The URL `[cache.shared] url` names it by.
+    fn url(&self) -> String {
+        format!("redis://{}", self.addr)
+    }
+
+    /// Whether a command named `name` has arrived.
+    fn received(&self, name: &str) -> bool {
+        self.commands
+            .lock()
+            .expect("no reader panicked")
+            .iter()
+            .any(|arrived| arrived == name)
+    }
+}
+
+/// Reads commands from `stream` until it closes, answers each as [`Store`]
+/// does, and keeps each command's name in `kept`.
+fn answered(stream: TcpStream, kept: &Mutex<Vec<String>>) {
+    /// The number after `marker` on one line, or `None` at the end of the
+    /// stream or on a line that is not one.
+    fn counted(reader: &mut impl BufRead, marker: char) -> Option<usize> {
+        let mut line = String::new();
+        if reader.read_line(&mut line).ok()? == 0 {
+            return None;
+        }
+        line.trim_end().strip_prefix(marker)?.parse().ok()
+    }
+
+    let Ok(mut writer) = stream.try_clone() else {
+        return;
+    };
+    let mut reader = BufReader::new(stream);
+    while let Some(count) = counted(&mut reader, '*') {
+        let mut parts = Vec::new();
+        for _ in 0..count {
+            let Some(length) = counted(&mut reader, '$') else {
+                return;
+            };
+            let mut part = vec![0; length + 2];
+            if reader.read_exact(&mut part).is_err() {
+                return;
+            }
+            part.truncate(length);
+            parts.push(part);
+        }
+        let name = parts
+            .first()
+            .map(|name| String::from_utf8_lossy(name).to_uppercase())
+            .unwrap_or_default();
+        let reply: &[u8] = if name == "GET" {
+            b"$-1\r\n"
+        } else {
+            b"+OK\r\n"
+        };
+        kept.lock().expect("no reader panicked").push(name);
+        if writer.write_all(reply).is_err() {
+            return;
+        }
+    }
+}
+
+/// A deployment whose shared store is `store`, granted to `app.nvs`, with
+/// `[session] backend` written as `backend`.
+fn sessions(store: &Store, backend: &str) -> String {
+    format!(
+        "[[app]]\nentry = \"app.nvs\"\n\n[app.capabilities.cache]\nshared = true\n\n\
+         [cache.shared]\nurl = \"{}\"\n\n[session]\nbackend = \"{backend}\"\n",
+        store.url()
+    )
+}
+
+/// An entry file that starts a session, and prints `started`, or `refused`
+/// when `Core\Session::start` throws.
+const SESSIONED: &str = "<?nvs\ntry {\n    Core\\Session::start();\n    echo \"started\";\n} \
+                         catch (RuntimeError $refused) {\n    echo \"refused\";\n}\n";
+
+/// `Core\Session::start` reads `[session]` from the snapshot its request
+/// cloned. A server that booted with `backend = "db"`, which this build does
+/// not serve, refuses every session. After a reload names `shared`, the next
+/// request starts one, and the record reaches the shared store.
+#[test]
+fn a_changed_session_backend_applies_to_new_requests() {
+    let store = Store::start();
+    let server = Server::start(
+        "session",
+        &sessions(&store, "db"),
+        &[("app.nvs", SESSIONED)],
+    );
+    server.awaits("/", "the boot's refusal", |answer| answer.body == "refused");
+    assert!(
+        !store.received("SET"),
+        "a backend that refuses every session wrote a record"
+    );
+
+    let report = server.reload(&sessions(&store, "shared"));
+    assert!(
+        report.contains("applied: session.backend\n"),
+        "the reload did not name `session.backend` as applied: {report}"
+    );
+    server.awaits("/", "a session on the reloaded backend", |answer| {
+        answer.body == "started"
+    });
+    assert!(
+        store.received("SET"),
+        "a session started after the reload wrote no record to the shared store"
+    );
+}
+
 /// A stand-in OTLP collector on a loopback port of its own. It answers every
 /// request with `200` and keeps the request target of each.
 struct Collector {

@@ -307,8 +307,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "session",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_session_backend_applies_to_new_requests",
     ),
     (
         "deferred.max_concurrent",

@@ -245,10 +245,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // where already-compiled native code is read from would hold a code-injection primitive rather
     // than a performance knob. `nvs_cli::cache::from_config` is its reader.
     Directive { key: "opcache.file_cache_dir", class: Class::System, apply: Apply::Boot },
-    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`; `Boot`
-    // rather than `Reload` because a backend swapped under a running server strands every live
-    // record in the store nothing reads any more, which is the one failure a session store has.
-    Directive { key: "session", class: Class::System, apply: Apply::Boot },
+    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`. `Reload`
+    // because `Core\Session::start` reads the block out of the snapshot its request cloned, and
+    // the store it reaches is this core's connection, dialled again when the published tree names
+    // another. A changed backend signs every user out, because no record is carried from the old
+    // store to the new one; that is the operator's choice to make.
+    Directive { key: "session", class: Class::System, apply: Apply::Reload },
     Directive { key: "deferred.max_concurrent", class: Class::System, apply: Apply::Reload },
     // Its sibling is `Runtime`, and `rule:concurrency/deferred-is-bounded-by-two-directives` is explicit that the two halves of `[deferred]`
     // are different classes: the cap is a host-sizing decision and the deadline is an ordinary
