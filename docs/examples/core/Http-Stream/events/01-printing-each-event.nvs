@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read server-sent events and print the data of each one.
+
+// The reply comes from this table, so nothing is sent over a network.
+// Each event ends with a blank line.
+Core\Test::answerHttp("https://prices.example.com/live", 200, {
+    body: "data: apples 1.20\n\ndata: pears 0.95\n\ndata: plums 2.10\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $prices = Core\Http\Client::stream(Core\Http\Method::Get, "https://prices.example.com/live");
+// This prints three lines, one for each event.
+foreach ($prices->events() as Core\Http\Event $event) {
+    echo $event->data(), "\n";
+}

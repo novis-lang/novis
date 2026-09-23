@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a server sends events that never finish, only comments, lines and data that are
+// too long, and very many events. `events()` must give each finished event once, or throw
+// an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+Core\Test::answerHttp('https://feed.example.com/unfinished', 200, { body: "data: one\n\ndata: never finished\n" });
+Core\Test::answerHttp('https://feed.example.com/comments', 200, { body: Core\Str::repeat(": keep-alive\n\n", 100000) });
+Core\Test::answerHttp('https://feed.example.com/long-line', 200, { body: 'data: ' . Core\Str::repeat('l', 70000) . "\n\n" });
+Core\Test::answerHttp('https://feed.example.com/long-event', 200, { body: Core\Str::repeat('data: ' . Core\Str::repeat('e', 60000) . "\n", 20) . "\n" });
+Core\Test::answerHttp('https://feed.example.com/many', 200, { body: Core\Str::repeat("data: x\n\n", 200000) });
+Core\Test::answerHttp('https://big.example.com/*', 200, { body: Core\Str::repeat('data: ' . Core\Str::repeat('b', 60000) . "\n\n", 4) });
+
+// 1. The second event has no blank line at its end. Only the first event is given.
+var $unfinished = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/unfinished');
+uint $count = 0;
+foreach ($unfinished->events() as Core\Http\Event $event) {
+    if ($event->data() != 'one') {
+        throw new LogicError('an unfinished event was given');
+    }
+    $count = $count + 1;
+}
+if ($count != 1) {
+    throw new LogicError(Core\Str::format('%d events were given, not 1', $count));
+}
+echo 'step 1: done', "\n";
+
+// 2. 100000 comments and no data. The loop must not run at all.
+var $comments = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/comments');
+foreach ($comments->events() as Core\Http\Event $event) {
+    throw new LogicError('a comment was given as an event');
+}
+echo 'step 2: done', "\n";
+
+// 3. One line of 70000 bytes. This is over the limit for one line, so it throws an error.
+var $longLine = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-line');
+try {
+    foreach ($longLine->events() as Core\Http\Event $event) {
+        throw new LogicError('a line over the limit was given');
+    }
+} catch (RuntimeError $error) {
+    echo 'step 3: refused', "\n";
+}
+
+// 4. One event with 20 data lines of 60000 bytes. Each line is allowed, but the
+//    whole event is over the limit for one event, so it throws an error.
+var $longEvent = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-event');
+try {
+    foreach ($longEvent->events() as Core\Http\Event $event) {
+        throw new LogicError('an event over the limit was given');
+    }
+} catch (RuntimeError $error) {
+    echo 'step 4: refused', "\n";
+}
+
+// 5. 200000 small events. Each one must be given exactly once.
+var $many = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/many');
+uint $seen = 0;
+foreach ($many->events() as Core\Http\Event $event) {
+    $seen = $seen + 1;
+}
+if ($seen != 200000) {
+    throw new LogicError(Core\Str::format('%d events were given, not 200000', $seen));
+}
+echo 'step 5: done', "\n";
+
+// 6. Every event of every stream is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+array<Core\Http\Event> $kept = [];
+uint $n = 0;
+while (true) {
+    var $big = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $n));
+    foreach ($big->events() as Core\Http\Event $event) {
+        $kept[] = $event;
+    }
+    $n = $n + 1;
+}

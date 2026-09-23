@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to handle each kind of event in a different way.
+
+// An `event` line gives an event its name. The line starting with `:` is a comment.
+Core\Test::answerHttp("https://builds.example.com/job/12", 200, {
+    body: ": started\n\nevent: step\ndata: compile\n\nevent: step\ndata: test\n\nevent: finished\ndata: ok\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $build = Core\Http\Client::stream(Core\Http\Method::Get, "https://builds.example.com/job/12");
+foreach ($build->events() as Core\Http\Event $event) {
+    // `name()` returns `null` for an event without an `event` line.
+    tainted string $kind =$event->name() ?? "message";
+    if ($kind == "step") {
+        echo "running: ", $event->data(), "\n";
+    } else if ($kind == "finished") {
+        // This prints "result: ok".
+        echo "result: ", $event->data(), "\n";
+    }
+}

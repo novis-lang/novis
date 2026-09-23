@@ -1,0 +1,26 @@
+<?nvs
+// Reads a streamed reply as server-sent events, as a program does with a live feed.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies come from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://feed.example.com/a", 200, {body: "data: one\n\nevent: tick\ndata: two\n\n"});
+        Core\Test::answerHttp("https://feed.example.com/b", 200, {body: "id: 4\ndata: three\n\ndata: four\ndata: five\n\n"});
+        array<string> $urls = ["https://feed.example.com/a", "https://feed.example.com/b"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // A body can be read only once, so each round opens a new stream.
+            // The reply in each round depends on the round before, so no round can be left out.
+            Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            foreach ($feed->events() as Core\Http\Event $event) {
+                $total = $total + Core\Str::length($event->data());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

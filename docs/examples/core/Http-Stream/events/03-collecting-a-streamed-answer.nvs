@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to collect an answer that an AI service sends in small pieces.
+
+// Many AI services send each new word as one event, and send `[DONE]` at the end.
+Core\Test::answerHttp("https://ai.example.com/v1/complete", 200, {
+    body: "data: The\n\ndata:  order\n\ndata:  has shipped.\n\ndata: [DONE]\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $reply = Core\Http\Client::stream(Core\Http\Method::Post, "https://ai.example.com/v1/complete");
+tainted string $answer = "";
+foreach ($reply->events() as Core\Http\Event $event) {
+    if ($event->data() == "[DONE]") {
+        break;
+    }
+    // Each piece is added to the answer. A piece can start with a space.
+    $answer = $answer . $event->data();
+}
+
+// This prints "The order has shipped.".
+echo $answer, "\n";

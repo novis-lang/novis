@@ -1,0 +1,3 @@
+running: compile
+running: test
+result: ok
