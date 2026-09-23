@@ -7101,13 +7101,13 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-config (four rows, System throughout, split Boot and Reload)"
+name = "nvs-config (four rows, System throughout, every key Reload)"
 args = ["test", "-p", "nvs-config"]
 tests = [
   "every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four",
-  "connection_and_workers_are_boot_and_max_attempts_and_visibility_are_reload",
+  "every_queue_key_reloads",
   "every_queue_row_is_system_class",
-  "a_reload_that_changes_workers_carries_the_running_value_and_names_the_key",
+  "a_reload_that_changes_workers_publishes_the_new_count",
 ]
 
 # ---------------------------------------------------------------------------------------------------
