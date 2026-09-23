@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a program closes many handles in the wrong order, closes each one again, and closes a
+// handle whose file was deleted. Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-close');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'input.txt');
+Core\IO::write($path, 'content');
+
+// 1. 2000 handles are opened on one file and closed from the last to the first.
+// The system may run out of file handles first. Then `open` throws an `IOError`.
+array<Core\IO\File> $open = [];
+try {
+    uint $i = 0;
+    while ($i < 2000) {
+        $open[] = Core\IO::open($path, Core\IO\FileMode::Read);
+        $i = $i + 1;
+    }
+} catch (IOError $tooMany) {
+}
+int $at = (Core\Arr::count($open) as int) - 1;
+while ($at >= 0) {
+    $open[$at]->close();
+    $at = $at - 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. Every handle from step 1 is closed a second time. Each `close` must throw a `RuntimeError`.
+uint $thrown = 0;
+foreach ($open as Core\IO\File $again) {
+    try {
+        $again->close();
+    } catch (RuntimeError $e) {
+        $thrown = $thrown + 1;
+    }
+}
+if ($thrown != Core\Arr::count($open)) {
+    throw new LogicError('a handle was closed twice without an error');
+}
+echo 'step 2: done', "\n";
+
+// 3. A locked handle is closed while it writes a large text. A new handle must then get the lock.
+Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+$writer->lock();
+$writer->write(Core\Str::repeat('x', 1000000));
+$writer->close();
+Core\IO\File $next = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$next->lock();
+$next->close();
+echo 'step 3: done', "\n";
+
+// 4. The file is deleted while a handle is open, and then the handle is closed.
+// The delete may fail on some systems. Then `remove` throws an `IOError`.
+Core\IO\File $orphan = Core\IO::open($path, Core\IO\FileMode::Read);
+try {
+    Core\IO::remove($path);
+} catch (IOError $busy) {
+}
+$orphan->close();
+echo 'step 4: done', "\n";
+
+// 5. A handle is opened and never closed. The program ends and Novis must close it.
+Core\IO\File $left = Core\IO::open(Core\Path::join($dir, 'left.txt'), Core\IO\FileMode::Write);
+echo 'step 5: done', "\n";

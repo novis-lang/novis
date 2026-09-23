@@ -624,6 +624,29 @@ root = "benches/members/core/IO"
 read = true
 write = true
 
+# `Core\IO\File`'s proof programs open, lock and close handles on files under
+# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
+[[app]]
+root = "docs/examples/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "benches/members/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `Core\Db::open`'s five proof programs are the first in this repository to open a
 # database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
 # at `:memory:`, which is what keeps them container-free and their output the same on

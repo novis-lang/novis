@@ -2,6 +2,7 @@
 `Core\IO\File::lock` has no `unlock`, because the lock's lifetime is the handle's — `close` frees it, and a closed handle can no longer ask for one — spec § 14, `rule:errors/on-uncaught-throw`
 --FILE--
 <?nvs
+// covers: Core\IO\File::lock, Core\IO\File::close
 // `flock`'s third mode, `LOCK_UN`, is not a member of this class. The lock
 // belongs to the descriptor, so it goes when the descriptor goes: `close`, or
 // the end of the request for a handle a program never closes, since the

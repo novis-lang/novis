@@ -1,0 +1,24 @@
+<?nvs
+// Shows that a handle cannot be used after `close`, and that closing it twice throws an error.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+Core\IO::write($path, "first note\n");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+$file->close();
+
+// Reading from a closed handle throws a `RuntimeError`.
+// This prints "read failed".
+try {
+    $file->read(10);
+} catch (RuntimeError $e) {
+    echo "read failed\n";
+}
+
+// A second `close` also throws a `RuntimeError`.
+// This prints "close failed".
+try {
+    $file->close();
+} catch (RuntimeError $e) {
+    echo "close failed\n";
+}

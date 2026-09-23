@@ -1306,6 +1306,13 @@ const FILE_PATH_SLOT: usize = 1;
 /// a footprint one.
 const LINE_CHUNK: usize = 8 * 1024;
 
+/// `Core\IO\File`'s class card — `rule:core-api/reference-card`.
+const FILE_CARD: ClassDoc = ClassDoc {
+    short: "An open file. `Core\\IO::open` returns one. It reads and writes a part of the file at a \
+            time, and `seek` and `tell` move to a position and return it. `close` closes it, and a \
+            handle that is still open is closed when the request ends.",
+};
+
 /// Spec § 14's `File` — R14's "an open file is an object and never a
 /// `resource`".
 ///
@@ -1347,7 +1354,7 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// half does not exist and why the reading half is not one of these.
 pub(crate) const FILE: CoreClass = CoreClass {
     name: FILE_NAME,
-    doc: None,
+    doc: Some(&FILE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -4938,5 +4945,174 @@ mod tests {
             message.contains("Core\\IO::stdin") && message.contains("the writer went away"),
             "{message}"
         );
+    }
+
+    /// `Core\IO\FileMode::ReadWrite`'s case index, as a call site passes it.
+    const READ_WRITE: i64 = 3;
+
+    /// A context granting `fs.read` and `fs.write` everywhere, for the handle members, whose
+    /// capability was checked when `open` produced the handle.
+    fn handling() -> nvs_runtime::Ctx {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.fs]\nread = true\nwrite = true\n",
+        ));
+        ctx
+    }
+
+    /// `Core\IO::open(path, ReadWrite)` under `ctx`, as the handle a program holds. The caller
+    /// owns the one reference returned.
+    fn handle_on(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Value {
+        let args = [
+            Value::str(NvsStr::new(spelled(path).as_bytes())),
+            Value::int(READ_WRITE),
+        ];
+        let handle = nvs_runtime::call(nvs_core_io_open, ctx, &args).expect("a scratch file opens");
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        handle
+    }
+
+    /// One of `Core\IO\File`'s members on `handle` with `rest` after the receiver, or the
+    /// message its refusal left in `ctx`.
+    fn on_handle(
+        ctx: &mut nvs_runtime::Ctx,
+        member: nvs_runtime::NvsFn,
+        handle: Value,
+        rest: &[Value],
+    ) -> Result<(), String> {
+        let mut args = vec![handle];
+        args.extend_from_slice(rest);
+        let answered = nvs_runtime::call(member, ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        answered
+            .map(|_| ())
+            .map_err(|_| refusal.expect("a non-zero status leaves its message in the context"))
+    }
+
+    /// Releases the handle a case opened with [`handle_on`].
+    fn let_go(handle: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the one reference `open` returned"
+        )]
+        unsafe {
+            handle.release();
+        }
+    }
+
+    /// `Core\IO\File::close` releases the descriptor with what was written already on disk,
+    /// and every later use of the handle throws naming the member and the path, a second
+    /// `close` included.
+    // covers: Core\IO\File::close
+    #[test]
+    fn core_io_file_close_releases_the_handle_and_a_second_close_throws() {
+        let path = scratch("file-close.txt");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        let text = Value::str(NvsStr::new(b"kept"));
+        on_handle(&mut ctx, nvs_core_io_file_write, file, &[text]).expect("an open handle writes");
+        #[expect(unsafe_code, reason = "the case owns the text it built")]
+        unsafe {
+            text.release();
+        }
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        assert_eq!(std::fs::read(&path).expect("the closed file"), b"kept");
+
+        let twice = on_handle(&mut ctx, nvs_core_io_file_close, file, &[])
+            .expect_err("a second close is a bug in the program");
+        assert!(
+            twice.contains(r"Core\IO\File::close: this handle is closed")
+                && twice.contains(spelled(&path)),
+            "{twice}"
+        );
+        let after = on_handle(&mut ctx, nvs_core_io_file_flush, file, &[])
+            .expect_err("a closed handle does nothing");
+        assert!(after.contains(r"Core\IO\File::flush"), "{after}");
+
+        let_go(file);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::flush` changes nothing a reader can see, because a write has already
+    /// reached the operating system when it returns: the bytes are in the file before the
+    /// flush and the same bytes are there after two of them. A closed handle throws naming
+    /// the member.
+    // covers: Core\IO\File::flush
+    #[test]
+    fn core_io_file_flush_changes_nothing_a_reader_sees_and_a_closed_handle_throws() {
+        let path = scratch("file-flush.txt");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        on_handle(&mut ctx, nvs_core_io_file_flush, file, &[]).expect("nothing written flushes");
+        let text = Value::str(NvsStr::new(b"line one\n"));
+        on_handle(&mut ctx, nvs_core_io_file_write, file, &[text]).expect("an open handle writes");
+        #[expect(unsafe_code, reason = "the case owns the text it built")]
+        unsafe {
+            text.release();
+        }
+        assert_eq!(std::fs::read(&path).expect("the file"), b"line one\n");
+        for _ in 0..2 {
+            on_handle(&mut ctx, nvs_core_io_file_flush, file, &[]).expect("an open handle flushes");
+            assert_eq!(std::fs::read(&path).expect("the file"), b"line one\n");
+        }
+
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let closed = on_handle(&mut ctx, nvs_core_io_file_flush, file, &[])
+            .expect_err("a closed handle has nothing to flush");
+        assert!(
+            closed.contains(r"Core\IO\File::flush: this handle is closed"),
+            "{closed}"
+        );
+
+        let_go(file);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::lock` is exclusive and never waits: a second handle on the same file is
+    /// refused at once while the first holds it, and takes it once the first closes. A lock on
+    /// another file is not affected, and a closed handle throws naming the member.
+    // covers: Core\IO\File::lock
+    #[test]
+    fn core_io_file_lock_refuses_a_second_holder_until_the_first_closes() {
+        let path = scratch("file-lock.txt");
+        let other = scratch("file-lock-other.txt");
+        let mut ctx = handling();
+        let first = handle_on(&mut ctx, &path);
+        let second = handle_on(&mut ctx, &path);
+        let elsewhere = handle_on(&mut ctx, &other);
+
+        on_handle(&mut ctx, nvs_core_io_file_lock, first, &[]).expect("a free file locks");
+        let busy = on_handle(&mut ctx, nvs_core_io_file_lock, second, &[])
+            .expect_err("two handles never hold one lock");
+        assert!(
+            busy.contains(r"Core\IO\File::lock: another handle already holds the lock on")
+                && busy.contains(spelled(&path)),
+            "{busy}"
+        );
+        on_handle(&mut ctx, nvs_core_io_file_lock, elsewhere, &[])
+            .expect("a lock on one file leaves another file free");
+
+        on_handle(&mut ctx, nvs_core_io_file_close, first, &[]).expect("the holder closes");
+        on_handle(&mut ctx, nvs_core_io_file_lock, second, &[])
+            .expect("closing the holder frees the lock");
+
+        let closed = on_handle(&mut ctx, nvs_core_io_file_lock, first, &[])
+            .expect_err("a closed handle cannot lock");
+        assert!(
+            closed.contains(r"Core\IO\File::lock: this handle is closed"),
+            "{closed}"
+        );
+
+        for file in [second, elsewhere] {
+            on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        }
+        for file in [first, second, elsewhere] {
+            let_go(file);
+        }
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&other);
     }
 }

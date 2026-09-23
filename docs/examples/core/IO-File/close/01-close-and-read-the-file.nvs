@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to write a file through a handle, close it, and then read the whole file.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "shopping.txt");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+$file->write("bread\n");
+$file->write("milk\n");
+
+// `close` closes the handle. The two lines are in the file now.
+$file->close();
+
+// This prints "bread" and "milk" on two lines.
+echo Core\IO::readText($path);

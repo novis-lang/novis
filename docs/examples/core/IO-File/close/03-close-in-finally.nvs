@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a program closes a file in `finally`, so the file is closed also when an error happens.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "prices.txt");
+Core\IO::write($path, "12\n7\nfree\n30\n");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+int $total = 0;
+try {
+    ?string $line = $file->readLine();
+    while ($line != null) {
+        // `as int` throws a `RuntimeError` when the line is not a number.
+        $total = $total + ($line as int);
+        $line = $file->readLine();
+    }
+} catch (RuntimeError $e) {
+    echo "stopped at a line that is not a number\n";
+} finally {
+    // The code in `finally` runs in both cases, so the file is always closed here.
+    $file->close();
+}
+
+// This prints "total: 19", the sum of the lines before "free".
+echo "total: ", $total, "\n";
