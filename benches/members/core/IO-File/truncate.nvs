@@ -1,0 +1,23 @@
+<?nvs
+// Sets the length of an open file, as a program does when it empties a file to write it again.
+// bench: iterations 100000
+// bench: allocations 0
+
+class Bench {
+    public static function run(Core\IO\File $file, uint $rounds): uint {
+        uint $size = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The next length comes from the last one, so every call is different.
+            $size = ($size * 5 + 1) % 512;
+            $file->truncate($size);
+            $i = $i + 1;
+        }
+        return $size;
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "truncate.dat");
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+echo Bench::run($file, 100000), "\n";
+$file->close();

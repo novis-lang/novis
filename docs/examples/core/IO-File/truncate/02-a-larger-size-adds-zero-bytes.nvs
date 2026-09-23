@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `truncate` can also make a file longer. The new bytes are zero bytes.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "space.dat");
+Core\IO::write($path, "abc");
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+
+// This prints 3, then 1024. The file now has 1021 zero bytes after "abc".
+echo Core\IO::size($path), "\n";
+$file->truncate(1024);
+echo Core\IO::size($path), "\n";
+
+// `truncate` does not move the handle, so this prints 0.
+echo $file->tell(), "\n";
+$file->close();

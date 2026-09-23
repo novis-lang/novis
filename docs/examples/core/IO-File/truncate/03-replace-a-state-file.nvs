@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to replace the whole content of a file that stays open and locked.
+// A job does this to save its progress. The lock keeps out other programs that
+// also lock the file, so they never read it half-written.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "job-state.txt");
+Core\IO::write($path, "last order: 1041, status: running");
+Core\IO\File $state = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$state->lock();
+
+// `truncate(0)` empties the file, and `seek(0)` moves the handle to the start.
+// Without `seek(0)`, the next write would start after a gap of zero bytes.
+$state->truncate(0);
+$state->seek(0);
+$state->write("last order: 1042, status: done");
+$state->close();
+
+// This prints the new content only.
+echo Core\IO::read($path), "\n";

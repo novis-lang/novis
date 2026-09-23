@@ -2,6 +2,7 @@
 `Core\IO\File::truncate` sets the file's length in either direction — a smaller size drops the tail, a larger one extends with zeroes, and zero is not a special case — spec § 14
 --FILE--
 <?nvs
+// covers: Core\IO\File::truncate
 // `truncate` is the length half of a random-access handle: `seek` says where
 // the next byte goes and this says how many bytes there are. Both are measured
 // from the start of the file, and neither takes an origin argument (`rule:core-api/shape-rules`

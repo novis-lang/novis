@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program changes the length of a file 10000 times, and asks for a length
+// no disk has. It also changes a file through a handle that can only read, and a closed one.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-truncate');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+Core\IO::write($path, 'keep this');
+
+// 1. The file grows to 1 MB and shrinks to 0, 10000 times. The handle must not move.
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$file->seek(5);
+uint $i = 0;
+while ($i < 10000) {
+    $file->truncate(1048576);
+    $file->truncate(0);
+    $i = $i + 1;
+}
+if (Core\IO::size($path) != 0 || $file->tell() != 5) {
+    throw new LogicError('a truncate left the wrong length or moved the handle');
+}
+echo 'step 1: done', "\n";
+
+// 2. A length of 8 exabytes is asked for. It must work or throw an `IOError`.
+try {
+    $file->truncate(9223372036854775807);
+} catch (IOError $tooLarge) {
+}
+$file->truncate(0);
+$file->close();
+echo 'step 2: done', "\n";
+
+// 3. A handle that can only read tries to empty the file 1000 times. Each try must throw
+// an `IOError`, and the file must keep its text.
+Core\IO::write($path, 'keep this');
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $reader->truncate(0);
+    } catch (IOError $refused) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+$reader->close();
+if ($thrown != 1000 || Core\IO::read($path) != 'keep this') {
+    throw new LogicError('a handle that can only read changed the file');
+}
+echo 'step 3: done', "\n";
+
+// 4. A closed handle is used 1000 times. Each `truncate` must throw a `RuntimeError`.
+$thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $reader->truncate(0);
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle changed a file without an error');
+}
+echo 'step 4: done', "\n";
