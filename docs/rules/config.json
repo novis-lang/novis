@@ -593,14 +593,15 @@
     },
     {
       "id": "config/an-edit-reaches-the-next-request-without-a-restart",
-      "title": "An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart",
+      "title": "A source change reaches the next request in every mode: every file a program reached is checked in the background, and a change is compiled whole from a quiet tree before one pointer swap",
       "status": "shipped",
       "because": [
         "0017",
         "0078",
-        "0042"
+        "0042",
+        "0218"
       ],
-      "divergesFromPhp": "`opcache.validate_timestamps` shape, but the cache key is the file's content hash rather than its path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()`",
+      "divergesFromPhp": "`opcache.validate_timestamps` shape, but the check runs in the background rather than in a request, the cache key is the program's content rather than a file's path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()` and no `validate_timestamps=0`",
       "seeAlso": [
         "config/a-request-keeps-the-unit-it-resolved",
         "config/a-broken-edit-fails-the-requests-that-resolve-it",
@@ -821,12 +822,13 @@
     },
     {
       "id": "config/a-startup-default-is-never-flipped",
-      "title": "A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code",
+      "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
       "status": "designed",
       "because": [
         "0091",
         "0017",
-        "0097"
+        "0097",
+        "0218"
       ],
       "seeAlso": [
         "config/a-mode-is-five-defaults",
@@ -1264,14 +1266,15 @@
     },
     {
       "id": "config/opcache-revalidation-is-system-class",
-      "title": "`opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode",
+      "title": "`opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode",
       "status": "shipped",
       "because": [
         "0017",
         "0091",
-        "0005"
+        "0005",
+        "0218"
       ],
-      "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either",
+      "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either, and there is no value that turns checking off",
       "seeAlso": [
         "config/system-means-a-request-may-not-set-it",
         "config/a-startup-default-is-never-flipped",

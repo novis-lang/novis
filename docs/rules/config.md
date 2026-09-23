@@ -837,30 +837,53 @@ the string with the parser the boot path uses
 
 <a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
 
-## An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart
+## A source change reaches the next request in every mode: every file a program reached is checked in the background, and a change is compiled whole from a quiet tree before one pointer swap
 
 `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 
-The compiled-unit cache is keyed by **content**, not by path: `UnitKey { path, content_hash,
-env_hash } → CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever
-mutated or torn. In front of it sits one small indirection, `path → current content_hash`, which is
-the pointer an edit swaps.
+A source change — an edited, added or removed file anywhere in a program — reaches the next request
+without a restart or a reload, in every mode. The compiled-unit cache is keyed by **content**, not by
+path: `UnitKey { path, program_digest, probe_hash, env_hash } → CompileState`, and a `Ready` entry is
+write-once — nothing already in the map is ever mutated or torn. In front of it sits one small
+indirection, `path → current key`, which is the pointer a change swaps.
 
-Resolving a `require` or an inbound request's entry file walks five steps: reuse the known hash
-under `opcache.validate = "never"` or inside `revalidate_freq`, with no syscall; otherwise `stat`
-(and under `hash`, or on an `mtime` mismatch, re-hash) the file, and continue with no compile if
-the content is unchanged; on a change, compile the new content through the same single-flight
-machinery a cold compile uses, on the compile pool, never on a request-serving core; on success
-swap the path's pointer, publishing only if nobody moved it since; on failure leave the pointer
-alone ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
+**A unit is keyed on its whole program.** A compile records every file it read, with the stamp
+(`mtime` and size) and the digest it read, and the key's digest is the whole-program digest the
+on-disk artifact cache computes. A check of a unit looks at every one of those files, every
+`autoload` path the compile probed, misses included, and every directory a discovery query listed
+([`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key)). Under `mtime` a file whose stamp did not
+move is not read; under `hash` every file is re-hashed. `mtime` is only a pre-filter: the content
+digest is the key, so a coarse clock cannot serve stale code.
 
-`mtime` is a cheap pre-filter; only the content hash is trusted as the key, so a filesystem with a
-coarse clock cannot serve stale code. There is no filesystem watcher, no stop-the-world phase and no
-second process, and a client cannot trigger a recompile — only the file's own content changing does.
-The rate cap bounds `stat` overhead to `N ⁄ revalidate_freq` per file, and laziness means only files
-a request actually resolves ever recompile, however many a deploy touched.
+**No request makes a file-system call to revalidate.** A request resolves a path to the unit its
+pointer names, which is a map lookup; a path nothing has resolved yet is an ordinary cold compile. A
+task on the compile pool checks every loaded program once per `revalidate_freq`. On a change it waits
+until no file of the program has moved for `[opcache] settle`, compiles the program through the same
+single-flight machinery a cold compile uses, checks every file again, and throws the compile away and
+retries if anything moved while it ran. Only then does it swap the pointer, publishing only if nobody
+moved it since. An idle server takes a change within `revalidate_freq` plus `settle`.
 
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md).</sub>
+**An atomic deploy is atomic.** At the start of each compile the entry file's path is resolved
+through every symlink and junction once, and the program is read through the real directory that
+gives. After the compile the path is resolved again, and a different answer discards the compile, so
+switching a `current` link between two releases never builds a program from both.
+
+A compile that fails leaves the pointer where it was
+([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)), and a deleted file a program still
+reaches is that case. The table keeps, per path, the unit in force and the one it replaced, so a
+reverted edit is a pointer swap and not a compile. Any older unit is freed when the last request
+holding it ends, so units stay in proportion to entry files, never to edits.
+
+There is no file-system watcher, no stop-the-world phase and no second process, and a client cannot
+trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
+file, and one per listed directory, per `revalidate_freq`, off the request path.
+
+**What is on disk.** The resolve-time form of this rule: the check runs inside the resolve, on the
+request path, `validate = "never"` still skips it, and the key's digest is the entry file's content
+alone, so an edit to a `require`d or autoloaded file is not seen until the entry file changes. The
+background check, `settle`, the link re-resolve and the whole-program key are not.
+
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-request-keeps-the-unit-it-resolved"></a>
 
@@ -1150,31 +1173,36 @@ should differ between modes gets a directive first and a row second, in that ord
 
 <a id="config-a-startup-default-is-never-flipped"></a>
 
-## A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code  *(designed — not yet in the compiler)*
+## A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code  *(designed — not yet in the compiler)*
 
 `rule:config/a-startup-default-is-never-flipped`
 
 Three directives have a right value that differs between the two modes and cannot be `Runtime`-class,
-because each is read before there is any request to change it:
+because each is read outside any request, before there is one to change it:
 
 | Directive | Class | `production` | `development` |
 |---|---|---|---|
 | `[server] dispatch` | `Boot` | `"entry"` | `"path"` |
 | `[server] static` | `Boot` | `false` | `true` |
-| `opcache.validate` | `System` | `never` | `mtime` |
+| `opcache.settle` | `System` | `"1s"` | `"100ms"` |
 
-**A startup row is fixed at boot, is never re-derived, and is never flippable.** `Core\Config::set`
-refuses it exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives
-**only** the five rows of [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults). Without that separation a flip would
-appear to change `dispatch` for a request that had already been dispatched.
+**A startup row is chosen from the mode the configuration names, is never re-derived by a runtime
+mode flip, and is never flippable.** It is chosen when a configuration is published — at boot, and
+again at a reload for a row whose directive reloads, such as `settle`. `Core\Config::set` refuses it
+exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives **only**
+the five rows of [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults). Without that separation a flip would appear to
+change `dispatch` for a request that had already been dispatched.
 
-The objection to a flippable `opcache.validate` was always about the *flip*, never the *default*: a
-request that could set `validate = "never"` for itself would pin a version of the code past a shipped
-fix, and a startup value chosen by a root-owned mode does none of that. The list stays closed at eight
-rows across the two tables, and which table a future directive belongs in is decided by its
-changeability class alone.
+`opcache.validate` is no longer a row: its default is `mtime` in both modes
+([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)). A startup row may still be `System`, because the
+objection is always to the *flip*, never to the *default*: a value chosen by a root-owned mode lets no
+request move how the process treats its source. The list stays closed at eight rows across the two
+tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md).</sub>
+**What is on disk.** The `opcache.validate` row — `never` in production, `mtime` in development — and
+no `settle` row.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -1837,27 +1865,36 @@ once.
 
 <a id="config-opcache-revalidation-is-system-class"></a>
 
-## `opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode
+## `opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode
 
 `rule:config/opcache-revalidation-is-system-class`
 
-`opcache.validate` — `never`, `mtime` or `hash` — and `opcache.revalidate_freq` are `System`-class:
-a request cannot loosen how often, or whether, the process re-checks source files. Letting a request
-set `validate = "never"` for itself would be a way to pin a version of the code past a since-shipped
-fix, and letting it lower `revalidate_freq` would be a way to force a `stat`/hash storm on a hot
-file. Neither is a request-local decision ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)).
+`opcache.validate` — `mtime` or `hash` — `opcache.revalidate_freq` and `opcache.settle` are
+`System`-class: a request cannot loosen how often, or how, the process re-checks source files, or how
+long a changed program must be quiet before it is compiled. A request that could lower
+`revalidate_freq` or `settle` could force a `stat` storm or a compile per keystroke of somebody
+else's deploy, and one that could raise either could hold a shipped fix back. Neither is a
+request-local decision ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)).
 
-`validate`'s **startup default** is selected by the run mode — `never` in `production`, `mtime` in
-`development` — as one of the startup rows in [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). That
-does not loosen the paragraph above: the row is chosen by root-owned configuration before any request
-exists, is never re-derived by a runtime mode flip, and stays unflippable from code. An `[opcache]
-validate` written beside `mode = "development"` still wins, because the mode supplies a default and
-nothing more.
+`mtime` is `validate`'s default in both modes, and `hash` is the stricter value, for a file system
+whose stamps cannot be trusted. **There is no `never`**: a configuration that writes it, or the
+boolean `false` that meant it, does not load, and the error names `mtime` and `hash`. A value that
+pins the code a process started with is the outage
+[`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) exists to end.
+
+`settle`'s **startup default** is selected by the run mode — `"1s"` in `production`, `"100ms"` in
+`development` — as one of the startup rows in [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). The
+row is chosen by root-owned configuration before any request exists, is never re-derived by a runtime
+mode flip, and stays unflippable from code. A `settle` written beside `mode = "development"` still
+wins, because the mode supplies a default and nothing more.
 
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
+**What is on disk.** `validate` still accepts `never` and `false`, and `never` is still production's
+default. `settle` does not exist yet.
+
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 

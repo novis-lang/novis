@@ -59,7 +59,7 @@
     },
     {
       "id": "http-server/a-mount-table-expands-at-boot",
-      "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot",
+      "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
       "status": "shipped",
       "because": [
         "0097",
@@ -67,7 +67,8 @@
         "0104",
         "0017",
         "0197",
-        "0200"
+        "0200",
+        "0218"
       ],
       "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
       "seeAlso": [
