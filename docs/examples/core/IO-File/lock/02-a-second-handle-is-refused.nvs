@@ -1,0 +1,23 @@
+<?nvs
+// Shows that a second handle cannot take a lock while the first handle has it.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "shared.txt");
+
+Core\IO\File $first = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$first->lock();
+
+// The second handle opens the same file. Its `lock` throws an `IOError` at once.
+// This prints "the file is locked".
+Core\IO\File $second = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+try {
+    $second->lock();
+} catch (IOError $e) {
+    echo "the file is locked\n";
+}
+
+// After the first handle is closed, the second handle gets the lock.
+// This prints "the lock is free".
+$first->close();
+$second->lock();
+echo "the lock is free\n";
+$second->close();

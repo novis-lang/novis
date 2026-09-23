@@ -2,6 +2,7 @@
 `Core\IO\File::lock` takes an exclusive lock the handle holds, and a second handle is refused rather than made to wait — spec § 14, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
+// covers: Core\IO\File::lock
 // PHP writes this as `flock($h, LOCK_EX)`, where a forgotten `LOCK_NB` is an
 // unbounded wait on whatever other program holds the file. There is no such
 // spelling here: the lock is taken or it is refused, and there is no mode

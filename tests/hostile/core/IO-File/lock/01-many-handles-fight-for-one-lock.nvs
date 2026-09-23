@@ -1,0 +1,85 @@
+<?nvs
+// Attack: many handles try to take one lock, a handle locks the same file twice, and closed or
+// read-only handles ask for a lock. Only one handle may have the lock, and nothing may crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-lock');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'shared.lock');
+
+// 1. The first handle takes the lock. 500 more handles try, and each `lock` must throw an `IOError`.
+// The system may run out of file handles first. Then `open` throws an `IOError` too.
+Core\IO\File $holder = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$holder->lock();
+array<Core\IO\File> $others = [];
+uint $refused = 0;
+try {
+    uint $i = 0;
+    while ($i < 500) {
+        Core\IO\File $other = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+        $others[] = $other;
+        try {
+            $other->lock();
+        } catch (IOError $busy) {
+            $refused = $refused + 1;
+        }
+        $i = $i + 1;
+    }
+} catch (IOError $tooMany) {
+}
+if ($refused != Core\Arr::count($others)) {
+    throw new LogicError('two handles had the lock at the same time');
+}
+echo 'step 1: done', "\n";
+
+// 2. The handle that has the lock asks for it again. The result depends on the system:
+// it works, or `lock` throws an `IOError`. It must not wait.
+try {
+    $holder->lock();
+} catch (IOError $again) {
+}
+echo 'step 2: done', "\n";
+
+// 3. The holder is closed. Exactly one of the other handles may now take the lock.
+$holder->close();
+uint $taken = 0;
+foreach ($others as Core\IO\File $other) {
+    try {
+        $other->lock();
+        $taken = $taken + 1;
+    } catch (IOError $busy) {
+    }
+}
+if (Core\Arr::count($others) > 0 && $taken != 1) {
+    throw new LogicError('the free lock was not taken by exactly one handle');
+}
+foreach ($others as Core\IO\File $other) {
+    $other->close();
+}
+echo 'step 3: done', "\n";
+
+// 4. A handle that can only read asks for the lock. This must work or throw an `IOError`.
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+try {
+    $reader->lock();
+} catch (IOError $refusedRead) {
+}
+$reader->close();
+echo 'step 4: done', "\n";
+
+// 5. A closed handle asks for the lock. `lock` must throw a `RuntimeError`.
+bool $locked = true;
+try {
+    $reader->lock();
+} catch (RuntimeError $closed) {
+    $locked = false;
+}
+if ($locked) {
+    throw new LogicError('a closed handle took a lock');
+}
+echo 'step 5: done', "\n";
+
+// 6. A handle takes a lock and is never closed. The program ends and Novis must release it.
+Core\IO\File $kept = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$kept->lock();
+echo 'step 6: done', "\n";
