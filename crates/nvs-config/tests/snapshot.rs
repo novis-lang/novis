@@ -453,6 +453,108 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
     assert_eq!(reload.snapshot.config.opcache, None);
 }
 
+/// Each `Boot` row, and a tree before and after a reload that changes the key it governs.
+const BOOT_CHANGES: &[(&str, &str, &str)] = &[
+    (
+        "http.client.tls",
+        "[http.client.tls]\nmin_version = \"1.2\"\n",
+        "[http.client.tls]\nmin_version = \"1.3\"\n",
+    ),
+    (
+        "cache.shared",
+        "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n",
+        "[cache.shared]\nurl = \"redis://127.0.0.1:6380\"\n",
+    ),
+    (
+        "control.socket",
+        "[control]\nsocket = \"/run/novis/one.sock\"\n",
+        "[control]\nsocket = \"/run/novis/two.sock\"\n",
+    ),
+    (
+        "io.temp_root",
+        "[io]\ntemp_root = \"/var/tmp/one\"\n",
+        "[io]\ntemp_root = \"/var/tmp/two\"\n",
+    ),
+    (
+        "server",
+        "[server]\nlisten = [\"127.0.0.1:8080\"]\n",
+        "[server]\nlisten = [\"127.0.0.1:8081\"]\n",
+    ),
+    (
+        "opcache.file_cache_dir",
+        "[opcache]\nfile_cache_dir = \"/var/cache/one\"\n",
+        "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",
+    ),
+    (
+        "session",
+        "[session]\nbackend = \"shared\"\n",
+        "[session]\nbackend = \"db\"\n",
+    ),
+    (
+        "queue.connection",
+        "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\n",
+        "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"jobs\"\n",
+    ),
+    (
+        "queue.workers",
+        "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\nworkers = 4\n",
+        "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\nworkers = 16\n",
+    ),
+];
+
+/// The value at a dotted path of a raw tree, or `None` when nothing is written there.
+fn written_at<'a>(table: &'a toml::Table, dotted: &str) -> Option<&'a toml::Value> {
+    let mut parts = dotted.split('.');
+    let mut value = table.get(parts.next()?)?;
+    for part in parts {
+        value = value.as_table()?.get(part)?;
+    }
+    Some(value)
+}
+
+/// `rule:config/a-reload-names-what-it-could-not-apply`, once per `Boot` row: a reload that changes
+/// the key a row governs names that row and nothing else, and the published tree still holds the
+/// running value. `every_directive_has_a_live_apply_proof_or_a_restart_proof` in
+/// `tests/directives.rs` names this case as the restart proof of every `Boot` row, so a `Boot` row
+/// with no line in [`BOOT_CHANGES`] fails here.
+#[test]
+fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
+    use nvs_config::directive::{Apply, DIRECTIVES};
+
+    let boot: Vec<&str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.apply == Apply::Boot)
+        .map(|row| row.key)
+        .collect();
+    let listed: Vec<&str> = BOOT_CHANGES.iter().map(|(key, _, _)| *key).collect();
+    assert_eq!(
+        listed, boot,
+        "every `Boot` row needs one line in `BOOT_CHANGES`, in registry order"
+    );
+
+    for (key, before, after) in BOOT_CHANGES {
+        let running = snapshot_of(&Fake::with(&[("nvs.toml", before)]), "nvs.toml");
+        let current = Current::new(Arc::clone(&running));
+        let reload = current
+            .publish(Arc::unwrap_or_clone(snapshot_of(
+                &Fake::with(&[("nvs.toml", after)]),
+                "nvs.toml",
+            )))
+            .unwrap_or_else(|err| panic!("`{key}`: the reload was refused: {}", err.message));
+
+        assert_eq!(
+            reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+            vec![*key],
+            "a reload that changed `{key}` has to name that row, and only it"
+        );
+        assert_eq!(
+            written_at(&reload.snapshot.table, key),
+            written_at(&running.table, key),
+            "a reload that changed `{key}` put the new value in force"
+        );
+    }
+}
+
 /// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse
 /// never reaches [`Current::publish`] at all, so the snapshot serving is the one that was already
 /// serving, and the refusal names the line an operator has to fix rather than a byte offset.
