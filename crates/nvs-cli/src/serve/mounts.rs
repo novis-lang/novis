@@ -31,13 +31,18 @@
 //! (`rule:http-server/a-path-is-never-derived-from-a-url`): the rows are still
 //! enumerated from the configuration's globs, only more than once.
 //!
-//! **`[[app]] origin` follows a reload.** Each pass reads it from the tree a
-//! reload published last. Where it moved, the pass folds it into the rows the
-//! last expansion gave (`super::fall_back_to`), asks the origin check of every
-//! row that changed, and publishes. `[[server.mount]]` and `[server] root` are
-//! read from the tree the process booted on, because both are `Boot`-class. A
-//! named file over a tree that writes no `[[server.mount]]` is one row that is
-//! never expanded again, and its origin follows a reload the same way.
+//! **The table follows a reload.** Each pass reads `[server] root`,
+//! `[[server.mount]]` and `[[app]] origin` from the tree a reload published
+//! last. Where the root or the blocks changed, the pass expands the published
+//! tree at once ([`Rescan::rewritten`]), with no wait for `settle`, and renders
+//! a refusal against the source map that reload recorded
+//! (`crate::control::Process::sources_of`). Where only the origin moved, the
+//! pass folds it into the rows the last expansion gave
+//! (`super::fall_back_to`). Either way it asks the origin check of every row
+//! that changed, and publishes. A named file over a tree that writes no
+//! `[[server.mount]]` is one row that is never expanded again, and a reload
+//! that removes the last block leaves that row. Boot's check that a named
+//! file is one of the table's entries is not asked again.
 //!
 //! **The table's three switches follow a reload.** `[server] dispatch`,
 //! `static` and `health_path` are read from the snapshot the request cloned
@@ -57,7 +62,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use nvs_config::mount::Mounted;
-use nvs_config::resolve::{Files, Origin};
+use nvs_config::resolve::Files;
+use nvs_config::tree::Mount;
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 use nvs_server::Table;
 
@@ -256,13 +262,17 @@ fn modified(path: &Path) -> Stamp {
 /// The background expansion: the configuration it expands, the rows it
 /// publishes to, and the stamps that say when to expand again.
 pub(super) struct Rescan {
-    /// The tree this process booted on. `[[server.mount]]` and `[server] root`
-    /// are read from it, as boot read them.
-    snapshot: Arc<nvs_config::Snapshot>,
-    origins: BTreeMap<String, Origin>,
-    /// The boot's source map, which a refusal's line is rendered from.
-    sources: SourceMap,
-    /// The tree a reload publishes, which `[[app]] origin` is read from.
+    /// The tree the rows were last expanded from. `[server] root`,
+    /// `[[server.mount]]` and the origins of both are read from it.
+    expanded_from: Arc<nvs_config::Snapshot>,
+    /// The source map [`Self::expanded_from`]'s origins point into, which a
+    /// refusal's line is rendered from.
+    sources: Arc<SourceMap>,
+    /// The file the command named, or `None` where it named none. Over a tree
+    /// that writes no `[[server.mount]]` it is the one row.
+    named: Option<PathBuf>,
+    /// The tree a reload publishes, which `[[app]] origin`, `[server] root`
+    /// and `[[server.mount]]` are read from.
     current: Arc<nvs_config::Current>,
     /// The rows the last expansion gave, before `[[app]] origin` was folded
     /// into them.
@@ -279,13 +289,28 @@ pub(super) struct Rescan {
     unreached: BTreeSet<String>,
 }
 
+/// What an expansion reads from a tree: `[server] root`, the file that wrote
+/// it, which a relative root is resolved against, and `[[server.mount]]`.
+fn mounting(snapshot: &nvs_config::Snapshot) -> (Option<&str>, Option<&Path>, &[Mount]) {
+    let server = snapshot.config.server.as_ref();
+    (
+        server.and_then(|server| server.root.as_deref()),
+        snapshot
+            .origins
+            .get("server.root")
+            .map(|origin| origin.path.as_path()),
+        server.map_or(&[][..], |server| server.mount.as_slice()),
+    )
+}
+
 impl Rescan {
-    /// The expansion that follows boot's, which gave `written` and took
-    /// `stamps`. Boot folded `snapshot`'s `[[app]] origin` into the rows.
+    /// The expansion that follows boot's, which expanded `snapshot` into
+    /// `written` and took `stamps`. Boot folded `snapshot`'s `[[app]] origin`
+    /// into the rows.
     pub(super) fn new(
         snapshot: Arc<nvs_config::Snapshot>,
-        origins: BTreeMap<String, Origin>,
         sources: SourceMap,
+        named: Option<PathBuf>,
         current: Arc<nvs_config::Current>,
         mounts: Arc<Mounts>,
         written: Vec<Mounted>,
@@ -293,9 +318,9 @@ impl Rescan {
     ) -> Self {
         let folded = snapshot.origin.clone();
         Self {
-            snapshot,
-            origins,
-            sources,
+            expanded_from: snapshot,
+            sources: Arc::new(sources),
+            named,
             current,
             written,
             folded,
@@ -306,15 +331,21 @@ impl Rescan {
         }
     }
 
-    /// One pass: nothing while no directory moved and `[[app]] origin` did
-    /// not either, and otherwise the rows folded again and published where
-    /// they changed. The module doc lists what happens to each row.
+    /// One pass: nothing while no directory moved and the published tree
+    /// changed none of `[server] root`, `[[server.mount]]` and `[[app]]
+    /// origin`, and otherwise the rows folded again and published where they
+    /// changed. The module doc lists what happens to each row.
     ///
     /// Answers how long until a change it held back is quiet, and `None`
     /// where it held none back, as `Compiler::revalidate` does.
     pub(super) fn pass(&mut self, compiler: &Compiler) -> Option<Duration> {
-        let origin = self.current.load().origin.clone();
-        let (expanded, wait) = self.expand(compiler.settle());
+        let serving = self.current.load();
+        let origin = serving.origin.clone();
+        let (expanded, wait) = if mounting(&serving) == mounting(&self.expanded_from) {
+            self.expand(compiler.settle())
+        } else {
+            (self.rewritten(serving), None)
+        };
         if !expanded && origin == self.folded {
             return wait;
         }
@@ -378,21 +409,72 @@ impl Rescan {
         {
             return (false, Some(wait));
         }
+        (self.expanded(), None)
+    }
+
+    /// Expands `serving`, a published tree whose `[server] root` or
+    /// `[[server.mount]]` differ from the tree the rows were expanded from, at
+    /// once and without waiting for `settle`: the operator saved the change.
+    ///
+    /// Answers whether it expanded. A tree whose source map the reload has not
+    /// recorded yet is expanded on the next pass.
+    fn rewritten(&mut self, serving: Arc<nvs_config::Snapshot>) -> bool {
+        let Some(sources) =
+            crate::control::installed().and_then(|process| process.sources_of(serving.generation))
+        else {
+            return false;
+        };
+        self.expanded_from = serving;
+        self.sources = sources;
+        self.expanded()
+    }
+
+    /// Expands [`Self::expanded_from`] into [`Self::written`], and answers
+    /// whether it did.
+    ///
+    /// A tree that writes `[[server.mount]]` is expanded against the disk,
+    /// and its directories are stamped. A tree that writes none is the named
+    /// file's one row, which stamps nothing. Where no file was named, or the
+    /// named one cannot be served, the rows stay as they are, and the reason
+    /// is logged.
+    fn expanded(&mut self) -> bool {
+        let snapshot = Arc::clone(&self.expanded_from);
+        if !super::writes_mounts(&snapshot) {
+            self.stamps = BTreeMap::new();
+            let row = self.named.as_deref().map(super::one_mount);
+            return match row {
+                Some(Ok(row)) => {
+                    self.written = vec![row];
+                    true
+                }
+                Some(Err(sentence)) => {
+                    eprintln!("warning: the mount table stays as it was: {sentence}");
+                    false
+                }
+                None => {
+                    eprintln!(
+                        "warning: the mount table stays as it was: no file was named and the \
+                         configuration writes no `[[server.mount]]`"
+                    );
+                    false
+                }
+            };
+        }
         let stamping = Stamping::default();
         let expanded =
-            nvs_config::mount::expand_again(&self.snapshot.config, &self.origins, &stamping);
+            nvs_config::mount::expand_again(&snapshot.config, &snapshot.origins, &stamping);
         self.stamps = stamping.stamps();
         match expanded {
             Ok((rows, left_out)) => {
                 self.log(left_out);
                 self.written = rows;
-                (true, None)
+                true
             }
             // The configuration's own problem, which is `[server] root` gone:
             // the rows stay as they are until that directory is back.
             Err(diagnostic) => {
                 self.log(vec![diagnostic]);
-                (false, None)
+                false
             }
         }
     }

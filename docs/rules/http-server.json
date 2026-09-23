@@ -69,7 +69,8 @@
         "0017",
         "0197",
         "0200",
-        "0218"
+        "0218",
+        "0219"
       ],
       "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
       "seeAlso": [

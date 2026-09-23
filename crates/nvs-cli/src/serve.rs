@@ -442,13 +442,13 @@ pub(crate) fn run(
     // The rows every core answers from, on the same thread as the check below
     // (`mounts`'s module doc). A tree that writes `[[server.mount]]` has them
     // expanded again as its directories change. A named file over a tree that
-    // writes none is one row. Either way a reload that moves `[[app]] origin`
-    // folds it into the rows again.
+    // writes none is one row. Either way a reload that moves `[server] root`,
+    // `[[server.mount]]` or `[[app]] origin` builds the rows again.
     let shared = Arc::new(mounts::Mounts::new(mounts.clone()));
     let mut rescan = mounts::Rescan::new(
         Arc::clone(&snapshot),
-        origins,
         sources,
+        path.map(Path::to_path_buf),
         Arc::clone(&current),
         Arc::clone(&shared),
         written,

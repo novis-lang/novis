@@ -492,16 +492,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[server]\nworkers = 2\n",
     ),
     (
-        "server.root",
-        "[server]\nroot = \"/srv/one\"\n",
-        "[server]\nroot = \"/srv/two\"\n",
-    ),
-    (
-        "server.mount",
-        "[server]\nroot = \"/srv\"\n\n[[server.mount]]\nentry = \"blog/index.nvs\"\nprefix = \"/blog\"\n",
-        "[server]\nroot = \"/srv\"\n\n[[server.mount]]\nentry = \"blog/index.nvs\"\nprefix = \"/news\"\n",
-    ),
-    (
         "opcache.file_cache_dir",
         "[opcache]\nfile_cache_dir = \"/var/cache/one\"\n",
         "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",

@@ -745,6 +745,56 @@ fn a_changed_server_block_reaches_the_next_request() {
     );
 }
 
+/// A mount table of one block: `[server] root` is `root` and the block mounts
+/// `app.nvs` under it at `prefix`.
+fn mounted(root: &str, prefix: &str) -> String {
+    format!(
+        "[server]\nroot = \"{root}\"\n\n[[server.mount]]\nentry = \"app.nvs\"\nprefix = \"{prefix}\"\n"
+    )
+}
+
+/// `[server] root` and `[[server.mount]]` are read from the tree a reload
+/// published, and a change to either expands the table again: after the
+/// reload the new prefix answers from the new root's file, and the old prefix
+/// answers `404`. The reload names both keys as applied and neither as
+/// ignored.
+#[test]
+fn a_changed_mount_table_is_expanded_again() {
+    let server = Server::start(
+        "mount-table",
+        &mounted(".", "/one"),
+        &[
+            ("app.nvs", &saying("boot")),
+            ("site/app.nvs", &saying("moved")),
+        ],
+    );
+    server.awaits("/one", "the boot's mount", |answer| {
+        answer.status == 200 && answer.body == "boot"
+    });
+    let before = server.get("/two");
+    assert_eq!(
+        before.status, 404,
+        "a prefix nothing mounts answered: {before:?}"
+    );
+
+    let report = server.reload(&mounted("site", "/two"));
+    for key in ["root", "mount"] {
+        assert!(
+            report.contains(&format!("applied: server.{key}\n")),
+            "the reload did not name `server.{key}` as applied: {report}"
+        );
+        assert!(
+            !report.contains(&format!("ignored: server.{key}\n")),
+            "the reload named `server.{key}` as needing a restart: {report}"
+        );
+    }
+    server.awaits("/two", "the reloaded mount", |answer| {
+        answer.status == 200 && answer.body == "moved"
+    });
+    let gone = server.get("/one");
+    assert_eq!(gone.status, 404, "the old prefix still answered: {gone:?}");
+}
+
 /// A SQLite queue with one worker, whose `[queue] visibility` is `visibility`
 /// and whose `[queue] max_attempts` is `attempts`. The boot writes `1`, which
 /// moves a job that throws to the dead-letter table at once, so no retry of a

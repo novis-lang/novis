@@ -296,16 +296,6 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
     ),
     (
-        "server.root",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
-        "server.mount",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
-    ),
-    (
         "opcache",
         LIVE,
         "a_changed_opcache_block_reaches_the_unit_cache",

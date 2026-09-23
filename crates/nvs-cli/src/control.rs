@@ -76,8 +76,10 @@ use nvs_server::{Admission, Ceiling, Draining};
 use crate::script::Compiler;
 use crate::service::{Notify, State};
 
-/// The process `nvs serve` installed, for the one caller that is handed
-/// nothing: a service manager's control handler (`crate::dispatch`).
+/// The process `nvs serve` installed, for the two callers that are handed
+/// nothing: a service manager's control handler (`crate::dispatch`), and the
+/// mount table's background expansion, which renders a refusal against the
+/// source map of the tree a reload published (`crate::serve::mounts`).
 static PROCESS: OnceLock<Arc<Process>> = OnceLock::new();
 
 /// Keeps `process` as this process's, for [`installed`].
@@ -89,7 +91,6 @@ pub(crate) fn install(process: Arc<Process>) {
 }
 
 /// What [`install`] left, or `None` before the boot got that far.
-#[cfg(windows)]
 pub(crate) fn installed() -> Option<Arc<Process>> {
     PROCESS.get().cloned()
 }
@@ -129,6 +130,9 @@ pub(crate) struct Process {
     /// The refusal [`Process::noticed`] last logged, rendered. A publish
     /// clears it.
     refused: Mutex<Option<String>>,
+    /// The generation of the snapshot the last reload published, and the
+    /// source map its origins point into. `None` until a reload publishes.
+    sources: Mutex<Option<(u64, Arc<SourceMap>)>>,
 }
 
 /// A tree resolved from the files as they stand now, with what a refusal of
@@ -161,7 +165,18 @@ impl Process {
             reloading: Mutex::new(()),
             pending: Mutex::new(Vec::new()),
             refused: Mutex::new(None),
+            sources: Mutex::new(None),
         }
+    }
+
+    /// The source map the origins of the snapshot numbered `generation` point
+    /// into, where the last reload published that snapshot, and `None`
+    /// otherwise.
+    pub(crate) fn sources_of(&self, generation: u64) -> Option<Arc<SourceMap>> {
+        lock(&self.sources)
+            .as_ref()
+            .filter(|(published, _)| *published == generation)
+            .map(|(_, sources)| Arc::clone(sources))
     }
 
     /// The tree the roots resolve to now.
@@ -220,6 +235,7 @@ impl Process {
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
         let serving = self.current.load();
+        *lock(&self.sources) = Some((serving.generation, Arc::new(sources)));
         let pending: Vec<Pending> = report
             .ignored
             .iter()

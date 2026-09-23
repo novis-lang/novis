@@ -224,9 +224,10 @@ pub const DIRECTIVES: &[Directive] = &[
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
     // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and
-    // `max_in_flight`) and the ones a connection reads from the snapshot published when it is
-    // accepted (the four waits, `drain_timeout` and `[server.connection]`). The longer rows below
-    // it are `Boot`.
+    // `max_in_flight`), the ones a connection reads from the snapshot published when it is
+    // accepted (the four waits, `drain_timeout` and `[server.connection]`), and `root` and `mount`,
+    // which `nvs serve`'s background expansion reads from the published snapshot and expands again
+    // when they changed. The longer rows below it are `Boot`.
     Directive { key: "server", class: Class::System, apply: Apply::Reload },
     // `rule:config/reloadability-is-its-own-field`'s three restart keys. `listen` binds the sockets,
     // and a port below 1024 needs a privilege the process dropped after it bound. `socket_mode` is
@@ -235,10 +236,6 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "server.listen", class: Class::System, apply: Apply::Boot },
     Directive { key: "server.socket_mode", class: Class::System, apply: Apply::Boot },
     Directive { key: "server.workers", class: Class::System, apply: Apply::Boot },
-    // `Boot` because `nvs serve` expands the mount table from `root` and `mount` once, when it
-    // starts.
-    Directive { key: "server.root", class: Class::System, apply: Apply::Boot },
-    Directive { key: "server.mount", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
     // The one `[opcache]` key that is not `Reload`, and a longer row than the block above, so
