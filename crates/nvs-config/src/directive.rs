@@ -205,10 +205,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // inheriting this one's class.
     Directive { key: "control.socket", class: Class::System, apply: Apply::Reload },
     // `rule:core-classes/temporary-dir-sweep`. `System` because the root is the runtime's and not a request's — a request that
-    // could move it would be choosing where every *other* request's temporaries land — and `Boot`
-    // because § 4's orphan sweep runs once at `nvs serve` boot over the root it started with, so a
-    // root swapped under a running server would leave the old one holding entries nothing sweeps.
-    Directive { key: "io.temp_root", class: Class::System, apply: Apply::Boot },
+    // could move it would be choosing where every *other* request's temporaries land. `Reload`
+    // because `nvs_runtime::capability::temp_dir` reads it from the snapshot its request cloned,
+    // so a new root applies to the next temporary directory. A directory made under the old root
+    // is deleted by path when its script ends, so nothing live is left there.
+    Directive { key: "io.temp_root", class: Class::System, apply: Apply::Reload },
     // `rule:core-classes/temporary-dir-sweep`. `System` because § 5 gives the key to the operator alone — a request that could
     // set it would be exempting its own files from cleanup, which is the hoarding that section
     // refuses — and `Reload` because it is read by the next script that ends and applying it

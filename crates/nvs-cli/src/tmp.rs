@@ -23,8 +23,8 @@
 //!
 //! # It reads the tree, and it names no application
 //!
-//! `[io] temp_root` is `System`-class and `Boot` (`nvs_config::directive`), so
-//! the root is the host's and no request can have moved it. This command
+//! `[io] temp_root` is `System`-class (`nvs_config::directive`), so the root is
+//! the host's and no request can have moved it. This command
 //! resolves the configuration tree the way `nvs config check` does and reads
 //! that key straight off it: there is no entry file to layer
 //! `rule:config/every-matching-app-block-applies-least-specific-first`'s

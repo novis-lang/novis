@@ -463,9 +463,8 @@ pub struct Io {
     /// temporary directory, which is what an unconfigured deployment gets; an operator writes this
     /// to put temporaries on a particular filesystem — a larger disk, or a tmpfs.
     ///
-    /// `Boot`, per `crate::directive`'s `io.temp_root` row: § 4's orphan sweep runs at `nvs serve`
-    /// boot over the root it was started with, so moving the root under a running server would
-    /// leave the old one holding entries nothing sweeps.
+    /// `Reload`, per `crate::directive`'s `io.temp_root` row: a temporary directory is made under
+    /// the root in the snapshot its request cloned, and deleted by path when its script ends.
     pub temp_root: Option<String>,
 }
 

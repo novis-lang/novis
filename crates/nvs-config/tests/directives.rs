@@ -268,8 +268,8 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "io.temp_root",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_temp_root_applies_to_the_next_temporary_directory",
     ),
     (
         "debug.keep_temporary",
@@ -946,15 +946,12 @@ fn the_control_socket_is_one_system_key_a_reload_moves_and_its_block_has_no_row(
 /// it is the next script to end rather than anything created at boot, so a flip re-creates nothing;
 /// that is what makes "on around one problematic request and off again" a thing an operator can do.
 ///
-/// `io.temp_root` beside it is what makes the pairing a claim rather than a spelling. Both keys are
-/// the operator's and neither is a request's, and they still separate: the root is a directory the
-/// boot sweep walks once with the path it started with, so moving it under a running server would
-/// strand everything in the old one, while keeping what the sweep would have deleted is a question
-/// the sweep asks each time it runs. Same class, different apply, and `rule:config/reloadability-is-its-own-field` is the
-/// pairing that makes both sayable.
+/// `io.temp_root` beside it has the same class and the same apply. Both keys are the operator's
+/// and neither is a request's: the root is read when the next temporary directory is made, and
+/// what to keep is read when the next script ends.
 // covers: directive:debug.keep_temporary
 #[test]
-fn keeping_a_temporary_directory_is_the_operators_at_reload_while_its_root_is_fixed_at_boot() {
+fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload() {
     let keys = keys_in("debug");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -992,10 +989,9 @@ fn keeping_a_temporary_directory_is_the_operators_at_reload_while_its_root_is_fi
     let root = governing("io.temp_root");
     assert_eq!(
         (root.class, root.apply),
-        (Class::System, Apply::Boot),
-        "the root the sweep walks is created and swept once as the server starts, so moving it \
-         under a running server would leave the old one holding entries nothing sweeps — the same \
-         class as the key above and the other apply, which is the contrast this case exists for",
+        (Class::System, Apply::Reload),
+        "the root is read from the request's snapshot when a temporary directory is made, so a \
+         reload moves it for the next one, and a request still cannot",
     );
     assert_eq!(
         row.class, root.class,
@@ -2540,22 +2536,23 @@ fn every_key_of_an_include_entry_resolves_through_the_one_system_row() {
 }
 
 /// `rule:core-classes/temporary-dir-sweep` rests the whole safety of its two sweeps on the runtime
-/// owning the temporary root outright, so the root is the operator's (`System`) and a new one is a
-/// restart (`Boot`) — the orphan sweep runs once as `nvs serve` boots, over the root it started
-/// with. Asserted beside `[debug] keep_temporary`, which is the other way to the same place: a
-/// program able to exempt its own directories from the sweep can be made to hoard them. The block
-/// carries exactly one row, so the second half of this is that nothing blankets `[io]`: a key added
-/// there is refused for want of a row rather than inheriting this one's class.
+/// owning the temporary root outright, so the root is the operator's (`System`). A new one reloads
+/// (`Reload`): the next temporary directory is made under it, and a directory made under the old
+/// one is deleted by path when its script ends. Asserted beside `[debug] keep_temporary`, which is
+/// the other way to the same place: a program able to exempt its own directories from the sweep
+/// can be made to hoard them. The block carries exactly one row, so the second half of this is
+/// that nothing blankets `[io]`: a key added there is refused for want of a row rather than
+/// inheriting this one's class.
 // covers: directive:io.temp_root
 #[test]
-fn the_temporary_root_is_the_operators_and_a_new_one_is_a_restart() {
+fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directory() {
     let root = governing("io.temp_root");
     assert_eq!(
         (root.key, root.class, root.apply),
-        ("io.temp_root", Class::System, Apply::Boot),
+        ("io.temp_root", Class::System, Apply::Reload),
         "`io.temp_root` resolves through `{}` to {:?}/{:?}, and each half being wrong is its own \
          failure: `Runtime` would let a request choose where every other request's scratch files \
-         land, and `Reload` would promise a swapped root that the boot sweep never ran over",
+         land, and `Boot` would keep a root the operator moved",
         root.key,
         root.class,
         root.apply,

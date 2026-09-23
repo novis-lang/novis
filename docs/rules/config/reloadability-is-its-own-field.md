@@ -32,6 +32,6 @@ published snapshot carries the running value forward, and the reload names the k
 
 **What is on disk.** `[server]`'s `dispatch`, `static`, `trusted_proxies`, `health_path`,
 `max_in_flight`, the four waits, `drain_timeout`, `[server.connection]`, `root`, `[[server.mount]]`,
-`[session]`, `[control] socket` and `[queue]` reload. These rows are still `Boot`, because each is
-read once when the server starts: `http.client.tls`, `cache.shared`, `io.temp_root` and
+`[session]`, `[control] socket`, `[queue]` and `io.temp_root` reload. These rows are still `Boot`,
+because each is read once when the server starts: `http.client.tls`, `cache.shared` and
 `opcache.file_cache_dir`.

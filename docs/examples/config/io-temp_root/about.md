@@ -8,9 +8,10 @@ directory: `$TMPDIR/novis` (usually `/tmp/novis`) on Linux and macOS, `%TEMP%\no
 Novis creates that directory on first use, readable by the server's user only. An empty string
 means the same as not set.
 
-Owning the root outright is what makes the cleanup safe. When a script ends the runtime deletes the
-directories it handed out, and when the server starts it clears whatever a crashed process left
-behind — both of which it can only do because nothing else writes there. Pointing the root at a
-shared directory full of other people's files and other people's symlinks is the mistake this key
-exists to let an operator avoid, so it is the operator's alone, and a new root takes a restart
-rather than a reload.
+The cleanup is safe because nothing else writes in this directory. When a script ends, Novis deletes
+the temporary directories that script created. When the server starts, Novis deletes what a crashed
+process left there. Do not set the root to a shared directory that other programs write to.
+
+Only the configuration file can set this key. A program cannot change it. You can change it while
+the server runs. The next temporary directory is then created in the new root. A directory created
+before the change is still deleted when its script ends.

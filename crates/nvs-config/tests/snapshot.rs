@@ -455,11 +455,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[cache.shared]\nurl = \"redis://127.0.0.1:6380\"\n",
     ),
     (
-        "io.temp_root",
-        "[io]\ntemp_root = \"/var/tmp/one\"\n",
-        "[io]\ntemp_root = \"/var/tmp/two\"\n",
-    ),
-    (
         "server.listen",
         "[server]\nlisten = [\"127.0.0.1:8080\"]\n",
         "[server]\nlisten = [\"127.0.0.1:8081\"]\n",

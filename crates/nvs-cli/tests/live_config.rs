@@ -1876,6 +1876,111 @@ fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
     }
 }
 
+/// A program that makes a temporary directory and prints its path.
+const TEMPORARY: &str = "<?nvs\necho Core\\IO::temporaryDir();\n";
+
+/// `[io] temp_root` at `root`, with a write grant over both `roots`.
+fn temp_root(root: &Path, roots: &[&Path]) -> String {
+    let granted: Vec<String> = roots
+        .iter()
+        .map(|root| format!("'{}'", root.display()))
+        .collect();
+    format!(
+        "[io]\ntemp_root = '{}'\n\n[capabilities.fs]\nwrite = [{}]\n",
+        root.display(),
+        granted.join(", ")
+    )
+}
+
+/// A reload that moves `[io] temp_root` applies to the next temporary
+/// directory: it is made under the new root.
+#[test]
+fn a_changed_temp_root_applies_to_the_next_temporary_directory() {
+    let server = Server::start("temp-root", "", &[("app.nvs", TEMPORARY)]);
+    let one = server.dir.join("scratch-one");
+    let two = server.dir.join("scratch-two");
+    let roots = [one.as_path(), two.as_path()];
+
+    server.reload(&temp_root(&one, &roots));
+    server.awaits(
+        "/",
+        "a temporary directory under the first root",
+        |answer| answer.status == 200 && Path::new(answer.body.trim()).starts_with(&one),
+    );
+
+    server.reload(&temp_root(&two, &roots));
+    server.awaits(
+        "/",
+        "a temporary directory under the second root",
+        |answer| answer.status == 200 && Path::new(answer.body.trim()).starts_with(&two),
+    );
+}
+
+/// The three counts on `nvs ctl status`'s `config_check:` line: the passes the
+/// configuration check has taken, the `stat` calls they made, and the paths
+/// each pass takes.
+fn check_counts(server: &Server) -> (u64, u64, u64) {
+    let status = server.ctl("status");
+    let line = status
+        .lines()
+        .find_map(|line| line.strip_prefix("config_check: "))
+        .unwrap_or_else(|| panic!("`nvs ctl status` has no `config_check:` line: {status}"));
+    let counts: Vec<u64> = line
+        .split(", ")
+        .map(|part| {
+            part.split(' ')
+                .next()
+                .and_then(|count| count.parse().ok())
+                .unwrap_or_else(|| panic!("`{part}` in `{line}` is not a count"))
+        })
+        .collect();
+    match counts[..] {
+        [passes, stats, paths] => (passes, stats, paths),
+        _ => panic!("`{line}` is not three counts"),
+    }
+}
+
+/// The configuration check runs on its own thread, and a request reads only
+/// the snapshot in force. Many requests between two readings of the counts
+/// add no pass and no `stat` call beyond what the time between them allows.
+#[test]
+fn watching_the_configuration_costs_no_request_a_filesystem_call() {
+    const REQUESTS: u64 = 200;
+    let server = Server::start("watched", "", &[("app.nvs", PLAIN)]);
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+    // One pass before the thread starts and one of its own: the check runs.
+    eventually(&server, "a pass of the configuration check", || {
+        check_counts(&server).0 >= 2
+    });
+    let (passes, stats, paths) = check_counts(&server);
+    assert!(paths >= 1, "the check takes no path, so it proves nothing");
+
+    let started = Instant::now();
+    for _ in 0..REQUESTS {
+        let answer = server.get("/");
+        assert_eq!(answer.status, 200, "a request failed: {answer:?}");
+    }
+    let took = started.elapsed();
+    let (passes_after, stats_after, _) = check_counts(&server);
+
+    // One pass every two seconds, and one more for a pass that was under way
+    // when the counts were read.
+    let allowed = took.as_secs() / 2 + 2;
+    let passed = passes_after - passes;
+    assert!(
+        passed <= allowed,
+        "{REQUESTS} requests in {took:?} came with {passed} passes of the check, and the time \
+         allows {allowed}"
+    );
+    let statted = stats_after - stats;
+    assert!(
+        statted <= (passed + 1) * paths,
+        "{REQUESTS} requests came with {statted} `stat` calls, and {passed} passes over {paths} \
+         paths make at most {}",
+        (passed + 1) * paths
+    );
+}
+
 /// The waits are read when a connection is accepted. After a reload shortens
 /// `[server] header_timeout`, a new connection that sends nothing is closed
 /// within the new wait. A connection accepted before the reload keeps the
