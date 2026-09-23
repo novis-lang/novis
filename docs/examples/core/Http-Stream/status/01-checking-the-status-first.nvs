@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to check the status code of a streamed reply before you read its body.
+
+// The reply comes from this table, so nothing is sent over a network.
+Core\Test::answerHttp("https://files.example.com/report.txt", 200, {body: "sales: 42\n"});
+
+Core\Http\Stream $report = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/report.txt");
+// `status()` returns the code as an `int`. This prints "status 200".
+echo "status ", $report->status(), "\n";
+if ($report->status() == 200) {
+    // This prints "sales: 42".
+    foreach ($report->lines() as tainted string $line) {
+        echo $line, "\n";
+    }
+}

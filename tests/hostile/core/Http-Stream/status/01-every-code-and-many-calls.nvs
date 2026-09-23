@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a server answers with every possible status code, and a program calls `status()`
+// very often. `status()` must return each code exactly and must not use more memory.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Every code from 100 to 999 that a status line can carry. `status()` must
+//    return the code the server sent, also for a code no standard defines.
+uint $code = 100;
+while ($code <= 999) {
+    Core\Test::answerHttp(Core\Str::format('https://codes.example.com/%d', $code), $code, { body: '' });
+    var $reply = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://codes.example.com/%d', $code));
+    if ($reply->status() != $code) {
+        throw new LogicError(Core\Str::format('%d was returned as %d', $code, $reply->status()));
+    }
+    $code = $code + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. A code of 99 and a code of 1000 do not fit in three digits. Both throw an error.
+array<uint> $outside = [99, 1000];
+foreach ($outside as uint $bad) {
+    bool $accepted = true;
+    try {
+        Core\Test::answerHttp('https://codes.example.com/outside', $bad, { body: '' });
+    } catch (LogicError $error) {
+        $accepted = false;
+    }
+    if ($accepted) {
+        throw new LogicError(Core\Str::format('the code %d was accepted', $bad));
+    }
+    echo 'step 2: refused ', $bad, "\n";
+}
+
+// 3. `status()` is called 1000000 times on one reply, before and after the body is read.
+Core\Test::answerHttp('https://codes.example.com/busy', 503, { body: "retry later\n" });
+var $busy = Core\Http\Client::stream(Core\Http\Method::Get, 'https://codes.example.com/busy');
+int $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    if ($i == 500000) {
+        foreach ($busy->lines() as tainted string $line) {
+        }
+    }
+    $sum = $sum + $busy->status();
+    $i = $i + 1;
+}
+if ($sum != 503000000) {
+    throw new LogicError(Core\Str::format('the codes added up to %d', $sum));
+}
+echo 'step 3: done', "\n";
+
+// 4. Every stream is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+Core\Test::answerHttp('https://kept.example.com/*', 200, { body: Core\Str::repeat('k', 60000) });
+array<Core\Http\Stream> $kept = [];
+uint $n = 0;
+while (true) {
+    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://kept.example.com/%d', $n));
+    $sum = $sum + $stream->status();
+    $kept[] = $stream;
+    $n = $n + 1;
+}

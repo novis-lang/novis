@@ -1,0 +1,28 @@
+<?nvs
+// Reads the status code of a streamed reply, as a program does before it reads the body.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        // Both replies come from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://files.example.com/ok", 200, {body: "done\n"});
+        Core\Test::answerHttp("https://files.example.com/busy", 503, {body: ""});
+        Core\Http\Stream $ok = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/ok");
+        Core\Http\Stream $busy = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/busy");
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The stream in each round depends on the round before, so no round can be left out.
+            if ($total % 2 == 0) {
+                $total = $total + $ok->status() + 1;
+            } else {
+                $total = $total + $busy->status();
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
