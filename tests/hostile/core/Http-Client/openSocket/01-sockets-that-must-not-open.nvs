@@ -1,0 +1,121 @@
+<?nvs
+// Attack: WebSocket URLs try to reach this server's own network, and options try to
+// remove every time limit. Every call must throw an error before a connection opens.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each URL hides an internal address, or its scheme is not `ws` or `wss`. Each call
+//    must throw a `RuntimeError`. If a socket opens, a `LogicError` stops the program.
+array<string> $hidden = [
+    'ws://127.0.0.1/chat',
+    'wss://203.0.113.10@127.0.0.1/chat',
+    'ws://10.0.0.7#@203.0.113.10/chat',
+    'WS://127.0.0.1:80/chat',
+    'ws://0.0.0.0/chat',
+    'ws://[::1]/chat',
+    'wss://[::ffff:127.0.0.1]/chat',
+    'ws://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'ws://169.254.169.254/latest/meta-data/',
+    'ws://[fe80::1%25eth0]/chat',
+    'wss://172.16.0.1/chat',
+    'wss://192.168.1.1/chat',
+    'http://203.0.113.10/chat',
+    'https://203.0.113.10/chat',
+    'file:///etc/passwd',
+    'ws:///chat',
+    '',
+];
+uint $refused = 0;
+foreach ($hidden as string $url) {
+    try {
+        Core\Http\Socket $opened = Core\Http\Client::openSocket($url, { deadline: 2s, connectTimeout: 1s });
+        throw new LogicError(Core\Str::format('a socket to an internal address was opened: %s', $url));
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Each option sets a time limit of zero, which would mean no limit at all. Each
+//    call must throw an error that names the option. Any other error is a failure.
+array<string> $names = ['deadline', 'connectTimeout', 'idle', 'maxDuration', 'sendTimeout', 'ping'];
+foreach ($names as string $name) {
+    try {
+        if ($name == 'deadline') {
+            Core\Http\Socket $a = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { deadline: 0s });
+        } else if ($name == 'connectTimeout') {
+            Core\Http\Socket $b = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { connectTimeout: 0s });
+        } else if ($name == 'idle') {
+            Core\Http\Socket $c = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { idle: 0s });
+        } else if ($name == 'maxDuration') {
+            Core\Http\Socket $d = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { maxDuration: 0s });
+        } else if ($name == 'sendTimeout') {
+            Core\Http\Socket $e = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { sendTimeout: 0s });
+        } else {
+            Core\Http\Socket $f = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { ping: 0s });
+        }
+        throw new LogicError(Core\Str::format('a zero `%s` was accepted', $name));
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, $name)) {
+            throw new LogicError(Core\Str::format('the zero `%s` was not checked first: %s', $name, $error->message));
+        }
+    }
+}
+echo 'step 2: refused', "\n";
+
+// 3. Each header tries to start a second request with a line break. Each call must
+//    throw a `RuntimeError` about the header. Any other error is a failure.
+array<string> $injected = [
+    'X-Trace' => "one\r\nGET /admin HTTP/1.1",
+    'X-Line' => "one\nHost: 127.0.0.1",
+    'X-Null' => "one\x00two",
+    "X-Name\r\nX-Other" => 'value',
+];
+foreach ($injected as string $name => string $value) {
+    try {
+        Core\Http\Socket $split = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { deadline: 2s, connectTimeout: 1s, headers: [$name => $value] });
+        throw new LogicError('a header with a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a header')) {
+            throw new LogicError(Core\Str::format('the header was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 3: refused', "\n";
+
+// 4. A private address with a path of one million characters and one hundred thousand
+//    offered formats. It is tried one hundred times. The memory in use must not grow.
+string $longPath = 'wss://10.0.0.7/' . Core\Str::repeat('a', 1000000);
+array<string> $formats = [];
+uint $k = 0;
+while ($k < 100000) {
+    $formats[] = Core\Str::format('format-%d', $k);
+    $k = $k + 1;
+}
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Http\Socket $big = Core\Http\Client::openSocket($longPath, { protocols: $formats, maxMessage: 4294967296 });
+        throw new LogicError('a socket with a one-million-character path was opened');
+    } catch (RuntimeError $error) {
+        $i = $i + 1;
+    }
+}
+echo 'step 4: ', $i, "\n";
+
+// 5. Every refused URL is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('ws://10.0.0.%d/', $n % 250) . Core\Str::repeat('b', 10000);
+    try {
+        Core\Http\Socket $lost = Core\Http\Client::openSocket($address);
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}

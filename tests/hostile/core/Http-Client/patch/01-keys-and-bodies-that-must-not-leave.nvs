@@ -1,0 +1,89 @@
+<?nvs
+// Attack: `PATCH` requests carry a key with a line break, a very deep JSON body or a very
+// large one. Every call must throw an error before anything is sent, and the memory in use
+// must not grow. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each key tries to add a header or a second request with a line break. Each call
+//    must throw a `RuntimeError` about the header. Any other error is a failure.
+array<string> $keys = [
+    "order-7\r\nX-Admin: yes",
+    "order-7\nHost: 127.0.0.1",
+    "order-7\r\n\r\nPATCH /admin HTTP/1.1",
+    "order-7\x00",
+    "\r\n",
+];
+foreach ($keys as string $key) {
+    try {
+        Core\Http\Response $split = Core\Http\Client::patch('https://203.0.113.10/orders/7', { deadline: 2s, json: ['status' => 'paid'], retryAttempts: 3, retryIdempotencyKey: $key });
+        throw new LogicError('a key with a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a header')) {
+            throw new LogicError(Core\Str::format('the key was not checked: %s', $error->message));
+        }
+    }
+}
+echo 'step 1: refused', "\n";
+
+// 2. The JSON body is nested from a little under the depth limit to far over it. Each call must
+//    throw a `LogicError` if the body is too deep, and otherwise a `RuntimeError` for its key.
+array<uint> $depths = [510, 511, 512, 513, 1022, 1023, 1024, 1025, 100000];
+uint $tooDeep = 0;
+uint $keyRefused = 0;
+foreach ($depths as uint $depth) {
+    array<mixed> $nested = ['status' => 'paid'];
+    uint $level = 0;
+    while ($level < $depth) {
+        $nested = [$nested];
+        $level = $level + 1;
+    }
+    bool $sent = false;
+    try {
+        Core\Http\Response $deep = Core\Http\Client::patch('https://203.0.113.10/orders/7', { deadline: 2s, json: $nested, retryAttempts: 2, retryIdempotencyKey: "deep\r\n" });
+        $sent = true;
+    } catch (LogicError $deepError) {
+        $tooDeep = $tooDeep + 1;
+    } catch (RuntimeError $keyError) {
+        $keyRefused = $keyRefused + 1;
+    }
+    if ($sent) {
+        throw new LogicError(Core\Str::format('a body nested %d levels deep was sent', $depth));
+    }
+}
+echo 'step 2: ', $tooDeep, ' too deep, ', $keyRefused, ' refused by the key', "\n";
+
+// 3. A JSON body of about five million characters is sent 30 times with a very large
+//    retry count. Each call must throw, and the memory in use must not grow.
+array<string> $lines = [];
+uint $row = 0;
+while ($row < 50000) {
+    $lines[] = Core\Str::repeat('x', 100);
+    $row = $row + 1;
+}
+uint $tries = 0;
+while ($tries < 30) {
+    try {
+        Core\Http\Response $big = Core\Http\Client::patch('https://203.0.113.10/orders/7', { deadline: 2s, json: ['lines' => $lines], retryAttempts: 1000000, retryIdempotencyKey: "big\n" });
+        throw new LogicError('a five-million-character body was sent');
+    } catch (RuntimeError $error) {
+        $tries = $tries + 1;
+    }
+}
+echo 'step 3: ', $tries, "\n";
+
+// 4. Every refused request is kept in a list with its key and its error message, and
+//    never freed. This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $longKey = Core\Str::format('order-%d-', $n) . Core\Str::repeat('k', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::patch(Core\Str::format('http://10.0.0.%d/orders/7', $n % 250), { json: ['status' => 'paid'], retryAttempts: 2, retryIdempotencyKey: $longKey });
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $longKey;
+    }
+    $n = $n + 1;
+}

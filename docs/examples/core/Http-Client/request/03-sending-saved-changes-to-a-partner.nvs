@@ -1,0 +1,29 @@
+<?nvs
+// Shows a job that sends saved changes to a partner's server. Each change has its
+// own method, so the job uses `Core\Http\Client::request` for all of them.
+
+// The key is the path of the change, and the value is its method.
+array<Core\Http\Method> $changes = [
+    "/customers/7" => Core\Http\Method::Put,
+    "/orders" => Core\Http\Method::Post,
+    "/carts/3" => Core\Http\Method::Delete,
+];
+
+uint $sent = 0;
+uint $kept = 0;
+foreach ($changes as string $path => Core\Http\Method $method) {
+    try {
+        // Each change is tried up to 3 times. `retryIdempotencyKey` tells the partner
+        // that a repeated request is the same change, so it is done only once.
+        Core\Http\Response $response = Core\Http\Client::request($method, "http://10.0.0.5" . $path, {deadline: 10s, retryAttempts: 3, retryIdempotencyKey: "change" . $path});
+        echo "sent: ", $path, " (", $response->status(), ")", "\n";
+        $sent = $sent + 1;
+    } catch (RuntimeError $error) {
+        // The change stays saved, and the next run of the job tries it again.
+        echo "kept: ", $path, "\n";
+        $kept = $kept + 1;
+    }
+}
+
+// The partner's address is private, so this prints `sent: 0, kept: 3`.
+echo "sent: ", $sent, ", kept: ", $kept, "\n";

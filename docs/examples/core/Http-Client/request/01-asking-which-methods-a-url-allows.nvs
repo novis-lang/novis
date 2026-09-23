@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to send an `OPTIONS` request. It asks a server which methods a URL allows.
+
+// There is no `options` function, so `request` sends this method. It is the first argument.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::request(Core\Http\Method::Options, "http://10.0.0.7/orders");
+    echo "allowed: ", $response->header("allow") ?? "unknown", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

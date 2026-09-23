@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to send an order to another server as JSON, and what happens when the
+// address is inside your own network.
+
+array<mixed> $order =["id" => 1042, "item" => "desk lamp", "quantity" => 2];
+
+// `Core\Http\Client::post` sends a `POST` request, and `json` sends the array as JSON.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::post("http://10.0.0.7/orders", {json: $order});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

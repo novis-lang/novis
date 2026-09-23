@@ -1,0 +1,77 @@
+<?nvs
+// Attack: `PUT` requests carry a body that is very large, very deep, or that adds a
+// second header. None of them may crash the program or be sent. The last step stops
+// the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each `contentType` tries to add a header with a line break. Each call must throw
+//    a `RuntimeError` about the header. Any other error is a failure.
+array<string> $types = [
+    "text/plain\r\nX-Admin: yes",
+    "text/plain\nHost: 127.0.0.1",
+    "text/plain\x00",
+    "text/plain\r\n\r\nPUT /admin HTTP/1.1",
+];
+foreach ($types as string $type) {
+    try {
+        Core\Http\Response $split = Core\Http\Client::put('https://203.0.113.10/users/1', { deadline: 2s, body: 'name=kim', contentType: $type });
+        throw new LogicError('a content type with a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a header')) {
+            throw new LogicError(Core\Str::format('the content type was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 1: refused', "\n";
+
+// 2. A `json` body is one hundred thousand arrays, each inside the next. Any error is
+//    caught, so the next step still runs. Freeing the array must not crash either.
+mixed $deep = 'end';
+uint $d = 0;
+while ($d < 100000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+bool $sent = false;
+try {
+    Core\Http\Response $nested = Core\Http\Client::put('https://203.0.113.10/users/1', { deadline: 1s, json: $deep });
+    $sent = true;
+} catch (Throwable $stopped) {
+    echo 'step 2: stopped', "\n";
+}
+if ($sent) {
+    throw new LogicError('a body one hundred thousand levels deep was sent');
+}
+$deep = 'freed';
+
+// 3. A body of ten million characters goes to a private address, with a very large
+//    retry count. It is tried one hundred times. The memory in use must not grow.
+string $large = Core\Str::repeat('a', 10000000);
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Http\Response $big = Core\Http\Client::put('http://10.0.0.7/files/1', { deadline: 2s, retryAttempts: 1000000, body: $large });
+        throw new LogicError('a request to a private address was sent');
+    } catch (RuntimeError $error) {
+        $i = $i + 1;
+    }
+}
+echo 'step 3: ', $i, "\n";
+
+// 4. Every refused URL is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://172.16.0.%d/', $n % 250) . Core\Str::repeat('e', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::put($address, { form: ['count' => '1'] });
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}

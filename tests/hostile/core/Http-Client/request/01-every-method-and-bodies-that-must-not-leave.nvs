@@ -1,0 +1,116 @@
+<?nvs
+// Attack: requests with each of the eight HTTP methods try to reach this server's own
+// network, and `GET` and `HEAD` requests carry a very large body. Every one must throw
+// an error before anything is sent. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+array<Core\Http\Method> $methods = [
+    Core\Http\Method::Get,
+    Core\Http\Method::Head,
+    Core\Http\Method::Options,
+    Core\Http\Method::Trace,
+    Core\Http\Method::Post,
+    Core\Http\Method::Put,
+    Core\Http\Method::Patch,
+    Core\Http\Method::Delete,
+];
+
+// 1. Each method is sent to each internal address. Each call must throw a `RuntimeError`.
+//    If one is sent, the `LogicError` below stops the program early.
+array<string> $hidden = [
+    'http://127.0.0.1/admin',
+    'http://[::1]/admin',
+    'http://0x7f000001/admin',
+    'http://localhost/admin',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'http://10.0.0.7/admin',
+    'http://203.0.113.10@192.168.1.1/admin',
+    'file:///etc/passwd',
+    '',
+];
+uint $refused = 0;
+foreach ($methods as Core\Http\Method $method) {
+    foreach ($hidden as string $url) {
+        try {
+            Core\Http\Response $sent = Core\Http\Client::request($method, $url, { deadline: 2s });
+            throw new LogicError(Core\Str::format('a request to an internal address was sent: %s', $url));
+        } catch (RuntimeError $error) {
+            $refused = $refused + 1;
+        }
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. `GET` and `HEAD` requests carry a body of ten million characters, one hundred times.
+//    Each call must throw a `RuntimeError` that says the method sends no body. Memory must not grow.
+string $huge = Core\Str::repeat('x', 10000000);
+array<Core\Http\Method> $bodiless = [Core\Http\Method::Get, Core\Http\Method::Head];
+uint $i = 0;
+while ($i < 100) {
+    foreach ($bodiless as Core\Http\Method $method) {
+        try {
+            Core\Http\Response $withJson = Core\Http\Client::request($method, 'https://203.0.113.10/search', { deadline: 2s, json: ['term' => $huge] });
+            throw new LogicError('a request with a body and no room for one was sent');
+        } catch (RuntimeError $error) {
+            if (!Core\Str::contains($error->message, 'sends no body')) {
+                throw new LogicError(Core\Str::format('the method was not checked first: %s', $error->message));
+            }
+        }
+        try {
+            Core\Http\Response $withBody = Core\Http\Client::request($method, 'https://203.0.113.10/search', { deadline: 2s, body: $huge, contentType: 'text/plain' });
+            throw new LogicError('a request with a body and no room for one was sent');
+        } catch (RuntimeError $error) {
+            if (!Core\Str::contains($error->message, 'sends no body')) {
+                throw new LogicError(Core\Str::format('the method was not checked first: %s', $error->message));
+            }
+        }
+        try {
+            Core\Http\Response $withForm = Core\Http\Client::request($method, 'https://203.0.113.10/search', { deadline: 2s, form: ['term' => $huge] });
+            throw new LogicError('a request with a body and no room for one was sent');
+        } catch (RuntimeError $error) {
+            if (!Core\Str::contains($error->message, 'sends no body')) {
+                throw new LogicError(Core\Str::format('the method was not checked first: %s', $error->message));
+            }
+        }
+    }
+    $i = $i + 1;
+}
+echo 'step 2: ', $i, "\n";
+
+// 3. `POST` and `PATCH` requests ask for the largest retry count and have no
+//    `retryIdempotencyKey`. Each call must throw a `RuntimeError` that names that option.
+array<Core\Http\Method> $effects = [Core\Http\Method::Post, Core\Http\Method::Patch];
+uint $j = 0;
+while ($j < 1000) {
+    foreach ($effects as Core\Http\Method $method) {
+        try {
+            Core\Http\Response $repeated = Core\Http\Client::request($method, 'https://203.0.113.10/orders', { deadline: 1ns, retryAttempts: 4294967295, json: ['item' => 'shoes'] });
+            throw new LogicError('a repeated request without a key was sent');
+        } catch (RuntimeError $error) {
+            if (!Core\Str::contains($error->message, 'retryIdempotencyKey')) {
+                throw new LogicError(Core\Str::format('the retry was not checked first: %s', $error->message));
+            }
+        }
+    }
+    $j = $j + 1;
+}
+echo 'step 3: ', $j, "\n";
+
+// 4. Every refused request is kept in a list with its error message, and never freed.
+//    The method changes on each call. This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://10.0.%d.1/', $n % 250) . Core\Str::repeat('e', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::request($methods[($n % 8) as int], $address);
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}

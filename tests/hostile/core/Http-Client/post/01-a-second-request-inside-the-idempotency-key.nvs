@@ -1,0 +1,72 @@
+<?nvs
+// Attack: `POST` requests try to add a second request inside `retryIdempotencyKey`,
+// or to send a very large body to this server's own network. Every one must throw
+// an error before anything is sent. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each key has a line break or another control character. The key is sent as the
+//    `Idempotency-Key` header, so each call must throw a `RuntimeError` about that header.
+array<string> $keys = [
+    "order-1\r\nX-Admin: yes",
+    "order-1\nHost: 127.0.0.1",
+    "order-1\r\n\r\nPOST /admin HTTP/1.1",
+    "order-1\x00",
+    "order-1\x7f",
+    "\r\n",
+];
+uint $refused = 0;
+foreach ($keys as string $key) {
+    try {
+        Core\Http\Response $split = Core\Http\Client::post('https://203.0.113.10/orders', { deadline: 2s, json: ['id' => 1], retryAttempts: 1000000, retryIdempotencyKey: $key });
+        throw new LogicError('a key with a control character was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'Idempotency-Key')) {
+            throw new LogicError(Core\Str::format('the key was not checked first: %s', $error->message));
+        }
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. A body of one million bytes and a form of 100000 fields are sent to a private
+//    address, 100 times each. Each call must throw, and the memory in use must not grow.
+string $large = Core\Str::repeat('a', 1000000);
+array<string> $fields = [];
+uint $f = 0;
+while ($f < 100000) {
+    $fields[Core\Str::format('field%d', $f)] = 'value';
+    $f = $f + 1;
+}
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Http\Response $big = Core\Http\Client::post('http://10.0.0.7/upload', { deadline: 2s, body: $large, contentType: 'text/plain' });
+        throw new LogicError('a large body was sent to a private address');
+    } catch (RuntimeError $error) {
+    }
+    try {
+        Core\Http\Response $wide = Core\Http\Client::post('http://10.0.0.7/upload', { deadline: 2s, form: $fields });
+        throw new LogicError('a large form was sent to a private address');
+    } catch (RuntimeError $error) {
+    }
+    $i = $i + 1;
+}
+echo 'step 2: ', $i, "\n";
+
+// 3. Every refused request is kept in a list with its error message, and never freed.
+//    This step ends the program at its memory limit.
+array<string> $kept = [];
+uint $n = 0;
+while (true) {
+    string $address = Core\Str::format('http://172.16.%d.1/', $n % 250) . Core\Str::repeat('e', 10000);
+    try {
+        Core\Http\Response $lost = Core\Http\Client::post($address, { json: ['n' => $n] });
+    } catch (RuntimeError $error) {
+        $kept[] = $error->message . $address;
+    }
+    $n = $n + 1;
+}

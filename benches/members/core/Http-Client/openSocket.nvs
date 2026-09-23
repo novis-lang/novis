@@ -1,0 +1,27 @@
+<?nvs
+// Measures opening a WebSocket that a test answers and reading one message,
+// as the tests of a program with a live feed do.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Every connection below is answered from this table, so nothing is sent over a network.
+        Core\Test::answerSocket("wss://feed.example.com/*", ["EUR 1.08"]);
+        array<string> $paths = ["/prices/", "/orders/", "/alerts/"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The URL in each round is chosen by the round before, so no round can be left out.
+            string $url = "wss://feed.example.com" . $paths[($total % 3) as int] . $i;
+            Core\Http\Socket $socket = Core\Http\Client::openSocket($url);
+            var $message = $socket->receive();
+            $total = $total + Core\Str::length($message?->text() ?? "");
+            $socket->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows the checks on the URL and on the options, which happen before anything
+// is sent.
+
+// A WebSocket URL starts with `ws://` or `wss://`. An `https://` URL throws an error.
+try {
+    var $wrongScheme = Core\Http\Client::openSocket("https://203.0.113.10/live");
+} catch (RuntimeError $scheme) {
+    echo $scheme->message, "\n";
+}
+
+// `idle` is how long the connection may stay quiet. It must be longer than zero.
+try {
+    var $noWait = Core\Http\Client::openSocket("wss://203.0.113.10/live", {idle: 0s});
+} catch (RuntimeError $idle) {
+    echo $idle->message, "\n";
+}
+
+// `maxDuration` is how long the connection may stay open. It must be longer than zero too.
+try {
+    var $noTime = Core\Http\Client::openSocket("wss://203.0.113.10/live", {maxDuration: 0s});
+} catch (RuntimeError $lifetime) {
+    echo $lifetime->message, "\n";
+}

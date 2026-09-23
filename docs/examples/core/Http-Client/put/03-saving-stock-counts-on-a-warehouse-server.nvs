@@ -1,0 +1,31 @@
+<?nvs
+// Shows a job that sends the stock count of each product to a warehouse server.
+// Each new count replaces the old one, so the job uses a `PUT` request.
+
+array<int> $stock = [
+    "tea-green" => 14,
+    "tea-black" => 0,
+    "mug-blue" => 32,
+];
+
+uint $saved = 0;
+uint $failed = 0;
+foreach ($stock as string $product => int $count) {
+    try {
+        // The server may be busy for a moment, so the request is tried up to 3 times.
+        Core\Http\Response $response = Core\Http\Client::put("http://192.168.10.4/stock/" . $product, {json: ["count" => $count], deadline: 10s, retryAttempts: 3});
+        // A status below 300 means the server saved the count.
+        if ($response->status() < 300) {
+            $saved = $saved + 1;
+        } else {
+            $failed = $failed + 1;
+        }
+    } catch (RuntimeError $error) {
+        // The job keeps going and sends the next count.
+        echo "not saved: ", $product, "\n";
+        $failed = $failed + 1;
+    }
+}
+
+// The warehouse server is at a private address, so this prints `saved: 0, failed: 3`.
+echo "saved: ", $saved, ", failed: ", $failed, "\n";

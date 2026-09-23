@@ -1,0 +1,37 @@
+<?nvs
+// Shows a job that reads live prices from a feed. If the feed cannot be
+// reached, the job uses the last prices it knows.
+
+array<float> $prices = ["EUR" => 1.08, "GBP" => 1.27];
+string $source = "last known prices";
+uint $updates = 0;
+
+try {
+    // `protocols` is the message format the job offers. `maxMessage` is the largest message in bytes.
+    // The connection closes after 30 seconds without a message, or after 2 minutes.
+    Core\Http\Socket $feed = Core\Http\Client::openSocket("wss://192.168.4.20/prices", {
+        protocols: ["json"],
+        idle: 30s,
+        maxDuration: 2m,
+        maxMessage: 65536,
+    });
+    $feed->send("subscribe EUR GBP");
+
+    // `receive` returns `null` when the feed closes the connection.
+    var $message = $feed->receive();
+    while ($message != null) {
+        echo "update: ", $message->text() ?? "(binary)", "\n";
+        $updates = $updates + 1;
+        $message = $feed->receive();
+    }
+    $feed->close();
+    $source = "live feed";
+} catch (RuntimeError $error) {
+    echo "feed not available: ", $error->message, "\n";
+}
+
+// 192.168.4.20 is a private address, so this prints the last known prices.
+foreach ($prices as string $currency => float $rate) {
+    echo $currency, ": ", $rate, "\n";
+}
+echo "source: ", $source, ", updates: ", $updates, "\n";

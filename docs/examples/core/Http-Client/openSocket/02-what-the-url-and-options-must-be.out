@@ -1,0 +1,3 @@
+Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL names `https`
+Core\Http\Client::openSocket: `idle` must be a positive duration, and this one is 0ns
+Core\Http\Client::openSocket: `maxDuration` must be a positive duration, and this one is 0ns
