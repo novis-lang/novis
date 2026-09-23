@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to write a file through a handle, and then read it back through a second handle.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+
+// `FileMode::Write` creates the file, or empties it if it is already there.
+Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+$out->write("Hello\n");
+$out->write("World\n");
+$out->close();
+
+// `FileMode::Read` opens the file for reading only. `read(100)` returns up to 100 bytes.
+// This prints "Hello" and "World" on two lines.
+Core\IO\File $in = Core\IO::open($path, Core\IO\FileMode::Read);
+echo $in->read(100);
+$in->close();

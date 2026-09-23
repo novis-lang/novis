@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program opens many files and never closes them, opens paths that are not files, and
+// uses handles after they are closed. Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'input.txt');
+Core\IO::write($path, 'content');
+
+// 1. The same file is opened 10000 times and no handle is closed. The system may run out of
+// file handles first. Then `open` throws an `IOError`.
+array<Core\IO\File> $open = [];
+try {
+    uint $i = 0;
+    while ($i < 10000) {
+        $open[] = Core\IO::open($path, Core\IO\FileMode::Read);
+        $i = $i + 1;
+    }
+} catch (IOError $tooMany) {
+}
+if (Core\Arr::count($open) == 0) {
+    throw new LogicError('no handle was opened');
+}
+echo 'step 1: done', "\n";
+
+// 2. Paths that are not a file you can open: empty, a folder, a missing file, a null byte and a
+// very long name. Opening or reading each must throw an `IOError`.
+array<string> $bad = [
+    '',
+    $dir,
+    Core\Path::join($dir, 'missing.txt'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO\File $file = Core\IO::open($badPath, Core\IO\FileMode::Read);
+        $file->read(10);
+        throw new LogicError('a path that is not a file was read');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. A handle is used after `close`. Every method must throw a `RuntimeError`, also a second `close`.
+Core\IO\File $closed = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+$closed->close();
+uint $thrown = 0;
+try { $closed->read(10); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
+try { $closed->readLine(); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
+try { $closed->write('x'); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
+try { $closed->close(); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
+if ($thrown != 4) {
+    throw new LogicError('a closed handle was used without an error');
+}
+echo 'step 3: done', "\n";
+
+// 4. A second handle opens the same file with `Write` and empties it while a reader is open.
+// The reader must return an empty string.
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+if ($reader->read(100) != '') {
+    throw new LogicError('the reader read content that was deleted');
+}
+$writer->close();
+$reader->close();
+echo 'step 4: done', "\n";
+
+// 5. The handles from step 1 are still open when the program ends. Novis must close them all.
+echo 'step 5: done', "\n";

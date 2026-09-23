@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a program reads a log file one line at a time and copies the error lines to a second file.
+
+string $dir = Core\IO::temporaryDir();
+string $source = Core\Path::join($dir, "app.log");
+string $target = Core\Path::join($dir, "errors.log");
+Core\IO::write($source, "INFO start\nERROR disk full\nINFO retry\nERROR disk full\nINFO stop\n");
+
+Core\IO\File $in = Core\IO::open($source, Core\IO\FileMode::Read);
+Core\IO\File $out = Core\IO::open($target, Core\IO\FileMode::Write);
+
+// `readLine` returns the next line without its line break. At the end of the file it returns `null`.
+// Only one line is in memory at a time, so this also works for a very large log.
+?string $line = $in->readLine();
+uint $copied = 0;
+while ($line != null) {
+    if (Core\Str::startsWith($line, "ERROR")) {
+        $out->write($line . "\n");
+        $copied = $copied + 1;
+    }
+    $line = $in->readLine();
+}
+$in->close();
+$out->close();
+
+// This prints "2 lines copied", and then the two error lines.
+echo $copied, " lines copied\n";
+echo Core\IO::readText($target);

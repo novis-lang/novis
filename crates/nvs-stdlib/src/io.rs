@@ -460,14 +460,16 @@ const READ_DOC: MethodDoc = MethodDoc {
         desc: "The file to read, absolute or relative to the working directory.",
         shape: &[],
     }],
-    ret: "The file's bytes as a `string`, with nothing stripped and no encoding assumed.",
+    ret: "The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; \
+          `readText` reads a file written in another charset.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `fs.read` for this path; the message names \
                    the capability in the spelling `nvs.toml` grants it under. Or the file is \
                    larger than `[limits] max_output`, the one ceiling a request holds a single \
-                   read to — the same directive that bounds a captured child's output.",
+                   read to — the same directive that bounds a captured child's output. Or the \
+                   file is not valid UTF-8, and the message names the byte where the text stops.",
         },
         ErrorDoc {
             error: "IOError",
@@ -4270,6 +4272,222 @@ mod tests {
         assert!(missing.contains(r"Core\IO::lines"), "{missing}");
         let refused = lined(&mut writing(), &path).expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO::read` returns the file exactly as it is on disk: line breaks of every kind,
+    /// a trailing one, leading spaces and a byte-order mark are all kept, and an empty file is
+    /// the empty string. A missing file and a directory throw naming the member, and a context
+    /// granting `fs.write` alone throws naming `fs.read`.
+    // covers: Core\IO::read
+    #[test]
+    fn core_io_read_returns_the_file_unchanged_and_refuses_without_fs_read() {
+        let path = scratch("read.txt");
+        let mut ctx = reading("1MiB");
+        let read = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
+            call_with(nvs_core_io_read, ctx, &[spelled(path)]).map(|value| {
+                let text = value.as_text().expect("`read` returns a string").to_owned();
+                #[expect(
+                    unsafe_code,
+                    reason = "the case owns the one reference `read` returned"
+                )]
+                unsafe {
+                    value.release();
+                }
+                text
+            })
+        };
+
+        let content = "\u{feff}  first\r\nsecond\rthird\n\n";
+        std::fs::write(&path, content).expect("a file with every line break");
+        assert_eq!(
+            read(&mut ctx, &path).expect("a granted file answers"),
+            content
+        );
+        std::fs::write(&path, b"").expect("an empty file");
+        assert_eq!(read(&mut ctx, &path).expect("an empty file answers"), "");
+
+        let missing = read(&mut ctx, &path.with_extension("missing")).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::read"), "{missing}");
+        let folder = path.parent().expect("the scratch folder");
+        let directory = read(&mut ctx, folder).expect_err("a directory is not a file");
+        assert!(directory.contains(r"Core\IO::read"), "{directory}");
+        let refused = read(&mut writing(), &path).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO::readText` decodes the file under the charset it is given: the same octets are
+    /// `café` under `Latin1` and are refused at offset 3 under `Utf8`, the default, while
+    /// `Utf16Le` reads two octets per character. A missing file throws naming the member, and a
+    /// context granting `fs.write` alone throws naming `fs.read` before any byte is decoded.
+    // covers: Core\IO::readText
+    #[test]
+    fn core_io_read_text_decodes_under_the_charset_given_and_refuses_without_fs_read() {
+        const UTF8: i64 = 0;
+        const UTF16LE: i64 = 1;
+        const LATIN1: i64 = 4;
+        let path = scratch("read-text.txt");
+        let read_text = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, charset: i64| {
+            let args = [
+                Value::str(NvsStr::new(spelled(path).as_bytes())),
+                Value::int(charset),
+            ];
+            let answered = nvs_runtime::call(nvs_core_io_read_text, ctx, &args);
+            let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+            #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+            unsafe {
+                args[0].release();
+            }
+            answered
+                .map(|value| {
+                    let text = value
+                        .as_text()
+                        .expect("`readText` returns a string")
+                        .to_owned();
+                    #[expect(unsafe_code, reason = "the case owns the one reference returned")]
+                    unsafe {
+                        value.release();
+                    }
+                    text
+                })
+                .map_err(|_| refusal.expect("a non-zero status leaves its message in the context"))
+        };
+        let mut ctx = reading("1MiB");
+
+        std::fs::write(&path, b"caf\xe9\n").expect("a Latin-1 file");
+        assert_eq!(
+            read_text(&mut ctx, &path, LATIN1).expect("Latin-1 reads"),
+            "café\n"
+        );
+        let refused = read_text(&mut ctx, &path, UTF8).expect_err("0xE9 alone is not UTF-8");
+        assert!(
+            refused.contains(r"Core\IO::readText") && refused.contains("offset 3"),
+            "{refused}"
+        );
+
+        std::fs::write(&path, b"h\0i\0").expect("a UTF-16LE file");
+        assert_eq!(
+            read_text(&mut ctx, &path, UTF16LE).expect("UTF-16LE reads"),
+            "hi"
+        );
+        std::fs::write(&path, "café\n").expect("a UTF-8 file");
+        assert_eq!(
+            read_text(&mut ctx, &path, UTF8).expect("UTF-8 reads"),
+            "café\n"
+        );
+
+        let missing =
+            read_text(&mut ctx, &path.with_extension("missing"), UTF8).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::readText"), "{missing}");
+        std::fs::write(&path, b"caf\xe9\n").expect("a file UTF-8 cannot read");
+        let refused = read_text(&mut writing(), &path, UTF8).expect_err("`fs.write` only");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO::open(path, mode)` under `ctx`, with `mode` as the `Core\IO\FileMode` case
+    /// index a call site passes, closing the handle it returned, or the message the refusal
+    /// left in `ctx`.
+    fn opened(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, mode: i64) -> Result<(), String> {
+        let args = [
+            Value::str(NvsStr::new(spelled(path).as_bytes())),
+            Value::int(mode),
+        ];
+        let answered = nvs_runtime::call(nvs_core_io_open, ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        let outcome = match answered {
+            Ok(handle) => {
+                assert!(
+                    crate::instance::is_instance(handle, &FILE),
+                    "`open` returns a `Core\\IO\\File`"
+                );
+                nvs_runtime::call(nvs_core_io_file_close, ctx, &[handle])
+                    .expect("a handle `open` just returned closes");
+                #[expect(
+                    unsafe_code,
+                    reason = "the case owns the one reference `open` returned"
+                )]
+                unsafe {
+                    handle.release();
+                }
+                Ok(())
+            }
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        };
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        outcome
+    }
+
+    /// `Core\IO::open`'s four modes each do one thing to the file on open: `Read` needs the
+    /// file to exist, `Write` creates it or empties it, and `Append` and `ReadWrite` create it
+    /// and keep what it has. Each mode asks for its own capability before the file is touched,
+    /// so a refused `Write` creates nothing, and `ReadWrite` needs both.
+    // covers: Core\IO::open
+    #[test]
+    fn core_io_open_does_one_thing_per_mode_and_asks_for_each_modes_capability() {
+        const READ: i64 = 0;
+        const WRITE: i64 = 1;
+        const APPEND: i64 = 2;
+        const READ_WRITE: i64 = 3;
+        let path = scratch("open.txt");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.fs]\nread = true\nwrite = true\n",
+        ));
+
+        let missing = opened(&mut ctx, &path, READ).expect_err("`Read` creates nothing");
+        assert!(missing.contains(r"Core\IO::open"), "{missing}");
+        assert!(!path.exists(), "a refused `Read` left no file behind");
+
+        for creating in [WRITE, APPEND, READ_WRITE] {
+            let _ = std::fs::remove_file(&path);
+            opened(&mut ctx, &path, creating).expect("a writing mode creates the file");
+            assert_eq!(
+                std::fs::read(&path).expect("the created file"),
+                b"",
+                "mode {creating}"
+            );
+        }
+
+        for keeping in [READ, APPEND, READ_WRITE] {
+            std::fs::write(&path, b"kept").expect("a file with content");
+            opened(&mut ctx, &path, keeping).expect("an existing file opens");
+            assert_eq!(
+                std::fs::read(&path).expect("the file"),
+                b"kept",
+                "mode {keeping}"
+            );
+        }
+        opened(&mut ctx, &path, WRITE).expect("`Write` opens an existing file");
+        assert_eq!(
+            std::fs::read(&path).expect("the file"),
+            b"",
+            "`Write` empties on open"
+        );
+
+        let _ = std::fs::remove_file(&path);
+        for writing_mode in [WRITE, APPEND, READ_WRITE] {
+            let refused =
+                opened(&mut reading("1MiB"), &path, writing_mode).expect_err("no `fs.write`");
+            assert!(refused.contains("fs.write"), "{refused}");
+            assert!(
+                !path.exists(),
+                "a refused mode {writing_mode} created the file"
+            );
+        }
+        std::fs::write(&path, b"kept").expect("a file to read");
+        for reading_mode in [READ, READ_WRITE] {
+            let refused = opened(&mut writing(), &path, reading_mode).expect_err("no `fs.read`");
+            assert!(refused.contains("fs.read"), "{refused}");
+        }
+        assert_eq!(std::fs::read(&path).expect("the file"), b"kept");
 
         let _ = std::fs::remove_file(&path);
     }

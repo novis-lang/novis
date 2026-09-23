@@ -1,0 +1,29 @@
+<?nvs
+// Opens a small file and closes it again, as a program does before it reads a part of a file.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $files = [
+            Core\Path::join($dir, "a.txt"),
+            Core\Path::join($dir, "b.txt"),
+            Core\Path::join($dir, "c.txt"),
+        ];
+        foreach ($files as string $file) {
+            Core\IO::write($file, "content\n");
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file in each round depends on the round before, so no round can be left out.
+            Core\IO\File $handle = Core\IO::open($files[($total % 3) as int], Core\IO\FileMode::Read);
+            $total = $total + 1 + $handle->tell();
+            $handle->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000) > 0 ? "done" : "no file was opened", "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how `FileMode::Append` adds to the end of a file and keeps what the file already has.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "visits.log");
+Core\IO::write($path, "visit 1\n");
+
+// Each open with `Append` writes after the last line. The file is created if it is not there.
+array<string> $visits = ["visit 2\n", "visit 3\n"];
+foreach ($visits as string $line) {
+    Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Append);
+    $log->write($line);
+    $log->close();
+}
+
+// This prints "visit 1", "visit 2" and "visit 3".
+echo Core\IO::readText($path);
+
+// A file that does not exist cannot be opened with `Read`. `open` throws an `IOError`.
+try {
+    Core\IO::open(Core\Path::join(Core\IO::temporaryDir(), "missing.log"), Core\IO\FileMode::Read);
+} catch (IOError $e) {
+    echo "missing.log cannot be opened\n";
+}
