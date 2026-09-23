@@ -153,6 +153,8 @@ use nvs_server::{
 use crate::script::Compiler;
 use crate::service::{Notify, State};
 
+#[cfg(feature = "exporter")]
+mod exporters;
 mod mounts;
 
 /// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
@@ -1269,77 +1271,27 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
     }
 
-    // The exporter's own accept loop, on the one core the boot handed the
-    // listener to. It is a task beside the accept loops above and not a thread
-    // of its own (`rule:concurrency/one-scheduler`), it answers one collector at
-    // a time, and it runs no Novis code; what it reads is every core's series
-    // and never this one's alone.
+    // The scrape loop and the two pushes, on the one core the boot handed them
+    // to, each a task beside the accept loops above and not a thread of its own
+    // (`rule:concurrency/one-scheduler`). None of them runs Novis code, and what
+    // each reads is every core's series or spans, never this core's alone.
+    // `exporters::Exporters` owns them, and rebuilds them when a reload changes
+    // `[metrics]` or `[trace]`. It runs on the worker that ticks, which is the
+    // one the boot gave them to, so a tree that booted with no exporter still
+    // gets the one a reload adds.
     // A build without the feature reaches here with nothing: `scrape_socket`
     // refused the tree that would have bound a socket, so the `None` this arm is
     // left with is the only value it can hold.
     #[cfg(not(feature = "exporter"))]
     let _ = scrapes;
     #[cfg(feature = "exporter")]
-    if let Some(handle) = scrapes {
-        let named = handle.named();
-        let mut listener = match handle.accepting() {
-            Ok(listener) => listener,
-            Err(error) => {
-                eprintln!("error: this core could not take the scrape socket: {error}");
-                return false;
-            }
-        };
-        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
-            let stopped = Rc::clone(&stopped);
-            let draining = draining.clone();
-            move |_ctx| {
-                let served = nvs_server::serve_scrapes_on_this_core(
-                    &mut *listener,
-                    waits,
-                    &draining,
-                    |note| eprintln!("note: {note}"),
-                    || ControlFlow::Continue(()),
-                );
-                if let Err(error) = served {
-                    eprintln!("error: the scrape loop on {named} stopped: {error}");
-                    stopped.set(true);
-                }
-            }
-        });
-    }
-
-    // The push exporter's drain, on the one core the boot handed the endpoint
-    // to. A task beside the accept loops for the scrape loop's reason
-    // (`rule:concurrency/one-scheduler`), and it is the only thing in this
-    // process that dials the collector: a request hands its spans to the queue
-    // and is done with them, which is what keeps a collector's latency off
-    // every response. It ends with the drain, having pushed what was waiting.
-    #[cfg(feature = "exporter")]
-    if let Some(endpoint) = traces {
-        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
-            let draining = draining.clone();
-            move |_ctx| {
-                nvs_server::push_queued_on_this_core(&endpoint, waits, &draining, |note| {
-                    eprintln!("note: {note}");
-                });
-            }
-        });
-    }
-
-    // The registry's own push, on the same terms and beside it: a task on this
-    // scheduler that runs no Novis code, reads every core's series on its own
-    // cadence and dials the collector `[metrics] endpoint` names. It is the
-    // push shape of the scrape loop above, and a tree writes one or the other
-    // because `[metrics] exporter` names one protocol.
-    #[cfg(feature = "exporter")]
-    if let Some(endpoint) = series {
-        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
-            let draining = draining.clone();
-            move |_ctx| {
-                nvs_server::push_registry_on_this_core(&endpoint, waits, &draining, |note| {
-                    eprintln!("note: {note}");
-                });
-            }
+    if ticks {
+        let exporters = exporters::Exporters::new(waits, Rc::clone(&stopped));
+        let booted = Arc::clone(&snapshot);
+        let current = Arc::clone(&current);
+        let draining = draining.clone();
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            exporters.watch(&current, booted, scrapes, traces, series, &draining);
         });
     }
 
@@ -2427,6 +2379,17 @@ fn handles_for(bound: &[Socket], workers: usize) -> std::io::Result<Vec<Vec<Sock
 /// nowhere to answer, an address that does not resolve, or the platform's own on
 /// the bind.
 fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> {
+    scrape_address(config)?.map(scrape_bound).transpose()
+}
+
+/// The address [`scrape_socket`] binds, resolved and not yet bound — what a
+/// reload compares with the address a running scrape listener is on, so an
+/// unchanged `[metrics] listen` is never bound a second time.
+///
+/// # Errors
+///
+/// [`scrape_socket`]'s, except the bind.
+fn scrape_address(config: &nvs_config::Config) -> Result<Option<SocketAddr>, String> {
     let Some(metering) = nvs_config::Metering::of(config) else {
         return Ok(None);
     };
@@ -2456,14 +2419,22 @@ fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> 
         .ok_or_else(|| {
             format!("`[metrics] listen` names `{written}`, which resolves to no address at all")
         })?;
-    // The same bind every `[server] listen` entry takes, so a refusal reads the
-    // same way whichever socket it was. The mode is the Unix-domain one and
-    // this entry is always a port: `rule:config/no-network-control-surface`
-    // keeps an operator surface local, and a scrape endpoint is read by a
-    // collector on the network rather than by an operator on this host.
-    Ok(Some(
-        bind_all(&[Listen::Tcp(address)], 0o660)?.swap_remove(0),
-    ))
+    Ok(Some(address))
+}
+
+/// The scrape listener on `address`.
+///
+/// The same bind every `[server] listen` entry takes, so a refusal reads the
+/// same way whichever socket it was. The mode is the Unix-domain one and this
+/// entry is always a port: `rule:config/no-network-control-surface` keeps an
+/// operator surface local, and a scrape endpoint is read by a collector on the
+/// network rather than by an operator on this host.
+///
+/// # Errors
+///
+/// The platform's own, on the bind.
+fn scrape_bound(address: SocketAddr) -> Result<Socket, String> {
+    Ok(bind_all(&[Listen::Tcp(address)], 0o660)?.swap_remove(0))
 }
 
 /// The collector `[trace]` asks this process to push to, as written, or `None`

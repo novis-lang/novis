@@ -2173,14 +2173,16 @@ where
     };
     // `rule:observability/a-registry-is-per-core-and-nothing-reads-it`'s
     // registry, taken here because this is the core that will serve through it
-    // and because the tree naming the exporter is on [`Serving`] already. Read
-    // once at the top rather than per request: `[metrics]` is `Boot`-class, so
-    // a reload that renamed an exporter reaches the next boot and not a core
-    // that is already counting. Nothing is built where no exporter is named,
-    // and every count below is then a branch — `crate::metrics::meter_this_core`
-    // owns why a second listener on this same core adds to what the first built
-    // instead of starting again.
-    crate::metrics::meter_this_core(&serving.current.load().config);
+    // and because the tree naming the exporter is on [`Serving`] already.
+    // `[metrics]` reloads (`rule:config/reloadability-is-its-own-field`), so each
+    // accepted connection compares the published snapshot with the one this core
+    // was last metered from, and meters it again where they differ: a new
+    // exporter or `max_series` reaches the core without a counter resetting.
+    // Nothing is built where no exporter is named, and every count below is then
+    // a branch — `crate::metrics::meter_this_core` owns why a registry that
+    // already exists is adopted rather than started again.
+    let mut metered = serving.current.load();
+    crate::metrics::meter_this_core(&metered.config);
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut backoff = AcceptBackoff::default();
     // One registration for the whole loop rather than one per park: this task
@@ -2225,6 +2227,11 @@ where
                 continue;
             }
         };
+        let published = serving.current.load();
+        if !Arc::ptr_eq(&published, &metered) {
+            crate::metrics::meter_this_core(&published.config);
+            metered = published;
+        }
         let handler = Rc::clone(handler);
         // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and `rule:http-server/secure-headers-with-nothing-written`
         // 's header set is one policy for the whole server, so what a

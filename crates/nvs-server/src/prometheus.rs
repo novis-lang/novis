@@ -98,6 +98,11 @@ where
     L: Listening + ?Sized,
 {
     let mut backoff = AcceptBackoff::default();
+    // Held for the loop's whole life, as `crate::serve_on_this_core` holds its
+    // own: a loop parked in `accept` is woken when `draining` begins, rather
+    // than when the next collector happens to connect. `nvs serve` stops a
+    // replaced scrape socket through this, with a drain of that socket's own.
+    let _woken_at_drain = nvs_host::wake_at_drain(draining.bit());
     loop {
         if draining.is_draining() {
             break;

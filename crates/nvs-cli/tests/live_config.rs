@@ -13,7 +13,7 @@
 //! and is removed when its [`Server`] is dropped.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
@@ -682,4 +682,175 @@ fn a_changed_schedule_roster_is_armed_from_the_next_tick() {
         );
         thread::sleep(POLL * 10);
     }
+}
+
+/// A stand-in OTLP collector on a loopback port of its own. It answers every
+/// request with `200` and keeps the request target of each.
+struct Collector {
+    addr: SocketAddr,
+    targets: Arc<Mutex<Vec<String>>>,
+}
+
+impl Collector {
+    /// Binds a free port and starts answering on a thread of its own.
+    fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port is free");
+        let addr = listener
+            .local_addr()
+            .expect("a bound socket has an address");
+        let targets = Arc::new(Mutex::new(Vec::new()));
+        let kept = Arc::clone(&targets);
+        thread::spawn(move || {
+            for stream in listener.incoming().map_while(Result::ok) {
+                if let Some(target) = collected(stream) {
+                    kept.lock().expect("no reader panicked").push(target);
+                }
+            }
+        });
+        Self { addr, targets }
+    }
+
+    /// The URL `[trace] endpoint` or `[metrics] endpoint` names it by.
+    fn url(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+
+    /// Whether a request to `target` has arrived.
+    fn received(&self, target: &str) -> bool {
+        self.targets
+            .lock()
+            .expect("no reader panicked")
+            .iter()
+            .any(|arrived| arrived == target)
+    }
+}
+
+/// Reads one request from `stream`, answers `200`, and returns its target.
+fn collected(mut stream: TcpStream) -> Option<String> {
+    stream.set_read_timeout(Some(BOUND)).ok()?;
+    let mut reader = BufReader::new(stream.try_clone().ok()?);
+    let mut line = String::new();
+    reader.read_line(&mut line).ok()?;
+    let target = line.split_whitespace().nth(1)?.to_owned();
+    let mut length = 0;
+    loop {
+        let mut header = String::new();
+        reader.read_line(&mut header).ok()?;
+        let header = header.trim_end();
+        if header.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':')
+            && name.trim().eq_ignore_ascii_case("content-length")
+        {
+            length = value.trim().parse().ok()?;
+        }
+    }
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).ok()?;
+    stream
+        .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+        .ok()?;
+    Some(target)
+}
+
+/// A loopback port nothing listens on at the moment it is asked.
+fn free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("a loopback port is free")
+        .port()
+}
+
+/// The body a scrape of `port` answers with, or `None` when nothing answers
+/// there.
+fn scraped(port: u16) -> Option<String> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).ok()?;
+    stream.set_read_timeout(Some(BOUND)).ok()?;
+    stream
+        .write_all(b"GET /metrics HTTP/1.0\r\nHost: localhost\r\n\r\n")
+        .ok()?;
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).ok()?;
+    Some(String::from_utf8_lossy(&raw).into_owned())
+}
+
+/// Checks `done` until it holds or [`BOUND`] runs out, and fails naming `what`
+/// and what `server` wrote to standard error.
+fn eventually(server: &Server, what: &str, mut done: impl FnMut() -> bool) {
+    let started = Instant::now();
+    while !done() {
+        assert!(
+            started.elapsed() <= BOUND,
+            "{what} did not happen within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+}
+
+/// `[metrics]` written as `metrics`, and `[trace]` sampling every request and
+/// pushing it to `traces`.
+fn exporting(metrics: &str, traces: &Collector) -> String {
+    format!(
+        "[metrics]\n{metrics}\n[trace]\nexporter = \"otlp\"\nsample = 1.0\nendpoint = \"{}\"\n",
+        traces.url()
+    )
+}
+
+/// A Prometheus exporter answering scrapes on `port`.
+fn scraped_on(port: u16) -> String {
+    format!("exporter = \"prometheus\"\nlisten = \"127.0.0.1:{port}\"\n")
+}
+
+/// A server that booted with no metrics exporter starts one when a reload adds
+/// it, and counts requests into it. A reload that then moves the scrape port
+/// and the trace collector reaches both: the new port answers, the old one
+/// closes, and spans go to the new collector. A last reload that switches
+/// `[metrics]` to `otlp` closes the scrape port and pushes the series to a
+/// collector.
+#[test]
+fn changed_metrics_and_trace_blocks_rebuild_their_exporters() {
+    let first = Collector::start();
+    let second = Collector::start();
+    let (old_port, new_port) = (free_port(), free_port());
+    let server = Server::start("exporters", &exporting("", &first), &[("app.nvs", PLAIN)]);
+    server.awaits("/", "the first answer", |answer| answer.body == "ok");
+    eventually(&server, "a span pushed to the boot's collector", || {
+        server.get("/");
+        first.received("/v1/traces")
+    });
+
+    server.reload(&exporting(&scraped_on(old_port), &first));
+    eventually(&server, "a scrape that counts requests", || {
+        server.get("/");
+        scraped(old_port).is_some_and(|body| body.contains("nvs_requests_total"))
+    });
+
+    let report = server.reload(&exporting(&scraped_on(new_port), &second));
+    assert!(
+        report.contains("metrics") && report.contains("trace"),
+        "the reload did not name `metrics` and `trace` as applied: {report}"
+    );
+    eventually(&server, "a scrape of the reloaded port", || {
+        scraped(new_port).is_some_and(|body| body.contains("nvs_requests_total"))
+    });
+    eventually(&server, "the boot's scrape port closing", || {
+        scraped(old_port).is_none()
+    });
+    eventually(&server, "a span pushed to the reloaded collector", || {
+        server.get("/");
+        second.received("/v1/traces")
+    });
+
+    server.reload(&exporting(
+        &format!("exporter = \"otlp\"\nendpoint = \"{}\"\n", second.url()),
+        &second,
+    ));
+    eventually(&server, "series pushed to the reloaded collector", || {
+        second.received("/v1/metrics")
+    });
+    eventually(&server, "the scrape port closing", || {
+        scraped(new_port).is_none()
+    });
 }
