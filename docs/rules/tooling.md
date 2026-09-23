@@ -3,7 +3,7 @@
 
 # Tooling
 
-*22 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1178,6 +1178,51 @@ A line carries no behaviour: what `header: true` does to a row is the card's ans
 `show` is for.
 
 <sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door). Decided in [0167](../decisions/0167.md).</sub>
+
+<a id="tooling-the-index-names-every-key-command-and-code"></a>
+
+## `nvs agent index` carries one derived line per configuration key, command, flag and diagnostic code, and `find` reaches each by the name a user types  *(designed — not yet in the compiler)*
+
+`rule:tooling/the-index-names-every-key-command-and-code`
+
+`nvs agent index` carries one line for every configuration key, every command and subcommand, every
+flag, and every diagnostic code, beside its lines for members and headings, and `find` and `show`
+reach each of them under the name a user types. A key's line is `config: [server] max_in_flight`, a
+command's `command: nvs serve`, a flag's `flag: nvs serve --mount`, a code's `code: E0621` followed by
+the first sentence of its card.
+
+Each line is derived at the call from the table the binary already runs on — the configuration
+schema, the command-line parser and the diagnostics table — and kept nowhere, which is
+[`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s shape: a key, a flag or a code that lands owes its line at once,
+and nobody edits a list.
+
+The entries are exact names, never a search of the text under a heading. A full-text match answers
+one word with every section that mentions it, and an empty answer from it no longer means that the
+name does not exist, which is the property [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member) keeps.
+
+<sub>See also [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-diagnostic-code-carries-its-card`](tooling.md#tooling-a-diagnostic-code-carries-its-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
+
+<a id="tooling-a-diagnostic-code-carries-its-card"></a>
+
+## Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once  *(designed — not yet in the compiler)*
+
+`rule:tooling/a-diagnostic-code-carries-its-card`
+
+Every diagnostic code carries a card beside its `Code::new` declaration: one to three plain sentences
+saying what the error means and how to fix it, and a short wrong-then-right example where the
+sentences alone would leave the reader guessing. `nvs agent show E0621` prints it. The `///` above the
+declaration stays what it is — the contributor's account, citing rules — and the card is written for
+the person who met the error, in the voice of AGENTS.md § *Text an end user reads*.
+
+A terminal rendering of diagnostics ends with one line naming `nvs agent show <code>`, once per run
+and not once per diagnostic, so a run with many errors does not repeat it. The JSON rendering carries
+no such line: a tool that reads it already has the code.
+
+A code lands with its card, as a `Core` member does ([`core-api/reference-card`](core-api.md#core-api-reference-card)). The codes that
+landed before cards existed are named in a list of codes still owing one, a test holds the list and
+the cards together, and a code is deleted from the list in the commit that gives it its card.
+
+<sub>See also [`tooling/the-index-names-every-key-command-and-code`](tooling.md#tooling-the-index-names-every-key-command-and-code), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
 
 <a id="tooling-a-primer-claim-is-executed"></a>
 

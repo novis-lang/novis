@@ -369,9 +369,9 @@
     },
     {
       "id": "testing/feature-proofs",
-      "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack",
+      "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure, an attack and its help in the binary",
       "status": "shipped",
-      "because": ["0134", "0079", "0117"],
+      "because": ["0134", "0079", "0117", "0216"],
       "seeAlso": [
         "testing/roster-is-derived",
         "testing/proof-attribution",

@@ -207,6 +207,11 @@ echo Bench::run(400000), "\n";
 no skeleton here: [docs/examples/README.md](../examples/README.md) § *The description* is its shape
 and carries two models.
 
+**Help in the binary is a feature proof too**, and it is not a file of its own: it is the card, the
+reference section or the index entry `nvs agent find` reaches and `nvs agent show` prints, written in
+the same slice as the feature (`rule:testing/feature-proofs`). Check it by running both commands with
+the name a user would type.
+
 **A `covers:` marker** — the one thing that attributes a *test* to a feature, since a case lives
 where its suite wants it. In the `--FILE--` block of a `.nvst` case, or immediately above a Rust
 `#[test]`, under any doc comment:

@@ -8,6 +8,12 @@ first, and every kind of feature owes it.
 each. **Examples** — three small, self-contained, plainly-commented programs a reader learns from.
 **Perf** — one measured figure, so a change can be re-measured against it. **Hostile** — one program
 written to break it, which passes when the runtime is still standing.
+**Help** — the binary that runs the feature explains it. `nvs agent find` reaches the feature under
+the name its user types, and `nvs agent show` prints what it does, how it is written and what it
+throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
+configuration key's own entry. It is written with the feature and changed with it, in the voice of
+AGENTS.md § *Text an end user reads*, because a user and their coding agent look there before
+anywhere else, and a feature the binary cannot show them reads as one that does not exist.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
