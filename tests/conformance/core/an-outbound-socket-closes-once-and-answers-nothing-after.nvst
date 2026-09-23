@@ -2,6 +2,8 @@
 `Core\Http\Socket::close` ends the conversation in both directions and is answered the same way twice — `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`, `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
 --FILE--
 <?nvs
+// covers: Core\Http\Socket::close
+// covers: Core\Http\Socket::protocol
 // A bound asserted on both sides: the last thing a closed socket still does,
 // and the first thing it refuses. A peer with frames left over is what makes
 // the reading after the close a decision rather than the end of the script

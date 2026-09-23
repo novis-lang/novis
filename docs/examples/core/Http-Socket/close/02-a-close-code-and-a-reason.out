@@ -1,0 +1,2 @@
+Core\Http\Socket::send(): this socket was closed, so there is nobody left to send to
+closed twice

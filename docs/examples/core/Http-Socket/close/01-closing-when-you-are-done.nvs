@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to close a WebSocket connection when your program has what it needs.
+
+// A fixed server, so the example runs without a network. It has three messages to send.
+Core\Test::answerSocket("wss://chat.example.com/room", ["hello", "how are you?", "bye"]);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://chat.example.com/room");
+// This prints `hello`.
+echo $socket->receive()?->text() ?? "nothing", "\n";
+
+// `close()` ends the connection. After it, `receive()` returns `null`.
+// The two messages the server did not send yet are never read.
+$socket->close();
+if ($socket->receive() == null) {
+    // This prints `closed`.
+    echo "closed\n";
+}

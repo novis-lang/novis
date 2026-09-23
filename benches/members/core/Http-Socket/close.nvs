@@ -1,0 +1,25 @@
+<?nvs
+// Closes a WebSocket connection, as a program does each time it is finished with a feed.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The server is answered from this table, so nothing is sent over a network.
+        Core\Test::answerSocket("wss://feed.example.com/*", ["tick"]);
+        array<Core\Http\Socket> $sockets = [
+            Core\Http\Client::openSocket("wss://feed.example.com/a"),
+            Core\Http\Client::openSocket("wss://feed.example.com/b"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The socket in each round depends on the round before, so no round can be left out.
+            $sockets[(($total + $i) % 2) as int]->close(1000 + ($total % 2));
+            $total = $total + 1 + ($i % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

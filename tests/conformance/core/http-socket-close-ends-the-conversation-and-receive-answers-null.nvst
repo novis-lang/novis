@@ -2,6 +2,8 @@
 `Core\Http\Socket::close` ends the conversation for good — every `receive` after it answers `null` however much of the peer was left to read, and the close itself is not a message the peer was sent — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
 --FILE--
 <?nvs
+// covers: Core\Http\Socket::close
+// covers: Core\Http\Socket::receive
 // Invariance over a sweep, counted rather than read off one line: a close that
 // only stopped the *next* read would answer `null` once and then go on handing
 // over the frames the peer had left, and one assertion after the close cannot

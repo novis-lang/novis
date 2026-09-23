@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program closes connections with very large close codes and a very long reason.
+// It also closes one connection many times and keeps using it after that.
+// Each step must throw an error or do nothing. Nothing may crash.
+
+// 1. Close codes that are not valid close codes, and a reason of one megabyte.
+Core\Test::answerSocket('wss://feed.example.com/*', ['one', 'two']);
+array<uint> $codes = [0, 999, 1005, 1015, 65535, 65536, 4294967296, 18446744073709551615];
+string $longReason = Core\Str::repeat('x', 1048576);
+uint $closed = 0;
+foreach ($codes as uint $code) {
+    Core\Http\Socket $coded = Core\Http\Client::openSocket('wss://feed.example.com/codes/' . $code);
+    try {
+        $coded->close($code, $longReason);
+        $closed = $closed + 1;
+    } catch (RuntimeError $notAllowed) {
+        // An error is also a pass.
+    }
+    if ($coded->receive() != null) {
+        throw new LogicError('a closed socket still returned a message');
+    }
+}
+echo 'step 1: ', $closed, ' of ', Core\Arr::count($codes), ' closed', "\n";
+
+// 2. One connection is closed ten thousand times, and every send after the first close fails.
+Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://feed.example.com/again');
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    $socket->close(1000, 'bye ' . $i);
+    try {
+        $socket->send('late ' . $i);
+    } catch (LogicError $late) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+if ($refused != 10000) {
+    throw new LogicError('a send after close was accepted');
+}
+echo 'step 2: ', $refused, ' sends refused', "\n";
+
+// 3. Twenty thousand connections are opened and kept, then all of them are closed.
+array<Core\Http\Socket> $kept = [];
+$i = 0;
+while ($i < 20000) {
+    $kept[] = Core\Http\Client::openSocket('wss://feed.example.com/many/' . $i);
+    $i = $i + 1;
+}
+foreach ($kept as Core\Http\Socket $one) {
+    $one->close();
+}
+echo 'step 3: ', Core\Arr::count($kept), ' closed', "\n";

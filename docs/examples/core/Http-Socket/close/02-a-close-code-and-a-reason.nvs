@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to close a connection with a close code and a reason,
+// and what happens when a program sends a message after that.
+
+// A fixed server, so the example runs without a network.
+Core\Test::answerSocket("wss://game.example.com/match", ["start"]);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://game.example.com/match");
+$socket->send("ready");
+
+// The close code `1001` means "going away". The reason is a short text the server may log.
+$socket->close(1001, "the player left the game");
+
+// A closed connection cannot send. `send()` throws a `LogicError`.
+try {
+    $socket->send("one more move");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// Calling `close()` again does nothing. This prints `closed twice`.
+$socket->close();
+echo "closed twice\n";
