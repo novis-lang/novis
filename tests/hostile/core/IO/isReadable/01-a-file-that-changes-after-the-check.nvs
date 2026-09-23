@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a file is deleted or replaced by a folder after `isReadable` returned `true`, and names that cannot exist are checked.
+// The read that follows must throw an `IOError`, and nothing may crash.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, 'settings.ini');
+
+// 1. The file is deleted after the check. The read must throw an `IOError`.
+Core\IO::write($file, 'mode = test');
+if (!Core\IO::isReadable($file)) {
+    throw new LogicError('a new file was not readable');
+}
+Core\IO::remove($file);
+try {
+    Core\IO::read($file);
+    throw new LogicError('a deleted file was read');
+} catch (IOError $gone) {
+}
+if (Core\IO::isReadable($file)) {
+    throw new LogicError('a deleted file is still readable');
+}
+echo 'step 1: done', "\n";
+
+// 2. A folder takes the name of the file. `isReadable` is `true`, but reading a folder must throw an `IOError`.
+Core\IO::makeDir($file);
+if (!Core\IO::isReadable($file)) {
+    throw new LogicError('a new folder was not readable');
+}
+try {
+    Core\IO::read($file);
+    throw new LogicError('a folder was read as a file');
+} catch (IOError $notAFile) {
+}
+echo 'step 2: done', "\n";
+
+// 3. Names that cannot be read. Each must return `false` or throw an `IOError`.
+string $plain = Core\Path::join($dir, 'plain.txt');
+Core\IO::write($plain, 'x');
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($plain, 'inside'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        if (Core\IO::isReadable($badPath)) {
+            throw new LogicError('a path that cannot be read was readable');
+        }
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. Twenty thousand checks of new names. Memory must not grow with each check.
+int $i = 0;
+while ($i < 20000) {
+    if (Core\IO::isReadable(Core\Path::join($dir, 'none-' . ($i as string)))) {
+        throw new LogicError('a name nobody wrote was readable');
+    }
+    $i = $i + 1;
+}
+echo 'step 4: done', "\n";

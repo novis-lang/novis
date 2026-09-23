@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a program looks for its configuration in several places and uses the first file it can read.
+
+string $dir = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($dir, "etc"));
+Core\IO::write(Core\Path::join($dir, "etc/app.ini"), "mode = production\n");
+
+// The local file comes first, but it does not exist here.
+array<string> $candidates = [
+    Core\Path::join($dir, "app.local.ini"),
+    Core\Path::join($dir, "etc/app.ini"),
+];
+
+// `isReadable` is `false` for "app.local.ini" and `true` for "etc/app.ini".
+// This prints "using app.ini" and then "mode = production".
+foreach ($candidates as string $path) {
+    if (Core\IO::isReadable($path)) {
+        echo "using ", Core\Path::basename($path), "\n";
+        echo Core\IO::read($path);
+        break;
+    }
+}

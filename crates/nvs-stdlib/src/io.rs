@@ -3890,14 +3890,23 @@ mod tests {
     /// A file, a directory and a missing name, each asked of `member` under a context granting
     /// `fs.read`, answering the three `bool`s in that order.
     fn kinds_of(member: nvs_runtime::NvsFn, name: &str) -> [bool; 3] {
+        kinds_under(member, name, &mut reading("1MiB"))
+    }
+
+    /// [`kinds_of`] under the context the caller built, for a member whose grant is not
+    /// `fs.read`.
+    fn kinds_under(
+        member: nvs_runtime::NvsFn,
+        name: &str,
+        ctx: &mut nvs_runtime::Ctx,
+    ) -> [bool; 3] {
         let file = scratch(&format!("{name}.txt"));
         std::fs::write(&file, b"x").expect("a file to ask about");
         let dir = file.with_extension("d");
         std::fs::create_dir_all(&dir).expect("a directory to ask about");
         let missing = file.with_extension("missing");
-        let mut ctx = reading("1MiB");
         let answers = [&file, &dir, &missing].map(|path| {
-            call_with(member, &mut ctx, &[spelled(path)])
+            call_with(member, ctx, &[spelled(path)])
                 .expect("a granted path answers")
                 .as_bool()
                 .expect("the member answers a `bool`")
@@ -3955,5 +3964,76 @@ mod tests {
         )
         .expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
+    }
+
+    /// `Core\IO::isReadable` answers `true` for a file and for a directory, and `false` for a
+    /// name with nothing at it. A context with no `fs.read` throws, so `false` never means *not
+    /// allowed*.
+    // covers: Core\IO::isReadable
+    #[test]
+    fn core_io_is_readable_answers_for_both_kinds_and_a_refusal_throws() {
+        assert_eq!(
+            kinds_of(nvs_core_io_is_readable, "is-readable"),
+            [true, true, false]
+        );
+        let refused = call_with(
+            nvs_core_io_is_readable,
+            &mut writing(),
+            &[spelled(&scratch("x"))],
+        )
+        .expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+        assert!(refused.contains(r"Core\IO::isReadable"), "{refused}");
+    }
+
+    /// `Core\IO::isWritable` answers `true` for a file and for a directory, and `false` for a
+    /// name with nothing at it, under a context granting `fs.write` alone. A context granting
+    /// `fs.read` and not `fs.write` throws: the question is about writing.
+    // covers: Core\IO::isWritable
+    #[test]
+    fn core_io_is_writable_needs_fs_write_and_answers_false_for_a_missing_name() {
+        assert_eq!(
+            kinds_under(nvs_core_io_is_writable, "is-writable", &mut writing()),
+            [true, true, false]
+        );
+        let refused = call_with(
+            nvs_core_io_is_writable,
+            &mut reading("1MiB"),
+            &[spelled(&scratch("x"))],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(refused.contains(r"Core\IO::isWritable"), "{refused}");
+    }
+
+    /// `Core\IO::size` counts bytes rather than characters, is `0` for an empty file, and throws
+    /// for a name with nothing at it where `exists` answers `false`. A context with no `fs.read`
+    /// throws before the operating system is asked.
+    // covers: Core\IO::size
+    #[test]
+    fn core_io_size_counts_bytes_and_throws_for_a_missing_file() {
+        let file = scratch("size.txt");
+        std::fs::write(&file, "Café".as_bytes()).expect("a file to measure");
+        let empty = scratch("size-empty.txt");
+        std::fs::write(&empty, b"").expect("an empty file to measure");
+        let mut ctx = reading("1MiB");
+        let size_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
+            call_with(nvs_core_io_size, ctx, &[spelled(path)])
+                .map(|value| value.as_uint().expect("`size` answers a `uint`"))
+        };
+        assert_eq!(
+            size_of(&mut ctx, &file),
+            Ok(5),
+            "four characters, five bytes"
+        );
+        assert_eq!(size_of(&mut ctx, &empty), Ok(0));
+        let missing = size_of(&mut ctx, &scratch("size-missing.txt")).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::size"), "{missing}");
+
+        let refused = size_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_file(&empty);
     }
 }

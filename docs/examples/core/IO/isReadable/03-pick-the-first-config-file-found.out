@@ -1,0 +1,2 @@
+using app.ini
+mode = production

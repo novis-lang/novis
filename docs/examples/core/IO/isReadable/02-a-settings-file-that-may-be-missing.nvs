@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program reads a settings file only when it can, and uses a default value otherwise.
+
+class Settings {
+    public static function greeting(string $path): string {
+        // The file is not there yet, so `isReadable` returns `false`.
+        if (!Core\IO::isReadable($path)) {
+            return "Hello";
+        }
+        return Core\Str::trim(Core\IO::read($path));
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+
+// This prints "Hello", the default value.
+echo Settings::greeting($path), "\n";
+
+// Now the file exists. This prints "Good morning", the text in the file.
+Core\IO::write($path, "Good morning\n");
+echo Settings::greeting($path), "\n";
