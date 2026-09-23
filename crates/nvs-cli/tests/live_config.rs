@@ -640,3 +640,46 @@ fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
         "a job claimed after the reload did not read the reloaded `[queue] visibility`: {after}"
     );
 }
+
+/// A deployment whose scripts may live under `jobs/`, with no `[[schedule]]`
+/// entry until `entry` adds one.
+fn scheduling(entry: &str) -> String {
+    format!("[capabilities.script]\nspawn = [\"jobs/\"]\n\n{entry}")
+}
+
+/// A `[[schedule]]` entry that runs `jobs/tick.nvs` every minute.
+const MINUTELY: &str = "[[schedule]]\nname = \"minutely\"\ncron = \"* * * * *\"\nscript = \
+                        \"jobs/tick.nvs\"\nscope = \"host\"\n";
+
+/// A scheduled script that throws. A throw is what the server reports for a
+/// fire on standard error.
+const TICKING: &str = "<?nvs\nthrow new RuntimeError(\"ticked\");\n";
+
+/// A server that booted with no `[[schedule]]` entry fires the first one a
+/// reload adds. The entry fires at the next whole minute, so this case waits up
+/// to a minute more than the others.
+#[test]
+fn a_changed_schedule_roster_is_armed_from_the_next_tick() {
+    let server = Server::start(
+        "schedule",
+        &scheduling(""),
+        &[("app.nvs", PLAIN), ("jobs/tick.nvs", TICKING)],
+    );
+    server.awaits("/", "the first answer", |answer| answer.body == "ok");
+
+    let report = server.reload(&scheduling(MINUTELY));
+    assert!(
+        report.contains("applied: schedule\n"),
+        "the reload did not name `schedule` as applied: {report}"
+    );
+    let fired = "the scheduled entry `minutely` threw";
+    let started = Instant::now();
+    while !server.said().contains(fired) {
+        assert!(
+            started.elapsed() <= BOUND + Duration::from_secs(60),
+            "the entry a reload added did not fire within a minute; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL * 10);
+    }
+}

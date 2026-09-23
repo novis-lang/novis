@@ -90,6 +90,22 @@
 //! own field gives: `limits` and `grants` are what the `[[schedule]]` block
 //! wrote, and reading them a second time on the implementor's side would be a
 //! second place one entry is understood.
+//!
+//! # A reload re-arms the roster from the next pass
+//!
+//! `rule:config/reloadability-is-its-own-field` makes `[[schedule]]` a `Reload`
+//! block: the new set arms from the next tick, and a firing already in flight
+//! runs to completion. [`tick_on_this_core`] takes a [`Rearm`] for that — the
+//! longest a pass may wait, and a question that answers a freshly armed roster
+//! when the configuration's changed. The binary asks the published snapshot, and
+//! this crate never holds one.
+//!
+//! An entry whose `name` is in both rosters keeps its run count, its held fire
+//! and the task it last fired as, so § 6 still sees a run the old roster started;
+//! it keeps its next fire too when its expression and zone did not change, so a
+//! re-arm landing on the entry's own minute does not lose that fire. An entry the
+//! reload removed is dropped from the roster, and its run in flight is still one
+//! of this ticker's children and is waited out like any other.
 
 use std::cell::Cell;
 use std::io;
@@ -502,6 +518,47 @@ fn grant_names(grants: &Capabilities) -> Vec<String> {
         .collect()
 }
 
+/// What a ticker that outlives one configuration is handed: how long a pass may wait at most, and
+/// the question that answers a new roster (module doc § *A reload re-arms the roster from the next
+/// pass*).
+pub struct Rearm<'a> {
+    /// The longest one pass waits before it asks [`Rearm::roster`] again. It is also the bound on
+    /// how late a stop is noticed, because the wait it caps is the only place the ticker parks.
+    pub every: Duration,
+    /// Answers the roster to tick from now on, armed by [`arm`], or [`None`] when the
+    /// configuration it was armed from has not changed since the last answer.
+    pub roster: &'a mut dyn FnMut() -> Option<Vec<Armed>>,
+}
+
+impl std::fmt::Debug for Rearm<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Rearm")
+            .field("every", &self.every)
+            .finish_non_exhaustive()
+    }
+}
+
+/// `fresh` as the roster, with what each entry of `old` that shares its `name` had in flight.
+///
+/// The run count is shared and not copied, because a fire already running holds the old entry's
+/// count and gives it back when it ends. The next fire is kept only when the expression and the
+/// zone are the same, because it is then the same instant `fresh` would compute unless the clock
+/// has already reached it.
+fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
+    for entry in &mut fresh {
+        let Some(before) = old.iter().find(|before| before.name == entry.name) else {
+            continue;
+        };
+        entry.running = Rc::clone(&before.running);
+        entry.held.set(before.held.get());
+        entry.fired_as.set(before.fired_as.get());
+        if before.cron == entry.cron && before.zone == entry.zone {
+            entry.next.clone_from(&before.next);
+        }
+    }
+    fresh
+}
+
 /// § 5's ticker, on the core this is called from: sleep until the soonest fire, fire everything the
 /// clock has reached, and ask again.
 ///
@@ -517,9 +574,11 @@ fn grant_names(grants: &Capabilities) -> Vec<String> {
 /// [`Rc`] rather than a borrow because the renewal the key is then held under outlives this call's
 /// frame — it runs on the fire's own task.
 ///
-/// Returns as soon as the roster has no fire left — an empty roster, or one where every entry has
-/// retired — because a task that can never do anything again is one the process should not be kept
-/// alive by.
+/// With no `rearm`, returns as soon as the roster has no fire left — an empty roster, or one where
+/// every entry has retired — because a task that can never do anything again is one the process
+/// should not be kept alive by. With one, a reload can still add an entry, so an empty roster waits
+/// out [`Rearm::every`] and asks again. Each pass asks for a new roster before it computes its
+/// wait, and no wait is longer than [`Rearm::every`].
 ///
 /// # Errors
 ///
@@ -527,10 +586,11 @@ fn grant_names(grants: &Capabilities) -> Vec<String> {
 /// a fire off and running one on this stack would silently serialize the whole roster behind it.
 /// That is the same refusal, for the same reason, that the accept loop makes.
 pub fn tick_on_this_core<F>(
-    entries: &mut [Armed],
+    entries: &mut Vec<Armed>,
     fires: &Rc<F>,
     leases: Option<&Rc<dyn Leases>>,
     now: impl Fn() -> Zoned,
+    mut rearm: Option<Rearm<'_>>,
     mut keep_ticking: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
@@ -543,8 +603,14 @@ where
     };
     let outstanding = Rc::new(Cell::new(0_usize));
     loop {
-        let Some(wait) = soonest(entries, &now()) else {
-            return Ok(());
+        if let Some(fresh) = rearm.as_mut().and_then(|rearm| (rearm.roster)()) {
+            *entries = carry_over(std::mem::take(entries), fresh);
+        }
+        let wait = match (soonest(entries, &now()), &rearm) {
+            (Some(wait), None) => wait,
+            (None, None) => return Ok(()),
+            (Some(wait), Some(rearm)) => wait.min(rearm.every),
+            (None, Some(rearm)) => rearm.every,
         };
         // The core is handed back for the wait, which is the whole reason this is a task: the accept
         // loop beside it keeps serving while a schedule waits out its interval. A cancelled wait is
@@ -1143,6 +1209,68 @@ mod tests {
         }
     }
 
+    /// `rule:config/reloadability-is-its-own-field`: a ticker started with no entry at all is still
+    /// there when a reload adds one, and the entry the [`Rearm`] answers fires at its minute.
+    ///
+    /// The roster is answered once, on the first pass, as a reload would answer it. Every pass
+    /// after that answers [`None`], so the one fire is the entry armed from the new roster.
+    #[test]
+    fn a_roster_a_reload_answers_is_armed_by_a_ticker_that_started_empty() {
+        let base = instant("2026-01-01T00:00:59.9Z");
+        let later = instant("2026-01-01T00:01:59.9Z");
+        let reads = Rc::new(Cell::new(0_usize));
+        let watcher = Rc::new(Watcher::new());
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let watcher = Rc::clone(&watcher);
+            move |_ctx| {
+                let armed_at = base.clone();
+                let mut answered = false;
+                let mut roster = move || {
+                    if answered {
+                        return None;
+                    }
+                    answered = true;
+                    Some(arm(
+                        &[entry("nightly", "* * * * *", "host")],
+                        &armed_at,
+                        None,
+                        |note| panic!("nothing to report on a re-arm, and it said: {note}"),
+                    ))
+                };
+                tick_on_this_core(
+                    &mut Vec::new(),
+                    &watcher,
+                    None,
+                    move || {
+                        let read = reads.get();
+                        reads.set(read + 1);
+                        if read == 0 {
+                            base.clone()
+                        } else {
+                            later.clone()
+                        }
+                    },
+                    Some(Rearm {
+                        every: Duration::from_millis(50),
+                        roster: &mut roster,
+                    }),
+                    || ControlFlow::Break(()),
+                )
+                .expect("the ticker ran as a task");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(
+            watcher.logged.borrow().as_slice(),
+            ["nightly ok=true ran nightly"],
+            "the entry the reload added fired at its minute"
+        );
+    }
+
     /// `rule:config/a-scheduled-run-is-a-root-isolate`: a fire is a **root** isolate on a task of its own — not a child of a
     /// connection, and not the tick's own stack.
     ///
@@ -1202,6 +1330,7 @@ mod tests {
                             later.clone()
                         }
                     },
+                    None,
                     || ControlFlow::Break(()),
                 )
                 .expect("the ticker ran as a task");
@@ -1301,6 +1430,7 @@ mod tests {
                             later.clone()
                         }
                     },
+                    None,
                     || ControlFlow::Break(()),
                 )
                 .expect("the ticker ran as a task");
@@ -1745,6 +1875,7 @@ mod tests {
                         reads.set(read + 1);
                         clocks[read.min(clocks.len() - 1)].clone()
                     },
+                    None,
                     move || {
                         let pass = seen.get();
                         seen.set(pass + 1);

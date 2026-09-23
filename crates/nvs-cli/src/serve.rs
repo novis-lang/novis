@@ -1109,9 +1109,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // worker that ticks it and armed here rather than at the boot, because an
     // `Armed` holds an `Rc` and cannot cross onto this thread. `nvs_server::arm`
     // is where the refusal for a `fleet` entry this host will not run lives, and
-    // it is still named while an operator is reading the start; a tree with no
-    // `[[schedule]]` arms nothing and spawns no ticker, which is why this costs
-    // a walk of an empty vector and no task at all.
+    // it is still named while an operator is reading the start. The ticker is
+    // spawned on that worker even for a tree with no `[[schedule]]`, because a
+    // reload may add the first entry (`rule:config/reloadability-is-its-own-field`),
+    // and an empty roster costs one wake per `SCHEDULE_POLL` and no fire.
     //
     // `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and
     // this binary is the one place it can be opened: `nvs-server` names no
@@ -1120,7 +1121,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // the connection is per process and lives as long as the server, so it is
     // paid for by the roster that needs it and by nothing else — and a store
     // that will not answer leaves § 3's fallback holding: every fleet entry
-    // unarmed and named while an operator is still reading the start.
+    // unarmed and named while an operator is still reading the start. A reload
+    // opens no lease, so a fleet entry it adds to a boot that opened none gets
+    // that same fallback and note.
     let fleet = ticks
         && snapshot
             .config
@@ -1134,24 +1137,24 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     } else {
         None
     };
-    let mut armed = if ticks {
-        nvs_server::arm(
-            &snapshot.config.schedule,
-            &Zoned::now(),
-            lease.as_deref(),
-            |note| {
+    let arm_roster = {
+        let lease = lease.clone();
+        move |schedule: &[nvs_config::tree::Schedule]| {
+            let armed = nvs_server::arm(schedule, &Zoned::now(), lease.as_deref(), |note| {
                 eprintln!("note: {note}");
-            },
-        )
-    } else {
-        Vec::new()
+            });
+            if !armed.is_empty() {
+                println!(
+                    "arming {} scheduled entr{}",
+                    armed.len(),
+                    if armed.len() == 1 { "y" } else { "ies" }
+                );
+            }
+            armed
+        }
     };
-    if !armed.is_empty() {
-        println!(
-            "arming {} scheduled entr{}",
-            armed.len(),
-            if armed.len() == 1 { "y" } else { "ies" }
-        );
+    if ticks {
+        let mut armed = arm_roster(&snapshot.config.schedule);
         // A second task on *this* scheduler and not a second scheduler: the
         // ticker sleeps out its interval on a core the accept loop is still
         // serving on, and each fire is a child task of it (`rule:concurrency/a-child-belongs-to-the-calling-task`).
@@ -1162,7 +1165,21 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             current: Arc::clone(&current),
         });
         let ticking = draining.clone();
+        // The roster is armed from, and compared against, the snapshot it was
+        // last armed from. A reload that changed some other block publishes a
+        // new snapshot with the same `[[schedule]]` list, and that re-arms nothing.
+        let mut armed_from = Arc::clone(&snapshot);
+        let current = Arc::clone(&current);
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let mut roster = || {
+                let now = current.load();
+                if Arc::ptr_eq(&now, &armed_from) {
+                    return None;
+                }
+                let changed = now.config.schedule != armed_from.config.schedule;
+                armed_from = now;
+                changed.then(|| arm_roster(&armed_from.config.schedule))
+            };
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
             // skipped rather than replayed, which is the ticker asking the clock
             // for every fire and never counting from the last one.
@@ -1171,13 +1188,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 &fires,
                 lease.as_ref(),
                 Zoned::now,
+                Some(nvs_server::Rearm {
+                    every: SCHEDULE_POLL,
+                    roster: &mut roster,
+                }),
                 || {
                     // The same drain the accept loop reads, so a stop ends the
                     // roster too rather than leaving this core turning for a
-                    // ticker nobody can reach. An interval already being waited
-                    // out is waited out first: `sleep` answers the instant its
-                    // caller asked for and a wake does not cut it short, so the
-                    // bound on a stop here is one entry's interval.
+                    // ticker nobody can reach. No wait is longer than
+                    // `SCHEDULE_POLL`, so that is the bound on a stop here.
                     if ticking.is_draining() {
                         ControlFlow::Break(())
                     } else {
@@ -1618,6 +1637,12 @@ fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
     }
 }
 
+/// The longest the schedule ticker waits before it looks at the published
+/// snapshot again. A reload's new `[[schedule]]` arms within this, and a stop
+/// ends the ticker within it. One `Arc` load per second on one core is the
+/// whole cost, and it buys an entry a reload adds firing from its first minute.
+const SCHEDULE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
+
 /// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
 ///
 /// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
@@ -1638,14 +1663,9 @@ fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
 /// the same compiled-unit cache a request does, and a scheduled script that is
 /// also a mounted entry is a cache hit rather than a second compile.
 ///
-/// # Known gaps
-///
-/// The roster this serves is armed once, off the boot tree, so a reload that
-/// adds, removes or re-times a `[[schedule]]` entry reaches the *configuration*
-/// a fire runs under and not the set of entries that fire. Every `[[schedule]]`
-/// key is `System`-class (`rule:config/three-changeability-classes`), so the
-/// reload applies it and nothing re-arms — the operator is told a change landed
-/// that this ticker will not honour until a restart.
+/// The roster this serves is re-armed by the ticker itself, not here: a reload
+/// that changes `[[schedule]]` is seen within [`SCHEDULE_POLL`], and the new set
+/// fires from then on (`nvs_server::Rearm`).
 struct Scheduled {
     /// The tree a fire is run under, taken from the holder per fire and never
     /// held across one.
@@ -2850,9 +2870,10 @@ mod tests {
     /// process runs, so a snapshot cloned into it at boot would outlive every
     /// reload.
     ///
-    /// What a reload does **not** reach is the roster itself, which is armed once
-    /// off the boot tree — [`super::Scheduled`]'s own `# Known gaps` owns that,
-    /// and it is why the entry here is the same one on both sides of the publish.
+    /// The entry is the same one on both sides of the publish, because the
+    /// roster is re-armed by the ticker and not by [`super::Scheduled`]:
+    /// `live_config.rs`'s `a_changed_schedule_roster_is_armed_from_the_next_tick`
+    /// is where a reload that changes the roster is proved.
     #[test]
     fn a_fire_reads_the_published_tree_and_not_the_one_its_ticker_was_armed_on() {
         let (root, script) = scheduled_script("fire-reloaded");
