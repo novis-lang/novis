@@ -1,0 +1,27 @@
+<?nvs
+// Reads one header of a streamed reply, as a program does to check the content type before it reads the body.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The reply comes from this table, so nothing is sent over a network.
+        array<string> $cache = ["no-cache", "no-store"];
+        Core\Test::answerHttp("https://feed.example.com/live", 200, {
+            body: "data: a\n\n",
+            headers: ["content-type" => "text/event-stream", "cache-control" => $cache],
+        });
+        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "https://feed.example.com/live");
+        array<string> $names = ["content-type", "cache-control", "etag"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Str::length($feed->header($names[(($total + $i) % 3) as int]) ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

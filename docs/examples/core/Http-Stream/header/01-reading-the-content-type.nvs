@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read one header of a streamed reply.
+
+// The reply comes from this table, so nothing is sent over a network.
+Core\Test::answerHttp("https://feed.example.com/news", 200, {
+    body: "data: hello\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $news = Core\Http\Client::stream(Core\Http\Method::Get, "https://feed.example.com/news");
+// The name can be written in any case. This prints "text/event-stream".
+echo $news->header("Content-Type") ?? "no content type", "\n";

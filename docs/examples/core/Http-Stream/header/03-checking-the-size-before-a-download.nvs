@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to check the size of a download before any of its body is read.
+
+// The server says the file has 5000000 bytes. The program allows at most 1000000.
+Core\Test::answerHttp("https://files.example.com/backup.zip", 200, {
+    body: "PK",
+    headers: ["content-length" => "5000000"],
+});
+
+uint $limit = 1000000;
+Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/backup.zip");
+// The header is `tainted`. `as ?int` converts it to a whole number.
+// If that is not possible, the result is `null`.
+?int $size = ($download->header("content-length") ?? "") as ?int;
+
+// This prints "too large: 5000000 bytes". The body is never read.
+if ($size == null) {
+    echo "the server did not say the size\n";
+} else if ($size > $limit) {
+    echo "too large: ", $size, " bytes\n";
+} else {
+    $download->saveTo("backup.zip", $limit);
+    echo "saved\n";
+}

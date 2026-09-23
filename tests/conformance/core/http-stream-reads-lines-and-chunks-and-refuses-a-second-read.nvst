@@ -2,6 +2,7 @@
 `Core\Http\Stream`'s body is read one way and once: `lines()` strips a trailing `\r` and needs no terminator on the last line, `chunks()` frames nothing, and whichever of the four ran first, the next one throws naming it and leaves no file behind — `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
 --FILE--
 <?nvs
+// covers: Core\Http\Stream::header
 // No socket is opened and no name resolved: the answers come from the table
 // (`rule:testing/an-outbound-call-is-answered-from-a-table`).
 // A field the origin sent twice, so that both readings of the head are asked

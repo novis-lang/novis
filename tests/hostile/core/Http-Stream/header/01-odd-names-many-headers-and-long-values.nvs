@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program asks for headers with unusual names, and a server sends thousands of
+// headers and one header on very many lines. `header()` must return the right value or
+// throw an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// Every reply comes from a table, so nothing is sent over a network.
+array<string> $cookies = ['a=1', 'b=2'];
+Core\Test::answerHttp('https://api.example.com/odd', 200, { body: '', headers: ['set-cookie' => $cookies] });
+
+// 1. Names that are empty, have a line break, a NUL byte or a space, or are very long.
+//    Each call must return `null` or throw an error.
+array<string> $names = ['', "x-a\r\nx-b", "x\0y", 'x y', Core\Str::repeat('n', 100000)];
+var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/odd');
+foreach ($names as string $name) {
+    ?tainted string $found = null;
+    try {
+        $found = $odd->header($name);
+    } catch (RuntimeError $refused) {
+    } catch (LogicError $rejected) {
+    }
+    if ($found != null) {
+        throw new LogicError('an unusual name found a header');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. `Set-Cookie` in four ways of writing it. Each call must throw a `LogicError`.
+array<string> $spellings = ['set-cookie', 'Set-Cookie', 'SET-COOKIE', 'sEt-CoOkIe'];
+foreach ($spellings as string $cookie) {
+    try {
+        $odd->header($cookie);
+        throw new RuntimeError('two cookies were joined');
+    } catch (LogicError $error) {
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. A reply with 3000 different headers. The last one is read 3000 times.
+array<string> $wide = [];
+uint $i = 0;
+while ($i < 3000) {
+    $wide[Core\Str::format('x-field-%d', $i)] = Core\Str::format('value %d', $i);
+    $i = $i + 1;
+}
+Core\Test::answerHttp('https://api.example.com/wide', 200, { body: '', headers: $wide });
+var $manyHeaders = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/wide');
+uint $j = 0;
+while ($j < 3000) {
+    if ($manyHeaders->header('X-FIELD-2999') != 'value 2999') {
+        throw new LogicError('the last header was not found');
+    }
+    $j = $j + 1;
+}
+echo 'step 3: done', "\n";
+
+// 4. One header sent on 50000 lines. The joined value must contain every line.
+array<string> $lines = [];
+uint $k = 0;
+while ($k < 50000) {
+    $lines[] = 'v';
+    $k = $k + 1;
+}
+Core\Test::answerHttp('https://api.example.com/tall', 200, { body: '', headers: ['x-tall' => $lines] });
+var $tall = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/tall');
+uint $length = Core\Str::length($tall->header('x-tall') ?? '');
+if ($length != 50000 * 3 - 2) {
+    throw new LogicError(Core\Str::format('the joined value has %d characters', $length));
+}
+echo 'step 4: done', "\n";
+
+// 5. The joined value of that header is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+array<tainted string> $kept = [];
+while (true) {
+    $kept[] = $tall->header('x-tall') ?? '';
+}

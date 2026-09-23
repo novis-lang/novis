@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `header()` returns for a header sent on two lines, and for a missing one.
+
+// The server sends the `cache-control` header on two lines.
+array<string> $cache = ["no-cache", "no-store"];
+Core\Test::answerHttp("https://api.example.com/export", 200, {
+    body: "id,name\n",
+    headers: ["cache-control" => $cache],
+});
+
+Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/export");
+// The two values are joined. This prints "no-cache, no-store".
+echo $export->header("cache-control") ?? "none", "\n";
+// The server did not send `etag`, so `header()` returns `null`. This prints "none".
+echo $export->header("etag") ?? "none", "\n";
