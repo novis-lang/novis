@@ -297,25 +297,77 @@ marked `~`: it is the machine, not the code.
 | `Core\Html::sanitize` | 3.00 | 0.00 | 50.00 | 9659.7 |  |  |  | 1cfa80b24a75 |
 | `Core\Html::toSource` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | calls 0, allocations 0 | 1cfa80b24a75 |
 | `Core\Http::allowUrl` | 5.00 | 0.00 | 12.00 | 540.0 |  |  |  | ed7383271ab3 |
-| `Core\Http\Client::delete` | 5.00 | 0.00 | 14.00 | 871.8 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::get` | 5.00 | 0.00 | 15.00 | 883.8 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::head` | 5.00 | 0.00 | 14.00 | 871.8 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::delete` | 5.00 | 0.00 | 14.00 | 871.8 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::get` | 5.00 | 0.00 | 15.00 | 883.8 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::head` | 5.00 | 0.00 | 14.00 | 871.8 |  |  | calls 0 | ed7383271ab3 |
 | `Core\Http\Client::openSocket` | 7.00 | 0.00 | 10.00 | 475.3 |  |  | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::patch` | 5.00 | 0.00 | 29.00 | 1807.8 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::post` | 5.00 | 0.00 | 29.00 | 1817.0 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::put` | 5.00 | 0.00 | 29.75 | 1811.5 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::request` | 6.00 | 0.00 | 15.00 | 876.8 |  | +0.016 | calls 0 | ed7383271ab3 |
-| `Core\Http\Client::stream` | 5.00 | 0.00 | 26.00 | 1897.3 |  | +0.016 | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::patch` | 5.00 | 0.00 | 29.00 | 1807.8 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::post` | 5.00 | 0.00 | 29.00 | 1817.0 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::put` | 5.00 | 0.00 | 29.75 | 1811.5 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::request` | 6.00 | 0.00 | 15.00 | 876.8 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Client::stream` | 5.00 | 0.00 | 26.00 | 1897.3 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Event::data` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ee22bd09bb2f |
+| `Core\Http\Event::id` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ee22bd09bb2f |
+| `Core\Http\Event::name` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ee22bd09bb2f |
 | `Core\Http\Identity::read` | 5.00 | 0.00 | 38.01 | 21658.6 |  |  | calls 0 | ed7383271ab3 |
 | `Core\Http\Part::bytes` | 5.00 | 0.00 | 4.00 | 244.5 |  |  | calls 0 | ed7383271ab3 |
 | `Core\Http\Part::file` | 5.00 | 0.00 | 11.00 | 954.0 |  | +234.000 | calls 0 | ed7383271ab3 |
 | `Core\Http\Response::bytes` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | ed7383271ab3 |
-| `Core\Http\Response::header` | 4.00 | 0.00 | 1.00 | 4.0 |  | +0.002 | calls 0 | ed7383271ab3 |
-| `Core\Http\Response::headers` | 3.00 | 0.00 | 2.50 | 178.0 |  | +0.002 | calls 0 | ed7383271ab3 |
-| `Core\Http\Response::jsonAs` | 4.00 | 0.00 | 12.00 | 566.0 |  | +0.002 |  | ed7383271ab3 |
-| `Core\Http\Response::status` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | allocations 0, calls 0 | ed7383271ab3 |
-| `Core\Http\Response::text` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity linear, allocations 0 | ed7383271ab3 |
-| `Core\Http\Response::tls` | 5.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | allocations 0, calls 0 | ed7383271ab3 |
+| `Core\Http\Response::header` | 4.00 | 0.00 | 1.00 | 4.0 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Response::headers` | 3.00 | 0.00 | 2.50 | 178.0 |  |  | calls 0 | ed7383271ab3 |
+| `Core\Http\Response::jsonAs` | 4.00 | 0.00 | 12.00 | 566.0 |  |  |  | ed7383271ab3 |
+| `Core\Http\Response::status` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | ed7383271ab3 |
+| `Core\Http\Response::text` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | ed7383271ab3 |
+| `Core\Http\Response::tls` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0, calls 0 | ed7383271ab3 |
+| `Core\Http\Socket::close` | 4.00 | 0.00 | 0.00 | 0.0 |  |  |  | 856a23c7493e |
+| `Core\Http\Socket::protocol` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | 856a23c7493e |
+| `Core\Http\Socket::receive` | 9.00 | 0.00 | 3.00 | 261.8 |  |  |  | 856a23c7493e |
+| `Core\Http\Socket::send` | 5.00 | 0.00 | 3.00 | 120.9 |  |  |  | 856a23c7493e |
+| `Core\Http\Socket::sendBytes` | 5.00 | 0.00 | 3.00 | 119.4 |  |  |  | 856a23c7493e |
+| `Core\Http\Stream::chunks` | 6.00 | 4.00 | 19.00 | 1463.0 |  |  |  | ee22bd09bb2f |
+| `Core\Http\Stream::events` | 8.00 | 6.00 | 30.00 | 1660.5 |  |  |  | ee22bd09bb2f |
+| `Core\Http\Stream::header` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ee22bd09bb2f |
+| `Core\Http\Stream::headers` | 3.00 | 0.00 | 2.00 | 176.0 |  |  |  | ee22bd09bb2f |
+| `Core\Http\Stream::lines` | 12.00 | 10.00 | 22.00 | 1436.0 |  |  |  | ee22bd09bb2f |
+| `Core\Http\Stream::saveTo` | 6.00 | 0.00 | 55.97 | 3274.4 |  |  |  | ee22bd09bb2f |
+| `Core\Http\Stream::status` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | allocations 0 | ee22bd09bb2f |
+| `Core\Http\TlsInfo::cipher` | 4.00 | 0.00 | 0.00 | 0.1 |  |  | allocations 0, calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::expiry` | 4.00 | 0.00 | 14.00 | 1893.3 |  |  | calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::issuer` | 3.00 | 0.00 | 15.50 | 2155.8 |  |  | calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::peerChain` | 3.00 | 0.00 | 19.00 | 5824.7 |  | +5.500 | calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::subject` | 3.00 | 0.00 | 15.00 | 1914.3 |  | -1.000 | calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::verified` | 4.00 | 0.00 | 0.00 | 0.1 |  |  | allocations 0, calls 0 | 856a23c7493e |
+| `Core\Http\TlsInfo::version` | 4.00 | 0.00 | 0.00 | 0.1 |  |  | allocations 0, calls 0 | 856a23c7493e |
+| `Core\IO::append` | 5.00 | 0.00 | 1.01 | 154.5 |  | +2.001 | calls 0 | 1215ba52f0bb |
+| `Core\IO::canonicalize` | 3.00 | 0.00 | 5.03 | 611.5 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::copy` | 4.00 | 0.00 | 3.03 | 452.7 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::exists` | 4.00 | 0.00 | 1.01 | 145.0 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::isDir` | 4.00 | 0.00 | 1.02 | 151.5 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::isFile` | 4.00 | 0.00 | 1.02 | 153.5 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::isReadable` | 4.00 | 0.00 | 1.01 | 149.0 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::isWritable` | 4.00 | 0.00 | 1.01 | 149.0 |  | +2.001 | calls 0 | 1215ba52f0bb |
+| `Core\IO::lines` | 9.01 | 8.00 | 12.03 | 745.6 |  |  |  | 1215ba52f0bb |
+| `Core\IO::list` | 4.01 | 0.00 | 11.09 | 798.6 |  |  |  | 1215ba52f0bb |
+| `Core\IO::makeDir` | 5.00 | 0.00 | 2.01 | 313.0 | -0.001 | -0.029 | calls 0 | 1215ba52f0bb |
+| `Core\IO::modifiedAt` | 4.00 | 0.00 | 2.01 | 222.4 |  | -0.001 | calls 0 | 1215ba52f0bb |
+| `Core\IO::move` | 4.00 | 0.00 | 2.02 | 311.9 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::open` | 5.00 | 0.00 | 2.00 | 262.7 |  |  |  | 1215ba52f0bb |
+| `Core\IO::read` | 3.00 | 0.00 | 4.01 | 328.5 |  |  |  | 1215ba52f0bb |
+| `Core\IO::readText` | 4.00 | 0.00 | 6.01 | 331.2 |  | +2.003 |  | 1215ba52f0bb |
+| `Core\IO::remove` | 6.00 | 0.00 | 2.03 | 294.4 |  |  |  | 1215ba52f0bb |
+| `Core\IO::removeDir` | 6.00 | 0.00 | 2.03 | 278.4 |  |  |  | 1215ba52f0bb |
+| `Core\IO::size` | 3.00 | 0.00 | 1.01 | 157.7 |  |  | calls 0 | 1215ba52f0bb |
+| `Core\IO::stat` | 7.00 | 0.00 | 4.01 | 381.7 |  |  |  | 1215ba52f0bb |
+| `Core\IO::stdin` | 2.00 | 1.00 | 14.00 | 198920.0 |  |  |  | 1215ba52f0bb |
+| `Core\IO::temporaryDir` | 3.00 | 0.00 | 12.07 | 814.5 |  |  |  | 1215ba52f0bb |
+| `Core\IO::walk` | 10.01 | 8.00 | 31.12 | 2059.7 |  |  |  | 1215ba52f0bb |
+| `Core\IO::within` | 3.00 | 0.00 | 18.01 | 1581.5 |  |  |  | 1215ba52f0bb |
+| `Core\IO::write` | 5.00 | 0.00 | 1.01 | 168.5 |  | +2.001 | calls 0 | 1215ba52f0bb |
+| `Core\IO::writeStream` | 5.00 | 0.00 | 2.03 | 318.5 |  | -4.004 |  | 1215ba52f0bb |
+| `Core\IO\File::close` | 5.00 | 0.00 | 2.00 | 262.7 |  |  |  | 1215ba52f0bb |
+| `Core\IO\File::flush` | 4.00 | 0.00 | 0.00 | 0.0 |  |  |  | 1215ba52f0bb |
+| `Core\IO\File::lock` | 6.00 | 0.00 | 2.00 | 262.7 |  | -2.000 |  | 1215ba52f0bb |
+| `Core\IO\File::read` | 5.01 | 0.00 | 3.99 | 318.7 |  |  |  | 1215ba52f0bb |
 | `Core\Program::implementingWith` | 9.00 | 0.00 | 11.00 | 624.0 |  |  | calls 0 | e3e47a73d7e1 |
 | `Core\Str::length` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 6ccf3ae687b8 |
 | `Core\Task\Channel::close` | 5.00 | 0.00 | 3.00 | 288.0 |  |  |  | 6ccf3ae687b8 |
@@ -466,6 +518,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Html::parse` | Core\Html | 23.1x its group's median of 47.9 units |
 | `Core\Html::sanitize` | Core\Html | 17.6x its group's median of 47.9 units |
 | `Core\Http\Response::jsonAs` | Core\Http\Response | 13.5x its group's median of 11.3 units |
+| `Core\Http\Stream::saveTo` | Core\Http\Stream | 284.5x its group's median of 285.4 units |
+| `Core\IO::move` | Core\IO | 7.9x its group's median of 21589.2 units |
+| `Core\IO::stdin` | Core\IO | 273.6x its group's median of 21589.2 units |
+| `Core\IO::temporaryDir` | Core\IO | 5.3x its group's median of 21589.2 units |
 | `lang:expressions/assignment` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 4.000 |
 | `lang:expressions/calls` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 1.000; declares `calls 4` per op and did 3.000 |
 | `lang:expressions/closures` | lang:expressions | recorded as known-gap: declares `allocations 0` per op and did 3.000 |
@@ -757,26 +813,78 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Html::parse` | 3600.6 | 3672.7 | 1104.440 | -8.9% |  | 1cfa80b24a75 | 11ed547a511a |
 | `Core\Html::sanitize` | 2749.6 | 2823.4 | 843.400 | -9.2% |  | 1cfa80b24a75 | 11ed547a511a |
 | `Core\Html::toSource` | 30.6 | 33.6 | 9.397 | +0.9% ~ |  | 1cfa80b24a75 | 11ed547a511a |
-| `Core\Http::allowUrl` | 372.9 | 373.9 | 125.656 | -1.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::delete` | 544.1 | 718.5 | 183.381 | +19.4% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::get` | 588.5 | 620.3 | 198.313 | +18.4% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::head` | 501.2 | 546.9 | 168.903 | +2.3% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::openSocket` | 420.6 | 471.7 | 141.738 | +10.8% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::patch` | 1128.6 | 1146.4 | 380.351 | +7.0% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::post` | 1233.7 | 1244.4 | 415.765 | -3.2% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::put` | 1141.0 | 1185.3 | 384.516 | +3.1% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::request` | 492.9 | 546.8 | 166.095 | -2.4% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Client::stream` | 1058.7 | 1186.2 | 356.797 | -15.9% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Identity::read` | 12857.2 | 13141.4 | 4332.980 | +6.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Part::bytes` | 132.0 | 140.0 | 44.500 | +0.8% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Part::file` | 33307.9 | 33681.1 | 11224.981 | +5.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::bytes` | 33.4 | 35.2 | 11.251 | +9.2% | x1000 → 1.07x | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::header` | 73.6 | 86.2 | 24.801 | +5.1% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::headers` | 105.0 | 109.1 | 35.369 | +14.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::jsonAs` | 452.4 | 456.6 | 152.447 | +10.3% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::status` | 27.7 | 30.4 | 9.344 | +21.4% |  | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::text` | 32.1 | 34.5 | 10.801 | +8.9% | x1000 → 40.07x | ed7383271ab3 | 8cbdf1e2da46 |
-| `Core\Http\Response::tls` | 24.1 | 26.8 | 8.127 | -8.6% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http::allowUrl` | 372.9 | 373.9 | 125.656 | -17.4% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::delete` | 544.1 | 718.5 | 183.381 | -12.9% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::get` | 588.5 | 620.3 | 198.313 | -6.7% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::head` | 501.2 | 546.9 | 168.903 | -27.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::openSocket` | 420.6 | 471.7 | 141.738 | -2.7% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::patch` | 1128.6 | 1146.4 | 380.351 | -23.2% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::post` | 1233.7 | 1244.4 | 415.765 | -10.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::put` | 1141.0 | 1185.3 | 384.516 | -19.2% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::request` | 492.9 | 546.8 | 166.095 | -6.1% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Client::stream` | 1058.7 | 1186.2 | 356.797 | -16.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Event::data` | 25.2 | 27.1 | 8.596 | -12.8% |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Event::id` | 32.5 | 35.0 | 11.079 | -5.2% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Event::name` | 25.5 | 29.0 | 8.690 | -5.6% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Identity::read` | 12857.2 | 13141.4 | 4332.980 | +10.9% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Part::bytes` | 132.0 | 140.0 | 44.500 | +4.7% ~ |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Part::file` | 33307.9 | 33681.1 | 11224.981 | -8.1% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::bytes` | 33.4 | 35.2 | 11.251 | -28.2% | x1000 → 1.07x | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::header` | 73.6 | 86.2 | 24.801 | -42.8% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::headers` | 105.0 | 109.1 | 35.369 | -36.1% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::jsonAs` | 452.4 | 456.6 | 152.447 | -31.6% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::status` | 27.7 | 30.4 | 9.344 | -36.3% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::text` | 32.1 | 34.5 | 10.801 | +7.8% | x1000 → 40.07x | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Response::tls` | 24.1 | 26.8 | 8.127 | +65.9% |  | ed7383271ab3 | 8cbdf1e2da46 |
+| `Core\Http\Socket::close` | 15.6 | 28.5 | 5.079 |  |  | 856a23c7493e | bd46e2f9ddce |
+| `Core\Http\Socket::protocol` | 13.0 | 24.0 | 4.232 |  |  | 856a23c7493e | bd46e2f9ddce |
+| `Core\Http\Socket::receive` | 136.4 | 144.7 | 44.392 |  |  | 856a23c7493e | bd46e2f9ddce |
+| `Core\Http\Socket::send` | 98.7 | 99.7 | 32.126 |  |  | 856a23c7493e | bd46e2f9ddce |
+| `Core\Http\Socket::sendBytes` | 98.5 | 118.9 | 32.057 |  |  | 856a23c7493e | bd46e2f9ddce |
+| `Core\Http\Stream::chunks` | 836.5 | 939.4 | 285.396 | -8.7% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::events` | 1341.9 | 1374.3 | 457.828 | -0.8% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::header` | 62.9 | 65.4 | 21.458 | -1.1% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::headers` | 98.0 | 101.1 | 33.438 | +4.2% |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::lines` | 1234.4 | 1305.1 | 421.159 | -1.6% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::saveTo` | 237956.5 | 241486.8 | 81187.499 |  |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\Stream::status` | 9.0 | 10.8 | 3.062 | -4.4% ~ |  | ee22bd09bb2f | b140ec3961c0 |
+| `Core\Http\TlsInfo::cipher` | 17.5 | 23.7 | 5.694 |  |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::expiry` | 1186.9 | 1234.9 | 386.228 | +11.0% |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::issuer` | 1150.0 | 1194.3 | 374.198 | +10.7% |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::peerChain` | 1368.4 | 1451.9 | 445.266 | +63.5% |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::subject` | 1131.4 | 1249.2 | 368.142 | +20.9% |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::verified` | 17.6 | 28.9 | 5.714 |  |  | 856a23c7493e | 759062880371 |
+| `Core\Http\TlsInfo::version` | 23.2 | 27.5 | 7.565 |  |  | 856a23c7493e | 759062880371 |
+| `Core\IO::append` | 141604.4 | 154734.7 | 32479.186 | +84.3% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::canonicalize` | 75340.2 | 84696.8 | 17280.464 | +98.2% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::copy` | 427433.5 | 434021.0 | 98038.579 | +33.7% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::exists` | 29202.2 | 31456.9 | 6697.987 | +306.6% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::isDir` | 26540.2 | 31524.0 | 6087.411 | +209.9% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::isFile` | 21972.7 | 35171.1 | 5039.779 | +159.4% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::isReadable` | 20711.2 | 26358.6 | 4750.434 | +140.0% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::isWritable` | 65198.8 | 75133.5 | 14954.368 | +669.6% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::lines` | 170666.9 | 225547.0 | 39145.120 | +732.2% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::list` | 44765.8 | 64302.4 | 10267.727 | +89.3% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::makeDir` | 93031.8 | 119354.7 | 21338.298 | +122.7% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::modifiedAt` | 24187.4 | 42601.7 | 5547.760 | +105.0% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::move` | 739173.4 | 871402.3 | 169541.016 | +566.7% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::open` | 54374.8 | 58583.6 | 12471.713 | +359.7% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::read` | 65312.5 | 108827.2 | 14980.442 | +242.8% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::readText` | 94125.5 | 97781.2 | 21589.169 | +408.8% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::remove` | 289271.2 | 431988.0 | 66348.900 | +47.9% ~ |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::removeDir` | 188636.9 | 212981.5 | 43266.833 | +44.4% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::size` | 20295.2 | 22158.7 | 4655.027 | +73.1% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::stat` | 24768.5 | 28165.7 | 5681.044 | +108.3% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::stdin` | 25756300.0 | 59688400.0 | 5907611.500 |  |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::temporaryDir` | 500066.7 | 521669.5 | 114698.143 | +85.5% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::walk` | 100775.6 | 116678.4 | 23114.476 | +109.1% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::within` | 132841.9 | 151528.2 | 30469.365 | +98.8% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::write` | 288852.2 | 365028.7 | 66252.784 | +1.6% ~ |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO::writeStream` | 283237.5 | 306448.4 | 64964.964 | +35.1% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO\File::close` | 19184.1 | 19673.0 | 4400.176 | +74.3% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO\File::flush` | 32.3 | 36.3 | 7.413 | +166.5% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO\File::lock` | 73383.2 | 88454.5 | 16831.600 | +94.3% |  | 1215ba52f0bb | 9c306214f483 |
+| `Core\IO\File::read` | 3824.4 | 4087.3 | 877.177 |  |  | 1215ba52f0bb | 9c306214f483 |
 | `Core\Program::implementingWith` | 354.9 | 397.3 | 111.145 |  |  | e3e47a73d7e1 | aeec9743b8e1 |
 | `Core\Str::length` | 20.9 | 22.9 | 7.709 | -70.0% | x10 → 1.18x | 6ccf3ae687b8 | d70a134c21db |
 | `Core\Task\Channel::close` | 90.7 | 92.2 | 33.482 | -3.9% |  | 6ccf3ae687b8 | c1980eb271aa |
@@ -850,15 +958,15 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 715.9 | 761.0 | 243.184 |  |  | 021b2d4828d6 | 229354d66e11 |
 | `lang:iteration/the-two-interfaces` | 485.1 | 509.1 | 151.550 |  |  | 13ea917d2276 | 229354d66e11 |
 | `lang:iteration/what-foreach-walks` | 63.5 | 64.8 | 21.971 |  |  | 13ea917d2276 | 229354d66e11 |
-| `lang:programs/a-complete-program-annotated` | 247.8 | 257.8 | 77.650 | -4.8% |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.8 | 3.1 | 0.889 | +8.5% ~ |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.3 | 9.0 | 1.360 |  |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/code-mode-and-html-mode` | 43.3 | 47.1 | 13.557 | +83.5% |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/comments` | 3.1 | 3.2 | 0.974 | +12.9% |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/doc-comments` | 2.6 | 2.7 | 0.826 | -0.2% ~ |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/names-and-casing` | 2.5 | 2.7 | 0.792 | +0.1% ~ |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/namespaces-and-use` | 5.7 | 6.3 | 1.791 | -0.9% ~ |  | ed7383271ab3 | 848f67caac54 |
-| `lang:programs/require-run-another-file-in-this-frame` | 14.1 | 22.6 | 4.420 | +172.5% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/a-complete-program-annotated` | 247.8 | 257.8 | 77.650 | -31.1% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.8 | 3.1 | 0.889 | -33.7% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.3 | 9.0 | 1.360 | -76.7% ~ |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/code-mode-and-html-mode` | 43.3 | 47.1 | 13.557 | -48.3% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/comments` | 3.1 | 3.2 | 0.974 | -39.0% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/doc-comments` | 2.6 | 2.7 | 0.826 | -44.8% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/names-and-casing` | 2.5 | 2.7 | 0.792 | -47.3% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/namespaces-and-use` | 5.7 | 6.3 | 1.791 | -61.6% |  | ed7383271ab3 | 848f67caac54 |
+| `lang:programs/require-run-another-file-in-this-frame` | 14.1 | 22.6 | 4.420 | -80.2% |  | ed7383271ab3 | 848f67caac54 |
 | `lang:statements/break-and-continue` | 45.5 | 51.1 | 14.572 | +12.5% |  | 3b1c13496da8 | 1d1c9d6aaeae |
 | `lang:statements/catch-as-an-expression` | 138.4 | 144.8 | 44.307 | +13.4% |  | 3b1c13496da8 | 1d1c9d6aaeae |
 | `lang:statements/echo-print-unset-exit-yield` | 142.9 | 145.8 | 45.740 | -66.7% |  | 3b1c13496da8 | 1d1c9d6aaeae |
