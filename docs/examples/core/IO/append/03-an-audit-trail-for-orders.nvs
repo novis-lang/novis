@@ -1,0 +1,18 @@
+<?nvs
+// Shows an audit trail: each change to an order adds one CSV line to a file that is never rewritten.
+
+class Audit {
+    public static function record(string $file, int $order, string $action, string $user): void {
+        // `Core\Csv::format` gives one CSV line for each record. It puts quotes around a field that contains a comma.
+        Core\IO::append($file, Core\Csv::format([[$order as string, $action, $user]]));
+    }
+}
+
+string $file = Core\Path::join(Core\IO::temporaryDir(), "orders-audit.csv");
+
+Audit::record($file, 1042, "created", "anna");
+Audit::record($file, 1042, "paid", "anna");
+Audit::record($file, 1042, "shipped, partly", "warehouse");
+
+// This prints the three lines that were added, one for each change.
+echo Core\IO::read($file);

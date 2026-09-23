@@ -1,0 +1,24 @@
+<?nvs
+// Adds one short line to the end of a file, as a program does when it writes to its own log.
+// bench: iterations 5000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["ok\n", "retry\n", "request done\n"];
+        string $log = Core\Path::join(Core\IO::temporaryDir(), "bench.log");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The line in each round depends on the round before, so no round can be left out.
+            string $line = $lines[(($total + $i) % 3) as int];
+            Core\IO::append($log, $line);
+            $total = $total + Core\Str::length($line);
+            $i = $i + 1;
+        }
+        // The file is as long as all the lines together.
+        return Core\IO::size($log) + $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

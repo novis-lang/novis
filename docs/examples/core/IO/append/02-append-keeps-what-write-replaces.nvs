@@ -1,0 +1,17 @@
+<?nvs
+// Shows the difference between `Core\IO::append` and `Core\IO::write` on a file that has text in it.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "note.txt");
+Core\IO::write($path, "first");
+
+// `append` keeps "first" and adds to the end. This prints "first, second".
+Core\IO::append($path, ", second");
+echo Core\IO::read($path), "\n";
+
+// `write` replaces everything in the file. This prints "third".
+Core\IO::write($path, "third");
+echo Core\IO::read($path), "\n";
+
+// An empty text adds nothing. The file is still 5 bytes long.
+Core\IO::append($path, "");
+echo Core\IO::size($path), "\n";

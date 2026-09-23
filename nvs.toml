@@ -599,6 +599,31 @@ entry = "benches/members/core/Http-Stream/saveTo.nvs"
 read = true
 write = true
 
+# `Core\IO`'s proof programs create, add to, copy and resolve files under
+# `Core\IO::temporaryDir()`, so they take the `Core\Csv` block's grant for its reason.
+# One `root` per tree rather than an `entry` per program, because every program in
+# these three directories opens a file.
+[[app]]
+root = "docs/examples/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "benches/members/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `Core\Db::open`'s five proof programs are the first in this repository to open a
 # database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
 # at `:memory:`, which is what keeps them container-free and their output the same on

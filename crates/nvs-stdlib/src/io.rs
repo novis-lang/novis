@@ -70,18 +70,25 @@ use nvs_runtime::capability::Access;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\IO";
 
+/// `Core\IO`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads, writes, copies and lists files and directories. Each method needs the `fs.read` \
+            or `fs.write` capability for its path, and throws an error instead of returning \
+            `false`. `open` gives a `Core\\IO\\File` to read or write part of a file.",
+};
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "read",
@@ -812,7 +819,8 @@ const COPY_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The capability allowed it and the operating system did not — nothing at the \
                    source, a destination directory that is not there, or a permission the process \
-                   lacks. The message names both ends.",
+                   lacks. A destination that is the source file itself, under any spelling, \
+                   throws too and leaves the file as it was. The message names both ends.",
         },
     ],
 };
@@ -3721,5 +3729,161 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// `member(args)` driven as a program drives it, answering what it returned or the message
+    /// the refusal left in `ctx`. The caller releases a returned reference it keeps.
+    fn call_with(
+        member: nvs_runtime::NvsFn,
+        ctx: &mut nvs_runtime::Ctx,
+        texts: &[&str],
+    ) -> Result<Value, String> {
+        let args: Vec<Value> = texts
+            .iter()
+            .map(|text| Value::str(NvsStr::new(text.as_bytes())))
+            .collect();
+        let answered = nvs_runtime::call(member, ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        for argument in args {
+            #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answered.map_err(|_| refusal.expect("a non-zero status leaves its message in the context"))
+    }
+
+    /// A scratch path as the `string` a program would pass.
+    fn spelled(path: &std::path::Path) -> &str {
+        path.to_str()
+            .expect("a scratch path this suite spelled itself")
+    }
+
+    /// `Core\IO::append` keeps what the file has and adds after it, creating the file the first
+    /// time, and an empty append adds nothing. A context that grants `fs.read` and not
+    /// `fs.write` is refused before the file is created, and the message names the grant.
+    // covers: Core\IO::append
+    #[test]
+    fn core_io_append_adds_to_the_end_and_a_refusal_creates_nothing() {
+        let path = scratch("append.log");
+        let mut ctx = writing();
+        for content in ["one\n", "", "two\n"] {
+            call_with(nvs_core_io_append, &mut ctx, &[spelled(&path), content])
+                .expect("`fs.write` is granted everywhere");
+        }
+        assert_eq!(
+            std::fs::read(&path).expect("the file the first append created"),
+            b"one\ntwo\n"
+        );
+
+        let refused_path = scratch("append-refused.log");
+        let mut reading_only = nvs_runtime::Ctx::buffered();
+        reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
+        let refused = call_with(
+            nvs_core_io_append,
+            &mut reading_only,
+            &[spelled(&refused_path), "x"],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(!refused_path.exists(), "a refused append created the file");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO::copy` duplicates its source and replaces what the destination had. A copy of a
+    /// file onto itself throws and leaves it whole, which on Unix is the door's own check: the
+    /// standard library's copy truncates the destination first and would empty the file. A
+    /// context with `fs.read` and no `fs.write` is refused before the destination is created.
+    // covers: Core\IO::copy
+    #[test]
+    fn core_io_copy_duplicates_refuses_itself_and_needs_fs_write() {
+        let from = scratch("copy-source.txt");
+        let to = scratch("copy-destination.txt");
+        std::fs::write(&from, b"the content").expect("the source");
+        std::fs::write(&to, b"whatever was here before, and longer").expect("a taken destination");
+        let mut both = nvs_runtime::Ctx::buffered();
+        both.set_config(crate::tests::granting(
+            "[capabilities.fs]\nread = true\nwrite = true\n",
+        ));
+        call_with(nvs_core_io_copy, &mut both, &[spelled(&from), spelled(&to)])
+            .expect("both grants are there");
+        assert_eq!(std::fs::read(&to).expect("the copy"), b"the content");
+        assert_eq!(std::fs::read(&from).expect("the source"), b"the content");
+
+        let refused = call_with(
+            nvs_core_io_copy,
+            &mut both,
+            &[spelled(&from), spelled(&from)],
+        )
+        .expect_err("a file copied onto itself");
+        assert!(refused.contains(r"Core\IO::copy"), "{refused}");
+        assert_eq!(
+            std::fs::read(&from).expect("the source after the refusal"),
+            b"the content",
+            "a copy onto itself changed the file"
+        );
+
+        let fresh = scratch("copy-refused.txt");
+        let mut reading_only = nvs_runtime::Ctx::buffered();
+        reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
+        let refused = call_with(
+            nvs_core_io_copy,
+            &mut reading_only,
+            &[spelled(&from), spelled(&fresh)],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(!fresh.exists(), "a refused copy created the destination");
+
+        let _ = std::fs::remove_file(&from);
+        let _ = std::fs::remove_file(&to);
+    }
+
+    /// `Core\IO::canonicalize` answers one string for two spellings of one file, and that answer
+    /// is a fixed point. A name with nothing at it throws, and a context with no `fs.read`
+    /// is refused.
+    // covers: Core\IO::canonicalize
+    #[test]
+    fn core_io_canonicalize_is_a_fixed_point_and_refuses_a_missing_name() {
+        let file = scratch("canonical.txt");
+        std::fs::write(&file, b"x").expect("the file to resolve");
+        let dir = file.parent().expect("a scratch file has a directory");
+        std::fs::create_dir_all(dir.join("sub")).expect("a directory to climb out of");
+        let other = dir.join("sub").join("..").join("canonical.txt");
+
+        let mut ctx = reading("1MiB");
+        let mut resolve = |path: &str| -> Result<String, String> {
+            let value = call_with(nvs_core_io_canonicalize, &mut ctx, &[path])?;
+            let text = value
+                .as_text()
+                .expect("`canonicalize` answers a string")
+                .to_owned();
+            #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+            unsafe {
+                value.release();
+            }
+            Ok(text)
+        };
+        let once = resolve(spelled(&file)).expect("the file is there");
+        assert_eq!(resolve(spelled(&other)).as_deref(), Ok(once.as_str()));
+        assert_eq!(
+            resolve(&once).as_deref(),
+            Ok(once.as_str()),
+            "not a fixed point"
+        );
+        let missing = resolve(spelled(&dir.join("not-there.txt"))).expect_err("nothing is there");
+        assert!(missing.contains(r"Core\IO::canonicalize"), "{missing}");
+
+        let mut writing_only = writing();
+        let refused = call_with(
+            nvs_core_io_canonicalize,
+            &mut writing_only,
+            &[spelled(&file)],
+        )
+        .expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&file);
     }
 }
