@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check if a path is a file, using the result of `Core\IO::stat`.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "project");
+Core\IO::makeDir($dir);
+string $readme = Core\Path::join($dir, "README.md");
+Core\IO::write($readme, "# Project\n");
+
+// "README.md" is a file. This prints "README.md: true".
+echo "README.md: ", Core\IO::stat($readme)->isFile() ? "true" : "false", "\n";
+
+// "project" is a folder, so it is not a file. This prints "project: false".
+echo "project: ", Core\IO::stat($dir)->isFile() ? "true" : "false", "\n";

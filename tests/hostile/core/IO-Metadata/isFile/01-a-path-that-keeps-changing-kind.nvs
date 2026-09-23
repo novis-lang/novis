@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program replaces a file with a folder of the same name, and back, 2000 times.
+// It also asks about a file path that ends with a slash.
+// Each step must return the right answer or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-metadata-is-file');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'thing');
+if (Core\IO::exists($path)) {
+    Core\IO::removeDir($path);
+}
+
+// 1. The path is a file, then a folder, 2000 times. The result taken while it was a file
+// must still say it is a file after the folder took its place.
+uint $i = 0;
+while ($i < 2000) {
+    Core\IO::write($path, 'a file');
+    var $asFile = Core\IO::stat($path);
+    Core\IO::remove($path);
+    Core\IO::makeDir($path);
+    var $asDir = Core\IO::stat($path);
+    Core\IO::removeDir($path);
+    if (!$asFile->isFile() || $asDir->isFile()) {
+        throw new LogicError('isFile returned the wrong kind');
+    }
+    $i = $i + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. A file path with a slash at the end is not a normal path to a file.
+// `stat` may throw an `IOError`, or return a result. Both are allowed.
+string $file = Core\Path::join($dir, 'note.txt');
+Core\IO::write($file, 'note');
+try {
+    Core\IO::stat($file . '/')->isFile();
+} catch (IOError $e) {
+    echo 'a slash after a file name throws', "\n";
+}
+echo 'step 2: done', "\n";
+Core\IO::remove($file);
