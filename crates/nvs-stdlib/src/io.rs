@@ -1966,6 +1966,23 @@ fn text<'a>(value: &'a Value, member: &str, what: &str) -> Result<&'a str, Fault
     })
 }
 
+/// `octets` as a `string`, or the error saying they are not text.
+///
+/// Every reader here answers `string`, and a `string` is well-formed UTF-8 by
+/// `NvsStr`'s own invariant, while a file or a pipe holds whatever was written
+/// to it. So the octets are checked before they become one, the way
+/// `Core\Http\Response::text` checks a reply's body.
+fn text_of(octets: &[u8], member: &str) -> Result<Value, Fault> {
+    match std::str::from_utf8(octets) {
+        Ok(_) => Ok(Value::str(NvsStr::new(octets))),
+        Err(err) => Err(Fault::thrown(format!(
+            "{member}: what was read is not valid UTF-8, so it is not a `string` — byte {} \
+             is where it stops being text",
+            err.valid_up_to()
+        ))),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\IO::read(string $path): string` — replacing
     /// `file_get_contents`.
@@ -1979,7 +1996,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_runtime::Ctx::intake_limit`] owns the unit it is read in.
     fn nvs_core_io_read(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "read", "path")?);
-        Ok(Value::str(NvsStr::new(&slurp(ctx, path, "Core\\IO::read")?)))
+        text_of(&slurp(ctx, path, "Core\\IO::read")?, "Core\\IO::read")
     }
 }
 
@@ -2018,6 +2035,17 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "lines", "path")?);
         let raw = slurp(ctx, path, "Core\\IO::lines")?;
         let mut out = NvsArray::new();
+        // The whole file is checked before any line is built, so a refusal
+        // leaves no half-filled array to release. No case can reach this:
+        // a conformance case runs with no `fs.read` grant, so
+        // `core_io_read_and_lines_refuse_a_file_that_is_not_utf8` asserts it.
+        std::str::from_utf8(&raw).map_err(|err| {
+            Fault::thrown(format!(
+                "Core\\IO::lines: the file is not valid UTF-8, so its lines are not `string`s \
+                 — byte {} is where it stops being text",
+                err.valid_up_to()
+            ))
+        })?;
         for line in crate::str::line_pieces(&raw) {
             out.append(Value::str(NvsStr::new(line)));
         }
@@ -2134,7 +2162,7 @@ nvs_runtime::nvs_helper! {
         std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut bytes).map_err(|err| {
             nvs_runtime::capability::io_failure("Core\\IO::stdin", Path::new("<stdin>"), &err)
         })?;
-        Ok(Value::str(NvsStr::new(&bytes)))
+        text_of(&bytes, "Core\\IO::stdin")
     }
 }
 
@@ -2263,7 +2291,7 @@ nvs_runtime::nvs_helper! {
                 &err,
             )
         })?;
-        Ok(Value::str(NvsStr::new(&octets)))
+        text_of(&octets, "Core\\IO\\File::read")
     }
 }
 
@@ -2312,11 +2340,11 @@ nvs_runtime::nvs_helper! {
             if read == 0 {
                 // The end of the file. A last line with no terminator is still
                 // a line; nothing at all is the absence R5 spells `null`.
-                return Ok(if line.is_empty() {
-                    Value::null()
+                return if line.is_empty() {
+                    Ok(Value::null())
                 } else {
-                    Value::str(NvsStr::new(&line))
-                });
+                    text_of(&line, "Core\\IO\\File::readLine")
+                };
             }
             let chunk = &buffer[..read];
             let Some(at) = chunk.iter().position(|byte| *byte == b'\n' || *byte == b'\r') else {
@@ -2348,7 +2376,7 @@ nvs_runtime::nvs_helper! {
                 file.seek(std::io::SeekFrom::Current(-tail))
                     .map_err(|err| failed(&err))?;
             }
-            return Ok(Value::str(NvsStr::new(&line)));
+            return text_of(&line, "Core\\IO\\File::readLine");
         }
     }
 }
@@ -3601,6 +3629,33 @@ mod tests {
             }
             Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
         }
+    }
+
+    /// A file that is not UTF-8 is refused by every reader that answers a
+    /// `string`, whole and line by line, because a `string` is well-formed
+    /// UTF-8 by `NvsStr`'s own invariant. The same file with its one bad byte
+    /// removed reads, so the refusal is about the octets and not the file.
+    #[test]
+    fn core_io_read_and_lines_refuse_a_file_that_is_not_utf8() {
+        let path = scratch("not-utf8.txt");
+        std::fs::write(&path, b"ok\n\xff\n").expect("a file with one byte that is not text");
+        let mut ctx = reading("1MiB");
+        let refused = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
+        assert!(refused.contains("not valid UTF-8"), "{refused}");
+
+        let args = [Value::str(NvsStr::new(path.to_string_lossy().as_bytes()))];
+        let answered = nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args);
+        assert!(answered.is_err(), "`lines` of a file that is not text");
+        let refused = ctx.take_pending().expect("the refusal is a thrown error");
+        assert!(refused.contains("not valid UTF-8"), "{refused}");
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+
+        std::fs::write(&path, b"ok\n\n").expect("the same file without the byte");
+        assert_eq!(read_under(&mut ctx, &path), Ok(4));
+        let _ = std::fs::remove_file(&path);
     }
 
     /// `rule:core-classes/process-run`'s reuse of `[limits] max_output`, read at *this* class's
