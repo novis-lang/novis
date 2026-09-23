@@ -620,6 +620,13 @@ def validate(sections: list[Section]) -> list[str]:
                             f"module doc.")
                     else:
                         errors += reviewed_refusals(which, b["body"])
+                    if not playbookmod.anchors(b["body"]):
+                        errors.append(
+                            f"{which} names no file in the tree. A trap is about a file: name it in "
+                            f"backticks, as its path from the repository root (`tools/verify.py`, "
+                            f"`crates/nvs-ir/src/lib.rs`, `Cargo.toml`). A rule every agent needs "
+                            f"whatever it edits is not a trap: it belongs in "
+                            f"docs/agent/commands.md or docs/agent/conventions.md.")
                     weight = len(b["body"].strip().encode("utf-8"))
                     if weight > PLAYBOOK_BULLET_MAX:
                         errors.append(
@@ -695,7 +702,7 @@ def reviewed_refusals(which: str, body: str) -> list[str]:
                        f"the bullet was read: write today's date.")
     except ValueError:
         out.append(f"{which} -- `{arg}` is not a YYYY-MM-DD date.")
-    named = [p for p in dict.fromkeys(playbookmod.named_paths(body)) if (ROOT / p).exists()]
+    named = playbookmod.anchors(body)
     if named:
         out.append(
             f"{which} names `{named[0]}` and ends with `[until: reviewed ...]`. A trap about a path "

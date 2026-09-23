@@ -618,9 +618,10 @@ sentence is the bullet's selector — a goal manifest fetches it by the opening 
 states the trap and not the story. It is also the bullet's file name: the wrap writes each bullet to
 `docs/agent/playbook/<section>/<lead-in words>.md`. The trailer is required, and `tools/playbook.py`'s
 module doc is the only home of its five kinds. Use a mechanical one (`test`, `exists`, `gone`, `rule`):
-those let the wrap delete the bullet the day it stops being true. The wrap refuses `reviewed` on a new
-bullet that names a path in the tree, because `gone <path>:<word>` fits it, and refuses a `reviewed`
-date after today.
+those let the wrap delete the bullet the day it stops being true. A bullet names, in backticks, at
+least one file in the tree by its path from the repository root, and the wrap refuses one that names
+none. So `reviewed` does not fit a new bullet: the wrap refuses it on a bullet that names a file,
+because `gone <path>:<word>` fits it, and refuses a `reviewed` date after today.
 
 What does **not** go in: the session's narrative (which stage, which check, what was tried first —
 `git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,

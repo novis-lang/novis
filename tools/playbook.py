@@ -1175,6 +1175,20 @@ def named_paths(body: str) -> list[str]:
     return out
 
 
+def anchors(body: str) -> list[str]:
+    """The files in the tree a bullet names: in backticks, a path under `TREE_DIRS` or a file at
+    the repository root such as `Cargo.toml`, and the path of a `gone` or `exists` trailer.
+    `session.py --wrap` refuses a new bullet with none."""
+    out = [p for p in named_paths(body) if (ROOT / p).exists()]
+    out += [raw for raw in re.findall(r"`([^`\s/]+\.[A-Za-z]+)`", body) if (ROOT / raw).is_file()]
+    decl = declaration(body)
+    if decl and decl[0] in ("gone", "exists"):
+        path = decl[1].partition(":")[0].strip().replace("\\", "/")
+        if path and (ROOT / path).exists():
+            out.append(path)
+    return list(dict.fromkeys(out))
+
+
 def run_check(text: str, every: list[dict]) -> int:
     print(f"docs/agent/playbook/: {nbytes(text)} bytes, {len(every)} bullets\n")
 
