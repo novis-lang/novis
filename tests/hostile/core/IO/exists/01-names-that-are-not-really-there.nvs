@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program checks paths that are empty, very long, full of `..` parts, or hold a NUL byte.
+// `exists` must return `true` or `false`, or throw an error, and must not crash.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, 'target.txt');
+Core\IO::write($file, 'x');
+
+// 1. The file behind 500 `a/..` parts. The folder `a` does not exist, so the result may be either.
+try {
+    Core\IO::exists(Core\Path::join($dir, Core\Str::repeat('a/../', 500) . 'target.txt'));
+} catch (IOError $tooLong) {
+}
+echo 'step 1: done', "\n";
+
+// 2. Names that cannot be a file: empty, a NUL byte, 100000 letters, a file used as a folder.
+// Each must return `false` or throw an `IOError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, "nul\0byte.txt"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+    Core\Path::join($file, 'inside.txt'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        if (Core\IO::exists($badPath)) {
+            throw new LogicError('a path with nothing at it was found');
+        }
+    } catch (IOError $refused) {
+    }
+}
+// Far more `..` parts than the path has folders. The system stops at the root, so the result may be either.
+try {
+    Core\IO::exists(Core\Path::join($dir, Core\Str::repeat('../', 5000)));
+} catch (IOError $tooLong) {
+}
+echo 'step 2: done', "\n";
+
+// 3. 20000 checks of names that do not exist. The last one must still return `false`.
+int $i = 0;
+bool $any = false;
+while ($i < 20000) {
+    $any = $any || Core\IO::exists(Core\Path::join($dir, Core\Str::format('missing-%d.txt', $i)));
+    $i = $i + 1;
+}
+if ($any) {
+    throw new LogicError('a missing name was found');
+}
+echo 'step 3: done', "\n";
+
+// 4. The file is deleted between two checks. The second check must return `false`.
+if (!Core\IO::exists($file)) {
+    throw new LogicError('the file was not found');
+}
+Core\IO::remove($file);
+if (Core\IO::exists($file)) {
+    throw new LogicError('a deleted file was still found');
+}
+echo 'step 4: done', "\n";

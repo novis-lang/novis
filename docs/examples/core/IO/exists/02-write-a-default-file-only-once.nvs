@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a program creates a file with default content only when the file is not there yet.
+
+string $settings = Core\Path::join(Core\IO::temporaryDir(), "settings.ini");
+
+// The program checks the file each time it starts. Here it starts twice.
+// This prints "first start: created" and then "second start: kept".
+array<string> $starts = ["first start", "second start"];
+foreach ($starts as string $start) {
+    if (Core\IO::exists($settings)) {
+        echo $start, ": kept", "\n";
+    } else {
+        Core\IO::write($settings, "theme = light\n");
+        echo $start, ": created", "\n";
+    }
+}

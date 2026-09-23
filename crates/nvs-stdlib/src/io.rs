@@ -3886,4 +3886,74 @@ mod tests {
 
         let _ = std::fs::remove_file(&file);
     }
+
+    /// A file, a directory and a missing name, each asked of `member` under a context granting
+    /// `fs.read`, answering the three `bool`s in that order.
+    fn kinds_of(member: nvs_runtime::NvsFn, name: &str) -> [bool; 3] {
+        let file = scratch(&format!("{name}.txt"));
+        std::fs::write(&file, b"x").expect("a file to ask about");
+        let dir = file.with_extension("d");
+        std::fs::create_dir_all(&dir).expect("a directory to ask about");
+        let missing = file.with_extension("missing");
+        let mut ctx = reading("1MiB");
+        let answers = [&file, &dir, &missing].map(|path| {
+            call_with(member, &mut ctx, &[spelled(path)])
+                .expect("a granted path answers")
+                .as_bool()
+                .expect("the member answers a `bool`")
+        });
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir(&dir);
+        answers
+    }
+
+    /// `Core\IO::exists` answers `true` for a file and for a directory, and `false` for a name
+    /// with nothing at it. A context with no `fs.read` throws, so `false` never means *not
+    /// allowed*.
+    // covers: Core\IO::exists
+    #[test]
+    fn core_io_exists_finds_both_kinds_and_a_refusal_is_not_false() {
+        assert_eq!(kinds_of(nvs_core_io_exists, "exists"), [true, true, false]);
+        let refused = call_with(
+            nvs_core_io_exists,
+            &mut writing(),
+            &[spelled(&scratch("x"))],
+        )
+        .expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+        assert!(refused.contains(r"Core\IO::exists"), "{refused}");
+    }
+
+    /// `Core\IO::isFile` answers `true` for a file alone: a directory and a missing name are both
+    /// `false`. A context with no `fs.read` throws.
+    // covers: Core\IO::isFile
+    #[test]
+    fn core_io_is_file_answers_true_for_a_file_alone_and_a_refusal_throws() {
+        assert_eq!(
+            kinds_of(nvs_core_io_is_file, "is-file"),
+            [true, false, false]
+        );
+        let refused = call_with(
+            nvs_core_io_is_file,
+            &mut writing(),
+            &[spelled(&scratch("x"))],
+        )
+        .expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+    }
+
+    /// `Core\IO::isDir` answers `true` for a directory alone: a file and a missing name are both
+    /// `false`. A context with no `fs.read` throws.
+    // covers: Core\IO::isDir
+    #[test]
+    fn core_io_is_dir_answers_true_for_a_directory_alone_and_a_refusal_throws() {
+        assert_eq!(kinds_of(nvs_core_io_is_dir, "is-dir"), [false, true, false]);
+        let refused = call_with(
+            nvs_core_io_is_dir,
+            &mut writing(),
+            &[spelled(&scratch("x"))],
+        )
+        .expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+    }
 }

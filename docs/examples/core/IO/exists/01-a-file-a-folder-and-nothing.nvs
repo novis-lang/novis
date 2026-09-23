@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\IO::exists` returns for a file, a folder and a path with nothing at it.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "notes.txt");
+Core\IO::write($file, "hello");
+
+// A file exists. This prints "true".
+echo Core\IO::exists($file) ? "true" : "false", "\n";
+
+// A folder exists too. This prints "true".
+echo Core\IO::exists($dir) ? "true" : "false", "\n";
+
+// Nothing has this name. This prints "false".
+echo Core\IO::exists(Core\Path::join($dir, "missing.txt")) ? "true" : "false", "\n";
