@@ -2,24 +2,19 @@
 
 ## State
 
-Goal `core-io-file-and-1-more` is complete: all thirteen members carry every proof of
-`rule:testing/feature-proofs`. The nine `Core\IO\File` members landed earlier. The four
-`Core\IO\Metadata` members (`size`, `modifiedAt`, `isFile`, `isDir`) landed this session: the
-class card (`METADATA_CARD`, and `Core\IO\Metadata` struck from `CLASSES_STILL_OWING_A_CARD`), one
-Rust test per member, a `// covers:` line on the stat-snapshot `.nvst` case, three examples and an
-`about.md` each, one attack each and one bench each. The root `nvs.toml` grants `fs` to the three
-`IO-Metadata` proof trees. `docs/perf/members.ndjson` holds their first records, all at 0
-allocations. `owners.py --closes` and `playbook.py --closes` name nothing for this goal.
+Goal `core-io-file-and-1-more` is complete: all thirteen `Core\IO\File` and `Core\IO\Metadata`
+members carry every proof of `rule:testing/feature-proofs`, and both of the goal's dossier checks
+pass (`python tools/dossier.py --verify --group 'Core\IO\File'` and `--group 'Core\IO\Metadata'`).
+The retry session re-measured the nine `Core\IO\File` figures, which the `Metadata` card's edit to
+`crates/nvs-stdlib/src/io.rs` had made stale; `docs/perf/members.ndjson` holds the new records.
+`owners.py --closes` and `playbook.py --closes` name nothing for this goal, and `verify.py --doc`
+finds every link resolving.
 
 ## Next group
 
 **Goal complete** — the driver picks the next goal in the chain; its first session overwrites
 this file.
 
-- [x] **`Core\IO\Metadata` proofs** — `crates/nvs-stdlib/src/io.rs:1811`, done.
-
 ## Backlog
 
-- `nvs agent show 'Core\IO\File'` and `'Core\IO\Metadata'` print the member list but not the class
-  card's `short` text. Not checked whether another class's card prints there; owner:
-  `crates/nvs-stdlib/src/registry.rs`.
+- None owned by this goal.
