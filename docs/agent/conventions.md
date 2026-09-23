@@ -43,6 +43,10 @@ noise every future reader pays for. `git log` should read as a history of the la
 authorship. This is enforced twice — `tools/session.py` strips a trailer out of any message it is handed,
 and the `commit-msg` hook in `tools/git-hooks/` rejects one that arrives any other way.
 
+The one line that is not attribution: the commit that fixes **a bug reported in a public issue** ends its
+body with `Fixes #<n>`, which links the fix to the issue and closes it. Nothing else says a change came
+from a report — no reporter's name, no quote ([user-report.md](user-report.md)).
+
 Write the message to a file and use `git commit -F <file>` — never `-m` for anything multi-line, per
 [commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
 section is for.

@@ -235,8 +235,10 @@ TOML for a doubled floor before restarting.
 locking, reversibility — which `rule:programs/no-migration-runner` records as
 deliberately blocked. Goal `schema` builds convergence, which needs none of them, and does not close that gap.
 
-Doc trimming and dependency sweeps, both of which the user fires and never a session
-([doc-cleanup.md](../doc-cleanup.md), [dependency-update.md](../dependency-update.md)). And **PHP's
+Doc trimming, dependency sweeps and user reports, all of which the user fires and never a session
+([doc-cleanup.md](../doc-cleanup.md), [dependency-update.md](../dependency-update.md),
+[user-report.md](../user-report.md)); a report's outcome may be a goal, which is then written like any
+other. And **PHP's
 optional extensions** — `gd`, `intl`, `imap`, `zip` and the rest of the unaudited list in
 [02-php-migration.md](../../spec/02-php-migration.md) — are not parity work: they are M9's, and a session
 that finds one on its path puts it in the handoff's `## Backlog` and moves on.

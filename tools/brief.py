@@ -479,6 +479,8 @@ HOMES = (
     ("order ordering position band chapters",
      "docs/agent/conventions.md, 'Where a rule sits in the order'",
      "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"),
+    ("report reports issue issues feedback triage reporter", "docs/agent/user-report.md",
+     "a report from somebody using Novis: intake, classify, search the plans, ask, place, neutral names"),
 )
 
 WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an author writes
