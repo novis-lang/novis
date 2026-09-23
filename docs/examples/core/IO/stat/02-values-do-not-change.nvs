@@ -1,0 +1,21 @@
+<?nvs
+// Shows that the result of `Core\IO::stat` keeps the values from the moment of the call.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "log.txt");
+Core\IO::write($path, "one\n");
+var $before = Core\IO::stat($path);
+
+// The file gets longer after the call. `$before` still has the old size.
+Core\IO::append($path, "two\n");
+var $after = Core\IO::stat($path);
+
+// This prints "before: 4" and "after: 8".
+echo "before: ", $before->size(), "\n";
+echo "after: ", $after->size(), "\n";
+
+// There is nothing at this path, so `stat` throws an `IOError`. This prints "not found".
+try {
+    Core\IO::stat(Core\Path::join(Core\IO::temporaryDir(), "missing.txt"));
+} catch (IOError $e) {
+    echo "not found", "\n";
+}

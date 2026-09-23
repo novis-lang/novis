@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a program lists the files in a folder with the size of each one.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+Core\IO::makeDir(Core\Path::join($dir, "thumbnails"));
+Core\IO::write(Core\Path::join($dir, "contract.pdf"), Core\Str::repeat("x", 2048));
+Core\IO::write(Core\Path::join($dir, "notes.txt"), "call back on Monday\n");
+
+// One `stat` for each name gives both the kind and the size.
+// The folder "thumbnails" is not a file, so it is left out.
+foreach (Core\Arr::sort(Core\IO::list($dir)) as string $name) {
+    var $info = Core\IO::stat(Core\Path::join($dir, $name));
+    if ($info->isFile()) {
+        echo $name, ": ", $info->size(), " bytes", "\n";
+    }
+}

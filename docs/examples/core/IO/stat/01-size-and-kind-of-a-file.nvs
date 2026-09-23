@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the size of a file and check if it is a file or a folder.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "note.txt");
+Core\IO::write($path, "Café\n");
+
+var $info = Core\IO::stat($path);
+
+// "é" is two bytes, so the file has 6 bytes. This prints "size: 6".
+echo "size: ", $info->size(), "\n";
+
+// This prints "file: true" and "folder: false".
+echo "file: ", $info->isFile() ? "true" : "false", "\n";
+echo "folder: ", $info->isDir() ? "true" : "false", "\n";
