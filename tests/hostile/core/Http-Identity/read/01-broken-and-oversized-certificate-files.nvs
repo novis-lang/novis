@@ -1,0 +1,95 @@
+<?nvs
+// Attack: broken, mixed-up and very large certificate files are read as a client
+// identity. Each broken file must throw a `LogicError`, and memory must not grow
+// between reads. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+string $leaf = "-----BEGIN CERTIFICATE-----\nMIIBTDCB/6ADAgECAhQ17j2Xe6rvGOZqgU0W011sTuW+IzAFBgMrZXAwGzEZMBcG\nA1UEAwwQZWQubm92aXMuZXhhbXBsZTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2MDgx\nOTIzNDMyMlowGzEZMBcGA1UEAwwQZWQubm92aXMuZXhhbXBsZTAqMAUGAytlcAMh\nACT/4hW7zbJtISV79UQYEtXJzOQ18C0qB16Tags7Vpcao1MwUTAdBgNVHQ4EFgQU\n5hV1V6iqg9AL4FmXJoVbzAHpg2wwHwYDVR0jBBgwFoAU5hV1V6iqg9AL4FmXJoVb\nzAHpg2wwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQBSkCaW0oa7UWSQSqLBhxgD\nlRHq1kQ2BhwRhBHgl6n/0GK47grLHlIkdnLjiBygbjeYlE4JdgRVr1rWrpcZZLQF\n-----END CERTIFICATE-----\n";
+string $keyPem = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIM9sUcYAGspJOAqm3qMBkB//vV3Hnpj7+pgIXp43jW+t\n-----END PRIVATE KEY-----\n";
+secret bytes $keyFile = $keyPem as bytes;
+Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKind::Ed25519);
+
+// 1. Each file is broken in a different way. Each read must throw a `LogicError`.
+//    If one is accepted, the `RuntimeError` below stops the program early.
+array<bytes> $broken = [
+    '' as bytes,
+    "-----BEGIN CERTIFICATE-----\n" as bytes,
+    "-----BEGIN CERTIFICATE-----\n!!!not base64!!!\n-----END CERTIFICATE-----\n" as bytes,
+    "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n" as bytes,
+    "-----BEGIN CERTIFICATE-----\n\n-----END CERTIFICATE-----\n" as bytes,
+    Core\Str::replace($leaf, 'END CERTIFICATE', 'END SOMETHING') as bytes,
+    Core\Str::replace($leaf, 'MIIBTDCB', "MIIBTDC\x00") as bytes,
+    $keyPem as bytes,
+    Core\Encoding::fromHex('fffe00ff3082014c'),
+    Core\Str::slice($leaf, 0, 200) as bytes,
+];
+uint $refused = 0;
+foreach ($broken as bytes $chain) {
+    try {
+        Core\Http\Identity $accepted = Core\Http\Identity::read($chain, $key);
+        throw new RuntimeError('a broken certificate file was accepted as an identity');
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Each chain mixes a good certificate with a key, other text or a broken block.
+//    Any result is allowed here, as long as the program does not crash.
+array<bytes> $mixed = [
+    ($keyPem . $leaf) as bytes,
+    ("Bag Attributes: friendly name\n" . $leaf) as bytes,
+    ($leaf . "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n") as bytes,
+    ($leaf . $leaf . $leaf) as bytes,
+];
+uint $answered = 0;
+foreach ($mixed as bytes $chain) {
+    try {
+        Core\Http\Identity $maybe = Core\Http\Identity::read($chain, $key);
+    } catch (LogicError $error) {
+    }
+    $answered = $answered + 1;
+}
+echo 'step 2: ', $answered, "\n";
+
+// 3. One certificate block of ten million characters. It is not a real certificate,
+//    so the read must throw a `LogicError`.
+string $huge = "-----BEGIN CERTIFICATE-----\n" . Core\Str::repeat('A', 10000000) . "\n-----END CERTIFICATE-----\n";
+try {
+    Core\Http\Identity $big = Core\Http\Identity::read($huge as bytes, $key);
+    throw new RuntimeError('ten million characters of zeros were accepted as a certificate');
+} catch (LogicError $error) {
+    echo 'step 3: refused', "\n";
+}
+$huge = '';
+
+// 4. A chain with the same certificate five thousand times. The read may work
+//    or throw an error, but it must not crash.
+string $long = Core\Str::repeat($leaf, 5000);
+try {
+    Core\Http\Identity $many = Core\Http\Identity::read($long as bytes, $key);
+    echo 'step 4: read', "\n";
+} catch (LogicError $error) {
+    echo 'step 4: refused', "\n";
+}
+$long = '';
+
+// 5. The same good files are read two thousand times, and each identity is freed.
+//    The memory in use must not grow.
+uint $i = 0;
+while ($i < 2000) {
+    Core\Http\Identity $again = Core\Http\Identity::read($leaf as bytes, $key);
+    $i = $i + 1;
+}
+echo 'step 5: ', $i, "\n";
+
+// 6. Every identity is kept in a list and never freed. Each chain has the certificate
+//    two hundred times. This step ends the program at its memory limit.
+string $chainOf200 = Core\Str::repeat($leaf, 200);
+array<Core\Http\Identity> $kept = [];
+while (true) {
+    $kept[] = Core\Http\Identity::read(($chainOf200 . Core\Str::repeat(' ', Core\Arr::count($kept) % 7)) as bytes, $key);
+}

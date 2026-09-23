@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read a client certificate and its private key into one identity.
+
+// The certificate chain, as the PEM text you were given with it.
+string $chain = <<<'PEM'
+-----BEGIN CERTIFICATE-----
+MIIBTDCB/6ADAgECAhQ17j2Xe6rvGOZqgU0W011sTuW+IzAFBgMrZXAwGzEZMBcG
+A1UEAwwQZWQubm92aXMuZXhhbXBsZTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2MDgx
+OTIzNDMyMlowGzEZMBcGA1UEAwwQZWQubm92aXMuZXhhbXBsZTAqMAUGAytlcAMh
+ACT/4hW7zbJtISV79UQYEtXJzOQ18C0qB16Tags7Vpcao1MwUTAdBgNVHQ4EFgQU
+5hV1V6iqg9AL4FmXJoVbzAHpg2wwHwYDVR0jBBgwFoAU5hV1V6iqg9AL4FmXJoVb
+zAHpg2wwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQBSkCaW0oa7UWSQSqLBhxgD
+lRHq1kQ2BhwRhBHgl6n/0GK47grLHlIkdnLjiBygbjeYlE4JdgRVr1rWrpcZZLQF
+-----END CERTIFICATE-----
+PEM;
+
+// The private key that goes with the certificate. It is an Ed25519 key.
+secret bytes $keyFile = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIM9sUcYAGspJOAqm3qMBkB//vV3Hnpj7+pgIXp43jW+t\n-----END PRIVATE KEY-----\n" as bytes;
+
+// `Core\Crypto\KeyPair::read` reads the key. `Core\Http\Identity::read` then checks
+// that the key matches the first certificate in the chain.
+Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKind::Ed25519);
+Core\Http\Identity $identity = Core\Http\Identity::read($chain as bytes, $key);
+
+// The key matches, so no error is thrown and this line prints.
+echo "the certificate and the key belong together", "\n";

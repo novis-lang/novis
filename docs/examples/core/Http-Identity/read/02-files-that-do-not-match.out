@@ -1,0 +1,3 @@
+Core\Http\Identity::read(): the chain's leaf certificate carries a different public key than this key pair.
+an X25519 key is not allowed
+Core\Http\Identity::read(): the chain holds no certificate.

@@ -2658,6 +2658,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   change is a `#[test]` the examples never reach. Write and bless a whole group's examples first,
   then add all of the group's Rust tests once, so the group pays one release build rather than one
   per member. [until: reviewed 2026-09-22]
+- **A handoff that says a dossier goal is complete can be wrong, and the driver's failure line hides the list that says so.** The acceptance ledger prints the first stderr line of `dossier.py --verify --group`, which is the release-rebuild notice (`target/release/nvs.exe is missing or older than the tree`), not the features still owed below it. Before trusting a `DONE` handoff or reading that line as a stale binary, run the goal's own `python tools/dossier.py --verify --group '<Class>'` once per `[[check]]` group and read its `still owe a proof` list. [until: reviewed 2026-10-23]
 
 ## Running things
 
