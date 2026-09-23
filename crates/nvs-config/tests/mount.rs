@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::mount::{Mounted, expand};
+use nvs_config::mount::{Mounted, expand, expand_again};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Config;
 use nvs_config::trust::Untrusted;
@@ -365,6 +365,40 @@ fn a_captured_segment_that_does_not_spell_itself_is_refused() {
         .len(),
         1
     );
+}
+
+/// A running server's expansion leaves out each match a boot would refuse and keeps the rest: a
+/// capture that names a device, an explicit entry that is not on disk, and a second mount at a key.
+/// What was left out comes back as the same `E0621` a boot would have stopped on.
+#[test]
+fn an_expansion_after_boot_leaves_out_a_refused_match_and_keeps_the_rest() {
+    let fs = Fake::with(&[
+        "/www/shop/public/index.nvs",
+        "/www/CON/public/index.nvs",
+        "/www/blog/public/index.nvs",
+    ]);
+    let text = "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+                prefix = \"/{1}\"\n\n[[server.mount]]\nprefix = \"/admin\"\n\
+                entry = \"admin/public/index.nvs\"\n\n[[server.mount]]\nprefix = \"/x\"\n\
+                entry = \"blog/public/index.nvs\"\n\n[[server.mount]]\nprefix = \"/x\"\n\
+                entry = \"shop/public/index.nvs\"\n";
+    let (mounts, left_out) = expand_again(&tree(text), &BTreeMap::new(), &fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    let prefixes: Vec<&str> = mounts.iter().map(|mount| mount.prefix.as_str()).collect();
+    assert_eq!(prefixes, ["/blog", "/shop", "/x"]);
+    assert_eq!(
+        mounts[2].entry,
+        p("/www/blog/public/index.nvs"),
+        "the first mount at a key is kept"
+    );
+    assert_eq!(left_out.len(), 3, "{left_out:?}");
+    assert!(
+        left_out
+            .iter()
+            .all(|refused| refused.code == Some(code::E_BAD_MOUNT))
+    );
+    // A boot over the same disk stops on the first of them.
+    assert_eq!(refusal(&fs, text).code, Some(code::E_BAD_MOUNT));
 }
 
 /// The half that needs no disk, through the function `nvs config check` calls. Every shape a block

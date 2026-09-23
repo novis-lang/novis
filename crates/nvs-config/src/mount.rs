@@ -3,10 +3,11 @@
 //!
 //! § 2 is the rule the rest of the ADR is built to keep — a request **selects** an entry point from
 //! a set enumerated before it arrived, and never **constructs** one. That is what this module is:
-//! the one place a `*` in a `scan` meets a directory listing, and it runs at boot and at
-//! `rule:config/the-config-is-an-immutable-snapshot`'s reload, never on a
-//! request path. The same glob evaluated per request would be `cgi.fix_pathinfo` with a different
-//! spelling, which is § 2's own sentence for why the expansion is here rather than in the router.
+//! the one place a `*` in a `scan` meets a directory listing. It runs at boot ([`expand`]) and
+//! again off the request path whenever a running server sees a scanned directory change
+//! ([`expand_again`]), and never on a request path. The same glob evaluated per request would be
+//! `cgi.fix_pathinfo` with a different spelling, which is § 2's own sentence for why the expansion
+//! is here rather than in the router.
 //!
 //! **Two halves, because only one of them needs a disk.** [`check`] is everything a block can be
 //! wrong about on its own — naming both `entry` and `scan` or neither, matching on neither `prefix`
@@ -31,7 +32,7 @@
 //! entry — `nvs serve`'s boot loop, over the rows this module resolved — and not here. What is here is
 //! the half it reads: [`Mounted::origin`], already substituted.
 //!
-//! Cost: one directory listing per `*` per scanned segment, at boot and at reload, and one
+//! Cost: one directory listing per `*` per scanned segment, at boot and at each later expansion, and one
 //! [`Mounted`] per resolved mount held per configuration generation. Nothing here runs per request.
 //!
 
@@ -286,6 +287,47 @@ pub fn expand(
     origins: &BTreeMap<String, Origin>,
     files: &dyn Files,
 ) -> Result<Vec<Mounted>, Diagnostic> {
+    expanding(config, origins, files, &mut Err::<(), Diagnostic>)
+}
+
+/// [`expand`] as a running server repeats it: a match [`expand`] would refuse is left out, and
+/// the rest of the table is returned beside every refusal that left one out.
+///
+/// This is `rule:http-server/a-mount-table-expands-at-boot`'s later expansion. A boot that meets a
+/// bad match has served nothing yet, so refusing the start costs nothing. A server that meets one
+/// is already serving every other module, and refusing the whole table would take them all down
+/// for one directory. So each resolved path is still checked against `[server] root` and against
+/// § 3's capture rules, and one that fails is not in the table. Two mounts at one key leave the
+/// later one out.
+///
+/// # Errors
+///
+/// `E0621` for what is wrong with the configuration and not with one match: a block [`check`]
+/// refuses, and a `[server] root` that is not there.
+pub fn expand_again(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+    files: &dyn Files,
+) -> Result<(Vec<Mounted>, Vec<Diagnostic>), Diagnostic> {
+    let mut left_out = Vec::new();
+    let mounts = expanding(config, origins, files, &mut |refused| {
+        left_out.push(refused);
+        Ok(())
+    })?;
+    Ok((mounts, left_out))
+}
+
+/// What happens to a refused match: [`expand`] returns it as the error, and [`expand_again`]
+/// keeps it and goes on without the match.
+type Refusal<'a> = &'a mut dyn FnMut(Diagnostic) -> Result<(), Diagnostic>;
+
+/// The expansion both [`expand`] and [`expand_again`] run, with a refused match handed to `refused`.
+fn expanding(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+    files: &dyn Files,
+    refused: Refusal<'_>,
+) -> Result<Vec<Mounted>, Diagnostic> {
     let root = root_of(config, origins, files)?;
     let blocks = config
         .server
@@ -312,10 +354,10 @@ pub fn expand(
         shape(index, block, origins)?;
         let literal = block.entry.is_some();
         let resolved = if let Some(glob) = block.scan.as_deref() {
-            scanned(index, block, glob, &root, origins, files)?
+            scanned(index, block, glob, &root, origins, files, refused)?
         } else {
             let entry = block.entry.as_deref().unwrap_or_default();
-            vec![mounted(
+            match mounted(
                 index,
                 block,
                 &root,
@@ -323,7 +365,13 @@ pub fn expand(
                 Vec::new(),
                 origins,
                 files,
-            )?]
+            ) {
+                Ok(one) => vec![one],
+                Err(diagnostic) => {
+                    refused(diagnostic)?;
+                    Vec::new()
+                }
+            }
         };
         for one in resolved {
             let at = table
@@ -337,7 +385,7 @@ pub fn expand(
                 // read from the other end.
                 Some(at) if literal && !table[at].0 => table[at] = (true, one),
                 Some(at) if !literal && table[at].0 => {}
-                Some(_) => return Err(duplicate(index, &one.prefix, one.host.as_deref(), origins)),
+                Some(_) => refused(duplicate(index, &one.prefix, one.host.as_deref(), origins))?,
             }
         }
     }
@@ -403,7 +451,8 @@ fn no_root(written_in: Option<&Origin>) -> Diagnostic {
 /// A `*` lists a directory and a literal segment joins; a candidate that does not exist drops out
 /// as the walk passes through it, so nothing is ever asked about a path the disk does not hold. The
 /// capture rules are applied to the survivors and not to the listings, because a name only has to
-/// spell what it resolves to once it is a path the server could execute.
+/// spell what it resolves to once it is a path the server could execute. A survivor that fails
+/// them goes to `refused`, and the walk goes on without it when `refused` allows that.
 fn scanned(
     index: usize,
     block: &Mount,
@@ -411,6 +460,7 @@ fn scanned(
     root: &Path,
     origins: &BTreeMap<String, Origin>,
     files: &dyn Files,
+    refused: Refusal<'_>,
 ) -> Result<Vec<Mounted>, Diagnostic> {
     let mut frontier = vec![(root.to_path_buf(), Vec::new())];
     for segment in glob
@@ -447,24 +497,24 @@ fn scanned(
         if !files.exists(&path) {
             continue;
         }
-        for capture in &captures {
-            if !spells_itself(capture) {
-                return Err(refuse(
-                    format!("`{capture}` is not a name a mount capture may take"),
-                    format!(
-                        "`rule:http-server/a-mount-table-expands-at-boot` bounds a capture to `[A-Za-z0-9._-]`, forbids a leading dot \
-                         and refuses a reserved device name, and `{}` matched it under \
-                         `server.root`",
-                        path.display()
-                    ),
-                    "rename the directory, or narrow the glob so it does not reach this one",
-                    origins.get(&format!("server.mount.{index}.scan")),
-                ));
-            }
+        if let Some(capture) = captures.iter().find(|capture| !spells_itself(capture)) {
+            refused(refuse(
+                format!("`{capture}` is not a name a mount capture may take"),
+                format!(
+                    "`rule:http-server/a-mount-table-expands-at-boot` bounds a capture to `[A-Za-z0-9._-]`, forbids a leading dot \
+                     and refuses a reserved device name, and `{}` matched it under \
+                     `server.root`",
+                    path.display()
+                ),
+                "rename the directory, or narrow the glob so it does not reach this one",
+                origins.get(&format!("server.mount.{index}.scan")),
+            ))?;
+            continue;
         }
-        resolved.push(mounted(
-            index, block, root, &path, captures, origins, files,
-        )?);
+        match mounted(index, block, root, &path, captures, origins, files) {
+            Ok(one) => resolved.push(one),
+            Err(diagnostic) => refused(diagnostic)?,
+        }
     }
     Ok(resolved)
 }
