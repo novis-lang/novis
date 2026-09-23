@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program keeps the time from `modifiedAt` 100000 times, and keeps using it after the
+// result of `stat` is freed. It also asks a file that is written again and again.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-metadata-modified-at');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+Core\IO::write($path, 'first');
+
+// 1. One result is asked 100000 times, and every time it returns is kept in a list.
+// All of them must be the same moment.
+var $info = Core\IO::stat($path);
+Core\Time\Instant $first = $info->modifiedAt();
+array<Core\Time\Instant> $times = [];
+uint $i = 0;
+while ($i < 100000) {
+    $times[] = $info->modifiedAt();
+    $i = $i + 1;
+}
+foreach ($times as Core\Time\Instant $time) {
+    if ($time->compareTo($first) != 0) {
+        throw new LogicError('one result returned two different times');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. The result of `stat` is replaced, so it is freed. The kept times must still work.
+$info = Core\IO::stat($dir);
+if ($times[99999]->compareTo($first) != 0 || $first->toIso() == '') {
+    throw new LogicError('a kept time changed after its result was freed');
+}
+$times = [];
+echo 'step 2: done', "\n";
+
+// 3. The file is written 2000 times, with a `stat` after each write.
+// A time may stay the same or move forward, and must never move back.
+Core\Time\Instant $last = Core\IO::stat($path)->modifiedAt();
+$i = 0;
+while ($i < 2000) {
+    Core\IO::write($path, 'round ' . ($i as string));
+    Core\Time\Instant $now = Core\IO::stat($path)->modifiedAt();
+    if ($now->compareTo($last) < 0) {
+        throw new LogicError('the modification time moved back');
+    }
+    $last = $now;
+    $i = $i + 1;
+}
+echo 'step 3: done', "\n";
+Core\IO::remove($path);
