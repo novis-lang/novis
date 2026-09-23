@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read a header that a server sends on more than one line, here
+// the cookies of a reply.
+
+// `Core\Test::answerHttp` gives a fixed reply with two `Set-Cookie` lines, so the
+// example runs without a network.
+array<string> $cookies = ["session=8f2c; HttpOnly", "theme=dark; Expires=Wed, 21 Oct 2026 07:28:00 GMT"];
+Core\Test::answerHttp("https://shop.example.com/login", 200, {headers: ["Set-Cookie" => $cookies]});
+Core\Http\Response $response = Core\Http\Client::get("https://shop.example.com/login");
+
+// `headers()` returns one string for each line, in the order they arrived.
+// This prints the two cookies on two lines.
+foreach ($response->headers("set-cookie") as tainted string $cookie) {
+    echo $cookie, "\n";
+}

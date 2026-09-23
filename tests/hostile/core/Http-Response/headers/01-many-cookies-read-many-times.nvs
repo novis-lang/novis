@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a server sets a very large number of cookies, and the program reads
+// them many times with very long or broken names. Each call must return an array.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. The reply has one hundred thousand `Set-Cookie` lines. `headers()` must
+//    return every one of them, in order.
+array<string> $cookies = [];
+uint $n = 0;
+while ($n < 100000) {
+    $cookies[] = Core\Str::format('c%d=%d; Path=/', $n, $n);
+    $n = $n + 1;
+}
+Core\Test::answerHttp('https://shop.example.com/', 200, { headers: ['Set-Cookie' => $cookies] });
+Core\Http\Response $response = Core\Http\Client::get('https://shop.example.com/');
+array<tainted string> $read = $response->headers('SET-COOKIE');
+if (Core\Arr::count($read) != 100000 || $read[99999] != 'c99999=99999; Path=/') {
+    throw new LogicError('a cookie was lost or moved');
+}
+echo 'step 1: ', Core\Arr::count($read), "\n";
+
+// 2. A name of ten million letters, and names with a line break or nothing in
+//    them. Each call must return an empty array.
+array<string> $names = [Core\Str::repeat('Set-Cookie', 1000000), "set-cookie\r\nx-admin", '', 'set-cookie '];
+foreach ($names as string $name) {
+    if (Core\Arr::count($response->headers($name)) != 0) {
+        throw new LogicError('a header that was not sent was found');
+    }
+}
+echo 'step 2: empty', "\n";
+
+// 3. Every cookie is read again and again, and every array is kept. This step
+//    ends the program at its memory limit.
+array<array<tainted string>> $kept = [];
+while (true) {
+    $kept[] = $response->headers('set-cookie');
+}

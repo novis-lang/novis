@@ -1,0 +1,33 @@
+<?nvs
+// Shows a program that reads a long list from an API one page at a time. Each
+// reply has `Link` headers, and the one marked `rel="next"` gives the next page.
+
+class Pages {
+    // Returns the address of the next page, or `null` on the last page.
+    public static function next(Core\Http\Response $response): ?tainted string {
+        foreach ($response->headers("Link") as tainted string $link) {
+            // A link is written as `<address>; rel="next"`. The address is the
+            // text after `<` and before `>`.
+            if (Core\Str::endsWith($link, '; rel="next"')) {
+                tainted string $start = Core\Str::before($link, ">") ?? "";
+                return Core\Str::after($start, "<");
+            }
+        }
+        return null;
+    }
+}
+
+// Two fixed replies, so the example runs without a network. The first page has
+// a link to the second page, and the second page is the last one.
+array<string> $links = [
+    '<https://api.example.com/orders?page=1>; rel="first"',
+    '<https://api.example.com/orders?page=2>; rel="next"',
+];
+Core\Test::answerHttp("https://api.example.com/orders?page=1", 200, {headers: ["Link" => $links]});
+Core\Test::answerHttp("https://api.example.com/orders?page=2", 200, {});
+
+// This prints the address of page 2, then `last page`.
+Core\Http\Response $first = Core\Http\Client::get("https://api.example.com/orders?page=1");
+echo Pages::next($first) ?? "last page", "\n";
+Core\Http\Response $second = Core\Http\Client::get("https://api.example.com/orders?page=2");
+echo Pages::next($second) ?? "last page", "\n";
