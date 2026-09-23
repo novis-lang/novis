@@ -392,10 +392,13 @@ fn stamp(path: &Path) -> Stamp {
 /// reported once, and then a saved file waits for `nvs ctl reload`.
 pub(crate) fn check(process: &Arc<Process>) {
     let process = Arc::clone(process);
+    // Taken here, before any listener exists, and not by the thread: a thread
+    // that first runs after a file was saved would take the saved stamps as
+    // the boot's, and never notice that save.
+    let mut seen = process.stamps();
     let spawned = std::thread::Builder::new()
         .name("nvs-config-check".to_owned())
         .spawn(move || {
-            let mut seen = process.stamps();
             let mut moved: Option<Vec<(PathBuf, Stamp)>> = None;
             loop {
                 std::thread::sleep(CHECK);
