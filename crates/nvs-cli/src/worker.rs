@@ -227,11 +227,12 @@ impl Workers {
 /// install the reactor afterwards. `current` holds the configuration in force. Each job's context
 /// is given the snapshot it holds at the moment the job is claimed, for the reason the module
 /// doc's *What a job's grants are* section owns: a job's isolate is resolved against the context
-/// that runs it. `bounds` is what the boot resolved: `connection` and `workers` are `Boot` keys,
-/// and `visibility` is only the value a turn falls back on.
+/// that runs it. `bounds` names the connection and the count, and `visibility` is only the value a
+/// turn falls back on.
 ///
-/// Both binaries arrive here, and what they hand it differs in `workers` alone. `nvs run` never
-/// publishes a second snapshot, so its holder keeps the one it was made with.
+/// `nvs run` starts its workers here, all on one switch, and never publishes a second snapshot, so
+/// its holder keeps the one it was made with. `nvs serve` starts them through [`Crew`] instead,
+/// one switch each, because a reload may stop some of them.
 pub(crate) fn start(
     sched: &mut nvs_host::Scheduler,
     workers: &Workers,
@@ -242,18 +243,202 @@ pub(crate) fn start(
     for _ in 0..bounds.workers {
         // The whole switch rather than its flag alone: which end stops these workers is carried
         // here rather than decided here, and [`Workers`]'s own doc owns the difference.
-        let workers = workers.clone();
-        let name = bounds.connection.clone();
-        // Cloned rather than borrowed because a task's body is `'static`, and cloned per worker
-        // rather than shared because a `Database` is a handful of strings read once at connect.
-        let block = block.clone();
-        let visibility = bounds.visibility;
-        let current = Arc::clone(current);
-        let mut ctx = nvs_runtime::Ctx::stdout();
-        ctx.set_config(current.load());
-        sched.spawn(ctx, ROOT, move |ctx| {
-            claim_until_stopped(ctx, &workers, &name, &block, &current, visibility);
+        let (ctx, body) = worker(workers.clone(), bounds, block, current);
+        sched.spawn(ctx, ROOT, body);
+    }
+}
+
+/// One worker's context and task body, claiming out of `[db.<bounds.connection>]` until `workers`
+/// says stop.
+///
+/// The block is cloned rather than borrowed because a task's body is `'static`, and cloned per
+/// worker rather than shared because a `Database` is a handful of strings read once at connect.
+fn worker(
+    workers: Workers,
+    bounds: &QueueBounds,
+    block: &Database,
+    current: &Arc<nvs_config::Current>,
+) -> (
+    nvs_runtime::Ctx,
+    impl FnOnce(&mut nvs_runtime::Ctx) + 'static,
+) {
+    let name = bounds.connection.clone();
+    let block = block.clone();
+    let visibility = bounds.visibility;
+    let current = Arc::clone(current);
+    let mut ctx = nvs_runtime::Ctx::stdout();
+    ctx.set_config(current.load());
+    (ctx, move |ctx: &mut nvs_runtime::Ctx| {
+        claim_until_stopped(ctx, &workers, &name, &block, &current, visibility);
+    })
+}
+
+/// The workers `nvs serve` runs, one [`Workers`] switch each, and the task that keeps them in step
+/// with `[queue]` (`rule:config/reloadability-is-its-own-field`).
+///
+/// **A new count starts or stops workers, and a new connection replaces them all.** A worker that
+/// is stopped finishes the job it holds and writes it back first, because its switch is read at
+/// the top of a turn (the module doc's *Read at the top of a turn*). The workers that replace it
+/// open their own connection and claim their first job from there. So for a moment the old
+/// connection's last jobs and the new connection's first ones run side by side, and no claim is
+/// ever left without a worker to report it.
+///
+/// **What it spends** is one task on the core that ticks, which wakes once per `every` and compares
+/// two pointers, plus one switch per worker. The storage question the boot asks of a new
+/// connection is asked by the reload before it publishes, off every core, so no worker on this
+/// core waits on a catalog read.
+pub(crate) struct Crew {
+    /// The drain every worker also stops on.
+    draining: nvs_server::Draining,
+    /// The configuration in force, which each job runs under and which a reload replaces.
+    current: Arc<nvs_config::Current>,
+    /// The bounds and the block the running workers were started from, or `None` while none run.
+    on: Option<(QueueBounds, Database)>,
+    /// One switch per running worker, oldest first.
+    members: Vec<Workers>,
+    /// Cloned into every worker's task and dropped when that task returns, so its strong count
+    /// less one is how many workers are still running, stopped ones included.
+    alive: Rc<()>,
+}
+
+impl Crew {
+    /// A crew with no worker, following `current`.
+    pub(crate) fn new(draining: nvs_server::Draining, current: Arc<nvs_config::Current>) -> Self {
+        Self {
+            draining,
+            current,
+            on: None,
+            members: Vec::new(),
+            alive: Rc::new(()),
+        }
+    }
+
+    /// How many workers are running and have not been told to stop.
+    pub(crate) fn len(&self) -> usize {
+        self.members.len()
+    }
+
+    /// Queues `bounds.workers` workers on `sched`, before the scheduler turns.
+    pub(crate) fn arm(
+        &mut self,
+        sched: &mut nvs_host::Scheduler,
+        bounds: &QueueBounds,
+        block: &Database,
+    ) {
+        self.on = Some((bounds.clone(), block.clone()));
+        for _ in 0..bounds.workers {
+            let (ctx, body) = self.member();
+            sched.spawn(ctx, ROOT, body);
+        }
+    }
+
+    /// One more worker on the bounds and block in [`Crew::on`], with a switch of its own.
+    fn member(
+        &mut self,
+    ) -> (
+        nvs_runtime::Ctx,
+        impl FnOnce(&mut nvs_runtime::Ctx) + 'static,
+    ) {
+        let (bounds, block) = self
+            .on
+            .as_ref()
+            .expect("a member is only added while the crew has a connection");
+        let switch = Workers::draining(self.draining.clone());
+        self.members.push(switch.clone());
+        let (ctx, body) = worker(switch, bounds, block, &self.current);
+        let alive = Rc::clone(&self.alive);
+        (ctx, move |ctx: &mut nvs_runtime::Ctx| {
+            let _alive = alive;
+            body(ctx);
+        })
+    }
+
+    /// Brings the running workers to what `wanted` names, from inside the crew's own task.
+    ///
+    /// A different connection or block stops every running worker and starts `wanted`'s count on
+    /// the new one. The same connection starts the workers the count gained or stops the newest
+    /// ones it lost. `None` stops them all. A started worker is a child of the calling task,
+    /// which is why [`Crew::keep`] outlives every worker it started.
+    fn follow(&mut self, wanted: Option<(QueueBounds, Database)>) {
+        let same = |(had, had_block): &(QueueBounds, Database),
+                    (now, now_block): &(QueueBounds, Database)| {
+            had.connection == now.connection && had_block == now_block
+        };
+        let moved = match (&self.on, &wanted) {
+            (Some(had), Some(now)) => !same(had, now),
+            (None, None) => false,
+            _ => true,
+        };
+        let count = wanted.as_ref().map_or(0, |(bounds, _)| {
+            usize::try_from(bounds.workers).unwrap_or(usize::MAX)
         });
+        let keep = if moved {
+            0
+        } else {
+            count.min(self.members.len())
+        };
+        let stopped = self.members.len() - keep;
+        for switch in self.members.drain(keep..) {
+            switch.stop();
+        }
+        if stopped > 0 {
+            let (bounds, _) = self.on.as_ref().expect("a running worker has a connection");
+            eprintln!(
+                "note: {stopped} queue worker{} on `[db.{}]` stop{} after the current job",
+                if stopped == 1 { "" } else { "s" },
+                bounds.connection,
+                if stopped == 1 { "s" } else { "" },
+            );
+        }
+        self.on = wanted;
+        let started = count - keep;
+        for _ in 0..started {
+            let (ctx, body) = self.member();
+            if nvs_host::spawn_child(ctx, ROOT, body).is_none() {
+                self.members.pop();
+                eprintln!("warning: a queue worker was not started: no scheduler is turning here");
+                return;
+            }
+        }
+        if started > 0 {
+            let (bounds, _) = self.on.as_ref().expect("a started worker has a connection");
+            eprintln!(
+                "note: {started} queue worker{} started on `[db.{}]`",
+                if started == 1 { "" } else { "s" },
+                bounds.connection,
+            );
+        }
+    }
+
+    /// The crew's task: every `every`, whether a reload published a new snapshot, and if it did,
+    /// [`Crew::follow`] over what `wanted` resolves from it.
+    ///
+    /// A drain is read once per `every`, which bounds what it adds to a stop, as the schedule
+    /// ticker's poll does. It then stops following and waits, one [`IDLE_TURN`] at a time, until
+    /// every worker it ever started has returned. A worker it started is its child, and a child
+    /// ends when its parent does, which would cut a job off in the middle.
+    pub(crate) fn keep(
+        mut self,
+        every: Duration,
+        wanted: impl Fn(&nvs_config::Config) -> Option<(QueueBounds, Database)>,
+    ) {
+        let mut seen = self.current.load();
+        while !self.draining.is_draining() {
+            if matches!(pause(every), Woken::Cancelled) {
+                return;
+            }
+            let now = self.current.load();
+            if Arc::ptr_eq(&now, &seen) {
+                continue;
+            }
+            seen = now;
+            self.follow(wanted(&seen.config));
+        }
+        while Rc::strong_count(&self.alive) > 1 {
+            if matches!(nap(), Woken::Cancelled) {
+                return;
+            }
+        }
     }
 }
 
@@ -1536,13 +1721,18 @@ fn millis(at: i64) -> Vec<u8> {
     at.to_string().into_bytes()
 }
 
-/// Parks this worker for [`IDLE_TURN`], reporting how the wait ended.
+/// Parks this task for [`IDLE_TURN`], reporting how the wait ended.
+fn nap() -> Woken {
+    pause(IDLE_TURN)
+}
+
+/// Parks this task for `length`, reporting how the wait ended.
 ///
 /// With no host on the thread there is nothing to hand the core back to, so the wait is a blocking
 /// one — `Core\Time::sleep`'s own reading, and unreachable here, since a worker is only ever a task.
-fn nap() -> Woken {
-    with_current(|host| host.sleep(IDLE_TURN)).unwrap_or_else(|| {
-        std::thread::sleep(IDLE_TURN);
+fn pause(length: Duration) -> Woken {
+    with_current(|host| host.sleep(length)).unwrap_or_else(|| {
+        std::thread::sleep(length);
         Woken::Elapsed
     })
 }

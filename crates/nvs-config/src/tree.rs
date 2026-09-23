@@ -1016,7 +1016,7 @@ pub struct Deferred {
 
 /// `[queue]` — `rule:core-classes/queue-storage-is-a-table`'s durable job queue, which is a table in a database an operator names.
 ///
-/// Every key is `System`: the queue is armed at boot and a request may not move it, for `rule:config/scheduled-work-is-a-config-block`'s
+/// Every key is `System`: only the operator may move the queue, for `rule:config/scheduled-work-is-a-config-block`'s
 /// reason on `[[schedule]]` beside it — work a request could redirect is work a request could
 /// redirect into a database it was never granted.
 ///

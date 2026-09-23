@@ -385,15 +385,11 @@ fn a_boot_key_inside_a_reload_block_is_carried_alone() {
     assert_eq!(server.dispatch.as_deref(), Some("entry"));
 }
 
-/// [ADR 0154] § 5's reason for splitting `[queue]` across two apply classes, asserted as the thing
-/// an operator sees: a `workers` they edited on a running server is named by the reload and the
-/// count still in force is the one the workers were started with, while the `max_attempts` in the
-/// same file takes effect. `[queue]` is the block after `[deferred]` where both halves are in one
-/// tree, so a registry that made the block one row would fail here in whichever direction it chose.
-///
-/// [ADR 0154]: ../../../docs/decisions/0154.md
+/// `[queue]` reloads whole: a `workers` an operator edited on a running server is published with
+/// the `max_attempts` beside it, and the reload carries nothing back. Starting and stopping the
+/// worker tasks is `nvs-cli`'s, and `live_config.rs` proves it.
 #[test]
-fn a_reload_that_changes_workers_carries_the_running_value_and_names_the_key() {
+fn a_reload_that_changes_workers_publishes_the_new_count() {
     let written = |workers: u32, max_attempts: u32| {
         let text = format!(
             "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\n\
@@ -410,27 +406,19 @@ fn a_reload_that_changes_workers_carries_the_running_value_and_names_the_key() {
         )))
         .expect("this tree deserializes");
 
-    assert_eq!(
+    assert!(
+        reload.boot.is_empty(),
+        "a reload of `[queue]` named {:?} as not applied",
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["queue.workers"],
-        "a worker is a spawned task, so the count an operator changed is named rather than applied",
     );
     let queue = reload
         .snapshot
         .config
         .queue
         .as_ref()
-        .expect("the running `[queue]` block was carried forward");
-    assert_eq!(
-        queue.workers,
-        Some(4),
-        "the running count is still in force"
-    );
-    // The connection did not change, so it is not reported either — `Boot` is what applying costs,
-    // not what a key is.
+        .expect("the reloaded `[queue]` block was published");
+    assert_eq!(queue.workers, Some(16), "the new count is in force");
     assert_eq!(queue.connection.as_deref(), Some("main"));
-    // And the `Reload` half of the same block did take effect, which is what makes the carry above
-    // a property of the two directives rather than of the reload.
     assert_eq!(queue.max_attempts, Some(9));
 }
 
@@ -490,16 +478,6 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "opcache.file_cache_dir",
         "[opcache]\nfile_cache_dir = \"/var/cache/one\"\n",
         "[opcache]\nfile_cache_dir = \"/var/cache/two\"\n",
-    ),
-    (
-        "queue.connection",
-        "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\n",
-        "[db.main]\ndriver = \"pgsql\"\n\n[db.jobs]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"jobs\"\n",
-    ),
-    (
-        "queue.workers",
-        "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\nworkers = 4\n",
-        "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\nworkers = 16\n",
     ),
 ];
 

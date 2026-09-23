@@ -113,9 +113,10 @@
 //! `nvs ctl reload` is serving from the next request rather than from the next
 //! start; a request already running keeps the snapshot it took, and the boot's
 //! own `Boot`-class reads above are never asked again. The `Core` each worker
-//! is handed carries the boot snapshot beside the holder, for the per-core work
-//! — the schedule roster and the queue's bounds — that is fixed at boot for
-//! `rule:http-server/the-server-block-is-boot-class`'s reason.
+//! is handed carries the boot snapshot beside the holder, which arms the
+//! schedule roster and the queue workers on the core that ticks. Each of those
+//! then follows the holder: the ticker re-arms its roster, and the queue's
+//! [`crate::worker::Crew`] starts and stops workers.
 //!
 //! # Decision: the control endpoint is bound before any listener
 //!
@@ -1216,16 +1217,25 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     }
     // `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s third
     // subsystem, armed where the ticker is and for the ticker's reasons.
-    let Ok(queue_workers) = arm_queue_workers(sched, &current, ticks, &draining) else {
+    let Ok(crew) = arm_queue_workers(sched, &current, ticks, &draining) else {
         // Printed and drained where the refusal was decided, so this core ends here rather than
         // taking a listener, and the boot's exit code is every core's answer together.
         return false;
     };
-    if queue_workers > 0 {
-        println!(
-            "arming {queue_workers} queue worker{}",
-            if queue_workers == 1 { "" } else { "s" }
-        );
+    if let Some(crew) = crew {
+        let queue_workers = crew.len();
+        if queue_workers > 0 {
+            println!(
+                "arming {queue_workers} queue worker{}",
+                if queue_workers == 1 { "" } else { "s" }
+            );
+        }
+        // Spawned even where no worker runs, as the ticker is, because a reload may write the
+        // first `[queue]` block. `TaskRoot::Worker` for the workers' own reason: no request is
+        // beneath it.
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
+            crew.keep(SCHEDULE_POLL, queue_armed);
+        });
     }
     // One task per listener, because a parked accept loop answers one socket
     // and every entry of `[server] listen` is bound. They share this core, its
@@ -1387,19 +1397,72 @@ fn queue_on_this_core(
     if !ticks {
         return Ok(None);
     }
-    let armed = nvs_config::queue::queue_for(config, &std::collections::BTreeMap::new())
+    let Some((bounds, block)) = queue_armed(config) else {
+        return Ok(None);
+    };
+    queue_storage_is_current(&bounds.connection, &block)?;
+    Ok(Some((bounds, block)))
+}
+
+/// The `[queue]` bounds `config` arms workers for, with the `[db.<name>]` block they claim out of,
+/// or `None` where it arms none.
+///
+/// The resolution alone, asking no database: [`queue_on_this_core`] asks the storage at boot, the
+/// reload asks it before it publishes ([`queue_storage_refusal`]), and the crew's task reads this
+/// from each snapshot a reload publishes.
+pub(crate) fn queue_armed(
+    config: &nvs_config::Config,
+) -> Option<(nvs_config::queue::QueueBounds, nvs_config::tree::Database)> {
+    nvs_config::queue::queue_for(config, &std::collections::BTreeMap::new())
         .ok()
         .flatten()
         .filter(|bounds| bounds.workers > 0)
         .and_then(|bounds| {
             let block = config.db.get(&bounds.connection)?.clone();
             Some((bounds, block))
-        });
-    let Some((bounds, block)) = armed else {
-        return Ok(None);
+        })
+}
+
+/// The reload's half of [`queue_storage_is_current`]: `None` when the workers `next` arms may
+/// start, and otherwise the refusal to report, with the running configuration kept whole.
+///
+/// Asked only when the workers would claim out of a connection or a block the running ones do not,
+/// because workers already claiming there were checked when they started. A reload is refused
+/// whole here, as a boot is, because a queue behind its schema is the one deployment that fails
+/// silently.
+pub(crate) fn queue_storage_refusal(
+    next: &nvs_config::Config,
+    running: &nvs_config::Config,
+) -> Option<String> {
+    let (bounds, block) = queue_armed(next)?;
+    let started = queue_armed(running);
+    if started
+        .is_some_and(|(had, had_block)| had.connection == bounds.connection && had_block == block)
+    {
+        return None;
+    }
+    let name = &bounds.connection;
+    let missing = match queue_shortfall(name, &block) {
+        Ok(missing) if missing.is_empty() => return None,
+        Ok(missing) => missing,
+        Err(_) => {
+            return Some(format!(
+                "error: the queue workers cannot start on `[db.{name}]`, so the running \
+                 configuration is unchanged\nnote: the lines above say why it could not be opened"
+            ));
+        }
     };
-    queue_storage_is_current(&bounds.connection, &block)?;
-    Ok(Some((bounds, block)))
+    let mut refusal = format!(
+        "error: `[db.{name}]` is behind the queue's schema, so the running configuration is \
+         unchanged"
+    );
+    for line in missing {
+        refusal.push_str(&format!("\nnote: it holds no {line}"));
+    }
+    refusal.push_str(&format!(
+        "\nnote: `nvs queue migrate --connection {name}` writes what is missing"
+    ));
+    Some(refusal)
 }
 
 /// Whether `[db.<name>]` holds everything [`nvs_stdlib::queue::schema`] asks of it, as the boot's
@@ -1425,12 +1488,7 @@ fn queue_storage_is_current(
     name: &str,
     block: &nvs_config::tree::Database,
 ) -> Result<(), ExitCode> {
-    let Some(driver) = crate::queue::dialect_of(name, block.driver.as_deref()) else {
-        return Err(ExitCode::FAILURE);
-    };
-    let mut conn = crate::schema::open(name, block, driver)?;
-    let live = crate::schema::introspected(&mut conn, name)?;
-    let missing = nvs_stdlib::queue::schema_shortfall(&live);
+    let missing = queue_shortfall(name, block)?;
     if missing.is_empty() {
         return Ok(());
     }
@@ -1440,6 +1498,24 @@ fn queue_storage_is_current(
     }
     eprintln!("note: `nvs queue migrate --connection {name}` writes what is missing");
     Err(ExitCode::FAILURE)
+}
+
+/// What `[db.<name>]` lacks of the queue's schema, one line each, and empty when it lacks nothing.
+///
+/// # Errors
+///
+/// The block names no driver this binary opens, or the database could not be opened or read. The
+/// reason is already printed.
+fn queue_shortfall(
+    name: &str,
+    block: &nvs_config::tree::Database,
+) -> Result<Vec<String>, ExitCode> {
+    let Some(driver) = crate::queue::dialect_of(name, block.driver.as_deref()) else {
+        return Err(ExitCode::FAILURE);
+    };
+    let mut conn = crate::schema::open(name, block, driver)?;
+    let live = crate::schema::introspected(&mut conn, name)?;
+    Ok(nvs_stdlib::queue::schema_shortfall(&live))
 }
 
 /// [`crate::worker::start`]'s tasks on this core's scheduler, and how many of them there are.
@@ -1455,7 +1531,10 @@ fn queue_storage_is_current(
 /// [`crate::worker::start`]'s `TaskRoot::Worker` where the ticker holds `TaskRoot::Request`.
 ///
 /// `[queue]` is resolved from the snapshot `current` holds now, and the workers keep `current`
-/// itself, so each job runs under whatever a reload published last.
+/// itself, so each job runs under whatever a reload published last. The answer is the
+/// [`crate::worker::Crew`] those workers belong to, on the core that ticks, and `None` on every
+/// other core. The caller spawns the crew's own task, which starts and stops workers as a reload
+/// changes `[queue] workers` or `[queue] connection`.
 ///
 /// No lease and no `nvs_server::Leases`, unlike `arm`: `rule:concurrency/claiming-is-one-statement`
 /// puts the mutual exclusion in the database, so a fleet of instances each running their own
@@ -1470,7 +1549,7 @@ fn arm_queue_workers(
     current: &Arc<nvs_config::Current>,
     ticks: bool,
     draining: &nvs_server::Draining,
-) -> Result<u32, ExitCode> {
+) -> Result<Option<crate::worker::Crew>, ExitCode> {
     let armed = match queue_on_this_core(&current.load().config, ticks) {
         Ok(armed) => armed,
         Err(refused) => {
@@ -1478,17 +1557,14 @@ fn arm_queue_workers(
             return Err(refused);
         }
     };
-    let Some((bounds, block)) = armed else {
-        return Ok(0);
-    };
-    crate::worker::start(
-        sched,
-        &crate::worker::Workers::draining(draining.clone()),
-        &bounds,
-        &block,
-        current,
-    );
-    Ok(bounds.workers)
+    if !ticks {
+        return Ok(None);
+    }
+    let mut crew = crate::worker::Crew::new(draining.clone(), Arc::clone(current));
+    if let Some((bounds, block)) = armed {
+        crew.arm(sched, &bounds, &block);
+    }
+    Ok(Some(crew))
 }
 
 /// `nvs_server::Leases` over the shared tier — § 3's lease, which this binary is
@@ -3423,7 +3499,8 @@ mod tests {
             true,
             &nvs_server::Draining::detached(),
         )
-        .expect("a queue converged to its own schema is served");
+        .expect("a queue converged to its own schema is served")
+        .map_or(0, |crew| crew.len());
         assert_eq!(
             armed, 2,
             "the boot snapshot's `[queue] workers = 2` armed {armed} worker(s)"
@@ -3513,7 +3590,8 @@ mod tests {
             true,
             &nvs_server::Draining::detached(),
         )
-        .expect("a tree with no queue has no storage to be behind");
+        .expect("a tree with no queue has no storage to be behind")
+        .map_or(0, |crew| crew.len());
         assert_eq!(armed, 0, "{armed} worker(s) armed off a tree with no queue");
         assert_eq!(
             sched.tracked_tasks(),

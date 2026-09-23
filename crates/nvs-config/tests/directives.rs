@@ -63,8 +63,6 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "server.listen",
         "server.socket_mode",
         "server.workers",
-        "queue.connection",
-        "queue.workers",
     ] {
         assert_eq!(
             governing(key).apply,
@@ -83,8 +81,10 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
-        // `[queue]`'s other half, whose `connection` and `workers` are in the `Boot` list above:
-        // both of these are read per job out of the snapshot, so applying one re-creates nothing.
+        // `[queue]`, whole: a new `connection` or `workers` starts or stops worker tasks, and the
+        // other two are read per job out of the snapshot.
+        "queue.connection",
+        "queue.workers",
         "queue.max_attempts",
         "queue.visibility",
         "metrics.listen",
@@ -328,13 +328,13 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "queue.connection",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job",
     ),
     (
         "queue.workers",
-        RESTART,
-        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+        LIVE,
+        "a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job",
     ),
     (
         "queue.visibility",
@@ -2044,8 +2044,8 @@ fn http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class
 /// getting `None`, which is what a reload that changes a key it cannot apply and says nothing looks
 /// like from the outside.
 ///
-/// Each key answers with its *own* row and not through a prefix: the block has no `queue` row,
-/// because its four keys are not one apply class (`connection_and_workers_are_boot_…` below).
+/// Each key answers with its *own* row and not through a prefix: the block has no `queue` row, so
+/// a `covers:` line can name each key as a directive of its own.
 ///
 /// [ADR 0154]: ../../../docs/decisions/0154.md
 #[test]
@@ -2063,35 +2063,30 @@ fn every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four() {
         let row = governing(&dotted);
         assert_eq!(
             row.key, dotted,
-            "`{dotted}` resolves through `{}` rather than through a row of its own, and the four \
-             keys of `[queue]` are not one apply class",
+            "`{dotted}` resolves through `{}` rather than through a row of its own",
             row.key,
         );
     }
 }
 
-/// The split ADR 0154 § 5 states, which is the whole reason `[queue]` is four rows and not one:
-/// `connection` and `workers` are what a worker is built out of, and the other two are read per job
-/// out of the snapshot. Asserted on both sides, because a table that made the whole block `Boot`
-/// would make a `max_attempts` an operator changed need a restart, and one that made it all
-/// `Reload` would let a `workers` change look applied while no task was started or stopped.
+/// Every key of `[queue]` reloads. `connection` and `workers` are what a worker is built out of,
+/// so a reload that changes one starts or stops worker tasks (`live_config.rs`'s
+/// `a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job`). The other two
+/// are read per job out of the snapshot.
 // covers: directive:queue.connection, directive:queue.workers, directive:queue.max_attempts, directive:queue.visibility
 #[test]
-fn connection_and_workers_are_boot_and_max_attempts_and_visibility_are_reload() {
-    for key in ["queue.connection", "queue.workers"] {
-        assert_eq!(
-            governing(key).apply,
-            Apply::Boot,
-            "`{key}` is what a worker is built out of: applying a change starts or stops tasks, or \
-             strands every claim in flight (`rule:config/reloadability-is-its-own-field`)",
-        );
-    }
-    for key in ["queue.max_attempts", "queue.visibility"] {
+fn every_queue_key_reloads() {
+    for key in [
+        "queue.connection",
+        "queue.workers",
+        "queue.max_attempts",
+        "queue.visibility",
+    ] {
         assert_eq!(
             governing(key).apply,
             Apply::Reload,
-            "`{key}` is read per job out of the snapshot, so applying it re-creates nothing \
-             (`rule:config/reloadability-is-its-own-field`)",
+            "`{key}` needs a restart, and `rule:config/reloadability-is-its-own-field` names only \
+             three `[server]` keys as `Boot`",
         );
     }
 }
@@ -2116,7 +2111,7 @@ fn every_queue_row_is_system_class() {
         assert_eq!(
             row.class,
             Class::System,
-            "`{}` is `System` — the queue is armed at boot and a request may not move it \
+            "`{}` is `System` — only the operator may move the queue \
              (`rule:core-classes/queue-storage-is-a-table`)",
             row.key,
         );

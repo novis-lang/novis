@@ -261,16 +261,13 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "schedule", class: Class::System, apply: Apply::Reload },
     // `System` throughout, and for one reason: `rule:core-classes/queue-storage-is-a-table` puts the jobs in a connection the
     // operator names, so work a request could redirect is work a request could redirect into a
-    // database it was never granted. The apply class then splits, which makes `[queue]` the second
-    // block after `[deferred]` whose halves are two of them. `Boot` for the two a worker is built
-    // out of: a connection swapped under running workers strands every claim in flight against a
-    // database nothing will report to, and a worker is a spawned task, so applying a new count
-    // means starting or stopping tasks.
-    Directive { key: "queue.connection", class: Class::System, apply: Apply::Boot },
-    Directive { key: "queue.workers", class: Class::System, apply: Apply::Boot },
-    // `Reload` for the two that are read per job out of the snapshot — the attempts a job gets
-    // before it is dead-lettered, and the lease length a claim takes — because a new value is in
-    // force for the next job and applying it re-creates nothing.
+    // database it was never granted. Every key reloads. `connection` and `workers` are what a worker
+    // is built from, so a new value starts or stops worker tasks: a stopped worker writes back the
+    // job it holds first, and a new connection's workers claim from there
+    // (`nvs-cli`'s `worker::Crew`). `max_attempts` and `visibility` are read per job out of the
+    // snapshot, so a new value is in force for the next job.
+    Directive { key: "queue.connection", class: Class::System, apply: Apply::Reload },
+    Directive { key: "queue.workers", class: Class::System, apply: Apply::Reload },
     Directive { key: "queue.max_attempts", class: Class::System, apply: Apply::Reload },
     Directive { key: "queue.visibility", class: Class::System, apply: Apply::Reload },
     Directive { key: "app", class: Class::System, apply: Apply::Reload },

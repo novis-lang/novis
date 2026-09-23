@@ -681,9 +681,10 @@
 
 # ----------------------------------------------------------------------------------------------
 # [queue] — the durable job queue, which is a table in a database an operator names
-# (`rule:core-classes/queue-storage-is-a-table`). Every key is `System`: the queue is armed at boot
-# and a request may not move it, because work a request could redirect is work it could redirect into
-# a database it was never granted. A block with no key written is the off switch — nothing is
+# (`rule:core-classes/queue-storage-is-a-table`). Every key is `System`: only the operator may move
+# the queue, because work a request could redirect is work it could redirect into a database it was
+# never granted. Every key reloads, and a new `connection` or `workers` starts or stops workers once
+# each has finished its current job. A block with no key written is the off switch — nothing is
 # enqueued and nothing runs.
 # ----------------------------------------------------------------------------------------------
 

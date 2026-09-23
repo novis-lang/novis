@@ -888,6 +888,108 @@ fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
     );
 }
 
+/// Two SQLite blocks, `jobs` and `other`, and a queue on `connection` with
+/// `workers` workers. A job that throws is dead-lettered at once, so each job
+/// writes one line.
+fn crew(connection: &str, workers: u32) -> String {
+    format!(
+        "[capabilities.script]\nspawn = [\"jobs/\"]\n\n[db.jobs]\ndriver = \"sqlite\"\npath = \
+         \"jobs.db\"\n\n[db.other]\ndriver = \"sqlite\"\npath = \"other.db\"\n\n[queue]\n\
+         connection = \"{connection}\"\nworkers = {workers}\nmax_attempts = 1\n"
+    )
+}
+
+/// An entry file that pushes one slow job per request.
+const PUSHING_SLOW: &str = "<?nvs\nCore\\Queue::push(\"jobs/slow.nvs\");\necho \"pushed\";\n";
+
+/// A job that waits one second and then throws. A throw is what the worker
+/// reports on standard error.
+const SLOW: &str = "<?nvs\nCore\\Time::sleep(1s);\nthrow new RuntimeError(\"finished\");\n";
+
+/// A reload that changes `[queue] workers` starts or stops workers, and one
+/// that changes `[queue] connection` moves them. A stopped worker finishes
+/// the job it holds first. A new connection whose tables are missing refuses
+/// the reload, and the workers keep running where they were.
+#[test]
+fn a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job() {
+    const FINISHED: &str = "`jobs/slow.nvs` threw RuntimeError: finished";
+    let server = Server::start_after(
+        "crew",
+        &crew("jobs", 1),
+        &[("app.nvs", PUSHING_SLOW), ("jobs/slow.nvs", SLOW)],
+        &["queue", "migrate"],
+    );
+    let finished = |count: usize, what: &str| {
+        eventually(&server, what, || times(&server.said(), FINISHED) >= count);
+    };
+    let push = || server.awaits("/", "a push", |answer| answer.body == "pushed");
+
+    push();
+    finished(1, "the job the boot's worker claimed");
+
+    // The worker is holding a job when the reload stops it, and the job ends.
+    push();
+    thread::sleep(POLL * 6);
+    let report = server.reload(&crew("jobs", 0));
+    assert!(
+        report.contains("applied: queue.workers\n"),
+        "the reload did not name `queue.workers` as applied: {report}"
+    );
+    server.logs("1 queue worker on `[db.jobs]` stops after the current job");
+    finished(2, "the job the stopped worker was holding");
+
+    // No worker runs now, so a job pushed now waits.
+    push();
+    thread::sleep(Duration::from_secs(3));
+    assert_eq!(
+        times(&server.said(), FINISHED),
+        2,
+        "a job ran with `[queue] workers = 0`: {}",
+        server.said()
+    );
+
+    let report = server.reload(&crew("jobs", 2));
+    assert!(
+        report.contains("applied: queue.workers\n"),
+        "the reload did not name `queue.workers` as applied: {report}"
+    );
+    server.logs("2 queue workers started on `[db.jobs]`");
+    finished(3, "the waiting job, claimed by a started worker");
+
+    // `other.db` has no queue tables yet, so the reload is refused whole.
+    write_file(
+        &server.dir.join("nvs.toml"),
+        &controlled(&server.socket, &crew("other", 2)),
+    );
+    let refused = server.ctl_output(&server.socket, "reload");
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&refused.stdout),
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    assert!(
+        !refused.status.success() && said.contains("is behind the queue's schema"),
+        "a reload onto a connection with no queue tables was not refused: {said}"
+    );
+
+    let migrated = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["queue", "migrate", "--connection", "other"])
+        .current_dir(&server.dir)
+        .stdin(Stdio::null())
+        .output()
+        .expect("the `nvs` binary this test was built beside starts");
+    assert!(
+        migrated.status.success(),
+        "`nvs queue migrate --connection other` failed: {}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    server.ctl("reload");
+    server.logs("2 queue workers on `[db.jobs]` stop after the current job");
+    server.logs("2 queue workers started on `[db.other]`");
+    push();
+    finished(4, "a job pushed onto the new connection");
+}
+
 /// A deployment whose scripts may live under `jobs/`, with no `[[schedule]]`
 /// entry until `entry` adds one.
 fn scheduling(entry: &str) -> String {

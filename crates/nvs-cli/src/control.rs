@@ -49,6 +49,15 @@
 //! as not applied while the rest of the tree is published
 //! ([`nvs_config::Current::publish_keeping`]). `false` closes the endpoint.
 //!
+//! **A reload that moves the queue workers asks their storage first.** Where
+//! the new tree's workers would claim out of a connection or a `[db.<name>]`
+//! block the running ones do not, the reload opens it and reads its catalog,
+//! and a queue behind its schema or a database that cannot be opened refuses
+//! the whole reload, as the boot does ([`crate::serve::queue_storage_refusal`]).
+//! This runs on the reload's thread, so no core waits on it. The workers
+//! themselves follow the published tree on the core that ticks
+//! ([`crate::worker::Crew`]).
+//!
 //! **The unit cache is re-keyed and not merely counted.** `[[extension]]` is the
 //! configuration's whole contribution to
 //! `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest and
@@ -320,6 +329,14 @@ impl Process {
         // way it refuses a boot, and leaves the running tree serving.
         nvs_config::server::capacity_for(&next.config, &origins)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        // Before the control endpoint moves, so a refused tree has created
+        // nothing. Queue workers that would start on a new connection start
+        // only where its storage holds the queue's schema, as at boot.
+        if let Some(refusal) =
+            crate::serve::queue_storage_refusal(&next.config, &self.current.load().config)
+        {
+            return Err(refusal);
+        }
         let moved = self
             .moving(&next)
             .map_err(|refusal| rendered(&refusal, &sources))?;
