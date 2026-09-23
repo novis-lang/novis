@@ -19,6 +19,3 @@ wins, because the mode supplies a default and nothing more.
 
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
-
-**What is on disk.** `settle` is read, with its startup row, into `nvs_config::cache::Revalidation`,
-but nothing waits on it yet: the check that would still runs inside the resolve.

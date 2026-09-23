@@ -3,7 +3,7 @@
 
 # Packaging
 
-*38 of 72 rules below are **designed** rather than shipped, and are marked where they appear.*
+*37 of 72 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -272,7 +272,7 @@ changes is disk usage, and the next run of anything they removed pays one cold c
 
 <a id="packaging-autoload-probes-fold-into-the-cache-key"></a>
 
-## A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed  *(designed — not yet in the compiler)*
+## A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed
 
 `rule:packaging/autoload-probes-fold-into-the-cache-key`
 
@@ -297,14 +297,6 @@ window for N listed directories — tens, not thousands — spent by the backgro
 [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) and never by a request. For a
 compiled build and the wasm target the question does not arise; resolution happens once, at build
 time.
-
-**What is on disk.** Both halves, checked from the resolve. The resolver records the trace — every
-path probed, in order, misses included, and every directory a discovery scan listed with the names it
-could act on (`nvs_hir::autoload::ProbeTrace`). A `discover` glob lists its base directory and probes
-the root it builds for each match. The in-memory unit table keys on the trace's digest beside the
-program digest and the environment, and re-asks those paths under the gate the content `stat` rides:
-a file written where a probe missed, or a listed directory whose names changed, sends that unit to a
-compile (`nvs_cli::script`). That check still runs inside a resolve, not in the background.
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 

@@ -35,7 +35,7 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** The resolve-time form of this rule: the key is the whole program, and a check
-looks at every file the compile read, every path it missed, every `autoload` probe and every
-directory a discovery query listed, but it runs inside the resolve, on the request path. The
-background check, `settle` and the link re-resolve are not on disk.
+**What is on disk.** All of it but two steps: a file that moves while the compile runs does not yet
+discard that compile, and the entry path is not resolved through its links around a compile. The
+quiet time is measured from the newest modification time among the files the program's last
+compile read.

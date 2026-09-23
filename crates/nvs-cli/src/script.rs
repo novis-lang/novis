@@ -46,12 +46,15 @@
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
 //! stamp the last check observed, in front of a table keyed by
-//! [`UnitKey`]`{ path, program_digest, probe_hash, env_hash }`. A resolve walks its five
-//! steps — reuse the known digest inside `revalidate_freq`; otherwise
-//! `stat`, and re-read the source only
-//! where the stamp cannot answer; compile only content this table has not seen;
-//! write the digest back on success; leave it alone on failure, and answer that
-//! caller with the failure the new content is now keyed to.
+//! [`UnitKey`]`{ path, program_digest, probe_hash, env_hash }`. A request for a
+//! path with a pointer is step 1 alone: a map lookup, and no file-system call.
+//! [`Compiler::revalidate`] walks the other four for every pointer, on
+//! [`watch`]'s thread once per `revalidate_freq`: `stat`, and re-read the
+//! source only where the stamp cannot answer; wait until the program has been
+//! quiet for `settle`; compile only content this table has not seen; move the
+//! pointer on success; leave it alone on failure, and name the failure the
+//! path's requests are answered with ([`PathEntry::failed`]). A path with no
+//! pointer yet is walked by the request that names it, as a cold compile.
 //!
 //! **A unit is keyed on its whole program, which only a compile can name**, so
 //! the table is addressed in two moves rather than one. A program is every file
@@ -68,9 +71,8 @@
 //! its own trace gives. What the second move re-keys is the table entry, so a
 //! cold path still costs one compile and not two.
 //!
-//! **Every path a trace names is revalidated like the entry file.** A resolve
-//! allowed to look at the file system at all ([`Revalidation`], step 1 above)
-//! checks every file the compile read, under the same `validate`, every path it
+//! **Every path a trace names is revalidated like the entry file.** A check
+//! looks at every file the compile read, under the same `validate`, every path it
 //! looked for and did not find, and every path its `autoload` resolution
 //! probed. Where one of them moved, the trace is no longer current, and that
 //! sends the content to a compile, because the key it would be answered under
@@ -161,7 +163,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 use nvs_config::cache::{
     Digest, EnvHash, ProbeHash, Revalidation, UnitKey, Validate, content_hash, discovery_hash,
@@ -208,13 +210,24 @@ struct PathEntry {
     /// it so that undoing the last change is a pointer swap and not a compile.
     /// `None` until the pointer has moved once.
     replaced: Option<Generation>,
+    /// The failure a request of this path is answered with instead of
+    /// [`Self::unit`], while the disk holds a program that does not compile
+    /// (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`).
+    /// `None` again once the pointer moves.
+    failed: Option<Generation>,
     /// What `validate = "mtime"` compares against, and `None` where the file
     /// system answered with neither — a path whose stamp cannot be read is
-    /// re-hashed rather than trusted.
+    /// re-hashed rather than trusted. Always the stamp [`Self::unit`]'s
+    /// content was observed with.
     stamp: Option<Stamp>,
-    /// When the last check happened. `revalidate_freq` gates the next one
-    /// against this, which is what makes the cost `N ⁄ freq` rather than `N`.
-    last_checked: Instant,
+}
+
+impl PathEntry {
+    /// What a request of this path is answered with: the failure, while there
+    /// is one, and otherwise the unit in force.
+    fn serving(&self) -> Generation {
+        self.failed.unwrap_or(self.unit)
+    }
 }
 
 /// One compiled program of one path: the entry file's digest, and the
@@ -475,8 +488,8 @@ pub(crate) struct Compiler {
     /// two of them, and the write happens once per reload that changes the set.
     ///
     env: RwLock<EnvHash>,
-    /// `[opcache] validate` and `revalidate_freq`, read once for the same
-    /// reason: both are `System`-class, so no request can move them.
+    /// `[opcache] validate`, `revalidate_freq` and `settle`, read once for the
+    /// same reason: all three are `System`-class, so no request can move them.
     revalidation: Revalidation,
     /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk cache, resolved from the same block and once for
     /// the same reason — or [`None`] for a host that consults none.
@@ -593,8 +606,15 @@ impl Compiler {
     /// what a server needs and what [`Resolver::resolve`]'s own signature has
     /// nowhere to put.
     ///
-    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, in order, with step 3's
-    /// single flight: one caller compiles a content and every other waits on it.
+    /// Step 1 of `rule:config/an-edit-reaches-the-next-request-without-a-restart`:
+    /// a path this cache has resolved before is answered from what its pointer
+    /// names, which is one map lookup and no file-system call. Moving the
+    /// pointer is [`Self::revalidate`]'s job, off the request path.
+    ///
+    /// A path with no pointer yet goes through [`Self::check`], the steps the
+    /// background check runs, with step 3's single flight: one caller compiles
+    /// a content and every other waits on it. So does a path whose unit is no
+    /// longer in the table, which a reload that moved the environment leaves.
     ///
     /// # Errors
     ///
@@ -607,56 +627,104 @@ impl Compiler {
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
         let written = PathBuf::from(path);
         let known = shared(&self.paths).get(&written).copied();
-        // What step 4 below compares against: the pointer as this resolve
-        // found it, read once here so that everything after it — the `stat`,
-        // the hash and the compile — happens outside the map.
-        let since = known.map(|entry| entry.unit.content);
-
-        // 1. The syscall this resolve does not make: a request arriving
-        //    inside the rate cap's window is answered from the entry the last
-        //    check wrote.
         if let Some(entry) = known
-            && entry.last_checked.elapsed() < self.revalidation.freq
-            && let Some((_, answer)) = self.answer(&written, entry.unit.content)
+            && let Some(answer) = self.answer_at(&written, entry.serving())
         {
             return answer;
         }
+        match self.look(path, &written, known) {
+            Ok(observed) => self.take(path, &written, known, &observed),
+            Err(answer) => answer,
+        }
+    }
 
-        // 2. Otherwise look. A file the system will not answer for keeps
-        //    whatever it last resolved to — step 5's reading, for the same
-        //    reason: the entry still names the last content that compiled, and
-        //    a path being replaced by a rename is momentarily absent. One with
-        //    no entry has nothing to fall back on, so it is reported here in
-        //    the shape `front_end` would have reported it.
-        let observed = match observe(&written, self.revalidation.validate, known) {
+    /// The background check: every path this cache holds a pointer for, looked
+    /// at again, and a change compiled and swapped in once the program has been
+    /// quiet for `[opcache] settle`. [`watch`] runs it once per
+    /// `revalidate_freq`.
+    ///
+    /// Answers how long until the soonest change it held back is quiet, and
+    /// `None` where it held none back, so that the next pass can be timed to
+    /// take it then.
+    ///
+    /// **What it costs:** [`Self::revalidate_trace`]'s `stat`s for every path
+    /// held, per call, and one more `stat` per file of a program whose content
+    /// changed. None of it is on a request's path.
+    pub(crate) fn revalidate(&self) -> Option<Duration> {
+        let held: Vec<(PathBuf, PathEntry)> = shared(&self.paths)
+            .iter()
+            .map(|(path, entry)| (path.clone(), *entry))
+            .collect();
+        let mut soonest: Option<Duration> = None;
+        for (written, entry) in held {
+            let path = written.to_string_lossy();
+            let Ok(observed) = self.look(&path, &written, Some(entry)) else {
+                continue;
+            };
+            if self.generation(&written, observed.content_hash) != entry.serving()
+                && let Some(wait) = self.unsettled(&written, entry, &observed)
+            {
+                soonest = Some(soonest.map_or(wait, |soonest| soonest.min(wait)));
+                continue;
+            }
+            let _ = self.take(&path, &written, Some(entry), &observed);
+        }
+        soonest
+    }
+
+    /// Step 2: what the file behind `written` holds now, with every path its
+    /// program's last compile read, missed or probed checked again
+    /// ([`Self::revalidate_trace`]). An edit to any of those is one the entry
+    /// file's digest does not move.
+    ///
+    /// A file the system will not answer for keeps whatever it last resolved
+    /// to — step 5's reading, for the same reason: the pointer still names the
+    /// last content that compiled, and a path being replaced by a rename is
+    /// momentarily absent. That is the `Err`, and so is a path with no pointer,
+    /// reported here in the shape `front_end` would have reported it.
+    fn look(
+        &self,
+        path: &str,
+        written: &Path,
+        known: Option<PathEntry>,
+    ) -> Result<Observed, Answer> {
+        let observed = match observe(written, self.revalidation.validate, known) {
             Ok(observed) => observed,
             Err(error) => {
-                if let Some((_, answer)) = known.and_then(|e| self.answer(&written, e.unit.content))
-                {
-                    return answer;
+                if let Some(answer) = known.and_then(|e| self.answer_at(written, e.serving())) {
+                    return Err(answer);
                 }
                 eprintln!("error: could not read {}: {error}", written.display());
-                return Err(format!(
+                return Err(Err(format!(
                     "`{path}` could not be compiled; see the errors above"
-                ));
+                )));
             }
         };
+        self.revalidate_trace(written, observed.content_hash);
+        Ok(observed)
+    }
 
-        // 2a. And everything else this program's last compile read: its other
-        //     files, the paths it missed, and what its `autoload` resolution
-        //     probed. An edit to any of them is one the entry file's digest
-        //     does not move.
-        self.revalidate_trace(&written, observed.content_hash);
+    /// Steps 3 to 5 for what [`Self::look`] observed: answer it from the table,
+    /// or compile it, then move the pointer on success and record the failure
+    /// on one.
+    fn take(
+        &self,
+        path: &str,
+        written: &Path,
+        known: Option<PathEntry>,
+        observed: &Observed,
+    ) -> Answer {
+        // What step 4 below compares against: the pointer as the caller found
+        // it, read once so that everything after it — the `stat`, the hash and
+        // the compile — happens outside the map.
+        let since = known.map(|entry| entry.unit.content);
 
-        // Step 2's second half and step 3's content key in one lookup: an
-        // observation that did not move addresses the entry the last one wrote,
-        // and one that did may still name a program this process compiled
-        // before — a reverted edit, or a broken one being re-observed. Either
-        // way this resolve is answered without reaching a flight at all.
-        if let Some((generation, answer)) = self.answer(&written, observed.content_hash) {
-            if answer.is_ok() {
-                self.advance(&written, &observed, generation, since);
-            }
+        // An observation that did not move addresses the unit the pointer
+        // names, and one that did may still name a program this process
+        // compiled before — a reverted edit, or a broken one being observed
+        // again. Either way it is answered without reaching a flight at all.
+        if let Some((generation, answer)) = self.answer(written, observed.content_hash) {
+            self.settle_pointer(written, observed, generation, since, answer.is_ok());
             return answer;
         }
 
@@ -669,7 +737,7 @@ impl Compiler {
         //    entry file's digest and no probes the first time. What the compile
         //    publishes is that key with the whole-program digest and the probe
         //    digest its own trace gives, which only a finished front end knows.
-        let key = self.key(&written, observed.content_hash);
+        let key = self.key(written, observed.content_hash);
         let flight = Arc::new(Flight::default());
         let claimed = match self.claim(&key, &flight) {
             Claim::Mine => true,
@@ -685,18 +753,16 @@ impl Compiler {
         // another content of this path sweeping the entry out in between. Both
         // fall through and compile on this caller's own account, which is what
         // every caller did before there was a flight to wait behind.
-        if !claimed && let Some((generation, answer)) = self.answer(&written, observed.content_hash)
+        if !claimed && let Some((generation, answer)) = self.answer(written, observed.content_hash)
         {
-            if answer.is_ok() {
-                self.advance(&written, &observed, generation, since);
-            }
+            self.settle_pointer(written, observed, generation, since, answer.is_ok());
             return answer;
         }
         let landing = Landing(&flight);
         // A failure is published under its own trace too, which is the key the
-        // next resolve of this content spells while nothing it read has moved,
+        // next check of this content spells while nothing it read has moved,
         // and is how it is answered rather than recompiled.
-        let (outcome, trace) = self.compile(path, &written, observed.content_hash);
+        let (outcome, trace) = self.compile(path, written, observed.content_hash);
         let state = match outcome {
             Ok(compiled) => CompileState::Ready(compiled),
             Err(message) => CompileState::Failed(message),
@@ -730,19 +796,62 @@ impl Compiler {
         // The explicit drop is the ordering; the guard is for the path where
         // the line above never ran at all.
         drop(landing);
-        if ready {
-            self.advance(&written, &observed, generation, since);
-        }
+        self.settle_pointer(written, observed, generation, since, ready);
         reply
     }
 
     /// What the table holds for `path` at `content`, and `None` where it holds
-    /// nothing — the one place a [`CompileState`] becomes a caller's answer.
-    /// The [`Generation`] beside it is the one the answer was read under.
+    /// nothing. The [`Generation`] beside it is the one the answer was read
+    /// under.
     fn answer(&self, path: &Path, content: Digest) -> Option<(Generation, Answer)> {
         let generation = self.generation(path, content);
+        Some((generation, self.answer_at(path, generation)?))
+    }
+
+    /// What the table holds for `path` at `generation` — the one place a
+    /// [`CompileState`] becomes a caller's answer, and the whole of a request
+    /// for a path that has a pointer.
+    ///
+    /// The key is spelled before `units` is read, because spelling it reads
+    /// `env`, and no lock here is ever held across another ([`Self::key`]).
+    fn answer_at(&self, path: &Path, generation: Generation) -> Option<Answer> {
         let key = self.key_of(path, generation);
-        Some((generation, reply(shared(&self.units).get(&key)?)?))
+        reply(shared(&self.units).get(&key)?)
+    }
+
+    /// How long until the program behind `path` has been quiet for `[opcache]
+    /// settle`, and `None` where it already has: the newest stamp among the
+    /// entry file, every file the traces of both contents read, and every
+    /// directory they listed, against the settle time.
+    ///
+    /// A stamp in the future is left out. The clock that wrote it is not this
+    /// one, and holding a change back until that moment could hold it for as
+    /// long as the two clocks disagree.
+    fn unsettled(&self, path: &Path, entry: PathEntry, observed: &Observed) -> Option<Duration> {
+        let watched: Vec<PathBuf> = {
+            let traces = shared(&self.traces);
+            [entry.unit.content, observed.content_hash]
+                .iter()
+                .filter_map(|content| traces.get(&(path.to_path_buf(), *content)))
+                .flat_map(|traced| &traced.traces)
+                .flat_map(|trace| {
+                    let files = trace.files.iter().map(|read| read.path.clone());
+                    files.chain(trace.listed.iter().map(|listed| listed.dir.clone()))
+                })
+                .collect()
+        };
+        let now = SystemTime::now();
+        let newest = watched
+            .iter()
+            .filter_map(|path| stamp_of(path))
+            .chain(observed.stamp)
+            .map(|stamp| stamp.modified)
+            .filter(|modified| *modified <= now)
+            .max()?;
+        (newest + self.revalidation.settle)
+            .duration_since(now)
+            .ok()
+            .filter(|wait| !wait.is_zero())
     }
 
     /// The program `path` at `content` is addressed by right now: the
@@ -788,7 +897,7 @@ impl Compiler {
     /// this content are checked newest first. The first one that still
     /// describes the disk becomes current, which is how undoing an edit to a
     /// `require`d file finds the unit compiled before it. Where none does,
-    /// nothing is current: the resolve behind this call spells the unrecorded
+    /// nothing is current: the check behind this call spells the unrecorded
     /// key, misses, and compiles. Where the trace that stays current had a
     /// stamp refreshed, the refreshed stamps are written back, so a file re-read
     /// once is not re-read on every later check.
@@ -801,7 +910,7 @@ impl Compiler {
     /// **What it costs:** one `stat` per file the program read or missed and per
     /// directory a discovery scan listed, one `exists` per probed path, and a
     /// read or a listing only for a path whose stamp moved (or every one, under
-    /// `validate = "hash"`) — per revalidation window that reaches step 2, and
+    /// `validate = "hash"`) — per check, and
     /// once more for each other trace kept for this content when the current
     /// one moved.
     fn revalidate_trace(&self, path: &Path, content: Digest) {
@@ -886,12 +995,49 @@ impl Compiler {
         }
     }
 
-    /// Step 4's pointer write: what this path resolves to now, and the moment
-    /// the cap is measured from — published **only if nobody moved the pointer
-    /// since**, which is the compare that rule's step 4 states rather than an
-    /// assignment.
+    /// Steps 4 and 5 for one check that reached `generation`: the pointer moves
+    /// to it where it compiled ([`Self::advance`]), and where it did not, the
+    /// pointer stays and names it as the failure its requests are answered
+    /// with ([`Self::fail`]).
+    fn settle_pointer(
+        &self,
+        path: &Path,
+        observed: &Observed,
+        generation: Generation,
+        since: Option<Digest>,
+        ready: bool,
+    ) {
+        if ready {
+            self.advance(path, observed, generation, since);
+        } else {
+            self.fail(path, generation, since);
+        }
+    }
+
+    /// Step 5's pointer write: the unit in force stays, and
+    /// [`PathEntry::failed`] names `generation`, so every request of this path
+    /// is answered with that failure until a check reaches a program that
+    /// compiles. Only where nobody moved the pointer since, as in
+    /// [`Self::advance`], and nothing at all for a path with no pointer: a path
+    /// that has never compiled is looked at by each request that names it.
     ///
-    /// `since` is the digest [`Self::compiled`] copied out of the map on its
+    /// The stamp stays the one the unit in force was observed with. [`observe`]
+    /// trusts a matching stamp to mean that unit's content, so the stamp of the
+    /// broken file must never stand beside it.
+    fn fail(&self, path: &Path, generation: Generation, since: Option<Digest>) {
+        let mut paths = exclusive(&self.paths);
+        if let Some(entry) = paths.get_mut(path)
+            && Some(entry.unit.content) == since
+        {
+            entry.failed = Some(generation);
+        }
+    }
+
+    /// Step 4's pointer write: what this path resolves to now — published
+    /// **only if nobody moved the pointer since**, which is the compare that
+    /// rule's step 4 states rather than an assignment.
+    ///
+    /// `since` is the digest [`Self::take`] copied out of the map on its
     /// way in, and [`None`] — a path this resolve found nothing for — is one
     /// of its values rather than a case beside it, so two cold resolves of one
     /// path race on the same terms as two revalidations of it. A resolve that
@@ -929,8 +1075,8 @@ impl Compiler {
             PathEntry {
                 unit: generation,
                 replaced,
+                failed: None,
                 stamp: observed.stamp,
-                last_checked: Instant::now(),
             },
         );
         true
@@ -1130,6 +1276,82 @@ impl Compiler {
             },
         )
     }
+}
+
+/// The shortest time between two passes of [`watch`]'s thread. A written
+/// `revalidate_freq` of zero checks this often, and does not spin a core.
+const FLOOR: Duration = Duration::from_millis(10);
+
+/// The thread [`watch`] starts. Dropping this stops the thread and waits for
+/// it, so no check outlives the run that started it.
+#[derive(Debug)]
+pub(crate) struct Watch {
+    stop: Arc<(Mutex<bool>, Condvar)>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for Watch {
+    fn drop(&mut self) {
+        let (stopped, wakes) = &*self.stop;
+        *stopped.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        wakes.notify_all();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Starts the background check of
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`: one
+/// thread that runs [`Compiler::revalidate`] once per `revalidate_freq`, or
+/// sooner where a change it held back becomes quiet before that.
+///
+/// The thread holds the compiler weakly, so it stops by itself when the last
+/// owner drops the compiler. A pass that panics beneath the front end is
+/// caught, and the next pass runs as usual. A thread that cannot be started
+/// is reported once, and then no edit reaches this process.
+///
+/// **What it spends:** one thread per process, asleep between passes.
+pub(crate) fn watch(compiler: &Arc<Compiler>) -> Watch {
+    let stop = Arc::new((Mutex::new(false), Condvar::new()));
+    let tick = compiler.revalidation.freq.max(FLOOR);
+    let weak = Arc::downgrade(compiler);
+    let stopping = Arc::clone(&stop);
+    let spawned = std::thread::Builder::new()
+        .name("nvs-revalidate".to_owned())
+        .spawn(move || {
+            let (stopped, wakes) = &*stopping;
+            let mut next = tick;
+            loop {
+                let guard = stopped.lock().unwrap_or_else(PoisonError::into_inner);
+                let (guard, _) = wakes
+                    .wait_timeout_while(guard, next, |stopped| !*stopped)
+                    .unwrap_or_else(PoisonError::into_inner);
+                if *guard {
+                    return;
+                }
+                drop(guard);
+                let Some(compiler) = weak.upgrade() else {
+                    return;
+                };
+                let held = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    compiler.revalidate()
+                }));
+                next = held
+                    .ok()
+                    .flatten()
+                    .map_or(tick, |wait| wait.min(tick))
+                    .max(FLOOR);
+            }
+        });
+    let thread = match spawned {
+        Ok(thread) => Some(thread),
+        Err(error) => {
+            eprintln!("warning: source files will not be checked for changes: {error}");
+            None
+        }
+    };
+    Watch { stop, thread }
 }
 
 /// What the table holds under one key, as a caller's answer — and `None` for a
@@ -1523,27 +1745,28 @@ mod tests {
         path.to_string_lossy().replace('\\', "/")
     }
 
-    /// A compiler that checks the content itself, on every resolve.
+    /// A compiler whose check reads the content itself, and takes a change the
+    /// moment it sees one. A test runs the check by hand, with
+    /// [`Compiler::revalidate`], where a server runs it on [`watch`]'s thread.
     ///
-    /// Neither half is the production default and both are spelled in
+    /// No value is the production default, and all three are spelled in
     /// `[opcache]` on purpose: `mtime` answers from a stamp that two writes
-    /// inside one filesystem tick share, and the default two-second cap puts
-    /// the second write of a test that takes microseconds inside the first
-    /// check's window. What is being asserted below is the swap, not the rate
-    /// cap — `nvs_config::cache::Revalidation` is where both are decided.
+    /// inside one filesystem tick share, and the default one-second `settle`
+    /// would hold back an edit a test made microseconds ago. What is being
+    /// asserted below is the swap, not the timing —
+    /// `nvs_config::cache::Revalidation` is where all three are decided.
     fn revalidating() -> Compiler {
         checking("hash", "0s")
     }
 
-    /// The same, with both directives written out — the shape a test that is
-    /// *about* `[opcache]` reaches for, since either value alone decides
-    /// whether a resolve looks at the file.
+    /// The same, with `validate` and `revalidate_freq` chosen by the test.
     fn checking(validate: &str, freq: &str) -> Compiler {
         use nvs_config::tree::{Config, Opcache, Setting};
         Compiler::new(&Config {
             opcache: Some(Opcache {
                 validate: Some(Setting::Text(validate.to_owned())),
                 revalidate_freq: Some(Setting::Text(freq.to_owned())),
+                settle: Some(Setting::Text("0s".to_owned())),
                 ..Opcache::default()
             }),
             ..Config::default()
@@ -1691,6 +1914,7 @@ mod tests {
 
         std::fs::write(dir.join("src").join("Core.nvs"), declaring("src"))
             .expect("the shadowing class, under the first root");
+        compiler.revalidate();
         let (after, _routes) = compiler
             .compiled(&written)
             .expect("and again, with the shadow in place");
@@ -1732,6 +1956,7 @@ mod tests {
         assert_eq!(said(first), "one\n");
 
         std::fs::write(&lib, "<?nvs\necho \"two\\n\";\n").expect("the edit");
+        compiler.revalidate();
         let (edited, _routes) = compiler.compiled(&written).expect("the edit compiles");
         assert_eq!(
             said(edited),
@@ -1740,12 +1965,14 @@ mod tests {
         );
 
         std::fs::remove_file(&lib).expect("the deletion");
+        compiler.revalidate();
         assert!(
             compiler.compiled(&written).is_err(),
             "a program whose required file is gone still compiled",
         );
 
         std::fs::write(&lib, "<?nvs\necho \"three\\n\";\n").expect("the restore");
+        compiler.revalidate();
         let (restored, _routes) = compiler.compiled(&written).expect("the restore compiles");
         assert_eq!(said(restored), "three\n", "the restored file was not seen");
         assert_eq!(
@@ -1775,10 +2002,12 @@ mod tests {
         let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
         assert_eq!(said(first), "one\n");
         std::fs::write(&lib, "<?nvs\necho \"two, edited\\n\";\n").expect("the edit");
+        compiler.revalidate();
         let (edited, _routes) = compiler.compiled(&written).expect("the edit compiles");
         assert_eq!(said(edited), "two, edited\n");
 
         std::fs::write(&lib, "<?nvs\necho \"one\\n\";\n").expect("the revert");
+        compiler.revalidate();
         let (reverted, _routes) = compiler.compiled(&written).expect("the revert resolves");
         assert_eq!(said(reverted), "one\n", "the revert was not seen");
         assert_eq!(
@@ -1790,6 +2019,7 @@ mod tests {
         // And the edit it undid is now the unit it replaced, so redoing it is a
         // swap back.
         std::fs::write(&lib, "<?nvs\necho \"two, edited\\n\";\n").expect("the redo");
+        compiler.revalidate();
         let (redone, _routes) = compiler.compiled(&written).expect("the redo resolves");
         assert_eq!(said(redone), "two, edited\n", "the redo was not seen");
         assert_eq!(
@@ -2050,11 +2280,13 @@ mod tests {
 
             resolved.wait();
             let _ = a_file_saying("outlives", "two");
+            compiler.revalidate();
             let (between, _routes) = compiler
                 .compiled(&written)
                 .expect("the edited entry compiles");
             drop(between);
             let _ = a_file_saying("outlives", "three");
+            compiler.revalidate();
             let (after, _routes) = compiler
                 .compiled(&written)
                 .expect("the edited entry compiles again");
@@ -2141,6 +2373,7 @@ mod tests {
             // The edit, published while every reader is already looping.
             started.wait();
             let _ = a_file_saying("winner-swap", "two");
+            compiler.revalidate();
             let (after, _routes) = compiler
                 .compiled(&swapping)
                 .expect("the edited entry compiles");
@@ -2206,6 +2439,7 @@ mod tests {
         let stale = stale_unit.content;
 
         let _ = a_file_saying("stale", "two");
+        compiler.revalidate();
         let (second, _routes) = compiler
             .compiled(&written)
             .expect("the edited entry compiles");
@@ -2247,9 +2481,9 @@ mod tests {
         // unit runs to completion regardless
         // (`rule:config/a-request-keeps-the-unit-it-resolved`).
         //
-        // `[opcache]` is `hash`/`0s` for the reason `revalidating` gives: the
-        // default would answer the resolve below from the pointer without
-        // looking at the file at all, and the edit is the whole subject here.
+        // A resolve answers from the pointer without looking at the file, so
+        // the check that reaches the edit is [`Compiler::revalidate`], run by
+        // hand where a server runs it on [`watch`]'s thread.
         let path = a_file_saying("broken-edit", "one");
         let written = path.to_string_lossy().into_owned();
         let compiler = revalidating();
@@ -2261,6 +2495,7 @@ mod tests {
         // comes back is a message rather than a panic or a stale unit, which
         // is the rule's "fail loudly".
         let _ = a_file_running("broken-edit", "echo \"one\" \"two\";");
+        compiler.revalidate();
         let Err(refusal) = compiler.compiled(&written) else {
             panic!("a file that does not parse was handed back as a program");
         };
@@ -2295,6 +2530,7 @@ mod tests {
         // And a repair reaches the next resolve on the same terms the break
         // did, nothing about the failure being sticky past its own content key.
         let _ = a_file_saying("broken-edit", "two");
+        compiler.revalidate();
         let (repaired, _routes) = compiler
             .compiled(&written)
             .expect("the repaired entry compiles");
@@ -2327,6 +2563,7 @@ mod tests {
         let good = shared(&compiler.paths)[&entry].unit.content;
         drop(warm);
         let _ = a_file_running("broken-storm", "echo \"one\" \"two\";");
+        compiler.revalidate();
 
         let refused = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let ready = std::sync::Barrier::new(WORKERS);
@@ -2423,6 +2660,7 @@ mod tests {
         // put through the front end, and it stays where it is however many
         // cores then read the result.
         let _ = a_file_saying("counted", "two");
+        compiler.revalidate();
         let (edited, _routes) = compiler
             .compiled(&written)
             .expect("the edited entry compiles");
@@ -2539,6 +2777,7 @@ mod tests {
         // The edit, and a resolve after it — a new connection's, which is what
         // makes this a test of the swap rather than of a cache nobody touched.
         let _ = a_file_saying("keeps", "two");
+        compiler.revalidate();
         let (_swapped, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the edited entry compiles");
@@ -2564,11 +2803,13 @@ mod tests {
             .expect("the entry compiles");
 
         let _ = a_file_saying("swaps", "two");
+        compiler.revalidate();
         let (between, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the edited entry compiles");
         drop(between);
         let _ = a_file_saying("swaps", "three");
+        compiler.revalidate();
         let (after, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the edited entry compiles again");
@@ -2582,11 +2823,9 @@ mod tests {
 
     #[test]
     fn a_swap_never_blocks_a_request_serving_core() {
-        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s paragraph after the five steps, in the
-        // spelling one core has for it. The ADR keeps a *thread* free by
-        // running step 3 on the compile pool; what keeps this core free is the
-        // property [`PathEntry`]'s own doc states — neither map's guard is held
-        // across the stat or the compile — and the caller that proves it is a
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`: the
+        // swap is the background check's, and a serving core only reads the
+        // pointer it moved. The caller that proves the core is free is a
         // program already in flight, because its `spawn script` re-enters this
         // resolver from inside the very run a held guard would have to span.
         let child = a_file_saying("in-flight", "one");
@@ -2596,10 +2835,11 @@ mod tests {
             .expect("the child compiles");
         let before = shared(&compiler.paths)[&child].unit.content;
 
-        // The edit a serving core is about to find, and the request that finds
-        // it: this parent resolves the edited path mid-run, through the seam
-        // `spawn script` lowers to.
+        // The edit, the check that swaps it in, and the request after it: this
+        // parent resolves the edited path mid-run, through the seam `spawn
+        // script` lowers to.
         let _ = a_file_saying("in-flight", "two");
+        compiler.revalidate();
         let parent = a_file_running(
             "serving",
             &format!(
@@ -2628,42 +2868,71 @@ mod tests {
 
     #[test]
     fn revalidation_is_lazy_and_rate_capped() {
-        // `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 1, both halves. A `stat` is counted the
-        // only way a unit test can count one: `observe` is the single place
-        // this module makes one, and what a resolve hands back is what it
-        // observed — so an edit between two resolves says whether the second
-        // one looked at all. Nothing here asserts a syscall count directly,
-        // because a count would pin the implementation rather than the rule.
-
-        // The cap, on both sides of one window, since a resolve that stopped
-        // one edit early reads plausibly against either half alone. Inside a
-        // 60-second window the second resolve is answered from the entry the
-        // first one wrote — one check for the two of them.
-        let capped = a_file_saying("capped", "one");
-        let compiler = checking("hash", "60s");
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`: no
+        // request looks at the file, and the background check is what does.
+        // What a resolve hands back is what the last look observed, so an edit
+        // between two resolves says whether the second one looked. Nothing
+        // here asserts a syscall count directly, because a count would pin the
+        // implementation rather than the rule.
+        //
+        // `revalidate_freq` is zero, which is the setting that made every
+        // resolve look while the check ran inside it.
+        let path = a_file_saying("lazy", "one");
+        let compiler = revalidating();
         let (before, _) = compiler
-            .compiled(&capped.to_string_lossy())
+            .compiled(&path.to_string_lossy())
             .expect("the entry compiles");
-        let _ = a_file_saying("capped", "two");
-        let (inside, _) = compiler
-            .compiled(&capped.to_string_lossy())
+        let _ = a_file_saying("lazy", "two");
+        let (unlooked, _) = compiler
+            .compiled(&path.to_string_lossy())
             .expect("the entry resolves again");
         assert_eq!(said(before), "one\n");
-        assert_eq!(said(inside), "one\n", "a capped resolve read the file");
+        assert_eq!(said(unlooked), "one\n", "a resolve read the file");
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
 
-        // Past the window — the fixture writes it at zero — the same pair of
-        // resolves makes two checks, and the second one sees the edit.
-        let past = a_file_saying("uncapped", "one");
-        let compiler = revalidating();
-        let (old, _) = compiler
-            .compiled(&past.to_string_lossy())
+        // The check sees the edit, and compiles it before any request asks.
+        compiler.revalidate();
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the check did not compile the edit"
+        );
+        let (checked, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the edited entry resolves");
+        assert_eq!(said(checked), "two\n", "the check did not swap the edit in");
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn a_change_is_held_back_until_the_program_is_quiet_for_settle() {
+        // `[opcache] settle`: an edit younger than the settle time is left
+        // alone by the check, and taken by the first check after it.
+        use nvs_config::tree::{Config, Opcache, Setting};
+        let path = a_file_saying("settling", "one");
+        let compiler = Compiler::new(&Config {
+            opcache: Some(Opcache {
+                validate: Some(Setting::Text("hash".to_owned())),
+                settle: Some(Setting::Text("300ms".to_owned())),
+                ..Opcache::default()
+            }),
+            ..Config::default()
+        });
+        let (_, _) = compiler
+            .compiled(&path.to_string_lossy())
             .expect("the entry compiles");
-        let _ = a_file_saying("uncapped", "two");
-        let (new, _) = compiler
-            .compiled(&past.to_string_lossy())
-            .expect("the edited entry compiles");
-        assert_eq!(said(old), "one\n");
-        assert_eq!(said(new), "two\n", "an uncapped resolve did not look");
+        let _ = a_file_saying("settling", "two");
+        let wait = compiler.revalidate().expect("the edit is held back");
+        assert!(wait <= std::time::Duration::from_millis(300), "{wait:?}");
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
+
+        std::thread::sleep(wait + std::time::Duration::from_millis(20));
+        assert_eq!(compiler.revalidate(), None);
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 2);
+        let (after, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the edited entry resolves");
+        assert_eq!(said(after), "two\n");
     }
 
     #[test]

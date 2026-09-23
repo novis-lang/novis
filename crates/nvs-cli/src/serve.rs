@@ -401,10 +401,10 @@ pub(crate) fn run(
     // rather than a request that does. That is the rule the enumeration exists
     // for, and it costs one compile per mounted entry at boot rather than one
     // per entry per request. The front end renders its own diagnostics
-    // (`script`'s module doc), so the message here is the summary. What a later
-    // request re-checks is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s question and the same module doc's: this
-    // compiler carries the `[opcache]` block, so an edited entry is recompiled
-    // for the requests that resolve it after the edit.
+    // (`script`'s module doc), so the message here is the summary. An edit
+    // after boot is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+    // and the same module doc's: the background check started below compiles
+    // it under this compiler's `[opcache]` block and swaps it in.
     //
     // An `Arc` rather than an `Rc` because one cache serves the fleet: the unit
     // it publishes is `Send` and `Sync` (`nvs_codegen::Unit`), so the compile
@@ -428,6 +428,10 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
+    // From here an edit reaches the server through this thread and no request:
+    // a request resolves a path to the unit its pointer names, and this check
+    // is what moves the pointer (`crate::script::watch`). Held for the run.
+    let _watching = crate::script::watch(&compiler);
 
     // Every socket this process opens, in the one order [`bind_sockets`] owns:
     // the control endpoint, then every address the set named — all of it before

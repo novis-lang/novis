@@ -878,10 +878,10 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** The resolve-time form of this rule: the key is the whole program, and a check
-looks at every file the compile read, every path it missed, every `autoload` probe and every
-directory a discovery query listed, but it runs inside the resolve, on the request path. The
-background check, `settle` and the link re-resolve are not on disk.
+**What is on disk.** All of it but two steps: a file that moves while the compile runs does not yet
+discard that compile, and the entry path is not resolved through its links around a compile. The
+quiet time is measured from the newest modification time among the files the program's last
+compile read.
 
 <sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 
@@ -1891,9 +1891,6 @@ wins, because the mode supplies a default and nothing more.
 
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
-
-**What is on disk.** `settle` is read, with its startup row, into `nvs_config::cache::Revalidation`,
-but nothing waits on it yet: the check that would still runs inside the resolve.
 
 <sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
 

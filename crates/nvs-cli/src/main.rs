@@ -2695,6 +2695,9 @@ fn run_run(
     let shared = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
         std::sync::Arc::clone(&compiler),
     ));
+    // A `spawn script` resolves a path it has spawned before without looking at
+    // the file, so an edit reaches a long run through this background check.
+    let _watching = script::watch(&compiler);
     // `rule:testing/in-process-request`'s seam nests inside the resolver's for the same length and
     // on the same terms — `runner::UnderTest` owns why the program under test
     // is this crate's to hold.

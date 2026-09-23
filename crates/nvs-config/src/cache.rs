@@ -460,9 +460,9 @@ impl Validate {
 pub struct Revalidation {
     /// What a check looks at, once the cap below has let one happen.
     pub validate: Validate,
-    /// `revalidate_freq`: the shortest interval between two checks of one path. A resolve inside it
-    /// reuses the digest the last check observed and spends no syscall, which is what bounds the
-    /// overhead at `N ⁄ revalidate_freq` stats rather than at the request rate.
+    /// `revalidate_freq`: the interval between two passes of the background check over every loaded
+    /// program. A request never checks, so the overhead is `N ⁄ revalidate_freq` stats whatever the
+    /// request rate.
     pub freq: Duration,
     /// `settle`: how long no file of a changed program may have moved before it is compiled, so a
     /// deploy still being copied is compiled once, from the finished tree.
@@ -616,7 +616,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 /// [`Quantity`] is the one parser for a duration anywhere in this tree (`rule:config/ini-set-is-core-config-set`), so `"2s"`,
 /// `"500ms"` and a bare `2` all read here exactly as they do in `[limits]`. `false` is the spelling
 /// `rule:config/three-changeability-classes` gives to "no ceiling" and means no wait at all: for
-/// `revalidate_freq` a check on every resolve, for `settle` a compile as soon as a change is seen.
+/// `revalidate_freq` a background check as often as the process allows, for `settle` a compile as soon as a change is seen.
 ///
 fn duration_of(key: &str, setting: &Setting) -> Option<Duration> {
     match Quantity::parse(key, Unit::Duration, setting) {

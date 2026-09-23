@@ -161,7 +161,7 @@
     {
       "id": "packaging/autoload-probes-fold-into-the-cache-key",
       "title": "A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0061",
         "0042",

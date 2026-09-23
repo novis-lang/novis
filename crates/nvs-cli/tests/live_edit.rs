@@ -752,3 +752,112 @@ fn a_running_websocket_keeps_the_code_it_started_with() {
         "a connection opened before the edit changed code while it ran"
     );
 }
+
+/// `[opcache]` with a check every 100 milliseconds, and `settle` as written.
+fn checking_every_100ms(settle: &str) -> String {
+    format!("{PRODUCTION}[opcache]\nrevalidate_freq = \"100ms\"\nsettle = \"{settle}\"\n")
+}
+
+/// A request is answered from the unit the path's pointer names and never
+/// looks at the file. The background check is the one that looks, and here
+/// `settle` holds it back for an hour, so an edit reaches no request at all. A
+/// request that looked at the file would compile the edit, and its warning
+/// would appear.
+#[test]
+fn a_request_makes_no_filesystem_call_to_revalidate() {
+    let server = Server::start(
+        "unlooked",
+        &[
+            ("nvs.toml", &checking_every_100ms("3600s")),
+            ("app.nvs", &warned("Compiled first.", "first")),
+        ],
+    );
+    server.awaits_body("/", "first");
+
+    server.write("app.nvs", &warned("Compiled second.", "second"));
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(2) {
+        let answer = server.get("/");
+        assert_eq!(
+            answer.body, "first",
+            "a request was answered from the edit that only a look at the file could find"
+        );
+        thread::sleep(POLL);
+    }
+    assert!(
+        !server.said().contains("Compiled second."),
+        "the edit was compiled before the program was quiet for `settle`: {}",
+        server.said()
+    );
+}
+
+/// While the background check compiles an edit, every request is answered by
+/// the unit in force. Once one request gets the edit, every later one does.
+#[test]
+fn a_change_is_compiled_before_it_is_swapped_in() {
+    let server = Server::start(
+        "swapped",
+        &[
+            ("nvs.toml", &checking_every_100ms("100ms")),
+            ("app.nvs", &warned("Compiled first.", "first")),
+        ],
+    );
+    server.awaits_body("/", "first");
+
+    server.write("app.nvs", &warned("Compiled second.", "second"));
+    let started = Instant::now();
+    loop {
+        let answer = server.get("/");
+        assert_eq!(answer.status, 200, "a request met the compile: {answer:?}");
+        if answer.body == "second" {
+            break;
+        }
+        assert_eq!(answer.body, "first", "a request got neither version");
+        assert!(
+            started.elapsed() <= BOUND,
+            "the edit was not swapped in within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+    }
+    for _ in 0..20 {
+        assert_eq!(server.get("/").body, "second", "the swap went back");
+    }
+    assert_eq!(
+        server.said().matches("Compiled second.").count(),
+        1,
+        "the edit was compiled more than once: {}",
+        server.said()
+    );
+}
+
+/// An edit reaches a server that gets no request at all: the background check
+/// compiles it within `revalidate_freq` plus `settle`. The five seconds on top
+/// are for the compile itself on a slow machine.
+#[test]
+fn an_idle_server_takes_an_edit_within_revalidate_freq_and_settle() {
+    let server = Server::start(
+        "idle",
+        &[
+            ("nvs.toml", &checking_every_100ms("200ms")),
+            ("app.nvs", &warned("Compiled first.", "first")),
+        ],
+    );
+    server.awaits_body("/", "first");
+
+    server.write("app.nvs", &warned("Compiled second.", "second"));
+    let started = Instant::now();
+    server.awaits_said("Compiled second.");
+    let took = started.elapsed();
+    assert!(
+        took < Duration::from_millis(300) + Duration::from_secs(5),
+        "the edit took {took:?} to be compiled"
+    );
+
+    server.awaits_body("/", "second");
+    assert_eq!(
+        server.said().matches("Compiled second.").count(),
+        1,
+        "a request compiled the edit a second time: {}",
+        server.said()
+    );
+}
