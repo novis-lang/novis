@@ -314,6 +314,11 @@ struct Trace {
     /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`): a
     /// `discover` glob's base, and every directory `implementing` walked.
     listed: Vec<Listed>,
+    /// The entry file's path through every symlink and junction ([`real_path`]),
+    /// which is the path the compile read the program through. Where the entry
+    /// path resolves to another one now, a `current` link was switched, and the
+    /// trace no longer describes the disk whatever the files behind it hold.
+    real: PathBuf,
 }
 
 /// One directory a discovery scan listed, and what it held.
@@ -919,7 +924,8 @@ impl Compiler {
     /// key it is under, and [`Self::record`] is the one place that takes either
     /// out of its map.
     ///
-    /// **What it costs:** one `stat` per file the program read or missed and per
+    /// **What it costs:** one resolution of the entry path through its links,
+    /// one `stat` per file the program read or missed and per
     /// directory a discovery scan listed, one `exists` per probed path, and a
     /// read or a listing only for a path whose stamp moved (or every one, under
     /// `validate = "hash"`) — per check, and
@@ -945,7 +951,7 @@ impl Compiler {
                 .rev()
                 .filter(|trace| Some(id(trace)) != traced.current);
             let found = current.chain(others).find_map(|trace| {
-                describes_the_disk(trace, validate, checked).map(|stamps| (id(trace), stamps))
+                describes_the_disk(path, trace, validate, checked).map(|stamps| (id(trace), stamps))
             });
             (traced.current, found)
         };
@@ -986,17 +992,24 @@ impl Compiler {
     }
 
     /// Whether the tree behind a compile of `written` at `content` moved while
-    /// that compile ran: the entry file no longer holds `content`, or a file,
-    /// probe or listed directory in `trace` no longer holds what the compile
-    /// found there ([`describes_the_disk`]).
+    /// that compile ran: the entry file no longer holds `content`, the entry
+    /// path resolves through its links to another file, or a file, probe or
+    /// listed directory in `trace` no longer holds what the compile found there
+    /// ([`describes_the_disk`]).
     ///
-    /// **What it costs:** one read of the entry file, and the `stat`s of one
-    /// check of the trace, per background compile.
+    /// **What it costs:** one read of the entry file, one resolution of its
+    /// path, and the `stat`s of one check of the trace, per background compile.
     fn moved(&self, written: &Path, content: Digest, trace: &Trace) -> bool {
         let entry_holds =
             std::fs::read(written).is_ok_and(|source| content_hash(&source) == content);
         !entry_holds
-            || describes_the_disk(trace, self.revalidation.validate, SystemTime::now()).is_none()
+            || describes_the_disk(
+                written,
+                trace,
+                self.revalidation.validate,
+                SystemTime::now(),
+            )
+            .is_none()
     }
 
     /// Takes `flight`'s placeholder out of the table, where it is still there,
@@ -1225,11 +1238,15 @@ impl Compiler {
         // this cache paid for, and the claim being counted is about how many
         // times the file was put through the front end at all.
         self.compiles.fetch_add(1, Ordering::Relaxed);
+        // Resolved once, and the whole program is read below it: a link
+        // switched while the front end runs cannot hand it one file from each
+        // release. [`Self::moved`] resolves it again afterwards.
+        let real = real_path(written);
         // Taken before the front end reads anything: a file whose stamp is
         // not older than this may have changed after it was read ([`vouching`]).
         let started = SystemTime::now();
         let mut looked = crate::Looked::default();
-        let checked = crate::front_end_looking(written, &mut looked);
+        let checked = crate::front_end_looking(&real, &mut looked);
         let answers: Vec<(PathBuf, bool)> = looked
             .probed
             .iter()
@@ -1238,7 +1255,7 @@ impl Compiler {
         let reads: Vec<Read> = looked
             .read
             .iter()
-            .filter(|(read, _)| read != written)
+            .filter(|(read, _)| *read != real)
             .map(|(read, digest)| Read {
                 path: read.clone(),
                 stamp: vouching(stamp_of(read), started),
@@ -1278,6 +1295,7 @@ impl Compiler {
                     answers,
                     files: reads,
                     listed,
+                    real,
                 },
             );
         };
@@ -1310,6 +1328,7 @@ impl Compiler {
                 answers,
                 files: reads,
                 listed,
+                real,
             },
         )
     }
@@ -1442,6 +1461,18 @@ fn stamp_of(path: &Path) -> Option<Stamp> {
     })
 }
 
+/// `written` through every symlink and junction: the real path a compile reads
+/// the program through, so that every file it names comes from one release
+/// however a `current` link moves (`rule:config/an-edit-reaches-the-next-request-without-a-restart`
+/// § *An atomic deploy is atomic*). A path that does not resolve is its own
+/// answer, and the front end then reports the file missing.
+///
+/// `nvs_config::trust::canonical`, so that a Windows path keeps the spelling
+/// every other path in the program has and not the verbatim `\\?\` one.
+fn real_path(written: &Path) -> PathBuf {
+    nvs_config::trust::canonical(written).unwrap_or_else(|_| written.to_path_buf())
+}
+
 /// `stamp`, if it can vouch for a read that began at `started`.
 ///
 /// A file modified at or after that moment may have changed after it was read,
@@ -1483,13 +1514,18 @@ fn unlisted(listed: &Listed, validate: Validate, checked: SystemTime) -> Option<
 }
 
 /// Whether every path `trace` names still answers the way the compile saw it:
-/// `None` where a probe, a file or a listed directory moved, and otherwise the
-/// stamps to write back — `None` inside where none of them was refreshed.
+/// `None` where the entry path `written` resolves to another real path, or a
+/// probe, a file or a listed directory moved, and otherwise the stamps to write
+/// back — `None` inside where none of them was refreshed.
 fn describes_the_disk(
+    written: &Path,
     trace: &Trace,
     validate: Validate,
     checked: SystemTime,
 ) -> Option<Option<(Stamps, Stamps)>> {
+    if real_path(written) != trace.real {
+        return None;
+    }
     if trace
         .answers
         .iter()

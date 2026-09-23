@@ -878,9 +878,11 @@ There is no file-system watcher, no stop-the-world phase and no second process, 
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
-**What is on disk.** All of it but one step: the entry path is not resolved through its links around
-a compile. The quiet time is measured from the newest modification time among the files the
-program's last compile read.
+**What is on disk.** All of it for the program. The quiet time is measured from the newest
+modification time among the files the program's last compile read. `nvs serve <file>` keeps its
+entry unresolved, but resolves its mount root once at boot, so its static files still come from the
+release it started with. A `[[server.mount]]` table resolves every entry and root at boot, so a link
+switch does not reach a server that mounts one.
 
 <sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 

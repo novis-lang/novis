@@ -1752,9 +1752,15 @@ fn sweep_orphans(config: &nvs_config::Config) {
 /// about how many rows it has, and a set of one is still a set. The module doc's
 /// § *Decision* is the whole of why.
 ///
-/// Canonical on both sides: § 4 steps 3 and 4 compare a resolved remainder
+/// The root is canonical: § 4 steps 3 and 4 compare a resolved remainder
 /// against the mount root, and a `starts_with` between a canonical path and a
 /// written one answers `false` for every file in the tree.
+///
+/// The entry is absolute and **not** resolved through its links. Each compile
+/// resolves it again (`crate::script`), so a `current` link switched to a new
+/// release reaches the next request
+/// (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). An entry
+/// resolved here would name the release the server started with forever.
 ///
 /// # Errors
 ///
@@ -1763,12 +1769,13 @@ fn sweep_orphans(config: &nvs_config::Config) {
 /// sentence rather than a [`nvs_diagnostics::Diagnostic`], for [`addresses`]'s
 /// reason: the value came from a command line and there is no span to point into.
 fn one_mount(path: &Path) -> Result<Mounted, String> {
-    let entry = nvs_config::trust::canonical(path)
-        .map_err(|why| format!("`{}` cannot be served: {why}", path.display()))?;
-    let root = entry
+    let cannot = |why: std::io::Error| format!("`{}` cannot be served: {why}", path.display());
+    let real = nvs_config::trust::canonical(path).map_err(cannot)?;
+    let root = real
         .parent()
-        .ok_or_else(|| format!("`{}` is not a file in a directory", entry.display()))?
+        .ok_or_else(|| format!("`{}` is not a file in a directory", real.display()))?
         .to_path_buf();
+    let entry = std::path::absolute(path).map_err(cannot)?;
     Ok(Mounted {
         prefix: "/".to_string(),
         host: None,

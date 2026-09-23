@@ -79,12 +79,33 @@ impl Server {
     ///
     /// As [`Server::start`] does, and when that first command fails.
     fn start_after(case: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
+        Self::launch(case, files, &[], first, "app.nvs")
+    }
+
+    /// [`Server::start`], which also makes each link in `links` point at its
+    /// directory ([`point`]) and serves `entry` rather than `app.nvs`.
+    fn serving(case: &str, files: &[(&str, &str)], links: &[(&str, &str)], entry: &str) -> Self {
+        Self::launch(case, files, links, &[], entry)
+    }
+
+    /// Writes `files`, makes `links`, runs `first` unless it is empty, and
+    /// starts `nvs serve entry`.
+    fn launch(
+        case: &str,
+        files: &[(&str, &str)],
+        links: &[(&str, &str)],
+        first: &[&str],
+        entry: &str,
+    ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-edit-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
         for (path, text) in files {
             write_file(&dir.join(path), text);
+        }
+        for (link, target) in links {
+            point(&dir.join(link), &dir.join(target));
         }
         if !first.is_empty() {
             let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -102,7 +123,7 @@ impl Server {
         }
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+            .args(["serve", entry, "--listen", "127.0.0.1:0"])
             .current_dir(&dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -981,4 +1002,98 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
         "the edit was not compiled once more after `lib.nvs` moved: {}",
         server.said()
     );
+}
+
+/// The server runs `current/app.nvs`, and `current` is a link to the release
+/// in `a`. `a/app.nvs` is edited, and while the background check compiles
+/// that edit, `current` is switched to the release in `b`. That compile read
+/// release `a`, so it is thrown away, and the next one reads release `b`. No
+/// request gets the edit to release `a`.
+///
+/// `b/app.nvs` is the same text as the edit, and `b/lib.nvs` has the size and
+/// modification time of `a/lib.nvs`. So through the link, no file looks
+/// different after the switch. Only the real path of `current/app.nvs` is
+/// different.
+#[test]
+fn a_link_switch_during_a_compile_never_builds_a_program_from_both_releases() {
+    let config = format!("{}file_cache = false\n", checking_every_100ms("100ms"));
+    let edited = requiring_lib("Compiled second.", "second");
+    let server = Server::serving(
+        "linked",
+        &[
+            ("nvs.toml", &config),
+            ("a/app.nvs", &requiring_lib("Compiled first.", "first")),
+            ("a/heavy.nvs", &heavy()),
+            ("a/lib.nvs", &printing("one")),
+            ("b/app.nvs", &edited),
+            ("b/heavy.nvs", &heavy()),
+            ("b/lib.nvs", &printing("two")),
+        ],
+        &[("current", "a")],
+        "current/app.nvs",
+    );
+    let stamp = std::fs::metadata(server.dir.join("a/lib.nvs"))
+        .and_then(|meta| meta.modified())
+        .expect("`a/lib.nvs` has a modification time");
+    std::fs::File::options()
+        .write(true)
+        .open(server.dir.join("b/lib.nvs"))
+        .and_then(|file| file.set_modified(stamp))
+        .expect("`b/lib.nvs` takes the modification time of `a/lib.nvs`");
+    server.awaits_body("/", "one first");
+
+    server.write("a/app.nvs", &edited);
+    server.awaits_said("Compiled second.");
+    point(&server.dir.join("current"), &server.dir.join("b"));
+    let started = Instant::now();
+    loop {
+        let answer = server.get("/");
+        if answer.body == "two second" {
+            break;
+        }
+        assert_eq!(
+            answer.body, "one first",
+            "a request got the compile that the link switch moved under"
+        );
+        assert!(
+            started.elapsed() <= BOUND,
+            "release `b` was not swapped in within {BOUND:?}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
+    }
+}
+
+/// Makes the link `link` point at the directory `target`, replacing any link
+/// already there. On Unix it is a symlink, renamed over the old one in one
+/// step. On Windows it is a junction, which needs no privilege, and the old one
+/// is removed first.
+fn point(link: &Path, target: &Path) {
+    #[cfg(unix)]
+    {
+        let fresh = link.with_extension("next");
+        let _ = std::fs::remove_file(&fresh);
+        std::os::unix::fs::symlink(target, &fresh).expect("the new link is made");
+        std::fs::rename(&fresh, link).expect("the new link replaces the old one");
+    }
+    #[cfg(windows)]
+    {
+        if link.exists() {
+            std::fs::remove_dir(link).expect("the old junction is removed");
+        }
+        let made = nvs_repo::spawn("cmd", &[])
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            .arg(link)
+            .arg(target)
+            .stdout(Stdio::null())
+            .output()
+            .expect("`cmd` starts");
+        assert!(
+            made.status.success(),
+            "the junction was not made: {}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+    }
 }
