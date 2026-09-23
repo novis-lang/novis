@@ -80,7 +80,7 @@ rules = ["packaging/autoload-probes-fold-into-the-cache-key", "config/opcache-fi
          "programs/memory-priority"]
 
 [context.stage.4]
-rules = ["http-server/a-path-is-never-derived-from-a-url"]
+rules = ["http-server/a-path-is-never-derived-from-a-url", "http-server/a-mount-table-expands-at-boot"]
 
 [context.stage.5]
 rules = ["config/the-extension-set-is-in-every-unit-key"]
@@ -163,6 +163,17 @@ tests = [
   "a_copy_that_pauses_less_than_settle_is_compiled_once_from_the_finished_tree",
   "a_file_that_changes_during_a_compile_discards_that_compile",
   "a_link_switch_during_a_compile_never_builds_a_program_from_both_releases",
+]
+
+# The unit table is `nvs-cli`'s own, and `nvs-cli` is a binary with no library, so what it holds
+# is only readable from a unit test beside it. Ten thousand edits through a running server would
+# also cost a `revalidate_freq` each.
+[[check]]
+kind = "cargo-named"
+stage = "3 off the request path"
+name = "nvs-cli script (units held stay bounded after ten thousand edits)"
+args = ["test", "-p", "nvs-cli", "--bin", "nvs", "units_held_stay_bounded"]
+tests = [
   "units_held_stay_bounded_after_ten_thousand_edits",
 ]
 

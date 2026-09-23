@@ -2389,6 +2389,76 @@ mod tests {
     }
 
     #[test]
+    fn units_held_stay_bounded_after_ten_thousand_edits() {
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+        // last paragraph: the table keeps, per path, the unit in force and the
+        // one it replaced, so what it holds is in proportion to entry files and
+        // never to edits. Every edit below is a content the table has not seen,
+        // so each one is compiled and published, and each publish is a sweep.
+        // The artifact cache is off, so the run leaves no file behind it.
+        use nvs_config::tree::{Config, Opcache, Setting};
+        const EDITS: u64 = 10_000;
+        let dir = std::env::temp_dir().join(format!("nvs-bounded-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the program's directory");
+        let lib = dir.join("lib.nvs");
+        std::fs::write(&lib, "<?nvs\necho \"0\";\n").expect("the required file");
+        std::fs::write(dir.join("entry.nvs"), "<?nvs\nrequire './lib.nvs';\n")
+            .expect("the entry point");
+        let written = dir.join("entry.nvs").to_string_lossy().into_owned();
+        let compiler = Compiler::new(&Config {
+            opcache: Some(Opcache {
+                validate: Some(Setting::Text("hash".to_owned())),
+                revalidate_freq: Some(Setting::Text("0s".to_owned())),
+                settle: Some(Setting::Text("0s".to_owned())),
+                file_cache: Some(false),
+                ..Opcache::default()
+            }),
+            ..Config::default()
+        });
+
+        let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        for edit in 1..=EDITS {
+            std::fs::write(&lib, format!("<?nvs\necho \"{edit}\";\n")).expect("the edit");
+            compiler.revalidate();
+            assert!(
+                compiler.held() <= 2,
+                "after edit {edit} the table holds {} units",
+                compiler.held()
+            );
+        }
+        let (last, _routes) = compiler.compiled(&written).expect("the last edit compiles");
+        assert_eq!(
+            said(last),
+            EDITS.to_string(),
+            "the last edit was not swapped in"
+        );
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            EDITS + 1,
+            "an edit was answered without its own compile"
+        );
+        assert_eq!(
+            shared(&compiler.paths).len(),
+            1,
+            "one path holds more than one pointer"
+        );
+        let traces: usize = shared(&compiler.traces)
+            .values()
+            .map(|traced| traced.traces.len())
+            .sum();
+        assert!(traces <= 2, "the trace table holds {traces} traces");
+        // A request that resolved before the first edit still holds its unit,
+        // which the table let go of long ago.
+        assert_eq!(
+            said(first),
+            "0",
+            "an old unit did not outlive the table's hold on it"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile() {
         // The two halves of `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
         // step 4 that only a fleet has a spelling for: the revalidation that
