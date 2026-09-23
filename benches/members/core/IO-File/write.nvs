@@ -1,0 +1,29 @@
+<?nvs
+// Writes one short line to an open file, as a program does when it writes a log or a CSV file.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), "write.txt");
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+        array<string> $lines = ["order 1042 shipped\n", "order 1043 paid\n", "order 1044 packed\n"];
+        uint $total = 0;
+        uint $size = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $written = $file->write($lines[$total % 3]);
+            $total = $total + $written;
+            $size = $size + $written;
+            // The file starts again at 1 MB, so the bench does not fill the disk.
+            if ($size > 1048576) {
+                $file->seek(0);
+                $size = 0;
+            }
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "done" : "nothing was written", "\n";

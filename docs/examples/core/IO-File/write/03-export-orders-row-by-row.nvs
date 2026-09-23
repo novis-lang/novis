@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to export many rows to a CSV file one row at a time.
+// Only one row is in memory at a time, however many rows there are.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "orders.csv");
+Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+uint $bytes = $out->write("id,customer,total\n");
+
+uint $id = 1;
+while ($id <= 1000) {
+    // This builds one row and writes it to the file. `write` returns its size in bytes.
+    string $row = $id as string . ",Café Größenwahn," . ($id * 3) as string . ".90\n";
+    $bytes = $bytes + $out->write($row);
+    $id = $id + 1;
+}
+$out->close();
+
+// This prints the number of bytes written, and that the file has that size.
+echo "written: ", $bytes, " bytes\n";
+echo "same size: ", Core\IO::size($path) == $bytes ? "yes" : "no", "\n";

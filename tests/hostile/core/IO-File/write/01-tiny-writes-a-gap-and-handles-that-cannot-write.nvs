@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a program writes one byte at a time, writes nothing, and writes far past the
+// end of a file. Then it writes 8 MB at once, and writes through handles that cannot write.
+// Each step must work or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-write');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.txt');
+
+// 1. 200000 writes of one byte each. The file must have 200000 bytes.
+Core\IO\File $tiny = Core\IO::open($path, Core\IO\FileMode::Write);
+uint $i = 0;
+while ($i < 200000) {
+    $tiny->write('x');
+    $i = $i + 1;
+}
+$tiny->close();
+if (Core\IO::size($path) != 200000) {
+    throw new LogicError('a one-byte write was lost');
+}
+echo 'step 1: done', "\n";
+
+// 2. 100000 writes of an empty string. Each one must return 0 and leave the position alone.
+Core\IO\File $nothing = Core\IO::open($path, Core\IO\FileMode::Write);
+$i = 0;
+while ($i < 100000) {
+    if ($nothing->write('') != 0 || $nothing->tell() != 0) {
+        throw new LogicError('an empty write wrote something');
+    }
+    $i = $i + 1;
+}
+$nothing->close();
+echo 'step 2: done', "\n";
+
+// 3. The position is moved 1 MB past the end of an empty file, and one byte is written there.
+// The file must grow to 1 MB and one byte.
+Core\IO\File $far = Core\IO::open($path, Core\IO\FileMode::Write);
+$far->seek(1048576);
+$far->write('x');
+$far->close();
+if (Core\IO::size($path) != 1048577) {
+    throw new LogicError('a write past the end landed in the wrong place');
+}
+echo 'step 3: done', "\n";
+
+// 4. One write of 8 MB. It must return 8 MB, all of it.
+Core\IO\File $big = Core\IO::open($path, Core\IO\FileMode::Write);
+if ($big->write(Core\Str::repeat('é', 4194304)) != 8388608) {
+    throw new LogicError('a large write was cut short');
+}
+$big->close();
+echo 'step 4: done', "\n";
+
+// 5. A handle that can only read is written 1000 times. Each `write` must throw an
+// `IOError`, and the file must not change.
+Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $reader->write('lost');
+    } catch (IOError $refused) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+$reader->close();
+if ($thrown != 1000 || Core\IO::size($path) != 8388608) {
+    throw new LogicError('a handle that can only read wrote something');
+}
+echo 'step 5: done', "\n";
+
+// 6. A closed handle is written 1000 times. Each `write` must throw a `RuntimeError`.
+$thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $reader->write('lost');
+    } catch (RuntimeError $closed) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a closed handle was written without an error');
+}
+echo 'step 6: done', "\n";

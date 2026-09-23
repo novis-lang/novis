@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to write a file in several parts through one open handle.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+// Each `write` adds its text where the last one stopped.
+$file->write("Hello");
+$file->write(", ");
+$file->write("world\n");
+$file->close();
+
+// This prints "Hello, world".
+echo Core\IO::read($path);
