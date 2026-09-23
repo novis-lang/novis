@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `Core\IO::write` replaces the whole content of a file.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "status.txt");
+Core\IO::write($path, "The backup is running. Please wait.\n");
+
+// The second text is shorter. Nothing of the first text is left in the file.
+// This prints "Backup done.".
+Core\IO::write($path, "Backup done.\n");
+echo Core\IO::read($path);
+
+// `write` does not create folders. The folder "missing" does not exist,
+// so this throws an `IOError` and prints "no such folder".
+try {
+    Core\IO::write(Core\Path::join(Core\IO::temporaryDir(), "missing", "status.txt"), "x");
+} catch (IOError $e) {
+    echo "no such folder", "\n";
+}

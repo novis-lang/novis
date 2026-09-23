@@ -3510,6 +3510,7 @@ mod tests {
         path
     }
 
+    // covers: Core\IO::writeStream
     #[test]
     fn write_stream_defaults_to_no_overwrite() {
         // `rule:core-classes/io-write-stream`'s first rule, in both places it has to hold. The row's
@@ -3559,6 +3560,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    // covers: Core\IO::writeStream
     #[test]
     fn a_write_stream_that_fails_midway_removes_the_partial_file() {
         // `rule:core-classes/io-write-stream`'s second rule. `max` is the failure the case reaches
@@ -3759,6 +3761,50 @@ mod tests {
     fn spelled(path: &std::path::Path) -> &str {
         path.to_str()
             .expect("a scratch path this suite spelled itself")
+    }
+
+    /// `Core\IO::write` creates a file, and a second write replaces its whole content, so a
+    /// shorter text leaves nothing of the longer one behind and an empty text leaves an empty
+    /// file. A path under a missing folder and a folder itself throw naming the member, and a
+    /// context granting `fs.read` alone throws naming `fs.write` and creates nothing.
+    // covers: Core\IO::write
+    #[test]
+    fn core_io_write_replaces_the_whole_file_and_a_refusal_creates_nothing() {
+        let root = scratch("write");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("a folder to work in");
+        let file = root.join("note.txt");
+        let mut ctx = writing();
+        for (content, left) in [
+            ("a long first line\n", &b"a long first line\n"[..]),
+            ("short\n", b"short\n"),
+            ("", b""),
+        ] {
+            call_with(nvs_core_io_write, &mut ctx, &[spelled(&file), content])
+                .expect("`fs.write` is granted everywhere");
+            assert_eq!(std::fs::read(&file).expect("the file the write left"), left);
+        }
+
+        let orphan = root.join("missing").join("note.txt");
+        let failed = call_with(nvs_core_io_write, &mut ctx, &[spelled(&orphan), "x"])
+            .expect_err("the folder is not there");
+        assert!(failed.contains(r"Core\IO::write"), "{failed}");
+        assert!(!orphan.exists(), "a failed write created the file");
+        call_with(nvs_core_io_write, &mut ctx, &[spelled(&root), "x"])
+            .expect_err("a folder is not a file");
+        assert!(root.is_dir(), "a failed write leaves the folder");
+
+        let refused_path = root.join("refused.txt");
+        let refused = call_with(
+            nvs_core_io_write,
+            &mut reading("1MiB"),
+            &[spelled(&refused_path), "x"],
+        )
+        .expect_err("`fs.read` is not `fs.write`");
+        assert!(refused.contains("fs.write"), "{refused}");
+        assert!(!refused_path.exists(), "a refused write created the file");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// `Core\IO::append` keeps what the file has and adds after it, creating the file the first
@@ -4037,6 +4083,47 @@ mod tests {
 
         let _ = std::fs::remove_file(&file);
         let _ = std::fs::remove_file(&empty);
+    }
+
+    /// `Core\IO::stat` answers the size in bytes and which kind of thing is at the path, a file
+    /// or a folder, from one call. A name with nothing at it throws naming the member, and a
+    /// context with no `fs.read` throws before the operating system is asked.
+    // covers: Core\IO::stat
+    #[test]
+    fn core_io_stat_answers_size_and_kind_and_throws_for_a_missing_name() {
+        let file = scratch("stat.txt");
+        std::fs::write(&file, "Café".as_bytes()).expect("a file to measure");
+        let dir = file.parent().expect("a scratch file sits in a directory");
+        let mut ctx = reading("1MiB");
+        let stat_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
+            call_with(nvs_core_io_stat, ctx, &[spelled(path)]).map(|value| {
+                let slot =
+                    |index| metadata_slot(&[value], index, "stat").expect("a `Core\\IO\\Metadata`");
+                let answered = (
+                    slot(0).as_uint().expect("the size is a `uint`"),
+                    slot(2).as_bool().expect("`isFile` is a `bool`"),
+                    slot(3).as_bool().expect("`isDir` is a `bool`"),
+                );
+                #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                unsafe {
+                    value.release();
+                }
+                answered
+            })
+        };
+        assert_eq!(
+            stat_of(&mut ctx, &file),
+            Ok((5, true, false)),
+            "four characters, five bytes"
+        );
+        assert!(matches!(stat_of(&mut ctx, dir), Ok((_, false, true))));
+        let missing = stat_of(&mut ctx, &scratch("stat-missing.txt")).expect_err("no file");
+        assert!(missing.contains(r"Core\IO::stat"), "{missing}");
+
+        let refused = stat_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
+        assert!(refused.contains("fs.read"), "{refused}");
+
+        let _ = std::fs::remove_file(&file);
     }
 
     /// `Core\IO::modifiedAt` answers the time the operating system recorded, to the second a
