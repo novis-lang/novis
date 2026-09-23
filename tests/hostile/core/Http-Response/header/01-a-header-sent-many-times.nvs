@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a server sends one header on a very large number of lines, and the
+// program asks for headers with very long or broken names. Each call must return
+// a value or throw an error. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. The reply has one hundred thousand `X-Trace` lines. `header()` must join all
+//    of them into one string.
+array<string> $trace = [];
+uint $n = 0;
+while ($n < 100000) {
+    $trace[] = Core\Str::format('hop-%d', $n);
+    $n = $n + 1;
+}
+array<string> $cookies = ['a=1', 'b=2'];
+Core\Test::answerHttp('https://api.example.com/', 200, { headers: ['X-Trace' => $trace, 'Set-Cookie' => $cookies] });
+Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/');
+?tainted string $joined = $response->header('x-trace');
+if (!Core\Str::endsWith($joined ?? '', 'hop-99999')) {
+    throw new LogicError('the joined header lost a line');
+}
+echo 'step 1: joined', "\n";
+
+// 2. A name of ten million upper-case letters, and names with a line break or
+//    nothing in them. Each call must return `null`.
+array<string> $names = [Core\Str::repeat('X', 10000000), "x-trace\r\nx-admin", '', ' x-trace'];
+foreach ($names as string $name) {
+    if ($response->header($name) != null) {
+        throw new LogicError('a header that was not sent was found');
+    }
+}
+echo 'step 2: null', "\n";
+
+// 3. `Set-Cookie` in every mix of upper and lower case must throw a `LogicError`.
+array<string> $spellings = ['Set-Cookie', 'SET-COOKIE', 'set-cookie', 'sEt-CoOkIe'];
+foreach ($spellings as string $spelling) {
+    try {
+        ?tainted string $cookie = $response->header($spelling);
+        throw new RuntimeError('two cookies were joined into one string');
+    } catch (LogicError $error) {
+    }
+}
+echo 'step 3: refused', "\n";
+
+// 4. The joined header is read again and again, and every result is kept. This
+//    step ends the program at its memory limit.
+array<tainted string> $kept = [];
+while (true) {
+    $kept[] = $response->header('X-Trace') ?? '';
+}

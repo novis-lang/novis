@@ -3893,25 +3893,42 @@ fn header_map(lines: &[(String, String)]) -> Value {
 /// Every line the reply carried under `name`, as the two readers of
 /// [`HEADERS_SLOT`] both see them, or `None` where it carried no such field.
 ///
+/// The answer is the list of `string` values the slot already holds, borrowed
+/// rather than copied: the reply owns a reference to it for as long as the
+/// receiver is live, so a reader that hands a line back retains that line and
+/// a reader that only looks at one pays nothing.
+///
 /// The lookup lower-cases what the caller wrote and nothing else: the slot's
 /// keys were lower-cased where they were parsed, so the comparison RFC 9110
-/// § 5.1 asks for is one allocation at the call rather than a walk that
-/// compares case-insensitively at every entry.
-fn field_lines(object: *mut nvs_runtime::ObjHeader, at: usize, name: &str) -> Option<Vec<Vec<u8>>> {
-    let map = crate::instance::slot(object, at).array_ptr()?;
-    let map = crate::arr::borrowed(map);
-    let values = map.get(name.to_ascii_lowercase().as_bytes())?.array_ptr()?;
-    let values = crate::arr::borrowed(values);
-    let mut lines = Vec::new();
+/// § 5.1 asks for is one lookup rather than a walk that compares
+/// case-insensitively at every entry, and a name written in lower case costs
+/// no allocation at all.
+fn field_lines(
+    object: *mut nvs_runtime::ObjHeader,
+    at: usize,
+    name: &str,
+) -> Option<std::mem::ManuallyDrop<NvsArray>> {
+    let map = crate::arr::borrowed(crate::instance::slot(object, at).array_ptr()?);
+    let key: std::borrow::Cow<'_, str> = if name.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        std::borrow::Cow::Owned(name.to_ascii_lowercase())
+    } else {
+        std::borrow::Cow::Borrowed(name)
+    };
+    Some(crate::arr::borrowed(map.get(key.as_bytes())?.array_ptr()?))
+}
+
+/// The lines of `values` in arrival order, each borrowed from the list.
+fn each_line(values: &NvsArray) -> impl Iterator<Item = Value> + '_ {
     let mut from = 0_usize;
-    while let Some(slot) = values.next_slot(from) {
+    std::iter::from_fn(move || {
+        let slot = values.next_slot(from)?;
         from = slot + 1;
-        let held = values
-            .value_at(slot)
-            .expect("next_slot only names live entries");
-        lines.push(held.as_text().unwrap_or_default().as_bytes().to_vec());
-    }
-    Some(lines)
+        Some(
+            values
+                .value_at(slot)
+                .expect("next_slot only names live entries"),
+        )
+    })
 }
 
 /// The `$name` argument of a header reading.
@@ -3958,10 +3975,32 @@ fn joined_field(
             ),
         ));
     }
-    Ok(match field_lines(object, at, name) {
-        None => Value::null(),
-        Some(lines) => Value::str(NvsStr::new(&lines.join(&b", "[..]))),
-    })
+    let Some(values) = field_lines(object, at, name) else {
+        return Ok(Value::null());
+    };
+    // A field that arrived once is the whole answer, and by far the common
+    // one, so it is handed back shared rather than copied.
+    if values.count() == 1 {
+        let line = each_line(&values).next().expect("a list of one has a line");
+        #[expect(
+            unsafe_code,
+            reason = "the receiver owns a reference for the length of the call, so the \
+                      line its header map holds is live, which is `Value::retain`'s whole \
+                      obligation"
+        )]
+        unsafe {
+            line.retain();
+        }
+        return Ok(line);
+    }
+    let mut joined = Vec::new();
+    for (at, line) in each_line(&values).enumerate() {
+        if at > 0 {
+            joined.extend_from_slice(b", ");
+        }
+        joined.extend_from_slice(line.as_text().unwrap_or_default().as_bytes());
+    }
+    Ok(Value::str(NvsStr::new(&joined)))
 }
 
 /// Every line one field carried, kept apart where [`joined_field`] joins them —
@@ -3973,8 +4012,21 @@ fn joined_field(
 /// spelling of the same emptiness (`rule:core-api/shape-rules` R5).
 fn listed_field(object: *mut nvs_runtime::ObjHeader, at: usize, name: &str) -> Value {
     let mut out = NvsArray::new();
-    for line in field_lines(object, at, name).unwrap_or_default() {
-        out.append(Value::str(NvsStr::new(&line)));
+    if let Some(values) = field_lines(object, at, name) {
+        for line in each_line(&values) {
+            // The list handed back owns one reference to each line, and the
+            // reply keeps its own.
+            #[expect(
+                unsafe_code,
+                reason = "the receiver owns a reference for the length of the call, so \
+                          the line its header map holds is live, which is \
+                          `Value::retain`'s whole obligation"
+            )]
+            unsafe {
+                line.retain();
+            }
+            out.append(line);
+        }
     }
     Value::array(out)
 }
@@ -5352,6 +5404,33 @@ mod tests {
         path: &str,
         reply: &'static [u8],
     ) -> (String, Option<i64>, Vec<u8>) {
+        let (head, answer) = answered_once(member, verb, path, reply);
+        let object = answer.obj_ptr().expect("the answer is an instance");
+        let status = crate::instance::slot(object, STATUS_SLOT).as_int();
+        let body = crate::instance::slot(object, BODY_SLOT)
+            .as_bytes()
+            .expect("the body slot is `bytes`")
+            .to_vec();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the reference the member answered with, and it is \
+                      not its caller's"
+        )]
+        unsafe {
+            answer.release();
+        }
+        (head, status, body)
+    }
+
+    /// One exchange with a loopback origin that answers `reply`: the request
+    /// head the origin read, and the `Core\Http\Response` the member answered
+    /// with, which the caller owns and releases.
+    fn answered_once(
+        member: &str,
+        verb: &str,
+        path: &str,
+        reply: &'static [u8],
+    ) -> (String, Value) {
         use std::io::{Read, Write};
 
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5377,24 +5456,16 @@ mod tests {
         let args = asking(url);
         let answer = super::request(&mut ctx, &args, member, verb).expect("the origin's answer");
         let head = served.join().expect("the origin thread");
-
-        let object = answer.obj_ptr().expect("the answer is an instance");
-        let status = crate::instance::slot(object, STATUS_SLOT).as_int();
-        let body = crate::instance::slot(object, BODY_SLOT)
-            .as_bytes()
-            .expect("the body slot is `bytes`")
-            .to_vec();
         #[expect(
             unsafe_code,
-            reason = "this frame owns the references it just produced and the one \
-                      the member answered with, and neither is its caller's"
+            reason = "this frame owns the references it just produced, and neither is its \
+                      caller's"
         )]
         unsafe {
             url.release();
             args[HEADERS].release();
-            answer.release();
         }
-        (head, status, body)
+        (head, answer)
     }
 
     /// `Core\Http\Client::delete` writes `DELETE` on the request line with the
@@ -5849,6 +5920,190 @@ mod tests {
             Err(err) if err.kind() == ErrorKind::WouldBlock => {}
             Ok(_) => panic!("a refused call opened a connection to the host anyway"),
             Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// `Core\Http\Response::bytes` answers the body exactly as the origin sent
+    /// it, as a `bytes` value, for a body that is not UTF-8 — the one `text`
+    /// refuses — and a second call reads the same octets, because reading
+    /// takes a reference and consumes nothing.
+    // covers: Core\Http\Response::bytes
+    #[test]
+    fn response_bytes_reads_a_body_text_refuses_and_reads_it_again() {
+        const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\xff\x00";
+        let (_, answer) = answered_once(
+            "get",
+            "GET",
+            "/logo.png",
+            b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 10\r\n\
+              Connection: close\r\n\r\n\x89PNG\r\n\x1a\n\xff\x00",
+        );
+        let mut ctx = Ctx::buffered();
+
+        let first = nvs_runtime::call(super::nvs_core_http_response_bytes, &mut ctx, &[answer])
+            .expect("`bytes` reads any body");
+        let second = nvs_runtime::call(super::nvs_core_http_response_bytes, &mut ctx, &[answer])
+            .expect("a second read finds the same body");
+        assert!(
+            matches!(first.tag(), Some(nvs_runtime::Tag::Bytes)),
+            "the answer is `bytes`"
+        );
+        assert_eq!(first.as_bytes(), Some(PNG), "every octet, as it arrived");
+        assert_eq!(
+            second.as_bytes(),
+            Some(PNG),
+            "reading the body does not consume it"
+        );
+
+        let refused = nvs_runtime::call(super::nvs_core_http_response_text, &mut ctx, &[answer]);
+        assert!(
+            refused.is_err(),
+            "`text` refuses the body `bytes` just read"
+        );
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message.contains("UTF-8"),
+            "the refusal names the reason: {message}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the response and the two references `bytes` \
+                      answered with, and none is its caller's"
+        )]
+        unsafe {
+            first.release();
+            second.release();
+            answer.release();
+        }
+    }
+
+    /// A reply carrying `Vary` on two lines under two spellings and
+    /// `Set-Cookie` on two lines, one of them with a comma of its own — the
+    /// fixture both field readers below are asked about.
+    const FIELDS_REPLY: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nVary: Accept\r\n\
+        vary: Accept-Encoding\r\nSet-Cookie: a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT\r\n\
+        Set-Cookie: b=2\r\nConnection: close\r\n\r\n";
+
+    /// `name` as the text a program passes a field reader.
+    fn field(name: &str) -> Value {
+        Value::str(NvsStr::new(name.as_bytes()))
+    }
+
+    /// `Core\Http\Response::header` matches a name however either side
+    /// capitalised it, joins a field that arrived on two lines with `, ` in
+    /// arrival order, answers `null` for a field that never arrived, and throws
+    /// for `Set-Cookie` in any capitalisation, naming `headers` as the reader.
+    // covers: Core\Http\Response::header
+    #[test]
+    fn response_header_joins_repeats_answers_null_and_refuses_set_cookie() {
+        let (_, answer) = answered_once("get", "GET", "/", FIELDS_REPLY);
+        let mut ctx = Ctx::buffered();
+        let (upper, missing, cookie) = (field("VARY"), field("x-missing"), field("set-COOKIE"));
+
+        let joined = nvs_runtime::call(
+            super::nvs_core_http_response_header,
+            &mut ctx,
+            &[answer, upper],
+        )
+        .expect("a field that arrived is read");
+        assert_eq!(
+            joined.as_text(),
+            Some("Accept, Accept-Encoding"),
+            "joined in arrival order"
+        );
+        let absent = nvs_runtime::call(
+            super::nvs_core_http_response_header,
+            &mut ctx,
+            &[answer, missing],
+        )
+        .expect("a field that never arrived is an answer too");
+        assert!(
+            matches!(absent.tag(), Some(nvs_runtime::Tag::Null)),
+            "no such field is `null`"
+        );
+
+        let refused = nvs_runtime::call(
+            super::nvs_core_http_response_header,
+            &mut ctx,
+            &[answer, cookie],
+        );
+        assert!(refused.is_err(), "`Set-Cookie` is never joined");
+        let message = ctx.take_pending().expect("the refusal says why");
+        assert!(
+            message.contains("headers(\"set-cookie\")"),
+            "it names the reader: {message}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the response, the three names and the value \
+                      `header` answered with, and none is its caller's"
+        )]
+        unsafe {
+            joined.release();
+            upper.release();
+            missing.release();
+            cookie.release();
+            answer.release();
+        }
+    }
+
+    /// `Core\Http\Response::headers` keeps every line of a field apart and in
+    /// arrival order — two cookies stay two, the comma inside an `Expires`
+    /// included — and answers an empty list rather than `null` for a field
+    /// that never arrived.
+    // covers: Core\Http\Response::headers
+    #[test]
+    fn response_headers_keeps_each_line_apart_and_answers_empty_for_none() {
+        let (_, answer) = answered_once("get", "GET", "/", FIELDS_REPLY);
+        let mut ctx = Ctx::buffered();
+        let (cookie, vary, missing) = (field("Set-Cookie"), field("vary"), field("x-missing"));
+
+        for (name, lines) in [
+            (
+                cookie,
+                &["a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "b=2"][..],
+            ),
+            (vary, &["Accept", "Accept-Encoding"][..]),
+            (missing, &[][..]),
+        ] {
+            let listed = nvs_runtime::call(
+                super::nvs_core_http_response_headers,
+                &mut ctx,
+                &[answer, name],
+            )
+            .expect("`headers` never throws");
+            let array = crate::arr::borrowed(listed.array_ptr().expect("the answer is an array"));
+            let read: Vec<String> = (0..array.count())
+                .map(|at| {
+                    let line = array
+                        .get_index(i64::try_from(at).expect("an index"))
+                        .expect("a line");
+                    line.as_text().expect("each line is text").to_owned()
+                })
+                .collect();
+            assert_eq!(read, lines, "one entry per line, in arrival order");
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the list `headers` answered with, and it is not \
+                          its caller's"
+            )]
+            unsafe {
+                listed.release();
+            }
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the response and the three names, and none is its \
+                      caller's"
+        )]
+        unsafe {
+            cookie.release();
+            vary.release();
+            missing.release();
+            answer.release();
         }
     }
 
