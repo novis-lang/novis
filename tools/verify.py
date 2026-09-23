@@ -315,8 +315,9 @@ EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
 RESULT_RE = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed")
-# One test's line in libtest's output: `test <path> ... ok`, `... ignored`.
-TEST_LINE_RE = re.compile(r"test \S+ \.\.\. \w+")
+# One test's line in libtest's output: `test <path> ... ok`, `... ignored`, and a
+# `#[should_panic]` test's `test <path> - should panic ... ok`.
+TEST_LINE_RE = re.compile(r"test \S+ (?:- should panic )?\.\.\. \w+")
 # `nvs test <dir>` prints exactly one of these, at the end.
 CASES_RE = re.compile(r"(\d+) passed, (\d+) failed, (\d+) skipped")
 

@@ -2941,6 +2941,13 @@ class Goal:
             return None
         if entry.get("key") != reach.key(job)[0]:
             return None
+        # A record carries one line per test its result line counts, or it is missing some: a
+        # line shape `verify.py`'s pattern did not match, and a check naming that test would read
+        # it as one that did not run.
+        counted = sum(int(p) + int(i) for p, i in
+                      re.findall(r"(\d+) passed; \d+ failed; (\d+) ignored", entry.get("result", "")))
+        if len(entry["tests"]) < counted:
+            return None
         return "\n".join(entry["tests"] + [entry.get("result", "")])
 
     def workspace_tests(self):
