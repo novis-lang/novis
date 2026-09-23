@@ -1,0 +1,29 @@
+<?nvs
+// Reads a short file line by line, as a program does with a list of names or a settings file.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $files = [
+            Core\Path::join($dir, "names.txt"),
+            Core\Path::join($dir, "hosts.txt"),
+            Core\Path::join($dir, "settings.env"),
+        ];
+        Core\IO::write($files[0], "Ada\nGrace\nLinus\n");
+        Core\IO::write($files[1], "example.com\r\nexample.org\r\n");
+        Core\IO::write($files[2], "# settings\nDEBUG=0\nPORT=8080\nHOST=localhost\n");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file in each round depends on the round before, so no round can be left out.
+            foreach (Core\IO::lines($files[($total % 3) as int]) as string $line) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000) > 0 ? "done" : "no line was read", "\n";

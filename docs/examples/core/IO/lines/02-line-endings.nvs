@@ -1,0 +1,30 @@
+<?nvs
+// Shows that `Core\IO::lines` reads Windows, Linux and old Mac line breaks the same way.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "colors.txt");
+
+// The first text uses "\r\n" (Windows). The second uses "\n" (Linux and macOS).
+// The third uses "\r" (old Mac). Each text has the same three lines.
+array<string> $contents = ["red\r\ngreen\r\nblue\r\n", "red\ngreen\nblue\n", "red\rgreen\rblue"];
+
+// This prints "red|green|blue" three times.
+foreach ($contents as string $content) {
+    Core\IO::write($path, $content);
+    array<string> $found = [];
+    foreach (Core\IO::lines($path) as string $line) {
+        $found[] = $line;
+    }
+    echo Core\Str::join($found, "|"), "\n";
+}
+
+// An empty line in the middle is kept. An empty file has no lines at all.
+// This prints "lines: 3" and then "lines: 0".
+array<string> $texts = ["a\n\nb\n", ""];
+foreach ($texts as string $text) {
+    Core\IO::write($path, $text);
+    uint $count = 0;
+    foreach (Core\IO::lines($path) as string $line) {
+        $count = $count + 1;
+    }
+    echo "lines: ", $count, "\n";
+}
