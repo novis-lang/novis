@@ -1,0 +1,27 @@
+<?nvs
+// Resolves the full path of a file, as a program does to check whether two paths name the same file.
+// bench: iterations 3000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        Core\IO::makeDir(Core\Path::join($dir, "conf"));
+        Core\IO::write(Core\Path::join($dir, "conf/app.ini"), "x");
+        array<string> $paths = [
+            Core\Path::join($dir, "conf/app.ini"),
+            Core\Path::join($dir, "conf/../conf/app.ini"),
+            Core\Path::join($dir, "./conf/./app.ini"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Str::length(Core\IO::canonicalize($paths[(($total + $i) % 3) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(3000) > 0 ? "done" : "nothing resolved", "\n";

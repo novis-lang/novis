@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program resolves paths with thousands of `..` parts, very long names, NUL bytes
+// and names that do not exist. `canonicalize` must return a full path or throw an error.
+// hostile: timeout-ms 30000
+
+string $dir = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($dir, 'a'));
+string $file = Core\Path::join($dir, 'target.txt');
+Core\IO::write($file, 'x');
+string $expected = Core\IO::canonicalize($file);
+
+// 1. "a/.." 500 times in front of the name. The result must be the file's own full path.
+string $deep = Core\Path::join($dir, Core\Str::repeat('a/../', 500) . 'target.txt');
+if (Core\IO::canonicalize($deep) != $expected) {
+    throw new LogicError('a path with many `..` parts resolved somewhere else');
+}
+// The same path with 50000 of them is longer than some systems allow. It resolves to the file or throws an `IOError`.
+try {
+    string $deeper = Core\Path::join($dir, Core\Str::repeat('a/../', 50000) . 'target.txt');
+    if (Core\IO::canonicalize($deeper) != $expected) {
+        throw new LogicError('a very long path resolved somewhere else');
+    }
+} catch (IOError $tooLong) {
+}
+echo 'step 1: done', "\n";
+
+// 2. Far more `..` parts than the path has folders. The system stops at the root,
+// or throws an `IOError` when the path is too long.
+try {
+    Core\IO::canonicalize(Core\Path::join($dir, Core\Str::repeat('../', 2000)));
+} catch (IOError $tooLong) {
+}
+echo 'step 2: done', "\n";
+
+// 3. The result resolved again, 1000 times. It must never change.
+string $again = $expected;
+int $i = 0;
+while ($i < 1000) {
+    $again = Core\IO::canonicalize($again);
+    $i = $i + 1;
+}
+if ($again != $expected) {
+    throw new LogicError('the result changed when it was resolved again');
+}
+echo 'step 3: done', "\n";
+
+// 4. Paths with nothing at them: an empty text, a missing name, a missing folder,
+// a file used as a folder, a NUL byte and a very long name. Each must throw.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, 'missing.txt'),
+    Core\Path::join($dir, 'no-such-dir/deeper/file.txt'),
+    Core\Path::join($file, 'inside.txt'),
+    Core\Path::join($dir, "nul\0byte.txt"),
+    Core\Path::join($dir, Core\Str::repeat('n', 100000)),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::canonicalize($badPath);
+        throw new LogicError('a path with nothing at it was resolved');
+    } catch (IOError $refused) {
+    }
+}
+echo 'step 4: done', "\n";

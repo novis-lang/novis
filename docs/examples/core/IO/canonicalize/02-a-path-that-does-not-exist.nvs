@@ -1,0 +1,14 @@
+<?nvs
+// Shows what `Core\IO::canonicalize` does with a path that has nothing at it.
+
+string $missing = Core\Path::join(Core\IO::temporaryDir(), "not-here.txt");
+
+// `Core\IO::exists` returns `false` for this path. This prints "false".
+echo Core\IO::exists($missing) ? "true" : "false", "\n";
+
+// `canonicalize` throws an `IOError`, because a missing file has no full path. This prints "no such file".
+try {
+    echo Core\IO::canonicalize($missing), "\n";
+} catch (IOError $error) {
+    echo "no such file", "\n";
+}
