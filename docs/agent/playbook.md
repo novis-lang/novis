@@ -2665,6 +2665,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   "would append 1 goal(s)" with no feature named. Run `python tools/dossier.py --verify --only
   directive:<key>` for every row a change adds, and write its example, attack and `// covers:` marker
   in the same slice. [until: gone tools/dossier.py:claimed_features]
+- **A side run's landing is held by `docs/agent/loop-goal.toml` changes that no side session made.** Before this fix, `tools/loop.py`'s `context_sweep` called `context-sync.py` without `--goal`, so a side run widened the chain's manifest and committed only the side goal's. The driver then refused to land a dirty worktree. Revert the chain file with `git checkout -- docs/agent/loop-goal.toml`, and never commit it from a side branch. [until: reviewed 2026-10-23]
 
 ## Running things
 
