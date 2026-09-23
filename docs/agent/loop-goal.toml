@@ -100,6 +100,13 @@ modules = [
   # `rule:security/capability-question-is-grant-and-scope`'s capability question: a grant, a
   # scope, and the `bool` the two of them answer.
   "crates/nvs-config/src/capability.rs",
+  # `Core\Http\Stream` — ADR 0180 § 5's streamed reply: a head read through members, and a body
+  # read one way and once.
+  "crates/nvs-stdlib/src/http/stream.rs",
+  # `Core\IO` — the first `Core` class that reaches the operating system, and so the first one
+  # written entirely behind `rule:security/capability-check-at-the-door` and
+  # `rule:security/capability-declaration-is-one-table` 's doors.
+  "crates/nvs-stdlib/src/io.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
