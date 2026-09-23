@@ -1,4 +1,4 @@
-# Goal 173 -- every Core class carries its card
+# Goal 173 -- every Core class and every diagnostic code carries its card, and the binary's help reaches every feature
 # The acceptance test, as data.
 #
 # `173-core-class-cards.md` is the prose. One home each.
@@ -24,6 +24,13 @@ modules = [
   # A worked example of a class with member cards, small enough to read whole -- the card const
   # goes directly above its `CLASS` row, in the same shape.
   "crates/nvs-stdlib/src/json.rs",
+  # Stage 3: the index `find` and `show` read, where the new entries are derived.
+  "crates/nvs-cli/src/agent.rs",
+  # Stage 4: the one table of diagnostic codes, where each code's card goes.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Stage 5: the proof roster and the policy that switches a proof on.
+  "tools/dossier.py",
+  "tools/data/dossier-policy.toml",
 ]
 
 # The card rule the class card is one more line of, and the voice every card is written in.
@@ -64,6 +71,19 @@ plan = ["Open now", "Blocking"]
 # The record that put the field, the list and the reader in place.
 rules = []
 adrs = ["0203"]
+
+[context.stage.3]
+rules = ["tooling/an-agent-asks-the-binary", "tooling/the-index-is-one-line-per-member", "tooling/the-index-names-every-key-command-and-code"]
+adrs = ["0216"]
+
+[context.stage.4]
+rules = ["tooling/a-diagnostic-code-carries-its-card"]
+adrs = ["0216"]
+shapes = ["A diagnostic"]
+
+[context.stage.5]
+rules = ["testing/feature-proofs", "testing/roster-is-derived"]
+adrs = ["0216"]
 
 # The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
 # appended behind: a generated goal runs that goal's whole acceptance list as its
@@ -108,3 +128,47 @@ stage = "2 the cards"
 name = "no Core class still owes a card"
 argv = ["python", "tools/class-cards.py", "--check"]
 want = ["every Core class carries its card"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the index entries. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the index entries"
+name = "every configuration key, command, flag and diagnostic code is an index entry"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "every_key_command_flag_and_code_is_an_index_entry",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the code cards. Goal prose stage 4.
+#
+# The first test holds the list and the cards together every session; the second is the goal.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the code cards"
+name = "every diagnostic code carries its card or is listed as owing one, and no code still owes one"
+args = ["test", "-p", "nvs-diagnostics"]
+tests = [
+  "every_code_carries_its_card_or_is_listed",
+  "no_code_still_owes_a_card",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- Help is owed. Goal prose stage 5. `help` is last in `PROOFS`, so the gate names
+# `hostile, about, help` exactly when the proof is switched on.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 help is owed"
+name = "dossier: help is owed and the whole roster owes nothing"
+argv = ["python", "tools/dossier.py", "--gate"]
+want = ["nothing owed in the whole roster", "hostile, about, help"]

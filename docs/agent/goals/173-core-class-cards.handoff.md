@@ -29,6 +29,6 @@ modules whose classes the session cards, taken in the list's order.
 
 ## Backlog
 
-- Nothing this goal does not reach: it is one stage, repeated until the script prints that every
-  class carries its card.
+- Stages 3 to 5 follow the class cards: the index entries, the diagnostic-code cards and the *Help*
+  proof ADR 0216 added. The goal's `.md` is what each stage builds, and stage 2 goes first.
 - When this goal's last check goes green the driver takes goal `tools-install`.
