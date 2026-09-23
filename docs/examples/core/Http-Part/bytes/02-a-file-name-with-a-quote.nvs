@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when the file name of an uploaded field contains a quote.
+
+// A user chose this file name. The quotes are part of the name.
+string $userFileName = 'notes "final".txt';
+Core\Http\Part $notes = Core\Http\Part::bytes("Meeting at 10:00.\n", $userFileName, {contentType: "text/plain"});
+
+// A quote would end the file name early in the form data. So the call throws a
+// `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::post("https://203.0.113.10/upload", {multipart: ["file" => $notes]});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// Remove the quotes from a name that a user chose before you use it. This prints `notes final.txt`.
+string $safeName = Core\Str::replace($userFileName, '"', "");
+echo $safeName, "\n";

@@ -1,0 +1,104 @@
+<?nvs
+// Attack: a program tries to upload files outside the one directory it may read, and
+// tries to add a second form field through a file name. Every attempt must throw an
+// error before anything is sent. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+string $dir = 'tests/hostile/core/Http-Part/file/data';
+
+// 1. Each path tries to leave the `data` directory, or names no file. Each call must throw
+//    a `RuntimeError` or an `IOError`. If a part is created, a `LogicError` stops the program.
+array<string> $escapes = [
+    $dir . '/../01-files-that-must-not-leave.nvs',
+    $dir . '/../../../../../../nvs.toml',
+    $dir . '\\..\\..\\..\\..\\..\\..\\nvs.toml',
+    $dir . '/./././../../../../../../Cargo.toml',
+    $dir . "/note.txt\x00/../../../../../../nvs.toml",
+    $dir . '/missing.txt',
+    'nvs.toml',
+    '/etc/passwd',
+    'C:\\Windows\\win.ini',
+    '',
+];
+uint $refused = 0;
+foreach ($escapes as string $path) {
+    try {
+        Core\Http\Part $part = Core\Http\Part::file($path);
+        throw new LogicError(Core\Str::format('a part was created for a path outside the grant: %s', $path));
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. Each file name or media type has a quote or a line break, which would start a second
+//    form field. Each call must throw an error about that text. Any other error is a failure.
+array<string> $names = [
+    "a\"; name=\"admin",
+    "a.txt\r\nContent-Type: text/html",
+    "a.txt\nX-Other: 1",
+    "a\x00.txt",
+];
+foreach ($names as string $name) {
+    try {
+        Core\Http\Part $named = Core\Http\Part::file($dir . '/note.txt', { filename: $name });
+        Core\Http\Response $sent = Core\Http\Client::post('https://203.0.113.10/upload', { deadline: 2s, connectTimeout: 1s, multipart: ['file' => $named] });
+        throw new LogicError('a file name with a quote or a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a filename')) {
+            throw new LogicError(Core\Str::format('the file name was not checked first: %s', $error->message));
+        }
+    }
+    try {
+        Core\Http\Part $typed = Core\Http\Part::file($dir . '/note.txt', { contentType: $name });
+        Core\Http\Response $sentTyped = Core\Http\Client::post('https://203.0.113.10/upload', { deadline: 2s, connectTimeout: 1s, multipart: ['file' => $typed] });
+        throw new LogicError('a media type with a quote or a line break was sent');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a media type')) {
+            throw new LogicError(Core\Str::format('the media type was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 2: refused', "\n";
+
+// 3. A form has ten thousand fields with the same file, and the last file name has a quote.
+//    It is sent twenty times. Each open file must be closed, so the last check can open it again.
+array<Core\Http\Part> $many = [];
+uint $k = 0;
+while ($k < 10000) {
+    $many[Core\Str::format('field%d', $k)] = Core\Http\Part::file($dir . '/note.txt');
+    $k = $k + 1;
+}
+$many['last'] = Core\Http\Part::file($dir . '/note.txt', { filename: "x\"y" });
+uint $round = 0;
+while ($round < 20) {
+    try {
+        Core\Http\Response $flood = Core\Http\Client::post('https://203.0.113.10/upload', { deadline: 2s, connectTimeout: 1s, multipart: $many });
+        throw new LogicError('a form with a quoted file name was sent');
+    } catch (RuntimeError $error) {
+        $round = $round + 1;
+    }
+}
+try {
+    Core\Http\Part $after = Core\Http\Part::file($dir . '/note.txt', { filename: "after\"" });
+    Core\Http\Response $check = Core\Http\Client::post('https://203.0.113.10/upload', { deadline: 2s, connectTimeout: 1s, multipart: ['file' => $after] });
+    throw new LogicError('a file name with a quote was sent');
+} catch (RuntimeError $error) {
+    if (!Core\Str::contains($error->message, 'is not a filename')) {
+        throw new LogicError(Core\Str::format('the file could not be opened again: %s', $error->message));
+    }
+}
+echo 'step 3: ', $round, "\n";
+
+// 4. Parts with a file name of ten thousand characters are kept in a list and never
+//    freed. This step ends the program at its memory limit.
+array<Core\Http\Part> $kept = [];
+uint $n = 0;
+while (true) {
+    string $long = Core\Str::format('%d-', $n) . Core\Str::repeat('n', 10000);
+    $kept[] = Core\Http\Part::file($dir . '/note.txt', { filename: $long });
+    $n = $n + 1;
+}

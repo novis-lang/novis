@@ -1,0 +1,27 @@
+<?nvs
+// Measures creating an upload from data in memory, as a program does before it sends a report or a picture.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $files = [
+            "order,total\n1042,19.90\n",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
+            "{\"name\":\"ada\",\"active\":true}",
+        ];
+        array<string> $types = ["text/csv", "image/svg+xml", "application/json"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The data in each round is chosen by the round before, so no round can be left out.
+            int $pick = ($total % 3) as int;
+            Core\Http\Part $part = Core\Http\Part::bytes($files[$pick], "upload.bin", {contentType: $types[$pick]});
+            $total = $total + ($pick as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

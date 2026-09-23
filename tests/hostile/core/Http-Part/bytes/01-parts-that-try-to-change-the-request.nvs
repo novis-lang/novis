@@ -1,0 +1,102 @@
+<?nvs
+// Attack: file names and media types try to add their own lines to an upload. Large parts
+// try to fill the memory. Every bad name must throw an error before anything is sent.
+// The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. A part of 8 MB is created 50 times. Each old part is freed, so the memory in use must not grow.
+string $large = Core\Str::repeat('a', 8000000);
+uint $created = 0;
+while ($created < 50) {
+    Core\Http\Part $big = Core\Http\Part::bytes($large, 'big.bin');
+    $created = $created + 1;
+}
+echo 'step 1: ', $created, "\n";
+
+// 2. Each file name tries to end the field's header early and start a new one. Each upload
+//    must throw a `RuntimeError` about the file name. Any other error is a failure.
+array<string> $names = [
+    'a"; name="admin',
+    "a\r\nContent-Type: text/html",
+    "a\nX-Injected: 1",
+    "a\rb",
+    "a\x00b",
+    "a\x7fb",
+    '"',
+];
+foreach ($names as string $name) {
+    try {
+        Core\Http\Response $sent = Core\Http\Client::post('https://203.0.113.10/upload', {deadline: 2s, multipart: [
+            'file' => Core\Http\Part::bytes('x', $name),
+        ]});
+        throw new LogicError(Core\Str::format('a file name that ends the header was sent: %s', $name));
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a filename')) {
+            throw new LogicError(Core\Str::format('the file name was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 2: refused', "\n";
+
+// 3. Each media type tries to add a line. In a form field it must throw an error about the
+//    media type. As the whole body it must throw an error about the header.
+array<string> $types = [
+    "text/plain\r\nX-Injected: 1",
+    "text/plain\nX-Injected: 1",
+    "text/plain\x00",
+];
+foreach ($types as string $type) {
+    try {
+        Core\Http\Response $field = Core\Http\Client::post('https://203.0.113.10/upload', {deadline: 2s, multipart: [
+            'file' => Core\Http\Part::bytes('x', 'x.txt', { contentType: $type }),
+        ]});
+        throw new LogicError('a media type with a line break was sent in a form field');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a media type')) {
+            throw new LogicError(Core\Str::format('the media type was not checked first: %s', $error->message));
+        }
+    }
+    try {
+        Core\Http\Response $whole = Core\Http\Client::post('https://203.0.113.10/upload', {deadline: 2s,
+            body: Core\Http\Part::bytes('x', 'x.txt', { contentType: $type }),
+        });
+        throw new LogicError('a media type with a line break was sent as a header');
+    } catch (RuntimeError $error) {
+        if (!Core\Str::contains($error->message, 'is not a header')) {
+            throw new LogicError(Core\Str::format('the header was not checked first: %s', $error->message));
+        }
+    }
+}
+echo 'step 3: refused', "\n";
+
+// 4. A form with 10000 fields of 1 KB each. Only the last file name is bad, so the whole
+//    form is prepared and then thrown away. This happens 5 times. The memory must not grow.
+string $kilobyte = Core\Str::repeat('b', 1000);
+uint $round = 0;
+while ($round < 5) {
+    array<string|Core\Http\Part> $fields = [];
+    uint $f = 0;
+    while ($f < 10000) {
+        $fields[Core\Str::format('f%d', $f)] = Core\Http\Part::bytes($kilobyte, Core\Str::format('f%d.txt', $f));
+        $f = $f + 1;
+    }
+    $fields['last'] = Core\Http\Part::bytes($kilobyte, "last\r\n.txt");
+    try {
+        Core\Http\Response $many = Core\Http\Client::post('https://203.0.113.10/upload', { deadline: 2s, multipart: $fields });
+        throw new LogicError('a form with a bad file name was sent');
+    } catch (RuntimeError $error) {
+        $round = $round + 1;
+    }
+}
+echo 'step 4: ', $round, "\n";
+
+// 5. Every part is kept in a list and never freed. This step ends the program at its memory limit.
+array<Core\Http\Part> $kept = [];
+uint $n = 0;
+while (true) {
+    $kept[] = Core\Http\Part::bytes($kilobyte . $n, Core\Str::format('kept-%d.txt', $n));
+    $n = $n + 1;
+}

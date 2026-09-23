@@ -3350,9 +3350,24 @@ fn multipart(ctx: &Ctx, args: &[Value], member: &str) -> Result<transport::Body,
     );
     let mut pieces: Vec<transport::Piece> = Vec::new();
     let mut length = 0_u64;
+    let fields = fields_of(args, MULTIPART, "multipart", member)?;
 
-    for (name, value) in fields_of(args, MULTIPART, "multipart", member)? {
-        quotable(&name, "field name", member)?;
+    // Every name is checked before any file is opened, so a form that is
+    // refused holds no descriptor and reads nothing from the disk.
+    for (name, value) in &fields {
+        quotable(name, "field name", member)?;
+        if matches!(value.tag(), Some(Tag::Object)) {
+            let part = crate::instance::receiver(*value, &PART, member)?;
+            let filename = crate::instance::slot(part, PART_FILENAME_SLOT);
+            let content_type = crate::instance::slot(part, PART_CONTENT_TYPE_SLOT);
+            quotable(filename.as_text().unwrap_or(name), "filename", member)?;
+            if let Some(content_type) = content_type.as_text() {
+                quotable(content_type, "media type", member)?;
+            }
+        }
+    }
+
+    for (name, value) in fields {
         let mut head = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"");
         if matches!(value.tag(), Some(Tag::Object)) {
             let part = part_of(ctx, value, member)?;
@@ -3360,8 +3375,6 @@ fn multipart(ctx: &Ctx, args: &[Value], member: &str) -> Result<transport::Body,
             let content_type = part
                 .content_type
                 .unwrap_or_else(|| "application/octet-stream".to_owned());
-            quotable(&filename, "filename", member)?;
-            quotable(&content_type, "media type", member)?;
             head.push_str(&format!(
                 "; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
             ));
@@ -5441,6 +5454,734 @@ mod tests {
         );
         assert_eq!(status, Some(200));
         assert!(body.is_empty(), "a `HEAD` reply has no body");
+    }
+
+    /// A loopback origin that answers `replies` in order, one connection each,
+    /// and hands back every request it read, head and body, as text.
+    ///
+    /// The body is read to the length the head declares before the reply goes
+    /// out, so a case asserts on what was sent rather than on how much of it
+    /// had arrived.
+    fn recorded(
+        replies: Vec<&'static [u8]>,
+    ) -> (std::net::SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+        use std::io::{Read, Write};
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let served = std::thread::spawn(move || {
+            let mut requests = Vec::new();
+            for reply in replies {
+                let (mut stream, _) = listener.accept().expect("the client's connection");
+                let mut read = Vec::new();
+                let mut buffer = [0_u8; 4096];
+                loop {
+                    if let Some(end) = read.windows(4).position(|w| w == b"\r\n\r\n") {
+                        let head = String::from_utf8_lossy(&read[..end]).to_ascii_lowercase();
+                        let length = head
+                            .lines()
+                            .find_map(|line| line.strip_prefix("content-length:"))
+                            .and_then(|value| value.trim().parse::<usize>().ok())
+                            .unwrap_or(0);
+                        if read.len() >= end + 4 + length {
+                            break;
+                        }
+                    }
+                    match stream.read(&mut buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(got) => read.extend_from_slice(&buffer[..got]),
+                    }
+                }
+                stream.write_all(reply).expect("the reply is written");
+                stream.flush().ok();
+                requests.push(String::from_utf8_lossy(&read).into_owned());
+            }
+            requests
+        });
+        (at, served)
+    }
+
+    /// `Core\Http\Client::post` retried after a `503` sends the same
+    /// `Idempotency-Key` and the same JSON body on both attempts, which is what
+    /// lets the origin read the second `POST` as the first one again rather
+    /// than as a second order.
+    // covers: Core\Http\Client::post
+    #[test]
+    fn post_retried_after_a_503_sends_one_idempotency_key_and_one_body_on_every_attempt() {
+        let (at, served) = recorded(vec![
+            b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        ]);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        let url = Value::str(NvsStr::new(format!("http://{at}/orders").as_bytes()));
+        let mut order = NvsArray::new();
+        order.set(NvsStr::new(b"id"), Value::int(7));
+        let json = Value::array(order);
+        let key = Value::str(NvsStr::new(b"order-7"));
+        let mut args = asking(url);
+        args[JSON] = json;
+        args[RETRY_ATTEMPTS] = Value::uint(2);
+        args[RETRY_KEY] = key;
+        let answer =
+            super::request(&mut ctx, &args, "post", "POST").expect("the second attempt's answer");
+        let object = answer.obj_ptr().expect("the answer is an instance");
+        let status = crate::instance::slot(object, STATUS_SLOT).as_int();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            json.release();
+            key.release();
+            answer.release();
+        }
+        let requests = served.join().expect("the origin thread");
+
+        assert_eq!(
+            status,
+            Some(201),
+            "the second attempt's answer is the one returned"
+        );
+        assert_eq!(
+            requests.len(),
+            2,
+            "a `503` is retried once under two attempts"
+        );
+        for sent in &requests {
+            assert!(sent.starts_with("POST /orders HTTP/1.1\r\n"), "{sent:?}");
+            assert!(
+                sent.contains("\r\nIdempotency-Key: order-7\r\n"),
+                "every attempt carries the one key: {sent:?}"
+            );
+            assert!(
+                sent.contains("\r\nContent-Type: application/json\r\n"),
+                "{sent:?}"
+            );
+            assert!(
+                sent.ends_with("\r\n\r\n{\"id\":7}"),
+                "every attempt carries the whole body: {sent:?}"
+            );
+        }
+    }
+
+    /// `Core\Http\Client::put` writes `PUT` with its body, and retries a `503`
+    /// with no `retryIdempotencyKey`: the second attempt is the same request
+    /// again, body included, and neither attempt carries an `Idempotency-Key`.
+    // covers: Core\Http\Client::put
+    #[test]
+    fn put_retries_without_a_key_and_sends_the_same_body_on_every_attempt() {
+        let (at, served) = recorded(vec![
+            b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ]);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        let url = Value::str(NvsStr::new(format!("http://{at}/stock/7").as_bytes()));
+        let body = Value::str(NvsStr::new(b"ready"));
+        let mut args = asking(url);
+        args[RETRY_ATTEMPTS] = Value::uint(2);
+        args[JSON] = body;
+        let answer =
+            super::request(&mut ctx, &args, "put", "PUT").expect("the second attempt's answer");
+        let object = answer.obj_ptr().expect("the answer is an instance");
+        let status = crate::instance::slot(object, STATUS_SLOT).as_int();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            body.release();
+            answer.release();
+        }
+        let requests = served.join().expect("the origin thread");
+
+        assert_eq!(
+            status,
+            Some(200),
+            "the second attempt's answer is the one returned"
+        );
+        assert_eq!(requests.len(), 2, "a `503` is tried again without a key");
+        for request in &requests {
+            assert!(
+                request.starts_with("PUT /stock/7 HTTP/1.1\r\n"),
+                "the request line carries the verb and the path: {request:?}"
+            );
+            assert!(
+                request.ends_with("\r\n\r\n\"ready\""),
+                "every attempt carries the whole body: {request:?}"
+            );
+            assert!(
+                !request.to_ascii_lowercase().contains("idempotency-key"),
+                "a `PUT` retry sends no key: {request:?}"
+            );
+        }
+    }
+
+    /// `Core\Http\Client::patch` writes `PATCH` on the request line, frames a
+    /// `json` body under its own `Content-Type` and length, and carries a
+    /// retried call's `retryIdempotencyKey` as `Idempotency-Key`. The same
+    /// retry with no key is refused before any socket is dialled, so the one
+    /// connection the origin accepts is the keyed call's.
+    // covers: Core\Http\Client::patch
+    #[test]
+    fn patch_sends_its_verb_json_body_and_idempotency_key_and_refuses_a_keyless_retry() {
+        let (at, served) = recorded(vec![
+            b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n",
+        ]);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        let url = Value::str(NvsStr::new(format!("http://{at}/orders/7").as_bytes()));
+        let status = Value::str(NvsStr::new(b"paid"));
+        let key = Value::str(NvsStr::new(b"order-7-paid"));
+
+        let mut keyless = asking(url);
+        keyless[JSON] = status;
+        keyless[RETRY_ATTEMPTS] = Value::uint(3);
+        let refused = super::request(&mut ctx, &keyless, "patch", "PATCH")
+            .expect_err("a retried `PATCH` with no key");
+        assert!(
+            format!("{refused:?}").contains("retryIdempotencyKey"),
+            "the refusal names the key it is missing: {refused:?}"
+        );
+
+        let mut keyed = asking(url);
+        keyed[JSON] = status;
+        keyed[RETRY_ATTEMPTS] = Value::uint(3);
+        keyed[RETRY_KEY] = key;
+        let answer =
+            super::request(&mut ctx, &keyed, "patch", "PATCH").expect("the origin's answer");
+        let requests = served.join().expect("the origin thread");
+        let object = answer.obj_ptr().expect("the answer is an instance");
+        let answered = crate::instance::slot(object, STATUS_SLOT).as_int();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            status.release();
+            key.release();
+            keyless[HEADERS].release();
+            keyed[HEADERS].release();
+            answer.release();
+        }
+
+        let wire = &requests[0];
+        assert!(
+            wire.starts_with("PATCH /orders/7 HTTP/1.1\r\n"),
+            "the request line carries the verb and the path: {wire:?}"
+        );
+        assert!(
+            wire.contains("\r\nIdempotency-Key: order-7-paid\r\n"),
+            "a retried `PATCH` sends its key: {wire:?}"
+        );
+        assert!(
+            wire.contains("\r\nContent-Type: application/json\r\n"),
+            "{wire:?}"
+        );
+        assert!(wire.contains("\r\nContent-Length: 6\r\n"), "{wire:?}");
+        assert!(
+            wire.ends_with("\r\n\r\n\"paid\""),
+            "the body is the encoded document: {wire:?}"
+        );
+        assert_eq!(answered, Some(204));
+    }
+
+    /// `Core\Http\Client::request` puts the verb it is handed on the request
+    /// line, including one that no named row sends: `Core\Http\Method::Options`
+    /// crosses as its ordinal, reads back as `Options`, and goes out as
+    /// `OPTIONS` with the URL's own path.
+    // covers: Core\Http\Client::request
+    #[test]
+    fn request_sends_a_verb_no_named_row_sends_on_the_request_line() {
+        let verb = crate::router::method_verb(&Value::int(2), "Core\\Http\\Client::request")
+            .expect("ordinal 2 is a `Core\\Http\\Method` case")
+            .to_ascii_uppercase();
+        assert_eq!(verb, "OPTIONS");
+        let (head, status, body) = exchanged_once(
+            "request",
+            &verb,
+            "/orders/7",
+            b"HTTP/1.1 204 No Content\r\nAllow: GET, PUT, DELETE\r\nConnection: close\r\n\r\n",
+        );
+        assert!(
+            head.starts_with("OPTIONS /orders/7 HTTP/1.1\r\n"),
+            "the request line carries the handed verb and the path: {head:?}"
+        );
+        assert_eq!(status, Some(204));
+        assert!(body.is_empty(), "a reply with no body is an empty body");
+    }
+
+    /// `Core\Http\Client::stream` returns once the head has arrived: the origin
+    /// below writes its status line and headers and holds the body back until
+    /// the call has returned. The verb on the wire is the one the call was
+    /// given, and the body slot holds the key of a reader rather than octets.
+    // covers: Core\Http\Client::stream
+    #[test]
+    fn stream_answers_at_the_head_while_the_origin_still_holds_the_body() {
+        use std::io::{Read, Write};
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let (release, released) = mpsc::channel::<()>();
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client's connection");
+            let mut head = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            while !head.windows(4).any(|end| end == b"\r\n\r\n") {
+                match stream.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => head.extend_from_slice(&buffer[..read]),
+                }
+            }
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
+                      Content-Length: 11\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the head is written");
+            stream.flush().ok();
+            // A client that waited for the body gets it only after this
+            // timeout, and `held_back` is then `false`.
+            let held_back = released.recv_timeout(Duration::from_secs(5)).is_ok();
+            stream.write_all(b"data: one\n\n").ok();
+            stream.flush().ok();
+            (String::from_utf8_lossy(&head).into_owned(), held_back)
+        });
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        let url = Value::str(NvsStr::new(format!("http://{at}/v1/chat").as_bytes()));
+        let mut args = [Value::null(); STREAM_ARITY];
+        args[0] = url;
+        args[HEADERS] = Value::array(NvsArray::new());
+        args[JSON] = Value::unset();
+        let (status, body, headers, _) =
+            super::exchanged(&mut ctx, &args, "stream", "POST", true).expect("the head arrived");
+        release.send(()).ok();
+        let (head, held_back) = served.join().expect("the origin thread");
+
+        assert!(
+            held_back,
+            "the call returned only once the body had been sent"
+        );
+        assert!(
+            head.starts_with("POST /v1/chat HTTP/1.1\r\n"),
+            "the request line carries the verb the call was given: {head:?}"
+        );
+        assert_eq!(status, 200);
+        assert!(
+            body.as_uint().is_some(),
+            "a streamed body slot holds the key of a reader, not the octets"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the header \
+                      map the exchange answered with, and none of them is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            headers.release();
+        }
+        drop(ctx);
+    }
+
+    /// `Core\Http\Client::openSocket` judges every bound it was handed before
+    /// it asks the grant. A context that grants nothing refuses a zero `idle`
+    /// by naming the option, the same URL with no bound is refused by
+    /// `net.connect`, and the listener the URL names never sees a connection.
+    // covers: Core\Http\Client::openSocket
+    #[test]
+    fn open_socket_judges_its_bounds_before_the_grant_and_never_connects() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        listener
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = listener.local_addr().expect("its own address");
+
+        // No configuration at all, so `net.connect` grants nothing.
+        let mut ctx = Ctx::buffered();
+        let url = Value::str(NvsStr::new(format!("ws://{at}/chat").as_bytes()));
+        let idle = crate::instance::build(&crate::time::DURATION, [Value::int(0)]);
+
+        for (bound, named, absent) in [
+            (idle, "`idle`", "net.connect"),
+            (Value::null(), "net.connect", "`idle`"),
+        ] {
+            let mut args = [Value::null(); SOCKET_ARITY];
+            args[0] = url;
+            args[SOCKET_IDLE] = bound;
+            let refused = nvs_runtime::call(
+                super::socket::nvs_core_http_client_open_socket,
+                &mut ctx,
+                &args,
+            );
+            assert!(refused.is_err(), "a call {named} refuses opened a socket");
+            let message = ctx.take_pending().expect("the refusal is a thrown error");
+            assert!(
+                message.contains(named) && !message.contains(absent),
+                "the refusal names {named} and not {absent}: {message}"
+            );
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the references `NvsStr::new` and \
+                      `instance::build` produced, and a native member never releases \
+                      an argument its caller still owns"
+        )]
+        unsafe {
+            url.release();
+            idle.release();
+        }
+
+        match listener.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("a refused call opened a connection to the host anyway"),
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// `Core\Http\Part::file` keeps the path and never the octets. The part it
+    /// builds for a granted file holds the path, an empty data slot and the
+    /// path's last component as its `filename`, and a written `filename` and
+    /// `contentType` replace those defaults. A file that exists outside the
+    /// grant is refused by `fs.read` before it is looked at.
+    // covers: Core\Http\Part::file
+    #[test]
+    fn part_file_holds_the_path_and_no_octets_and_asks_the_grant_first() {
+        let dir = std::env::temp_dir().join("nvs-http-part-file");
+        let granted = dir.join("granted");
+        std::fs::create_dir_all(&granted).expect("a temporary directory the tests own");
+        let inside = granted.join("report.csv");
+        std::fs::write(&inside, b"day,total\n").expect("the file the part names");
+        let outside = dir.join("outside.csv");
+        std::fs::write(&outside, b"not granted\n").expect("a file beside the grant");
+
+        // A TOML literal string, because a Windows path in a basic string is escapes.
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(&format!(
+            "[capabilities.fs]\nread = ['{}']\n",
+            granted.display()
+        )));
+
+        let written = inside.to_string_lossy().into_owned();
+        let path = Value::str(NvsStr::new(written.as_bytes()));
+        let named = Value::str(NvsStr::new(b"renamed.csv"));
+        let typed = Value::str(NvsStr::new(b"text/csv"));
+        for (filename, content_type, want_name, want_type) in [
+            (Value::null(), Value::null(), "report.csv", None),
+            (named, typed, "renamed.csv", Some("text/csv")),
+        ] {
+            let part = nvs_runtime::call(
+                super::nvs_core_http_part_file,
+                &mut ctx,
+                &[path, filename, content_type],
+            )
+            .expect("a granted file that exists");
+            let object = part.obj_ptr().expect("the answer is an instance");
+            assert_eq!(
+                crate::instance::slot(object, super::PART_PATH_SLOT).as_text(),
+                Some(written.as_str()),
+                "the part holds the path as written"
+            );
+            assert!(
+                matches!(
+                    crate::instance::slot(object, super::PART_DATA_SLOT).tag(),
+                    Some(nvs_runtime::Tag::Null)
+                ),
+                "a file part holds no octets"
+            );
+            assert_eq!(
+                crate::instance::slot(object, super::PART_FILENAME_SLOT).as_text(),
+                Some(want_name)
+            );
+            assert_eq!(
+                crate::instance::slot(object, super::PART_CONTENT_TYPE_SLOT).as_text(),
+                want_type
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the part the member answered with"
+            )]
+            unsafe {
+                part.release();
+            }
+        }
+
+        let beside = Value::str(NvsStr::new(outside.to_string_lossy().as_bytes()));
+        let refused = nvs_runtime::call(
+            super::nvs_core_http_part_file,
+            &mut ctx,
+            &[beside, Value::null(), Value::null()],
+        );
+        assert!(refused.is_err(), "a file outside the grant became a part");
+        let message = ctx.take_pending().expect("the refusal is a thrown error");
+        assert!(
+            message.contains("fs.read"),
+            "an existing file outside the grant is refused by the capability: {message}"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the references `NvsStr::new` produced, \
+                      and a native member never releases an argument its caller still owns"
+        )]
+        unsafe {
+            path.release();
+            named.release();
+            typed.release();
+            beside.release();
+        }
+    }
+
+    /// A form with a field name that cannot be sent is refused before any of
+    /// its files is opened. The part below names a file the context may read
+    /// when the part is built and may not read when the form is framed, so the
+    /// error being the name's rather than `fs.read`'s shows that no file was
+    /// opened first.
+    #[test]
+    fn a_multipart_form_checks_every_name_before_it_opens_a_file() {
+        let dir = std::env::temp_dir().join("nvs-http-multipart-order");
+        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let inside = dir.join("note.txt");
+        std::fs::write(&inside, b"note\n").expect("the file the part names");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(&format!(
+            "[capabilities.fs]\nread = ['{}']\n",
+            dir.display()
+        )));
+        let path = Value::str(NvsStr::new(inside.to_string_lossy().as_bytes()));
+        let part = nvs_runtime::call(
+            super::nvs_core_http_part_file,
+            &mut ctx,
+            &[path, Value::null(), Value::null()],
+        )
+        .expect("a granted file that exists");
+        ctx.set_config(granting(REACHABLE));
+
+        let mut fields = NvsArray::new();
+        fields.set(NvsStr::new(b"file"), part);
+        fields.set(NvsStr::new(b"bad\"name"), Value::str(NvsStr::new(b"x")));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[super::MULTIPART] = Value::array(fields);
+        let Err(refused) = super::multipart(&ctx, &args, r"Core\Http\Client::post") else {
+            panic!("a field name with a quote was framed");
+        };
+        let refused = format!("{refused:?}");
+        assert!(
+            refused.contains("field name"),
+            "the name is what is refused: {refused}"
+        );
+        assert!(
+            !refused.contains("fs.read"),
+            "no file was opened first: {refused}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the path it produced and the form array, which \
+                      holds the only reference to the part"
+        )]
+        unsafe {
+            path.release();
+            args[super::MULTIPART].release();
+        }
+    }
+
+    /// `Core\Http\Part::bytes` stores its octets as `bytes` whichever arm
+    /// carried them and stores no path. A `string` and a `bytes` of the same
+    /// octets read back as the same held piece, with the name as written and
+    /// an omitted `contentType` read back as none.
+    // covers: Core\Http\Part::bytes
+    #[test]
+    fn part_bytes_holds_either_arm_as_the_same_octets_and_no_path() {
+        const OCTETS: &[u8] = b"name,total\n";
+        let mut ctx = Ctx::buffered();
+        let text = Value::str(NvsStr::new(OCTETS));
+        let raw = Value::bytes(NvsStr::new(OCTETS));
+        let filename = Value::str(NvsStr::new(b"orders.csv"));
+        let typed = Value::str(NvsStr::new(b"text/csv"));
+
+        let from_text = nvs_runtime::call(
+            super::nvs_core_http_part_bytes,
+            &mut ctx,
+            &[text, filename, typed],
+        )
+        .expect("a `string` arm builds a part");
+        let from_bytes = nvs_runtime::call(
+            super::nvs_core_http_part_bytes,
+            &mut ctx,
+            &[raw, filename, Value::null()],
+        )
+        .expect("a `bytes` arm builds a part");
+
+        for (part, content_type) in [(from_text, Some("text/csv")), (from_bytes, None)] {
+            let object = part.obj_ptr().expect("the answer is an instance");
+            assert!(
+                matches!(
+                    crate::instance::slot(object, super::PART_PATH_SLOT).tag(),
+                    Some(nvs_runtime::Tag::Null)
+                ),
+                "a part built from octets holds no path"
+            );
+            assert_eq!(
+                crate::instance::slot(object, super::PART_DATA_SLOT).as_bytes(),
+                Some(OCTETS),
+                "the octets are held as `bytes` whichever arm carried them"
+            );
+            let framed = super::part_of(&ctx, part, r"Core\Http\Client::post")
+                .expect("a part this member built reads back");
+            assert_eq!(framed.length, OCTETS.len() as u64);
+            assert!(
+                matches!(&framed.piece, super::transport::Piece::Held(held) if held.as_slice() == OCTETS),
+                "the piece is the octets themselves, held"
+            );
+            assert_eq!(framed.filename.as_deref(), Some("orders.csv"));
+            assert_eq!(framed.content_type.as_deref(), content_type);
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references `NvsStr::new` produced and the \
+                      two parts the member answered with, and none is its caller's"
+        )]
+        unsafe {
+            text.release();
+            raw.release();
+            filename.release();
+            typed.release();
+            from_text.release();
+            from_bytes.release();
+        }
+    }
+
+    /// `Core\Http\Identity::read` keeps what it checked: the chain exactly as
+    /// the program passed it, the pair's own PKCS#8 DER, and the leaf's SHA-256
+    /// as lower-case hex. The fingerprint is the leaf's alone, so the same leaf
+    /// with its issuer after it names the same identity, while the issuer's key
+    /// over that chain is thrown as a `LogicError` naming the mismatch.
+    // covers: Core\Http\Identity::read
+    #[test]
+    fn identity_read_keeps_the_chain_and_names_the_identity_by_its_leaf() {
+        use sha2::Digest as _;
+
+        const LEAF: &str = "-----BEGIN CERTIFICATE-----\nMIIBZzCCAQ6gAwIBAgIBAjAKBggqhkjOPQQDAjAYMRYwFAYDVQQDDA1ub3ZpcyB0\nZXN0IGNhMCAXDTI2MDkxMjIzNDMyMloYDzIxMjYwODE5MjM0MzIyWjAdMRswGQYD\nVQQDDBJsZWFmLm5vdmlzLmV4YW1wbGUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\nAARsn8jTlvalvY27GIy5MEAhedk0hTduuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqW\nwY841Jo0D0ncfN+RfqQumQgWo0IwQDAdBgNVHQ4EFgQU4YjxNI3Zm79IaJTjEAsd\nZ33g5NgwHwYDVR0jBBgwFoAUYXHdOcSvHEpU6eRt6uCGrm/kckEwCgYIKoZIzj0E\nAwIDRwAwRAIgU7u+n0wo8NXFiu4+xaVKNc3nkN18o3GFgjuLmJkvLRQCICGQuFac\ngtWeQVkGYL2V+BnVrdR9QaThMcoIojXmgY6Q\n-----END CERTIFICATE-----\n";
+        const ISSUER: &str = "-----BEGIN CERTIFICATE-----\nMIIBhjCCAS2gAwIBAgIUV0uykyi92cy1XbXyftDdAZt6jL0wCgYIKoZIzj0EAwIw\nGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2\nMDgxOTIzNDMyMlowGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTBZMBMGByqGSM49\nAgEGCCqGSM49AwEHA0IABBbbsFmglrXdizZZ5GVhBN1uQOBg93SUc/deqOO5ZPMn\nTVDw2JDzW4uCnCeBlRTvu+xJG2srdROAdmchqKfz12ijUzBRMB0GA1UdDgQWBBRh\ncd05xK8cSlTp5G3q4Iaub+RyQTAfBgNVHSMEGDAWgBRhcd05xK8cSlTp5G3q4Iau\nb+RyQTAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIDXK5Gwryalq\ntQsX3awNpXAZJ8e0tYVGlMF1WQf14CK6AiALVkvZIJbooDOaBEhlpJC26/S+ArGm\njO0pIW15iNfuGQ==\n-----END CERTIFICATE-----\n";
+        const LEAF_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNfM2JpNIZ3eTXvRd\n5pkBv32iz2fY5Nto/tlQ5IS9n36hRANCAARsn8jTlvalvY27GIy5MEAhedk0hTdu\nuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqWwY841Jo0D0ncfN+RfqQumQgW\n-----END PRIVATE KEY-----\n";
+        const ISSUER_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQge4bIsc4PmELo2CVS\ntvkEVY7KDqvUT529mhxe+FepsvahRANCAAQW27BZoJa13Ys2WeRlYQTdbkDgYPd0\nlHP3XqjjuWTzJ01Q8NiQ81uLgpwngZUU77vsSRtrK3UTgHZnIain89do\n-----END PRIVATE KEY-----\n";
+
+        // The leaf's DER, decoded here independently of the member, and the
+        // name an identity over it must carry.
+        let body: String = LEAF
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+            .collect();
+        let der = data_encoding::BASE64
+            .decode(body.as_bytes())
+            .expect("the leaf's PEM body is base64");
+        let expected = data_encoding::HEXLOWER.encode(&sha2::Sha256::digest(&der));
+
+        let mut ctx = Ctx::buffered();
+        let p256 = Value::int(crate::crypto::KeyKind::P256.tag());
+        let leaf_key = Value::bytes(NvsStr::new(LEAF_KEY.as_bytes()));
+        let issuer_key = Value::bytes(NvsStr::new(ISSUER_KEY.as_bytes()));
+        let mine = nvs_runtime::call(
+            crate::crypto::nvs_core_crypto_key_pair_read,
+            &mut ctx,
+            &[leaf_key, p256],
+        )
+        .expect("the leaf's key reads as a P-256 pair");
+        let theirs = nvs_runtime::call(
+            crate::crypto::nvs_core_crypto_key_pair_read,
+            &mut ctx,
+            &[issuer_key, p256],
+        )
+        .expect("the issuer's key reads as a P-256 pair");
+        let (held, _) = crate::crypto::stored_key(&[mine], 0, &crate::crypto::KEY_PAIR, "read")
+            .expect("a pair fills its key slot");
+        let pkcs8 = crate::crypto::stored_octets(&held, &crate::crypto::KEY_PAIR, "read")
+            .expect("the pair's key slot holds its DER")
+            .to_vec();
+
+        let chained_text = format!("{LEAF}{ISSUER}");
+        let alone = Value::bytes(NvsStr::new(LEAF.as_bytes()));
+        let chained = Value::bytes(NvsStr::new(chained_text.as_bytes()));
+        for (chain, written) in [(alone, LEAF), (chained, chained_text.as_str())] {
+            let identity =
+                nvs_runtime::call(super::nvs_core_http_identity_read, &mut ctx, &[chain, mine])
+                    .expect("the leaf's own key is its identity");
+            let object = identity.obj_ptr().expect("the answer is an instance");
+            assert_eq!(
+                crate::instance::slot(object, super::IDENTITY_CHAIN_SLOT).as_bytes(),
+                Some(written.as_bytes()),
+                "the chain is kept exactly as the program passed it"
+            );
+            assert_eq!(
+                crate::instance::slot(object, super::IDENTITY_PKCS8_SLOT).as_bytes(),
+                Some(pkcs8.as_slice()),
+                "the key is the pair's own DER"
+            );
+            assert_eq!(
+                crate::instance::slot(object, super::IDENTITY_FINGERPRINT_SLOT).as_text(),
+                Some(expected.as_str()),
+                "the name is the leaf's SHA-256, whatever certificates follow it"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it"
+            )]
+            unsafe {
+                identity.release();
+            }
+        }
+
+        // The issuer's key matches the chain's second certificate and not its
+        // first, so it is refused as a mistake in the deployment's own files.
+        let refused = nvs_runtime::call(
+            super::nvs_core_http_identity_read,
+            &mut ctx,
+            &[chained, theirs],
+        );
+        assert!(
+            refused.is_err(),
+            "the issuer's key was taken for the leaf's"
+        );
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some("LogicError"),
+            "a mismatched chain and key are the program's own mistake"
+        );
+        let message = ctx.take_pending().expect("the refusal is a thrown error");
+        assert!(
+            message.contains("different public key"),
+            "the refusal names the mismatch: {message}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns every reference `NvsStr::new` and the two reads \
+                      produced, and a native member never releases an argument its \
+                      caller still owns"
+        )]
+        unsafe {
+            alone.release();
+            chained.release();
+            leaf_key.release();
+            issuer_key.release();
+            mine.release();
+            theirs.release();
+        }
     }
 
     /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s refusal,

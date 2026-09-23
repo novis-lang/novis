@@ -1,0 +1,28 @@
+<?nvs
+// Shows a nightly job that creates a CSV report, compresses it and sends it to a partner's server.
+
+array<array<string>> $orders = [
+    ["1042", "ada", "19.90"],
+    ["1043", "grace", "5.00"],
+    ["1044", "linus", "120.00"],
+];
+
+// The report is built in memory. It is never written to a file.
+string $csv = "order,customer,total\n";
+foreach ($orders as array<string> $order) {
+    $csv = $csv . Core\Str::join($order, ",") . "\n";
+}
+
+// `Core\Compress::compress` returns `bytes`. `Core\Http\Part::bytes` accepts a `bytes` value too.
+bytes $packed = Core\Compress::compress($csv, Core\Codec::Gzip);
+Core\Http\Part $report = Core\Http\Part::bytes($packed, "sales.csv.gz", {contentType: "application/gzip"});
+
+// The part is the whole body of the request. The server's address is private, so the
+// call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::post("https://192.168.1.20/reports", {body: $report, deadline: 30s});
+    echo "sent, status: ", $response->status(), "\n";
+} catch (RuntimeError $error) {
+    echo "not sent: ", $error->message, "\n";
+}
+echo "orders in the report: ", Core\Arr::count($orders), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Measures creating an upload part for a file on disk, as a program does before
+// every file upload it sends.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The part is created for this program's own file, so the bench needs no other file.
+        string $path = "benches/members/core/Http-Part/file.nvs";
+        array<string> $names = ["invoice.pdf", "report.csv", "photo.jpg"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file name in each round is chosen by the round before, so no round can be left out.
+            string $name = $names[($total % 3) as int];
+            Core\Http\Part $part = Core\Http\Part::file($path, {filename: $name});
+            $total = $total + Core\Str::length($name) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

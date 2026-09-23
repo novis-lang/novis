@@ -168,6 +168,34 @@ root = "tests/hostile/core/Http-Client"
 [app.capabilities.net]
 connect = true
 
+# `Core\Http\Part`'s examples and attacks send parts under the same grant, and
+# none of them opens a connection either. `Part::file` reads files from its own
+# `data/` directory and nowhere else, so one example can show a file outside the
+# grant being refused. The `file` bench builds a part for its own source file.
+[[app]]
+root = "docs/examples/core/Http-Part"
+
+[app.capabilities.fs]
+read = ["docs/examples/core/Http-Part/file/data"]
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http-Part"
+
+[app.capabilities.fs]
+read = ["tests/hostile/core/Http-Part/file/data"]
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+entry = "benches/members/core/Http-Part/file.nvs"
+
+[app.capabilities.fs]
+read = ["benches/members/core/Http-Part/file.nvs"]
+
 # `examples/net-echo.nvs` binds a port and then dials it, and ADR 0162 § 8 is
 # why that is three keys rather than one. `net.listen` is the bind, matched
 # against the endpoint exactly; `net.connect` is the dial, matched against the
