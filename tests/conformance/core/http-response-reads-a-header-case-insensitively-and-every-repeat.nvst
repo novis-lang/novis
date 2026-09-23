@@ -2,6 +2,7 @@
 `Core\Http\Response::header` finds a field however the origin capitalised it and joins every repeat with `, `, while `::headers` hands the same lines back one at a time — `rule:security/tainted-sources`
 --FILE--
 <?nvs
+// covers: Core\Http\Response::headers
 // The claim is *agreement*: one reply is asked the same question by both
 // readers, and what is asserted is that they answer the same lines — a
 // `header` that dropped a repeat still prints plausibly on its own row, and so
