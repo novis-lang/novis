@@ -1,0 +1,3 @@
+ok (200): https://shop.example.com/
+broken (410): https://shop.example.com/old-offer
+broken (503): https://shop.example.com/cart

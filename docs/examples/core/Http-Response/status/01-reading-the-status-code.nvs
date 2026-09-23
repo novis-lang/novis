@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the status code of a reply.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network.
+Core\Test::answerHttp("https://api.example.com/health", 200, {body: "ok"});
+
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/health");
+
+// `status()` returns the code as an `int`. This prints 200.
+echo $response->status(), "\n";
+
+// 200 means that the request worked. This prints `The service is up.`
+if ($response->status() == 200) {
+    echo "The service is up.\n";
+}

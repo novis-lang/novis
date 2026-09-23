@@ -1,0 +1,27 @@
+<?nvs
+// Reads the status code of a reply, as a program does after every request it sends.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Both replies are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://api.example.com/found", 200, {});
+        Core\Test::answerHttp("https://api.example.com/missing", 404, {});
+        array<Core\Http\Response> $replies = [
+            Core\Http\Client::get("https://api.example.com/found"),
+            Core\Http\Client::get("https://api.example.com/missing"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reply in each round depends on the round before, so no round can be left out.
+            $total = $total + ($replies[(($total + $i) % 2) as int]->status() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
