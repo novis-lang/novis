@@ -36,6 +36,6 @@ trigger a recompile — only the program's own files changing do. The cost is on
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
 **What is on disk.** The resolve-time form of this rule: the check runs inside the resolve, on the
-request path, `validate = "never"` still skips it, and the key's digest is the entry file's content
+request path, and the key's digest is the entry file's content
 alone, so an edit to a `require`d or autoloaded file is not seen until the entry file changes. The
 background check, `settle`, the link re-resolve and the whole-program key are not.

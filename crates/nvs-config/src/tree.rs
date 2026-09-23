@@ -1351,7 +1351,7 @@ pub struct Control {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Opcache {
-    /// When a source file is re-`stat`ed; `never` in production.
+    /// How a source file is re-checked: `mtime` or `hash`.
     pub validate: Option<Setting>,
     /// The rate cap bounding that `stat` overhead.
     pub revalidate_freq: Option<Setting>,

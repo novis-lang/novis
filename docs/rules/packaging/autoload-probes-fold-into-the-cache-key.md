@@ -24,6 +24,5 @@ time.
 every path probed, in order, misses included (`nvs_hir::autoload::ProbeTrace`) — and the in-memory
 unit table keys on its digest beside the content hash and the environment, then re-asks those paths
 under the gate the content `stat` rides, so a file written where one of them missed sends that unit
-to a compile (`nvs_cli::script`). That check still runs inside a resolve, and not at all under
-`validate = "never"`. A discovery query's listed directories are not collected at all, and nothing
+to a compile (`nvs_cli::script`). That check still runs inside a resolve. A discovery query's listed directories are not collected at all, and nothing
 hashes the discovered names.

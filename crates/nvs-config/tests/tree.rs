@@ -59,7 +59,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[[server.mount]] entry", "[[server.mount]]\nprefix = \"/admin\"\nentry = \"Backoffice/public/index.nvs\"\nhost = \"admin.example.com\"\n"),
     ("[cache]", "[cache.local]\nmax_size = \"32M\"\n[cache.shared]\nurl = \"redis://cache.internal\"\ntimeout = \"5s\"\n"),
     ("[control]", "[control]\nsocket = \"/run/nvs/control.sock\"\n"),
-    ("[opcache]", "[opcache]\nvalidate = \"never\"\nrevalidate_freq = \"2s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
+    ("[opcache]", "[opcache]\nvalidate = \"mtime\"\nrevalidate_freq = \"2s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
 ];
 
 /// Every block an ADR writes out parses, asserted by counting rather than by reading one off a

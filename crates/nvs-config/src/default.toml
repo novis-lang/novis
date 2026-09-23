@@ -852,9 +852,10 @@
 # ----------------------------------------------------------------------------------------------
 
 [opcache]
-# When a source file is re-`stat`ed, and the rate cap that bounds what those `stat`s cost. `never` is
-# the production answer, and it is what makes a warm start read no source at all.
-#validate = "never"                   # default: "never" in production, "mtime" in development
+# How a source file is re-checked, and the rate cap that bounds what those checks cost. `mtime` reads
+# a file again only when its timestamp or size moved; `hash` re-reads every file, for a file system
+# whose timestamps cannot be trusted. There is no value that stops the checks.
+#validate = "mtime"                   # default
 #revalidate_freq = "2s"               # default
 # Whether the on-disk artifact cache is used at all, and where it lives. `file_cache_dir` is the only
 # spelling of that directory — `[cache]` above is `Core\Cache`'s two tiers and holds none — and it is

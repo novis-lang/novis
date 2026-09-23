@@ -879,7 +879,7 @@ trigger a recompile — only the program's own files changing do. The cost is on
 file, and one per listed directory, per `revalidate_freq`, off the request path.
 
 **What is on disk.** The resolve-time form of this rule: the check runs inside the resolve, on the
-request path, `validate = "never"` still skips it, and the key's digest is the entry file's content
+request path, and the key's digest is the entry file's content
 alone, so an edit to a `require`d or autoloaded file is not seen until the entry file changes. The
 background check, `settle`, the link re-resolve and the whole-program key are not.
 
@@ -1199,8 +1199,7 @@ objection is always to the *flip*, never to the *default*: a value chosen by a r
 request move how the process treats its source. The list stays closed at eight rows across the two
 tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-**What is on disk.** The `opcache.validate` row — `never` in production, `mtime` in development — and
-no `settle` row.
+**What is on disk.** No `settle` row.
 
 <sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md).</sub>
 
@@ -1891,8 +1890,7 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-**What is on disk.** `validate` still accepts `never` and `false`, and `never` is still production's
-default. `settle` does not exist yet.
+**What is on disk.** `settle` does not exist yet.
 
 <sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
 

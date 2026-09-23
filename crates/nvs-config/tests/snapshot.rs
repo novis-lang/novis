@@ -622,17 +622,13 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
         "a tree with no `[opcache]` block runs the default cap"
     );
     assert_eq!(
-        written("[opcache]\nvalidate = \"never\"\n").validate,
-        Validate::Never
-    );
-    assert_eq!(
         written("[opcache]\nvalidate = \"hash\"\n").validate,
         Validate::Hash
     );
     assert_eq!(
-        written("[opcache]\nvalidate = false\n").validate,
-        Validate::Never,
-        "PHP's `validate_timestamps = 0`, which is what an operator transcribes",
+        written("[opcache]\nvalidate = true\n").validate,
+        Validate::Mtime,
+        "PHP's `validate_timestamps = 1`, which is what an operator transcribes",
     );
     assert_eq!(
         written("[opcache]\nrevalidate_freq = \"500ms\"\n").freq,
@@ -644,58 +640,67 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
         Duration::ZERO,
         "`rule:config/three-changeability-classes`'s `false` removes the cap, which is a check on every resolve",
     );
-    // A word that spells nothing keeps the default rather than refusing the boot: that check has
-    // no diagnostic yet, and `nvs_config::cache`'s module doc is where it is recorded as owed. The
-    // default it keeps is the startup one — this tree writes no mode, so it is `production`'s.
-    assert_eq!(
-        written("[opcache]\nvalidate = \"sometimes\"\n").validate,
-        Validate::Never,
-    );
 }
 
-/// `rule:config/a-startup-default-is-never-flipped`'s `validate` row, the only row in that table that is `System`-class: what
-/// `validate` starts at when `[opcache]` writes nothing, chosen by the mode before any request
-/// exists. Asserted on both sides, because a default that stopped at one mode reads plausibly
-/// against either half alone — and asserted beside what the row does **not** reach: an
-/// explicitly written `validate` (§ 3's first property) and the rate cap (§ 3a's own list of what a
-/// mode deliberately does not govern).
+/// `rule:config/opcache-revalidation-is-system-class`'s refusal: `validate` has two values, and a
+/// tree writing anything else does not load. `never` and the boolean `false` that meant it are the
+/// two an operator is likely to write — one from an older Novis, one from PHP — and a word that
+/// spells nothing is refused the same way rather than read as the default.
 #[test]
-fn the_validate_default_is_selected_by_the_run_mode() {
+fn validate_never_does_not_load_and_names_mtime_and_hash() {
+    for block in [
+        "[opcache]\nvalidate = \"never\"\n",
+        "[opcache]\nvalidate = false\n",
+        "[opcache]\nvalidate = \"sometimes\"\n",
+        "[mode]\ndefault = \"development\"\n\n[opcache]\nvalidate = \"never\"\n",
+    ] {
+        let fs = Fake::with(&[("nvs.toml", block), ("srv/www/index.nvs", "")]);
+        let Err(refused) = resolve(
+            &Roots::Files(vec![p("nvs.toml")]),
+            &mut SourceMap::new(),
+            &fs,
+        ) else {
+            panic!("`{block}` loaded");
+        };
+        assert_eq!(
+            refused.code,
+            Some(nvs_diagnostics::code::E_BAD_DIRECTIVE),
+            "{block}"
+        );
+        let said = format!("{refused:?}");
+        for value in ["mtime", "hash", "nvs.toml"] {
+            assert!(
+                said.contains(value),
+                "`{block}` did not name {value}: {said}"
+            );
+        }
+    }
+}
+
+/// `validate`'s default is `mtime`, and the run mode does not choose it: a host that writes no
+/// mode, one in `production` and one in `development` all check every file by its stamp. A
+/// written value still wins, and the rate cap beside it is not a mode row either
+/// (`rule:config/opcache-revalidation-is-system-class`).
+#[test]
+fn validate_defaults_to_mtime_in_production_and_development() {
     let written = |block: &str| {
         let fs = Fake::with(&[("nvs.toml", block), ("srv/www/index.nvs", "")]);
         Revalidation::from_config(&snapshot_of(&fs, "srv/www/index.nvs").config)
     };
 
-    assert_eq!(
-        written("").validate,
-        Validate::Never,
-        "a host that wrote nothing at all is in production, which is `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s row for it",
-    );
-    assert_eq!(
-        written("[mode]\ndefault = \"production\"\n").validate,
-        Validate::Never,
-        "production spends no syscall on a path it has already compiled",
-    );
-    assert_eq!(
-        written("[mode]\ndefault = \"development\"\n").validate,
-        Validate::Mtime,
-        "development is the row's `on`, which is PHP's own `validate_timestamps = 1`",
-    );
-
-    // The mode supplies a default and nothing more: a written directive beside it wins, in either
-    // direction, which is what keeps § 3's "every row is spellable on its own" true of this table
-    // as well.
-    assert_eq!(
-        written("[mode]\ndefault = \"development\"\n\n[opcache]\nvalidate = \"never\"\n").validate,
-        Validate::Never,
-    );
+    for block in [
+        "",
+        "[mode]\ndefault = \"production\"\n",
+        "[mode]\ndefault = \"development\"\n",
+    ] {
+        assert_eq!(written(block).validate, Validate::Mtime, "{block}");
+    }
     assert_eq!(
         written("[mode]\ndefault = \"production\"\n\n[opcache]\nvalidate = \"hash\"\n").validate,
         Validate::Hash,
     );
 
-    // And the cap is untouched by either mode — `rule:config/a-startup-default-is-never-flipped` says outright that there is no value
-    // of `revalidate_freq` a developer's machine needs that an operator's does not.
+    // The cap keeps its own default under either mode.
     assert_eq!(
         written("[mode]\ndefault = \"development\"\n").freq,
         Revalidation::default().freq,

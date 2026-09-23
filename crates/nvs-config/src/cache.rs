@@ -49,8 +49,8 @@
 //! at all. Reading them is a question about the configuration and not about any one cache, so it
 //! lands beside the key rather than inside the crate that happens to hold the table — the same
 //! separation `[server]`'s waits have from the listener that arms them ([`mod@crate::server`]).
-//! Neither directive is refused at boot yet: an unspelled `validate` falls back to the default,
-//! and [`Validate::of`] is the one place a refusal would read the word.
+//! A `validate` that is neither `mtime` nor `hash` does not load ([`validate`]); a
+//! `revalidate_freq` that is not a duration is not refused yet and keeps the default cap.
 //!
 //! **`compiler_version_hash` is the running executable, not the release version.** The package
 //! version alone is the same string for every build of an unreleased tree, so a developer who
@@ -75,11 +75,15 @@
 //! the source at all.
 //!
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use nvs_diagnostics::{Diagnostic, code};
+
+use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Setting};
 use crate::value::{Quantity, Unit};
 
@@ -375,19 +379,17 @@ impl UnitKey {
     }
 }
 
-/// `[opcache] validate` — what a resolve looks at when it re-checks a path it has already
-/// compiled (`rule:config/an-edit-reaches-the-next-request-without-a-restart` steps 1-2).
+/// `[opcache] validate` — what a check looks at when it re-examines a path it has already
+/// compiled (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+///
+/// There are two values and no third: `rule:config/opcache-revalidation-is-system-class` removed
+/// `never`, and [`validate`] refuses it at load with every other word neither of these spells.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Validate {
-    /// `never` — a path compiled once is answered from the unit table for the life of the process
-    /// and no resolve spends a syscall. This is production's value, selected there by the run mode
-    /// as an `rule:config/a-startup-default-is-never-flipped` row rather than by this type.
-    ///
-    Never,
     /// `mtime` — PHP's `validate_timestamps`: `stat`, and re-read the source only where the
     /// modification time or the size moved. The cheap pre-filter `rule:config/an-edit-reaches-the-next-request-without-a-restart`
-    /// names, and the default.
+    /// names, and the default in both modes.
     #[default]
     Mtime,
     /// `hash` — re-read and re-hash whenever the rate cap allows a check at all, so a file
@@ -396,31 +398,10 @@ pub enum Validate {
 }
 
 impl Validate {
-    /// `rule:config/a-startup-default-is-never-flipped`'s row for this directive: the value a host **starts** with when `[opcache]`
-    /// writes none, `never` in `production` and the timestamp check in `development`.
-    ///
-    /// It is `mtime` rather than `hash` on the permissive side because the row's cell reads "on"
-    /// and PHP's own `validate_timestamps = 1` — the thing an operator is transcribing, per
-    /// [`validate_of`] — is the stamp. A mode that is neither of the two is `production`, which is
-    /// § 5's answer for a host that wrote nothing at all and the fail-closed direction besides.
-    ///
-    /// A § 3a row is fixed at boot and never re-derived, so this is read where the policy is built
-    /// and nowhere on the request path; § 4's runtime mode flip re-derives only § 3's rows.
-    ///
-    #[must_use]
-    pub fn started_in(mode: &str) -> Self {
-        if mode == crate::mode::DEVELOPMENT {
-            Self::Mtime
-        } else {
-            Self::Never
-        }
-    }
-
     /// The value `written` names, and `None` for a word that names none of them.
     #[must_use]
     pub fn of(written: &str) -> Option<Self> {
         match written {
-            "never" => Some(Self::Never),
             "mtime" => Some(Self::Mtime),
             "hash" => Some(Self::Hash),
             _ => None,
@@ -431,9 +412,9 @@ impl Validate {
 /// `[opcache]`'s revalidation directives, read into what one resolve asks — `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 /// steps 1-2.
 ///
-/// Both are `System`-class (`rule:config/three-changeability-classes`) and that ADR says why in its own words: a request able to
-/// set `validate = never` for itself could pin a version of the code past a shipped fix, and one
-/// able to lower the cap could force a `stat` storm on a hot file. Nothing here is per-request, so
+/// Both are `System`-class (`rule:config/opcache-revalidation-is-system-class`): a request able to
+/// raise the cap for itself could hold a shipped fix back, and one able to lower it could force a
+/// `stat` storm on a hot file. Nothing here is per-request, so
 /// a caller holds one of these for a configuration generation and reads it on every resolve.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -453,11 +434,9 @@ impl Default for Revalidation {
     /// block — the same place `rule:config/opcache-file-cache-directives-are-system` leaves its file-cache pair to the implementation. Both
     /// are PHP's own `opcache` defaults, which is the behaviour every deployment this runtime is
     /// migrating from already has: an edit becomes visible without a restart, and a hot path pays
-    /// at most one `stat` every two seconds for it.
-    ///
-    /// **This is the type's own value and not what a configured host runs**: `validate`'s startup
-    /// default is the run mode's ([`from_config`](Self::from_config)), and it reaches this one only
-    /// for the `freq` beside it.
+    /// at most one `stat` every two seconds for it. Neither is chosen by the run mode:
+    /// `rule:config/opcache-revalidation-is-system-class` gives `validate` one default in both, and
+    /// no value of the cap a developer's machine needs differs from an operator's.
     ///
     fn default() -> Self {
         Self {
@@ -468,36 +447,21 @@ impl Default for Revalidation {
 }
 
 impl Revalidation {
-    /// The policy `config`'s `[opcache]` block writes, with the startup default for every key it
-    /// leaves out — and for a value that spells nothing, which the module doc records as the
-    /// refusal this crate does not make yet.
+    /// The policy `config`'s `[opcache]` block writes, with [`Revalidation::default`] for every key
+    /// it leaves out.
     ///
-    /// **`validate`'s fallback is the run mode's, not [`Revalidation::default`]'s**, because it is
-    /// an `rule:config/a-startup-default-is-never-flipped` row: [`Validate::started_in`] over `[mode] default`, which a tree that
-    /// writes no mode at all leaves at `production`. The cap beside it is deliberately *not* a row
-    /// — § 3a says so in its own words, there being no value of `revalidate_freq` a developer's
-    /// machine needs that an operator's does not — so it keeps [`Revalidation::default`]'s two
-    /// seconds under either mode. § 3's first property is what makes the pair coherent: an
-    /// `[opcache] validate` written beside `mode = "development"` still wins, because the mode
-    /// supplies a default and nothing more.
+    /// A tree that reached a snapshot has already passed [`validate`], so a `validate` value that
+    /// spells nothing never arrives here from a load; the fallback is for a [`Config`] a caller
+    /// built by hand. `revalidate_freq` is not refused at load yet, and a value that is not a
+    /// duration keeps the default cap.
     ///
-    /// The mode read here is the tree's own `[mode] default`. An `[[app]]` block's mode
-    /// (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) is deliberately not consulted: `[opcache]` is `System`-class and one
-    /// process holds one unit cache, so a per-application answer would be a second policy over a
-    /// table the applications share.
+    /// An `[[app]]` block (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) is not
+    /// consulted: `[opcache]` is `System`-class and one process holds one unit cache, so a
+    /// per-application answer would be a second policy over a table the applications share.
     ///
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let fallback = Self {
-            validate: Validate::started_in(
-                config
-                    .mode
-                    .as_ref()
-                    .and_then(|mode| mode.default.as_deref())
-                    .unwrap_or(crate::mode::PRODUCTION),
-            ),
-            ..Self::default()
-        };
+        let fallback = Self::default();
         let Some(opcache) = config.opcache.as_ref() else {
             return fallback;
         };
@@ -516,18 +480,64 @@ impl Revalidation {
     }
 }
 
-/// One written `validate`, as the check it names.
+/// One written `validate`, as the check it names, and `None` for a value that names none.
 ///
-/// A boolean is read as PHP's own spelling of the same directive — `validate_timestamps = 0` is
-/// `never` and `1` is the timestamp check — rather than refused, because an operator transcribing
-/// an `opcache` block they already run is writing the thing this directive replaced.
+/// `true` is read as PHP's own spelling of the timestamp check, `validate_timestamps = 1`, because
+/// an operator transcribing an `opcache` block they already run is writing the thing this
+/// directive replaced. `false` was PHP's `validate_timestamps = 0`, the `never` this directive no
+/// longer has, so it names nothing.
 fn validate_of(setting: &Setting) -> Option<Validate> {
     match setting {
         Setting::Text(written) => Validate::of(written),
-        Setting::Bool(false) => Some(Validate::Never),
         Setting::Bool(true) => Some(Validate::Mtime),
         _ => None,
     }
+}
+
+/// `rule:config/opcache-revalidation-is-system-class`'s refusal, asked of the merged tree: an
+/// `[opcache] validate` that is neither `mtime` nor `hash` does not load.
+///
+/// `never`, and the boolean `false` that meant it, are refused with every other word rather than
+/// read as the default: a value that pins the code a process started with is the outage
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` exists to end, and a host
+/// that wrote it believes it has something it does not.
+///
+/// # Errors
+///
+/// `E0601`, the code a directive with an invalid value gets, naming the value, `mtime` and `hash`,
+/// and the file the value was written in.
+pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(written) = config
+        .opcache
+        .as_ref()
+        .and_then(|opcache| opcache.validate.as_ref())
+    else {
+        return Ok(());
+    };
+    if validate_of(written).is_some() {
+        return Ok(());
+    }
+    let shown = match written {
+        Setting::Text(word) => format!("\"{word}\""),
+        Setting::Bool(flag) => flag.to_string(),
+        Setting::Integer(count) => count.to_string(),
+        Setting::Float(ratio) => ratio.to_string(),
+        Setting::List(_) => "[...]".to_string(),
+    };
+    Err(Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        format!("`[opcache] validate = {shown}` is not a value that key can hold"),
+    )
+    .with_note(format!(
+        "a server checks every source file it compiled, so a changed file reaches the next request \
+         without a restart, and `validate` only chooses how it checks{}",
+        origin_note(origins.get("opcache.validate"))
+    ))
+    .with_help(
+        "write `validate = \"mtime\"`, the default, or `validate = \"hash\"` for a file system whose \
+         timestamps cannot be trusted"
+            .to_string(),
+    ))
 }
 
 /// One written `revalidate_freq`, as the interval it names.

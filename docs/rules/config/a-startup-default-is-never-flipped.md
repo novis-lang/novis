@@ -20,5 +20,4 @@ objection is always to the *flip*, never to the *default*: a value chosen by a r
 request move how the process treats its source. The list stays closed at eight rows across the two
 tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-**What is on disk.** The `opcache.validate` row — `never` in production, `mtime` in development — and
-no `settle` row.
+**What is on disk.** No `settle` row.

@@ -46,8 +46,8 @@
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
 //! stamp the last check observed, in front of a table keyed by
 //! [`UnitKey`]`{ path, content_hash, probe_hash, env_hash }`. A resolve walks its five
-//! steps — reuse the known digest under `[opcache] validate = "never"` or
-//! inside `revalidate_freq`; otherwise `stat`, and re-read the source only
+//! steps — reuse the known digest inside `revalidate_freq`; otherwise
+//! `stat`, and re-read the source only
 //! where the stamp cannot answer; compile only content this table has not seen;
 //! write the digest back on success; leave it alone on failure, and answer that
 //! caller with the failure the new content is now keyed to.
@@ -523,12 +523,11 @@ impl Compiler {
         // the hash and the compile — happens outside the map.
         let since = known.map(|entry| entry.content_hash);
 
-        // 1. The syscall this resolve does not make: `validate = "never"` is
-        //    production's answer for every resolve, and the rate cap is the
-        //    same answer for the requests arriving inside one window.
+        // 1. The syscall this resolve does not make: a request arriving
+        //    inside the rate cap's window is answered from the entry the last
+        //    check wrote.
         if let Some(entry) = known
-            && (self.revalidation.validate == Validate::Never
-                || entry.last_checked.elapsed() < self.revalidation.freq)
+            && entry.last_checked.elapsed() < self.revalidation.freq
             && let Some(answer) = self.answer(&written, entry.content_hash)
         {
             return answer;
@@ -689,8 +688,7 @@ impl Compiler {
     /// sweep's accounting readable.
     ///
     /// **What it costs:** one `exists` per probed path, per revalidation window
-    /// that reaches step 2 — zero under `[opcache] validate = "never"`, which
-    /// is what production runs, and zero for a program that autoloads nothing.
+    /// that reaches step 2, and zero for a program that autoloads nothing.
     fn revalidate_probes(&self, path: &Path, content: Digest) {
         let entry = (path.to_path_buf(), content);
         let moved = {
@@ -2155,22 +2153,6 @@ mod tests {
         // observed — so an edit between two resolves says whether the second
         // one looked at all. Nothing here asserts a syscall count directly,
         // because a count would pin the implementation rather than the rule.
-
-        // `validate = "never"` is production's answer for *every* resolve, and
-        // it is not the rate cap wearing a longer window: the cap below is
-        // written at zero here, so a resolve that consulted the clock at all
-        // would look, and this one still does not.
-        let never = a_file_saying("never", "one");
-        let compiler = checking("never", "0s");
-        let (first, _) = compiler
-            .compiled(&never.to_string_lossy())
-            .expect("the entry compiles");
-        let _ = a_file_saying("never", "two");
-        let (again, _) = compiler
-            .compiled(&never.to_string_lossy())
-            .expect("the entry resolves again");
-        assert_eq!(said(first), "one\n");
-        assert_eq!(said(again), "one\n", "a `never` resolve read the file");
 
         // The cap, on both sides of one window, since a resolve that stopped
         // one edit early reads plausibly against either half alone. Inside a

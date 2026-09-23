@@ -302,8 +302,7 @@ time.
 every path probed, in order, misses included (`nvs_hir::autoload::ProbeTrace`) — and the in-memory
 unit table keys on its digest beside the content hash and the environment, then re-asks those paths
 under the gate the content `stat` rides, so a file written where one of them missed sends that unit
-to a compile (`nvs_cli::script`). That check still runs inside a resolve, and not at all under
-`validate = "never"`. A discovery query's listed directories are not collected at all, and nothing
+to a compile (`nvs_cli::script`). That check still runs inside a resolve. A discovery query's listed directories are not collected at all, and nothing
 hashes the discovered names.
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>

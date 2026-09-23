@@ -20,5 +20,4 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-**What is on disk.** `validate` still accepts `never` and `false`, and `never` is still production's
-default. `settle` does not exist yet.
+**What is on disk.** `settle` does not exist yet.
