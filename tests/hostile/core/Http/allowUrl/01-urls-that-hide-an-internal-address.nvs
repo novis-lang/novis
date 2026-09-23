@@ -1,0 +1,74 @@
+<?nvs
+// Attack: URLs try to reach this server's own network by hiding a loopback, private
+// or link-local address. Every one must be refused, and very long URLs must not
+// crash the runtime. The last step stops the program at its memory limit.
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Each URL hides an internal address in a different way. Each call must throw a
+//    `RuntimeError`. If one is allowed, the `LogicError` below stops the program early.
+array<string> $hidden = [
+    'http://203.0.113.10@127.0.0.1/',
+    'http://10.0.0.7#@203.0.113.10/',
+    "http://10.0.0.7\\@203.0.113.10/",
+    'HTTP://127.0.0.1:80/',
+    'http://127.0.0.1:99999/',
+    'http://0.0.0.0/',
+    'http://[::]/',
+    'http://[::1]/',
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'http://[fe80::1]/',
+    'http://[fe80::1%25eth0]/',
+    'http://[fd00::1]/',
+    'http://172.16.0.1/',
+    'http://192.168.1.1/',
+    'http:///127.0.0.1/',
+    'http://:80/',
+    'file:///etc/passwd',
+    'gopher://127.0.0.1:6379/',
+    '',
+];
+uint $refused = 0;
+foreach ($hidden as string $url) {
+    try {
+        Core\Http\Target $target = Core\Http::allowUrl($url);
+        throw new LogicError(Core\Str::format('an internal address was allowed: %s', $url));
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, "\n";
+
+// 2. A URL with ten million characters in its path is allowed one hundred times.
+//    The memory in use must not grow.
+string $long = 'https://203.0.113.10/' . Core\Str::repeat('a', 10000000);
+uint $i = 0;
+while ($i < 100) {
+    Core\Http\Target $pinned = Core\Http::allowUrl($long);
+    $i = $i + 1;
+}
+echo 'step 2: ', $i, "\n";
+
+// 3. A host name of one million characters and a URL of one million `@` characters.
+//    Both must throw a `RuntimeError`.
+array<string> $huge = ['http://' . Core\Str::repeat('a', 1000000) . '/', 'http://' . Core\Str::repeat('@', 1000000)];
+foreach ($huge as string $url) {
+    try {
+        Core\Http\Target $wide = Core\Http::allowUrl($url);
+        throw new LogicError('a huge URL was allowed');
+    } catch (RuntimeError $error) {
+        echo 'step 3: refused', "\n";
+    }
+}
+
+// 4. Every allowed URL is kept in a list and never freed.
+//    This step ends the program at its memory limit.
+array<Core\Http\Target> $kept = [];
+uint $n = 0;
+while (true) {
+    $kept[] = Core\Http::allowUrl(Core\Str::format('https://203.0.113.10/%d/', $n) . Core\Str::repeat('b', 1000));
+    $n = $n + 1;
+}

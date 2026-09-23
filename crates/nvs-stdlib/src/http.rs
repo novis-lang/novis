@@ -486,13 +486,21 @@ fn judged_host(text: &str, member: &str, roster: Roster) -> Result<String, Fault
         }));
     }
 
-    let authority = reference.authority().ok_or_else(|| {
+    // An authority with nothing in its host part — `http:///path`, `http://:80/` —
+    // names no host just as a URL with no authority does, and gets the same
+    // sentence: handed on, the empty text would reach the capability as a host
+    // called ``, and the refusal would name a grant nobody could write.
+    let no_host = || {
         Fault::thrown(format!(
             "{member}: the URL names no host, so there is nothing to resolve and pin"
         ))
-    })?;
-
-    Ok(Authority::host(&authority).to_owned())
+    };
+    let authority = reference.authority().ok_or_else(no_host)?;
+    let host = Authority::host(&authority);
+    if host.is_empty() {
+        return Err(no_host());
+    }
+    Ok(host.to_owned())
 }
 
 nvs_runtime::nvs_helper! {
@@ -5078,6 +5086,66 @@ mod tests {
             message.contains("net.connect") && !message.contains("net.internal"),
             "the host is refused before the address is judged: {message}"
         );
+    }
+
+    /// `Core\Http::allowUrl` driven the way compiled code drives it. A granted
+    /// public address answers a `Core\Http\Target` holding the URL exactly as
+    /// written and the one address it was approved at. A URL whose authority
+    /// has an empty host part is thrown with the no-host sentence before the
+    /// capability is asked, so the refusal never names a grant for a host
+    /// called ``.
+    // covers: Core\Http::allowUrl
+    #[test]
+    fn allow_url_pins_a_granted_address_and_refuses_an_empty_host() {
+        const URL: &str = "https://203.0.113.10/hook";
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(
+            "[capabilities.net]\nconnect = [\"203.0.113.10\"]\n",
+        ));
+
+        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let target = nvs_runtime::call(super::nvs_core_http_allow_url, &mut ctx, &[url])
+            .expect("a granted public address is approved");
+        let object = target.obj_ptr().expect("the answer is an instance");
+        assert_eq!(
+            crate::instance::slot(object, TARGET_URL_SLOT).as_text(),
+            Some(URL),
+            "the URL is kept as the program wrote it"
+        );
+        assert_eq!(
+            super::addresses_of(object),
+            Some(vec![IpAddr::V4(Ipv4Addr::new(203, 0, 113, 10))]),
+            "and the address it was approved at is the one it carries"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the reference `NvsStr::new` produced and the \
+                      target the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            target.release();
+        }
+
+        for empty in ["http:///hook", "http://:8080/hook", "https://@/hook"] {
+            let url = Value::str(NvsStr::new(empty.as_bytes()));
+            let refused = nvs_runtime::call(super::nvs_core_http_allow_url, &mut ctx, &[url]);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns exactly the reference `NvsStr::new` just \
+                          produced, and a native member never releases an argument \
+                          its caller still owns"
+            )]
+            unsafe {
+                url.release();
+            }
+            assert!(refused.is_err(), "`{empty}` was approved");
+            let message = ctx.take_pending().expect("the refusal is a thrown error");
+            assert!(
+                message.contains("names no host") && !message.contains("net.connect"),
+                "`{empty}` is refused for its missing host, not by the capability: {message}"
+            );
+        }
     }
 
     /// The address [`unhurried`] answers with: TEST-NET-3, which § 3's table

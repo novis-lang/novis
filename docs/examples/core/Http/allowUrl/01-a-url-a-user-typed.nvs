@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to check a URL that a user typed before your program sends a request to it.
+
+// Text from a user is `tainted`. A request method does not accept a tainted URL.
+tainted string $typed = "https://203.0.113.10/news/feed.xml";
+
+// `Core\Http::allowUrl` checks the URL and returns a `Core\Http\Target`.
+// You give this value to a request method such as `Core\Http::get`.
+Core\Http\Target $feed = Core\Http::allowUrl($typed);
+
+// This prints `The feed URL is allowed.` No request is sent in this example.
+echo "The feed URL is allowed.", "\n";

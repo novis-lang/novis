@@ -1,0 +1,21 @@
+<?nvs
+// Measures checking a URL before a request, as a program does with every URL a user gives it.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/orders", "/customers/42", "/hooks/order-paid"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The URL checked in each round is chosen by the round before, so no round can be left out.
+            string $url = "https://203.0.113.10" . $paths[(($total + $i) % 3) as int];
+            Core\Http\Target $target = Core\Http::allowUrl($url);
+            $total = $total + Core\Str::length($url);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

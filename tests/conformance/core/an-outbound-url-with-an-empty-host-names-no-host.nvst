@@ -1,0 +1,21 @@
+--TEST--
+`Core\Http::allowUrl` refuses a URL whose host part is empty with the same no-host sentence as a URL with no authority, before the capability is asked — `rule:http-server/allow-url-pins-the-address`
+--FILE--
+<?nvs
+// covers: Core\Http::allowUrl
+// Each URL has the `//` that starts an authority and nothing where the host goes.
+// The refusal names the missing host, not a `net.connect` grant for an empty one.
+array<string> $urls = ["http:///orders", "http://:8080/orders", "https://@/orders", "wss://user@:443/live"];
+foreach ($urls as string $url) {
+    try {
+        var $target = Core\Http::allowUrl($url);
+        echo "accepted ", $url, "\n";
+    } catch (RuntimeError $refused) {
+        echo $refused->message, "\n";
+    }
+}
+--EXPECT--
+Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
+Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
+Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
+Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin

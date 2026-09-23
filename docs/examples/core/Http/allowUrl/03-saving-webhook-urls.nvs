@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a service checks the webhook URLs its customers save. A webhook is a
+// URL your service calls when something happens, for example when an order is paid.
+
+array<tainted string> $saved = [
+    "shop" => "https://203.0.113.10/hooks/order-paid",
+    "blog" => "http://192.168.1.20/hooks/new-comment",
+    "chat" => "wss://198.51.100.7/live",
+];
+
+// The checked URLs are kept here. Your program sends the requests to them later.
+array<Core\Http\Target> $webhooks = [];
+
+foreach ($saved as string $customer => tainted string $url) {
+    try {
+        $webhooks[$customer] = Core\Http::allowUrl($url);
+        echo $customer, ": saved", "\n";
+    } catch (RuntimeError $refused) {
+        // The customer sees why the URL was not saved.
+        echo $customer, ": not saved. ", $refused->message, "\n";
+    }
+}
+
+// This prints `2 webhooks are ready.`
+echo Core\Arr::count($webhooks), " webhooks are ready.", "\n";

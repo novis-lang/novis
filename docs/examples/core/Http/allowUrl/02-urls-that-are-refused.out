@@ -1,0 +1,4 @@
+Core\Http::allowUrl: the scheme must be `http`, `https`, `ws` or `wss`, and this URL names `ftp`
+Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+Core\Http::allowUrl refuses 169.254.169.254: it is link-local (169.254.0.0/16), which `net.internal` does not except
+Core\Http::allowUrl refuses 127.0.0.1: it is loopback (127.0.0.0/8), which `net.internal` does not except

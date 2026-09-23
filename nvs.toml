@@ -126,6 +126,30 @@ entry = "examples/http.nvs"
 connect = ["127.0.0.1", "169.254.169.254"]
 internal = ["127.0.0.1"]
 
+# `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, so
+# their grant is the one a service calling its users' webhooks writes: every host,
+# with the address table left whole and nothing in `net.internal`. What they show is
+# that table refusing loopback, private and link-local addresses however the URL
+# spells them. Every URL in them names a literal address, so no case waits on a
+# name server. The bench approves one address and is granted that address alone.
+[[app]]
+root = "docs/examples/core/Http/allowUrl"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http/allowUrl"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+entry = "benches/members/core/Http/allowUrl.nvs"
+
+[app.capabilities.net]
+connect = ["203.0.113.10"]
+
 # `examples/net-echo.nvs` binds a port and then dials it, and ADR 0162 § 8 is
 # why that is three keys rather than one. `net.listen` is the bind, matched
 # against the endpoint exactly; `net.connect` is the dial, matched against the
