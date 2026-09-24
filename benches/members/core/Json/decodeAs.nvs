@@ -1,0 +1,37 @@
+<?nvs
+// Reads a small JSON object into a class instance, as an API server does with each request body.
+// bench: iterations 50000
+
+#[Core\Json\Derive]
+class Item {
+    public string $sku;
+    public int $count;
+    public bool $gift;
+
+    public function constructor(string $sku, int $count, bool $gift) {
+        $this->sku = $sku;
+        $this->count = $count;
+        $this->gift = $gift;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $bodies = [
+            "{\"sku\":\"T-1\",\"count\":2,\"gift\":false}",
+            "{\"sku\":\"CUP-40\",\"count\":1,\"gift\":true}",
+            "{\"sku\":\"BAG-7\",\"count\":3,\"gift\":false}",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The body in each round depends on the round before, so no round can be left out.
+            var $item = Core\Json::decodeAs<Item>($bodies[($total % 3) as int]);
+            $total = $total + ($item->count as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to read a JSON object straight into an instance of your own class.
+
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
+// `#[Core\Json\Field]` sets a different key name for one field.
+#[Core\Json\Derive]
+class User {
+    public int $id;
+    #[Core\Json\Field(name: "display_name")]
+    public string $name;
+    public bool $admin;
+
+    public function constructor(int $id, string $name, bool $admin) {
+        $this->id = $id;
+        $this->name = $name;
+        $this->admin = $admin;
+    }
+}
+
+string $text = "{\"id\":7,\"display_name\":\"Ada\",\"admin\":true}";
+
+// The type between `<` and `>` is the class to create. The result is a `User`,
+// so you can use its fields without a conversion.
+var $user = Core\Json::decodeAs<User>($text);
+
+// This prints `7 Ada admin`.
+echo $user->id, " ", $user->name, " ", $user->admin ? "admin" : "guest", "\n";
