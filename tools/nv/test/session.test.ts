@@ -1,5 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../cmd/session.ts";
+import { manifestProblems, nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../cmd/session.ts";
+
+describe("nv session manifestProblems", () => {
+  test("a problem two copies share is refused once, and each names the floor check", () => {
+    const value = { context: { shapes: ["A shape nobody wrote"] }, stages: [] };
+    const found = manifestProblems([
+      { value, where: "g", prose: null },
+      { value, where: "g", prose: null },
+    ]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("'A shape nobody wrote'");
+    expect(found[0]).toEndWith("`nv chain --check` is on the floor and halts a DONE claim on this; fix the manifest before the wrap, or drop the line");
+  });
+
+  test("a clean manifest refuses nothing", () => {
+    expect(manifestProblems([{ value: { context: { shapes: ["A commit message"] }, stages: [] }, where: "g", prose: null }])).toEqual([]);
+  });
+});
 
 describe("nv session parseWrap", () => {
   test("a handoff keeps its own `## ` headings, and a known directive ends it", () => {

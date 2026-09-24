@@ -7,8 +7,9 @@
 //     bun nv session --wrap F [--dry-run]   apply a wrap file: the whole session tail
 //
 // A wrap file is markdown whose `## <kind>: <arg>` headings are instructions, and `parseWrap` is its
-// one reader. `--help` prints the format. `--wrap` still runs `tools/session.py --wrap`, which applies
-// every section or none; the parser here refuses the same malformed input that one does.
+// one reader. `--help` prints the format. `--wrap` refuses a malformed file and a live goal manifest
+// `manifestFindings` refuses, then runs `tools/session.py --wrap`, which validates the rest and applies
+// every section or none.
 //
 // `--check` judges no content. It prints the counts the plan's prose should agree with, each status
 // field's size against its ceiling, the handoff's shape, the dead links this session made, the
@@ -18,13 +19,16 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix, relative, sep } from "node:path";
+import { goalValue } from "../import/goals.ts";
+import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 import { load } from "../lib/store.ts";
+import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { playbookSection } from "../schema/playbook.ts";
 import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_EXTS, readText, type Resolver, SOURCE_EXTS, sortKey, trackedFiles } from "./links.ts";
-import { ANCHOR_RE } from "./orient.ts";
+import { ANCHOR_RE, type GoalValue, manifestFindings } from "./orient.ts";
 import { fieldLimits, planFields } from "./plan.ts";
 
 export const summary = "the session tail: nv session --template | --check | --counts | --scrub | --wrap F [--dry-run]";
@@ -338,6 +342,58 @@ export function validateHandoff(body: string): string[] {
     if (!new RegExp(`^${required}\\b`, "m").test(body)) errors.push(`\`## handoff\` -- missing the required \`${required}\` heading`);
   }
   return [...errors, ...validateAnchors(body)];
+}
+
+// ------------------------------------------------------------------------- the manifest gate
+
+/** One copy of a goal's manifest: its value, the path its findings are named by, and its prose. */
+export interface ManifestCopy {
+  value: GoalValue;
+  where: string;
+  prose: string | null;
+}
+
+/**
+ * What `manifestFindings` refuses in any copy of the live goal's manifest, each problem once. `nv chain
+ * --check` is on every goal's floor and the driver runs the floor after the session is gone, so a
+ * manifest broken at wrap time is a DONE claim held for a hand. The wrap refuses it first.
+ */
+export function manifestProblems(copies: ManifestCopy[]): string[] {
+  const problems: string[] = [];
+  for (const c of copies) {
+    for (const p of manifestFindings(c.value, c.where, c.prose).problems) if (!problems.includes(p)) problems.push(p);
+  }
+  return problems.map((p) => `${p} -- \`nv chain --check\` is on the floor and halts a DONE claim on this; fix the manifest before the wrap, or drop the line`);
+}
+
+/**
+ * The live goal's manifest copies: its stored record, and the `loop-goal.toml` the driver installs,
+ * which a session edits in place so the two can disagree. A side goal's live copy is its own toml. A
+ * retired goal, or none, has no manifest to gate.
+ */
+function manifestCopies(): ManifestCopy[] {
+  const side = sideGoal();
+  let slug: string, md: string, toml: string, stored: any;
+  if (side) {
+    slug = side;
+    md = `docs/agent/goals/side/${side}.md`;
+    toml = `docs/agent/goals/side/${side}.toml`;
+    stored = load<any>(sideGoalType).find((g) => g.id === side);
+  } else {
+    const live = liveGoal(chainGoals());
+    if (!live || live.retired) return [];
+    slug = live.slug;
+    md = live.md ?? "docs/agent/loop-goal.md";
+    toml = "docs/agent/loop-goal.toml";
+    stored = load<any>(goalType).find((g) => g.id === live.slug);
+  }
+  const copies: ManifestCopy[] = [];
+  if (stored) copies.push({ value: stored.value as GoalValue, where: side ? `data/goals/side/${slug}.json` : `data/goals/${slug}.json`, prose: md });
+  if (existsSync(join(ROOT, toml))) {
+    const v = goalValue(ROOT, { slug, md, toml, handoff: null }, []);
+    if (v) copies.push({ value: v as unknown as GoalValue, where: toml, prose: md });
+  }
+  return copies;
 }
 
 // ---------------------------------------------------------------------------- the link gate
@@ -692,11 +748,11 @@ export async function run(args: string[]): Promise<number> {
   if (opts.flags.has("--check")) return await check();
   const wrap = opts.values.get("--wrap");
   if (wrap !== undefined) {
-    const { errors } = parseWrap(readFileSync(wrap, "utf8").replace(/\r\n/g, "\n"));
+    const errors = [...parseWrap(readFileSync(wrap, "utf8").replace(/\r\n/g, "\n")).errors, ...manifestProblems(manifestCopies())];
     if (errors.length) {
-      console.log(`nv session: ${wrap} is malformed, and nothing was written:`);
+      console.log(`nv session: ${errors.length} problem(s) -- NOTHING was written or committed:`);
       for (const e of errors) console.log(`  - ${e}`);
-      return 2;
+      return 1;
     }
     return await passthrough(["python", "tools/session.py", "--wrap", wrap, ...(opts.flags.has("--dry-run") ? ["--dry-run"] : [])]);
   }
