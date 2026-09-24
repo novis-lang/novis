@@ -59,6 +59,8 @@ import { pyInt } from "../lib/py.ts";
 export const summary = "what the tree costs on disk, and the sweep: nv disk [--clean [-n]] [--deep]";
 
 const TARGET = join(ROOT, "target");
+/** `target/proof/`: the cargo profile the feature proofs run on (`tools/nv/proofs/run.ts`). */
+const PROOF_PROFILE = "proof";
 const LOGDIR = join(ROOT, ".loop", "logs");
 const SCRATCH = join(ROOT, ".agent-tmp");
 const RUNNING = join(ROOT, ".loop", "running");
@@ -604,13 +606,16 @@ async function report(deep: boolean): Promise<void> {
   // Both incremental figures come from the one walk of `target/`: under it, a cache file's path is
   // `<profile>/incremental/<cache directory>/...`. Every path `walk` returns starts with its root and a
   // separator, so cutting that off is the relative path; `path.relative` costs far more per file.
+  // The proof profile's total comes from the same walk: its first path part is `proof`.
   const stale = new Set(staleIncremental());
   let inc = 0;
   let staleInc = 0;
+  let proof = 0;
   for (const f of target.files) {
     const parts = f.path.slice(TARGET.length + 1).split(sep);
+    if (parts[0] === PROOF_PROFILE) proof += f.size;
     if (parts.length < 3 || parts[1] !== "incremental") continue;
-    if (parts[0] === "debug" || parts[0] === "release") inc += f.size;
+    if (parts[0] === "debug" || parts[0] === "release" || parts[0] === PROOF_PROFILE) inc += f.size;
     if (parts.length > 3 && stale.has(join(TARGET, parts[0]!, "incremental", parts[2]!))) staleInc += f.size;
   }
 
@@ -626,7 +631,11 @@ async function report(deep: boolean): Promise<void> {
   );
   console.log(
     `${blank}\`--clean\` keeps what verify builds and anything written in the ` +
-      `last ${GRACE_HOURS}h; release/deps is never swept`,
+      `last ${GRACE_HOURS}h; release/deps and proof/deps are never swept`,
+  );
+  console.log(
+    `  target/${PROOF_PROFILE}/ ${human(proof).padStart(8)}   ` +
+      `the proof binary's build, which nv proofs runs -- counted in target/ above`,
   );
   console.log(`  .loop/logs    ${human(logs.total).padStart(8)}   kept: newest ${KEEP_RUNS} runs -- swept after every loop session`);
   console.log(

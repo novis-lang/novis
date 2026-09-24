@@ -1069,7 +1069,7 @@ debug = true
 # assertions stay off, as in release, so a proof sees the arithmetic a shipped binary does. What
 # differs is inlining across crates: a behaviour that depends on it shows up only on release, which
 # the gate-open sweep builds. The disk cost is one more build tree, `target/proof/`, as large as
-# `target/release/` plus its incremental caches, which `tools/disk.py` counts with the others.
+# `target/release/` plus its incremental caches, which `bun nv disk` counts on a line of its own.
 [profile.proof]
 inherits = "release"
 lto = false
