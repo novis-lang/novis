@@ -1062,3 +1062,18 @@ debug = 0
 [profile.bench]
 inherits = "release"
 debug = true
+
+# The build the feature proofs run on: release's code, without release's link. Thin LTO over one
+# codegen unit is what makes a release relink slow, and a proof binary is rebuilt after nearly every
+# edit, so this profile turns both off and compiles incrementally. Overflow checks stay on and debug
+# assertions stay off, as in release, so a proof sees the arithmetic a shipped binary does. What
+# differs is inlining across crates: a behaviour that depends on it shows up only on release, which
+# the gate-open sweep builds. The disk cost is one more build tree, `target/proof/`, as large as
+# `target/release/` plus its incremental caches, which `tools/disk.py` counts with the others.
+[profile.proof]
+inherits = "release"
+lto = false
+incremental = true
+codegen-units = 256
+overflow-checks = true
+debug-assertions = false
