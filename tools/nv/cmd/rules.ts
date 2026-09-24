@@ -10,11 +10,11 @@
 //     bun nv rules --citations         every `rule:` citation in the tree, with its resolution
 //     bun nv rules --stats             one line per topic: rules, bytes, status split
 //
-// A rule's structure is `docs/rules/<topic>.json`: ids, status, the decisions behind it, flags, and no
-// prose. A rule's prose is the markdown fragment `docs/rules/<topic>/<slug>.md`, which a person edits.
-// A rule id is that path: `types/conversion` is `docs/rules/types/conversion.md`, and the citation
-// token everywhere is `rule:` and the id. A chapter's place is its `order` in `_index.json`, and a
-// rule's place is its position in the topic's `rules` array.
+// A rule's structure is its record `data/rules/<topic>/<slug>.json`: status, the decisions behind it,
+// flags, and no prose. A rule's prose is the markdown fragment `docs/rules/<topic>/<slug>.md`, which a
+// person edits. A rule id is that path: `types/conversion` is `docs/rules/types/conversion.md`, and the
+// citation token everywhere is `rule:` and the id. A chapter's place is its topic record's `order`,
+// and a rule's place is its position in that record's `rules` list.
 //
 // `docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` are rendered from the two
 // and never edited. `because` points at decision records, and nothing about the reverse direction is
@@ -29,11 +29,13 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join } from "node:path";
 import { ROOT, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, parseArgs, pyRepr, splitlines } from "../lib/py.ts";
+import { load, pathOf, type Loaded } from "../lib/store.ts";
+import { rule as ruleRecord } from "../schema/rule.ts";
+import { topic as topicRecord } from "../schema/topic.ts";
 
 export const summary = "the rulebook: validate, render, list, show, locate, citations: nv rules [--check] [--render] ...";
 
 const RULES_DIR = join(ROOT, "docs", "rules");
-const INDEX = join(RULES_DIR, "_index.json");
 
 // The generated files name the command that renders them, and both implementations write the same
 // bytes while the Python tool still exists.
@@ -62,10 +64,6 @@ const CITATION_GLOBS: [string, string[] | null][] = [
 
 /** A file that explains the citation format rather than using it carries this marker. */
 const EXAMPLES_ONLY = "rules-py:examples";
-
-const STATUSES = ["shipped", "designed"];
-const ID_RE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
-const TOPIC_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 /**
  * Where a decision record lives, relative to a generated page in `docs/rules/`. A chapter is written
@@ -99,7 +97,6 @@ interface Finding {
 }
 
 const anchor = (r: Rule) => `${r.topic}-${r.slug}`;
-const jsonPath = (t: Topic) => join(RULES_DIR, `${t.topic}.json`);
 const mdPath = (t: Topic) => join(RULES_DIR, `${t.topic}.md`);
 const fmt = (f: Finding) => `  ${f.where}: ${f.what}`;
 
@@ -134,67 +131,44 @@ export class Rulebook {
   }
 
   private load(): void {
-    // No rulebook is not an error: every command reads it as "nothing here".
-    if (!existsSync(INDEX)) return;
-    let index: { topics?: { topic?: string; title?: string; order?: number }[] };
-    try {
-      index = JSON.parse(readText(INDEX));
-    } catch (e) {
-      this.fail(rel(INDEX), `is not valid JSON: ${(e as Error).message}`);
-      return;
-    }
-    for (const entry of index.topics ?? []) {
-      const topic = entry.topic ?? "";
-      if (!TOPIC_RE.test(topic)) {
-        this.fail("_index.json", `topic name ${pyRepr(topic)} is not lowercase-kebab`);
-        continue;
-      }
-      const t: Topic = { topic, title: entry.title ?? topic, order: entry.order ?? 0, rules: [] };
-      this.loadTopic(t);
+    // No rulebook is not an error: every command reads it as "nothing here". A record that fails its
+    // schema is a finding, and is left out rather than read half-valid.
+    const valid = <T>(rs: Loaded<T>[]) =>
+      rs.filter((r) => {
+        for (const i of r.issues) this.fail(r.path, i.at ? `${i.at}: ${i.message}` : i.message);
+        return r.issues.length === 0;
+      });
+    const records = new Map(valid(load(ruleRecord)).map((r) => [r.id, r]));
+    const listed = new Set<string>();
+    for (const rec of valid(load(topicRecord))) {
+      const t: Topic = { topic: rec.id, title: rec.value.title, order: rec.value.order, rules: [] };
+      rec.value.rules.forEach((rid, order) => {
+        const where = `${rec.path}[${order}]`;
+        const [topic, slug] = [rid.slice(0, rid.indexOf("/")), rid.slice(rid.indexOf("/") + 1)];
+        if (topic !== t.topic) return this.fail(where, `id ${pyRepr(rid)} is not in its own topic ${pyRepr(t.topic)}`);
+        if (listed.has(rid)) return this.fail(where, `id ${pyRepr(rid)} is already listed`);
+        listed.add(rid);
+        const r = records.get(rid);
+        if (!r) return this.fail(where, `lists ${pyRepr(rid)}, and ${pathOf(ruleRecord, rid)} is absent`);
+        const rule: Rule = {
+          id: rid,
+          topic,
+          slug,
+          title: r.value.title,
+          status: r.value.status,
+          because: r.value.because,
+          diverges: r.value.divergesFromPhp ?? null,
+          seeAlso: r.value.seeAlso,
+          guardedBy: r.value.guardedBy,
+          bodyPath: join(RULES_DIR, topic, `${slug}.md`),
+        };
+        t.rules.push(rule);
+        this.byId.set(rid, rule);
+      });
       this.topics.push(t);
     }
+    for (const [rid, r] of records) if (!listed.has(rid)) this.fail(r.path, `is a rule no topic lists`);
     this.topics.sort((a, b) => a.order - b.order || (a.topic < b.topic ? -1 : a.topic > b.topic ? 1 : 0));
-  }
-
-  private loadTopic(t: Topic): void {
-    const path = jsonPath(t);
-    const name = `${t.topic}.json`;
-    if (!existsSync(path)) {
-      this.fail("_index.json", `names topic ${pyRepr(t.topic)} and ${name} is absent`);
-      return;
-    }
-    let data: { rules?: Record<string, unknown>[] };
-    try {
-      data = JSON.parse(readText(path));
-    } catch (e) {
-      this.fail(name, `is not valid JSON: ${(e as Error).message}`);
-      return;
-    }
-    (data.rules ?? []).forEach((raw, order) => {
-      const rid = (raw.id as string | undefined) ?? "";
-      const where = `${name}[${order}]`;
-      if (!ID_RE.test(rid)) return this.fail(where, `id ${pyRepr(rid)} is not \`<topic>/<slug>\``);
-      const [topic, slug] = [rid.slice(0, rid.indexOf("/")), rid.slice(rid.indexOf("/") + 1)];
-      if (topic !== t.topic) return this.fail(where, `id ${pyRepr(rid)} is not in its own topic ${pyRepr(t.topic)}`);
-      if (this.byId.has(rid)) return this.fail(where, `id ${pyRepr(rid)} is already defined`);
-      const status = (raw.status as string | undefined) ?? "";
-      if (!STATUSES.includes(status)) this.fail(where, `status ${pyRepr(status)} is not one of ${STATUSES.join("/")}`);
-      const strings = (key: string) => ((raw[key] as unknown[] | undefined) ?? []).map(String);
-      const rule: Rule = {
-        id: rid,
-        topic,
-        slug,
-        title: (raw.title as string | undefined) ?? slug,
-        status,
-        because: strings("because"),
-        diverges: (raw.divergesFromPhp as string | undefined) ?? null,
-        seeAlso: strings("seeAlso"),
-        guardedBy: strings("guardedBy"),
-        bodyPath: join(RULES_DIR, topic, `${slug}.md`),
-      };
-      t.rules.push(rule);
-      this.byId.set(rid, rule);
-    });
   }
 
   /** Everything checkable about the rulebook alone. Citations are `checkCitations`. */
@@ -202,7 +176,7 @@ export class Rulebook {
     const out = [...this.findings];
     const seen = new Set<string>();
     for (const t of this.topics) {
-      if (t.rules.length === 0) out.push({ where: `${t.topic}.json`, what: "declares no rules" });
+      if (t.rules.length === 0) out.push({ where: pathOf(topicRecord, t.topic), what: "declares no rules" });
       for (const r of t.rules) {
         const where = r.id;
         if (!existsSync(r.bodyPath)) out.push({ where, what: `body fragment ${rel(r.bodyPath)} is absent` });
@@ -227,7 +201,7 @@ export class Rulebook {
       const frags = readdirSync(join(RULES_DIR, dir)).filter((n) => n.toLowerCase().endsWith(".md"));
       for (const frag of frags.sort(comparePaths)) {
         const path = rel(join(RULES_DIR, dir, frag));
-        if (!seen.has(path.toLowerCase())) out.push({ where: path, what: "is a fragment no rule in the topic's JSON declares" });
+        if (!seen.has(path.toLowerCase())) out.push({ where: path, what: "is a fragment no rule record declares" });
       }
     }
     return out;
