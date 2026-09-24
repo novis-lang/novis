@@ -203,15 +203,15 @@ tests = [
 ]
 
 # The unit table is `nvs-cli`'s own, and `nvs-cli` is a binary with no library, so what it holds
-# is only readable from a unit test beside it. Ten thousand edits through a running server would
-# also cost a `revalidate_freq` each.
+# is only readable from a unit test beside it. Each edit through a running server would also cost
+# a `revalidate_freq`. The test is named by its prefix, which leaves the edit count to the test.
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-cli script (units held stay bounded after ten thousand edits)"
+name = "nvs-cli script (units held stay bounded after many edits)"
 args = ["test", "-p", "nvs-cli", "--bin", "nvs", "units_held_stay_bounded"]
 tests = [
-  "units_held_stay_bounded_after_ten_thousand_edits",
+  "units_held_stay_bounded_after_",
 ]
 
 [[check]]
