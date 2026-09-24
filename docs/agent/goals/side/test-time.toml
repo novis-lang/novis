@@ -1,0 +1,172 @@
+# Side goal test-time -- a check runs again only when something it reads has changed
+# The acceptance test, as data.
+#
+# `test-time.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No fixture of this goal's own: every check is a named Rust test or a tool over the tree. The
+  # side run unions main's floor fixtures into this list, so the key is what has to be here.
+]
+
+[context]
+
+modules = [
+  # The tiers, `STEP_READS`, and the scanner a card tier is added to.
+  "tools/verify_keys.py",
+  # Per-binary keys, `common()`, `--explain`, and where `--probe` goes.
+  "tools/impact.py",
+  # `plain_crate_test`, `inputs_for`, `observed_inputs`, `COMMAND_READS`, `BUILDS`, the memo.
+  "tools/loop.py",
+  # `current_binary`, `binary_key`, `collect`, `fingerprint`, `impl_hash`, the scope flags.
+  "tools/dossier.py",
+  # The test pool, `verify-test-green.json`, the doc-tests job.
+  "tools/verify.py",
+  # The bounded-units test.
+  "crates/nvs-cli/src/script.rs",
+]
+
+rules = [
+  "testing/member-perf-ledger",
+  "testing/feature-proofs",
+  "core-api/reference-card",
+]
+
+adrs = []
+
+shapes = ["A commit message", "A code comment", "A rule fragment", "A decision record"]
+
+milestones = []
+
+playbook = []
+
+plan = []
+
+# The environment tables of the chain goal this was written beside: main's carried floor drives a
+# database and a cache, so the daemon is preflighted before this goal's first session. The side
+# run gives the WSL leg a target dir of its own.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the bounded-units test, and the driver takes verify's record. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the bounded-units test"
+name = "the bounded-units test runs two hundred edits"
+args = ["test", "-p", "nvs-cli", "--bin", "nvs", "units_held_stay_bounded"]
+tests = [
+  "units_held_stay_bounded_after_two_hundred_edits",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the bounded-units test"
+name = "a `--bin` test check is answered from verify.py's record"
+argv = ["python", "tools/loop.py", "--why", "nvs-cli script (units held stay bounded after many edits)"]
+want = ["source: verify record"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the probe table, the contract every later stage is held to. Goal prose stage 3.
+# Stages 4 and 5 are green when every probe holds.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the probe table"
+name = "every probe in the table holds, each with a rerun and a keep list"
+argv = ["python", "tools/impact.py", "--probe"]
+want = [
+  "test-module",
+  "self-included-test-module",
+  "card",
+  "stdlib-code",
+  "syntax-code",
+  "host-code",
+  "embedded-chapter",
+  "driver-tool",
+  "new-example",
+  "editor",
+  "impact probes: every probe holds",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- one key for what the binary is built from. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 one binary key"
+name = "the fuzz target is keyed on the crates it uses"
+argv = ["python", "tools/loop.py", "--why", "the prefix fuzz target finds no panic in five minutes"]
+want = ["source: package key", "nvs-syntax", "nvs-diagnostics", "fuzz/"]
+
+[[check]]
+kind = "command"
+stage = "4 one binary key"
+name = "ThreadSanitizer is keyed on the packages its script builds"
+argv = ["python", "tools/loop.py", "--why", "ThreadSanitizer is clean over nvs-host and nvs-runtime"]
+want = ["source: package key", "nvs-host", "nvs-runtime", "tools/tsan.sh"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- dossier runs as one pass. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 dossier in one pass"
+name = "a floor dossier check is keyed on what it read"
+argv = ["python", "tools/loop.py", "--why", "dossier: lang:types"]
+want = ["source: observed"]
+
+[[check]]
+kind = "command"
+stage = "6 dossier in one pass"
+name = "one dossier run verifies several groups"
+argv = ["python", "tools/dossier.py", "--verify", "--group", "lang:types", "--group", "types:exception"]
+want = ["lang:types", "types:exception", "nothing owed", "0 failed"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- proofs run on a fast build during a goal. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 the proof profile"
+name = "the workspace has a proof profile"
+argv = ["git", "grep", "-n", "-F", "[profile.proof]", "--", "Cargo.toml"]
+want = ["Cargo.toml:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the smaller cuts. Goal prose stage 8. The perf migration is held by the floor's
+# `dossier:` checks, which want `nothing owed`: a figure left stale by the new hash form fails them.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "8 the smaller cuts"
+name = "a crate with no doctest does not run rustdoc's test harness"
+argv = ["git", "grep", "-n", "-F", "doctest = false", "--", "crates/nvs-stdlib/Cargo.toml", "crates/nvs-types/Cargo.toml"]
+want = ["crates/nvs-stdlib/Cargo.toml:", "crates/nvs-types/Cargo.toml:"]
+
+[[check]]
+kind = "command"
+stage = "8 the smaller cuts"
+name = "the conformance suite is answered from verify.py's record"
+argv = ["python", "tools/loop.py", "--why", "conformance (Core by name)"]
+want = ["source: verify record"]
