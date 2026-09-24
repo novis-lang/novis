@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to read a key set with two keys and check tokens signed with each one.
+
+// A login service has two key pairs, `blue` and `green`.
+Core\Crypto\KeyPair $blue = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $green = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// `write` gives a public key as a JWK, a JSON object. The service adds a name in `kid`
+// and publishes both keys in one document.
+string $blueJwk = Core\Encoding::decodeText($blue->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $greenJwk = Core\Encoding::decodeText($green->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $jwks = "{\"keys\":["
+    . Core\Str::replace($blueJwk, "{", "{\"kid\":\"blue\",") . ","
+    . Core\Str::replace($greenJwk, "{", "{\"kid\":\"green\",") . "]}";
+
+// `read` checks the document and returns a `Core\Jwt\KeySet`.
+Core\Jwt\KeySet $keys = Core\Jwt\KeySet::read($jwks);
+
+// Each token names its key in `kid`. `verifyIssued` uses that key from the set.
+// This prints `ada` and then `grace`.
+array<string> $names = ["blue" => "ada", "green" => "grace"];
+foreach ($names as string $kid => string $name) {
+    Core\Crypto\KeyPair $pair = $kid == "blue" ? $blue : $green;
+    string $token = Core\Jwt::signObject(
+        Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+            "iss" => "https://login.example.com",
+            "aud" => "shop",
+            "sub" => $name,
+        ]),
+        15m,
+        $pair,
+        {kid: $kid}
+    );
+    var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>($token, $keys, "https://login.example.com", "shop");
+    echo $claims->sub, "\n";
+}

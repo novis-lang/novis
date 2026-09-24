@@ -2,26 +2,30 @@
 
 ## State
 
-Goal `core-json-and-6-more` is under way. Every `Core\Json`, `Core\Jwe` and `Core\Jwe\Key` member
-owes nothing. `Core\Jwt` and `Core\Jwt\KeySet` carry class cards, so every `Core\Jwt` member's help
-proof is green, and `Core\Jwt::sign`, `::signObject` and `::verify` owe nothing. Their Rust tests
-sit at the end of `crates/nvs-stdlib/src/jwt.rs`'s test module, built on the `signed`,
-`signed_object` and `verified` helpers, which drive each member through `nvs_runtime::call` under
-a fixed clock (`Ctx::set_fixed_clock`). `signed_object` hands the member a text-keyed array in place
-of a shape, because Rust cannot build one and the member reads only the encoder's text. No attack
-found a new bug. The decoder's debug-build stack overflow stays `# Known gaps` 1 in
-`crates/nvs-stdlib/src/json.rs`, owner M12.
+Goal `core-json-and-6-more` is under way. Every `Core\Json`, `Core\Jwe`, `Core\Jwe\Key`,
+`Core\Jwt` and `Core\Jwt\KeySet` member owes nothing. The `Core\Jwt` Rust tests sit at the end of
+`crates/nvs-stdlib/src/jwt.rs`'s test module. `issued` drives `verifyIssued<{sub: string}>` through
+`nvs_runtime::call` with a leaked one-field shape (`subject_shape`), and `key_set` drives
+`Core\Jwt\KeySet::read`. No attack found a new bug. The decoder's debug-build stack overflow stays
+`# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12. What is left is `Core\Log::write`
+and `Core\Mail::send`. Each also owes a class card, which is its help proof.
 
 ## Next group
 
-**Stage 2: `Core\Jwt` and `Core\Jwt\KeySet`** — one file set: `crates/nvs-stdlib/src/jwt.rs` and its
-test module, and the `Core/Jwt` and `Core/Jwt-KeySet` proof trees. Record each bench figure after
-the last `jwt.rs` edit of the session: the ledger keys a figure on that file's text, so an earlier
-figure goes stale.
+**Stage 3: `Core\Log` and `Core\Mail`**: one file set, `crates/nvs-stdlib/src/registry.rs`'s
+`CLASSES_STILL_OWING_A_CARD` plus each member's module and its `Core/Log` or `Core/Mail` proof
+trees. Record each bench figure after the last edit of the member's own module in the session.
 
-- [ ] **`Core\Jwt::verifyIssued`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test signs with `signed_object` under an Ed25519 pair and checks with the pair's public half; `tests/conformance/core/jwt-verify-issued-answers-the-written-type-from-either-key-spelling.nvst` is the shape of a call. `crates/nvs-stdlib/src/jwt.rs:1984`
-- [ ] **`Core\Jwt\KeySet::read`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`); its proof trees are `Core/Jwt-KeySet/read`. `crates/nvs-stdlib/src/jwt.rs:2364`
+- [ ] **`Core\Log::write`**: owes about, examples, hostile, perf, tests and help, meaning a
+      `ClassDoc` above the class row and its name struck from `CLASSES_STILL_OWING_A_CARD`
+      (`rule:testing/feature-proofs`, `rule:core-api/reference-card`).
+      `crates/nvs-stdlib/src/log.rs:215`
+- [ ] **`Core\Mail::send`**: owes about, examples, hostile, perf, tests and its class card, in the
+      same way. An example must not reach a real SMTP host, so read how the conformance cases
+      for it point `send` at an endpoint first (`rule:testing/feature-proofs`).
+      `crates/nvs-stdlib/src/mail.rs:1036`
 
 ## Backlog
 
-- `Core\Jwt\KeySet`'s other members, after `read` — `python tools/dossier.py --id` names what each owes.
+- The decoder's debug-build stack overflow on deep nesting: `crates/nvs-stdlib/src/json.rs`
+  `# Known gaps` 1, owner M12.

@@ -1,0 +1,40 @@
+<?nvs
+// Shows a key rotation: a login service adds a new key, and later removes the old one.
+
+class Keys {
+    // Returns the public key as a JWK with the name `$kid`.
+    public static function jwk(Core\Crypto\KeyPair $pair, string $kid): string {
+        string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+        return Core\Str::replace($jwk, "{", "{\"kid\":\"" . $kid . "\",");
+    }
+
+    // Returns `valid` when the set has the key of the token, or `refused` when it does not.
+    public static function check(string $token, Core\Jwt\KeySet $keys): string {
+        try {
+            Core\Jwt::verifyIssued<tainted {sub: string}>($token, $keys, "https://login.example.com", "shop");
+            return "valid";
+        } catch (RuntimeError $invalid) {
+            return "refused";
+        }
+    }
+}
+
+Core\Crypto\KeyPair $old = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $new = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+var $claims = Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+    "iss" => "https://login.example.com",
+    "aud" => "shop",
+    "sub" => "ada",
+]);
+string $oldToken = Core\Jwt::signObject($claims, 1h, $old, {kid: "old"});
+string $newToken = Core\Jwt::signObject($claims, 1h, $new, {kid: "new"});
+
+// Step 1: the service publishes both keys. Your program reads the document again,
+// so tokens with either key are valid. This prints `valid valid`.
+Core\Jwt\KeySet $both = Core\Jwt\KeySet::read("{\"keys\":[" . Keys::jwk($old, "old") . "," . Keys::jwk($new, "new") . "]}");
+echo Keys::check($oldToken, $both), " ", Keys::check($newToken, $both), "\n";
+
+// Step 2: the service removes the old key. A token with the old key is now refused.
+// This prints `refused valid`.
+Core\Jwt\KeySet $current = Core\Jwt\KeySet::read("{\"keys\":[" . Keys::jwk($new, "new") . "]}");
+echo Keys::check($oldToken, $current), " ", Keys::check($newToken, $current), "\n";

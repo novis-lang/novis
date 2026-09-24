@@ -3410,4 +3410,300 @@ mod tests {
             "a key under 32 bytes was never a signing key"
         );
     }
+
+    /// The one-field shape `{sub: string}` at the ABI a compiled call site
+    /// hands `verifyIssued<T>()`: a descriptor and the wire contract. The table
+    /// is leaked because a descriptor's address is its identity and it must
+    /// outlive every instance made from it.
+    fn subject_shape() -> (
+        *const nvs_runtime::ClassDesc,
+        *const nvs_runtime::ShapeCodec,
+    ) {
+        use nvs_runtime::{ClassTable, CodecField, CodecTy};
+
+        let mut table = ClassTable::new();
+        // `$` cannot start a Novis identifier, so no declared class collides.
+        let id = table.define("$shape{sub}".to_owned(), &["sub"], &[]);
+        let codec = vec![CodecField {
+            key: "sub".to_owned(),
+            slot: 0,
+            param: 0,
+            ty: CodecTy::Str,
+            element: None,
+            class: None,
+            cases: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        }];
+        let shape = table.define_shape_codec(codec, vec![std::ptr::null()], vec![std::ptr::null()]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// One call of `verifyIssued<{sub: string}>` as compiled code makes it,
+    /// with no options, answering the decoded `sub` or the sentence it threw.
+    /// `list` is the `array<…>` flag a call site writes beside the type. The
+    /// caller keeps `keys`.
+    fn issued(
+        ctx: &mut nvs_runtime::Ctx,
+        token: &str,
+        keys: Value,
+        issuer: &str,
+        audience: &str,
+        list: bool,
+    ) -> Result<String, String> {
+        let (class, codec) = subject_shape();
+        let owned = [
+            Value::str(NvsStr::new(token.as_bytes())),
+            Value::str(NvsStr::new(issuer.as_bytes())),
+            Value::str(NvsStr::new(audience.as_bytes())),
+        ];
+        let args = [
+            Value::class_desc(class),
+            Value::bool(list),
+            Value::shape_codec(codec),
+            owned[0],
+            keys,
+            owned[1],
+            owned[2],
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        let answer = nvs_runtime::call(nvs_core_jwt_verify_issued, ctx, &args);
+        let read = match answer {
+            Ok(instance) => {
+                let sub = {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the value is an instance this frame holds a reference to, \
+                                  so the field borrowed from it cannot outlive the allocation"
+                    )]
+                    let object = std::mem::ManuallyDrop::new(unsafe {
+                        nvs_runtime::NvsObj::from_raw(
+                            instance.obj_ptr().expect("a decoded shape is an object"),
+                        )
+                    });
+                    object
+                        .field(0)
+                        .as_text()
+                        .expect("`sub` is declared `string`")
+                        .to_owned()
+                };
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    instance.release();
+                }
+                Ok(sub)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(|said| said.into_owned())
+                .unwrap_or_default()),
+        };
+        for arg in owned {
+            #[expect(
+                unsafe_code,
+                reason = "the callee borrows its args, so this frame owns the three it built"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        read
+    }
+
+    /// The member as a program calls it: a token an Ed25519 pair signed is
+    /// verified under the pair's public half and decoded into the written
+    /// shape. Another key and an altered payload throw one sentence; past the
+    /// signature, a wrong `iss`, a wrong `aud` and a clock past `exp` each say
+    /// what is wrong; and an `array<…>` type is refused before the token is read.
+    // covers: Core\Jwt::verifyIssued
+    #[test]
+    fn verify_issued_decodes_the_issuers_claims_and_refuses_every_forgery_with_one_sentence() {
+        const NOW: i64 = 1_700_000_000;
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(NOW) * 1_000_000_000);
+        let pair_of = |ctx: &mut nvs_runtime::Ctx| {
+            nvs_runtime::call(
+                crypto::nvs_core_crypto_generate_key_pair,
+                ctx,
+                &[Value::int(KeyKind::Ed25519.tag())],
+            )
+            .expect("an Ed25519 pair is generated")
+        };
+        let pair = pair_of(&mut ctx);
+        let public = nvs_runtime::call(
+            crypto::nvs_core_crypto_key_pair_public_key,
+            &mut ctx,
+            &[pair],
+        )
+        .expect("a pair answers its public half");
+        let token = signed_object(
+            &mut ctx,
+            &[
+                ("iss", "https://issuer.example"),
+                ("aud", "app"),
+                ("sub", "ada"),
+            ],
+            15 * 60 * 1_000_000_000,
+            pair,
+        )
+        .expect("a claims object, a positive lifetime and an Ed25519 pair sign");
+
+        let issuer = "https://issuer.example";
+        assert_eq!(
+            issued(&mut ctx, &token, public, issuer, "app", false),
+            Ok("ada".to_owned()),
+            "the issuer's public half verifies the token and `sub` decodes"
+        );
+
+        let other = pair_of(&mut ctx);
+        let stranger = nvs_runtime::call(
+            crypto::nvs_core_crypto_key_pair_public_key,
+            &mut ctx,
+            &[other],
+        )
+        .expect("a pair answers its public half");
+        let forged = issued(&mut ctx, &token, stranger, issuer, "app", false)
+            .expect_err("another issuer's key verifies nothing");
+        assert!(forged.contains("Core\\Jwt::verifyIssued"), "{forged}");
+        let parts: Vec<&str> = token.split('.').collect();
+        let altered_payload = URL_SAFE_NO_PAD.encode(format!(
+            r#"{{"iss":"{issuer}","aud":"app","sub":"root","iat":{NOW},"exp":{}}}"#,
+            NOW + 15 * 60
+        ));
+        let altered = format!("{}.{altered_payload}.{}", parts[0], parts[2]);
+        assert_eq!(
+            issued(&mut ctx, &altered, public, issuer, "app", false),
+            Err(forged.clone()),
+            "an altered payload is the same one sentence as a wrong key"
+        );
+
+        let wrong_iss = issued(
+            &mut ctx,
+            &token,
+            public,
+            "https://other.example",
+            "app",
+            false,
+        )
+        .expect_err("a token from another issuer is refused");
+        assert!(wrong_iss.contains("`iss`"), "{wrong_iss}");
+        let wrong_aud = issued(&mut ctx, &token, public, issuer, "admin", false)
+            .expect_err("a token for another audience is refused");
+        assert!(wrong_aud.contains("`aud`"), "{wrong_aud}");
+
+        let listed = issued(&mut ctx, &token, public, issuer, "app", true)
+            .expect_err("a token has no list of payloads");
+        assert!(listed.contains("one payload object"), "{listed}");
+
+        ctx.set_fixed_clock(i128::from(NOW + 15 * 60 + DEFAULT_LEEWAY) * 1_000_000_000);
+        let expired = issued(&mut ctx, &token, public, issuer, "app", false)
+            .expect_err("a token is refused once `exp` and the leeway have passed");
+        assert!(expired.contains("expired"), "{expired}");
+        assert_ne!(expired, forged, "expiry has a sentence of its own");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame holds all four keys' only references"
+        )]
+        unsafe {
+            pair.release();
+            public.release();
+            other.release();
+            stranger.release();
+        }
+    }
+
+    /// One call of `Core\Jwt\KeySet::read` as compiled code makes it, with no
+    /// options, answering the set or the sentence it threw.
+    fn key_set(ctx: &mut nvs_runtime::Ctx, jwks: &str) -> Result<Value, String> {
+        let document = Value::str(NvsStr::new(jwks.as_bytes()));
+        let answer = nvs_runtime::call(nvs_core_jwt_key_set_read, ctx, &[document, Value::null()]);
+        #[expect(
+            unsafe_code,
+            reason = "the callee borrows its args, so this frame owns it"
+        )]
+        unsafe {
+            document.release();
+        }
+        answer.map_err(|_| {
+            ctx.take_pending()
+                .map(|said| said.into_owned())
+                .unwrap_or_default()
+        })
+    }
+
+    /// The member as a program calls it: a document holding the issuer's
+    /// public key reads into a set that verifies the issuer's token, and a key
+    /// marked for encryption is skipped. A document that is not JSON, one with
+    /// no `keys` array, one naming two keys alike and one of 17 keys are each
+    /// refused whole, with a sentence saying which.
+    // covers: Core\Jwt\KeySet::read
+    #[test]
+    fn key_set_read_admits_the_issuers_key_skips_an_encryption_key_and_refuses_a_wrong_document() {
+        const NOW: i64 = 1_700_000_000;
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(NOW) * 1_000_000_000);
+        let pair = nvs_runtime::call(
+            crypto::nvs_core_crypto_generate_key_pair,
+            &mut ctx,
+            &[Value::int(KeyKind::Ed25519.tag())],
+        )
+        .expect("an Ed25519 pair is generated");
+        let jwk = String::from_utf8(
+            pair_at(&[pair], 0, "read")
+                .expect("the pair reads back")
+                .0
+                .public()
+                .expect("an Ed25519 pair derives its public half")
+                .write(KeyFormat::Jwk)
+                .expect("a public key writes as a JWK"),
+        )
+        .expect("a JWK is UTF-8");
+        let issuer = "https://issuer.example";
+        let token = signed_object(
+            &mut ctx,
+            &[("iss", issuer), ("aud", "app"), ("sub", "ada")],
+            15 * 60 * 1_000_000_000,
+            pair,
+        )
+        .expect("a claims object, a positive lifetime and an Ed25519 pair sign");
+
+        // A copy of the key marked for encryption is skipped, so the one key left
+        // answers a token naming no `kid`; two admitted keys would answer none.
+        let for_encryption = jwk.replacen('{', r#"{"use":"enc","#, 1);
+        let set = key_set(&mut ctx, &format!(r#"{{"keys":[{for_encryption},{jwk}]}}"#))
+            .expect("a document of one served key and one skipped key reads");
+        assert_eq!(
+            issued(&mut ctx, &token, set, issuer, "app", false),
+            Ok("ada".to_owned()),
+            "the set's one key verifies the issuer's token"
+        );
+
+        let named = jwk.replacen('{', r#"{"kid":"a","#, 1);
+        let seventeen = vec![jwk.as_str(); 17].join(",");
+        for (document, said) in [
+            (r#"{"keys":["#.to_owned(), "it is not JSON"),
+            ("{}".to_owned(), "no `keys` array"),
+            (format!(r#"{{"keys":[{named},{named}]}}"#), "named `a`"),
+            (format!(r#"{{"keys":[{seventeen}]}}"#), "16"),
+        ] {
+            let refused = key_set(&mut ctx, &document).expect_err("a wrong document is refused");
+            assert!(
+                refused.contains("not a document to read keys from") && refused.contains(said),
+                "{said}: {refused}"
+            );
+        }
+
+        #[expect(unsafe_code, reason = "this frame holds both references")]
+        unsafe {
+            set.release();
+            pair.release();
+        }
+    }
 }

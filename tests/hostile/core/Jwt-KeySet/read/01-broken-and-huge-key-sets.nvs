@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a key set URL returns broken, huge or harmful documents. Each one must be
+// read or throw an error, and the program must not crash.
+// hostile: timeout-ms 30000
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+
+class Check
+{
+    // Returns 1 when `read` throws a `RuntimeError`, and 0 when it reads the document.
+    public static function refused(string $jwks): uint
+    {
+        try {
+            Core\Jwt\KeySet::read($jwks);
+        } catch (RuntimeError $refused) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+// 1. Documents that are not a key set: empty, cut off, the wrong JSON type.
+uint $n = 0;
+array<string> $broken = ['', '{', '{"keys":', '{"keys":{}}', '{"keys":"x"}', '[]', 'null', '{"keys":[null,1,"a"]}'];
+foreach ($broken as string $document) {
+    $n = $n + Check::refused($document);
+}
+echo 'step 1: done ', $n, "\n";
+
+// 2. One hundred thousand nested JSON lists inside `keys`. The reader must not run out of stack.
+$n = Check::refused('{"keys":' . Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000) . '}');
+echo 'step 2: done ', $n, "\n";
+
+// 3. A document of ten million characters.
+$n = Check::refused('{"keys":[],"pad":"' . Core\Str::repeat('A', 10000000) . '"}');
+echo 'step 3: done ', $n, "\n";
+
+// 4. Ten thousand copies of one key. More than 16 keys throws an error.
+$n = Check::refused('{"keys":[' . Core\Str::join(Core\Arr::fill(10000, $jwk), ',') . ']}');
+echo 'step 4: done ', $n, "\n";
+
+// 5. A key with a name of one million characters.
+$n = Check::refused('{"keys":[' . Core\Str::replace($jwk, '{', '{"kid":"' . Core\Str::repeat('k', 1000000) . '",') . ']}');
+echo 'step 5: done ', $n, "\n";
+
+// 6. An RSA key with a modulus of one million bytes, and an EC key whose point is not on the curve.
+string $n64 = Core\Str::repeat('A', 1333333);
+$n = Check::refused('{"keys":[{"kty":"RSA","kid":"big","n":"' . $n64 . '","e":"AQAB"}]}');
+$n = $n + Check::refused('{"keys":[{"kty":"EC","kid":"bad","crv":"P-256","x":"AAAA","y":"AAAA"}]}');
+echo 'step 6: done ', $n, "\n";
+
+// 7. A private key published as a public key.
+$n = Check::refused('{"keys":[' . Core\Str::replace($jwk, '{', '{"d":"AAAA",') . ']}');
+echo 'step 7: done ', $n, "\n";
+
+// 8. A valid document is read twenty thousand times. Each set must be freed.
+uint $read = 0;
+uint $i = 0;
+while ($i < 20000) {
+    Core\Jwt\KeySet $keys = Core\Jwt\KeySet::read('{"keys":[' . $jwk . ']}');
+    $read = $read + 1;
+    $i = $i + 1;
+}
+echo 'step 8: done ', $read, "\n";
+
+// 9. `rsaScheme` must be an RSA kind. `Ed25519` throws a `LogicError`.
+try {
+    Core\Jwt\KeySet::read('{"keys":[' . $jwk . ']}', { rsaScheme: Core\Crypto\KeyKind::Ed25519 });
+    throw new RuntimeError('a scheme that is not RSA was accepted');
+} catch (LogicError $wrong) {
+}
+echo 'step 9: done', "\n";

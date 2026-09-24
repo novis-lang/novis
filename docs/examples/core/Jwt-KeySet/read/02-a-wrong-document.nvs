@@ -1,0 +1,28 @@
+<?nvs
+// Shows the errors `read` throws when a document is not a valid key set.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $named = Core\Str::replace($jwk, "{", "{\"kid\":\"main\",");
+
+// Three wrong documents: an HTML error page, JSON with no `keys` list, and two keys
+// with the same name. Each one throws a `RuntimeError`, and the message says why.
+array<string> $documents = [
+    "<html>502 Bad Gateway</html>",
+    "{\"error\":\"not found\"}",
+    "{\"keys\":[" . $named . "," . $named . "]}",
+];
+foreach ($documents as string $document) {
+    try {
+        Core\Jwt\KeySet::read($document);
+        echo "read", "\n";
+    } catch (RuntimeError $wrong) {
+        echo $wrong->message, "\n";
+    }
+}
+
+// A key for encryption has `"use":"enc"`. `read` skips it and reads the other key.
+// This prints `read`.
+string $forEncryption = Core\Str::replace($jwk, "{", "{\"kid\":\"enc\",\"use\":\"enc\",");
+Core\Jwt\KeySet $keys = Core\Jwt\KeySet::read("{\"keys\":[" . $forEncryption . "," . $named . "]}");
+echo "read", "\n";
