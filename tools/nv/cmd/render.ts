@@ -19,7 +19,8 @@ export async function run(args: string[]): Promise<number> {
   const { stale, unchanged } = apply(outputs, { check });
   for (const path of stale) console.log(check ? `${path}: is not what the records render` : `${path}: written`);
   if (check) {
-    console.log(`nv render --check: ${unchanged} current, ${stale.length} stale`);
+    if (stale.length === 0) console.log(`render: every generated file is current (${unchanged} of ${RENDERERS.length} renderer(s))`);
+    else console.log(`nv render --check: ${unchanged} current, ${stale.length} stale`);
     return stale.length > 0 ? 1 : 0;
   }
   console.log(`nv render: ${stale.length} written, ${unchanged} already current`);
