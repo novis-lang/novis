@@ -175,6 +175,7 @@ docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
 tools/              how this repository is driven; docs/agent/commands.md is the full set
+data/               the JSON records `bun nv` reads and writes: goals, gaps, rules, decisions, playbook
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
   novis.md          the one-file reference to everything Novis has (generated)

@@ -23,6 +23,14 @@
       "why": "The footer's advice reads a per-session ledger both programs write, and a parity case runs them at once, so which one counted first is a race."
     }
   ],
+  "layout": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)layout\\.py(:? )",
+      "replace": "$1nv layout$2",
+      "why": "A message names the program that printed it."
+    }
+  ],
   "owners": [
     {
       "side": "python",
