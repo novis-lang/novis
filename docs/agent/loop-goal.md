@@ -415,8 +415,8 @@ One file set: `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**`, `Cargo.toml`'s pro
 
 ## Stage 8 — the writers and the driver
 
-One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splice,bg}.ts`,
-`tools/nv/driver/**`.
+One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splice,bg,guard}.ts`,
+`tools/nv/driver/**`, `.claude/settings.json`.
 
 - **`nv verify`** takes over `verify.py`'s steps unchanged, over the Stage 6 keys.
 - **`nv orient`** builds the pack from records:
@@ -453,6 +453,32 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
     and `--record-perf`.
   - `bun test tools/nv/test/bg.test.ts` starts a job, waits on it, and checks its output and
     exit status, for a job that exits 0 and for one that does not.
+- **`nv guard` is the one `PreToolUse` hook.** `.claude/settings.json` runs `bun nv guard` for
+  `Read`, `Bash` and `PowerShell`, and `guard-read.py` is deleted with its entry.
+  - Why a hook: the loop runs its sessions in bypass mode, so nothing asks before a raw command
+    runs, and a tool is used only when the session remembers it. A hook's denial still holds in
+    bypass mode: `guard-read.py`'s did in the logged sessions, and the next call was the narrow
+    read it named. The same logs show existing tools skipped: 145 `sed` and 71 `cat` calls
+    beside 418 `peek.py` calls, and about 20 inline edits beside 14 `splice.py` calls.
+  - Each rule denies one raw pattern where a tool exists. Its reason starts `guard: <rule>:` and
+    names the call to make instead:
+    - a whole `Read`, `cat`, `Get-Content` or `sed -n` of a tracked file over `nv peek`'s line
+      limit → `nv peek`;
+    - `nvs run` in a loop over `docs/examples/`, `tests/hostile/` or `benches/members/` →
+      `nv proofs --id <feature> --run --show`;
+    - `grep`, `sed`, `awk` or `Select-String` over `docs/agent/loop-goal.toml` → `nv loop --list`;
+    - an `until` or `while` loop that sleeps on a harness task file → `nv bg --wait`;
+    - inline `python -c`, `bun -e` or a heredoc that writes a tracked file outside `.agent-tmp/`
+      → `nv splice`, or a script under `.agent-tmp/` (AGENTS.md rule 1);
+    - `cargo build`, `test` or `clippy` with `-p` and no `--release` (AGENTS.md rule 5).
+  - It fails open: a payload it cannot read, or a command it cannot parse, is allowed. A rule that
+    denies a legitimate command costs every session a round trip, so each rule is narrow. Every
+    shell call now starts Bun once, before it runs.
+  - `bun test tools/nv/test/guard.test.ts` holds, for every rule, one command it denies and one
+    near miss it allows.
+  - `nv guard --check` says the hook is wired for all three tools, and that every rule's
+    replacement is a registered `nv` command.
+  - A later tool that replaces a raw habit adds its rule in the same commit.
 - **Parity:**
   - `bun nv parity writers` shows that a wrap applied by both tools to two copies of the tree gives the
     same records and the same rendered files.
@@ -531,8 +557,10 @@ One file set per bullet.
 - **Ported to `bun nv <name>`:**
   - `bench`, `bench-load`, `bench-proxied`, `db-matrix`, `release`, `gen-attribution`;
   - `ci-changes`, `ci-green`, `lints`, `loop-stats`, `machine`, `observe`, `proctree`;
-  - `relink`, `try`, `class-cards`, `exe-icons`, `origin`, `guard-read` (the context hook), `written`;
+  - `relink`, `try`, `class-cards`, `exe-icons`, `origin`, `written`;
   - `webcrypto-vectors.mjs`.
+- **`nv loop-stats --guard`** counts the guard's denials per session and per rule, from the
+  `guard: <rule>:` reasons in the session logs. A habit that comes back shows as a rising count.
 - **What stays as it is**, because its platform is its purpose: `tsan.sh`, `leak-check.sh`,
   `service-live.ps1`, `dump-php-builtins.php`.
 - **The Cargo-editing tools** read manifests with `smol-toml` and write by line-scoped edits. Each

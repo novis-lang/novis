@@ -13725,6 +13725,20 @@ name = "a detached job is waited on and gives back its output and exit status"
 argv = ["bun", "test", "tools/nv/test/bg.test.ts"]
 want = [" pass", " 0 fail"]
 
+[[check]]
+kind = "command"
+stage = "8 the driver"
+name = "every guard rule denies its raw pattern and allows its near miss"
+argv = ["bun", "test", "tools/nv/test/guard.test.ts"]
+want = [" pass", " 0 fail"]
+
+[[check]]
+kind = "command"
+stage = "8 the driver"
+name = "the guard is wired for Read, Bash and PowerShell, and every rule names a real command"
+argv = ["bun", "nv", "guard", "--check"]
+want = ["guard: wired for Read, Bash and PowerShell", "guard: every rule names a registered command"]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the cutover left nothing behind. Goal prose stage 9.
 # ---------------------------------------------------------------------------------------------------
@@ -13778,6 +13792,13 @@ stage = "11 CI, the website and the hooks"
 name = "CI, the website and the git hooks run bun and nothing parses the data twice"
 argv = ["bun", "nv", "audit", "ci"]
 want = ["audit: no workflow or hook calls python", "audit: no website script parses a record"]
+
+[[check]]
+kind = "command"
+stage = "11 CI, the website and the hooks"
+name = "the loop statistics count the guard's denials by rule"
+argv = ["bun", "nv", "loop-stats", "--guard"]
+want = ["guard denials by rule"]
 
 [[check]]
 kind = "command"
