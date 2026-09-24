@@ -195,7 +195,7 @@ export interface Proofs {
 const COVERS_RE = /(?:\/\/|#)\s*covers:\s*(.+)/g;
 
 /** Every file under a repo-relative directory whose name ends `ext`, skipping any `target` directory. */
-function walk(dir: string, ext: string): string[] {
+export function walk(dir: string, ext: string): string[] {
   const out: string[] = [];
   const visit = (rel: string) => {
     let entries;

@@ -170,7 +170,7 @@
   "proofs": [
     {
       "side": "python",
-      "pattern": "^dossier( gate)?:",
+      "pattern": "^dossier( gate| comments)?:",
       "replace": "nv proofs$1:",
       "why": "A message names the program that printed it, and the word dossier leaves the tree."
     },

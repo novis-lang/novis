@@ -11,9 +11,13 @@
 // A green verdict is remembered in `.loop/proofs-green.json`, keyed on the program's bytes (with its `.out`
 // and `.in`) and on the binary's key, so an unchanged program on an unchanged binary is not run again. Only
 // a pass is remembered: a failure is run and reported every time.
+//
+// A run over whole groups records each group's example and attack directories and bench file in
+// `.loop/proof-reads.json`, which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>` unit on.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname } from "node:path";
+import { PROOF_READS } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { builtFrom, keyOf } from "../keys/key.ts";
 import { digest } from "../keys/scan.ts";
@@ -151,6 +155,33 @@ async function runExample(nvs: string, path: string): Promise<[Verdict, string]>
   return ["ok", ""];
 }
 
+/**
+ * `--bless`: writes each example's `.out` from what it prints, and prints what it wrote. This is how an
+ * expected output is created, never how a red example is made green, which is why the output is shown
+ * rather than written silently. An example that does not end with the status it declares gets no `.out`.
+ * Returns the lines to print and whether any example failed.
+ */
+export async function bless(nvs: string, paths: string[]): Promise<{ lines: string[]; failed: boolean }> {
+  const lines: string[] = [];
+  let failed = false;
+  for (const path of paths) {
+    const out = await spawnProof([nvs, "run", path], path, 120_000);
+    if (out.code !== declaredExit(read(path))) {
+      lines.push(`  FAIL  ${path} exited ${out.code}:`, "        " + out.stderr.trim().replace(/\r?\n/g, "\n        "));
+      failed = true;
+      continue;
+    }
+    const dest = sibling(path, ".out");
+    const existed = existsSync(abs(dest));
+    const text = out.stdout.replace(/\r\n/g, "\n");
+    writeFileSync(abs(dest), text);
+    lines.push(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
+    for (const line of text.trimEnd().split("\n")) lines.push(`      | ${line}`);
+  }
+  if (!failed) lines.push("nv proofs: read what was written -- a blessed output is a claim, not a formality.");
+  return { lines, failed };
+}
+
 /** How far an attack got before its clock ran out, from the lines its steps printed. */
 function reached(stdout: string): string {
   const done = stdout.split(/\r?\n/).filter((l) => l.trim());
@@ -249,6 +280,25 @@ function saveGreen(green: Record<string, [string, string]>): void {
     writeFileSync(abs(GREEN), JSON.stringify(green, Object.keys(green).sort(), 0));
   } catch {
     // A cache that cannot be written is a slow run, never a failed one.
+  }
+}
+
+/** Records each group's own paths in `PROOF_READS`, which a `proofs: <group>` unit keys on. Groups this
+ * run did not name keep their record. */
+export function saveReads(groups: [string, string[]][]): void {
+  if (groups.length === 0) return;
+  let reads: Record<string, string[]> = {};
+  try {
+    reads = JSON.parse(readFileSync(abs(PROOF_READS), "utf8"));
+  } catch {
+    // No record yet, or one that cannot be read: this run writes it afresh.
+  }
+  for (const [group, paths] of groups) reads[group] = paths;
+  try {
+    mkdirSync(dirname(abs(PROOF_READS)), { recursive: true });
+    writeFileSync(abs(PROOF_READS), JSON.stringify(Object.fromEntries(Object.entries(reads).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))));
+  } catch {
+    // A record that cannot be written keys the group on everything, which only re-runs it.
   }
 }
 

@@ -11,35 +11,41 @@
 //     bun nv proofs --verify               --gate, then --run, for each scope in one pass
 //     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
 //                                          line, its output, its exit status and time
+//     bun nv proofs --bless FILE...        write each example's `.out` from what it prints, and show it
+//     bun nv proofs --comments PATH...     judge the comments of these programs, or of every `.nvs` under
+//                                          a directory, against the plain-comment bounds; runs nothing
 //
 // `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run` and
 // `--verify`, and `--id` narrows `--run` and `--verify`. `--run` and `--verify` take `--group` more than
 // once: the roster is read once, every program runs in one pool, and each group prints its own verdict
 // lines under a `== <group>` line. `--no-perf` stops the perf proof from being owed. `--nvs` names the
 // binary to use as it is. Without it, the audit reads the roster from `target/release` and then
-// `target/debug`, and `--run` and `--verify` use the proof binary, built first when it is not current.
+// `target/debug`, and `--bless`, `--run` and `--verify` use the proof binary, built first when it is not
+// current.
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
 // come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, and `tools/nv/proofs/run.ts`
 // is how a proof program is run and judged.
 //
-// This replaces `tools/dossier.py`'s audit and its `--run` and `--verify`. Blessing an example's output,
-// the comment bounds and the perf ledger are still that tool's until they are ported here.
+// This replaces `tools/dossier.py`'s audit, `--run`, `--verify`, `--bless` and `--comments`. The perf
+// ledger is still that tool's until it is ported here.
 
-import { existsSync } from "node:fs";
-import { abs } from "../lib/paths.ts";
-import { ArgError, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { collect, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
+import { abs, rel } from "../lib/paths.ts";
+import { ArgError, comparePaths, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
+import { collect, commentProblems, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
-import { namedBinary, proofBinary, runPrograms, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { bless, namedBinary, proofBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate]",
   "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
+  "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
 ].join("\n");
 
 /** What the binary is: the one named, or the newest profile built. */
@@ -234,19 +240,42 @@ function gate(out: string[], scope: Entry[], proofs: Map<string, Proofs>, policy
 }
 
 /** `--only`'s words, taken out of `args` the way argparse's `nargs="+"` takes them. */
-function takeOnly(args: string[]): { rest: string[]; only: string[] | null } {
+function takeList(args: string[], flag: string): { rest: string[]; list: string[] | null } {
   const rest: string[] = [];
-  let only: string[] | null = null;
+  let list: string[] | null = null;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] !== "--only") {
+    if (args[i] !== flag) {
       rest.push(args[i]!);
       continue;
     }
-    only = [];
-    while (i + 1 < args.length && !args[i + 1]!.startsWith("-")) only.push(args[++i]!);
-    if (only.length === 0) throw new ArgError("argument --only: expected at least one argument");
+    list = [];
+    while (i + 1 < args.length && !args[i + 1]!.startsWith("-")) list.push(args[++i]!);
+    if (list.length === 0) throw new ArgError(`argument ${flag}: expected at least one argument`);
   }
-  return { rest, only };
+  return { rest, list };
+}
+
+/** A path as the user wrote it, from the working directory, made repository-relative. */
+const repoPath = (p: string) => rel(resolve(p));
+
+/** `--comments`: judges the named programs, or every `.nvs` under a named directory, against the
+ * bounds of AGENTS.md § *Text an end user reads*. It reads and never runs anything. */
+function checkComments(out: string[], targets: string[]): number {
+  const files = [...new Set(targets.map(repoPath).flatMap((t) => (statSync(abs(t), { throwIfNoEntry: false })?.isDirectory() ? walk(t, ".nvs") : [t])))].sort(comparePaths);
+  let bad = 0;
+  for (const path of files) {
+    const problems = commentProblems(path);
+    if (problems.length === 0) continue;
+    bad++;
+    out.push(`  ${path}`, ...problems.map((p) => `      ${p}`));
+  }
+  const rule = "`Text an end user reads` in AGENTS.md";
+  if (bad) {
+    out.push(`nv proofs comments: ${bad} of ${files.length} program(s) miss the bounds of ${rule}.`);
+    return 1;
+  }
+  out.push(`nv proofs comments: ${files.length} program(s), each inside the bounds of ${rule}.`);
+  return 0;
 }
 
 /** Every `--group` value in order, since `--run` and `--verify` take several. */
@@ -270,6 +299,12 @@ interface Scope {
 function programsOf(scope: Scope, what: What): string[] {
   const dirs = scope.entries.map((e) => (what === "examples" ? examplesDir(e) : hostileDir(e)));
   return [...new Set(dirs.flatMap((d) => namesIn(d, ".nvs").map((n) => `${d}/${n}`)))].sort();
+}
+
+/** A group's own paths, which its `proofs: <group>` unit keys on: each feature's example and attack
+ * directories, read whole, and its bench file. */
+function groupReads(entries: Entry[]): string[] {
+  return [...new Set(entries.flatMap((e) => [examplesDir(e), hostileDir(e), benchFile(e)]))].sort();
 }
 
 /** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
@@ -309,11 +344,15 @@ export async function run(args: string[]): Promise<number> {
   let flags: Set<string>;
   let values: Map<string, string>;
   let only: string[] | null;
+  let comments: string[] | null;
+  let blessed: string[] | null;
   let limit = 40;
   try {
-    const taken = takeOnly(args);
-    only = taken.only;
-    ({ flags, values } = parseArgs(taken.rest, {
+    let rest: string[];
+    ({ rest, list: only } = takeList(args, "--only"));
+    ({ rest, list: comments } = takeList(rest, "--comments"));
+    ({ rest, list: blessed } = takeList(rest, "--bless"));
+    ({ flags, values } = parseArgs(rest, {
       flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show"],
       valued: ["--group", "--id", "--limit", "--nvs"],
     }));
@@ -340,7 +379,8 @@ export async function run(args: string[]): Promise<number> {
 
   // Only what runs a proof program pays for a current binary. The audit reads a roster, and a person
   // asking `--owed` is not made to wait for a build.
-  const executes = flags.has("--run") || flags.has("--verify");
+  if (comments !== null) return flush(checkComments(out, comments));
+  const executes = blessed !== null || flags.has("--run") || flags.has("--verify");
   let bin: Binary | null = null;
   const named = values.get("--nvs");
   if (executes && named === undefined) {
@@ -357,6 +397,11 @@ export async function run(args: string[]): Promise<number> {
     return flush(1);
   }
   if (executes && bin === null) bin = namedBinary(nvs);
+  if (blessed !== null) {
+    const done = await bless(nvs, blessed.map(repoPath));
+    out.push(...done.lines);
+    return flush(done.failed ? 1 : 0);
+  }
   const { policy, skips } = loadPolicy(flags.has("--no-perf"));
   const columns = shownProofs(policy);
   let entries: Entry[];
@@ -408,6 +453,10 @@ export async function run(args: string[]): Promise<number> {
       scopes = groups.map((g) => ({ label: g, entries: scope.filter((e) => e.group === g) }));
     } else {
       scopes = [{ label, entries: scope }];
+    }
+    // A narrowed group reads less than the whole of it, so only a whole group's paths are recorded.
+    if (fid === undefined && only === null) {
+      saveReads(scopes.filter((s) => s.label !== null && groups.includes(s.label)).map((s) => [s.label!, groupReads(s.entries)]));
     }
     return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips));
   }

@@ -224,7 +224,9 @@
       ["--group", "types:enum", "--json"],
       ["--group", "nowhere"],
       ["--only", "Core\\Str::length", "Core\\Str::at", "--gate"],
-      ["--only", "Core\\Str::length", "--json"]
+      ["--only", "Core\\Str::length", "--json"],
+      ["--comments", "tests/hostile/lang/types", "docs/examples/core/Str"],
+      ["--comments", "docs/examples/core/Str/length/01-basics.nvs"]
     ]
   },
   "records": {
