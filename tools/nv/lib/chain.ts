@@ -29,19 +29,21 @@ export interface ChainGoal {
   md: string | null;
 }
 
-/** A goal file's H1, with its front matter stripped off first. */
+/** A goal file's H1: its first line once the front matter and the blank lines after it are gone. */
 export function h1Of(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(FRONT, "").split("\n", 1)[0]!.trim();
+  return text.replace(/\r\n/g, "\n").replace(FRONT, "").replace(/^\n+/, "").split("\n", 1)[0]!.trim();
 }
 
-/** slug -> its prose file, whether it is named `<slug>.md` or `N-<slug>.md`. */
+/** slug -> its prose file, named `<slug>.md` or `N-<slug>.md`, in the goals directory or its `dossier/`. */
 function proseFiles(): Map<string, string> {
   const out = new Map<string, string>();
-  const dir = join(ROOT, GOALS);
-  if (!existsSync(dir)) return out;
-  for (const name of readdirSync(dir)) {
-    const m = /^(?:\d+-)?([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
-    if (m && name !== "README.md") out.set(m[1]!, `${GOALS}/${name}`);
+  for (const sub of [`${GOALS}/dossier`, GOALS]) {
+    const dir = join(ROOT, sub);
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      const m = /^(?:\d+-)?([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
+      if (m && name !== "README.md") out.set(m[1]!, `${sub}/${name}`);
+    }
   }
   return out;
 }
