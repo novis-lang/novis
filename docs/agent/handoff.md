@@ -2,28 +2,25 @@
 
 ## State
 
-Goal `core-json-and-6-more` is under way. Every `Core\Json`, `Core\Jwe`, `Core\Jwe\Key`,
-`Core\Jwt`, `Core\Jwt\KeySet` and `Core\Log` member owes nothing. The `Core\Html` floor check,
-which had timed out under load, is green again: `Core\Html::parse` and `::sanitize` now stop at
-the request's memory limit while they build the tree (they had peaked at 12 GB under a 64 MB limit).
-The two quadratic costs, nesting depth and attributes per tag, are `# Known gaps` 1 and 2 in
-`crates/nvs-stdlib/src/html.rs`, owner M12, and each has its own marked attack. The decoder's
-debug-build stack overflow stays `# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12.
-What is left is `Core\Mail::send`, which also owes the `Core\Mail` class card.
+Goal `core-json-and-6-more` is met. Every `Core\Json`, `Core\Jwe`, `Core\Jwe\Key`, `Core\Jwt`,
+`Core\Jwt\KeySet`, `Core\Log`, `Core\Html` and `Core\Mail` member owes nothing, and `Core\Mail`
+carries its class card. `Core\Mail::send`'s proofs send through `[mail.shop]` in the root
+`nvs.toml`: a loopback block on port 1 with no listener, so every run ends in an `IOError` and
+nothing leaves the machine. A refused loopback connection costs about 2 s on Windows, so the attack
+declares a 30 s limit. The bench measures the address checks that run before the member connects,
+because the sweep has no SMTP server to measure a delivery against.
+The known gaps this goal recorded stay where they are: `# Known gaps` 1 and 2 in
+`crates/nvs-stdlib/src/html.rs` and 1 in `crates/nvs-stdlib/src/json.rs`, owner M12.
 
 ## Next group
 
-**Stage 3: `Core\Mail`**: one file set, `crates/nvs-stdlib/src/registry.rs`'s
-`CLASSES_STILL_OWING_A_CARD`, `crates/nvs-stdlib/src/mail.rs` and the `core/Mail/send` proof trees.
-Record the bench figure after the last edit of `mail.rs` in the session.
+**The goal is met**: the driver switches to the next goal, whose own handoff replaces this one.
 
-- [ ] **`Core\Mail::send`**: owes about, examples, hostile, perf, tests and help, meaning a
-      `ClassDoc` above the class row and `r"Core\Mail"` struck from `CLASSES_STILL_OWING_A_CARD`
+- [x] **`Core\Mail::send`**: about, examples, hostile, perf, tests and the `Core\Mail` card
       (`rule:testing/feature-proofs`, `rule:core-api/reference-card`).
-      `crates/nvs-stdlib/src/mail.rs:1036`
+      `crates/nvs-stdlib/src/mail.rs:1044`
 
 ## Backlog
 
-- A cap on HTML tree depth and on attributes per tag would close `Core\Html` gaps 1 and 2. That
-  is a decision about `rule:core-classes/html-parsing`'s output, owner M12
-  (`crates/nvs-stdlib/src/html.rs` § Known gaps).
+- A delivery through Mailpit (`tests/db/compose.yaml`) would give `Core\Mail::send` a Rust test
+  of the whole SMTP exchange; nothing schedules one (`crates/nvs-stdlib/src/mail.rs` module doc).

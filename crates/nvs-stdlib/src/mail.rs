@@ -92,7 +92,7 @@ use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, as `registry::CAPABILITIES` and a refusal both spell it.
@@ -167,7 +167,7 @@ const OPTIONS: &[CoreOption] = &[
 /// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "send",
         names: &["endpoint", "to", "subject", "text"],
@@ -186,6 +186,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Mail`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Sends email. `send` gives one message to the mail server that a `[mail.<name>]` block \
+            of `nvs.toml` names. The program writes the block's name. The host, the port, the \
+            password and the sender address stay in the block.",
 };
 
 /// `Core\Mail::send`'s reference card — `rule:core-api/reference-card`.
@@ -1141,6 +1148,7 @@ mod tests {
     /// The acceptance check `loop-goal.toml` names, and it asserts the
     /// **absence** deliberately: a later slice adding a `host` option would
     /// leave every other test in this file green.
+    // covers: Core\Mail::send
     #[test]
     fn mail_sends_against_an_operator_named_endpoint_and_no_other() {
         let row = CLASS.methods[0];
@@ -1178,6 +1186,7 @@ mod tests {
     /// The module doc's first section, as the property it claims: no value of
     /// an argument can add a header, because the encoder answers a header line
     /// with one token whenever the value could not be one.
+    // covers: Core\Mail::send
     #[test]
     fn a_header_value_cannot_carry_a_line_break_through() {
         assert_eq!(header_value("Your receipt"), "Your receipt");
@@ -1242,6 +1251,7 @@ mod tests {
 
     /// A `bcc` recipient reaches the envelope and no header — asserted over the
     /// composed message, because that is the only place the difference shows.
+    // covers: Core\Mail::send
     #[test]
     fn a_bcc_recipient_is_in_no_header() {
         let message = compose(

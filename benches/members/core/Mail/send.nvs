@@ -1,0 +1,26 @@
+<?nvs
+// Measures how `Core\Mail::send` checks the addresses of a message before it connects,
+// as a contact form does with every address a visitor types.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $typed = ["ben.example.com", "carla@example.com\r\nBcc: x@example.com"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Two correct addresses come first. The last address is chosen by the round before,
+            // and it is never correct, so the call throws before it connects.
+            array<string> $to = ["team@example.com", "sales@example.com", $typed[($total % 2) as int]];
+            try {
+                Core\Mail::send("shop", $to, "Order 1042", "Where is my order?");
+            } catch (RuntimeError $refused) {
+                $total = $total + (Core\Str::length($refused->message) as uint);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";
