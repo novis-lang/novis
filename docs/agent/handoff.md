@@ -3,23 +3,24 @@
 ## State
 
 Goal `core-json-and-6-more` is under way. Every `Core\Json`, `Core\Jwe` and `Core\Jwe\Key` member
-owes nothing: `dossier.py --verify --group 'Core\Jwe\Key'` is green over all four statics. The Rust
-tests for the two agreement statics are
-`recipient_seals_to_one_public_key_and_refuses_a_key_that_only_signs` and
-`own_opens_what_was_sealed_to_its_pair_and_refuses_a_pair_that_only_signs`, built on the test
-module's `pair` and `public_of` helpers in `crates/nvs-stdlib/src/jwe.rs`. No attack found a new
-bug. The decoder's debug-build stack overflow stays `# Known gaps` 1 in
-`crates/nvs-stdlib/src/json.rs`, owner M12.
+owes nothing. `Core\Jwt` and `Core\Jwt\KeySet` carry class cards (`CARD` and `KEY_SET_CARD` in
+`crates/nvs-stdlib/src/jwt.rs`), so every `Core\Jwt` member's help proof is green, and
+`Core\Jwt::sign` owes nothing: its Rust test is
+`sign_writes_the_clock_and_the_lifetime_after_the_claims_and_verifies_under_its_key`, built on the
+test module's `signed` helper, which drives the member through `nvs_runtime::call` under a fixed
+clock (`Ctx::set_fixed_clock`). No attack found a new bug. The decoder's debug-build stack overflow
+stays `# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12.
 
 ## Next group
 
-**Stage 2: `Core\Jwt`** — one file set: `crates/nvs-stdlib/src/jwt.rs` and its test module, the
-`Core/Jwt` proof trees, and the class-card list in `crates/nvs-stdlib/src/registry.rs`.
+**Stage 2: `Core\Jwt`** — one file set: `crates/nvs-stdlib/src/jwt.rs` and its test module, and the
+`Core/Jwt` proof trees. Record each bench figure after the last `jwt.rs` edit of the session: the
+ledger keys a figure on that file's text, so an earlier figure goes stale.
 
-- [ ] **`Core\Jwt`'s class card** — the `help` proof of all four `Core\Jwt` members: a `ClassDoc` above the class row, and the class deleted from the list (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/registry.rs:5248`
-- [ ] **`Core\Jwt::sign`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwt.rs:1395`
-- [ ] **`Core\Jwt::signObject`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwt.rs:1438`
+- [ ] **`Core\Jwt::signObject`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its claims are a Novis object, which Rust cannot build, so the Rust test drives a refusal path or `object_payload_of`'s name check. `crates/nvs-stdlib/src/jwt.rs:1452`
+- [ ] **`Core\Jwt::verify`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The `signed` test helper already gives it a token to read. `crates/nvs-stdlib/src/jwt.rs:1500`
+- [ ] **`Core\Jwt::verifyIssued`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwt.rs:1984`
 
 ## Backlog
 
-- `Core\Jwt::verify`, `::verifyIssued`, then `Core\Jwt\KeySet`, `Core\Log`, `Core\Mail` — the rest of this goal's stage 2, each `dossier.py --gate --group <class>`.
+- `Core\Jwt\KeySet::read`, then `Core\Log` and `Core\Mail` — the rest of this goal's stage 2, each `dossier.py --verify --group <class>`.
