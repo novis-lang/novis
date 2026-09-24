@@ -33,5 +33,27 @@
       ["--unowned"],
       ["--json"]
     ]
+  },
+  "peek": {
+    "python": ["python", "tools/peek.py"],
+    "nv": ["bun", "tools/nv/main.ts", "peek"],
+    "cases": [
+      ["--quiet", "tools/peek.py:1-5"],
+      ["tools/peek.py:@locate", "tools/nv/main.ts"],
+      ["tools/peek.py:120+3", "tools/peek.py:re:def (out|rel)\\b", "tools/peek.py:nosuchheading", "no/such/file.rs"],
+      ["AGENTS.md:## The priority ordering", "docs/agent/conventions.md:\"## A code comment\""],
+      ["tools/*.py:re:^ROOT = :1", "tools/nv/**/*.ts:@NoSuchSymbolAnywhere"],
+      ["rule:testing/feature-proofs", "`rule:types/no-such-rule`"],
+      ["tools/peek.py", "tools/peek.py:/^DEFAULT_/1"],
+      ["--context", "1", "tools/peek.py:re:^DEFAULT_", "tools/peek.py:re:^BYTES_PER_TOKEN:0"],
+      ["--window", "3", "tools/chain.py:@number_citations"],
+      ["--max-lines", "40", "tools/nv/main.ts"],
+      ["--locate", "number_citations", "DEFAULT_WINDOW", "NoSuchSymbolAnywhere"],
+      ["--locate", "rel", "Index"],
+      ["--locate", "rel", "--in", "tools/nv/**/*.ts"],
+      ["--outline", "tools/peek.py", "tools/chain.py"],
+      ["--deep", "--outline", "crates/nvs-host/src/watchdog.rs", "tools/nv/cmd/*.ts"],
+      ["--outline", "no/such.rs"]
+    ]
   }
 }

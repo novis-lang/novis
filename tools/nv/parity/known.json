@@ -15,6 +15,14 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "peek": [
+    {
+      "side": "both",
+      "pattern": "^-- (that is \\d+ calls in a row|you have now fetched) .*\\n",
+      "replace": "",
+      "why": "The footer's advice reads a per-session ledger both programs write, and a parity case runs them at once, so which one counted first is a race."
+    }
+  ],
   "owners": [
     {
       "side": "python",
