@@ -391,6 +391,12 @@ One file set: `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**`, `Cargo.toml`'s pro
   - The driver runs every proof check a sweep owes in one `nv proofs` call. It hands each check its
     own group's verdict lines, and memoises each on its own key.
   - `--id` narrows `--run`, `--verify` and `--record-perf`.
+  - **`--run --id <feature> --show`** prints each of the feature's programs as it runs, in the
+    order examples, attacks, bench: a `== <path>` line (repository-relative, forward slashes), its
+    output, then `exit N · T ms`. An attack's line ends `T ms of L ms` against its
+    `timeout-ms`, or the 10 s default. It runs on the proof binary. A session writing a feature's
+    proofs reads this instead of running `nvs run` over each file by hand, which in the 63 loop
+    sessions logged before this goal was 287 `nvs run` calls and about 45 timing wrappers.
   - Nothing is spawned but `nvs`. `fingerprint` is computed only where perf is recorded.
 - **Two binaries.**
   - **The proof binary** (`target/proof/`) runs `--bless`, `--run` and `--verify` in a session and in
@@ -409,7 +415,7 @@ One file set: `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**`, `Cargo.toml`'s pro
 
 ## Stage 8 — the writers and the driver
 
-One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splice}.ts`,
+One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splice,bg}.ts`,
 `tools/nv/driver/**`.
 
 - **`nv verify`** takes over `verify.py`'s steps unchanged, over the Stage 6 keys.
@@ -433,6 +439,20 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
 - **`nv loop` is the driver.** It keeps `respawn`'s protocol: exit `75` means start me again, and
   `NOVIS_LOOP_RUN` names the run. It also keeps every flag the process docs name, and
   `FLOOR_GATE_EVERY`, `AUDIT_EVERY`, the heavy legs and the fuzz campaign unchanged.
+  - **`--list` takes `--stage <label>`, `--name <text>` and `--feature <id>`.** Each narrows the
+    plan to the checks that match, and the last line is `list: N check(s) match`. A session
+    finds its own checks this way. In the 63 sessions logged before this goal, sessions found
+    them in the 13,766-line goal file with `grep` and `sed -n`, in 48 calls.
+- **`nv bg <command…>`** starts any long command detached and prints a job id.
+  - `nv bg --wait <id>` blocks until the job ends, prints the tail of its output and exits with
+    its exit status. `nv bg --list` names the jobs still running.
+  - A job and its log live under `.agent-tmp/bg/`. `nv verify --start` and `--wait` are this
+    command over verify's own steps, not a second mechanism.
+  - A session never polls a harness's task file with `until … sleep` again. In the 63 sessions
+    logged before this goal, that was 59 calls, waiting on `cargo build --release`, `cargo test`
+    and `--record-perf`.
+  - `bun test tools/nv/test/bg.test.ts` starts a job, waits on it, and checks its output and
+    exit status, for a job that exits 0 and for one that does not.
 - **Parity:**
   - `bun nv parity writers` shows that a wrap applied by both tools to two copies of the tree gives the
     same records and the same rendered files.

@@ -13685,6 +13685,13 @@ name = "a floor proofs check is keyed on what it read"
 argv = ["bun", "nv", "why", "proofs: lang:types"]
 want = ["source: observed"]
 
+[[check]]
+kind = "command"
+stage = "7 proofs"
+name = "one feature's proofs print their output, exit code and time"
+argv = ["bun", "nv", "proofs", "--run", "--id", "Core\\Str::length", "--show"]
+want = ["== docs/examples/core/Str/length/01-basics.nvs", "exit 0 · ", "== tests/hostile/core/Str/length/01-unbounded-and-degenerate-input.nvs", "ms of 20000 ms"]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the writers and the driver. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
@@ -13695,6 +13702,20 @@ stage = "8 the driver"
 name = "the chain is walkable, and its order is by slug"
 argv = ["bun", "nv", "chain", "--check"]
 want = ["chain: every goal is walkable"]
+
+[[check]]
+kind = "command"
+stage = "8 the driver"
+name = "the acceptance plan narrows to the checks that match"
+argv = ["bun", "nv", "loop", "--list", "--name", "one proofs run verifies several groups"]
+want = ["one proofs run verifies several groups", "list: 1 check matches"]
+
+[[check]]
+kind = "command"
+stage = "8 the driver"
+name = "a detached job is waited on and gives back its output and exit status"
+argv = ["bun", "test", "tools/nv/test/bg.test.ts"]
+want = [" pass", " 0 fail"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the cutover left nothing behind. Goal prose stage 9.
