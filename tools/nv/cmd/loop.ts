@@ -11,12 +11,19 @@
 //     with or without a `(1/3)` part, or its `argv` passes `<id>` to `--group` or `--id`.
 // A check with no name of its own is named by its `file`, so `--name` reaches a fixture's check too.
 //
-// The driver itself is not written yet, so `--list` is the only form this command takes.
+// `bun nv loop --goal` prints the goal table `[g]` prints, one row per stage, without a run. Its results
+// are the Python driver's memo `.loop/goal-green.json`, read by `memoResults`, and its session number is
+// `.loop/run.json`'s `index`, the number that driver gives its latest session. No session runs under
+// this command, so the table's last line names none. The table is as wide as the terminal, or 100
+// columns when the output is not one, and it draws its lines in box-drawing characters on Windows and
+// under a UTF-8 locale.
+//
+// The driver itself is not written yet, so `--list` and `--goal` are the forms this command takes.
 //
 // Exits 0 when the plan is read, whether or not a check matches, and 2 on a bad argument or when there
 // is no live goal to read.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { installedGoal } from "../import/goals.ts";
@@ -25,15 +32,19 @@ import { ROOT } from "../lib/paths.ts";
 import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
+import { goalTable, memoResults, Session } from "../driver/status.ts";
 
-export const summary = "the live goal's acceptance plan: nv loop --list [--stage <label>] [--name <text>] [--feature <id>]";
+export const summary = "the live goal's acceptance plan: nv loop --list [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The Python driver's acceptance list, the plan until the cutover deletes it. */
 const LEGACY = "docs/agent/loop-goal.toml";
+/** The Python driver's memo of green verdicts, and what one of its turns leaves for the next. */
+const MEMO = ".loop/goal-green.json";
+const RUN = ".loop/run.json";
 
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
-const USAGE ="bun nv loop --list [--stage <label>] [--name <text>] [--feature <id>]";
+const USAGE = "bun nv loop --list [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 interface Check {
   id: string;
@@ -127,18 +138,52 @@ function planOf(slug: string, md: string): Goal | string {
   return rec.issues.length > 0 ? `${path} fails its schema; \`bun nv check\` names how` : rec.value;
 }
 
-function list(filters: Filters): number {
+/** The live goal, its plan and the chain's length, or null once the reason it has none is printed. */
+function livePlan(): { live: NonNullable<ReturnType<typeof liveGoal>>; goal: Goal; total: number } | null {
   const goals = chainGoals();
   const live = liveGoal(goals);
   if (live === null) {
-    console.error("nv loop: docs/agent/loop-goal.md is a copy of no goal on the chain, so there is no plan to list");
-    return 2;
+    console.error("nv loop: docs/agent/loop-goal.md is a copy of no goal on the chain, so there is no plan to read");
+    return null;
   }
   const goal = planOf(live.slug, live.md!);
   if (typeof goal === "string") {
     console.error(`nv loop: ${goal}`);
-    return 2;
+    return null;
   }
+  return { live, goal, total: goals.length };
+}
+
+/** `path`'s JSON object, or an empty one when it is absent or not an object. */
+function jsonObject(path: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(readFileSync(join(ROOT, path), "utf8"));
+    return typeof v === "object" && v !== null && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function goalView(): number {
+  const found = livePlan();
+  if (found === null) return 2;
+  const { live, goal, total } = found;
+  const plan = { slug: live.slug, stages: goal.stages, checks: goal.checks as Check[] };
+  const green = jsonObject(MEMO).green;
+  const results = memoResults(typeof green === "object" && green !== null ? (green as Record<string, unknown>) : {}, plan.checks);
+  const session = new Session(plan, results);
+  session.begin(Number(jsonObject(RUN).index ?? 0) || 0);
+  const locale = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG || "";
+  const utf8 = process.platform === "win32" || /utf-?8/i.test(locale);
+  const width = process.stdout.columns ?? 100;
+  for (const row of goalTable({ plan, results, session, position: live.num, total, commits: [], width, utf8 })) console.log(row);
+  return 0;
+}
+
+function list(filters: Filters): number {
+  const found = livePlan();
+  if (found === null) return 2;
+  const { live, goal, total } = found;
   const path = existsSync(join(ROOT, LEGACY)) ? LEGACY : `data/goals/${live.slug}.json`;
   const labels = new Map(goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
   const labelOf = (n: number) => labels.get(n) ?? String(n);
@@ -155,7 +200,7 @@ function list(filters: Filters): number {
       (filters.feature === undefined || featureMatches(c, filters.feature)),
   );
 
-  console.log(`${path}: ${checks.length} checks, ${goal.files.length} fixtures, goal \`${live.slug}\` (${live.num} of ${goals.length})`);
+  console.log(`${path}: ${checks.length} checks, ${goal.files.length} fixtures, goal \`${live.slug}\` (${live.num} of ${total})`);
   for (const c of shown) {
     console.log(line(c, labelOf(c.stage)));
     // Named cases are the half of a suite check a session acts on: the ones not yet on disk are the worklist.
@@ -173,6 +218,7 @@ function list(filters: Filters): number {
 }
 
 export async function run(args: string[]): Promise<number> {
+  if (args.length === 1 && args[0] === "--goal") return goalView();
   const filters = parse(args);
   if (filters === null) {
     console.error(`usage: ${USAGE}`);

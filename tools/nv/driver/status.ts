@@ -32,6 +32,9 @@ export interface PlanCheck {
   id: string;
   stage: number;
   argv?: string[];
+  kind?: string;
+  name?: string;
+  file?: string;
 }
 
 export interface Plan {
@@ -75,6 +78,19 @@ export function percent(plan: Plan, results: Results): number {
   const checks = plan.checks.filter((c) => mine.has(c.stage));
   if (checks.length === 0) return 100;
   return Math.floor((checks.filter((c) => results.get(c.id) === true).length * 100) / checks.length);
+}
+
+/**
+ * The results the Python driver's memo gives, `green` being its table of `<name> #<spec digest>` keys: a
+ * check is green when a key is filed under its name, or its fixture or kind when it has no name. A key
+ * a leg files, `<leg> <name>`, names no check. The memo is not re-checked against the tree, so a check
+ * a later edit broke still shows green until a sweep runs it again.
+ */
+export function memoResults(green: Record<string, unknown>, checks: PlanCheck[]): Results {
+  const filed = new Set(Object.keys(green).map((k) => k.replace(/ #[0-9a-f]+$/, "")));
+  const results: Results = new Map();
+  for (const c of checks) if (filed.has(c.name ?? c.file ?? c.kind ?? "")) results.set(c.id, true);
+  return results;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { type Plan, type Results, Session, cut, goalTable, keyRow, statusRow } from "../driver/status.ts";
+import { type Plan, type Results, Session, cut, goalTable, keyRow, memoResults, statusRow } from "../driver/status.ts";
 
 const plan: Plan = {
   slug: "demo",
@@ -129,6 +129,21 @@ describe("the goal table", () => {
     expect(t[4]).toBe(" 2  the parser  now       1/2  The parser reads every file in the corpus.");
     expect(t[5]).toBe(" 3  the driver  ahead     0/2  the driver");
     expect(t[6]).toBe("now: Edit tools/nv/cmd/loop.ts · this session: 2 commits, the last `feat(loop): the row`");
+  });
+
+  test("the Python driver's memo sets a check green by its name, its fixture or its kind", () => {
+    const checks = [
+      { id: "a", stage: 1, kind: "command", name: "A works" },
+      { id: "b", stage: 1, kind: "exact", file: "examples/b.nvs" },
+      { id: "c", stage: 2, kind: "min-bytes" },
+      { id: "d", stage: 2, kind: "command", name: "D works" },
+    ];
+    const green = { "A works #0a1b2c3d4e5f": "h", "examples/b.nvs #ffffffffffff": "h", "min-bytes #000000000000": "h", "valgrind D works #123456789abc": "h" };
+    expect([...memoResults(green, checks)]).toEqual([
+      ["a", true],
+      ["b", true],
+      ["c", true],
+    ]);
   });
 
   test("the sentence wraps inside its column, and ASCII replaces the box-drawing lines", () => {
