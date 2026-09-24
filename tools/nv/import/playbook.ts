@@ -26,17 +26,25 @@ function isFile(root: string, path: string): boolean {
   }
 }
 
-/** The files in the tree a bullet names, as `tools/playbook.py`'s `anchors` finds them. */
-export function anchors(root: string, bullet: string, until: { kind: string; arg: string } | null): string[] {
+/**
+ * Every tree path a bullet names in backticks, braces expanded, whether or not it exists. `*`, `<` and
+ * an elision are how a bullet writes a path it never claimed exists, so those are skipped.
+ */
+export function namedPaths(bullet: string): string[] {
   const out: string[] = [];
   for (const [, raw] of bullet.matchAll(/`([^`]+)`/g)) {
     const first = raw!.trim().split(/\s+/)[0] ?? "";
     const cand = first.replace(PATH_TRIM, "");
     if (!TREE_DIRS.some((d) => cand.startsWith(d)) || ["*", "<", "…", "..."].some((m) => cand.includes(m))) continue;
     const m = BRACES.exec(cand);
-    const paths = m ? m[2]!.split(",").map((p) => p.trim()).filter((p) => p !== "").map((p) => `${m[1]}${p}${m[3]}`) : [cand];
-    out.push(...paths.filter((p) => exists(root, p)));
+    out.push(...(m ? m[2]!.split(",").map((p) => p.trim()).filter((p) => p !== "").map((p) => `${m[1]}${p}${m[3]}`) : [cand]));
   }
+  return out;
+}
+
+/** The files in the tree a bullet names, as `tools/playbook.py`'s `anchors` finds them. */
+export function anchors(root: string, bullet: string, until: { kind: string; arg: string } | null): string[] {
+  const out = namedPaths(bullet).filter((p) => exists(root, p));
   for (const [, raw] of bullet.matchAll(/`([^`\s/]+\.[A-Za-z]+)`/g)) if (isFile(root, raw!)) out.push(raw!);
   if (until && (until.kind === "gone" || until.kind === "exists")) {
     const path = until.arg.split(":")[0]!.trim().replace(/\\/g, "/");
@@ -47,9 +55,12 @@ export function anchors(root: string, bullet: string, until: { kind: string; arg
 
 const unwrap = (s: string) => s.replace(/\s*\n\s*/g, " ").trim();
 
-/** One bullet file's text as its record's value, or why it cannot be one. */
+/**
+ * One bullet file's text as its record's value, or why it cannot be one. The lead ends at the first
+ * `**` outside a code span, so a lead that quotes bold Markdown in backticks is read whole.
+ */
 export function bulletValue(root: string, src: string): { value: { lead: string; body: string; files: string[]; until: { kind: string; arg: string } } } | { reason: string } {
-  const m = /^- \*\*([\s\S]+?)\*\*([\s\S]*)$/.exec(src);
+  const m = /^- \*\*((?:`[^`]*`|[^`*]|\*(?!\*))+?)\*\*([\s\S]*)$/.exec(src);
   if (!m) return { reason: "does not open on `- **`" };
   const trailer = EXPIRY.exec(m[2]!);
   if (!trailer) return { reason: "does not end on an `[until: <kind> <arg>]` trailer" };

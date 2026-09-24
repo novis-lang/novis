@@ -1,6 +1,6 @@
 {
-  "lead": "`owners.py` counts a `# Known gaps` *heading*, and never a `",
-  "body": "Known gaps:**` bold run.** `crates/nvs-hir/src/requires.rs:69` holds five real gap bullets under a bold label, and the roster has never seen one of them, so `--untagged-is-an-error` can go green over a module that names nobody for anything it owes. Before concluding a crate is clean, grep it for `Known gaps` rather than trusting `--untagged`, and treat a bold run as a hole in the tool rather than a doc to reshape.",
+  "lead": "`owners.py` counts a `# Known gaps` *heading*, and never a `**Known gaps:**` bold run.",
+  "body": "`crates/nvs-hir/src/requires.rs:69` holds five real gap bullets under a bold label, and the roster has never seen one of them, so `--untagged-is-an-error` can go green over a module that names nobody for anything it owes. Before concluding a crate is clean, grep it for `Known gaps` rather than trusting `--untagged`, and treat a bold run as a hole in the tool rather than a doc to reshape.",
   "files": [
     "crates/nvs-hir/src/requires.rs"
   ],

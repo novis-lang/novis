@@ -22,6 +22,7 @@
 //   bun nv orient --item N     pin checklist item N instead of the first unticked one
 //   bun nv orient --stage N    apply stage N's context instead of the one the handoff names
 //   bun nv orient --full       ignore the narrowing and print every module
+//   bun nv orient --traps <path>...  the traps section alone, ranked from the whole playbook against those paths
 //   bun nv orient --goal SLUG  read the context of goal SLUG instead of the live goal's
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -44,7 +45,7 @@ import { rule as ruleType } from "../schema/rule.ts";
 import { topic as topicType } from "../schema/topic.ts";
 import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
-export const summary = "the loop session's orientation pack, narrowed to the live goal: nv orient [--audit] [--item N] [--stage N] [--full] [--goal SLUG]";
+export const summary = "the loop session's orientation pack, narrowed to the live goal: nv orient [--audit] [--item N] [--stage N] [--full] [--goal SLUG] | --traps <path>...";
 
 const LIVE = { md: "docs/agent/loop-goal.md", toml: "docs/agent/loop-goal.toml", handoff: "docs/agent/handoff.md" };
 const SIDE_ENV = "NOVIS_SIDE_GOAL";
@@ -1120,6 +1121,36 @@ export function playbookBook(root: string = ROOT, skip: ReadonlySet<string> = ne
   }));
 }
 
+export interface BookBullet {
+  section: string;
+  lead: string;
+  text: string;
+  /** `Section > words`, the fewest words of the lead-in that name this bullet and nothing else in its section. */
+  selector: string;
+}
+
+/**
+ * Every bullet in the book, each with the selector that names it alone. A key is tested as a substring of
+ * each neighbour's lead-in, which is stricter than `sliceBullets`' prefix match, so it resolves to one bullet.
+ */
+export function allBullets(book: BookSection[]): BookBullet[] {
+  return book.flatMap((s) =>
+    s.bullets.map((b) => {
+      const words = normalize(b.lead).split(" ");
+      const peers = s.bullets.filter((p) => p !== b).map((p) => normalize(p.lead));
+      let key = normalize(b.lead);
+      for (let n = 2; n <= words.length; n++) {
+        const k = words.slice(0, n).join(" ");
+        if (!peers.some((p) => p.includes(k))) {
+          key = k;
+          break;
+        }
+      }
+      return { section: s.title, lead: b.lead, text: b.text, selector: `${s.title} > ${key}` };
+    }),
+  );
+}
+
 function findSection(book: BookSection[], head: string): BookSection | undefined {
   const key = normalize(head);
   return book.find((s) => titleMatches(s.title, key));
@@ -1175,6 +1206,35 @@ function score(body: string, selector: string, terms: string[]): number {
   if (strong.length === 0) return 0;
   const weak = terms.filter((t) => !strong.includes(t) && [...spellings(t)[1]].some((v) => hay.includes(v)));
   return strong.length + weak.length;
+}
+
+/**
+ * `--traps <path>...`: the traps section alone, ranked from the whole playbook rather than a manifest.
+ * The best `PROMOTED_WHOLE` print whole and the rest one selector each. Ties keep the book's order.
+ */
+function runTraps(paths: string[]): void {
+  const terms = [...new Set(paths.map((p) => p.replace(/\\/g, "/")))];
+  const hits = allBullets(playbookBook())
+    .map((b, i) => ({ b, i, s: score(b.text, b.selector, terms) }))
+    .filter((r) => r.s > 0)
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map((r) => r.b);
+  section(TRAPS_TITLE, `${PLAYBOOK}/, ranked from the whole playbook against the ${terms.length} path(s) given`);
+  if (hits.length === 0) {
+    emit("  No bullet names any of these paths.");
+    return;
+  }
+  for (const b of hits.slice(0, PROMOTED_WHOLE)) {
+    emit();
+    emit(b.text);
+  }
+  const rest = hits.slice(PROMOTED_WHOLE);
+  if (rest.length > 0) {
+    emit();
+    emit(`-- ${rest.length} more trap(s) name these paths. One line each; \`${tool("playbook")} --show '<selector>'\``);
+    emit("   prints one in full:");
+    for (const b of rest) emit(`   ${b.selector}`);
+  }
 }
 
 function runPlaybook(wanted: string[], item: string, stage: number | null): void {
@@ -1627,6 +1687,17 @@ function parse(args: string[]): Options | string {
 }
 
 export async function run(args: string[]): Promise<number> {
+  if (args[0] === "--traps") {
+    if (args.length < 2 || args.slice(1).some((a) => a.startsWith("--"))) {
+      console.error(`nv orient: --traps needs one or more paths and nothing else\n${summary}`);
+      return 2;
+    }
+    out = [];
+    ledger = [];
+    runTraps(args.slice(1));
+    process.stdout.write(out.join("\n").replace(/^\n+/, "") + "\n");
+    return 0;
+  }
   const opts = parse(args);
   if (typeof opts === "string") {
     console.error(`nv orient: ${opts}\n${summary}`);
