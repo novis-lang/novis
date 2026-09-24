@@ -1,0 +1,208 @@
+{
+  "probes": [
+    {
+      "name": "test-module",
+      "what": "a `#[test]` in `jwt.rs`'s `mod tests`. The three binaries past the first read every file under `crates/` as text",
+      "edit": {
+        "path": "crates/nvs-stdlib/src/jwt.rs",
+        "after": [
+          "mod tests {"
+        ],
+        "insert": "\n    #[test]\n    fn probe() {}\n"
+      },
+      "rerun": [
+        "^binary: nvs-stdlib lib nvs_stdlib$",
+        "^binary: nvs-config test directives$",
+        "^binary: nvs-lsp test stdout_policy$",
+        "^binary: nvs-stdlib test tier_boundary$"
+      ],
+      "keep": [
+        "^binary: ",
+        "^test: ",
+        "^leg: ",
+        "^program: ",
+        "^suite: ",
+        "^fuzz: ",
+        "^tsan: ",
+        "^db-matrix: ",
+        "^nvs: ",
+        "^vsix: "
+      ]
+    },
+    {
+      "name": "self-included-test-module",
+      "what": "a `#[test]` in `jwe.rs`'s `mod tests`, which `crypto.rs`'s policy test embeds. The three binaries past the first read every file under `crates/` as text",
+      "edit": {
+        "path": "crates/nvs-stdlib/src/jwe.rs",
+        "after": [
+          "mod tests {"
+        ],
+        "insert": "\n    #[test]\n    fn probe() {}\n"
+      },
+      "rerun": [
+        "^binary: nvs-stdlib lib nvs_stdlib$",
+        "^binary: nvs-config test directives$",
+        "^binary: nvs-lsp test stdout_policy$",
+        "^binary: nvs-stdlib test tier_boundary$"
+      ],
+      "keep": [
+        "^binary: ",
+        "^test: ",
+        "^leg: ",
+        "^program: ",
+        "^suite: ",
+        "^fuzz: ",
+        "^tsan: ",
+        "^db-matrix: ",
+        "^nvs: ",
+        "^vsix: "
+      ]
+    },
+    {
+      "name": "card",
+      "what": "a word in the `short` of `Core\\Json::encode`'s `MethodDoc`",
+      "edit": {
+        "path": "crates/nvs-stdlib/src/json.rs",
+        "after": [
+          "const ENCODE_DOC",
+          "short: \""
+        ],
+        "insert": "Probe. "
+      },
+      "rerun": [
+        "^binary: nvs-stdlib lib nvs_stdlib$",
+        "^nvs: ",
+        "^binary: nvs-lsp "
+      ],
+      "keep": [
+        "^leg: ",
+        "^program: ",
+        "^suite: ",
+        "^fuzz: ",
+        "^tsan: ",
+        "^db-matrix: "
+      ]
+    },
+    {
+      "name": "stdlib-code",
+      "what": "a `const` at the end of `json.rs`",
+      "edit": {
+        "path": "crates/nvs-stdlib/src/json.rs",
+        "insert": "\nconst _PROBE: u8 = 0;\n"
+      },
+      "rerun": [
+        "^leg: valgrind sweep$",
+        "^program: ",
+        "^suite: ",
+        "^db-matrix: ",
+        "^test: nvs-cli \\(cost margins\\)$"
+      ],
+      "keep": [
+        "^fuzz: ",
+        "^tsan: ",
+        "^vsix: "
+      ]
+    },
+    {
+      "name": "syntax-code",
+      "what": "a `const` at the end of `nvs-syntax`'s `lib.rs`",
+      "edit": {
+        "path": "crates/nvs-syntax/src/lib.rs",
+        "insert": "\nconst _PROBE: u8 = 0;\n"
+      },
+      "rerun": [
+        "^fuzz: ",
+        "^leg: valgrind sweep$",
+        "^suite: "
+      ],
+      "keep": [
+        "^vsix: "
+      ]
+    },
+    {
+      "name": "host-code",
+      "what": "a `const` at the end of `nvs-host`'s `lib.rs`",
+      "edit": {
+        "path": "crates/nvs-host/src/lib.rs",
+        "insert": "\nconst _PROBE: u8 = 0;\n"
+      },
+      "rerun": [
+        "^tsan: "
+      ],
+      "keep": [
+        "^fuzz: ",
+        "^vsix: "
+      ]
+    },
+    {
+      "name": "embedded-chapter",
+      "what": "a line at the end of a reference chapter `nvs agent` embeds",
+      "edit": {
+        "path": "docs/reference/lang/20-types.md",
+        "insert": "\nProbe.\n"
+      },
+      "rerun": [
+        "^nvs: "
+      ],
+      "keep": [
+        "^fuzz: ",
+        "^tsan: "
+      ]
+    },
+    {
+      "name": "driver-tool",
+      "what": "a comment line at the end of the loop driver",
+      "edit": {
+        "path": "tools/loop.py",
+        "insert": "\n# probe\n"
+      },
+      "rerun": [
+        "^gate: the chain still walks$",
+        "^gate: every entry is still one the driver can walk$"
+      ],
+      "keep": [
+        "^leg: ",
+        "^suite: ",
+        "^tsan: ",
+        "^fuzz: ",
+        "^db-matrix: ",
+        "^binary: ",
+        "^program: "
+      ]
+    },
+    {
+      "name": "new-example",
+      "what": "a fourth example for `Core\\Arr::all`",
+      "edit": {
+        "path": "docs/examples/core/Arr/all/04-probe.nvs",
+        "create": "echo 1;\n"
+      },
+      "rerun": [
+        "^gate: dossier: Core\\\\Arr ",
+        "^gate: dossier: every program this goal writes or rewrites carries comments",
+        "^gate: dossier: every generated goal is walkable"
+      ],
+      "keep": [
+        "^gate: dossier: (?!Core\\\\Arr )"
+      ]
+    },
+    {
+      "name": "editor",
+      "what": "a space in the extension's `package.json`",
+      "edit": {
+        "path": "editors/vscode/package.json",
+        "after": [
+          "{"
+        ],
+        "insert": " "
+      },
+      "rerun": [
+        "^vsix: "
+      ],
+      "keep": [
+        "^leg: ",
+        "^suite: "
+      ]
+    }
+  ]
+}

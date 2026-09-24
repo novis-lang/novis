@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, checkName, testTargets, units } from "../keys/checks.ts";
+import { type Check, checkName, roleOf, suitesIn, testTargets, units } from "../keys/checks.ts";
 import type { Graph, Package } from "../keys/graph.ts";
+import { testBuild } from "../keys/key.ts";
+import { Tree } from "../keys/tree.ts";
 
 function pkg(name: string, targets: [string, string][]): Package {
   return { name, dir: `crates/${name}`, deps: new Map(), targets: targets.map(([kind, t]) => ({ kind, name: t, src: `crates/${name}/src/${t}.rs`, test: true })) };
@@ -67,5 +69,37 @@ describe("the units a key answers for", () => {
   test("an unnamed check is named by its file, else by what it runs", () => {
     expect(checkName({ kind: "exact", file: "examples/a.nvs" })).toBe("examples/a.nvs");
     expect(checkName({ kind: "command", argv: ["git", "grep", "x"] })).toBe("command git grep x");
+  });
+
+  test("a check's role is what it runs", () => {
+    const role = (c: Check) => roleOf(c);
+    expect(role({ kind: "min-bytes", file: "a.nvs" })).toBe("program");
+    expect(role({ kind: "nvs-suite", args: ["test", "tests/hostile/"] })).toBe("suite");
+    expect(role({ kind: "cargo-named", args: ["test", "-p", "nvs-cli"] })).toBe("test");
+    expect(role({ kind: "command", argv: ["{nvs}", "agent", "find", "x"] })).toBe("nvs");
+    expect(role({ kind: "command", cwd: "editors/vscode", argv: ["npm", "run", "package"] })).toBe("vsix");
+    expect(role({ kind: "command", cwd: "editors/vscode", argv: ["npm", "test"] })).toBe("editor");
+    expect(role({ kind: "command", argv: ["python", "tools/db-matrix.py", "--all"] })).toBe("db-matrix");
+    expect(role({ kind: "command", argv: ["git", "grep", "-e", "tools/tsan.sh", "--", "ci.yml"] })).toBe("grep");
+    expect(role({ kind: "command", argv: ["python", "tools/dossier.py", "--gate"] })).toBe("gate");
+    expect(role({ kind: "command", argv: ["bun", "nv", "check"] })).toBe("nv");
+  });
+});
+
+describe("what a script's `cargo test` lists build", () => {
+  test("an integration test builds its package's library without its test modules", async () => {
+    const script = `SUITES = (\n    ["-p", "nvs-host"],\n    ["-p", "nvs-cli", "--test", "agent"],\n    ["--bin", "nvs", "worker::"],\n)\nOTHER = ["not", "cargo"]\n`;
+    const tree = (await Tree.read()).edited({ "tools/probe-script.py": script });
+    expect(suitesIn(tree, graph, "tools/probe-script.py")).toEqual([
+      { own: ["nvs-host"], ownTier: "raw", depTier: "card", test: true },
+      { own: ["nvs-cli"], ownTier: "card", depTier: "card", test: true, srcTest: false },
+      { own: ["nvs-cli"], ownTier: "raw", depTier: "card", test: true },
+    ]);
+    expect(suitesIn(tree.edited({ "tools/probe-script.py": `S = (["-p", "nvs-gone"],)\n` }), graph, "tools/probe-script.py")).toEqual([]);
+  });
+
+  test("a test binary's own source is raw, and an integration test's is shipped", () => {
+    expect(testBuild("nvs-cli", "bin")).toMatchObject({ ownTier: "raw", test: true });
+    expect(testBuild("nvs-cli", "test")).toMatchObject({ ownTier: "shipped", test: true, srcTest: false });
   });
 });

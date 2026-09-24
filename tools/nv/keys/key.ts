@@ -3,13 +3,15 @@
 //
 // - the toolchain, and the workspace's manifests and lock;
 // - the packages it compiles as its own, each file at `ownTier`: raw for a test binary built from
-//   the package, since a policy test reads its package's source as text;
+//   the package's source, since a policy test reads its package's source as text. A test build
+//   takes the package's `tests/`, `benches/` and `examples/` raw whatever `ownTier` is;
 // - every package they are compiled against (`closure`, from `cargo metadata`), each file at
 //   `depTier` and without the package's `tests/`, `benches/` and `examples/`, which no dependant is
 //   compiled from;
 // - the files embedded at an include site outside a test module, anywhere in those packages, as
-//   raw bytes. A file embedded from inside a test module is an input of that package's test binary
-//   alone, so only a `test` build takes it;
+//   raw bytes. A file embedded from inside a test module is an input of the package's `lib` or
+//   `bin` test binary alone, so only a `test` build that compiles the source under `cfg(test)`
+//   takes it;
 // - the files a package's `build.rs` reads from outside the package, from `BUILD_READS`.
 //
 // A dependency's tier is `shipped` for anything that reads the binary's text as well as running it,
@@ -34,8 +36,12 @@ export interface Build {
   ownTier: Tier;
   /** The tier of everything the own packages are compiled against. */
   depTier: Tier;
-  /** A test binary: the own packages' dev-dependencies and test include sites are its inputs. */
+  /** A test binary: the own packages' dev-dependencies, their `tests/`, `benches/` and `examples/`,
+   * and the include sites in those, are its inputs. */
   test: boolean;
+  /** Does a test build compile the own packages' source under `cfg(test)`, so an include site in a
+   * test module there is an input? Omitted: yes. An integration test's build says no. */
+  srcTest?: boolean;
 }
 
 /** What a package's `build.rs` reads from outside the package, by package. The files a `build.rs`
@@ -78,10 +84,13 @@ export function builtFrom(tree: Tree, graph: Graph, build: Build): Part[] {
   };
   // Embedded files first, so a `.rs` file some source embeds is raw whatever tier its package is at.
   for (const name of [...own, ...deps]) {
-    const files = own.has(name) && build.test ? tree.under(graph.get(name)!.dir) : shippedFiles(name);
+    const dir = graph.get(name)!.dir;
+    const ownTest = own.has(name) && build.test;
+    const files = ownTest ? tree.under(dir) : shippedFiles(name);
     for (const rel of files) {
+      const cfgTest = ownTest && (build.srcTest !== false || OWN_ONLY.some((d) => under(rel, `${dir}/${d}`)));
       for (const site of tree.includes(rel)) {
-        if (site.inTest && !(own.has(name) && build.test)) continue;
+        if (site.inTest && !cfgTest) continue;
         const embedded = tree.under(site.path);
         for (const f of embedded) add(f, "raw");
         // A missing file is an input too, so its arrival moves the key.
@@ -90,7 +99,11 @@ export function builtFrom(tree: Tree, graph: Graph, build: Build): Part[] {
     }
     for (const top of BUILD_READS[name] ?? []) for (const f of tree.under(top)) add(f, "raw");
   }
-  for (const name of own) for (const rel of tree.under(graph.get(name)!.dir)) add(rel, build.ownTier);
+  for (const name of own) {
+    const dir = graph.get(name)!.dir;
+    if (!build.test) for (const rel of shippedFiles(name)) add(rel, build.ownTier);
+    else for (const rel of tree.under(dir)) add(rel, OWN_ONLY.some((d) => under(rel, `${dir}/${d}`)) ? "raw" : build.ownTier);
+  }
   for (const name of [...deps].sort()) for (const rel of shippedFiles(name)) add(rel, build.depTier);
   return [...parts.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 }
@@ -100,7 +113,11 @@ export function keyOf(name: string, parts: Part[]): string {
   return digest(name, ...parts.map((p) => `${p.label}\x01${p.digest}`));
 }
 
-/** The build a package's test binary is compiled from. */
-export function testBuild(pkg: string): Build {
-  return { own: [pkg], ownTier: "raw", depTier: "shipped", test: true };
+/** The build a package's test binary is compiled from. The `lib` and `bin` test binaries compile the
+ * package's own source under `cfg(test)`, so it is raw. An integration test compiles its own file
+ * under `tests/` and links the library built without `cfg(test)`, so the library is `shipped`; what
+ * it reads of the source as text is an include site or a recorded read. */
+export function testBuild(pkg: string, kind = "lib"): Build {
+  if (kind === "lib" || kind === "bin") return { own: [pkg], ownTier: "raw", depTier: "shipped", test: true };
+  return { own: [pkg], ownTier: "shipped", depTier: "shipped", test: true, srcTest: false };
 }

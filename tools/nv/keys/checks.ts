@@ -18,9 +18,13 @@
 // - `partitions`: a check whose reads are whole directories or files it names.
 // - `everything`: anything else, and every doubt.
 //
-// Fuzz builds the crates its target's source `use`s, over `fuzz/**`. TSan and the database matrix
-// build the workspace packages their script names, raw and with their test modules, over the script,
-// every `Cargo.toml`, `examples/`, and for the matrix `tests/db/`.
+// Fuzz builds the crates its target's source `use`s, over `fuzz/**`. TSan builds the workspace
+// packages its script names, raw and with their test modules. The database matrix builds each
+// `cargo test` argument list its script writes, and an integration test among them builds its
+// package's library without its test modules. Both key on the script, every `Cargo.toml` and
+// `examples/`, and the matrix on `tests/db/` too.
+//
+// A probe names units by `<role>: <name>`, and `roleOf` says what a check's role is.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,10 +33,14 @@ import { ROOT, abs } from "../lib/paths.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
-import { digest } from "./scan.ts";
+import { TIERS, digest } from "./scan.ts";
 import { NOT_INPUTS, type Tree } from "./tree.ts";
 
 export type Source = "verify record" | "binary key" | "observed" | "package key" | "partitions" | "everything";
+
+/** What a unit is: a test binary, a leg, or the kind of thing a check runs. A probe names units by
+ * `<role>: <name>`. */
+export type Role = "binary" | "leg" | "program" | "suite" | "test" | "nvs" | "editor" | "vsix" | "fuzz" | "tsan" | "db-matrix" | "gate" | "nv" | "grep" | "other";
 
 /** One `[[check]]` table, as the goal file writes it. */
 export type Check = { kind: string } & Record<string, unknown>;
@@ -41,6 +49,7 @@ export interface Unit {
   /** A check's name, or a test binary's `<package> <kind> <target>`. */
   name: string;
   source: Source;
+  role: Role;
   /** The `[[check]]` this unit is; none for a test binary or a leg. */
   check?: Check;
   parts(tree: Tree): Part[];
@@ -207,6 +216,11 @@ function manifests(tree: Tree): Part[] {
   });
 }
 
+/** Is this a key on everything? Only `everything` puts the `state` partition in a key. */
+export function isWide(parts: Part[]): boolean {
+  return parts.some((p) => p.label === `<${STATE}>`);
+}
+
 function everything(tree: Tree): Part[] {
   return cached(tree, "everything", () => EVERYTHING.flatMap((p) => partition(tree, p)));
 }
@@ -222,10 +236,16 @@ function build(tree: Tree, graph: Graph, b: Build): Part[] {
   });
 }
 
-/** The parts in `lists`, the first of each label kept, sorted by label. */
+/** The parts in `lists`, sorted by label. Of two parts with one label, the one at the wider tier is
+ * kept, and of two at one tier the first. */
 function union(...lists: Part[][]): Part[] {
   const out = new Map<string, Part>();
-  for (const list of lists) for (const p of list) if (!out.has(p.label)) out.set(p.label, p);
+  for (const list of lists) {
+    for (const p of list) {
+      const had = out.get(p.label);
+      if (!had || TIERS.indexOf(p.tier) < TIERS.indexOf(had.tier)) out.set(p.label, p);
+    }
+  }
   return [...out.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 }
 
@@ -243,17 +263,19 @@ export function units(r: Records): Unit[] {
   for (const pkg of [...r.graph.keys()].sort()) {
     for (const b of testBinaries(r.graph, pkg)) {
       binaries.set(b.name, pkg);
-      out.push({ name: b.name, source: r.wide.has(b.name) ? "everything" : "binary key", parts: (t) => binaryParts(t, r, pkg, b.name) });
+      out.push({ name: b.name, source: r.wide.has(b.name) ? "everything" : "binary key", role: "binary", parts: (t) => binaryParts(t, r, pkg, b.name) });
     }
   }
-  for (const leg of LEGS) out.push({ name: leg, source: "package key", parts: (t) => programParts(t, r.graph, PROGRAM_READS) });
+  for (const leg of LEGS) out.push({ name: leg, source: "package key", role: "leg", parts: (t) => programParts(t, r.graph, PROGRAM_READS) });
   for (const c of r.checks) out.push(checkUnit(r, c));
   return out;
 }
 
+/** A test binary's parts. Its name is `<package> <kind> <target>`, as `testBinaries` writes it. */
 function binaryParts(tree: Tree, r: Records, pkg: string, name: string): Part[] {
-  if (r.wide.has(name)) return union(build(tree, r.graph, testBuild(pkg)), everything(tree));
-  return union(build(tree, r.graph, testBuild(pkg)), ...(r.reads.get(name) ?? []).map((rel) => path(tree, rel)));
+  const built = build(tree, r.graph, testBuild(pkg, name.split(" ")[1]));
+  if (r.wide.has(name)) return union(built, everything(tree));
+  return union(built, ...(r.reads.get(name) ?? []).map((rel) => path(tree, rel)));
 }
 
 function programParts(tree: Tree, graph: Graph, reads: string[], tier: "card" | "shipped" = "card"): Part[] {
@@ -288,6 +310,26 @@ export function namedIn(tree: Tree, graph: Graph, rel: string): string[] {
   return [...graph.keys()].filter((n) => new RegExp(`(?<![\\w-])${n.replace(/-/g, "\\-")}(?![\\w-])`).test(text)).sort();
 }
 
+/** The builds of the `cargo test` argument lists a script writes as list literals, `["-p", "nvs-db"]`,
+ * each at `card`. One that names `--test` builds that integration test over the package's library;
+ * any other builds the package's source under `cfg(test)`. Empty when a list names no package the
+ * graph has, and the caller keys on everything. */
+export function suitesIn(tree: Tree, graph: Graph, rel: string): Build[] {
+  if (!tree.has(rel)) return [];
+  const out: Build[] = [];
+  for (const m of tree.text(rel).matchAll(/\[\s*("[^"\n]*"(?:\s*,\s*"[^"\n]*")*)\s*,?\s*\]/g)) {
+    const args = [...m[1]!.matchAll(/"([^"]*)"/g)].map((a) => a[1]!);
+    const flag = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
+    const bin = flag("--bin");
+    if (flag("-p") === undefined && bin === undefined) continue;
+    const pkg = flag("-p") ?? [...graph.values()].find((p) => p.targets.some((t) => t.kind === "bin" && t.name === bin))?.name;
+    if (pkg === undefined || !graph.has(pkg)) return [];
+    const integration = flag("--test") !== undefined;
+    out.push({ own: [pkg], ownTier: integration ? "card" : "raw", depTier: "card", test: true, ...(integration ? { srcTest: false } : {}) });
+  }
+  return out;
+}
+
 /** The workspace packages a Rust source `use`s or names by path. */
 export function usedBy(tree: Tree, graph: Graph, rel: string): string[] {
   const out = new Set<string>();
@@ -298,9 +340,29 @@ export function usedBy(tree: Tree, graph: Graph, rel: string): string[] {
   return [...out].sort();
 }
 
+/** What a check is, for a probe to name a class of units by. */
+export function roleOf(c: Check): Role {
+  if (PROGRAM_KINDS.has(c.kind)) return "program";
+  if (c.kind === "nvs-suite") return "suite";
+  if (c.kind === "cargo-named") return "test";
+  if (c.kind !== "command") return "other";
+  const argv = strings(c.argv);
+  const cwd = typeof c.cwd === "string" ? c.cwd : ".";
+  if (argv[0] === "{nvs}") return "nvs";
+  if (argv[0] === "npm" && cwd.startsWith("editors/")) return argv.includes("package") ? "vsix" : "editor";
+  if (runs(argv, FUZZ)) return "fuzz";
+  if (runs(argv, TSAN)) return "tsan";
+  if (runs(argv, DB_MATRIX)) return "db-matrix";
+  if (argv[0] === "python" && argv[1]?.startsWith("tools/")) return "gate";
+  if (argv[0] === "bun") return "nv";
+  if (argv[0] === "git" && argv[1] === "grep") return "grep";
+  return "other";
+}
+
 function checkUnit(r: Records, c: Check): Unit {
   const name = checkName(c);
-  const unit = (source: Source, parts: (t: Tree) => Part[]): Unit => ({ name, source, check: c, parts });
+  const role = roleOf(c);
+  const unit = (source: Source, parts: (t: Tree) => Part[]): Unit => ({ name, source, role, check: c, parts });
   const wide = unit("everything", everything);
   const g = r.graph;
 
@@ -351,12 +413,18 @@ function checkUnit(r: Records, c: Check): Unit {
   // What these binaries open at run time was read off their source rather than taken from their
   // recorded reads: `manifest_policy` walks the root, and what it opens there is every
   // `Cargo.toml`, so the manifests stand in for the root its record names.
-  for (const [script, extra] of [[TSAN, ["examples"]], [DB_MATRIX, ["examples", "tests/db"]]] as const) {
-    if (!runs(argv, script)) continue;
+  if (runs(argv, TSAN)) {
     return unit("package key", (t) => {
-      const own = namedIn(t, g, script);
+      const own = namedIn(t, g, TSAN);
       if (own.length === 0) return everything(t);
-      return union(build(t, g, { own, ownTier: "raw", depTier: "card", test: true }), path(t, script), manifests(t), ...extra.map((p) => path(t, p)));
+      return union(build(t, g, { own, ownTier: "raw", depTier: "card", test: true }), path(t, TSAN), manifests(t), path(t, "examples"));
+    });
+  }
+  if (runs(argv, DB_MATRIX)) {
+    return unit("package key", (t) => {
+      const builds = suitesIn(t, g, DB_MATRIX);
+      if (builds.length === 0) return everything(t);
+      return union(...builds.map((b) => build(t, g, b)), path(t, DB_MATRIX), manifests(t), path(t, "examples"), path(t, "tests/db"));
     });
   }
 
