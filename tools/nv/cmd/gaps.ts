@@ -1,5 +1,7 @@
-// `bun nv gaps`: what the conformance corpus does not ask yet, as a worklist a session can take an item off.
+// `bun nv gaps`: what the conformance corpus does not ask yet, as a worklist a session can take an item off,
+// and the known gaps one module owes.
 //
+//     bun nv gaps --module crates/nvs-ir/src/lib.rs   the gap records naming that file, or every file under a directory
 //     bun nv gaps                          all three lists, counts and a sample
 //     bun nv gaps --coverage               cases per member, per class, thinnest first
 //     bun nv gaps --differential           every member with a PHP twin and no oracle case
@@ -28,12 +30,23 @@
 // recently opened above it, and a class whose name does not resolve still opens a run, so its members
 // are skipped rather than credited to the class above it. `crates/nvs-stdlib/tests/corpus/mod.rs`'s
 // `Attribution::new` is the Rust half of the instance attribution, and the two agree by hand.
+//
+// `--module` is the other question, and it reads records rather than the corpus. A module's known gaps
+// are `data/gaps/<crate>/<slug>.json`, and its doc comment keeps one line pointing here. The path is a
+// file, which lists the records whose `module` is that file, or a directory, which lists every record
+// whose `module` sits under it. Each gap prints its slug, its owner, its record's path, its title and
+// its text, and `--json` prints the same records as a list. A module no record names prints that and
+// exits 0, since a module with nothing owed is the state a gap block is cut towards; a path that is not
+// on disk exits 2.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { load } from "../lib/store.ts";
+import { gap as gapType } from "../schema/gap.ts";
+import { collect as collectGaps, type Gap } from "./owners.ts";
 
-export const summary = "what the corpus does not ask yet: nv gaps [--coverage | --differential | --errors | --member NAME] [--limit N] [--json]";
+export const summary = "what the corpus does not ask yet, and what a module owes: nv gaps [--coverage | --differential | --errors | --member NAME | --module PATH] [--limit N] [--json]";
 
 const SPEC = "docs/spec/01-core-library.md";
 const STDLIB = "crates/nvs-stdlib/src";
@@ -467,23 +480,59 @@ function show<T>(rows: T[], limit: number, render: (row: T) => string): void {
   if (shown.length < rows.length) console.log(`  ... and ${rows.length - shown.length} more (--limit 0 for all)`);
 }
 
-const USAGE = "usage: bun nv gaps [--differential] [--errors] [--coverage] [--member MEMBER] [--limit LIMIT] [--json]";
+const USAGE = "usage: bun nv gaps [--differential] [--errors] [--coverage] [--member MEMBER] [--module PATH] [--limit LIMIT] [--json]";
+
+/** A path as a record's `module` spells it: repo-rooted, `/`-separated, no leading `./` and no trailing `/`. */
+function modulePath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^(?:\.\/)+/, "").replace(/\/+$/, "");
+}
+
+/** The gap records a module owes: the file's own, or every file's under a directory. */
+export function moduleGaps(path: string, all: Gap[] = collectGaps()): Gap[] {
+  const at = modulePath(path);
+  return all.filter((g) => g.module === at || g.module.startsWith(`${at}/`));
+}
+
+function moduleReport(path: string, json: boolean): number {
+  const at = modulePath(path);
+  if (!at || !existsSync(join(ROOT, at))) {
+    console.error(`nv gaps: --module ${JSON.stringify(path)} is not a file or directory in this tree`);
+    return 2;
+  }
+  const found = moduleGaps(at);
+  if (json) {
+    console.log(JSON.stringify(found, null, 2));
+    return 0;
+  }
+  console.log(`== ${at}  (${found.length} known gap(s))`);
+  if (found.length === 0) console.log("  no gap record names it");
+  const paths = new Map(load(gapType).map((r) => [`${r.value.module}\0${r.id.slice(r.id.indexOf("/") + 1)}`, r.path]));
+  for (const g of found) {
+    console.log(`  gap ${g.slug}  owner ${g.owner || "none"}  ${paths.get(`${g.module}\0${g.slug}`)!.replace(/\\/g, "/")}`);
+    if (g.module !== at) console.log(`    in ${g.module}`);
+    console.log(`    ${g.title}`);
+    console.log(`    ${g.text}`);
+  }
+  return 0;
+}
 
 export async function run(args: string[]): Promise<number> {
   const flags = new Set<string>();
   let member = "";
+  let module = "";
   let limit = 25;
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    const eq = /^(--member|--limit)=(.*)$/s.exec(a);
+    const eq = /^(--member|--module|--limit)=(.*)$/s.exec(a);
     const opt = eq ? eq[1]! : a;
-    if (opt === "--member" || opt === "--limit") {
+    if (opt === "--member" || opt === "--module" || opt === "--limit") {
       const value = eq ? eq[2]! : args[++i];
       if (value === undefined) {
         console.error(`${USAGE}\nnv gaps: ${opt} takes a value`);
         return 2;
       }
       if (opt === "--member") member = value;
+      else if (opt === "--module") module = value;
       else if (/^\s*[-+]?\d+\s*$/.test(value)) limit = Number(value);
       else {
         console.error(`${USAGE}\nnv gaps: --limit takes a number, not ${JSON.stringify(value)}`);
@@ -495,6 +544,8 @@ export async function run(args: string[]): Promise<number> {
       return 2;
     }
   }
+
+  if (module) return moduleReport(module, flags.has("--json"));
 
   if (!existsSync(join(ROOT, SPEC))) {
     console.error(`missing ${SPEC}`);
