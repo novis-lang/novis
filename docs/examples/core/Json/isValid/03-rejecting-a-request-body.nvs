@@ -1,0 +1,21 @@
+<?nvs
+// Shows how an API checks a request body before it does any other work.
+
+class Api {
+    // Returns the status code and the message the API sends back for one body.
+    public static function answer(string $body): string {
+        if (!Core\Json::isValid($body)) {
+            return "400 the body must be JSON";
+        }
+        return "202 accepted, " . Core\Str::length($body) . " characters";
+    }
+}
+
+// The second body is a form, not JSON, so this prints `400` for it.
+array<string> $bodies = [
+    "{\"sku\": \"T-1\", \"count\": 2}",
+    "sku=T-1&count=2",
+];
+foreach ($bodies as string $body) {
+    echo Api::answer($body), "\n";
+}

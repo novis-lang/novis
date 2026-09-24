@@ -2,25 +2,22 @@
 
 ## State
 
-Goal `core-json-and-6-more` is under way. `Core\Json::decode`, `decodeAs` and `encode` owe
-nothing now: each has `about.md`, three examples, a hostile case, a bench with a recorded figure
-and a Rust test carrying its `covers:` marker, and `Core\Json`'s class card is done. The attacks
-found no new bug. The decoder's debug-build stack overflow stays `# Known gaps` 1 in
-`crates/nvs-stdlib/src/json.rs`, owner M12. `Core\Json::isValid` is the last `Core\Json` member,
-then the `Core\Jwe` members start a new file set.
+Goal `core-json-and-6-more` is under way. Every `Core\Json` member now owes nothing:
+`decode`, `decodeAs`, `encode` and `isValid` each have `about.md`, three examples, a hostile case,
+a bench with a recorded figure and a Rust test carrying its `covers:` marker, and `Core\Json`'s
+class card is done. The attacks found no new bug. The decoder's debug-build stack overflow stays
+`# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12. The `Core\Jwe` members come next
+and start a new file set. `Core\Jwe` also owes its class card.
 
 ## Next group
 
-**`Core\Json::isValid`, then `Core\Jwe`** — `isValid` shares `crates/nvs-stdlib/src/json.rs` and
-the `Core/Json` proof trees with the landed members; the `Core\Jwe` pair is `crates/nvs-stdlib/src/jwe.rs`.
+**`Core\Jwe::encrypt` and `decrypt`, and the `Core\Jwe` class card** — one file set:
+`crates/nvs-stdlib/src/jwe.rs`, `crates/nvs-stdlib/src/registry.rs`'s
+`CLASSES_STILL_OWING_A_CARD`, and the `Core/Jwe` proof trees.
 
-- [ ] **`Core\Json::isValid`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/json.rs:321`
-- [ ] **`Core\Jwe::encrypt`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:176`
-- [ ] **`Core\Jwe::decrypt`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:187`
+- [ ] **`Core\Jwe::encrypt`** — owes examples, hostile, perf, tests, and help: `Core\Jwe` has no `ClassDoc` yet (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:889`
+- [ ] **`Core\Jwe::decrypt`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:941`
 
 ## Backlog
 
-- `Core\Json::decode` turns an integer literal below `i64::MIN` (and past `u64::MAX`) into a `float` without an error, while `DECODE_DOC` says an integer too large for `int` throws; the module doc's § *The refusals* names only the positive band — `crates/nvs-stdlib/src/json.rs`.
-- The debug-build stack overflow in the decoder — `crates/nvs-stdlib/src/json.rs` § *Known gaps* 1.
-- A `Core\Json` example calling `Core\IO::temporaryDir` was refused `fs.write` under `dossier.py --bless`, while the `Core\IO` examples making the same call pass; why was not checked, so the Json examples read string literals — `tools/dossier.py`.
-- There is no global `NAN` or `INF`, and `Core\Math` has no constant for either; a proof builds them with `Core\Math::fdiv(0.0, 0.0)` and `fdiv(±1.0, 0.0)` — `docs/spec/02-php-migration.md`.
+- The rest of goal `core-json-and-6-more`'s members after `Core\Jwe`: `python tools/dossier.py --id '<member>'` prints what each owes.

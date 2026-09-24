@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program checks texts that are nested very deep, very large, or broken. Each call must
+// return `true` or `false`, and must not throw an error or crash.
+
+// 1. Arrays and objects nested one hundred thousand levels deep. The limit is 512 levels, so each
+// call must return `false`.
+array<string> $deep = [
+    Core\Str::repeat('[', 100000),
+    Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000),
+    Core\Str::repeat("{\"a\":", 100000),
+];
+foreach ($deep as string $tooDeep) {
+    if (Core\Json::isValid($tooDeep)) {
+        throw new LogicError('a document deeper than the limit was called valid');
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. The limit itself. 512 levels must be valid, and 513 levels must not be.
+string $atLimit = Core\Str::repeat('[', 511) . '1' . Core\Str::repeat(']', 511);
+string $pastLimit = '[' . $atLimit . ']';
+if (!Core\Json::isValid($atLimit) || Core\Json::isValid($pastLimit)) {
+    throw new LogicError('the depth limit moved');
+}
+echo 'step 2: done', "\n";
+
+// 3. The largest `int` is valid. One more is too large for `int`, so it is not valid.
+if (!Core\Json::isValid('9223372036854775807') || Core\Json::isValid('9223372036854775808')) {
+    throw new LogicError('the largest int changed');
+}
+echo 'step 3: done', "\n";
+
+// 4. Eight broken texts, from empty text to a zero byte inside a string. Each must return `false`.
+array<string> $broken = ['', ' ', "\"open", "\"\\ud800\"", '[1,]', '{} {}', "\"a\0b\"", 'nul'];
+foreach ($broken as string $text) {
+    if (Core\Json::isValid($text)) {
+        throw new LogicError('broken text was called valid');
+    }
+}
+echo 'step 4: done', "\n";
+
+// 5. A list of two hundred thousand numbers, and one string of ten million characters.
+string $numbers = '[' . Core\Str::repeat('7,', 199999) . '7]';
+string $long = "\"" . Core\Str::repeat('x', 10000000) . "\"";
+if (!Core\Json::isValid($numbers) || !Core\Json::isValid($long)) {
+    throw new LogicError('a large valid document was refused');
+}
+echo 'step 5: done', "\n";
+
+// 6. A document of ten thousand numbers is checked a thousand times. `isValid` keeps nothing, so
+// the memory of each check must be freed.
+string $medium = '[' . Core\Str::repeat('1,', 9999) . '1]';
+uint $valid = 0;
+uint $i = 0;
+while ($i < 1000) {
+    if (Core\Json::isValid($medium)) {
+        $valid = $valid + 1;
+    }
+    $i = $i + 1;
+}
+if ($valid != 1000) {
+    throw new LogicError('a check returned the wrong answer');
+}
+echo 'step 6: done', "\n";

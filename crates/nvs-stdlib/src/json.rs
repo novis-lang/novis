@@ -3678,6 +3678,43 @@ mod tests {
         }
     }
 
+    /// The member as a program calls it: a well-formed document answers
+    /// `true`, and malformed text, a nesting one level past the default depth
+    /// and an integer past `int` each answer `false` without a throw — the
+    /// depth asserted on both sides of `DEFAULT_MAX_DEPTH`.
+    // covers: Core\Json::isValid
+    #[test]
+    fn is_valid_answers_false_rather_than_throwing_and_holds_the_default_depth() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |text: &str| {
+            let args = [Value::str(NvsStr::new(text.as_bytes()))];
+            let answer = nvs_runtime::call(nvs_core_json_is_valid, &mut ctx, &args)
+                .expect("isValid never throws for text");
+            assert!(
+                ctx.take_pending().is_none(),
+                "{text:?} left a pending throw"
+            );
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            answer.as_bool()
+        };
+
+        assert_eq!(ask(r#"{"id":7,"tags":["a","b"],"ok":true}"#), Some(true));
+        assert_eq!(ask("9223372036854775807"), Some(true));
+        for bad in ["", "{id:7}", "[1,]", "{} {}", "9223372036854775808"] {
+            assert_eq!(ask(bad), Some(false), "{bad:?} was called valid");
+        }
+
+        // A scalar is depth 1 and each bracket adds one.
+        let nest = |brackets: usize| format!("{}1{}", "[".repeat(brackets), "]".repeat(brackets));
+        assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize - 1)), Some(true));
+        assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize)), Some(false));
+    }
+
     #[test]
     fn trailing_content_is_refused() {
         assert!(decoded("{} {}", 8).is_err());
