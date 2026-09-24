@@ -9,12 +9,15 @@ export const handoffShape = s.object({
   next: s.object({
     /** The goal stage the group is in, which picks that stage's `context`; null for none. */
     stage: s.nullable(s.int()),
-    title: s.string(),
+    /** The group's bold name on its lead line; a lead line with none has only a `note`. */
+    title: s.optional(s.string()),
     /** The file set the group's slices share. */
     files: s.array(s.string()),
     /** Markdown after the file set on the group's lead line, when there is any. */
     note: s.optional(s.string()),
     items: s.array(s.object({ done: s.boolean(), text: s.string() })),
+    /** Markdown after the checklist, when there is any. */
+    after: s.optional(s.string()),
   }),
   backlog: s.array(s.string()),
 });

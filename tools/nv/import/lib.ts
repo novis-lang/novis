@@ -81,6 +81,16 @@ export function frontMatter(src: string): { fields: Map<string, string>; body: s
   return { fields, body: src.slice(m[0].length) };
 }
 
+/** `lines` as Markdown paragraphs, each unwrapped to one line, or "" for none. */
+export function unwrap(lines: string[]): string {
+  return lines
+    .join("\n")
+    .split(/\n\s*\n/)
+    .map((p) => p.split("\n").map((l) => l.trim()).filter((l) => l !== "").join(" "))
+    .filter((p) => p !== "")
+    .join("\n\n");
+}
+
 /**
  * The keys of `value` that `known` does not list, as one `Unread` for `path` naming them. A legacy
  * field no record carries is dropped by the import, and this is what makes the drop visible.

@@ -29,7 +29,8 @@ const check = s.object({
   id: s.slug(),
   kind: s.enum("command", "cargo-named", "nvs-suite", "exact", "ordered", "contains", "min-bytes"),
   stage: s.int(),
-  name: s.string(),
+  /** What the driver prints for the check; a check over one `file` may go without. */
+  name: s.optional(s.string()),
   argv: s.optional(s.array(s.string())),
   args: s.optional(s.array(s.string())),
   cwd: s.optional(s.string()),
@@ -64,7 +65,8 @@ const env = s.object({
 
 export const goalShape = s.object({
   title: s.string(),
-  milestone: s.ref("milestone"),
+  /** Null for a goal that lands in no milestone. */
+  milestone: s.nullable(s.ref("milestone")),
   /** `last` pins the goal behind every goal not pinned, whatever the chain's order. */
   position: s.optional(s.enum("last")),
   /** The fixtures its checks run, carried into the next goal's floor with them. */
