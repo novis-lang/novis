@@ -7643,14 +7643,15 @@ def verify_state():
     A gate that demanded green outright would roll back every pass whenever the *language* was red
     -- and the language is red most of the time, because a red acceptance check is what the loop is
     working on. So a pass is judged against the tree as it was handed over, not against an ideal.
-    `verify.py` prints `verify: FAILED at <step>`, which is the whole of what a comparison needs."""
-    code, out = probe("verify.py", timeout=3600)
-    if code == 0:
+    `bun nv verify` prints `verify: FAILED at <step>`, which is the whole of what a comparison
+    needs."""
+    r = capture("bun", ["nv", "verify"], timeout=3600)
+    if r.code == 0:
         return True, ""
-    for line in out.split("\n"):
+    for line in (r.out + "\n" + r.err).replace("\r\n", "\n").split("\n"):
         if line.startswith("verify: FAILED at "):
             return False, line[len("verify: FAILED at "):].split()[0]
-    return False, f"exit {code}"
+    return False, f"exit {r.code}"
 
 
 def tools_still_load(changed):
@@ -7823,7 +7824,7 @@ def evidence_pack(fired, ev, since, report_path, baseline):
         f"  {free:.1f}G free; a run refuses to start below {disk.MIN_FREE_GB}G",
         "",
         "== THE TREE'S VERIFICATION STATE GOING IN",
-        ("  green -- tools/verify.py passes, so any red after your pass is yours"
+        ("  green -- `bun nv verify` passes, so any red after your pass is yours"
          if baseline[0] else
          f"  RED, at the `{baseline[1]}` step, before you touched anything. That is the loop's own\n"
          "  worklist and it is NOT yours to fix -- do not take a checklist item. It does mean your\n"
@@ -7976,12 +7977,12 @@ def settle(base, run, report, status, baseline):
         say("the pass edited tools/ -- verifying before handing the loop back", C.CYAN)
         ok, failed_at = verify_state()
         if not ok and baseline[0]:
-            return rollback(base, shas, f"verify.py was green going in and now FAILS at {failed_at}")
+            return rollback(base, shas, f"nv verify was green going in and now FAILS at {failed_at}")
         if not ok and failed_at != baseline[1]:
-            return rollback(base, shas, f"verify.py failed at {baseline[1]} going in and now "
+            return rollback(base, shas, f"nv verify failed at {baseline[1]} going in and now "
                                         f"fails at {failed_at} instead")
         if not ok:
-            say(f"verify.py still fails at {failed_at}, exactly as it did before the pass -- not "
+            say(f"nv verify still fails at {failed_at}, exactly as it did before the pass -- not "
                 "the pass's doing, so it stands", C.YELLOW)
 
     say(f"the pass stands: {status or '(no status line)'}", C.GREEN)
@@ -8087,7 +8088,7 @@ def checkpoint(opts, since):
     say("measuring the tree before the pass, so it is judged on what it changed", C.GRAY)
     TICKER.set(phase="baseline verify", detail="")
     baseline = verify_state()
-    say(f"   verify.py going in: {'green' if baseline[0] else 'RED at ' + baseline[1]}",
+    say(f"   nv verify going in: {'green' if baseline[0] else 'RED at ' + baseline[1]}",
         C.GREEN if baseline[0] else C.YELLOW)
     verdict = run_pass(opts, fired, ev, since, baseline)
     ledger(f"## optimization pass {datetime.now():%Y-%m-%d %H:%M} after {since} session(s) "
@@ -8384,18 +8385,18 @@ def land_side(run):
 
 
 def landing_verify():
-    """`verify.py`, then the whole acceptance list with the floor gate open, over the rebased
+    """`bun nv verify`, then the whole acceptance list with the floor gate open, over the rebased
     branch. Returns "" when both are green, or one line saying which was red and where."""
-    step("landing: verify.py over the rebased branch", C.CYAN)
-    TICKER.set(detail="verify.py")
-    r = capture(sys.executable, [str(ROOT / "tools" / "verify.py")], timeout=7200)
+    step("landing: nv verify over the rebased branch", C.CYAN)
+    TICKER.set(detail="nv verify")
+    r = capture("bun", ["nv", "verify"], timeout=7200)
     if r.code != 0:
         text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
         last = next((ln.strip() for ln in reversed(text.split("\n")) if ln.strip()), "")
-        return f"verify.py is red over the branch rebased onto main: {last}"
+        return f"nv verify is red over the branch rebased onto main: {last}"
     dirty = sidemod.main_dirty(ROOT)
     if dirty:
-        return (f"verify.py changed {len(dirty)} tracked file(s) ({', '.join(dirty[:5])}); "
+        return (f"nv verify changed {len(dirty)} tracked file(s) ({', '.join(dirty[:5])}); "
                 f"commit what it wrote")
     try:
         goal = load_goal()

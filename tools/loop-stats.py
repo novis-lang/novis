@@ -46,7 +46,8 @@ LOGDIR = ROOT / ".loop" / "logs"
 
 # A tail begins at the first verification call: everything from there on is verify, docs,
 # handoff and commit, which a group pays once no matter how many slices sit in front of it.
-VERIFY_MARKERS = ("verify.py", "tools/verify")
+# `verify.py` stays in the list because the logs of every run before `nv verify` name it.
+VERIFY_MARKERS = ("nv verify", "verify.py", "tools/verify")
 MUTATORS = ("Edit", "Write", "NotebookEdit")
 
 #: A top-level command separator inside one shell call. `|` is deliberately not one -- a pipeline
@@ -125,7 +126,7 @@ BUCKETS = (
     ("process docs", ("docs/agent/",)),
     ("adr", ("docs/adr/", "docs/decisions/")),
     ("plan + spec", ("implementation-plan", "docs/plan/", "docs/spec/", "plan.py")),
-    ("build + test", ("verify.py", "cargo ", "nvs test", "nvs run", "loop.py")),
+    ("build + test", ("nv verify", "verify.py", "cargo ", "nvs test", "nvs run", "loop.py")),
     ("git", ("git ",)),
     ("discovery", ("grep", "rg ", "find ", " ls ", "glob", "Glob", "Grep")),
     ("source", ("crates/", "benches/", "tests/", "examples/", "tools/", "fuzz/")),
