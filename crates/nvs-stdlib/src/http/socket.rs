@@ -1219,23 +1219,26 @@ mod tests {
     /// rather than a quiet one, so a live peer with nothing to say stays open
     /// past a silence that would otherwise have ended it.
     ///
-    /// The peer says nothing for twice the `idle` and then speaks. What keeps
-    /// the socket open is its pong, which is why the peer holds its silence by
-    /// reading rather than by sleeping: a peer that had stopped answering the
-    /// protocol is the case this one is written to be distinguishable from.
+    /// The peer says nothing until it has answered enough pings to outlast
+    /// the `idle`, and then speaks. What keeps the socket open is its pong,
+    /// which is why the peer holds its silence by reading rather than by
+    /// sleeping: a peer that had stopped answering the protocol is the case
+    /// this one is written to be distinguishable from.
+    ///
+    /// The client sends its next ping `ping` after the last pong, so the pings
+    /// are never closer together than that, and the silence is longer than
+    /// `idle` however slowly the machine runs. Each pong has to come back
+    /// within `idle` less `ping`, and the gap between the two is the room left
+    /// for a loaded machine.
     #[test]
     fn socket_ping_keeps_a_quiet_live_peer_open() {
-        let (at, served) = talking_origin(
-            None,
-            vec![Say::Quiet(Duration::from_millis(400)), Say::Text("late")],
-        );
-        let mut open = opened(
-            at,
-            Duration::from_millis(200),
-            Duration::from_secs(30),
-            1 << 20,
-        );
-        open.ping = Some(Duration::from_millis(60));
+        let idle = Duration::from_secs(1);
+        let ping = Duration::from_millis(50);
+        let pings =
+            usize::try_from(idle.as_millis() / ping.as_millis()).expect("a small count") + 2;
+        let (at, served) = talking_origin(None, vec![Say::Answering(pings), Say::Text("late")]);
+        let mut open = opened(at, idle, Duration::from_secs(30), 1 << 20);
+        open.ping = Some(ping);
 
         let began = Instant::now();
         let message = heard(&mut open).expect("the message a quiet peer sent when it had one");
@@ -1247,7 +1250,7 @@ mod tests {
             "what a live peer eventually said is a message and not the end of the conversation"
         );
         assert!(
-            took > Duration::from_millis(200),
+            took > idle,
             "the wait outlived an `idle` a pong is what carried it past: {took:?}"
         );
 

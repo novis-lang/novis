@@ -3046,6 +3046,10 @@ pub(crate) mod tests {
         /// it holds. A peer with nothing to say has not gone away, and the pong
         /// is the only thing that tells the two apart.
         Quiet(Duration),
+        /// Nothing at all until it has answered this many of the other end's
+        /// pings — a silence whose length the client's ping cadence sets, so a
+        /// loaded machine stretches it rather than cutting it short.
+        Answering(usize),
     }
 
     /// What a talking peer heard before the conversation ended.
@@ -3057,6 +3061,8 @@ pub(crate) mod tests {
         /// peer reads only while it holds a silence or waits for the close, so
         /// a case that asserts this sends before the script ends.
         pub(crate) said: Vec<tungstenite::Message>,
+        /// How many pings the client sent while the peer was reading.
+        pub(crate) pinged: usize,
     }
 
     /// A loopback origin that answers one opening handshake and then holds up
@@ -3089,6 +3095,7 @@ pub(crate) mod tests {
             Heard {
                 closed: None,
                 said: Vec::new(),
+                pinged: 0,
             }
         });
         (at, served)
@@ -3120,6 +3127,7 @@ pub(crate) mod tests {
         let mut heard = Heard {
             closed: None,
             said: Vec::new(),
+            pinged: 0,
         };
         for say in script {
             let carried = match say {
@@ -3127,7 +3135,20 @@ pub(crate) mod tests {
                 Say::Bytes(octets) => peer
                     .send(tungstenite::Message::Binary(vec![b'.'; octets].into()))
                     .is_ok(),
-                Say::Quiet(how_long) => listens(&mut peer, Instant::now() + how_long, &mut heard),
+                Say::Quiet(how_long) => {
+                    listens(&mut peer, Instant::now() + how_long, None, &mut heard)
+                }
+                // The bound is only what turns a client that stopped pinging
+                // into a failed case rather than a hung one.
+                Say::Answering(pings) => {
+                    let enough = heard.pinged + pings;
+                    listens(
+                        &mut peer,
+                        Instant::now() + Duration::from_secs(20),
+                        Some(enough),
+                        &mut heard,
+                    )
+                }
             };
             if !carried {
                 break;
@@ -3138,13 +3159,15 @@ pub(crate) mod tests {
         listens(
             &mut peer,
             Instant::now() + Duration::from_secs(5),
+            None,
             &mut heard,
         );
         heard
     }
 
-    /// Says nothing until `ends`, answering the client's pings meanwhile, and
-    /// reports whether the conversation survived that long.
+    /// Says nothing until `ends`, or until the client's pings reach `enough`,
+    /// answering those pings meanwhile, and reports whether the conversation
+    /// survived that long.
     ///
     /// **Reading is what makes this a live peer.** `tungstenite` answers a ping
     /// with a pong as it reads, so a silence held by sleeping would be a peer
@@ -3156,12 +3179,16 @@ pub(crate) mod tests {
     fn listens(
         peer: &mut WebSocket<std::net::TcpStream>,
         ends: Instant,
+        enough: Option<usize>,
         heard: &mut Heard,
     ) -> bool {
         let held = loop {
+            if enough.is_some_and(|pings| heard.pinged >= pings) {
+                break true;
+            }
             let now = Instant::now();
             if now >= ends {
-                break true;
+                break enough.is_none();
             }
             peer.get_mut()
                 // Never zero: a `TcpStream` reads a zero timeout as no bound at
@@ -3177,6 +3204,7 @@ pub(crate) mod tests {
                 Ok(message @ (tungstenite::Message::Text(_) | tungstenite::Message::Binary(_))) => {
                     heard.said.push(message);
                 }
+                Ok(tungstenite::Message::Ping(_)) => heard.pinged += 1,
                 Ok(_) => {}
                 Err(tungstenite::Error::Io(why))
                     if matches!(
@@ -4098,23 +4126,26 @@ pub(crate) mod tests {
     /// longer than what is left of the deadline ends the call now rather than
     /// sleeping through the budget and then failing.
     ///
-    /// The origin asks for a minute and the call has half a second, so the
-    /// elapsed time is the whole assertion: a clamp that slept to the deadline
-    /// and tried again would take that half second and answer `TimeoutError`
-    /// too, which is why the bound asserted is well under it.
+    /// The origin asks for an hour and the call has half a minute, so the
+    /// assertion is that the call came back before its deadline did: a clamp
+    /// that slept to the deadline and tried again would answer `TimeoutError`
+    /// too, but only once the deadline had passed. The half minute is room for
+    /// a loaded machine, and only an implementation that sleeps spends it.
     #[test]
     fn retry_after_past_the_deadline_throws_now() {
         let (at, served) = origin(vec![
-            "HTTP/1.1 503 Busy\r\nRetry-After: 60\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 503 Busy\r\nRetry-After: 3600\r\nContent-Length: 0\r\n\r\n",
         ]);
         let mut retried = call(at, "test");
         retried.attempts = 3;
         retried.backoff = Duration::from_millis(1);
-        retried.deadline = Instant::now() + Duration::from_millis(500);
+        retried.deadline = Instant::now() + Duration::from_secs(30);
 
-        let started = Instant::now();
         let expired = send(&retried, &mut never).expect_err("the deadline, not the header");
-        assert!(started.elapsed() < Duration::from_millis(400), "it slept");
+        assert!(
+            Instant::now() < retried.deadline,
+            "it slept to the deadline"
+        );
         assert!(format!("{expired:?}").contains("deadline"), "{expired:?}");
         served.join().expect("the origin thread");
     }
