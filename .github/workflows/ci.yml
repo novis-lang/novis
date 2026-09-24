@@ -566,7 +566,7 @@ jobs:
         run: python tools/playbook.py --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and
       # the newest release tag all agree, and a released version has a changelog section. Cheap
-      # and Python-only like the checks above. It belongs here rather than in `verify.py` for the
+      # and Python-only like the checks above. It belongs here rather than in `nv verify` for the
       # same reason they do: that script's green cache deliberately does not hash `docs/`, and
       # this reads CHANGELOG.md.
       - name: The version is consistent across the manifest, the tags and the changelog

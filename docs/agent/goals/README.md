@@ -174,7 +174,7 @@ as a chain goal, with three differences.
   goal and nothing else, in a worktree of its own at `.agent-tmp/worktrees/side/<slug>` on branch
   `side/<slug>`. A chain run never installs it. Several side runs and the chain run may run at once.
 - **It lands instead of switching.** When its list is green the side run rebases onto `main`, runs
-  `verify.py` and its whole list again, waits until `main` is clean and the chain run has reached a
+  `nv verify` and its whole list again, waits until `main` is clean and the chain run has reached a
   session boundary, and fast-forwards `main`. Its checks join the installed goal's floor as it lands,
   its `.toml` and `.handoff.md` are retired, and the worktree and branch are removed. Then the side run
   ends.

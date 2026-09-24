@@ -109,7 +109,7 @@ A probe loaded 3,109 of these files into SQLite in 0.51 s with Python and 0.22 s
 - **Goal-end sweeps cost 23.6 of 28 check-hours.** A test-only or card edit in
   `crates/nvs-stdlib/src/*.rs` re-keys nearly every check.
 - **`crates/nvs-cli/src/script.rs:2505` runs 10,000 compiles in a debug build.** That is 315 s, the
-  tail of every `verify.py`. The floor names this test by its prefix `units_held_stay_bounded_after_`.
+  tail of every `nv verify`. The floor names this test by its prefix `units_held_stay_bounded_after_`.
 - **`tools/loop.py:2190` `plain_crate_test` misses `--bin` and `--lib` checks.** Such a check pays
   `cargo` a second time.
 - **The tiers in `tools/verify_keys.py` are too wide:**
@@ -136,7 +136,7 @@ A probe loaded 3,109 of these files into SQLite in 0.51 s with Python and 0.22 s
   - `:1425` `binary_key` is size and mtime.
   - `:1593` `impl_hash` goes stale on a comment edit.
 - **Doc-tests and flaky tests:**
-  - `verify.py` runs rustdoc over 18 crates to find five doc-tests, which costs 32 s.
+  - `nv verify` runs rustdoc over 18 crates to find five doc-tests, which costs 32 s.
   - Its pool sets no `RUST_TEST_THREADS`, and four tests fail under load:
     - `nvs-host` `watchdog.rs:926`;
     - `nvs-stdlib` `http/transport.rs:4117` and `socket.rs:1241`;
@@ -248,13 +248,13 @@ wants is a contract the port keeps.
 **Does:** Makes the Rust tests faster and steadier, and adds the build profile the proofs run on.
 
 One file set: `crates/nvs-cli/src/script.rs`, the four flaky tests' files, the crates' `Cargo.toml`,
-the workspace `Cargo.toml`, `tools/verify.py`. They go first because they make every later session's
+the workspace `Cargo.toml`, `nv verify`. They go first because they make every later session's
 `verify` minutes faster.
 
 - **The bounded-units test runs 200 edits** and is renamed
   `units_held_stay_bounded_after_two_hundred_edits`. The assertion after every edit stays.
 - **`doctest = false`** is set in every crate with no doc-test. The one-line
-  `RUST_TEST_THREADS` change in `verify.py`'s pool sets pool width times threads to about the
+  `RUST_TEST_THREADS` change in `nv verify`'s pool sets pool width times threads to about the
   machine's cores.
 - **The four load-flaky tests wait on a condition, never on a wall-clock bound.**
 - **`[profile.proof]`** inherits `release` with `lto = false`, `incremental = true` and
@@ -265,7 +265,7 @@ the workspace `Cargo.toml`, `tools/verify.py`. They go first because they make e
 **Does:** Builds `bun nv`: the command, its record library and its index.
 
 One file set: `package.json`, `bun.lock`, `tsconfig.json`, `tools/nv/**`, `.gitignore`,
-`tools/verify.py` (one step).
+`nv verify` (one step).
 
 - **The package:**
   - `package.json` at the root has one script, `"nv": "bun tools/nv/main.ts"`, and pins Bun in
@@ -288,7 +288,7 @@ One file set: `package.json`, `bun.lock`, `tsconfig.json`, `tools/nv/**`, `.giti
   - `nv render [--check]` writes or checks the rendered files.
   - `nv selftest` runs `tsc --noEmit` and `bun test`.
 - **Tests:** `bun test` covers the writer's round trip, the schema, the index rebuild and the prose
-  scanner. `verify.py` gains a `nv selftest` step.
+  scanner. `nv verify` gains a `nv selftest` step.
 
 ## Stage 4 — the importer
 

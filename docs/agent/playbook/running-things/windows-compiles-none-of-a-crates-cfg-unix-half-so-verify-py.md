@@ -1,4 +1,4 @@
-- **Windows compiles none of a crate's `#[cfg(unix)]` half, so `verify.py` on this host is silent
+- **Windows compiles none of a crate's `#[cfg(unix)]` half, so `nv verify` on this host is silent
   about it** — a Unix-only type can be green here and not compile at all. The check is one call,
   `wsl.exe -- bash -lc 'cd /mnt/<drive>/<repo> && CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo
   test -p <crate>'`, and a second for `cargo clippy -p <crate> --all-targets` because the lints are

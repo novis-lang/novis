@@ -95,7 +95,7 @@ which links this session broke.
 
 That last one is a refusal too. A wrap will not write a **dead link** -- one in a body it is about
 to write, or one anywhere in the tree that resolved at HEAD and does not resolve now. Both are
-`check-links.py`, which is CI's `docs` job and which `verify.py` deliberately does not run (its own
+`check-links.py`, which is CI's `docs` job and which `nv verify` deliberately does not run (its own
 docstring says why), so a green verification says nothing at all about links and this is the last
 moment before the push. A link that was **already** dead at HEAD is printed and refuses nothing:
 that one is CI's to report and a human's to schedule, and holding this session for it would leave
@@ -984,7 +984,7 @@ RECORD_GATES = (
     (("--check",),
      "a decision record's field set, heading order, cross-links or derived counters are wrong -- "
      "most often a `changes:` block with no `modifies:` list, which the checker's own message "
-     "spells out. `verify.py` does not run this one either."),
+     "spells out. `nv verify` does not run this one either."),
 )
 
 #: And one directory further. The migration table is read by two acceptance checks and by nothing a
@@ -1025,7 +1025,7 @@ def rulebook_findings() -> list[str]:
 
     The rulebook is the home of every rule that is currently true, and the tree cites it about
     18,500 times -- so it is the most-read structure in `docs/` and, until this gate, the only part
-    of `docs/` nothing checked. `verify.py` deliberately does not run a docs gate (its own docstring
+    of `docs/` nothing checked. `nv verify` deliberately does not run a docs gate (its own docstring
     says why), and CI's `docs` job is after the push, so a session that renamed a rule learned about
     its 40 dead citations from a red `lint` job rather than from the wrap that wrote them.
 
@@ -1733,7 +1733,7 @@ def check() -> int:
             say("  shape OK: State / Next group / Backlog, every open item with a repo-rooted file:NN anchor")
 
     say()
-    say("== LINKS  (python tools/check-links.py -- CI's `docs` job, which verify.py does not run)")
+    say("== LINKS  (python tools/check-links.py -- CI's `docs` job, which nv verify does not run)")
     broke, found = link_findings()
     base = session_base()
     where = "HEAD" if base == "HEAD" else f"{base[:9]}, where this session opened"

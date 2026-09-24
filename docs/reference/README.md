@@ -3,7 +3,7 @@
 [`docs/novis.md`](../novis.md) is the one-file reference to everything Novis has, written for a
 reader who has never seen this repository: a search engine, a language model, a person. **It is
 generated, never edited** — `python tools/reference.py` builds it from three inputs and runs every
-example in it against the binary; `python tools/verify.py` does the same after every build, so it
+example in it against the binary; `bun nv verify` does the same after every build, so it
 follows the code without anyone remembering to.
 
 | Input | Owner | What it contributes |
@@ -107,7 +107,7 @@ the duplication this file exists to avoid.
 Every fenced block in a chapter or introduction is read by the generator. A block marked `nvs` is
 **run** (`nvs run`) in a fresh directory, and the `output` block directly after it is what it must
 print, byte for byte after trailing whitespace is trimmed. An example that fails is a failed
-`verify.py` — so every example is proof, and there is no way to ship a wrong one.
+`nv verify` — so every example is proof, and there is no way to ship a wrong one.
 
     ```nvs
     <?nvs

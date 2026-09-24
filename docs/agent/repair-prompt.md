@@ -19,7 +19,7 @@ item. `AGENTS.md` still holds in full, rule 1 included: the driver runs you unde
    check that is itself wrong. A test renamed to match, a check removed or a bound loosened until it
    passes is not a fix. If the verdict came from something already fixed on disk, nothing needs
    changing: say so in step 5.
-3. **Verify once:** `python tools/verify.py`, plus whatever the fix itself needs.
+3. **Verify once:** `bun nv verify`, plus whatever the fix itself needs.
 4. **Commit each fix on its own.** Write the message to a file under `.agent-tmp/` and commit with
    `git commit -F`. The shape is [conventions.md](conventions.md) § *A commit message*, and the
    `commit-msg` hook refuses trailer lines. Leave `docs/agent/handoff.md` alone unless the fix changes

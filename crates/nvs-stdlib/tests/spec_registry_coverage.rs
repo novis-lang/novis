@@ -53,7 +53,7 @@
 //! ones those are — so the honest reading of "fails naming every one with no
 //! registry entry" is a test that is red for the whole of the loop that exists
 //! to make it green. That trade was refused:
-//! `tools/verify.py` stops at the first failing step, so a permanently red
+//! `nv verify` stops at the first failing step, so a permanently red
 //! `cargo test` costs every later session its clippy and fmt signal, which is
 //! a much larger loss than the one it buys. The acceptance gate withholds
 //! *done* on `loop-goal.toml`'s `min_passing = 600` regardless, and that

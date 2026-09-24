@@ -1,5 +1,5 @@
 - **Cut by entity, never by line number, and check the count afterwards.** A range that starts one
   line late leaves a `#[test]` attached to the previous item — which is a silent lost test, not an
   error, unless the function happens to take arguments. `grep -c '#\[test\]'` before and after, and
-  the test count in `verify.py`'s output, are the two checks that catch it.
+  the test count in `nv verify`'s output, are the two checks that catch it.
   [until: reviewed 2026-09-06]

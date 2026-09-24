@@ -109,7 +109,7 @@ modules = [
   # The wrap: its sections, its gates, the handoff and plan splices.
   "tools/session.py",
   # The steps, the test pool, `RUST_TEST_THREADS`, the doc-test job.
-  "tools/verify.py",
+  "tools/nv/cmd/verify.ts",
   # The tiers and `STEP_READS`; the card tier is added here.
   "tools/verify_keys.py",
   # Per-binary keys, `common()`, `--explain`; `--probe` goes where this goes.
@@ -6673,8 +6673,8 @@ argv = ["python", "tools/chain.py", "--check"]
 [[check]]
 kind = "command"
 stage = "1 floor"
-name = "verify.py runs the gate in order"
-argv = ["python", "tools/verify.py", "--list"]
+name = "nv verify runs the gate in order"
+argv = ["bun", "nv", "verify", "--list"]
 
 [[check]]
 kind = "command"
@@ -12223,8 +12223,8 @@ tests = ["unowned_is_no_longer_an_owner_for_a_key"]
 [[check]]
 kind = "command"
 stage = "1 floor"
-name = "verify.py runs the register's gate"
-argv = ["python", "tools/verify.py", "--list"]
+name = "nv verify runs the register's gate"
+argv = ["bun", "nv", "verify", "--list"]
 want = ["owners.py --check"]
 
 # ---------------------------------------------------------------------------------------------------

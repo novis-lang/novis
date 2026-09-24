@@ -395,7 +395,7 @@ starts rather than sitting empty.
 section does not restate it.** A prose copy here is what went stale: it named four crates while seven
 carried `unsafe`, and nothing failed. Cargo refuses a manifest that inherits `[workspace.lints]` and
 overrides one entry, so those crates must restate the whole table; `tools/lints.py` generates the
-copies and `--check` fails the `lint` CI job and `verify.py` on any drift. A crate joins the roster
+copies and `--check` fails the `lint` CI job and `nv verify` on any drift. A crate joins the roster
 with an ADR.
 
 Each `unsafe` block carries its own `#[allow(unsafe_code, reason = "...")]`, plus a safety-invariant

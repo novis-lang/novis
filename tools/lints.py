@@ -18,7 +18,7 @@ This script is what makes the copies copies — one home, mechanically enforced,
 the same shape as `tools/gen-attribution.py`.
 
     python tools/lints.py            # rewrite the generated tables
-    python tools/lints.py --check    # exit 1 if any has drifted (CI, verify.py)
+    python tools/lints.py --check    # exit 1 if any has drifted (CI, nv verify)
 
 `UNSAFE_CRATES` below is the roster of manifests that may override, and the
 reason each one needs to. It is the one home for that list: `docs/plan/design.md`

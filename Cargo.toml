@@ -982,7 +982,7 @@ criterion = "0.7"
 # -- so they restate the whole table with `unsafe_code = "deny"` and allow each
 # block individually with a reason. `python tools/lints.py` generates those
 # copies from this table and `--check` fails on drift, in the `lint` CI job and
-# in `verify.py`; a lint added here reaches every crate through it. That
+# in `nv verify`; a lint added here reaches every crate through it. That
 # script's `UNSAFE_CRATES` is the roster of crates that may override and the one
 # home for it -- three prose copies of that list had gone stale, naming four
 # crates while seven carried `unsafe`. docs/plan/design.md § *Unsafe policy* is
@@ -1039,7 +1039,7 @@ debug = "line-tables-only" # keep backtraces useful in production builds
 # silently becomes a panic, which `catch_unwind` contains to one request per ADR 0002, instead of a wrong
 # length nothing reports. Intentional wraparound is spelled `wrapping_*`. The cast half of the same
 # discipline is already enforced -- `[workspace.lints.clippy]` below carries `cast_possible_truncation`,
-# `cast_possible_wrap` and `cast_sign_loss`, and `tools/verify.py` runs clippy with `-D warnings`.
+# `cast_possible_wrap` and `cast_sign_loss`, and `nv verify` runs clippy with `-D warnings`.
 overflow-checks = true
 
 # Compiling Novis's own dependencies with optimisation makes debug builds of the
@@ -1052,7 +1052,7 @@ overflow-checks = true
 # info of every linked object into each binary's PDB, so cranelift and wasmtime
 # were being written into all ~60 test binaries at once. Measured 2026-08-25:
 # 3.9 GB of PDBs per build generation before, 1.7 GB after, and a session's own
-# `verify.py` went 51s -> 43s rather than paying for it: there is less debug
+# `nv verify` went 51s -> 43s rather than paying for it: there is less debug
 # info to link and to load. The one-time cost is that every dependency
 # recompiles once, 2m20s here. See tools/disk.py on why generations pile up.
 [profile.dev.package."*"]

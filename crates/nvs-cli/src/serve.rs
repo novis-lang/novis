@@ -3700,7 +3700,7 @@ mod tests {
     ///
     /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s
     /// guards are: a cost margin holds only on an idle machine, and
-    /// `tools/verify.py` runs this binary beside every other test binary in
+    /// `nv verify` runs this binary beside every other test binary in
     /// the workspace. The driver runs it under `--release` once its sweep has
     /// finished and the box is idle — `tools/loop.py`'s release checks.
     #[test]

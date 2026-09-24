@@ -265,7 +265,7 @@ class StatusLine:
         self.total = 0
         self.calls = 0
         self.tokens = ""  # `ctx 84.2k in / 6.1k out` while a session runs; see `Renderer.count`
-        self.verifying = ""  # `verify test 3/7 12s` while verify.py runs; see `VerifyWatch`
+        self.verifying = ""  # `verify test 3/7 12s` while nv verify runs; see `VerifyWatch`
         self.since = time.monotonic()
         self._frame = 0
         self._rows = 0  # rows the live block owns right now; 0 when it is not on screen
@@ -377,7 +377,7 @@ class StatusLine:
             self.tokens = text
 
     def verify(self, text):
-        """What `verify.py` is doing right now, or "" when it is not running. Painted by the
+        """What `nv verify` is doing right now, or "" when it is not running. Painted by the
         next tick rather than here: the ticker is the only caller, and it draws right after."""
         with self.lock:
             self.verifying = text
@@ -1051,7 +1051,7 @@ class VerifyWatch:
     it: the step in flight and its clock go on the status line behind the tool call, and each
     boundary gets one grey line in the scrollback and the session log, so the timeline is still
     there once the call has returned. A `--start` run shows the same way while the session writes
-    its wrap file beside it. `tools/verify.py` writes the same file in the same shape, so a
+    its wrap file beside it. `nv verify` writes the same file in the same shape, so a
     session that still runs it shows too.
 
     Armed for the life of a session and nothing else. A file older than the arming is a previous
@@ -1689,7 +1689,7 @@ class NativeLeg:
         self.binary = None
 
     def prepare(self):
-        # The whole workspace, never `-p nvs-cli`: this is `verify.py`'s own `build` step, so on a
+        # The whole workspace, never `-p nvs-cli`: this is `nv verify`'s own `build` step, so on a
         # tree a session just verified it is a fingerprint scan, and a `-p` build resolves features
         # over one package's graph and writes a second copy of every workspace crate that
         # `disk.py`'s live set cannot name -- AGENTS.md's rule.
@@ -1861,7 +1861,7 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # of the tree its kind reads -- `Goal.remembered` -- and a partition is a set of top-level names.
 # A check is skipped only when every byte it can read is identical to the bytes it was last green
 # over: a deterministic check over identical inputs cannot reach a different verdict, which is
-# `verify.py`'s rule for its own green cache. Nothing is keyed on what a session says it touched,
+# `nv verify`'s rule for its own green cache. Nothing is keyed on what a session says it touched,
 # because a session's diff is not what a check reads, and the dirty tree counts as much as HEAD.
 #
 # Each set is a SUPERSET on purpose, and the safe direction is always wider. Narrowing a set is
@@ -2535,19 +2535,19 @@ class Goal:
       whose verdict it already held. What a check reads off the shared result -- its own `cases`,
       its own `min_passing` -- is still judged per check.
     * **A plain `cargo test -p <crate>` check runs no cargo of its own.** One warm
-      `cargo test --no-run` over the workspace -- the build `verify.py` already made -- names every
+      `cargo test --no-run` over the workspace -- the build `nv verify` already made -- names every
       test executable with its package (`test_executables`), and the check runs the crate's own
       binaries directly (`crate_tests`). Measured: `cargo test -p X` straight after a workspace
       build RECOMPILES X, because a package selected alone unifies its dependencies' features
       differently from the workspace, so the `-p` artifact is a second one that every source edit
       stales. A sweep paid that seven times over -- 28s of rebuilds in front of 25s of tests --
       plus a cargo start per check. What this path does not run is doc-tests, which no `tests`
-      list can name anyway (a doc-test is `path.rs - Item (line N)`); `verify.py` runs them.
+      list can name anyway (a doc-test is `path.rs - Item (line N)`); `nv verify` runs them.
     * **Across runs**, every check's green verdict is remembered in `.loop/goal-green.json`
       against a content hash of *the partitions of the tree its kind reads* (`reads_of`,
       `partition_ids`) and of its own spec. Those inputs being bit-identical is the whole
       argument: a deterministic check over identical bytes cannot reach a different verdict,
-      which is `verify.py`'s rule for its own green cache. The file outlives a session, a run
+      which is `nv verify`'s rule for its own green cache. The file outlives a session, a run
       and a goal switch, so a verdict stands until a session changes a byte the check reads,
       however long ago it was filed. **That is what scopes the sweep a goal is reached on**: it
       runs with the floor gate open and the memo consulted, so it pays for the checks whose
@@ -2954,7 +2954,7 @@ class Goal:
         does not compile is reported by the first check that asks as a build failure rather
         than as a test that did not run.
 
-        One `cargo test --no-run --message-format=json`: `verify.py`'s own `cargo test` without
+        One `cargo test --no-run --message-format=json`: `nv verify`'s own `cargo test` without
         the run, so on the tree a session just verified it is a fingerprint scan, and on any
         other it is the one build every crate then shares. The artifact messages carry the
         package (`path+file:///…/crates/nvs-types#0.0.1`, or `…/benches/abi-probe#nvs-abi-probe@0.0.1`
@@ -3239,7 +3239,7 @@ class Goal:
     def partition_ids(self):
         """One content hash per partition of the tree (`PARTITIONS`, `OTHER`, `STATE`), the
         compiler folded into `crates`, or `None` when anything was unreadable -- and then no memo
-        fires and every check runs, which is `verify.py`'s rule as well: the safe direction is
+        fires and every check runs, which is `nv verify`'s rule as well: the safe direction is
         doing the work.
 
         One walk of the tree, every file's path and bytes fed to the hasher of the partition its
@@ -4386,7 +4386,7 @@ class Goal:
 
         What it defers, and the argument that this is safe: a sweep that stops here has not run the
         fixtures, the suites, the second leg or the valgrind sweep over this session's work. But the
-        session itself has just run `verify.py` -- build, fmt, test, both `.nvst` trees, clippy --
+        session itself has just run `nv verify` -- build, fmt, test, both `.nvst` trees, clippy --
         and, decisively, **a goal cannot be declared reached without a full green sweep**: `drive`
         advances the chain only on an empty `fail`, and `fail` is empty only when everything below
         has run. So the full sweep runs on exactly the sessions that move the frontier, and a
@@ -4844,7 +4844,7 @@ class SessionFiles:
     - **The event stream.** `note` reads the target off every write tool as the block goes past.
     - **`written.py`.** `nv splice` and `reference.py` write files nothing on the stream names --
       a patch reaches any number of targets behind one `Bash`, and `docs/novis.md` is regenerated
-      under `verify.py` with no tool call mentioning it at all. Both report what they wrote.
+      under `nv verify` with no tool call mentioning it at all. Both report what they wrote.
 
     A shell that carries content into the tree by itself is outside both, and is also the first
     rule in `AGENTS.md`: an edit that Write and Edit cannot express goes through `nv splice`. So
@@ -5793,7 +5793,7 @@ def mark_interrupted(index, why=None):
     was supposed to start in, and if the RUN ends there -- `s` at the console, the last session of
     a `--max-sessions` batch -- nothing ever picks them up. That is not a hypothetical; it is how
     1,200 lines of goal `schema` stage 6 sat uncommitted across a stopped run on 2026-09-06, including a
-    `docs/novis.md` that `verify.py` had regenerated under a session that then never wrapped.
+    `docs/novis.md` that `nv verify` had regenerated under a session that then never wrapped.
 
     An unverified commit is the right trade here and the asymmetry is not close. The work is on a
     branch the loop owns, the acceptance sweep runs against it immediately afterwards, and the
@@ -5833,7 +5833,7 @@ def mark_interrupted(index, why=None):
             f"\n"
             f"The session ended before it wrapped -- {said} -- so this is what it had in the\n"
             f"tree at that moment, committed by the driver rather than left for the next one to\n"
-            f"find as an unexplained diff. It has NOT been through `verify.py`.\n"
+            f"find as an unexplained diff. It has NOT been through `nv verify`.\n"
             f"\n"
             + (f"{len(left)} other path(s) were dirty before this session launched and are NOT\n"
                f"in this commit -- they are somebody else's work and are still in the tree.\n"
@@ -6777,7 +6777,7 @@ AUDIT_EVERY = 50
 
 def read_counter(path, every):
     """Sessions since a periodic gate last fired. An unreadable file fires it rather than skipping
-    it, which is `partition_ids`'s rule and `verify.py`'s: the safe direction is doing the work."""
+    it, which is `partition_ids`'s rule and `nv verify`'s: the safe direction is doing the work."""
     try:
         return int(json.loads(path.read_text(encoding="utf-8")).get("since", 0))
     except (OSError, ValueError, TypeError):
@@ -7499,7 +7499,7 @@ def drive(opts, goal, chain, run):
 # That the long-lived process runs NOTHING is the constraint the rest follows from, and both
 # ways of breaking it cost something real. Work done up there -- a checkpoint, a hold, a count --
 # is code read once per run and never again, and it is work done by a process that does not read
-# the keys, so `s`, `p` and `r` are dead for its length; a checkpoint can be a full `verify.py`
+# the keys, so `s`, `p` and `r` are dead for its length; a checkpoint can be a full `nv verify`
 # and then a whole optimization session. A flag parsed up there is a second argparse to keep
 # equal to this one's by hand. So every flag reaches every turn exactly as it was typed, the
 # console belongs to the one turn alive, and `.loop/running` is held across all of them
@@ -7659,7 +7659,7 @@ def tools_still_load(changed):
 
     The cheap half of the code gate, and the half that catches what actually goes wrong: a syntax
     error or an argparse mistake in a script the driver shells out to. It costs a second and it
-    does not care what state the Rust tree is in, so unlike `verify.py` it is conclusive."""
+    does not care what state the Rust tree is in, so unlike `nv verify` it is conclusive."""
     for path in [p for p in changed if p.startswith("tools/") and p.endswith(".py")]:
         if not (ROOT / path).exists():  # the pass deleted it; that is the allowlist's business
             continue
@@ -8063,7 +8063,7 @@ def checkpoint(opts, since):
         # would mix their edits into its revert range, so it waits -- and the counter waits with
         # it, so this is asked again straight after the next session (`look_due`). It does
         # not reset: a pass deferred is not a pass taken. Checked before the baseline measurement
-        # below, which is a full `verify.py` and worth nothing if the pass is not going to run.
+        # below, which is a full `nv verify` and worth nothing if the pass is not going to run.
         say(f"{len(fired)} signal(s) and the pass is due, but the tree is not clean -- "
             "deferring it until the next session is over", C.YELLOW)
         for s in fired:
@@ -8449,7 +8449,7 @@ def turn(opts, goal, chain, run):
     code, which is `respawn.AGAIN` exactly when the run goes on.
 
     The console belongs to this process for the whole of it, so `s`, `p` and `r` mean the same
-    thing through a checkpoint -- which can be a full `verify.py` and then an optimization
+    thing through a checkpoint -- which can be a full `nv verify` and then an optimization
     session -- as they do inside a work session."""
     LOGDIR.mkdir(parents=True, exist_ok=True)
     CONSOLE.open_run(LOGDIR / f"{run.run_id}-console.log")

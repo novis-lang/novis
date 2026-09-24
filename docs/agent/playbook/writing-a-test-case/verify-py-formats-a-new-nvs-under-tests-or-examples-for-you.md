@@ -1,6 +1,6 @@
-- **`verify.py` formats a new `.nvs` under `tests/` or `examples/` for you, and nothing formats one
+- **`nv verify` formats a new `.nvs` under `tests/` or `examples/` for you, and nothing formats one
   under `docs/examples/` or `benches/members/`.** `crates/nvs-fmt/tests/identity.rs:49` holds the
-  first two trees to the formatter's layout and `verify.py`'s `nvs-fmt` step brings a new or modified
+  first two trees to the formatter's layout and `nv verify`'s `nvs-fmt` step brings a new or modified
   file into it — quotes, spacing and brace placement, never what a `.out` recorded — so only a bare
   `cargo test` still fails on one. Leave an example or a bench in its neighbours' style: those trees
   are not corpus, and formatting one only diverges it.

@@ -59,7 +59,7 @@ All of it lands with the seam:
 - **The attack** (`tests/hostile/core/Arr/sort/01-every-row-at-size-with-its-corners.nvs`): every
   row at 200 000 entries with its corner values mixed in, both orders, keys preserved, `sortByKey`,
   and a declined subject. Both binaries print the same five lines.
-- **`python tools/verify.py`** green with the seam wired in, and the two userland cases print the
+- **`bun nv verify`** green with the seam wired in, and the two userland cases print the
   same checksum as PHP.
 
 ## Performance

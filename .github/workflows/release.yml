@@ -29,7 +29,7 @@
 # ## Every decision lives in tools/release.py, not here
 #
 # Version arithmetic, the changelog rules, the manifest rewrite and the packaging are all in that
-# script, for the reason `tools/verify.py` holds the verification steps: YAML that computes things
+# script, for the reason `nv verify` holds the verification steps: YAML that computes things
 # can only be tested by pushing it. Run `python tools/release.py --preview major` on a clone to
 # see exactly what a dispatch would produce, without a runner and without credentials.
 #

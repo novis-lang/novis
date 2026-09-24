@@ -3,7 +3,7 @@
 // suite lives under the same tree and is skipped here; `scripts/host.mjs` is what runs it.
 //
 // `tools/loop.py`'s acceptance check greps this output for `grammar:`, `contributions:`,
-// `protocol:` and `0 failing`, and `tools/verify.py` greps it for `N passing`. A suite that does
+// `protocol:` and `0 failing`, and `nv verify` greps it for `N passing`. A suite that does
 // not exist yet prints no line and the check stays red, which is the state the goal's later stages
 // are in — the runner never invents a green for a directory nobody has written.
 //

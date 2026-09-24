@@ -1,4 +1,4 @@
-- **`nvs-host`'s clock-reading watchdog tests fail under `verify.py`'s side-by-side test run and
+- **`nvs-host`'s clock-reading watchdog tests fail under `nv verify`'s side-by-side test run and
   pass alone, so the gate goes red on a crate your slice never touched.**
   `a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing` and
   `a_run_that_is_no_core_is_sampled_and_reported_never` measure process CPU time every other test

@@ -2018,7 +2018,7 @@ mod tests {
     /// is that one core drives every one of them to its end.
     ///
     /// **Skipped in the debug profile**, for the reason `nvs-cli`'s throughput
-    /// guard is: `tools/verify.py` runs this binary beside every other test
+    /// guard is: `nv verify` runs this binary beside every other test
     /// binary in the workspace, and a hundred thousand stack reservations and
     /// the switches they cost through an unoptimized scheduler is not a thing to
     /// do on that path. The driver runs it under `--release` once its sweep has

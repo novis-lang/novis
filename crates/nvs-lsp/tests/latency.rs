@@ -21,7 +21,7 @@
 //! because this guard must be *both* honest and awake. The honest one is the
 //! release figure: that is the build an editor runs, and the claim is about
 //! what a person typing waits for. The debug one exists because
-//! `cargo test -p nvs-lsp` — `verify.py`'s run, and the loop's acceptance
+//! `cargo test -p nvs-lsp` — `nv verify`'s run, and the loop's acceptance
 //! check — builds without optimisations, and a guard `#[ignore]`d there would
 //! never run in this repository at all.
 //!

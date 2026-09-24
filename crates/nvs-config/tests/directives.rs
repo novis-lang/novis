@@ -2421,7 +2421,7 @@ fn reads_the_key<'a>(source: &'a [(String, String)], dotted: &str) -> Option<&'a
 /// `server.listen` and `[app] mode`, so a scan for a field access answers about whichever field it
 /// found and fails for a reason that has nothing to do with the key. So what is asserted here is one
 /// sound half — no key the default file marks unimplemented is read anywhere by name — and the
-/// census over all three spellings stays `tools/directives.py --check`'s, which `tools/verify.py`
+/// census over all three spellings stays `tools/directives.py --check`'s, which `nv verify`
 /// runs. The half asserted here is the one a field search cannot see, which is why it is worth
 /// having twice: `Core\Storage` reaches its disk root as `config.get("storage.{disk}.root")`.
 #[test]

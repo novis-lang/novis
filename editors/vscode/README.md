@@ -18,7 +18,7 @@ npm run test:host           the same suites' other tier, in a real VS Code
 npm run package             the .vsix
 ```
 
-`python tools/verify.py` from the repository root runs `test:headless` as its last step, after the Rust
+`bun nv verify` from the repository root runs `test:headless` as its last step, after the Rust
 gates. `test:host` is the other tier and runs on every acceptance sweep, here and in CI:
 `scripts/host.mjs` downloads a pinned VS Code into `.vscode-test/`, opens a copy of `test/host/fixture/`
 in a throwaway profile with every other extension disabled, and prints the report the in-host runner

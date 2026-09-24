@@ -96,7 +96,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance test from docs/agent/loop-goal.toml
-      -> passes, then `verify.py --doc`, and `owners.py --closes <slug>` with `playbook.py --closes`:
+      -> passes, then `nv verify --doc`, and `owners.py --closes <slug>` with `playbook.py --closes`:
                                               either red -> the goal stays open, the run carries on
       -> passes, the chain has a next goal -> install it and keep going, stall streak reset
       -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
@@ -237,7 +237,7 @@ Three more things it does, none of which is obvious:
 - **The run holds at its own boundary too, and the keys still work there.** The boundary behind a session
   is not an idle moment: it is where an optimization pass may start, and a pass edits this tree exactly
   the way a session does. The turn that served the session is the process that runs the boundary, so
-  `s`, `p` and `r` mean the same thing through a checkpoint — a full `verify.py` and then a whole
+  `s`, `p` and `r` mean the same thing through a checkpoint — a full `nv verify` and then a whole
   optimization session — as they do inside one. A hold arriving while the signals are being gathered is
   answered before the pass starts, not after it, and an `s` still inside its cancel window when the turn
   is about to end is waited out rather than lost with the process.
@@ -347,7 +347,7 @@ test module stales no fixture, suite or leg, and one
 that adds a conformance case, an attack, an example and a bench stales the conformance suite, the
 crates' tests and the tool gates, and no fixture, leg, valgrind sweep, fuzz run, matrix or cost
 guard. Identical inputs into a deterministic check cannot come out a different verdict,
-which is the same argument `verify.py` makes for its own green cache, and `PARTITIONS`, `SPLITS`
+which is the same argument `nv verify` makes for its own green cache, and `PARTITIONS`, `SPLITS`
 `reads_of` and the two by-name tables beside it in `tools/loop.py` are the one home of which paths
 a partition holds and which set a check gets, each with the grep that derived it. Narrowing one is
 a claim to be shown, never a tuning knob. What no partition holds is a service's state — the
@@ -521,7 +521,7 @@ a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-
 
 **The console belongs to the one turn alive.** Stdin and the bottom rows are inherited by the turn and
 never touched by `respawn.py` — two readers on one console take each other's keypresses. `s`, `p` and `r`
-therefore mean the same thing during a checkpoint, which can be a full `verify.py` followed by a whole
+therefore mean the same thing during a checkpoint, which can be a full `nv verify` followed by a whole
 optimization session, as they do inside a work session.
 
 **A run's logs share one stamp.** `<run>-console.log` is the whole run, checkpoints included, and
@@ -559,7 +559,7 @@ This is the one place in the loop where an agent edits the machinery that will d
 unattended, so what follows a pass is not a review — it is four exit codes and a `git revert` on any of
 them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` or `CONTRIBUTING.md`;
 `orient.py` must still produce a pack; `loop.py --list` must still read the acceptance list; and a pass that
-touched `tools/` must leave `verify.py` green. A failure reverts the whole pass — `revert`, not `reset`, so
+touched `tools/` must leave `nv verify` green. A failure reverts the whole pass — `revert`, not `reset`, so
 the history still shows what was undone — and the loop carries on with the code it had. `--no-optimize`
 turns the pass off and keeps the restarts; `--optimize-only` runs one against the tree as it stands.
 

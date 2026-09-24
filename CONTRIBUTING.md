@@ -114,10 +114,10 @@ cargo test --release -p nvs-abi-probe --features wasm-probe    # + sandbox probe
 cargo bench -p nvs-abi-probe                                   # track the numbers
 ```
 
-`python tools/verify.py` runs build, fmt, test, the `.nvst` trees and clippy in that order, stopping at the
+`bun nv verify` runs build, fmt, test, the `.nvst` trees and clippy in that order, stopping at the
 first failure — one call instead of the four above.
 
-The docs carry their own gates, which `verify.py` deliberately does not run because they need no
+The docs carry their own gates, which `nv verify` deliberately does not run because they need no
 toolchain and finish in about a second together. They are CI's `docs` job, and a change to `docs/` or to
 this file is checked by them and by nothing else:
 

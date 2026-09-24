@@ -2,5 +2,5 @@
   `path-agrees-a-trailing-or-repeated-separator-is-nothing.nvst` doubles every separator of six
   paths, so widening `Core\Path`'s grammar with a UNC root turned one constructed path into a
   different root and four members stopped agreeing about it. After a grammar change read the cases
-  that *build* their inputs before the ones that write them out; `tools/verify.py`'s `.nvst` step is
+  that *build* their inputs before the ones that write them out; `nv verify`'s `.nvst` step is
   where it surfaces, a step after the unit tests that all passed. [until: reviewed 2026-09-17]

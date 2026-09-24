@@ -104,9 +104,9 @@ const HOLES_READS: &[&str] = &[
 ///
 /// The interpreter is looked up the way every other entry point into this
 /// tree's tooling is invoked, and a machine with no Python fails the gate
-/// rather than skipping it: `verify.py`, `loop.py` and `session.py` are all
-/// Python, so a checkout that cannot run one cannot run this project's checks
-/// at all.
+/// rather than skipping it: `loop.py`, `session.py` and several of the steps
+/// `nv verify` runs are Python, so a checkout that cannot run one cannot run
+/// this project's checks at all.
 fn holes(arg: &str) -> String {
     let script = nvs_repo::path("tools/holes.py");
     assert!(script.is_file(), "{} is missing", script.display());

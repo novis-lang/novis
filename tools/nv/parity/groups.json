@@ -295,23 +295,5 @@
       ["--only"],
       ["--bogus"]
     ]
-  },
-  "verify": {
-    "python": ["python", "tools/verify.py"],
-    "nv": ["bun", "tools/nv/main.ts", "verify"],
-    "cases": [
-      ["--list"],
-      ["--list", "--fast"],
-      ["--list", "-p", "nvs-ir"],
-      ["--list", "--package=nvs-ir", "--fast"],
-      ["--list", "--doc"],
-      ["--start", "--wait"],
-      ["--doc", "--fast"],
-      ["--list", "--start"],
-      ["--list", "--wait"],
-      ["-p"],
-      ["--list", "-p", "--fast"],
-      ["--bogus"]
-    ]
   }
 }

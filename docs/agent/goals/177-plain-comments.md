@@ -69,7 +69,7 @@ Then, in this session and only after every worker has stopped:
    does not open with `//`. There should be none. One that exists is reverted, not reviewed.
 2. `python tools/dossier.py --run examples` over what changed. A comment cannot change what a
    program prints, so a red example here means a worker touched code.
-3. `python tools/verify.py`, then the wrap. One commit per chapter or class.
+3. `bun nv verify`, then the wrap. One commit per chapter or class.
 
 ## Standing decisions
 

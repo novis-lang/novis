@@ -60,7 +60,7 @@ Then, in this session and only after every worker has stopped, in this order:
 3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run
    prints both lines back with the scope already in them. A figure taken while eight
    workers are running is not a measurement, so nothing else may be in flight.
-5. `python tools/verify.py`, then the wrap. One commit per feature still.
+5. `bun nv verify`, then the wrap. One commit per feature still.
 
 Nothing in that list is optional, and none of it may overlap the fan-out.
 

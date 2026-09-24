@@ -26,7 +26,7 @@ language model, a person -- and is generated, never edited. Its three inputs:
 
 Every fenced `nvs` block in a chapter is a program this tool **runs against the binary**, and the
 `output` fence after it is what the program must print -- so an example that stops being true fails
-`python tools/verify.py` rather than misleading the next reader. The fence grammar is the README's.
+`bun nv verify` rather than misleading the next reader. The fence grammar is the README's.
 
 ## The primer, which it proves and does not build
 
@@ -46,7 +46,7 @@ here and nowhere else.
 
 The spec is authoritative for the *designed* surface, implemented or not; the ADRs hold reasoning
 a language user never needs. This file holds only what ships, in the order a user learns it, with
-every member once. `python tools/verify.py` regenerates it after every build, so it follows the
+every member once. `bun nv verify` regenerates it after every build, so it follows the
 registry without anyone remembering to.
 """
 
@@ -952,7 +952,7 @@ def main() -> int:
     else:
         if text != current:
             OUT.write_text(text, encoding="utf-8", newline="\n")
-            # Nothing a session does names this file, and `verify.py` runs this tool in every
+            # Nothing a session does names this file, and `nv verify` runs this tool in every
             # session: without the note, the loop's sweep reads it as somebody else's edit.
             written.record(OUT)
             print(f"reference.py: wrote {OUT.relative_to(ROOT).as_posix()} "

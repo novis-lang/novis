@@ -61,7 +61,7 @@ and a milestone already behind the program. It arrived in pieces, each behind a 
 is built before the pass it gates and one that goes red on work nobody has done yet earns exactly
 one thing -- the exemption list this refuses to have. The pass is done, so the pieces are one gate,
 and `--untagged-is-an-error`, `--reasons` and `--past-is-an-error` are accepted and do nothing: a
-carried floor check still passes them, and a floor is carried verbatim. `verify.py` runs the whole
+carried floor check still passes them, and a floor is carried verbatim. `nv verify` runs the whole
 gate, so a gap written with no owner or the wrong one fails before it is committed, and a gap that
 cannot be tagged is a gap whose owner has to be decided -- a decision that is cheap exactly once,
 when the gap is written.
@@ -120,7 +120,7 @@ Usage:
     python tools/owners.py --deferrals  each milestone tag against the scope its plan file states
     python tools/owners.py --untagged   only the items that name nobody
     python tools/owners.py --unowned    only the items still tagged with the retired word
-    python tools/owners.py --check      the whole gate, which `verify.py` runs: exit 1 with a line
+    python tools/owners.py --check      the whole gate, which `nv verify` runs: exit 1 with a line
                                         per item owned by anything but a future milestone whose
                                         plan file states its scope
     python tools/owners.py --check --untagged-is-an-error --reasons --past-is-an-error

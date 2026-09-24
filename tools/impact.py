@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """What a change can reach: one key per test binary, over exactly what that binary reads.
 
-`tools/verify.py` keyed its `test` step on every input file in the tree, so a new case under
+`nv verify` keyed its `test` step on every input file in the tree, so a new case under
 `tests/hostile/` and a one-line edit to `nvs-lsp` each ran every test binary in the workspace.
 This file is the narrower key: a binary runs again when something *it* reads has moved, and is
 answered from the green cache when nothing has.
@@ -481,7 +481,7 @@ def findings(reach, jobs):
 
 
 def last_jobs():
-    """The test jobs `verify.py` last built, or an empty list."""
+    """The test jobs `nv verify` last built, or an empty list."""
     try:
         built = json.loads((TMP / "verify-test-built.json").read_text(encoding="utf-8"))
         return built.get("jobs") or []
@@ -520,7 +520,7 @@ def main():
 
     jobs = last_jobs()
     if not jobs:
-        print("impact: no test build is on record -- `python tools/verify.py` leaves one")
+        print("impact: no test build is on record -- `bun nv verify` leaves one")
         return 1
     if opts.check:
         found = findings(reach, jobs)

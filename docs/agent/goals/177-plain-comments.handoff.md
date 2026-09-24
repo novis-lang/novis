@@ -19,7 +19,7 @@ gate's switch, `[all] comments = true`, is **off** and stays off until Stage 2 i
 - [ ] Cut it by chapter and class, hand each to a worker under the rules in the goal's
       *Running this goal wide*, and launch them in one message.
 - [ ] After every worker has stopped: the `git diff -U0` read for a changed line that is not a
-      comment, `--run examples` over what changed, `python tools/verify.py`, the wrap.
+      comment, `--run examples` over what changed, `bun nv verify`, the wrap.
 
 ## Backlog
 

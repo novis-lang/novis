@@ -101,7 +101,7 @@ One file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/control
 - **`nvs-lsp`.** The inlay hint a `var` local carries — `: T` after the name — appears on a `var`
   `foreach` binding, key and value. Every other walker that reads `ForeachBinding::ty` is taught
   the third state rather than left to treat `var` as a missing type.
-- **`nvs fmt`** prints a `var` binding as written. `python tools/verify.py`'s `nvs-fmt` step over
+- **`nvs fmt`** prints a `var` binding as written. `bun nv verify`'s `nvs-fmt` step over
   the new examples is what proves it.
 
 ## Stage 4 — the feature proofs and the reference

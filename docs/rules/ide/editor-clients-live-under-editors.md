@@ -9,7 +9,7 @@ editors/
 Neither is a Cargo crate — the VS Code extension is TypeScript and Node tooling, the PhpStorm plugin is
 Kotlin, Gradle and the IntelliJ Platform SDK — so neither is governed by the workspace `Cargo.toml`, and
 each brings a build toolchain (`npm`/`vsce`, Gradle) that is a genuinely new kind of CI job next to
-everything `cargo` builds. `tools/verify.py` runs the extension's headless suites last, for that reason,
+everything `cargo` builds. `nv verify` runs the extension's headless suites last, for that reason,
 and treats the directory being absent as a real state rather than an error.
 
 A directory is created when its milestone starts, never scaffolded empty ahead of it — the rule every

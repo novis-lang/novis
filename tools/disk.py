@@ -31,7 +31,7 @@ Which is why age alone never condemns anything in `deps/`, the way `cargo-sweep`
 Cargo never rewrites an artifact it has decided is still fresh, so a superseded generation and a
 live one can carry the same date -- both were last written by the build that needed them. The
 live set is *asked for* instead: the cargo commands in `LIVE_QUERIES`, each warm and with
-`--message-format=json`, name every file the graph `tools/verify.py` builds actually uses.
+`--message-format=json`, name every file the graph `nv verify` builds actually uses.
 
 Age is the second key, and only ever as a reason to *keep*. Every debug build is one of the shapes
 in `LIVE_QUERIES` -- AGENTS.md's rule against `-p` is what makes that true, and commands.md § *A
@@ -236,7 +236,7 @@ def key(path):
     return os.path.normcase(os.path.abspath(path))
 
 
-#: What `tools/verify.py` builds, as the cargo commands its `build`, `test` and `clippy` steps
+#: What `nv verify` builds, as the cargo commands its `build`, `test` and `clippy` steps
 #: run, plus `build --workspace --all-targets` for every target kind whether verify compiles it
 #: or not. A step whose arguments change there changes here, or what it builds stops counting as
 #: live and is kept only by `GRACE_HOURS`.

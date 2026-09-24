@@ -1,4 +1,4 @@
-- **`#[cfg(unix)]` code is not compiled by anything this box runs, so a green `verify.py` says
+- **`#[cfg(unix)]` code is not compiled by anything this box runs, so a green `nv verify` says
   nothing about it.** The first Linux build of `nvs-cli`'s signal half reported
   `function_casts_as_integer` on a line that had been green here for sessions, and clippy's
   `-D warnings` on the driver's own leg would have failed on it. Build it yourself in seconds

@@ -290,7 +290,7 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 /// order — a worker's outcome waits until every case before it has been
 /// reported — so two runs of the same tree print the same text whatever the
 /// machine. What the pool buys is the difference between this tree dominating
-/// every `tools/verify.py` run, paid again by the loop's acceptance sweep, and
+/// every `nv verify` run, paid again by the loop's acceptance sweep, and
 /// it costing a fraction of the build it rides on.
 ///
 /// # Errors

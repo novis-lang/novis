@@ -200,7 +200,7 @@ harness that reads `.claude/`; every other one gets the floor from `peek.py` alo
 ## A debug cargo command never takes `-p`
 
 `cargo build`, `cargo test` and `cargo clippy --all-targets -- -D warnings` — bare, at the root — are
-the three shapes `verify.py` runs and `disk.py`'s `LIVE_QUERIES` keep. Warm, each is a fingerprint
+the three shapes `nv verify` runs and `disk.py`'s `LIVE_QUERIES` keep. Warm, each is a fingerprint
 scan of a few seconds, so there is nothing to save by narrowing the build. There is a lot to lose:
 cargo resolves features over the packages named on the command line, so `cargo test -p nvs-types`
 gives `serde`, `sha2`, `base64` and their like a feature set the workspace build does not, every
@@ -214,7 +214,7 @@ So a debug build is one of the three shapes, and a narrowing goes on what *runs*
 the target flags do exactly that — `--lib`, `--bin nvs` and `--test <name>` keep every hash:
 
 ```sh
-python tools/verify.py -p nvs-types                    # the tree's build; only nvs-types's test binaries run
+bun nv verify -p nvs-types                             # the tree's build; only nvs-types's test binaries run
 cargo test --test closures a_filter                    # one integration-test target, by name, off the same build
 cargo test --bin nvs cache::tests::                    # the CLI's unit tests, filtered
 cargo test --lib a_filter                              # every crate's unit tests, filtered; warm, seconds
@@ -228,13 +228,13 @@ crate's binaries off one shared `cargo test --no-run`, and the CLI prebuild is a
 ## Verifying
 
 ```sh
-python tools/verify.py                                         # build + fmt + test + clippy, one call
-python tools/verify.py --fast                                  # build + test only, for a mid-work check
-python tools/verify.py -p nvs-ir                               # the same build; only nvs-ir's test binaries run
-python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
-python tools/verify.py --no-cache                              # run every step, whatever the cache holds
-python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)
-python tools/verify.py --list                                  # the steps in order, running none of them
+bun nv verify                                                  # build + fmt + test + clippy, one call
+bun nv verify --fast                                           # build + test only, for a mid-work check
+bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
+bun nv verify --start   ... --wait                             # run it while you write the wrap file
+bun nv verify --no-cache                                       # run every step, whatever the cache holds
+bun nv verify --doc                                            # the rustdoc gate alone (the driver's)
+bun nv verify --list                                           # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p nvs-cli --bin nvs by_the_margin         # the CLI's two cost margins (skipped in debug)
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
@@ -252,9 +252,9 @@ returns at once; `--wait` collects it, with its exit status, and prints how much
 it, write the wrap file — which is prose you already know and cannot fail — then collect:
 
 ```sh
-python tools/verify.py --start
+bun nv verify --start
 <Write the wrap file>
-python tools/verify.py --wait
+bun nv verify --wait
 python tools/session.py --wrap .agent-tmp/wrap.md
 ```
 
@@ -274,13 +274,14 @@ whole verdict.
 **`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `tools/loop.py` runs it only on
 the acceptance sweep that would reach a goal, holding the goal open while it is red. A goal in progress
 may carry broken doc links; the session that writes `DONE` runs `--doc` and fixes them, and a red gate
-arrives in the next pack under *THE RUSTDOC GATE IS RED*. `tools/verify.py` § *Why `doc` runs when a
-goal ends rather than as a step* is the whole argument.
+arrives in the next pack under *THE RUSTDOC GATE IS RED*. The whole argument is § *Why `doc` runs
+when a goal ends rather than as a step* in `git show pre-overhaul:tools/verify.py`.
 
 `fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
 sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
 summary line names every file it rewrote, and its exit status is held to the end so a parse error is
-still reported by `build`. `tools/verify.py` § *Why `fmt` formats, and runs first* is the measurement.
+still reported by `build`. The measurement is § *Why `fmt` formats, and runs first* in
+`git show pre-overhaul:tools/verify.py`.
 
 **A step whose inputs have not changed is not run again**, and that is decided a step at a time. Each step
 is green against a key over what *it* reads, so documentation reaches no step, a reformatted `.nvs` under
@@ -291,8 +292,9 @@ cargo last built for that same code, with no rebuild. A `#[test]` added to a sou
 the `nvs` binary is built without it. That is not a check being skipped:
 the step's inputs are identical in every respect it can observe. A step is recorded the moment it is
 green, so a run that goes red at `test` keeps the verdicts before it; an entry expires after an hour,
-`--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. `tools/verify.py` §
-*Why a step whose inputs did not change is not run* is the argument and `tools/verify_keys.py` the table.
+`--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. The argument is
+§ *Why a step whose inputs did not change is not run* in `git show pre-overhaul:tools/verify.py`,
+and `tools/nv/keys/steps.ts` is the table.
 
 **Inside `test`, a binary whose inputs have not changed is not run either.** `tools/impact.py` keys
 each test binary on what *it* reads: its own package as bytes, the workspace packages it is compiled
@@ -301,18 +303,18 @@ against with comments and layout removed, and what it opens while it runs when i
 the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line each printed when it
 was green, so the step's counts stay the workspace's. The record also keeps every `test <name> ...`
 line, and the loop's acceptance sweep reads it: a test binary whose key matches is answered from
-`verify.py`'s run and not run a second time (`tools/loop.py`'s `verify_green`). Every doubt resolves wide — a binary whose
+`nv verify`'s run and not run a second time (`tools/loop.py`'s `verify_green`). Every doubt resolves wide — a binary whose
 sources leave their package some other way, or whose dep-info cannot be found, keeps the whole-tree
 key. `python tools/impact.py` lists which binaries are narrow and why the others are not,
 `--explain <path>...` says what an edit to a path re-runs, and `--graph` prints the package graph
-that decides it. `tools/verify.py` § *Why `test` runs only the binaries a change reaches* is the
-argument.
+that decides it. The argument is § *Why `test` runs only the binaries a change reaches* in
+`git show pre-overhaul:tools/verify.py`.
 
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
 `tests/` and `examples/`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and
 the fix was always the same command and the whole run again.
 
-**The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
+**The docs gates are not in that list and `nv verify` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
 second together — and `session.py --wrap` runs **six families** of them in-process, so a wrap cannot
@@ -356,7 +358,7 @@ python tools/loop.py --settle     # run those, and only those
 python tools/impact.py --explain crates/nvs-lsp/src/lib.rs   # which test binaries an edit re-runs
 ```
 
-**Verification runs what a change can reach, and the checks that cost minutes wait.** `verify.py`
+**Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
 runs the test binaries a change reaches and every `.nvst` case; the fuzz run, the valgrind sweep, the
 release-profile guards, the database matrix and the rest of the carried floor are the loop's, and
 inside a run they wait for the floor gate (`tools/loop.py`'s `FLOOR_GATE_EVERY`) and for the sweep a
@@ -368,7 +370,7 @@ something runs them.
 a sweep stops at its first red, because the goal's later stages are red until they are built. The
 gate-open sweep that would reach the goal, landing a side goal, and `--settle` run past a red check
 instead, and the ledger's `goal check:` line is followed by one `also red:` line per other red check,
-which the pack prints. The goal-end gates (`verify.py --doc`, `owners.py --closes`) run after that
+which the pack prints. The goal-end gates (`nv verify --doc`, `owners.py --closes`) run after that
 sweep whether it is red or green. A gate-open sweep also runs a sample of the checks the memo already
 answers, to test the memo (`tools/loop.py`'s `audits` and `AUDIT_EVERY`); a red one is a `SELECTOR
 MISS`.
@@ -402,7 +404,7 @@ python tools/proof.py --judge             # score the latest run; report.md besi
 
 `docs/novis.md` is the one file a language user, a search engine or a language model reads, and it
 is **generated**: Part B and the tables inside chapters come from `nvs meta --json`, the prose from
-one chapter per topic under `docs/reference/`. `verify.py` runs `reference.py` as a step after the
+one chapter per topic under `docs/reference/`. `nv verify` runs `reference.py` as a step after the
 case trees, so the file follows the registry on every green run and a chapter example the binary no
 longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
 and the rules; `proof.py`'s module doc is what a failed task means.
@@ -433,7 +435,7 @@ under `tests/differential/`, and `nvs test` runs the same two programs the same 
 translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
 `.nvst` test case* owns the format.
 
-`try.py` needs `target/debug/nvs` built; `verify.py` builds it, so a snippet run after a green
+`try.py` needs `target/debug/nvs` built; `nv verify` builds it, so a snippet run after a green
 verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
 finding, not an error.
 
@@ -471,7 +473,7 @@ a commit message nothing afterwards can even find — all refuse the whole
 file and write nothing. A
 half-finished tail is the one failure mode worth designing out.
 
-The link half is `check-links.py`, which is CI's `docs` job and which `verify.py` does not run, so a
+The link half is `check-links.py`, which is CI's `docs` job and which `nv verify` does not run, so a
 green verification says nothing about links. It is whole-tree rather than diff-scoped because the way
 links die here is a **rename**: the file moves and every citation of it goes dead, in files the session
 never opened. A link that was already dead at HEAD is reported and refuses nothing.
@@ -484,7 +486,7 @@ over one 19-session run, **9 sessions closed with a hand-rolled `git add docs/ag
 docs/agent/playbook.md docs/implementation-plan.md && git commit`** after this tool had already written all
 three, which is about two and a half calls each of exactly the hand-rolled git the wrap exists to remove.
 
-Why it exists: measured over a run, the tail of a session — first `verify.py` to last commit — was **33 of
+Why it exists: measured over a run, the tail of a session — first `nv verify` to last commit — was **33 of
 98 tool calls**, and since context peaks by then those turns carried **42% of the session's whole token
 bill**. Almost none of it was thinking; it was 6.0 calls a session on the plan, 5.2 re-deriving anchors
 already known, and the rest handoff, playbook, `git add`, `git commit`, `status.txt`. `--check` is the one
@@ -676,7 +678,7 @@ workspace was ~6 GB when this was found, and nine of them were on disk at once.
 
 `--clean` never deletes a `deps/` file for being *old*, the way `cargo-sweep` does — cargo never rewrites
 an artifact it considers fresh, so a superseded generation and a live one can carry the same date. It asks
-cargo instead: warm `--message-format=json` runs of the commands `verify.py` builds with name every file
+cargo instead: warm `--message-format=json` runs of the commands `nv verify` builds with name every file
 the current graph uses. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
 whatever cargo said — a build still in flight, and the `--test <name>` shape the rule above leaves open.
 That grace was a day once, every `-p` copy a session minted was younger than that, and the sweep freed
@@ -687,7 +689,7 @@ else.
 The two `debug` settings in `Cargo.toml`'s dev profile are the other half. On windows-msvc the linker
 copies the debug info of every linked object into each binary's PDB, so whatever the workspace carries
 is written into all ~60 test binaries at once. `[profile.dev.package."*"] debug = 0` took cranelift and
-wasmtime out of them, and a session's own `verify.py` got *faster* (51s → 43s) because there is less to
+wasmtime out of them, and a session's own `nv verify` got *faster* (51s → 43s) because there is less to
 link and to load; `[profile.dev] debug = "line-tables-only"` then took the type and variable info of
 Novis's own crates out, which was three quarters of what remained. A panic location and a backtrace
 still name file and line, so every `debug_assert` and the runtime's owner-stamp check report as they

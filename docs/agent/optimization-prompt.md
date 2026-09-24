@@ -80,7 +80,7 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
 
 6. **A tool that reports itself broken.** *Signal:* one of the loop's own scripts crashes, warns about its
    own state, or names a path that no longer exists. *Action:* the smallest fix that makes it stop. *Gate:*
-   the script parses, its `--help` runs, and `python tools/verify.py` is **no worse than it was going in** —
+   the script parses, its `--help` runs, and `bun nv verify` is **no worse than it was going in** —
    the evidence pack tells you which of those two states you are starting from. Every `tools/` edit carries
    that gate, because it is the only code here the loop actually executes.
 
@@ -129,7 +129,7 @@ Short, and each entry is here because it fails § *The one rule* — not because
 - every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md` or `README.md`;
 - every `tools/*.py` you touched still parses and still answers `--help`;
 - `orient.py` still produces a pack, and `loop.py --list` still reads the acceptance list;
-- if you touched `tools/`, `verify.py` is no worse than the state named in your evidence pack. **The tree
+- if you touched `tools/`, `nv verify` is no worse than the state named in your evidence pack. **The tree
   being red is normal** — a red acceptance check is what the loop is working on — so the comparison is
   against that, not against green. You are never asked to fix it, and fixing it is a work session's job.
 
@@ -168,7 +168,7 @@ Anything that looked like a bug in the loop itself, including a measurement that
 
 ## Finishing
 
-1. **Verify only what you touched.** Edited something under `tools/`? `python tools/verify.py`, once, and
+1. **Verify only what you touched.** Edited something under `tools/`? `bun nv verify`, once, and
    it must be green. Edited only markdown and TOML? Then re-run just the script whose output you changed —
    `python tools/orient.py --audit` after a manifest edit, `python tools/playbook.py --check` after a
    playbook edit — and nothing else. Prose cannot break a build, and a full gate here is fifteen minutes

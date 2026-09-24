@@ -1,4 +1,4 @@
-- **A helper landed ahead of its caller fails `verify.py` on `dead_code`; `#[expect(dead_code,
+- **A helper landed ahead of its caller fails `nv verify` on `dead_code`; `#[expect(dead_code,
   reason = "…")]` is the marker that removes itself.** `cargo clippy --all-targets -- -D warnings`
   stops the build on an uncalled private function; `#[allow]` goes stale silently while `#[expect]`
   fails the day the function is used. Do not pair it with a `#[cfg(test)]` test of the same function

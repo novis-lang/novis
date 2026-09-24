@@ -28,14 +28,14 @@ Three habits make this goal cheap. Every session holds to them:
 ## Next group
 
 **Stage 2: the Rust and Cargo cuts.** One file set: `crates/nvs-cli/src/script.rs`, the four flaky
-tests' files, the crates' `Cargo.toml`, the workspace `Cargo.toml`, `tools/verify.py`.
+tests' files, the crates' `Cargo.toml`, the workspace `Cargo.toml`, `nv verify`.
 
 - [ ] **`EDITS` becomes 200** (`crates/nvs-cli/src/script.rs:2513`). The test is renamed
       `units_held_stay_bounded_after_two_hundred_edits`, and its comment is rewritten whole.
 - [ ] **`doctest = false`** goes in every crate with no doc-test. The five doc-tests are in
       `nvs-diagnostics` `diagnostic.rs:5` and `lib.rs:7`, `nvs-runtime` `abi.rs:636` and `fmt.rs:25`,
       and `nvs-syntax` `lib.rs:46`.
-- [ ] **`RUST_TEST_THREADS`** goes in `verify.py`'s pool, so that pool width times threads is about the
+- [ ] **`RUST_TEST_THREADS`** goes in `nv verify`'s pool, so that pool width times threads is about the
       machine's cores.
 - [ ] **The four load-flaky tests wait on a condition**: `nvs-host` `watchdog.rs:926`, `nvs-stdlib`
       `http/transport.rs:4117` and `socket.rs:1241`, `nvs-lsp` `latency.rs:212`.

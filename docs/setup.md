@@ -1,8 +1,8 @@
 # Setting up a machine
 
-What a machine needs before `python tools/verify.py` or the acceptance run mean anything. One-time, per
+What a machine needs before `bun nv verify` or the acceptance run mean anything. One-time, per
 machine, and this file is the whole of it: the install list, then the few things a `git clone` does not
-carry. How the repo is *driven* once it is set up — `verify.py`, `nv splice`, WSL one-liners, valgrind,
+carry. How the repo is *driven* once it is set up — `nv verify`, `nv splice`, WSL one-liners, valgrind,
 fuzzing — is [docs/agent/commands.md](agent/commands.md).
 
 **On Windows, WSL is not optional and PHP is installed twice, at the same version.** That is the pair a new
@@ -30,10 +30,10 @@ reaches it over the 9p mount.
 |---|---|---|
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
-| The `claude` CLI on `PATH` — **the unattended loop only** | `tools/loop.py` spawns one `claude -p` per session and finds it with `shutil.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1 with `FileNotFoundError: [WinError 2]`, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `verify.py`, `--goal-only` and `--leg-only` never do. | `python -c "import shutil; print(shutil.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `loop.py` cannot see |
+| The `claude` CLI on `PATH` — **the unattended loop only** | `tools/loop.py` spawns one `claude -p` per session and finds it with `shutil.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1 with `FileNotFoundError: [WinError 2]`, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `nv verify`, `--goal-only` and `--leg-only` never do. | `python -c "import shutil; print(shutil.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `loop.py` cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
-| Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `tools/verify.py`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
+| Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `nv verify`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
 | VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
 Novis generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
@@ -151,7 +151,7 @@ third if anyone will work in this tree interactively.
    git config core.hooksPath                   # prints tools/git-hooks when it is set
    ```
 
-   `verify.py` prints a line every run until it is set. There are two:
+   `nv verify` prints a line every run until it is set. There are two:
 
    | Hook | Refuses | Cleared by |
    |---|---|---|
@@ -188,7 +188,7 @@ green is what costs a debugging session, so do not archive them "just in case".
 ## Proving the machine is set up
 
 ```sh
-python tools/verify.py                                   # build, fmt, test, the .nvst trees, clippy, the extension
+bun nv verify                                            # build, fmt, test, the .nvst trees, clippy, the extension
 cargo run -q -p nvs-cli -- test tests/differential/       # must report 0 skipped
 python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
 ```

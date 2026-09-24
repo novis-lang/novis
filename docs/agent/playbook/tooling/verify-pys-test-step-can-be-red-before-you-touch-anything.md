@@ -1,4 +1,4 @@
-- **`verify.py`'s test step can be red before you touch anything, and the failure names `nvs-ir`,
+- **`nv verify`'s test step can be red before you touch anything, and the failure names `nvs-ir`,
   not the goal switch that caused it.** `crates/nvs-ir/tests/refusals.rs` attributes every lowering
   refusal to an open item in `docs/agent/loop-goal.md`, so installing a new goal orphans every site
   the old goal's items claimed. `python tools/holes.py --unattributed` says whether it is yours; the

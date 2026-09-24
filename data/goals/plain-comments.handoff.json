@@ -16,7 +16,7 @@
       },
       {
         "done": false,
-        "text": "After every worker has stopped: the `git diff -U0` read for a changed line that is not a comment, `--run examples` over what changed, `python tools/verify.py`, the wrap."
+        "text": "After every worker has stopped: the `git diff -U0` read for a changed line that is not a comment, `--run examples` over what changed, `bun nv verify`, the wrap."
       }
     ]
   },

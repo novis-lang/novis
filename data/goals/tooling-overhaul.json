@@ -91,7 +91,7 @@
       "tools/loop.py",
       "tools/orient.py",
       "tools/session.py",
-      "tools/verify.py",
+      "tools/nv/cmd/verify.ts",
       "tools/verify_keys.py",
       "tools/impact.py",
       "tools/dossier.py",
@@ -7319,10 +7319,11 @@
       "id": "verify-py-runs-the-gate-in-order",
       "kind": "command",
       "stage": 1,
-      "name": "verify.py runs the gate in order",
+      "name": "nv verify runs the gate in order",
       "argv": [
-        "python",
-        "tools/verify.py",
+        "bun",
+        "nv",
+        "verify",
         "--list"
       ]
     },
@@ -14757,10 +14758,11 @@
       "id": "verify-py-runs-the-register-s-gate",
       "kind": "command",
       "stage": 1,
-      "name": "verify.py runs the register's gate",
+      "name": "nv verify runs the register's gate",
       "argv": [
-        "python",
-        "tools/verify.py",
+        "bun",
+        "nv",
+        "verify",
         "--list"
       ],
       "want": [

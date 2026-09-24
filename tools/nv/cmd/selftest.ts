@@ -1,6 +1,6 @@
 // `bun nv selftest`: the tools' own gate. It type-checks them with `tsc --noEmit` and runs their tests
 // with `bun test`, and prints one line for each half that passes. The two lines are what the loop's
-// acceptance check and `tools/verify.py`'s `nv` step read.
+// acceptance check and `nv verify`'s `nv` step read.
 
 import { join } from "node:path";
 import { passthrough } from "../lib/proc.ts";

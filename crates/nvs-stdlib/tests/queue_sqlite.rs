@@ -7,7 +7,7 @@
 //! all unless `NVS_DB_MATRIX_DRIVER` names a backend `python
 //! tools/db-matrix.py` has started a container for, because a socket is the
 //! only way to reach the four drivers that have one. SQLite is a file, so every
-//! case here runs on every machine and under `python tools/verify.py` — the
+//! case here runs on every machine and under `bun nv verify` — the
 //! statements below are *executed* on the default legs rather than read, which
 //! is the one thing this backend can offer that the others cannot.
 //!

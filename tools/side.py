@@ -27,7 +27,7 @@ already carries as its floor -- the worktree's `docs/agent/loop-goal.toml`, whic
 up to date (`effective_spec`). The live chain goal's own checks are left out: they are that goal's
 unfinished work, and a side run held red on them could never land.
 
-**Landing** is `loop.land`, in this order: rebase onto `main`; run `verify.py` and the full
+**Landing** is `loop.land`, in this order: rebase onto `main`; run `nv verify` and the full
 acceptance list with the floor gate open; take `main/.loop/merge.lock`; wait until the chain loop
 has yielded (or is not running, or is holding) and main's tracked files are clean; confirm `main`
 has not moved since the rebase; carry the side goal's own checks into main's installed goal as floor

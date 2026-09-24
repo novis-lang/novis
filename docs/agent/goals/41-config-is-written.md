@@ -87,7 +87,7 @@ wrong the week after it is written.
 4. **`--check` fails both ways.** A key with no reader and no `[unread:]` trailer is a key that landed
    silently. A key with a trailer *and* a reader is a stale marker — which is the failure that matters
    most, because it is the one that makes the generated file lie about a feature that now works.
-5. **It gates in `tools/verify.py`**, beside the `lints` and `reference` steps and for their reason:
+5. **It gates in `nv verify`**, beside the `lints` and `reference` steps and for their reason:
    it decides what the compile steps are allowed to mean.
 
 ## Stage 1 — implement or mark, and nothing in between

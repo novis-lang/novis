@@ -25,6 +25,6 @@
     "`nv migration` and `nv reference` (`tools/check-migration.py:230`); `reference.py` runs the binary and every example, so it is the largest of them — loop-goal.md § *Stage 5*.",
     "The rest of `nv brief` (status, milestones, map) — `tools/brief.py`.",
     "Each replaced check becomes a query in `nv check`, its old flag an alias; `owners --check` is the first with a parity-proven replacement — loop-goal.md § *Stage 5*.",
-    "`owners.py` is deleted only in a slice of its own, after its callers (`verify.py`, `loop.py` `owner_gate`, `plan.py`, the floor argvs) move to `nv owners` — loop-goal.md § *Stage 5*."
+    "`owners.py` is deleted only in a slice of its own, after its callers (`nv verify`, `loop.py` `owner_gate`, `plan.py`, the floor argvs) move to `nv owners` — loop-goal.md § *Stage 5*."
   ]
 }

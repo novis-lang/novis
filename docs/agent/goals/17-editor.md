@@ -23,7 +23,7 @@ renders as unstyled body text — a grammar that is technically correct and visi
 ## Stage 0 — the catch-up
 
 Nothing, and two things worth knowing rather than rediscovering: `tools/orient.py` already globs
-`editors/*/src/**/*.ts` for its module map, and `tools/verify.py` already carries the extension step and
+`editors/*/src/**/*.ts` for its module map, and `nv verify` already carries the extension step and
 its `npm` plumbing, dormant until `editors/vscode` exists. If a session finds either missing, that is a
 blocker for stage 2 and belongs in the handoff — not a tooling slice invented mid-goal.
 

@@ -75,7 +75,7 @@ impl ThreadClock {
 /// more than it read on entry.
 ///
 /// A test that needs a charge cannot spin for a *wall* interval and read the
-/// clock afterwards. Beside the other test binaries `tools/verify.py` runs at
+/// clock afterwards. Beside the other test binaries `nv verify` runs at
 /// the same time, a thread is preempted for most of any window it is given,
 /// and what the scheduler charges for the rest is quantised at its tick, so a
 /// fixed window can be charged nothing at all. The clock the ceiling is

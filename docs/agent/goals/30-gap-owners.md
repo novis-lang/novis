@@ -85,7 +85,7 @@ Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-swit
 
 ## Stage 4 — it stays true
 
-1. **`verify.py` runs the gate**, so a gap added without an owner fails before it is committed rather
+1. **`nv verify` runs the gate**, so a gap added without an owner fails before it is committed rather
    than two milestones later.
 2. **`brief.py --where` routes to it**, and the orientation pack names the count of unowned items so a
    session sees the number without reading the file.
@@ -121,4 +121,4 @@ Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-swit
 - **Ambiguity about whether something is a gap or a decision resolves toward *decision*, and it moves
   out of the block.** A `# Known gaps` list that holds settled non-goals is a list nobody trusts.
 - **What this spends**, per `rule:programs/memory-priority`: nothing at run time.
-  One tool invocation in `verify.py`, over doc comments already parsed by nothing.
+  One tool invocation in `nv verify`, over doc comments already parsed by nothing.

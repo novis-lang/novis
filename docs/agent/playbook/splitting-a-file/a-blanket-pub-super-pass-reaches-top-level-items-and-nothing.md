@@ -2,4 +2,4 @@
   rest in one build.** Fields, `impl` methods and an `unsafe fn` all sit outside a `^(fn |struct
   |…)` regex, so the first build after a split is a wall of `E0616`/`E0624` errors, one mechanical
   widening each. The one a build does not show is a doc link: `[`hydrate`]` stops resolving when
-  `hydrate` moves to a sibling, and only `verify.py --doc` says so. [until: reviewed 2026-09-06]
+  `hydrate` moves to a sibling, and only `nv verify --doc` says so. [until: reviewed 2026-09-06]

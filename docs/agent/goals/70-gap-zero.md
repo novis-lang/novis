@@ -32,7 +32,7 @@ closure goal's checks, and `test-doubles`' and `bigint`'s own. Never traded.
 
 ## Stage 2 — the gate becomes fatal
 
-One file set: `tools/owners.py`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, `tools/verify.py`.
+One file set: `tools/owners.py`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, `nv verify`.
 
 1. **`unowned` stops being an owner kind.** `tools/owners.py:@classify` and `:@tag_of` accept a live goal
    slug or an M9+ milestone tag, nothing else; `crates/nvs-stdlib/tests/spec_registry_coverage.rs`'s
@@ -40,7 +40,7 @@ One file set: `tools/owners.py`, `crates/nvs-stdlib/tests/spec_registry_coverage
 2. **The full gate is the default.** `owners.py --check` is fatal on an untagged item, a tag resolving to
    nothing, a goal owner, a past-milestone owner, and a retired owner. Every count on the summary is
    `label: N` (goal `gap-register`'s format), and the check reads five zeros.
-3. **`verify.py` runs it** — `tools/verify.py`'s ordered run gains `owners.py --check`, so a gap written
+3. **`nv verify` runs it** — `nv verify`'s ordered run gains `owners.py --check`, so a gap written
    with a goal owner or none fails before it is committed.
 
 ## Stage 3 — the index is deleted, and nothing points at it
@@ -92,7 +92,7 @@ rewritten whole to say M0–M8 are complete.
   deferring to a milestone to make the gate pass, is the one output this goal must not produce.
 - **A gap found off the path goes in the module doc that owns the code**, tagged, and never into a new
   index. If no module owns it, it is not a gap — it is a feature request, and it is the user's.
-- **What it spends**: nothing at run time. One tool invocation in `verify.py` over doc comments.
+- **What it spends**: nothing at run time. One tool invocation in `nv verify` over doc comments.
 - **ADR slots**: none.
 - **Not this goal**: any closure (goals `m4-refusals` through `unowned-closures`); the proofs every
   shipped feature owes (goal `dossier`).

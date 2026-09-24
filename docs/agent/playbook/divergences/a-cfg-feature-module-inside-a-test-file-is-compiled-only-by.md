@@ -1,6 +1,6 @@
 - **A `#[cfg(feature = "…")]` module inside a test file is compiled only by the CI leg that turns
   the feature on.** `perf_guards.rs`'s `wasm_guards` used a helper from its parent without importing
-  it and nothing local noticed: `cargo build --all-targets`, `verify.py` and clippy all compile the
+  it and nothing local noticed: `cargo build --all-targets`, `nv verify` and clippy all compile the
   file with the module cfg'd out. When a job whose name mentions the feature fails to compile a file
   that has been green for months, check the module's own `use` list first.
   [until: gone benches/abi-probe/tests/perf_guards.rs:wasm_guards]

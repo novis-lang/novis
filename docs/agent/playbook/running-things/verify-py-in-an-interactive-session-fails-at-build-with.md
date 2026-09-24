@@ -1,4 +1,4 @@
-- **`verify.py` in an interactive session fails at build with `failed to remove file … nvs.exe` (os
+- **`nv verify` in an interactive session fails at build with `failed to remove file … nvs.exe` (os
   error 5) while the unattended loop is mid-session.** The loop's own test run holds the binary and
   cargo cannot replace a running exe on Windows — contention, not a broken tree. Check first
   (`Get-CimInstance Win32_Process` shows `loop.py` and a `target\debug\nvs.exe`), commit finished

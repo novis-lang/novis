@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""What each `tools/verify.py` step reads, and one key per step over exactly that.
+"""What each verification step reads, and one key per step over exactly that.
 
-`verify.py` answers a step from its green cache when the step's key is the one it was green
-under. This file is the key: which files a step reads, and -- for Rust -- how much of each file
-it reads. *Why a step whose inputs did not change is not run* in `verify.py`'s module doc is the
-reasoning; this is the table and the scanner behind it.
+`nv verify` answers a step from its green cache when the step's key is the one it was green
+under, and `tools/nv/keys/steps.ts` is the key it uses. This file is the Python copy of that
+table and its scanner -- which files a step reads, and for Rust how much of each file it reads --
+kept for `tools/loop.py` and `tools/impact.py`, which still import it. *Why a step whose inputs
+did not change is not run* in `git show pre-overhaul:tools/verify.py` is the reasoning.
 
 ## A step reads a partition, not the tree
 
@@ -101,7 +102,7 @@ INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml"
                "LICENSE", "THIRD-PARTY-LICENSES.txt")
 # Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
 # cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
-# files, which would make the green cache's own hash the slowest thing in `verify.py`.
+# files, which would make the green cache's own hash the slowest thing in `nv verify`.
 NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
 # What `tools/owners.py` reads beside the doc comments under `crates/`: the plan that says which
 # milestones are still ahead, the chain that says which goals exist, and the two scripts that read
@@ -314,7 +315,7 @@ def is_rust(rel):
 
 class Tree:
     """One reading of every input: each file's raw digest, each `.rs` file's `TIERS`, and the
-    set of files some `.rs` file embeds. Raises `OSError` if a file cannot be read; `verify.py`
+    set of files some `.rs` file embeds. Raises `OSError` if a file cannot be read; `nv verify`
     then runs every step for real."""
 
     def __init__(self):
@@ -373,7 +374,7 @@ class Tree:
 
     def key(self, step, scope=None):
         """The key `step` is green under, or None for a step this file does not describe -- which
-        `verify.py` takes as "always run"."""
+        `nv verify` takes as "always run"."""
         reads = STEP_READS.get(step)
         if reads is None:
             return None

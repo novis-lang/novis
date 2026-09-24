@@ -61,7 +61,7 @@ One file set: `crates/nvs-host/src/scheduler.rs`, `crates/nvs-host/src/group.rs`
   (`crates/nvs-host/src/stack.rs:71`) and no more. It is **release-only**, marked the way
   `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` is
   (`crates/nvs-cli/src/serve.rs:1812-1817`): a hundred thousand stacks touched in the debug profile, beside
-  every other test binary `verify.py` runs, is a resident cost that measures the machine. The driver's
+  every other test binary `nv verify` runs, is a resident cost that measures the machine. The driver's
   release slot runs it. `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`.
 - **The Linux map count.** `corosensei` 0.2.2 reserves a stack as one `PROT_NONE` mapping and then
   `mprotect`s the usable part, so every stack in flight is **two** kernel mappings, and Linux's default

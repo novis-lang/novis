@@ -15,8 +15,8 @@
 //! `SUITES` is what points this file at a server as well as `nvs-db`'s own.
 //!
 //! The skip rule is `nvs-db`'s, because it is the same harness: a process that
-//! finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing at all, so `python
-//! tools/verify.py` is green on a machine with no containers and `python
+//! finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing at all, so `bun
+//! nv verify` is green on a machine with no containers and `python
 //! tools/db-matrix.py` is what makes these assertions happen.
 //! [`nvs_db::matrix`]'s module doc owns that rule and why a field that is *set
 //! but unusable* panics instead.

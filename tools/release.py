@@ -3,7 +3,7 @@
 
 `.github/workflows/release.yml` is the schedule; this file is every decision it makes. The
 workflow holds no version arithmetic, no changelog rules and no packaging logic, for the reason
-`tools/verify.py` holds the verification steps: YAML that computes things can only be tested by
+`nv verify` holds the verification steps: YAML that computes things can only be tested by
 pushing it, and a release is the one pipeline you cannot afford to debug in production.
 
 Everything here runs locally against a clone. `--preview` renders the exact notes and the exact

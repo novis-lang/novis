@@ -272,7 +272,7 @@ def main() -> int:
 
     if not BINARY.exists():
         print(f"try.py: {BINARY.relative_to(ROOT)} is not built.")
-        print("        `cargo build` first -- and note that `verify.py` builds it too,")
+        print("        `cargo build` first -- and note that `nv verify` builds it too,")
         print("        so a snippet run right after a green verification needs nothing.")
         return 2
 

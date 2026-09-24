@@ -1,4 +1,4 @@
-- **`verify.py` can be red on a tree you did not touch, and a step that has been red hides every
+- **`nv verify` can be red on a tree you did not touch, and a step that has been red hides every
   step after it.** `git status --short` showing the failing file unmodified is the whole diagnosis,
   and because the gate stops at the first failure, the steps behind a long-red one (the `.nvst`
   trees, clippy, `cargo doc`) have not been passing either. Fix it in its own commit named for what

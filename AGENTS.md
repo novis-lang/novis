@@ -30,7 +30,7 @@ Those three route to everything else. The five files behind them, none of which 
 - **[docs/ground-rules.md](docs/ground-rules.md)** — generated, one line per rule, each linking the rule
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
-- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `verify.py`,
+- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `nv verify`,
   `session.py`, `nv splice`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
@@ -88,12 +88,12 @@ which are whole where they stand.
    any number of files, all of it or none of it.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
-4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.nvst` trees and clippy in
+4. **Verify with one call, once, at the end:** `bun nv verify` — build, fmt, test, the `.nvst` trees and clippy in
    order, stopping at the first failure.
 5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
    --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
    package and writes a second copy of every workspace crate beside the first, and a day of those
-   filled the disk. Narrow what *runs* — `python tools/verify.py -p <crate>`, or a `--test <name>`
+   filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
    or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
 6. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
@@ -111,7 +111,7 @@ which are whole where they stand.
    them is held to § *Text an end user reads* below.
 10. **Nothing is written outside the project's folders.** Every scratch file — a patch, a probe script, a
    throwaway case, a commit message, a log — goes under `.agent-tmp/` at the repository root, which is
-   git-ignored and is where `verify.py` already writes its logs. Never the system temp directory, a
+   git-ignored and is where `nv verify` already writes its logs. Never the system temp directory, a
    harness's own scratchpad or a home directory, whatever a harness offers by default: the user set this
    for every agent and every session, and a file outside the tree is one they cannot see, review or
    clean up. A git worktree is scratch too: it goes under `.agent-tmp/worktrees/<branch>`, and the agent
@@ -260,7 +260,7 @@ Every session runs the same five steps, in this order, and **stops**:
    three-hundred-line one, so a slice that only writes a test over landed work buys that whole fixed cost
    a second time when it gets a session to itself. `python tools/loop-stats.py`'s `fixed cost per session`
    line is what it currently is; **the number is not copied here on purpose.** It moved from 39% to 22%
-   the day the tail was measured correctly — `verify.py --start` fires mid-work, so every call after it
+   the day the tail was measured correctly — `nv verify --start` fires mid-work, so every call after it
    had been counted as wrap-up — and a copy in this file was wrong between every pair of optimization
    passes that refreshed it. Read the tool.
    One lowering slice spends the 120k by itself; five test-writing slices over one file set do not, and a
@@ -269,7 +269,7 @@ Every session runs the same five steps, in this order, and **stops**:
    prices a slice from sessions that each did one hard one. Take the **ceiling** from that tool after any
    run that changes what a session reads: its projection opens where the *next* session will open, so a
    pass that cuts the pack shows up immediately. Leave the number of slices to the 120k gate.
-3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
+3. **Verify what you touched, once, at the end of the group** — `bun nv verify`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet

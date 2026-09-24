@@ -14,7 +14,7 @@
 #
 #     git config core.hooksPath tools/git-hooks
 #
-# `python tools/verify.py` says so when it is not set, so a clone that forgot is told once rather
+# `bun nv verify` says so when it is not set, so a clone that forgot is told once rather
 # than finding out in review. Never bypass with `--no-verify`: the message names the offending
 # lines and deleting them is the whole fix.
 #

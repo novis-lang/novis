@@ -2,7 +2,7 @@
 #
 # A wide binary runs on every change, which is safe and slow. This file is the list of the ones
 # that are wide for a reason somebody looked at, and `python tools/impact.py --check` -- which
-# `tools/verify.py`'s `test` step asks -- fails on any other. So a new test that joins `..` onto
+# `nv verify`'s `test` step asks -- fails on any other. So a new test that joins `..` onto
 # `CARGO_MANIFEST_DIR` or starts a process fails the run that wrote it, with the line, instead of
 # quietly costing every later run its narrow key: reach the file through `nvs_repo::path`.
 # A line naming a binary that is narrow now fails too, so this list only ever shrinks by hand.

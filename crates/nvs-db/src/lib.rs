@@ -90,7 +90,7 @@
 //!
 //! **The rule is this crate's, not the harness's: a case that finds
 //! `NVS_DB_MATRIX_DRIVER` unset returns without asserting anything**, so
-//! `python tools/verify.py` stays green on a machine with no containers.
+//! `bun nv verify` stays green on a machine with no containers.
 //! [`matrix::endpoint`] is the one reader of those fields — were every test
 //! file to parse the environment its own way, that would be one place per file
 //! for the rule to be got wrong — and the ports and credentials themselves

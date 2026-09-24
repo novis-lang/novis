@@ -74,7 +74,7 @@ container publishes is reachable from the distro rather than from Windows. `carg
 nothing is delegated: the leg is this process's own `cargo test`.
 
 A case that finds `NVS_DB_MATRIX_DRIVER` unset is expected to return without asserting anything, so
-`python tools/verify.py` stays green on a machine with no containers. That is the crate's rule, not
+`bun nv verify` stays green on a machine with no containers. That is the crate's rule, not
 this file's, and `crates/nvs-db`'s module doc owns it.
 
 ## The trust anchor is exported from the container, per run
@@ -180,7 +180,7 @@ SUITES = (
 #: asserts exactly the same thing on every leg, and only on this one is what it asserts about the
 #: leg's own subject: on the four server legs it would run unchanged, pass unchanged, and say
 #: nothing about the server that leg exists to question. Which is also why running it here is not
-#: redundant with `python tools/verify.py` running it: this is the leg whose verdict is SQLite's.
+#: redundant with `bun nv verify` running it: this is the leg whose verdict is SQLite's.
 NO_SERVER_SUITES = (
     ["-p", "nvs-stdlib", "--test", "queue_sqlite"],
 )

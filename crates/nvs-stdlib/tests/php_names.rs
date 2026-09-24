@@ -4,7 +4,7 @@
 //! [`php_names::CANDIDATES`](nvs_stdlib::php_names::CANDIDATES); the registry
 //! is the third input, and a build script cannot reach it, so what a build
 //! script would otherwise have refused is refused here — under
-//! `tools/verify.py`, which stops at the first failing step, a red
+//! `nv verify`, which stops at the first failing step, a red
 //! `cargo test -p nvs-stdlib` is a build that does not finish.
 //!
 //! Three claims, one per test, and they are the three halves of

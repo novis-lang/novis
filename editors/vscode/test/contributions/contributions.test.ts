@@ -244,7 +244,7 @@ describe("the extension's identity", () => {
   });
 
   it("carries the npm scripts the repository's tooling calls", () => {
-    // `tools/verify.py` runs `test:headless`; the loop's acceptance sweep runs `test:host` on every
+    // `nv verify` runs `test:headless`; the loop's acceptance sweep runs `test:host` on every
     // iteration and `package` at stage 8.
     for (const script of ["compile", "lint", "test:headless", "test:host", "package"]) {
       assert.ok(manifest.scripts[script], `package.json declares no ${script} script`);

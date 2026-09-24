@@ -1,6 +1,6 @@
 {
   "lead": "Making a type `pub` owes it a `#[derive(Debug)]`.",
-  "body": "The workspace denies `missing_debug_implementations`, so promoting a private struct to the public API compiles and then fails at clippy, after the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so.",
+  "body": "The workspace denies `missing_debug_implementations`, so promoting a private struct to the public API compiles and then fails at clippy, after the tests have already run. Add the derive in the same edit as the `pub`, not after `nv verify` says so.",
   "files": [
     "Cargo.toml"
   ],

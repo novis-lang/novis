@@ -83,7 +83,7 @@ afford to run is a check nobody runs:
   `--perf-report` insists on this machine's own records, because only a delta needs them.
 * **`--run` remembers a green verdict against the bytes that produced it** — the program's own hash
   and the binary's — in `.loop/dossier-green.json`. Identical bytes into a deterministic run cannot
-  reach a different verdict, which is the argument `verify.py` and `loop.py` both already make for
+  reach a different verdict, which is the argument `nv verify` and `loop.py` both already make for
   their own caches. So a re-run with an unchanged binary costs the walk; a re-run after a rebuild
   costs the programs. `--no-cache` forces the long way, and a failure is never cached.
 * **A proof program runs against the release `nvs` of the tree as it stands.** `--run`, `--verify`,
@@ -116,7 +116,7 @@ proof, which lands in the `mod tests` of an implementing file the goal's other f
 and any bug a proof found. The parent splices the first in one `bun nv splice --patch`,
 collects the second with `--findings`, and fixes them as one batch. Then, and only after every
 worker has stopped, it runs `--run all`, `--record-perf` -- a figure measured while eight workers
-are running is not a measurement -- and `tools/verify.py`, and commits.
+are running is not a measurement -- and `nv verify`, and commits.
 
 `FANOUT_WORKERS` below is the width and carries how it was derived. It is not `machine.jobs()`: a
 worker waits on an API, not on a core.
@@ -289,7 +289,7 @@ RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "docs
 #: example's `.out` in milliseconds. The number comes from the **serial tail** instead -- what a
 #: goal spends whatever its width -- which is 14.9 minutes per goal and 24 hours over the 98 of
 #: them. Its parts, all but the last measured on 2026-09-05: 7.9 min of a session's 34 fixed head
-#: and tail calls, 2.1 min of `verify.py`, 1.9 min launching the workers, 0.9 min of this tool's
+#: and tail calls, 2.1 min of `nv verify`, 1.9 min launching the workers, 0.9 min of this tool's
 #: own commands, 0.7 min of `--record-perf`, and the batch fix. The sweeps do not appear because
 #: they are free (`--gate` 2.6s, seventeen examples in 0.1s).
 #:
@@ -1455,7 +1455,7 @@ def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bo
 
     **A green verdict is keyed on the bytes that produced it** -- the program's own hash, the
     binary's identity, and whether valgrind was in the loop -- so an unchanged program against an
-    unchanged binary is skipped rather than re-run. That is the same argument `verify.py` makes for
+    unchanged binary is skipped rather than re-run. That is the same argument `nv verify` makes for
     its green cache and `loop.py` for `.loop/goal-green.json`: a deterministic run over identical
     bytes cannot reach a different verdict. Only `ok` is remembered. A failure is re-run and
     re-reported every time, because the one thing worse than a slow check is a cached red one that
@@ -2163,7 +2163,7 @@ are not style rules: breaking one silently destroys their work or the parent's.
   feature's id, so no other worker can name it.
 - **Never edit a file under `crates/`** -- not to add the Rust `#[test]`, not to fix a bug. Up to
   68 features share one implementing file and your neighbour is holding it.
-- **Never run `git`, `cargo`, `tools/verify.py`, `--record-perf`, `--run`, or anything that writes
+- **Never run `git`, `cargo`, `nv verify`, `--record-perf`, `--run`, or anything that writes
   `docs/perf/members.ndjson`, `tools/data/dossier-policy.toml` or `.loop/`.** The parent runs every
   one of those, once, after every worker has stopped. A benchmark measured while eight workers are
   running is not a measurement.
@@ -2415,7 +2415,7 @@ def partition(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips
     if any("perf" in m for _, m in todo) or parent_only:
         print(safe(f"  4. python tools/dossier.py --record-perf {flags}".rstrip()
                    + "   # nothing else running"))
-    print("  5. python tools/verify.py, then the wrap. One commit per feature still.")
+    print("  5. bun nv verify, then the wrap. One commit per feature still.")
     return 0
 
 
@@ -3000,7 +3000,7 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run",
         "   prints both lines back with the scope already in them. A figure taken while eight",
         "   workers are running is not a measurement, so nothing else may be in flight.",
-        "5. `python tools/verify.py`, then the wrap. One commit per feature still.",
+        "5. `bun nv verify`, then the wrap. One commit per feature still.",
         "",
         "Nothing in that list is optional, and none of it may overlap the fan-out.",
         "",

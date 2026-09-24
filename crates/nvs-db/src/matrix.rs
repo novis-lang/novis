@@ -31,7 +31,7 @@
 //! cannot anchor is reported `n/a` and never run.
 //!
 //! **A case that finds `NVS_DB_MATRIX_DRIVER` unset returns without asserting
-//! anything.** That is what keeps `python tools/verify.py` green on a machine
+//! anything.** That is what keeps `bun nv verify` green on a machine
 //! with no containers, and it is this crate's rule rather than the harness's:
 //! [`endpoint`] answers `None` and the case returns. A field that is *set but
 //! unusable* is the opposite case and panics, because the harness sets all of
