@@ -61,7 +61,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second run is refused unless you pass `--force`. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
-| `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on and a session still waiting for its verdict. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
+| `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on, a session still waiting for its verdict, and the verdict the next session repairs with the goal's count of repairs. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
 | `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
@@ -203,6 +203,16 @@ disk, so there is nothing a relaunch would do that lifting the hold does not. Th
 an agent's, with a `why:` line naming the verdict, and `HOLD_KINDS` in `tools/loop.py` is the list. `p`
 or deleting the file starts a fresh turn; `s` ends the run, and the hold the driver armed goes with it
 rather than being left to catch the next one. `--no-hold` restores ending, for a run nobody is watching.
+
+**A verdict a session can answer gets a repair session before it holds.** `stalled`, `done-claim`,
+`cli-failed`, `chain-error` and `side-conflict` do not wake anyone at first. The next turn's session opens
+on [repair-prompt.md](repair-prompt.md) with the verdict appended, instead of the session prompt, and is
+judged like any other session. It finds the cause, fixes it, commits and writes a status line, or writes
+`BLOCKED` when the fix needs the user's decision. The ledger marks it `repair session`. A goal gets
+`REPAIRS_PER_GOAL` of them, and a repairable verdict past that holds as above. So does one whose repair
+session was never served, since a second repair would not be served either. `blocked` and `wall` always
+hold: the first is a session asking for a decision, and the second is the usage limit. `REPAIR_KINDS` in
+`tools/loop.py` is the list, and this applies under `--no-hold` too, since nobody is asked.
 
 **The same verdict twice ends the run.** A hold lifted and a turn that comes back with the identical
 reason means the question was not answered, and holding again would spend another session asking it. This
@@ -502,7 +512,8 @@ an installed goal, a Docker daemon, the goal's containers — is files and servi
   typed *by* a session is still refused.
 
 **Another turn follows two verdicts**: `served` — the session ran and nothing ended the run — and
-`rejudge`, a session the next turn has to judge. The
+`rejudge`, a session the next turn has to judge. A repairable verdict with a repair left is followed by
+one too, per § *Holding the tree*. The
 verdicts a person can answer hold the run, per § *Holding the tree*; every other kind ends it, including
 the ones that look recoverable. A usage window that never reopened is a reason a person should look, and
 a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run, and
