@@ -2502,15 +2502,18 @@ mod tests {
     }
 
     #[test]
-    fn units_held_stay_bounded_after_ten_thousand_edits() {
+    fn units_held_stay_bounded_after_two_hundred_edits() {
         // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
         // last paragraph: the table keeps, per path, the unit in force and the
         // one it replaced, so what it holds is in proportion to entry files and
         // never to edits. Every edit below is a content the table has not seen,
         // so each one is compiled and published, and each publish is a sweep.
+        // The bound is asserted after every edit, so a table that grows with
+        // edits fails within the first few of them: the count only has to be
+        // well past two, and a larger one buys nothing but compile time.
         // The artifact cache is off, so the run leaves no file behind it.
         use nvs_config::tree::{Config, Opcache, Setting};
-        const EDITS: u64 = 10_000;
+        const EDITS: u64 = 200;
         let dir = std::env::temp_dir().join(format!("nvs-bounded-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the program's directory");
