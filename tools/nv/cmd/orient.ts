@@ -1097,14 +1097,18 @@ export interface BookSection {
   bullets: Bullet[];
 }
 
-/** The playbook's sections in order, each with its bullets by id, read through the importer. */
-export function playbookBook(): BookSection[] {
-  const got = playbookImporter.read(ROOT);
+/**
+ * The playbook's sections in order, each with its bullets by id, read through the importer. `skip` leaves
+ * out the bullets imported from those fragment files, which is how a retirement asks what a selector
+ * reaches once they are deleted.
+ */
+export function playbookBook(root: string = ROOT, skip: ReadonlySet<string> = new Set()): BookSection[] {
+  const got = playbookImporter.read(root);
   const sections = got.records
     .filter((r) => r.type === playbookSection)
     .map((r) => ({ id: r.id, ...(r.value as { title: string; order: number }) }))
     .sort((a, b) => a.order - b.order);
-  const bullets = got.records.filter((r) => r.type === playbookBullet).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const bullets = got.records.filter((r) => r.type === playbookBullet && !skip.has(r.from)).sort((a, b) => (a.id < b.id ? -1 : 1));
   return sections.map((s) => ({
     title: s.title,
     bullets: bullets

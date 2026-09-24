@@ -21,6 +21,7 @@ import * as owners from "./cmd/owners.ts";
 import * as parity from "./cmd/parity.ts";
 import * as peek from "./cmd/peek.ts";
 import * as plan from "./cmd/plan.ts";
+import * as playbook from "./cmd/playbook.ts";
 import * as proofs from "./cmd/proofs.ts";
 import * as query from "./cmd/query.ts";
 import * as records from "./cmd/records.ts";
@@ -39,7 +40,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
+const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

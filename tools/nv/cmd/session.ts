@@ -38,6 +38,7 @@ import { bodyOf, type Entry, FIELDS, fieldLimits, H1, milestones, planFields, ve
 import { CITATION, Rulebook } from "./rules.ts";
 import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
 import { anchors, bulletValue } from "../import/playbook.ts";
+import { blocks, declaration, EXPIRY, expiryReport, retire } from "./playbook.ts";
 
 export const summary = "the session tail: nv session --template | --check | --counts | --scrub | --wrap F [--dry-run]";
 
@@ -565,7 +566,6 @@ const PLAYBOOK_BULLET_MAX = 700;
 const RETYPE_BYTES = 1_500;
 const RETYPE_OVERLAP = 0.7;
 const RETYPE_SHRINK = 0.6;
-const EXPIRY = /\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*\]\s*$/;
 
 const LINK_WHY: Record<string, string> = {
   missing: "nothing is there",
@@ -626,42 +626,6 @@ function sectionDir(heading: string): string | null {
   const norm = (t: string) => t.replace(/[`*_#]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
   const hit = load(playbookSection).find((s) => norm(s.value.title) === norm(heading));
   return hit ? `${PLAYBOOK_DIR}/${hit.id}` : null;
-}
-
-/** Every `- ` bullet and `NNN. ` entry at column 0 of a playbook body, as `tools/playbook.py`'s `blocks` reads them. */
-function blocks(text: string): { body: string; lead: string }[] {
-  const lines = text.split("\n");
-  const spans: { first: string; start: number; end: number }[] = [];
-  let cur: { first: string; start: number; end: number } | null = null;
-  const starts = /^(- |\d+\. )/;
-  lines.forEach((line, i) => {
-    if (/^#{1,6}\s/.test(line)) {
-      if (cur) spans.push(cur);
-      cur = null;
-    } else if (starts.test(line)) {
-      if (cur) spans.push(cur);
-      cur = { first: line, start: i, end: i };
-    } else if (cur && !line.trim()) {
-      const nxt = lines[i + 1] ?? "";
-      if (nxt && !nxt.startsWith(" ") && !nxt.startsWith("\t") && !starts.test(nxt)) {
-        spans.push(cur);
-        cur = null;
-      }
-    } else if (cur) {
-      cur.end = i;
-    }
-  });
-  if (cur) spans.push(cur);
-  return spans.map((b) => ({
-    body: lines.slice(b.start, b.end + 1).join("\n").trimEnd(),
-    lead: head(b.first.replace(/^(- (?:\[.\] )?|\d+\. )/, ""), 70),
-  }));
-}
-
-/** The `[until: kind arg]` a bullet ends with, or null when it declares nothing or wraps its trailer over a line. */
-function declaration(body: string): { kind: string; arg: string } | null {
-  const m = EXPIRY.exec(body.trimEnd());
-  return m && !m[2]!.includes("\n") ? { kind: m[1]!, arg: m[2]!.trim() } : null;
 }
 
 /** Why a new bullet may not end with `[until: reviewed <date>]`: nothing retires that kind, so it is for a trap no mechanical kind fits. */
@@ -1521,41 +1485,15 @@ async function refreshGenerated(dry: boolean): Promise<string> {
 
 /**
  * Deletes every bullet whose `[until:]` condition holds, and every goal manifest line that named only a
- * bullet that went, and returns the files that changed. The conditions are evaluated by
- * `tools/playbook.py`'s `expiry_report` and `retire`. A bullet deleted from its fragment file is deleted
- * from its record too.
+ * bullet that went, and returns the files that changed: `nv playbook --retire`, run by the wrap. Nothing
+ * is retired while a declaration cannot be read, which `bun nv playbook --retire` names.
  */
 async function retireExpired(dry: boolean): Promise<string[]> {
-  const script = [
-    "import json, sys",
-    "sys.path.insert(0, 'tools')",
-    "import playbook as p",
-    "dry = sys.argv[1] == '1'",
-    "expired, _owed, bad, _rows = p.expiry_report()",
-    "changed = []",
-    "if not bad and expired:",
-    "    files = sorted({e['file'] for e in expired})",
-    "    print(f\"nv session: {len(expired)} bullet(s) whose retirement condition holds -- {'would retire' if dry else 'retiring'} them from {', '.join(files)}\")",
-    "    changed = p.retire(expired, dry)",
-    "print('@@changed ' + json.dumps(changed))",
-  ].join("\n");
-  const done = await runProc(["python", "-c", script, dry ? "1" : "0"], { env: { PYTHONIOENCODING: "utf-8" } });
-  const lines = done.stdout.replace(/\r\n/g, "\n").trimEnd().split("\n");
-  const last = lines.pop() ?? "";
-  if (done.code !== 0 || !last.startsWith("@@changed ")) {
-    console.log(`nv session: the playbook's expiry could not be read, so no bullet is retired: ${(done.stdout + done.stderr).trim().split("\n").pop()}`);
-    return [];
-  }
-  for (const l of lines) console.log(l);
-  const changed = JSON.parse(last.slice("@@changed ".length)) as string[];
-  for (const path of [...changed]) {
-    if (!path.startsWith(`${PLAYBOOK_DIR}/`) || !path.endsWith(".md")) continue;
-    const { id, path: record } = bulletRecord(path);
-    if (!existsSync(join(ROOT, record))) continue;
-    if (!dry) removeRecord(playbookBullet, id);
-    changed.push(record);
-  }
-  return changed;
+  const { expired, bad } = await expiryReport();
+  if (bad.length || !expired.length) return [];
+  const files = [...new Set(expired.map((e) => e.file))].sort();
+  console.log(`nv session: ${expired.length} bullet(s) whose retirement condition holds -- ${dry ? "would retire" : "retiring"} them from ${files.join(", ")}`);
+  return retire(expired, dry);
 }
 
 /** What this wrap writes, what `bun nv verify` wrote under it and what `retireExpired` changed, that no `## commit:` carries. */
