@@ -31,6 +31,10 @@ One file set -- the policy file and the example tree -- so this is one group.
       closes with `**The examples below**` it names what they really show, in their
       order. `python tools/dossier.py --partition --group <G>` fans a large group out.
 
+## Stage 2 — the description is owed
+
+**Does:** Makes a feature's `about.md` description owed, and writes every one still missing.
+
 ## Standing decisions
 
 - **`docs/examples/README.md` § *The description* is the standard**, and it is not

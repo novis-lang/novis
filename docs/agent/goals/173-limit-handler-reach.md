@@ -30,6 +30,8 @@ Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by `
 
 ## Stage 2 — the handler runs, the keystone
 
+**Does:** Runs the program's `Core\Fatal::onLimit` handler when a `Core` function runs out of memory inside its own body.
+
 One seam decides it: find where a breach raised by `crate::abi::affordable` inside a member body is
 reported, and make that path run `Ctx::run_limit_handler` the way
 `crate::abi::report_memory_breach` does for the breach `run_helper` finds ahead of a body. A
@@ -37,6 +39,8 @@ conformance case registering `Core\Fatal::onLimit` and driving `Core\Arr::from` 
 with no end is what pins it, beside the case that already pins the stop.
 
 ## Stage 3 — a `cpu_time` the program narrows is enforced
+
+**Does:** Stops a request at a `limits.cpu_time` the program narrowed, even in a loop that calls nothing.
 
 `Core\Config::set('limits.cpu_time', '200ms')` answers `true` and `get` reads `200ms` back, and a
 loop that calls nothing then runs for seconds. `Ctx::refresh_limits` moves `Ctx::cpu_limit`, but

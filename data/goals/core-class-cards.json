@@ -41,6 +41,7 @@
     {
       "number": 2,
       "title": "the cards",
+      "summary": "Gives every `Core` class its own reference card.",
       "context": {
         "rules": [],
         "adrs": [
@@ -51,6 +52,7 @@
     {
       "number": 3,
       "title": "the index entries",
+      "summary": "Makes every configuration key, command, flag and diagnostic code an entry that `nvs agent find` reaches.",
       "context": {
         "rules": [
           "tooling/an-agent-asks-the-binary",
@@ -65,6 +67,7 @@
     {
       "number": 4,
       "title": "the code cards",
+      "summary": "Gives every diagnostic code a card that `nvs agent show` prints.",
       "context": {
         "rules": [
           "tooling/a-diagnostic-code-carries-its-card"
@@ -80,6 +83,7 @@
     {
       "number": 5,
       "title": "help is owed",
+      "summary": "Makes the Help proof owed by every kind of feature, and writes the help the backlog lists.",
       "context": {
         "rules": [
           "testing/feature-proofs",

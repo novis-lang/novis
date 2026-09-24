@@ -31,6 +31,8 @@ Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by `
 
 ## Stage 2 — the sweep
 
+**Does:** Rewrites every example, attack and bench comment that is outside the comment bounds.
+
 `python tools/dossier.py --comments docs/examples tests/hostile benches/members` names every program
 outside the bounds and every line in it. The work is closing that list, one feature directory at a
 time, and the stage is green when the command exits 0.
@@ -40,6 +42,8 @@ One slice is **one chapter or one class** — `docs/examples/core/Str`, `tests/h
 who has understood the member once rewrites all of its programs with that one understanding.
 
 ## Stage 3 — the gate
+
+**Does:** Makes the comment bounds owed, so a program outside them is a red check.
 
 Add `comments = true` under `[all]` in `tools/data/dossier-policy.toml`. From then on `owed()` counts
 a feature whose programs leave the bounds, `--gate` names it, and `--id` and a worker's brief say

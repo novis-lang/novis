@@ -40,6 +40,10 @@ understanding; split across one session per proof it is bought once per proof.
 12. **`Core\Test::serverUrl`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:641`
 13. **`Core\Test::tlsSession`** — owes examples, hostile, perf. `crates/nvs-stdlib/src/test.rs:756`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

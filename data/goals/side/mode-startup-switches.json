@@ -24,11 +24,13 @@
   "stages": [
     {
       "number": 2,
-      "title": "the switches"
+      "title": "the switches",
+      "summary": "Makes `dispatch` and `static` follow the server mode when neither is written."
     },
     {
       "number": 3,
       "title": "the template and the reference",
+      "summary": "Says the mode's defaults in the template and the reference, and adds their feature proofs.",
       "context": {
         "rules": [
           "testing/feature-proofs"

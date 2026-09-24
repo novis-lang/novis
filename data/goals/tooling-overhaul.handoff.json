@@ -1,30 +1,27 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 3 and 4 are landed whole, and Stage 5 is under way.** `bun nv\nparity <group>` compares a Python tool with its `nv` replacement over the cases in\n`tools/nv/parity/groups.json`, ignoring only the rewrites `tools/nv/parity/known.json` declares and,\nper group, an `unordered` entry pattern. Two groups match on every case: `brief` (`--where`, 7 of 7)\nand `owners` (12 of 12: the roster, `--check` with each no-op flag, `--closes`, `--deferrals`,\n`--registers`, `--untagged`, `--unowned`, `--json`). `nv owners` classifies the gap records under\n`data/gaps/`, and `nv brief --where owners` counts from it.\n**`data/` is a snapshot, not yet the authority.** The legacy homes still are. Re-run `bun nv import\n--write` before a stage reads `data/` as the truth, and at the cutover. `main` is still frozen, and\nthe tag `pre-overhaul` is the rollback point. The driver's red Stage 6 check (`nv impact --probe`)\nis an unbuilt command, not a regression.\n\nThree habits hold for every session of this goal: a mechanical change goes through a script under\n`.agent-tmp/`; never prove a cut with a sweep; a Python tool is deleted only after its\nreplacement's parity is green.",
+  "state": "**Goal `tooling-overhaul`: Stages 3 to 7 have landed, and Stage 8 is in progress.** `bun nv chain`,\n`bun nv loop --list`, `bun nv loop --goal`, `bun nv bg`, `bun nv guard`, `bun nv splice` and\n`bun nv verify` are written. `tools/verify.py` is deleted, its parity group is retired, and every\ncitation outside the frozen records names `bun nv verify` or `nv verify`; the two floor checks run\n`bun nv verify --list`. Its module doc's *Why* sections are cited as\n`git show pre-overhaul:tools/verify.py`. `tools/verify_keys.py` stays while `tools/loop.py` and\n`tools/impact.py` import it. `chain.py` stays until the Stage 9 cutover, because its `--show`,\n`--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag `pre-overhaul` is\nthe rollback.\n\nThe playbook still has two homes: `docs/agent/playbook/` (read by `playbook.py` and `orient.py`) and\n`data/playbook/` (what `nv import` made). An edit to a bullet goes into both until Stage 9.\n\n**The red acceptance check is `every record is valid and every reference resolves`.** `nv check`'s\n80 findings are all \"a stage says what it does\", because `data/goals/*.json` was imported before\n`summary` existed, and `nv import --write` refuses while `impact_probes` has no importer.\n\nThese habits hold for every session of this goal. A mechanical change goes through a script under\n`.agent-tmp/`, written with Write. Never prove a cut with a sweep. A Python tool is deleted only after\nits replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tools, and\n`bun nv selftest` runs every tools test.",
   "next": {
-    "stage": 5,
-    "title": "the read-only tools, proven by parity",
+    "stage": 4,
+    "title": "the records are valid",
     "files": [
-      "tools/nv/cmd/**",
-      "tools/nv/parity/**",
-      "tools/nv/main.ts"
+      "tools/nv/cmd/import.ts",
+      "tools/nv/import/",
+      "tools/nv/schema/impact-probes.ts",
+      "data/goals/*.json"
     ],
-    "note": "loop-goal.md § *Stage 5* is the spec. Each new command adds its group to `tools/nv/parity/groups.json` with every mode the floor, a goal `.toml` or a process doc invokes, and is registered in `tools/nv/main.ts:18`'s `COMMANDS`. A record with no position (a gap, a bullet) lists in slug order, and the group's `unordered` pattern declares it.",
+    "note": "The goal's Stage 4 section and the check at the head of the pack specify it.",
     "items": [
       {
         "done": false,
-        "text": "**`bun nv peek` with `--locate` and `--outline`** (`tools/peek.py:45`): the read tool every session uses. A `rule:` target reads `docs/rules/<topic>/<slug>.md`."
-      },
-      {
-        "done": false,
-        "text": "**`bun nv plan --show` and `bun nv records --stats`** (`tools/plan.py:917`, `tools/records.py:566`): read-only modes over the milestone and decision records. `plan.py --past` reads `owners.py --json`'s `registers[*].owners`, which `nv owners --json` prints in the same shape (`tools/nv/cmd/owners.ts:418`)."
+        "text": "**Close `nv check`'s 80 findings.** Either give `nv import` an `impact_probes` importer, so `--write` stops refusing (`tools/nv/cmd/import.ts:149`) and rewrites `data/goals/*.json` with the `summary` that `tools/nv/import/goals.ts:137` already reads, or add `summary` to the goal records by a script. The check is `tools/nv/schema/goal.ts:103`; the record type is `tools/nv/schema/impact-probes.ts`. Read `bun nv import --check` first: it names what is unread. Done when `bun nv check` prints `nv check: 0 findings`."
       }
     ]
   },
   "backlog": [
-    "`nv gaps`, `nv holes`, `nv links`, `nv layout`, `nv disk`, `nv directives` — loop-goal.md § *Stage 5*.",
-    "`nv migration` and `nv reference` (`tools/check-migration.py:230`); `reference.py` runs the binary and every example, so it is the largest of them — loop-goal.md § *Stage 5*.",
-    "The rest of `nv brief` (status, milestones, map) — `tools/brief.py`.",
-    "Each replaced check becomes a query in `nv check`, its old flag an alias; `owners --check` is the first with a parity-proven replacement — loop-goal.md § *Stage 5*.",
-    "`owners.py` is deleted only in a slice of its own, after its callers (`nv verify`, `loop.py` `owner_gate`, `plan.py`, the floor argvs) move to `nv owners` — loop-goal.md § *Stage 5*."
+    "Stage 9 cutover: delete `dossier.py`'s `--emit-goals`, `--check-goals` and fan-out flags, and `generated_by` in `tools/loop.py`.",
+    "`chain.py`'s `--show`, `--retire`, `--set` and `--retitle` have no `nv chain` successor yet.",
+    "`docs/agent/playbook/` has no renderer from `data/playbook/`.",
+    "`lints.py` has no `nv` successor; `nv verify`'s `lints` step runs it.",
+    "`tools/verify_keys.py` goes when `tools/loop.py:70` and `tools/impact.py` read the keys from `tools/nv/keys/` instead."
   ]
 }

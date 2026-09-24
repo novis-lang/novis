@@ -40,6 +40,10 @@ understanding; split across one session per proof it is bought once per proof.
 12. **`tools:cli/one-binary`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:9`
 13. **`tools:cli/the-compile-cache`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:388`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

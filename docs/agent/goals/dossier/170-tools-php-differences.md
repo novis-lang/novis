@@ -39,6 +39,10 @@ understanding; split across one session per proof it is bought once per proof.
 11. **`tools:php-differences/types-and-conversions`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:85`
 12. **`tools:php-differences/what-parses-but-behaves-differently`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:196`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

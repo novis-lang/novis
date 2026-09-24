@@ -64,6 +64,8 @@ Goal `plain-comments`'s whole acceptance list, carried in verbatim by `tools/goa
 
 ## Stage 2 — the binding parses and checks, the keystone
 
+**Does:** Parses and type-checks `var` as the type of a `foreach` binding.
+
 One file set: `crates/nvs-syntax/src/parser/stmt.rs`, `crates/nvs-syntax/src/ast.rs`,
 `crates/nvs-types/src/locals.rs`, `crates/nvs-types/src/expr/iteration.rs`.
 
@@ -88,6 +90,8 @@ Pinned by one accepting case and one refusing case under `tests/conformance/`, a
 
 ## Stage 3 — the loop lowers and the editor shows the type
 
+**Does:** Lowers a `foreach` with a `var` binding, and the editor shows the type the binding gets.
+
 One file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/control.rs`,
 `crates/nvs-lsp/src/hints.rs`, and whichever of `nvs-lsp`'s `semantic.rs` and `definition.rs` and
 `nvs-hir`'s `requires.rs` read `ForeachBinding::ty`.
@@ -105,6 +109,8 @@ One file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/control
   the new examples is what proves it.
 
 ## Stage 4 — the feature proofs and the reference
+
+**Does:** Adds the tests, examples and reference text for `var` in a `foreach`.
 
 No new reference heading, so no new feature on the roster: `var` in a `foreach` header is part of
 `lang:statements/foreach` and `lang:iteration/what-foreach-walks`, and those two features' proofs

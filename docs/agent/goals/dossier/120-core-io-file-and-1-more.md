@@ -40,6 +40,14 @@ understanding; split across one session per proof it is bought once per proof.
 12. **`Core\IO\Metadata::modifiedAt`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1835`
 13. **`Core\IO\Metadata::size`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/io.rs:1826`
 
+## Stage 1 — floor
+
+**Does:** Every check of every goal already walked still passes.
+
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

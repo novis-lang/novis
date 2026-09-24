@@ -36,6 +36,10 @@ understanding; split across one session per proof it is bought once per proof.
 8. **`Core\Path::split`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:153`
 9. **`Core\Path::withExtension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:129`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

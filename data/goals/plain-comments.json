@@ -37,11 +37,13 @@
   "stages": [
     {
       "number": 2,
-      "title": "the sweep"
+      "title": "the sweep",
+      "summary": "Rewrites every example, attack and bench comment that is outside the comment bounds."
     },
     {
       "number": 3,
-      "title": "the gate"
+      "title": "the gate",
+      "summary": "Makes the comment bounds owed, so a program outside them is a red check."
     }
   ],
   "checks": [

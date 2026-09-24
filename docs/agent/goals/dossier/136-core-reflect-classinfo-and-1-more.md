@@ -43,6 +43,10 @@ understanding; split across one session per proof it is bought once per proof.
 15. **`Core\Reflect\ConstantInfo::isPublic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1404`
 16. **`Core\Reflect\ConstantInfo::name`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:1395`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

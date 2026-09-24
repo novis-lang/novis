@@ -32,6 +32,10 @@ understanding; split across one session per proof it is bought once per proof.
 4. **`tools:install/when-something-is-refused`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:184`
 5. **`tools:install/windows`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:107`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

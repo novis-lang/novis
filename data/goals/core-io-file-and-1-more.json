@@ -128,11 +128,13 @@
   "stages": [
     {
       "number": 1,
-      "title": "floor"
+      "title": "floor",
+      "summary": "Every check of every goal already walked still passes."
     },
     {
       "number": 2,
-      "title": "the dossier"
+      "title": "the dossier",
+      "summary": "Writes the feature proofs that every feature listed above still owes."
     }
   ],
   "checks": [
@@ -7006,7 +7008,7 @@
       ]
     },
     {
-      "id": "verify-py-runs-the-gate-in-order",
+      "id": "nv-verify-runs-the-gate-in-order",
       "kind": "command",
       "stage": 1,
       "name": "nv verify runs the gate in order",
@@ -14444,7 +14446,7 @@
       ]
     },
     {
-      "id": "verify-py-runs-the-register-s-gate",
+      "id": "nv-verify-runs-the-register-s-gate",
       "kind": "command",
       "stage": 1,
       "name": "nv verify runs the register's gate",

@@ -31,6 +31,10 @@ understanding; split across one session per proof it is bought once per proof.
 3. **`tools:agents/nvs-agent-init`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:73`
 4. **`tools:agents/nvs-agent-primer`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:58`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

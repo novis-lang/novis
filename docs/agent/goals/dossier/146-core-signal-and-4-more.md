@@ -41,6 +41,10 @@ understanding; split across one session per proof it is bought once per proof.
 13. **`Core\Socket\Message::topic`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:481`
 14. **`Core\Socket\Message::value`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/socket.rs:508`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

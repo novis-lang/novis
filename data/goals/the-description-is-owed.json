@@ -44,7 +44,8 @@
   "stages": [
     {
       "number": 2,
-      "title": "the description is owed"
+      "title": "the description is owed",
+      "summary": "Makes a feature's `about.md` description owed, and writes every one still missing."
     }
   ],
   "checks": [

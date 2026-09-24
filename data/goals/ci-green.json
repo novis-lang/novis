@@ -33,7 +33,8 @@
   "stages": [
     {
       "number": 2,
-      "title": "ci is green"
+      "title": "ci is green",
+      "summary": "Gets a green `ci.yml` run on `main` for the code `HEAD` holds."
     }
   ],
   "checks": [

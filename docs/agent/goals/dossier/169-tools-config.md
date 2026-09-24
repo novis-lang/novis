@@ -40,6 +40,10 @@ understanding; split across one session per proof it is bought once per proof.
 12. **`tools:config/trust`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:396`
 13. **`tools:config/values-and-units`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:73`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

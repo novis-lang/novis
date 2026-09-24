@@ -31,6 +31,8 @@ Goal `limit-handler-reach`'s whole acceptance list, carried in verbatim by `tool
 
 ## Stage 2 — the cards, the keystone
 
+**Does:** Gives every `Core` class its own reference card.
+
 `python tools/class-cards.py` prints the classes still owing a card, read off the one list. For each:
 write a `ClassDoc` const in the class's own module, directly above its `CLASS` row (`/// `Core\X`'s own
 card — `rule:core-api/reference-card`.`), set the row's `doc: Some(&CLASS_DOC)`, and delete the class's
@@ -46,6 +48,8 @@ repository's own voice and are not copied as they are.
 
 ## Stage 3 — every key, command, flag and code is an index entry
 
+**Does:** Makes every configuration key, command, flag and diagnostic code an entry that `nvs agent find` reaches.
+
 Build `rule:tooling/the-index-names-every-key-command-and-code` in `crates/nvs-cli/src/agent.rs`:
 derive one index line per configuration key from the configuration schema, per command, subcommand
 and flag from `Cli::command()`, and per code from the diagnostics table, in the line shapes the rule
@@ -56,6 +60,8 @@ rule's `status` becomes `shipped` and the test goes in its `guardedBy`.
 
 ## Stage 4 — every diagnostic code carries its card
 
+**Does:** Gives every diagnostic code a card that `nvs agent show` prints.
+
 Build `rule:tooling/a-diagnostic-code-carries-its-card` in `crates/nvs-diagnostics/src/lib.rs`: a card
 beside each `Code::new`, `nvs agent show <code>` printing it, and the one closing line in the terminal
 rendering. Every code that has no card yet goes into `CODES_STILL_OWING_A_CARD`, and the test
@@ -64,6 +70,8 @@ test does. Then drain the list in file order, one band per session. The stage is
 `no_code_still_owes_a_card` passes, and the rule's `status` becomes `shipped`.
 
 ## Stage 5 — Help is owed by the whole roster
+
+**Does:** Makes the Help proof owed by every kind of feature, and writes the help the backlog lists.
 
 `tools/dossier.py` already owes *Help* for a member (its class's card), an enum (its card), and a
 language or tool heading (its section shows code), and every goal from `core-http-response-and-1-more`

@@ -43,7 +43,8 @@
   "stages": [
     {
       "number": 2,
-      "title": "the dossier"
+      "title": "the dossier",
+      "summary": "Writes the feature proofs that every feature listed above still owes."
     }
   ],
   "checks": [

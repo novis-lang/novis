@@ -40,6 +40,7 @@
     {
       "number": 2,
       "title": "the binding",
+      "summary": "Parses and type-checks `var` as the type of a `foreach` binding.",
       "context": {
         "rules": [
           "types/arrays",
@@ -63,6 +64,7 @@
     {
       "number": 3,
       "title": "lowering and the editor",
+      "summary": "Lowers a `foreach` with a `var` binding, and the editor shows the type the binding gets.",
       "context": {
         "rules": [
           "iteration/two-interfaces"
@@ -73,6 +75,7 @@
     {
       "number": 4,
       "title": "the proofs",
+      "summary": "Adds the tests, examples and reference text for `var` in a `foreach`.",
       "context": {
         "rules": [
           "testing/feature-proofs"

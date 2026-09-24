@@ -35,6 +35,10 @@ understanding; split across one session per proof it is bought once per proof.
 7. **`tools:server/the-server-block`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:37`
 8. **`tools:server/what-a-program-reads-about-its-door`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:140`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

@@ -38,6 +38,10 @@ understanding; split across one session per proof it is bought once per proof.
 10. **`Core\Response::text`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:322`
 11. **`Core\Response\Stream::write`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:534`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

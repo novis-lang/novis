@@ -32,6 +32,10 @@ understanding; split across one session per proof it is bought once per proof.
 4. **`Core\Queue\Stats::deadLettered`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2572`
 5. **`Core\Queue\Stats::pending`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/queue.rs:2545`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

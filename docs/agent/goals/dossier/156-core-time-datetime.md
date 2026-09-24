@@ -44,6 +44,10 @@ understanding; split across one session per proof it is bought once per proof.
 16. **`Core\Time\DateTime::withTime`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1646`
 17. **`Core\Time\DateTime::zone`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1709`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

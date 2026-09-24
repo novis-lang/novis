@@ -131,19 +131,23 @@
   "stages": [
     {
       "number": 1,
-      "title": "floor"
+      "title": "floor",
+      "summary": "Every check of every goal already walked still passes."
     },
     {
       "number": 2,
-      "title": "the Rust and Cargo cuts"
+      "title": "the Rust and Cargo cuts",
+      "summary": "Makes the Rust tests faster and steadier, and adds the build profile the proofs run on."
     },
     {
       "number": 3,
-      "title": "the foundation"
+      "title": "the foundation",
+      "summary": "Builds `bun nv`: the command, its record library and its index."
     },
     {
       "number": 4,
       "title": "the records",
+      "summary": "Reads every legacy home into records and compares them with the files on disk.",
       "context": {
         "shapes": [
           "A rule fragment",
@@ -156,15 +160,18 @@
     },
     {
       "number": 5,
-      "title": "the read-only tools"
+      "title": "the read-only tools",
+      "summary": "Ports the read-only Python tools to `bun nv`, each proven to print what the old one did."
     },
     {
       "number": 6,
-      "title": "one key"
+      "title": "one key",
+      "summary": "Gives every check one key over exactly what it reads, held to that by probes."
     },
     {
       "number": 7,
       "title": "proofs",
+      "summary": "Replaces `dossier.py` with `bun nv proofs`, and a comment no longer stales a perf figure.",
       "context": {
         "shapes": [
           "A rule fragment",
@@ -175,15 +182,18 @@
     },
     {
       "number": 8,
-      "title": "the driver"
+      "title": "the driver",
+      "summary": "Ports the tools that write, and the loop driver with its status row and goal table."
     },
     {
       "number": 9,
-      "title": "the cutover"
+      "title": "the cutover",
+      "summary": "Writes the records, deletes the legacy homes and hands the loop to the new driver."
     },
     {
       "number": 10,
       "title": "the playbook",
+      "summary": "Sorts each playbook bullet: delete it, move it to a module doc, or keep it as a record.",
       "context": {
         "shapes": [
           "A playbook bullet"
@@ -192,11 +202,13 @@
     },
     {
       "number": 11,
-      "title": "CI, the website and the hooks"
+      "title": "CI, the website and the hooks",
+      "summary": "Ports every other tool, CI, the website and the git hooks to `bun nv`."
     },
     {
       "number": 12,
       "title": "no Python",
+      "summary": "Deletes the Python tools, and rewrites the process docs to say what is true.",
       "context": {
         "shapes": [
           "A rule fragment",
@@ -7316,7 +7328,7 @@
       ]
     },
     {
-      "id": "verify-py-runs-the-gate-in-order",
+      "id": "nv-verify-runs-the-gate-in-order",
       "kind": "command",
       "stage": 1,
       "name": "nv verify runs the gate in order",
@@ -14755,7 +14767,7 @@
       ]
     },
     {
-      "id": "verify-py-runs-the-register-s-gate",
+      "id": "nv-verify-runs-the-register-s-gate",
       "kind": "command",
       "stage": 1,
       "name": "nv verify runs the register's gate",
@@ -16883,8 +16895,8 @@
       ],
       "want": [
         "source: package key",
-        "nvs-syntax",
         "nvs-diagnostics",
+        "nvs-syntax",
         "fuzz/"
       ]
     },
@@ -16944,6 +16956,27 @@
       ]
     },
     {
+      "id": "one-feature-s-proofs-print-their-output-exit-code-and-time",
+      "kind": "command",
+      "stage": 7,
+      "name": "one feature's proofs print their output, exit code and time",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--run",
+        "--id",
+        "Core\\Str::length",
+        "--show"
+      ],
+      "want": [
+        "== docs/examples/core/Str/length/01-basics.nvs",
+        "exit 0 · ",
+        "== tests/hostile/core/Str/length/01-unbounded-and-degenerate-input.nvs",
+        "ms of 20000 ms"
+      ]
+    },
+    {
       "id": "the-chain-is-walkable-and-its-order-is-by-slug",
       "kind": "command",
       "stage": 8,
@@ -16956,6 +16989,85 @@
       ],
       "want": [
         "chain: every goal is walkable"
+      ]
+    },
+    {
+      "id": "the-acceptance-plan-narrows-to-the-checks-that-match",
+      "kind": "command",
+      "stage": 8,
+      "name": "the acceptance plan narrows to the checks that match",
+      "argv": [
+        "bun",
+        "nv",
+        "loop",
+        "--list",
+        "--name",
+        "one proofs run verifies several groups"
+      ],
+      "want": [
+        "one proofs run verifies several groups",
+        "list: 1 check matches"
+      ]
+    },
+    {
+      "id": "a-detached-job-is-waited-on-and-gives-back-its-output-and",
+      "kind": "command",
+      "stage": 8,
+      "name": "a detached job is waited on and gives back its output and exit status",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/bg.test.ts"
+      ],
+      "want": [
+        " pass",
+        " 0 fail"
+      ]
+    },
+    {
+      "id": "every-guard-rule-denies-its-raw-pattern-and-allows-its-near",
+      "kind": "command",
+      "stage": 8,
+      "name": "every guard rule denies its raw pattern and allows its near miss",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/guard.test.ts"
+      ],
+      "want": [
+        " pass",
+        " 0 fail"
+      ]
+    },
+    {
+      "id": "the-guard-is-wired-for-read-bash-and-powershell-and-every",
+      "kind": "command",
+      "stage": 8,
+      "name": "the guard is wired for Read, Bash and PowerShell, and every rule names a real command",
+      "argv": [
+        "bun",
+        "nv",
+        "guard",
+        "--check"
+      ],
+      "want": [
+        "guard: wired for Read, Bash and PowerShell",
+        "guard: every rule names a registered command"
+      ]
+    },
+    {
+      "id": "the-status-line-is-one-row-that-says-the-goal-its-stage-how",
+      "kind": "command",
+      "stage": 8,
+      "name": "the status line is one row that says the goal, its stage, how far it is and what the session is doing",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/status.test.ts"
+      ],
+      "want": [
+        " pass",
+        " 0 fail"
       ]
     },
     {
@@ -17050,6 +17162,21 @@
       "want": [
         "audit: no workflow or hook calls python",
         "audit: no website script parses a record"
+      ]
+    },
+    {
+      "id": "the-loop-statistics-count-the-guard-s-denials-by-rule",
+      "kind": "command",
+      "stage": 11,
+      "name": "the loop statistics count the guard's denials by rule",
+      "argv": [
+        "bun",
+        "nv",
+        "loop-stats",
+        "--guard"
+      ],
+      "want": [
+        "guard denials by rule"
       ]
     },
     {

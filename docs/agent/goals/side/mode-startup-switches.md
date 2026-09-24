@@ -57,6 +57,8 @@ Main's carried floor, which a side run is always checked against (`tools/side.py
 
 ## Stage 2 — the switches follow the mode (the keystone)
 
+**Does:** Makes `dispatch` and `static` follow the server mode when neither is written.
+
 One file set: `crates/nvs-config/src/server.rs`, `crates/nvs-server/src/mount.rs`,
 `crates/nvs-cli/src/serve/mounts.rs`.
 
@@ -75,6 +77,8 @@ One file set: `crates/nvs-config/src/server.rs`, `crates/nvs-server/src/mount.rs
   gives a different table.
 
 ## Stage 3 — the template and the reference say it, and the proofs exist
+
+**Does:** Says the mode's defaults in the template and the reference, and adds their feature proofs.
 
 One file set: `crates/nvs-config/src/default.toml` and its guard in `tools/directives.py`,
 `docs/reference/tools/25-server.md`, `docs/rules/config/a-startup-default-is-never-flipped.md`.

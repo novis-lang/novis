@@ -37,6 +37,10 @@ understanding; split across one session per proof it is bought once per proof.
 9. **`Core\Request::route`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:387`
 10. **`Core\Request::scheme`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:369`
 
+## Stage 2 — the dossier
+
+**Does:** Writes the feature proofs that every feature listed above still owes.
+
 ## Running this goal wide
 
 **This is one of the few goals where a session may hand *writing* to subagents.** The

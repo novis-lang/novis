@@ -39,11 +39,13 @@
   "stages": [
     {
       "number": 2,
-      "title": "the handler runs"
+      "title": "the handler runs",
+      "summary": "Runs the program's `Core\\Fatal::onLimit` handler when a `Core` function runs out of memory inside its own body."
     },
     {
       "number": 3,
-      "title": "a narrowed cpu_time is enforced"
+      "title": "a narrowed cpu_time is enforced",
+      "summary": "Stops a request at a `limits.cpu_time` the program narrowed, even in a loop that calls nothing."
     }
   ],
   "checks": [
