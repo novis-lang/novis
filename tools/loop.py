@@ -2280,13 +2280,20 @@ def measures_release_cli(c):
 def runs_release_cli(c):
     """Whether this check runs `target/release/nvs.exe` as it stands, without measuring it.
 
-    `tools/dossier.py` runs every proof program against that binary, several at a time. The link
+    `tools/dossier.py` runs every proof program against that binary, several at a time, and
+    `bun nv proofs --record-perf` builds it by its own key and times every bench on it. The link
     in `Goal.prebuild` replaces the file, and on Windows it cannot while a proof has it open:
     `relink.py` then moves it aside and a proof starting in that window finds no binary at all.
     So such a check and the link hold `RELEASE_CLI_LOCK` in turn. It is not a `measures_release_cli`
-    check, because it is not a cost-class guard and is not held to the end of the sweep.
+    check, because it is not a cost-class guard and is not held to the end of the sweep. A
+    `proof_groups` check is not one either: `Goal.proofs_verify` takes the lock itself, and only
+    when the gate puts it on this binary.
     """
-    return c["kind"] == "command" and any("dossier.py" in a for a in c["argv"])
+    if c["kind"] != "command":
+        return False
+    argv = c["argv"]
+    return (any("dossier.py" in a for a in argv)
+            or (argv[:3] == ["bun", "nv", "proofs"] and "--record-perf" in argv))
 
 
 #: What `bun nv proofs` reads for every group, as `proofParts` in `tools/nv/keys/checks.ts` names
@@ -2742,26 +2749,43 @@ class Goal:
         every proofs check in the cargo tier the memo does not answer, and each check is then
         handed its own groups' sections. The roster is read once and every program runs in one
         pool, where a run per check read it once per group. A check whose groups are not all in
-        that run -- one the memo answered, asked anyway -- starts a run of its own."""
+        that run -- one the memo answered, asked anyway -- starts a run of its own.
+
+        With the floor gate open the run is on the release binary, which `release_cli` builds in
+        `prebuild`'s thread: this joins that build, names the binary with `--nvs`, and holds
+        `RELEASE_CLI_LOCK` so no link replaces it mid-run. With the gate shut it is on the proof
+        binary `nv proofs` builds for itself, because that is a scoped sweep and the release build
+        is the gate's to pay for."""
         groups = proof_groups(c)
         with self._proofs_lock:
             if any(g not in self._proofs for g in groups):
                 owed = [g for g in groups if g not in self._proofs]
                 for other in self.swept(self.cargo_checks):
                     theirs = proof_groups(other)
-                    if theirs is None or (self.remembered(other) and not self.audits(other)):
+                    if theirs is None or not self.owes_proofs(other):
                         continue
                     owed += [g for g in theirs if g not in self._proofs and g not in owed]
                 argv = ["nv", "proofs", "--verify", *(a for g in owed for a in ("--group", g))]
-                self.trace(f"proofs: {len(owed)} group(s) in one run")
-                r = self.timed(f"proofs: {len(owed)} group(s) in one run",
-                               lambda: capture("bun", argv, timeout=7200, cwd=ROOT))
+                label = f"proofs: {len(owed)} group(s) in one run"
+                if self.floor_gate:
+                    self.join_prebuild()
+                    argv += ["--nvs", str(relink.release_cli(ROOT))]
+                    label += " on the release binary"
+                self.trace(label)
+                with RELEASE_CLI_LOCK if self.floor_gate else contextlib.nullcontext():
+                    r = self.timed(label, lambda: capture("bun", argv, timeout=7200, cwd=ROOT))
                 self._proofs.update(split_proofs(r, owed))
             parts = [self._proofs[g] for g in groups]
         if len(parts) == 1:
             return parts[0]
         return Result(max(p.code for p in parts), "\n".join(p.out for p in parts),
                       "\n".join(p.err for p in parts if p.err))
+
+    def owes_proofs(self, c):
+        """Whether this sweep runs the `proof_groups` check `c`: the memo does not answer it, or
+        it is audited anyway. `proofs_verify` batches every such check, and `release_cli` builds
+        the release binary for them when the gate is open."""
+        return not self.remembered(c) or self.audits(c)
 
     def run_command(self, argv, cwd):
         """One `command` check's process. A Python gate (`is_observed`) runs under
@@ -3101,22 +3125,29 @@ class Goal:
         return builds
 
     def release_cli(self):
-        """The other release build: `target/release/nvs.exe`, when a check measures it.
+        """The other release build: `target/release/nvs.exe`, when a check measures it or a
+        `proof_groups` check runs on it.
 
         `tools/bench.py` measures that binary and deliberately builds nothing — its own
         `warn_if_stale` says the numbers are about the build on disk rather than the tree — and no
         other leg here produces it, since `NativeLeg` builds the debug CLI. So the warm-start check
         was measuring whatever had last been built by hand, which twice meant a binary too old to
         read the tree's own `nvs.toml` and reported a *configuration* error as the start figure.
+        `proofs_verify` names the same binary with `--nvs` whenever the gate is open, which is the
+        only time this build runs, so a proofs check the sweep owes asks for it too.
 
         Built in `prebuild`'s thread rather than before the check: it is the same profile, the same
         lock and the same argument as the release test build above — the build overlaps the sweep
-        and the measurement does not.
+        and the measurement does not. The argument is `releaseBinary`'s in `tools/nv/proofs/run.ts`,
+        so both build into one set of artefacts.
         """
+        build = ["build", "--release", "-p", "nvs-cli"]
         for c in self.checks:
-            if not measures_release_cli(c):
-                continue
-            return None if self.remembered(c) else ["build", "--release", "-p", "nvs-cli"]
+            if measures_release_cli(c) and not self.remembered(c):
+                return build
+        for c in self.swept(self.cargo_checks):
+            if proof_groups(c) is not None and self.owes_proofs(c):
+                return build
         return None
 
     def prebuild(self):
