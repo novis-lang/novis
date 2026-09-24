@@ -443,6 +443,31 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
     plan to the checks that match, and the last line is `list: N check(s) match`. A session
     finds its own checks this way. In the 63 sessions logged before this goal, sessions found
     them in the 13,766-line goal file with `grep` and `sed -n`, in 48 calls.
+  - **The status line is one row, and it says how far the goal is.** The live block is that row and
+    the key row under it. `loop.py`'s goal row above the status line, and its scrolling window, have
+    no successor. The row reads
+    `goal {slug}/{stage} | {x}% | {in}in/{out}out | {calls} tool calls | session {n} | {doing}`, for
+    example `goal tooling-overhaul/8 | 64% | 84.2kin/6.1kout | 42 tool calls | session 14 | Run the guard tests`.
+    It is repainted during a session, not only when one starts.
+    - `{stage}` is the lowest stage of the goal that still has a check that is not green.
+    - `{x}` is the share of the goal's own checks that are green, from 0 to 100. The floor is left
+      out: it is every walked goal's checks, and counting it would start every goal near 100%. The
+      acceptance sweep sets every check. During a session, a tool call whose command is a check's
+      `argv` sets that check green when it exits 0 and red when it does not, until the next sweep.
+    - `{in}` is the context of the session's latest turn: its input, cache-write and cache-read
+      tokens. `{out}` is what the session has written, summed over its messages. Subagent turns are
+      skipped. This is `Renderer.count` in `loop.py`. No cost is shown.
+    - `{calls}` counts the session's tool calls, and `{n}` is the session's number within the goal.
+    - `{doing}` is the latest tool call's `description` for `Bash` and `PowerShell`, `<tool> <path>`
+      for a file tool, and the tool's name otherwise. Between sessions it is the driver's own phase:
+      `acceptance sweep 31/58`, `usage wall, 12:03 left`, `held`. `{in}`, `{out}` and `{calls}`
+      keep the last session's figures until the next one reports.
+    - A row wider than the terminal is cut at its end with `…`, and nothing scrolls. The window
+      title is the same row.
+    - A prompt typed after `[i]` ends the key row, so the terminal's cursor stands right after the
+      last character typed.
+    - `bun test tools/nv/test/status.test.ts` builds the row from a recorded session stream and a
+      goal plan, and checks every field, the floor left out of `{x}`, the cut, and the prompt row.
 - **`nv bg <command…>`** starts any long command detached and prints a job id.
   - `nv bg --wait <id>` blocks until the job ends, prints the tail of its output and exits with
     its exit status. `nv bg --list` names the jobs still running.

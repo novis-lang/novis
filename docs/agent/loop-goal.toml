@@ -13741,6 +13741,13 @@ name = "the guard is wired for Read, Bash and PowerShell, and every rule names a
 argv = ["bun", "nv", "guard", "--check"]
 want = ["guard: wired for Read, Bash and PowerShell", "guard: every rule names a registered command"]
 
+[[check]]
+kind = "command"
+stage = "8 the driver"
+name = "the status line is one row that says the goal, its stage, how far it is and what the session is doing"
+argv = ["bun", "test", "tools/nv/test/status.test.ts"]
+want = [" pass", " 0 fail"]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the cutover left nothing behind. Goal prose stage 9.
 # ---------------------------------------------------------------------------------------------------
