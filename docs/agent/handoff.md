@@ -2,12 +2,22 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stages 3 to 7 have landed, and Stage 8 is in progress.** `bun nv chain`
-is written: `--check` is a query over `data/chain.json`, the goal and handoff records and the prose,
-and `--new`, `--move` and `--remove` edit `data/chain.json` and nothing else. Parity group `chain`
-matches `chain.py --check` (1 of 1). `chain.py` stays until the Stage 9 cutover, because its
-`--show`, `--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag
+**Goal `tooling-overhaul`: Stages 3 to 7 have landed, and Stage 8 is in progress.** `bun nv chain`,
+`bun nv loop --list` and `bun nv bg` are written. `chain.py` stays until the Stage 9 cutover, because
+its `--show`, `--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag
 `pre-overhaul` is the rollback.
+
+`nv loop` is `--list` only (`tools/nv/cmd/loop.ts`): `--stage`, `--name` and `--feature` narrow the
+plan, and the last line is `list: N check(s) match`. While `docs/agent/loop-goal.toml` exists it is
+the plan, imported through `installedGoal` in `tools/nv/import/goals.ts`, because `data/goals/*.json`
+is the import's snapshot and falls behind the toml the sessions edit (the stored `tooling-overhaul`
+record had 1 of Stage 8's 5 checks). `nv import --write` refuses while `impact_probes` has no
+importer, so the records are refreshed only at the cutover. The driver half of `nv loop` is still
+to write.
+
+`nv bg` (`tools/nv/cmd/bg.ts`) keeps each job under `.agent-tmp/bg/<id>/`, with a detached supervisor
+(`bg --run <id>`) that writes the `exit` file. `nv verify --start`/`--wait` is to be rebuilt on it
+when `nv verify` is written.
 
 `nv chain --check` does not resolve a goal's `[context]` selectors, which `chain.py` did through
 `orient.py`'s `manifest_findings`. That half arrives with `nv orient`, which resolves `[context]` by id.
@@ -24,30 +34,27 @@ Python printed. `bun x tsc --noEmit -p .` typechecks the tools. `loop.py` has no
 change is proved by a probe script under `.agent-tmp/` that builds a `Goal` from
 `docs/agent/loop-goal.toml` and stubs `capture`.
 
-The next failing acceptance line is `bun nv loop --list --name ...` in Stage 8. `nv loop` is not
-written yet, so this is an artefact still to write, not a regression.
+The next failing acceptance line should be `bun test tools/nv/test/guard.test.ts` in Stage 8. `nv guard`
+is not written yet, so this is an artefact still to write, not a regression.
 
 ## Next group
 
-**Stage 8: `nv loop --list` and `nv bg`** — one file set: `tools/nv/cmd/loop.ts` (new),
-`tools/nv/cmd/bg.ts` (new), `tools/nv/main.ts`, `tools/nv/test/bg.test.ts` (new). loop-goal.md
-§ *Stage 8*, "`nv loop` is the driver" and "`nv bg`", is the spec.
+**Stage 8: `nv guard`** — one file set: `tools/nv/cmd/guard.ts` (new), `tools/nv/test/guard.test.ts`
+(new), `tools/nv/main.ts`, `.claude/settings.json`, `tools/guard-read.py`. loop-goal.md § *Stage 8*,
+"`nv guard` is the one `PreToolUse` hook", is the spec.
 
-- [ ] **`bun nv loop --list --name "one proofs run verifies several groups"` prints that check and
-      `list: 1 check matches`**: the acceptance plan read from the live goal's record under
-      `data/goals/`, narrowed by `--stage <label>`, `--name <text>` and `--feature <id>`. Port the
-      `--list` branch at `tools/loop.py:6522`, and register `loop` in `COMMANDS` at
-      `tools/nv/main.ts:35`. Only `--list` is this item; the driver itself is a later group.
-- [ ] **`nv bg <command…>` starts a job detached and prints its id; `--wait <id>` gives back the
-      output's tail and the exit status; `--list` names running jobs**: jobs and logs under
-      `.agent-tmp/bg/`. `bun test tools/nv/test/bg.test.ts` covers a job exiting 0 and one exiting
-      non-zero. Register it at `tools/nv/main.ts:35`.
+- [ ] **`bun test tools/nv/test/guard.test.ts` passes: every guard rule denies its raw pattern and
+      allows its near miss.** Port `tools/guard-read.py`'s Read rule into `tools/nv/cmd/guard.ts`, add
+      the Bash and PowerShell rules the spec lists (loop-goal.md § *Stage 8*, the `nv guard` bullets),
+      fail open on a payload it cannot read, and register `guard` in `COMMANDS` at
+      `tools/nv/main.ts:37`.
+- [ ] **`bun nv guard --check` prints `guard: wired for Read, Bash and PowerShell` and `guard: every
+      rule names a registered command`**: `.claude/settings.json:4` runs `bun nv guard` for the three
+      tools, and `tools/guard-read.py:1` is deleted with its entry.
 
 ## Backlog
 
-- `nv guard` and `tools/nv/test/guard.test.ts`, then `.claude/settings.json` and deleting
-  `guard-read.py` — loop-goal.md § *Stage 8*, "`nv guard`".
-- `nv verify`, `nv orient`, `nv session --wrap` and parity groups `writers` and `orient` —
-  loop-goal.md § *Stage 8*.
-- `nv orient` owes the `[context]` resolution half of `nv chain --check`.
-- The Stage 7 cutover bullet above — loop-goal.md § *Stage 9*.
+- The driver half of `nv loop` (respawn protocol, exit `75`, `NOVIS_LOOP_RUN`, every flag) — loop-goal.md § *Stage 8*.
+- `nv verify`, `nv orient`, `nv session`, `nv side`, `nv respawn`, `nv splice` — loop-goal.md § *Stage 8*'s file set.
+- `nv verify --start`/`--wait` over `nv bg` — `tools/nv/cmd/bg.ts`'s module doc.
+- Stage 9's argv script maps the two `dossier.py` goal-emitting floor checks — loop-goal.md § *Stage 9*.
