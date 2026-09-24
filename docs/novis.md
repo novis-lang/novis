@@ -48,7 +48,7 @@ Conventions the whole file uses:
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state)*
 - A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as shape literals, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload)*
-- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst)*
+- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst)*
 
 ### Part B — The `Core` library
 
@@ -6522,7 +6522,7 @@ foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {inst
 <a id="lang-testing"></a>
 ## A.11 Testing
 
-Keywords: test, #[Test], nvs test, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst
+Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst
 
 ### A test is a method marked `#[Test]`
 
@@ -6574,10 +6574,8 @@ otherwise; a skipped test is not a failure.
 - Classes are reported in name order; within a class, tests run in declaration order.
 - The entry file's top-level statements do **not** run under `nvs test`; every file the
   `require`/`autoload` graph reaches is still compiled, so the classes under test are declared.
-- `nvs test <directory>` runs every `.nvs` file under the directory, subdirectories included, as one
-  program, in name order. One file in the directory requires the application's bootstrap file, and
-  that gives the whole directory its `autoload` declarations; the test files themselves require
-  nothing. A directory holding both `.nvs` and `.nvst` files is refused.
+- `nvs test <directory>` runs every `.nvs` file under the directory as one program. *A directory
+  of test files is one program*, under *Running tests* below, says how.
 - A test that asserts nothing fails — write `Core\Test::assertDoesNotThrow` when the claim is that
   a call completes.
 
@@ -6867,7 +6865,19 @@ ledger to record it.
 `nvs test main.nvs` compiles the program, runs its test table and prints the report above. Tests
 live wherever a class does: beside the code in one file, or in an entry file of their own that
 `autoload`s or `require`s the code under test — `nvs test tests.nvs` compiles that graph and runs
-only the `#[Test]` methods it declares.
+only the `#[Test]` methods it declares. A suite of several files goes in a directory instead:
+`nvs test tests/`, with one file there that requires the code under test.
+
+`nvs test` reads what to run from each path it is given:
+
+- **a `.nvs` file** is a program, and its `#[Test]` methods run;
+- **a directory holding `.nvs` files** is one program made of every one of them (below);
+- **a `.nvst` file, or a directory holding only `.nvst` files,** is a conformance run: each case is
+  one program under `--FILE--` with its expected output under `--EXPECT--` (and a `--TEST--`
+  title), and the report is a one-line count. `nvs test tests/conformance` is how this compiler's
+  own suite runs.
+
+A directory holding both kinds is refused, and the two kinds never run in one invocation.
 
 - `--format json` writes one JSON document to standard output at the end: `schemaVersion` (`2`), a
   `summary` (`total`, `passed`, `failed`, `skipped`, `flaky`, `durationMs`) and a `tests` array
@@ -6888,12 +6898,28 @@ only the `#[Test]` methods it declares.
 - `--filter <text>` runs only the tests whose name contains that text, case-sensitively: a `#[Test]`
   method's name is `Class::method` (`Class::method#0` for a data-provider row), so `--filter Class::`
   is a whole-class selector. A class no filtered test belongs to is not announced and its
-  `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (below).
+  `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (above).
 
-`nvs test` given a directory or a `.nvst` file runs conformance cases instead: each `.nvst` is one
-program under `--FILE--` with its expected output under `--EXPECT--` (and a `--TEST--` title), and
-the report is a one-line count — `nvs test tests/conformance` is how this compiler's own suite
-runs. The two kinds are not mixed in one invocation.
+#### A directory of test files is one program
+
+This is the layout for a suite of more than one file. `nvs test tests/` requires every `.nvs` file
+under `tests/`, subdirectories included, in name order, and runs the `#[Test]` methods of the
+program they make together. There is no list of test files to keep: the directory is scanned, so
+adding a test is adding a file.
+
+One file in the directory requires the application's entry or bootstrap file, and that gives the
+whole directory its `autoload` declarations. The test files themselves require nothing, and the
+bootstrap works the same wherever its name sorts:
+
+```
+tests/
+  bootstrap.nvs       <?nvs require '../src/app.nvs';
+  OrderTest.nvs       final class OrderTest { #[Test] public function … }
+  PriceTest.nvs       final class PriceTest { #[Test] public function … }
+```
+
+`nvs test tests/` then runs both classes' tests in one report. A directory holding both `.nvs` and
+`.nvst` files is refused.
 
 # Part B — The `Core` library
 
@@ -26051,7 +26077,7 @@ usually one file:
     nvs run hello.nvs
     nvs check src/app.nvs
     nvs test tests/
-    nvs --version          # prints `nvs 0.0.1`
+    nvs --version          # prints `nvs 0.0.1 (commit 16a26500b, 2026-09-24)`
 
 | Command | What it does |
 |---|---|
@@ -27260,11 +27286,11 @@ replaces the port; the two are not combined. `--config` reads a configuration fi
 root               = "/srv/app"           # every mount path resolves inside this; required with a mount table
 listen             = ["127.0.0.1:8000"]   # "host:port" entries, or an absolute path for a Unix socket
 socket_mode        = "0660"               # Unix-socket entries only
-dispatch           = "entry"              # "entry" or "path"; development defaults to "path"
-static             = false                # serve files under the mount root; development defaults to true
+dispatch           = "entry"              # "entry" or "path"; unset is "entry" in both modes
+static             = false                # serve files under the mount root; unset is false in both modes
 trusted_proxies    = []                   # empty: forwarding headers are never read
 health_path        = ""                   # "" is off
-max_in_flight      = 1024                 # requests in flight before a 503
+max_in_flight      = 10000                # requests in flight before a 503
 workers            = 4                    # accept cores; unset is the machine's parallelism
 header_timeout     = "10s"                # idle waits, each finite with nothing written
 body_idle_timeout  = "30s"
@@ -27333,8 +27359,8 @@ entry  = "Shop/public/index.nvs"
 ```
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
-entry. In development the sequence is `try_files $uri /index.nvs`, the shape a PHP application
-already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
+entry. With `dispatch = "path"` and `static = true` the sequence is `try_files $uri /index.nvs`,
+the shape a PHP application already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
 the file on disk only in case is a file that is not there, on every platform. A trailing slash is
 never added or removed: `/users` and `/users/` are two URLs. `HEAD` runs as `GET` with the body
 discarded.
@@ -28285,8 +28311,9 @@ know it is old — which is the failure the commands above exist to remove. A po
 ask; the binary answers.
 
 **Re-running rewrites nothing.** A stanza or an adapter that still reads as this binary writes it is
-left alone; `init` prints `wrote <path>` for each file it created, and `up to date` when it created
-none. A stanza or adapter holding anything else is refused — the message names the file and says to
+left alone, and line endings do not count: a checkout with CRLF line endings is the same text.
+`init` prints `wrote <path>` for each file it created, and `up to date` when it created none. A
+stanza or adapter holding anything else is refused — the message names the file and says to
 delete the block and run the command again, the exit status is non-zero, and nothing on disk
 changes. An upgrade and an edit somebody made on purpose look identical from the file, so both take
 the same answer, which is the one that cannot destroy the reader's own sentence.

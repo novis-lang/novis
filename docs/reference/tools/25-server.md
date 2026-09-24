@@ -40,11 +40,11 @@ replaces the port; the two are not combined. `--config` reads a configuration fi
 root               = "/srv/app"           # every mount path resolves inside this; required with a mount table
 listen             = ["127.0.0.1:8000"]   # "host:port" entries, or an absolute path for a Unix socket
 socket_mode        = "0660"               # Unix-socket entries only
-dispatch           = "entry"              # "entry" or "path"; development defaults to "path"
-static             = false                # serve files under the mount root; development defaults to true
+dispatch           = "entry"              # "entry" or "path"; unset is "entry" in both modes
+static             = false                # serve files under the mount root; unset is false in both modes
 trusted_proxies    = []                   # empty: forwarding headers are never read
 health_path        = ""                   # "" is off
-max_in_flight      = 1024                 # requests in flight before a 503
+max_in_flight      = 10000                # requests in flight before a 503
 workers            = 4                    # accept cores; unset is the machine's parallelism
 header_timeout     = "10s"                # idle waits, each finite with nothing written
 body_idle_timeout  = "30s"
@@ -115,8 +115,8 @@ entry  = "Shop/public/index.nvs"
 ```
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
-entry. In development the sequence is `try_files $uri /index.nvs`, the shape a PHP application
-already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
+entry. With `dispatch = "path"` and `static = true` the sequence is `try_files $uri /index.nvs`,
+the shape a PHP application already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
 the file on disk only in case is a file that is not there, on every platform. A trailing slash is
 never added or removed: `/users` and `/users/` are two URLs. `HEAD` runs as `GET` with the body
 discarded.

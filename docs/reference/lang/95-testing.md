@@ -1,8 +1,8 @@
 ---
 id: testing
 title: Testing
-summary: `#[Test]` methods, `nvs test`, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats
-keywords: test, #[Test], nvs test, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst
+summary: `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats
+keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst
 ---
 
 # A test is a method marked `#[Test]`
@@ -55,10 +55,8 @@ otherwise; a skipped test is not a failure.
 - Classes are reported in name order; within a class, tests run in declaration order.
 - The entry file's top-level statements do **not** run under `nvs test`; every file the
   `require`/`autoload` graph reaches is still compiled, so the classes under test are declared.
-- `nvs test <directory>` runs every `.nvs` file under the directory, subdirectories included, as one
-  program, in name order. One file in the directory requires the application's bootstrap file, and
-  that gives the whole directory its `autoload` declarations; the test files themselves require
-  nothing. A directory holding both `.nvs` and `.nvst` files is refused.
+- `nvs test <directory>` runs every `.nvs` file under the directory as one program. *A directory
+  of test files is one program*, under *Running tests* below, says how.
 - A test that asserts nothing fails — write `Core\Test::assertDoesNotThrow` when the claim is that
   a call completes.
 
@@ -348,7 +346,19 @@ ledger to record it.
 `nvs test main.nvs` compiles the program, runs its test table and prints the report above. Tests
 live wherever a class does: beside the code in one file, or in an entry file of their own that
 `autoload`s or `require`s the code under test — `nvs test tests.nvs` compiles that graph and runs
-only the `#[Test]` methods it declares.
+only the `#[Test]` methods it declares. A suite of several files goes in a directory instead:
+`nvs test tests/`, with one file there that requires the code under test.
+
+`nvs test` reads what to run from each path it is given:
+
+- **a `.nvs` file** is a program, and its `#[Test]` methods run;
+- **a directory holding `.nvs` files** is one program made of every one of them (below);
+- **a `.nvst` file, or a directory holding only `.nvst` files,** is a conformance run: each case is
+  one program under `--FILE--` with its expected output under `--EXPECT--` (and a `--TEST--`
+  title), and the report is a one-line count. `nvs test tests/conformance` is how this compiler's
+  own suite runs.
+
+A directory holding both kinds is refused, and the two kinds never run in one invocation.
 
 - `--format json` writes one JSON document to standard output at the end: `schemaVersion` (`2`), a
   `summary` (`total`, `passed`, `failed`, `skipped`, `flaky`, `durationMs`) and a `tests` array
@@ -369,9 +379,25 @@ only the `#[Test]` methods it declares.
 - `--filter <text>` runs only the tests whose name contains that text, case-sensitively: a `#[Test]`
   method's name is `Class::method` (`Class::method#0` for a data-provider row), so `--filter Class::`
   is a whole-class selector. A class no filtered test belongs to is not announced and its
-  `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (below).
+  `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (above).
 
-`nvs test` given a directory or a `.nvst` file runs conformance cases instead: each `.nvst` is one
-program under `--FILE--` with its expected output under `--EXPECT--` (and a `--TEST--` title), and
-the report is a one-line count — `nvs test tests/conformance` is how this compiler's own suite
-runs. The two kinds are not mixed in one invocation.
+## A directory of test files is one program
+
+This is the layout for a suite of more than one file. `nvs test tests/` requires every `.nvs` file
+under `tests/`, subdirectories included, in name order, and runs the `#[Test]` methods of the
+program they make together. There is no list of test files to keep: the directory is scanned, so
+adding a test is adding a file.
+
+One file in the directory requires the application's entry or bootstrap file, and that gives the
+whole directory its `autoload` declarations. The test files themselves require nothing, and the
+bootstrap works the same wherever its name sorts:
+
+```
+tests/
+  bootstrap.nvs       <?nvs require '../src/app.nvs';
+  OrderTest.nvs       final class OrderTest { #[Test] public function … }
+  PriceTest.nvs       final class PriceTest { #[Test] public function … }
+```
+
+`nvs test tests/` then runs both classes' tests in one report. A directory holding both `.nvs` and
+`.nvst` files is refused.
