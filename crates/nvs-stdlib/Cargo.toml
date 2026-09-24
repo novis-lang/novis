@@ -8,6 +8,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 [dependencies]
 nvs-runtime.workspace = true
 # `rule:core-classes/html-parsing`: `Core\Html::parse` is the WHATWG algorithm,

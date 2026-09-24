@@ -9,6 +9,11 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 [dependencies]
 # The h1 framing, and the one dependency in this tree ADR 0051 § 4's first
 # question answers "yes" to. The workspace `Cargo.toml`'s comment above it is

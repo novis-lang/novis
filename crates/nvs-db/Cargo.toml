@@ -9,6 +9,11 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 # ADR 0132 § 1 fixes this crate's place in the graph, and the direction is the
 # part that matters: `nvs-stdlib` depends on this crate and never the reverse.
 # `Core\Db`'s registry rows, reference cards and helper bodies stay where every

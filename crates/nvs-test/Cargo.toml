@@ -8,6 +8,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 # No dependencies on purpose. A test runner that fails is indistinguishable
 # from the thing it is testing failing, so this crate stays std-only and
 # hand-written rather than pulling a regex engine in for `--EXPECTF--`.

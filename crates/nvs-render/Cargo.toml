@@ -8,6 +8,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 # This crate depends on no `nvs-*` crate, and that is the property ADR 0092 § 1
 # asks of it: the model sits below both the runtime and the compiler front end,
 # so every edge to it runs downward. ADR 0087's bidi predicate, which ADR 0092

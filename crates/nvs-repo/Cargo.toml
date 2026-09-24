@@ -9,6 +9,11 @@ authors.workspace = true
 repository.workspace = true
 publish = false
 
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
 # A dev-dependency of the crates whose tests walk the repository, and of nothing
 # that ships: it depends on no `nvs-*` crate and on nothing outside `std`, so
 # adding it to a crate's tests adds no edge to that crate's build.
