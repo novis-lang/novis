@@ -23,6 +23,44 @@
       "why": "The footer's advice reads a per-session ledger both programs write, and a parity case runs them at once, so which one counted first is a race."
     }
   ],
+  "splice": [
+    {
+      "side": "python",
+      "pattern": "^splice\\.py: ",
+      "replace": "nv splice: ",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "python",
+      "pattern": " -- see this script's docstring for the patch format$",
+      "replace": " -- `bun nv splice --help` prints the patch format",
+      "why": "nv has no docstring to point at, so the hint names the command that prints the format."
+    },
+    {
+      "side": "both",
+      "pattern": "cannot read (\\S+): .*$",
+      "replace": "cannot read $1: <the system's message>",
+      "why": "Python and Bun each word an operating system error their own way, and both name the file."
+    },
+    {
+      "side": "nv",
+      "pattern": "\\\\r$",
+      "replace": "",
+      "why": "nv writes a CRLF target back with CRLF, and splice.py writes it back with LF. Keeping a file's line endings is what both claim to do, and only nv does it."
+    },
+    {
+      "side": "python",
+      "pattern": "^AGENTS\\.md forbids carrying file content through a shell[\\s\\S]*?never from the command line\\.\\n\\n",
+      "replace": "",
+      "why": "nv's help starts at the invocation forms. Why the blocks come from a file is in the command's module comment, where a person changing it reads it."
+    },
+    {
+      "side": "python",
+      "pattern": "which is the older one-file form and still\\nworks\\. (\\*\\*Either way the whole) (patch applies or none of it does\\*\\* -- every block in every file is)\\nmatched (before a single byte is) (written, so a stale anchor in the last file cannot leave the first)\\none half-edited\\.",
+      "replace": "which is the one-file form. $1\n$2 matched $3\n$4 one half-edited.",
+      "why": "nv's help does not call the one-file form older, since nv has only ever had it, and the paragraph wraps where the shorter sentence leaves it."
+    }
+  ],
   "layout": [
     {
       "side": "python",

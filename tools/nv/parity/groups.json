@@ -187,6 +187,49 @@
       ["--outline", "no/such.rs"]
     ]
   },
+  "splice": {
+    "python": ["python", "tools/splice.py"],
+    "nv": ["bun", "tools/nv/main.ts", "splice"],
+    "tree": {
+      "a.txt": "alpha\nbeta\ngamma § delta\nbeta two\n",
+      "crlf.txt": "one\r\ntwo\r\nthree\r\n",
+      "multi.patch": "--- a.txt\n<<<<<<< OLD\nalpha\n=======\nALPHA\n>>>>>>> NEW\n<<<<<<< OLD\ngamma § delta\n=======\ngamma\n>>>>>>> NEW\n--- crlf.txt\n<<<<<<< OLD\ntwo\nthree\n=======\n2\n3\n>>>>>>> NEW\n",
+      "half.patch": "--- a.txt\n<<<<<<< OLD\nalpha\n=======\nALPHA\n>>>>>>> NEW\n--- crlf.txt\n<<<<<<< OLD\nfour\n=======\n4\n>>>>>>> NEW\n",
+      "one.patch": "<<<<<<< OLD\nalpha\n=======\nA\n>>>>>>> NEW\n",
+      "old.txt": "gamma",
+      "new.txt": "G",
+      "stale.patch": "--- a.txt\n<<<<<<< OLD\nbeta\ngamma § dolta\n=======\nx\n>>>>>>> NEW\n",
+      "nothing.patch": "--- a.txt\n<<<<<<< OLD\nzzz\n=======\nx\n>>>>>>> NEW\n",
+      "dup.patch": "--- a.txt\n<<<<<<< OLD\nbeta\n=======\nx\n>>>>>>> NEW\n",
+      "empty.patch": "--- a.txt\n<<<<<<< OLD\n=======\nx\n>>>>>>> NEW\n",
+      "prose.patch": "just some words\n",
+      "unclosed.patch": "--- a.txt\n<<<<<<< OLD\nalpha\n",
+      "bare.patch": "--- \n<<<<<<< OLD\nalpha\n=======\nx\n>>>>>>> NEW\n",
+      "headers.patch": "--- a.txt\n"
+    },
+    "cases": [
+      ["--patch", "multi.patch"],
+      ["--patch", "multi.patch", "--dry-run"],
+      ["--patch", "half.patch"],
+      ["a.txt", "--patch", "one.patch"],
+      ["a.txt", "old.txt", "new.txt"],
+      ["--patch", "stale.patch"],
+      ["--patch", "nothing.patch"],
+      ["--patch", "dup.patch"],
+      ["--patch", "empty.patch"],
+      ["--patch", "prose.patch"],
+      ["--patch", "unclosed.patch"],
+      ["a.txt", "--patch", "multi.patch"],
+      ["--patch", "bare.patch"],
+      ["--patch", "headers.patch"],
+      ["--patch", "one.patch"],
+      ["--patch", "no-such.patch"],
+      ["--patch"],
+      ["--patch", "multi.patch", "extra"],
+      [],
+      ["--help"]
+    ]
+  },
   "plan": {
     "python": ["python", "tools/plan.py"],
     "nv": ["bun", "tools/nv/main.ts", "plan"],

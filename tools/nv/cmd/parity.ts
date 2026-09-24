@@ -4,15 +4,20 @@
 // declares: a rewrite of one side's text, a regex and its replacement, each carrying its reason. The
 // `*` entries apply to every group. A group may also declare `unordered`: the entries whose order is not
 // part of the output, compared sorted, with the reason. The two programs of a case run at once unless
-// the group declares `sequential`, with the reason, for a pair that writes the same scratch files. A
-// Python tool is deleted only after its group
-// matches here.
+// the group declares `sequential`, with the reason, for a pair that writes the same scratch files.
+//
+// A group for a tool that edits files declares a `tree`: the files it works on, by path and text. Each
+// case lays that tree out twice under `.agent-tmp/parity/<group>/`, runs each program inside its own
+// copy, and compares the files each run changed as well as what each printed. A file's text
+// is compared with every CR before an LF shown as `\r`, so a line ending one program changed is a
+// difference like any other, and `known.json` declares it the same way. A Python tool is deleted only
+// after its group matches here.
 //
 // With no group, prints the groups. With `--all`, runs every group. Exits 0 when every case matches,
 // 1 when one differs, and 2 on a bad argument.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc, type RunResult } from "../lib/proc.ts";
 
@@ -32,6 +37,8 @@ interface Group {
   unordered?: Unordered;
   /** Why the two programs cannot run at once, when they cannot: each case then runs Python first. */
   sequential?: string;
+  /** The files a writing tool is run over, by path relative to the tree and their text. */
+  tree?: Record<string, string>;
 }
 
 /**
@@ -110,8 +117,13 @@ function firstDifference(label: string, a: string, b: string): string[] {
   ];
 }
 
+/** A run's output, and for a group with a `tree` the files its copy held afterwards. */
+export interface Outcome extends RunResult {
+  files?: string;
+}
+
 /** Report lines for every way the two runs differ once normalized, or none when they match. */
-export function compare(py: RunResult, nv: RunResult, known: Known[], used: Set<Known>, unordered?: Unordered): string[] {
+export function compare(py: Outcome, nv: Outcome, known: Known[], used: Set<Known>, unordered?: Unordered): string[] {
   const out: string[] = [];
   const norm = (text: string, side: "python" | "nv") => {
     const n = normalize(text, side, known, used);
@@ -120,16 +132,63 @@ export function compare(py: RunResult, nv: RunResult, known: Known[], used: Set<
   if (py.code !== nv.code) out.push(`     exit status: python ${py.code}, nv ${nv.code}`);
   out.push(...firstDifference("stdout", norm(py.stdout, "python"), norm(nv.stdout, "nv")));
   out.push(...firstDifference("stderr", norm(py.stderr, "python"), norm(nv.stderr, "nv")));
+  if (py.files !== undefined || nv.files !== undefined) {
+    out.push(...firstDifference("files", norm(py.files ?? "", "python"), norm(nv.files ?? "", "nv")));
+  }
   return out;
+}
+
+/** `dir` emptied and filled with `tree`. */
+export function layOut(dir: string, tree: Record<string, string>): void {
+  rmSync(dir, { recursive: true, force: true });
+  for (const [path, text] of Object.entries(tree)) {
+    const full = join(dir, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, text, "utf8");
+  }
+}
+
+/**
+ * Every file under `dir` that is no longer what `tree` laid out, sorted by path: a `== <path>` line and
+ * its text with CR shown as `\r`, or `== <path> (deleted)`.
+ */
+export function snapshot(dir: string, tree: Record<string, string>): string {
+  const now = (readdirSync(dir, { recursive: true }) as string[])
+    .map((p) => p.split("\\").join("/"))
+    .filter((p) => statSync(join(dir, p)).isFile());
+  const out: string[] = [];
+  for (const p of [...new Set([...now, ...Object.keys(tree)])].sort()) {
+    if (!now.includes(p)) out.push(`== ${p} (deleted)`);
+    else {
+      const text = readFileSync(join(dir, p), "utf8");
+      if (text !== tree[p]) out.push(`== ${p}\n${text.replace(/\r/g, "\\r")}`);
+    }
+  }
+  return out.join("\n");
+}
+
+/** `argv` with each argument naming a file of this repository made absolute, so it runs from any directory. */
+function anchored(argv: string[]): string[] {
+  return argv.map((a) => (a.includes("/") && existsSync(join(ROOT, a)) ? join(ROOT, a) : a));
 }
 
 async function runGroup(name: string, group: Group, known: Known[]): Promise<boolean> {
   const used = new Set<Known>();
   let same = 0;
+  const scratch = join(ROOT, ".agent-tmp", "parity", name);
   console.log(`parity ${name}: ${group.cases.length} case(s), ${group.python.join(" ")} against ${group.nv.join(" ")}`);
   for (const args of group.cases) {
-    const runPy = () => runProc([...group.python, ...args], PYTHON_ENV);
-    const runNv = () => runProc([...group.nv, ...args]);
+    // A writer's case runs in a fresh copy of its tree per side, and never names the session's ledger
+    // of written files, since what it writes is scratch.
+    const inTree = async (side: "python" | "nv", program: string[], env: Record<string, string>): Promise<Outcome> => {
+      if (!group.tree) return runProc([...program, ...args], { env });
+      const cwd = join(scratch, side);
+      layOut(cwd, group.tree);
+      const result = await runProc([...anchored(program), ...args], { cwd, env: { ...env, NOVIS_LOOP_WRITES: "" } });
+      return { ...result, files: snapshot(cwd, group.tree) };
+    };
+    const runPy = () => inTree("python", group.python, PYTHON_ENV.env);
+    const runNv = () => inTree("nv", group.nv, {});
     const [py, nv] = group.sequential ? [await runPy(), await runNv()] : await Promise.all([runPy(), runNv()]);
     const diff = compare(py, nv, known, used, group.unordered);
     const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
@@ -141,6 +200,7 @@ async function runGroup(name: string, group: Group, known: Known[]): Promise<boo
       for (const line of diff) console.log(line);
     }
   }
+  if (group.tree) rmSync(scratch, { recursive: true, force: true });
   for (const k of known) {
     if (!used.has(k)) console.log(`  unused   a declared difference matched nothing: /${k.pattern}/ (${k.why})`);
   }

@@ -1,6 +1,9 @@
-import { describe, expect, test } from "bun:test";
-import { compare, normalize, sortEntries, type Known } from "../cmd/parity.ts";
+import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { compare, layOut, normalize, snapshot, sortEntries, type Known } from "../cmd/parity.ts";
 import type { RunResult } from "../lib/proc.ts";
+import { scratch, type Scratch } from "./scratch.ts";
 
 const TOOL: Known = { side: "python", pattern: "python tools/([a-z_-]+)\\.py", replace: "bun nv $1", why: "renamed" };
 const NAME: Known = { side: "python", pattern: "^brief\\.py:", replace: "nv brief:", why: "own name" };
@@ -54,5 +57,31 @@ describe("compare", () => {
   test("an unordered run ends at a line that is neither an entry nor deeper", () => {
     const u = { pattern: "^  gap ", why: "no position" };
     expect(sortEntries("  gap b\nmid\n  gap a\n", u)).toBe("  gap b\nmid\n  gap a\n");
+  });
+
+  test("the files two writers left are compared, and a declaration covers a line ending", () => {
+    const CR: Known = { side: "nv", pattern: "\\\\r$", replace: "", why: "keeps CRLF" };
+    const py = { ...result(""), files: "== a.txt\none\ntwo" };
+    const nv = { ...result(""), files: "== a.txt\none\\r\ntwo" };
+    expect(compare(py, nv, [], new Set())[0]).toContain("files line 2");
+    expect(compare(py, nv, [CR], new Set())).toEqual([]);
+  });
+});
+
+describe("a writer's tree", () => {
+  let tmp: Scratch | undefined;
+  afterEach(() => tmp?.cleanup());
+
+  test("is laid out afresh, and a snapshot names only what a run changed", () => {
+    tmp = scratch();
+    const tree = { "a.txt": "a\n", "sub/b.txt": "b\r\n", "gone.txt": "g\n" };
+    tmp.put("stale.txt", "left over");
+    layOut(tmp.root, tree);
+    expect(existsSync(join(tmp.root, "stale.txt"))).toBe(false);
+    expect(snapshot(tmp.root, tree)).toBe("");
+    writeFileSync(join(tmp.root, "sub/b.txt"), "B\r\n");
+    writeFileSync(join(tmp.root, "new.txt"), "n\n");
+    rmSync(join(tmp.root, "gone.txt"));
+    expect(snapshot(tmp.root, tree)).toBe("== gone.txt (deleted)\n== new.txt\nn\n\n== sub/b.txt\nB\\r\n");
   });
 });
