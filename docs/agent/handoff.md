@@ -4,13 +4,12 @@
 
 **Goal `tooling-overhaul`: Stages 3 to 6 have landed, and Stage 7 is in progress. All three Stage 7
 checks print their `want` lines.** `bun nv proofs` is `dossier.py`'s audit, `--run`, `--verify`,
-`--bless` and `--comments` (parity group `proofs`, 22 of 22). `--bless` runs on the proof binary
-(`target/proof/`). Each `--group` that an `nv proofs --run` or `--verify` check names is a unit
-`proofs: <group>` with source `observed` (`tools/nv/keys/checks.ts`, `proofGroups` and `proofParts`).
-It keys on the proof binary's build, the partitions the audit reads for every group, and the group's own
-example, attack and bench paths. `nv proofs` records those paths in `.loop/proof-reads.json` after
-a whole-group run. A group with no record keys on everything. The perf ledger (`--record-perf`, the
-report) is still `dossier.py`'s. `main` is frozen. Tag `pre-overhaul` is the rollback.
+`--bless` and `--comments` (parity group `proofs`, 22 of 22). The directives are now `// proof: exit N`
+and `// proof: gap <gap id>`. A gap marker names a record under `data/gaps/`, and both `nv proofs` and
+`dossier.py` print that record's title (`gapTitle` in `tools/nv/proofs/collect.ts`, `gap_title` in
+`dossier.py`). Each `--group` that a check names is a unit `proofs: <group>` (`tools/nv/keys/checks.ts`).
+The perf ledger (`--record-perf`, the report) is still `dossier.py`'s. `main` is frozen. Tag
+`pre-overhaul` is the rollback.
 
 These habits hold for every session of this goal. A mechanical change goes through a script under
 `.agent-tmp/`, and that script is written with Write, never a heredoc. Never prove a cut with a sweep.
@@ -21,9 +20,11 @@ a port needs to print exactly what Python printed (`comparePaths` is Python's `P
 What the probes do not assert yet:
 - A kept unit keyed on everything counts as `wide`. The 14 binaries in
   `tools/data/impact-wide.txt` have no recorded reads.
-- `new-example`'s keep list matches only wide units. A `proofs: <group>` unit is now a real cell
-  for it, and no probe in `tools/data/impact-probes.json` names one yet.
+- `new-example`'s keep list matches only wide units. No probe in `tools/data/impact-probes.json`
+  names a `proofs: <group>` unit yet.
 - clippy, doc-tests and the builds are `verify` steps, not units, until the verify cutover.
+
+The acceptance line `bun nv chain --check` is Stage 8's, and `nv chain` is not written yet.
 
 ## Next group
 
@@ -31,15 +32,10 @@ What the probes do not assert yet:
 `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**` and `docs/perf/members.ndjson`.
 loop-goal.md § *Stage 7* is the spec.
 
-- [ ] **The directive rename**: `// dossier: exit N` becomes `// proof: exit N`, and `// dossier:
-      known-gap <file> -- …` becomes `// proof: gap <gap-id>`, with the gap as a record under
-      `data/gaps/`. One script under `.agent-tmp/` rewrites every file. The regexes are
-      `tools/nv/proofs/run.ts:54` and `tools/nv/proofs/collect.ts:166`. `tools/dossier.py:394` must
-      read the new form too, or be retired first. `rule:testing/feature-proofs`.
 - [ ] **`--record-perf` and the perf report**, from `tools/dossier.py:1686` and
       `tools/dossier.py:1787`, into `tools/nv/cmd/proofs.ts`. They run on the release binary.
       `rule:testing/member-perf-ledger`.
-- [ ] **Perf currency ignores comments**: `tools/nv/proofs/collect.ts:295` (`implHash`) hashes at
+- [ ] **Perf currency ignores comments**: `tools/nv/proofs/collect.ts:301` (`implHash`) hashes at
       the card tier, the same commit rewrites the matching `impl_hash`es in
       `docs/perf/members.ndjson`, and the rule's currency paragraph is rewritten whole with one new
       decision record. `rule:testing/member-perf-ledger`.
@@ -50,3 +46,4 @@ loop-goal.md § *Stage 7* is the spec.
 - `nv disk` counts `target/proof/` — loop-goal.md § *Stage 7*.
 - Deleting `dossier.py`'s fan-out and goal emission — loop-goal.md § *Stage 7*.
 - An impact probe that edits one group's example and keeps every other `proofs:` unit — `tools/data/impact-probes.json`.
+- The `known-gap` word in the run's count lines (`0 known-gap`) stays until `dossier.py` is deleted, because parity compares it — `tools/nv/proofs/run.ts`.
