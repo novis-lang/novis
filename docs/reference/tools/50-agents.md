@@ -104,8 +104,9 @@ know it is old — which is the failure the commands above exist to remove. A po
 ask; the binary answers.
 
 **Re-running rewrites nothing.** A stanza or an adapter that still reads as this binary writes it is
-left alone; `init` prints `wrote <path>` for each file it created, and `up to date` when it created
-none. A stanza or adapter holding anything else is refused — the message names the file and says to
+left alone, and line endings do not count: a checkout with CRLF line endings is the same text.
+`init` prints `wrote <path>` for each file it created, and `up to date` when it created none. A
+stanza or adapter holding anything else is refused — the message names the file and says to
 delete the block and run the command again, the exit status is non-zero, and nothing on disk
 changes. An upgrade and an edit somebody made on purpose look identical from the file, so both take
 the same answer, which is the one that cannot destroy the reader's own sentence.

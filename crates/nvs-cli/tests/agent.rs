@@ -674,6 +674,40 @@ fn init_run_twice_changes_nothing_the_first_run_wrote() {
     assert_eq!(files(&dir), vec!["AGENTS.md".to_owned()]);
 }
 
+/// A checkout that turned every line ending into CRLF, as Git's `core.autocrlf`
+/// does on Windows, holds the same stanza and the same pointer, so a second run
+/// is `up to date` and leaves the converted files as they are.
+#[test]
+fn init_reads_a_crlf_checkout_of_what_it_wrote_as_up_to_date() {
+    let dir = tree("crlf");
+    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the first run succeeds: {err}");
+
+    for relative in ["AGENTS.md", ".claude/skills/novis/SKILL.md"] {
+        let crlf = read(&dir, relative).replace('\n', "\r\n");
+        std::fs::write(dir.join(relative), &crlf).expect("the converted file is written");
+    }
+    let converted: Vec<String> = ["AGENTS.md", ".claude/skills/novis/SKILL.md"]
+        .iter()
+        .map(|relative| read(&dir, relative))
+        .collect();
+
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(ok, "a CRLF checkout is not a refusal: {err}");
+    assert!(out.contains("up to date"), "it says nothing changed: {out}");
+    for (relative, before) in ["AGENTS.md", ".claude/skills/novis/SKILL.md"]
+        .iter()
+        .zip(&converted)
+    {
+        assert_eq!(
+            &read(&dir, relative),
+            before,
+            "{relative} is left as it was"
+        );
+    }
+}
+
 /// Whether a changed stanza is an edit or an upgrade is not something this can
 /// see, so it refuses both — overwriting a reader's own sentence is the worse of
 /// the two mistakes, and the refusal names the file and the way out.

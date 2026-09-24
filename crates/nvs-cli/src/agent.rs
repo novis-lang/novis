@@ -982,13 +982,21 @@ fn install_stanza(path: &Path) -> Result<bool, String> {
     };
 
     let end = open + close + STANZA_CLOSE.len();
-    if existing[open..end] == block {
+    if reads_as(&existing[open..end], &block) {
         return Ok(false);
     }
     Err(format!(
         "AGENTS.md's `nvs agent` stanza is not the one this binary writes, so it is left alone; \
          delete the block from `{STANZA_OPEN}` to `{STANZA_CLOSE}` and run this again"
     ))
+}
+
+/// Whether text read from disk is the text this binary writes, with every
+/// `\r\n` read as `\n`. A Windows checkout under Git's `core.autocrlf` holds
+/// what [`install_stanza`] wrote with CRLF line endings, and that is the same
+/// text, so it is up to date and not refused.
+fn reads_as(on_disk: &str, written: &str) -> bool {
+    on_disk.replace("\r\n", "\n") == written.replace("\r\n", "\n")
 }
 
 /// Put one harness's pointer where it belongs, and say whether that changed the
@@ -1001,7 +1009,7 @@ fn install_adapter(root: &Path, adapter: &Adapter) -> Result<bool, String> {
     let path = root.join(adapter.path);
     let body = adapter.body();
     match std::fs::read_to_string(&path) {
-        Ok(text) if text == body => Ok(false),
+        Ok(text) if reads_as(&text, &body) => Ok(false),
         Ok(_) => Err(format!(
             "{} is not the pointer this binary writes, so it is left alone; \
              delete it and run this again",
