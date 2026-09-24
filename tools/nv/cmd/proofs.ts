@@ -7,28 +7,39 @@
 //     bun nv proofs --gaps                 every proof carrying a known-gap marker
 //     bun nv proofs --gate                 exit 0 when nothing in scope is owed; name what is otherwise
 //     bun nv proofs --json                 the audit as JSON
+//     bun nv proofs --run                  run every example and attack in scope, and report what failed
+//     bun nv proofs --verify               --gate, then --run, for each scope in one pass
+//     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
+//                                          line, its output, its exit status and time
 //
-// `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate` and `--json`. `--no-perf`
-// stops the perf proof from being owed. `--nvs` names the binary whose `nvs meta --json` the roster is
-// read from; without it, `target/release` and then `target/debug`. `rule:testing/feature-proofs` is what
-// a feature owes, `tools/nv/proofs/roster.ts` is where the features come from, and
-// `tools/nv/proofs/collect.ts` is how each proof is found on disk.
+// `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run` and
+// `--verify`, and `--id` narrows `--run` and `--verify`. `--run` and `--verify` take `--group` more than
+// once: the roster is read once, every program runs in one pool, and each group prints its own verdict
+// lines under a `== <group>` line. `--no-perf` stops the perf proof from being owed. `--nvs` names the
+// binary to use as it is. Without it, the audit reads the roster from `target/release` and then
+// `target/debug`, and `--run` and `--verify` use the proof binary, built first when it is not current.
+// `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
+// come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, and `tools/nv/proofs/run.ts`
+// is how a proof program is run and judged.
 //
-// This replaces `tools/dossier.py`'s audit. Running the proofs, blessing an example's output and the perf
-// ledger are still that tool's until they are ported here.
+// This replaces `tools/dossier.py`'s audit and its `--run` and `--verify`. Blessing an example's output,
+// the comment bounds and the perf ledger are still that tool's until they are ported here.
 
 import { existsSync } from "node:fs";
 import { abs } from "../lib/paths.ts";
 import { ArgError, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { collect, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
+import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
+import { namedBinary, proofBinary, runPrograms, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 
-export const summary = "what each feature still owes of its proofs: nv proofs [--group G] [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json]";
+export const summary =
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate]",
-  "                 [--no-perf] [--nvs NVS]",
+  "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
+  "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
 ].join("\n");
 
 /** What the binary is: the one named, or the newest profile built. */
@@ -238,6 +249,62 @@ function takeOnly(args: string[]): { rest: string[]; only: string[] | null } {
   return { rest, only };
 }
 
+/** Every `--group` value in order, since `--run` and `--verify` take several. */
+function groupsIn(args: string[]): string[] {
+  const groups: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--group" && i + 1 < args.length) groups.push(args[++i]!);
+    else if (args[i]!.startsWith("--group=")) groups.push(args[i]!.slice("--group=".length));
+  }
+  return groups;
+}
+
+/** A scope whose verdict lines print together: a group, one feature, the named features or the roster. */
+interface Scope {
+  label: string | null;
+  entries: Entry[];
+}
+
+/** The programs a scope runs: the `.nvs` files directly in each feature's own directory, which is the set
+ * `owed` counts. A `.nvs` in a subdirectory is material a case loads and does not run on its own. */
+function programsOf(scope: Scope, what: What): string[] {
+  const dirs = scope.entries.map((e) => (what === "examples" ? examplesDir(e) : hostileDir(e)));
+  return [...new Set(dirs.flatMap((d) => namesIn(d, ".nvs").map((n) => `${d}/${n}`)))].sort();
+}
+
+/** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
+ * every scope whose gate passed, in one pool. */
+async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips): Promise<number> {
+  const opts = { valgrind: flags.has("--valgrind"), cache: !flags.has("--no-cache"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
+  const heads = new Map<Scope, string[]>();
+  const running: Scope[] = [];
+  let rc = 0;
+  for (const scope of scopes) {
+    const lines: string[] = [];
+    if (scopes.length > 1) lines.push(`== ${scope.label ?? "the whole roster"}`);
+    const gated = verify ? gate(lines, scope.entries, proofs, policy, skips, scope.label) : 0;
+    rc |= gated;
+    heads.set(scope, lines);
+    if (!gated) running.push(scope);
+  }
+  const suites: What[] = ["examples", "hostile"];
+  if (flags.has("--show")) {
+    // One program at a time, printed as it finishes, in the order examples, attacks, bench.
+    for (const scope of running) {
+      for (const what of suites) for (const path of programsOf(scope, what)) process.stdout.write(await showProgram(bin.path, path, what));
+      for (const e of scope.entries) if (existsSync(abs(benchFile(e)))) process.stdout.write(await showProgram(bin.path, benchFile(e), "bench"));
+    }
+  }
+  const programs = running.flatMap((s) => suites.flatMap((what) => programsOf(s, what).map((path) => ({ what, path }))));
+  const pass = await runPrograms(bin, programs, opts);
+  for (const scope of scopes) {
+    out.push(...heads.get(scope)!);
+    if (!running.includes(scope)) continue;
+    for (const what of suites) if (suiteLines(out, what, programsOf(scope, what), pass, opts)) rc = 1;
+  }
+  return rc;
+}
+
 export async function run(args: string[]): Promise<number> {
   let flags: Set<string>;
   let values: Map<string, string>;
@@ -247,7 +314,7 @@ export async function run(args: string[]): Promise<number> {
     const taken = takeOnly(args);
     only = taken.only;
     ({ flags, values } = parseArgs(taken.rest, {
-      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf"],
+      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show"],
       valued: ["--group", "--id", "--limit", "--nvs"],
     }));
     const raw = values.get("--limit");
@@ -271,11 +338,25 @@ export async function run(args: string[]): Promise<number> {
     return code;
   };
 
-  const nvs = binary(values.get("--nvs"));
+  // Only what runs a proof program pays for a current binary. The audit reads a roster, and a person
+  // asking `--owed` is not made to wait for a build.
+  const executes = flags.has("--run") || flags.has("--verify");
+  let bin: Binary | null = null;
+  const named = values.get("--nvs");
+  if (executes && named === undefined) {
+    const built = await proofBinary();
+    if (typeof built === "string") {
+      out.push(`nv proofs: ${built}`);
+      return flush(1);
+    }
+    bin = built;
+  }
+  const nvs = bin?.path ?? binary(named);
   if (nvs === null) {
     out.push("nv proofs: no `nvs` binary. Build one (`cargo build --release -p nvs-cli`) or pass --nvs.");
     return flush(1);
   }
+  if (executes && bin === null) bin = namedBinary(nvs);
   const { policy, skips } = loadPolicy(flags.has("--no-perf"));
   const columns = shownProofs(policy);
   let entries: Entry[];
@@ -287,13 +368,16 @@ export async function run(args: string[]): Promise<number> {
     return 1;
   }
   const group = values.get("--group");
+  // The audit takes the last `--group`, as argparse does. `--run` and `--verify` take each one.
+  const groups = executes ? groupsIn(args) : group === undefined ? [] : [group];
   let scope = entries;
-  if (group !== undefined) {
-    scope = entries.filter((e) => e.group === group);
-    if (scope.length === 0) {
-      out.push(`nv proofs: no group ${pyRepr(group)}.`);
+  if (groups.length > 0) {
+    const missing = groups.find((g) => !entries.some((e) => e.group === g));
+    if (missing !== undefined) {
+      out.push(`nv proofs: no group ${pyRepr(missing)}.`);
       return flush(1);
     }
+    scope = entries.filter((e) => groups.includes(e.group));
   }
   if (only !== null) {
     const wanted = new Set(only);
@@ -309,6 +393,24 @@ export async function run(args: string[]): Promise<number> {
   }
   const label = group ?? (only !== null ? `${only.length} named feature(s)` : null);
   const proofs = collect(entries);
+
+  if (executes) {
+    const fid = values.get("--id");
+    let scopes: Scope[];
+    if (fid !== undefined) {
+      const match = entries.find((e) => e.id === fid);
+      if (!match) {
+        out.push(`nv proofs: no feature ${pyRepr(fid)}.`);
+        return flush(1);
+      }
+      scopes = [{ label: fid, entries: [match] }];
+    } else if (groups.length > 1) {
+      scopes = groups.map((g) => ({ label: g, entries: scope.filter((e) => e.group === g) }));
+    } else {
+      scopes = [{ label, entries: scope }];
+    }
+    return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips));
+  }
 
   if (flags.has("--gate")) return flush(gate(out, scope, proofs, policy, skips, label));
   if (flags.has("--json")) {
