@@ -13658,7 +13658,9 @@ kind = "command"
 stage = "6 one key"
 name = "the fuzz target is keyed on the crates it uses"
 argv = ["bun", "nv", "why", "the prefix fuzz target finds no panic in five minutes"]
-want = ["source: package key", "nvs-syntax", "nvs-diagnostics", "fuzz/"]
+# `want` is ordered, and `nv why` sorts a partition's inputs by path, so `nvs-diagnostics` is
+# printed before `nvs-syntax`.
+want = ["source: package key", "nvs-diagnostics", "nvs-syntax", "fuzz/"]
 
 [[check]]
 kind = "command"
