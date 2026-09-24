@@ -126,6 +126,7 @@ OPTSTATE = OPTDIR / "state.json"
 OPTSTATUS = RUNDIR / "optimize-status.txt"
 PACKLOG = RUNDIR / "pack-size.jsonl"
 OPT_PROMPT = ROOT / "docs" / "agent" / "optimization-prompt.md"
+REPAIR_PROMPT = ROOT / "docs" / "agent" / "repair-prompt.md"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -5205,6 +5206,8 @@ class Run:
         last_hand     the verdict the run last held on, so the same one twice ends it
         judge         a served session no sweep has judged yet, because it changed the driver's
                       own code: its log index, status line, commit count and base sha, or {}
+        repair        the verdict the next session repairs instead of doing goal work, or ""
+        repairs       repair sessions the live goal has spent: `REPAIRS_PER_GOAL`
 
     The sessions since the last optimization pass are not here: `.loop/optimization/state.json`
     has always held that count across runs, and `credit` is its one writer outside a checkpoint.
@@ -5213,7 +5216,8 @@ class Run:
     would read as a run that had served nothing."""
 
     DEFAULTS = {"run": "", "run_id": "", "served": 0, "index": 0, "stalls": 0,
-                "done_retries": 0, "retry_check": "", "last_hand": [], "judge": {}}
+                "done_retries": 0, "retry_check": "", "last_hand": [], "judge": {},
+                "repair": "", "repairs": 0}
 
     def __init__(self, stamp):
         state = read_json(RUNSTATE, default={}) or {}
@@ -6927,11 +6931,18 @@ def drive(opts, goal, chain, run):
 
         # The prompt is re-read for the same reason `load_goal()` is called below: a session that
         # improved it should be improving the next session, not the next run. A read that fails
-        # keeps the last good text rather than ending a run nobody is watching.
+        # keeps the last good text rather than ending a run nobody is watching. A run repairing a
+        # verdict hands this session the repair prompt and the verdict instead: `REPAIR_KINDS`.
+        opening = REPAIR_PROMPT if run.repair else PROMPT
         try:
-            prompt_text = PROMPT.read_text(encoding="utf-8")
+            prompt_text = opening.read_text(encoding="utf-8")
+            if run.repair:
+                prompt_text = prompt_text.rstrip("\n") + f"\n\n```\n{run.repair}\n```\n"
+                step("a repair session: it gets the verdict the run stopped on, not a goal item",
+                     C.CYAN)
         except OSError as e:
-            say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
+            say(f"   {rel_to_root(opening)} did not read, using the last good one -- {e}",
+                C.YELLOW)
 
         session_started = time.monotonic()
         # Consumed here whatever happens below, so a launch can only ever rejoin a transcript the
@@ -7053,6 +7064,8 @@ def drive(opts, goal, chain, run):
         # this line can be cut off by a Ctrl-C, and a session that was served was served.
         run.served += 1
         run.index = index
+        # Spent on the session that was served, so a repair the usage wall refused is still owed.
+        repaired, run.repair = bool(run.repair), ""
         run.save()
         credit()
 
@@ -7086,6 +7099,8 @@ def drive(opts, goal, chain, run):
         # Said in the ledger because it changes what the line means: a session a person halted
         # or spoke to is not the unattended session every measurement over this file assumes.
         attended = f" | {operator}" if operator else ""
+        if repaired:
+            attended += " | repair session"
         ledger(f"- {index:04d} {commits} commit(s){delegated}{wip}{attended} | "
                f"{line or '(no status written)'}")
 
@@ -7202,10 +7217,12 @@ def drive(opts, goal, chain, run):
                    f"({chain.current.num} of {len(chain.goals)})")
             # A new goal is a new worklist, so a stall streak from the old one says nothing about
             # it -- and the first session of any goal is the one most likely to spend itself
-            # reading rather than committing. Its DONE-claim retries start over for the same reason.
+            # reading rather than committing. Its DONE-claim retries and its repairs start over for
+            # the same reason.
             stalls = 0
             done_retries = 0
             retry_check = ""
+            run.repairs = 0
             try:
                 goal = load_goal()
             except (tomllib.TOMLDecodeError, GoalError) as e:
@@ -7327,6 +7344,20 @@ def drive(opts, goal, chain, run):
 #: has nothing left to walk, so there is no session to start when the hold lifts.
 HOLD_KINDS = frozenset({"blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall",
                         "side-conflict"})
+
+#: The held verdicts a session can answer without the user, so the run gives each one a repair
+#: session before it holds: the next turn's session gets `docs/agent/repair-prompt.md` and the
+#: verdict in place of the session prompt, and is judged like any other. This is what the user
+#: did by hand at every hold: paste the verdict into a new session, let it fix the cause, release.
+#: The two left out need the user. `blocked` is a session asking for a decision, and `wall` is the
+#: usage limit, which nothing in the tree can change and which would refuse the session anyway.
+REPAIR_KINDS = frozenset({"stalled", "done-claim", "cli-failed", "chain-error", "side-conflict"})
+
+#: Repair sessions one goal gets before a repairable verdict holds after all. It is a bound and not
+#: a count of anything: a verdict that three sessions with the error in front of them could not
+#: clear needs the person, and without a bound a goal that never goes green would spend sessions
+#: forever with nobody asked.
+REPAIRS_PER_GOAL = 3
 
 #: What an optimization pass may commit. Everything outside this is reverted, unread: the pass is
 #: the loop working on itself, and `crates/`, `tests/` and `examples/` are the work, not the loop.
@@ -8280,6 +8311,19 @@ def turn(opts, goal, chain, run):
             after = checkpoint(opts, since)
             state = read_json(OPTSTATE, default={}) or {}
             write_json(OPTSTATE, {**state, "since": after})
+        return again(run)
+
+    if kind in REPAIR_KINDS and not run.repair and run.repairs < REPAIRS_PER_GOAL:
+        # Not held: the next turn's session is given the verdict to fix, as the user would give
+        # it. Whatever `--no-hold` says, since nobody is asked. A repair still owed is one whose
+        # session was never served -- `claude` itself failing, say -- and a second one would not
+        # be served either, so that verdict holds, as does one past the goal's repairs.
+        run.repairs += 1
+        run.repair = f"{kind}: {reason}"
+        note = (f"not holding on {kind} -- a repair session gets it first "
+                f"({run.repairs} of {REPAIRS_PER_GOAL} on this goal): {reason}")
+        ledger(f"## {note}")
+        verdict(False, note)
         return again(run)
 
     hand = [kind, reason]
