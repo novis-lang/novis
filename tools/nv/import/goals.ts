@@ -142,6 +142,11 @@ function goalValue(root: string, g: GoalFiles, unread: Unread[]): Record<string,
   return { ...value, files: t.files ?? [], context, stages, checks, env };
 }
 
+/** The installed goal's record, read from the acceptance list the driver keeps current, or null with the reason in `unread`. */
+export function installedGoal(root: string, slug: string, md: string, unread: Unread[]): Record<string, unknown> | null {
+  return goalValue(root, { slug, md, toml: LIVE.toml, handoff: null }, unread);
+}
+
 /**
  * The list that opens `lines`, its items opening on `- ` and each unwrapped to one line, and the
  * lines after it: the list ends at the first line that neither opens nor continues an item.
