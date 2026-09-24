@@ -112,9 +112,10 @@ function readJson(rel: string): unknown {
   }
 }
 
-/** The records on disk. A missing one reads as empty, which only ever widens a key. */
-export function loadRecords(graph: Graph, goal = GOAL): Records {
-  const doc = parseToml(readFileSync(join(ROOT, goal), "utf8")) as { check?: Check[] };
+/** The records on disk. A missing one reads as empty, which only ever widens a key. A `goal` of `null`
+ * reads no checks, for a caller that keys only the test binaries. */
+export function loadRecords(graph: Graph, goal: string | null = GOAL): Records {
+  const doc = (goal === null ? {} : parseToml(readFileSync(join(ROOT, goal), "utf8"))) as { check?: Check[] };
   const reads = new Map<string, string[]>();
   const got = readJson(READS);
   if (got && typeof got === "object") {

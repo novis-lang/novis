@@ -39,19 +39,19 @@ interface Job {
   pid?: number;
 }
 
-const dirOf = (id: string) => join(JOBS, id);
+export const dirOf = (id: string) => join(JOBS, id);
 
-function readJob(id: string): Job | null {
+export function readJob(id: string): Job | null {
   const path = join(dirOf(id), "job.json");
   return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as Job) : null;
 }
 
-function exitOf(id: string): number | null {
+export function exitOf(id: string): number | null {
   const path = join(dirOf(id), "exit");
   return existsSync(path) ? Number(readFileSync(path, "utf8").trim()) : null;
 }
 
-function alive(pid: number | undefined): boolean {
+export function alive(pid: number | undefined): boolean {
   if (pid === undefined) return false;
   try {
     process.kill(pid, 0);
@@ -76,6 +76,12 @@ function prune(): void {
 }
 
 function start(argv: string[]): number {
+  console.log(startJob(argv));
+  return 0;
+}
+
+/** Starts `argv` as a detached job and returns its id. */
+export function startJob(argv: string[]): string {
   prune();
   const id = newId();
   const dir = dirOf(id);
@@ -90,8 +96,7 @@ function start(argv: string[]): number {
   });
   child.unref();
   writeFileSync(join(dir, "job.json"), JSON.stringify({ ...job, pid: child.pid }, null, 2) + "\n");
-  console.log(id);
-  return 0;
+  return id;
 }
 
 /** The supervisor: runs the job's command into its log and writes its exit status. */
