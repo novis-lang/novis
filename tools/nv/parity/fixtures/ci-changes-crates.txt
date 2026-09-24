@@ -1,0 +1,4 @@
+crates/nvs-host/src/lib.rs
+editors/vscode/package.json
+
+THIRD-PARTY-LICENSES.txt

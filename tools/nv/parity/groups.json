@@ -42,6 +42,32 @@
     "nv": ["bun", "tools/nv/main.ts", "chain"],
     "cases": [["--check"]]
   },
+  "ci-changes": {
+    "python": ["python", "tools/ci-changes.py"],
+    "nv": ["bun", "tools/nv/main.ts", "ci-changes"],
+    "cases": [
+      ["--full"],
+      ["--files", "tools/nv/parity/fixtures/ci-changes-crates.txt"],
+      ["--files", "tools/nv/parity/fixtures/ci-changes-docs.txt"],
+      ["--files", "tools/nv/parity/fixtures/ci-changes-lsp.txt"],
+      ["--base", "HEAD~1"],
+      ["--base", "nosuchcommit"],
+      ["--base", "0000000000000000000000000000000000000000"],
+      ["--base"],
+      ["--f", "x"],
+      ["--bogus"]
+    ]
+  },
+  "ci-green": {
+    "python": ["python", "tools/ci-green.py"],
+    "nv": ["bun", "tools/nv/main.ts", "ci-green"],
+    "cases": [[]]
+  },
+  "class-cards": {
+    "python": ["python", "tools/class-cards.py"],
+    "nv": ["bun", "tools/nv/main.ts", "class-cards"],
+    "cases": [[], ["--check"], ["x", "--check", "y"]]
+  },
   "db-matrix": {
     "python": ["python", "tools/db-matrix.py"],
     "nv": ["bun", "tools/nv/main.ts", "db-matrix"],

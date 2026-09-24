@@ -29,6 +29,20 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "ci-changes": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)ci-changes\\.py(:? )",
+      "replace": "$1nv ci-changes$2",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "python",
+      "pattern": "^(usage: nv ci-changes .*\\[--files FILE\\])$",
+      "replace": "$1 [--lanes]",
+      "why": "nv adds `--lanes`, which prints the lane table a floor check reads, so no check has to read a tool's source text."
+    }
+  ],
   "db-matrix": [
     {
       "side": "python",
