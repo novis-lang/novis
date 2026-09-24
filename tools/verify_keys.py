@@ -108,6 +108,9 @@ NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
 # them. No other step reads these, so they are in no other step's key.
 OWNERS_READS = ("docs/implementation-plan.md", "docs/plan", "docs/agent/goals",
                 "tools/owners.py", "tools/goals.py")
+# What the `nv` step reads: the tools' TypeScript and the package files that pin its runtime and
+# its dependencies. No other step reads these, so they are in no other step's key.
+NV_READS = ("tools/nv", "package.json", "bun.lock", "tsconfig.json")
 # What a `build.rs` reads from outside `crates/`: `crates/nvs-stdlib/build.rs` the first two,
 # `crates/nvs-cli/build.rs` the other two. An embedded file is found by the scan instead.
 BUILD_READS = ("docs/spec/02-php-migration.md", "tools/data/php-builtins.txt",
@@ -280,7 +283,7 @@ def input_paths():
     for name in INPUT_FILES:
         if (ROOT / name).is_file():
             seen.add(name)
-    for top in INPUT_DIRS + OWNERS_READS:
+    for top in INPUT_DIRS + OWNERS_READS + NV_READS:
         base = ROOT / top
         if base.is_file():
             seen.add(top)
@@ -395,7 +398,7 @@ def _only(*names):
 
 def _everything(t):
     # The test binaries: a policy test may read any file the old whole-tree key covered, as text.
-    return [("rustc", t.toolchain)] + t.part(lambda r: not under(*OWNERS_READS)(r))
+    return [("rustc", t.toolchain)] + t.part(lambda r: not under(*OWNERS_READS, *NV_READS)(r))
 
 
 #: Each step's partition. A step that is absent is never answered from the cache.
@@ -405,8 +408,7 @@ STEP_READS = {
     "directives": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "template": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "owners": lambda t: t.part(under("crates")) + t.part(under(*OWNERS_READS)),
-    "nv": lambda t: t.part(under("tools/nv"))
-    + t.part(_only("package.json", "bun.lock", "tsconfig.json")),
+    "nv": lambda t: t.part(under(*NV_READS)),
     "fuzz-lock": lambda t: [("rustc", t.toolchain)] + t.part(is_manifest),
     "build": lambda t: t.binary(),
     "test": _everything,
