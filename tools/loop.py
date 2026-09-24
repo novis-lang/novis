@@ -2240,6 +2240,10 @@ def rustc_version():
 # Held by whatever background release build is in flight; see `Goal.prebuild`.
 PREBUILD_LOCK = threading.Lock()
 
+# Held while `target/release/nvs.exe` is being linked, and while a check that runs it is in
+# flight: `runs_release_cli` says which checks, and `Goal.prebuild` is the link.
+RELEASE_CLI_LOCK = threading.Lock()
+
 # One lock per `overlap` command, held while it is in flight; see `Goal.start_overlap`.
 OVERLAP_LOCKS = collections.defaultdict(threading.Lock)
 
@@ -2267,6 +2271,18 @@ def measures_release_cli(c):
     be a second place to keep one fact. `Goal.release_cli` owns what is done about it.
     """
     return c["kind"] == "command" and any("bench.py" in a for a in c["argv"])
+
+
+def runs_release_cli(c):
+    """Whether this check runs `target/release/nvs.exe` as it stands, without measuring it.
+
+    `tools/dossier.py` runs every proof program against that binary, several at a time. The link
+    in `Goal.prebuild` replaces the file, and on Windows it cannot while a proof has it open:
+    `relink.py` then moves it aside and a proof starting in that window finds no binary at all.
+    So such a check and the link hold `RELEASE_CLI_LOCK` in turn. It is not a `measures_release_cli`
+    check, because it is not a cost-class guard and is not held to the end of the sweep.
+    """
+    return c["kind"] == "command" and any("dossier.py" in a for a in c["argv"])
 
 
 class GoalError(ValueError):
@@ -3057,10 +3073,13 @@ class Goal:
                     # the copy it is running aside so the retry can land; without that the build
                     # fails, the measurement is taken on whatever binary was there before, and
                     # this docstring's own complaint is back.
+                    # `RELEASE_CLI_LOCK` keeps a proof run by `runs_release_cli` off the binary
+                    # while it is replaced.
                     exe = relink.release_cli(ROOT)
-                    if relink.held(capture("cargo", cli).err, exe) and relink.free(exe):
-                        capture("cargo", cli)
-                    relink.sweep(exe)
+                    with RELEASE_CLI_LOCK:
+                        if relink.held(capture("cargo", cli).err, exe) and relink.free(exe):
+                            capture("cargo", cli)
+                        relink.sweep(exe)
 
         # Every warmed argument list, and a `cargo()` that finds its own in here waits out the
         # WHOLE thread: the builds are serial, so a guard released as soon as its own finished
@@ -3517,7 +3536,11 @@ class Goal:
             # reads that binary, and that loop is the one place the gate skips one.
             if measures_release_cli(c):
                 self.join_prebuild()
-            r = self.timed(label, lambda: self.command(argv, c.get("cwd", ".")))
+            if runs_release_cli(c):
+                with RELEASE_CLI_LOCK:
+                    r = self.timed(label, lambda: self.command(argv, c.get("cwd", ".")))
+            else:
+                r = self.timed(label, lambda: self.command(argv, c.get("cwd", ".")))
             # Some commands fail by design -- `nvs config check` over a file that must be refused
             # is one, and its exit code is the assertion. `exit = "nonzero"` inverts the
             # expectation exactly as it does on a fixture.
