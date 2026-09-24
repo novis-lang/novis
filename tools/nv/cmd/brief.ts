@@ -8,6 +8,7 @@
 
 import { load } from "../lib/store.ts";
 import { rule } from "../schema/rule.ts";
+import { classify, collect, REFUSED } from "./owners.ts";
 import { topic } from "../schema/topic.ts";
 
 export const summary = "route a keyword to the file that owns the topic: nv brief --where [<keyword>...]";
@@ -37,6 +38,15 @@ const HOMES: [string, string, string][] = [
 
 /** The home whose answer adds a line about the gap register. */
 const OWNERS_HOME = "bun nv owners --registers";
+
+/** How much of the gap register is open, counted now by `nv owners`' own classification. */
+function ownershipLine(): string {
+  const kinds = classify(collect());
+  const refused = REFUSED.reduce((n, k) => n + kinds[k].length, 0);
+  const tagged = Object.entries(kinds).reduce((n, [k, v]) => n + (k === "untagged" ? 0 : v.length), 0);
+  return `${kinds.milestone.length} of ${tagged} tagged item(s) name a milestone still ahead today, and ` +
+    `${refused} name an owner the gate refuses; \`bun nv owners --check\` lists those with their anchors`;
+}
 
 /** A display cap on one answer, not on anything an author writes. */
 const WHERE_CAP = 40;
@@ -96,7 +106,7 @@ function where(terms: string[]): number {
   }
   for (const [, home, what] of homes) {
     out.push(`  ${home}`, `     ${what}`);
-    if (home === OWNERS_HOME) out.push("     `bun nv owners --check` counts them and lists the refused ones with their anchors");
+    if (home === OWNERS_HOME) out.push(`     ${ownershipLine()}`);
   }
   for (const r of hits.slice(0, WHERE_CAP)) {
     const mark = r.status === "shipped" ? "" : "  (designed)";

@@ -2,7 +2,9 @@
 // once per case, and compares what each printed and the status it exited with. A group and its cases
 // are `tools/nv/parity/groups.json`. The comparison ignores only what `tools/nv/parity/known.json`
 // declares: a rewrite of one side's text, a regex and its replacement, each carrying its reason. The
-// `*` entries apply to every group. A Python tool is deleted only after its group matches here.
+// `*` entries apply to every group. A group may also declare `unordered`: the entries whose order is not
+// part of the output, compared sorted, with the reason. A Python tool is deleted only after its group
+// matches here.
 //
 // With no group, prints the groups. With `--all`, runs every group. Exits 0 when every case matches,
 // 1 when one differs, and 2 on a bad argument.
@@ -22,6 +24,44 @@ interface Group {
   nv: string[];
   /** The argument lists both programs are run with, one case each. */
   cases: string[][];
+  /** Lines whose order is not part of the output, declared with the reason. */
+  unordered?: Unordered;
+}
+
+/**
+ * A line matching `pattern` opens an entry, and each line after it that is indented deeper and
+ * matches nothing joins it. Every run of adjacent entries is compared sorted, on both sides.
+ */
+export interface Unordered {
+  pattern: string;
+  why: string;
+}
+
+function indent(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
+/** `text` with every run of adjacent entries `u` declares sorted. */
+export function sortEntries(text: string, u: Unordered): string {
+  const re = new RegExp(u.pattern);
+  const lines = text.split("\n");
+  const out: string[] = [];
+  let run: string[][] = [];
+  const flush = () => {
+    out.push(...run.sort((a, b) => (a[0]! < b[0]! ? -1 : a[0]! > b[0]! ? 1 : 0)).flat());
+    run = [];
+  };
+  for (const line of lines) {
+    const open = run.length > 0 ? run[run.length - 1]! : null;
+    if (re.test(line)) run.push([line]);
+    else if (open && line.trim() !== "" && indent(line) > indent(open[0]!)) open.push(line);
+    else {
+      flush();
+      out.push(line);
+    }
+  }
+  flush();
+  return out.join("\n");
 }
 
 export interface Known {
@@ -65,11 +105,15 @@ function firstDifference(label: string, a: string, b: string): string[] {
 }
 
 /** Report lines for every way the two runs differ once normalized, or none when they match. */
-export function compare(py: RunResult, nv: RunResult, known: Known[], used: Set<Known>): string[] {
+export function compare(py: RunResult, nv: RunResult, known: Known[], used: Set<Known>, unordered?: Unordered): string[] {
   const out: string[] = [];
+  const norm = (text: string, side: "python" | "nv") => {
+    const n = normalize(text, side, known, used);
+    return unordered ? sortEntries(n, unordered) : n;
+  };
   if (py.code !== nv.code) out.push(`     exit status: python ${py.code}, nv ${nv.code}`);
-  out.push(...firstDifference("stdout", normalize(py.stdout, "python", known, used), normalize(nv.stdout, "nv", known, used)));
-  out.push(...firstDifference("stderr", normalize(py.stderr, "python", known, used), normalize(nv.stderr, "nv", known, used)));
+  out.push(...firstDifference("stdout", norm(py.stdout, "python"), norm(nv.stdout, "nv")));
+  out.push(...firstDifference("stderr", norm(py.stderr, "python"), norm(nv.stderr, "nv")));
   return out;
 }
 
@@ -79,7 +123,7 @@ async function runGroup(name: string, group: Group, known: Known[]): Promise<boo
   console.log(`parity ${name}: ${group.cases.length} case(s), ${group.python.join(" ")} against ${group.nv.join(" ")}`);
   for (const args of group.cases) {
     const [py, nv] = await Promise.all([runProc([...group.python, ...args]), runProc([...group.nv, ...args])]);
-    const diff = compare(py, nv, known, used);
+    const diff = compare(py, nv, known, used, group.unordered);
     const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
     if (diff.length === 0) {
       same++;

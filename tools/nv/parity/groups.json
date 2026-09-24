@@ -11,5 +11,27 @@
       ["--where", "types", "conversion"],
       ["--where", "no-such-topic-anywhere"]
     ]
+  },
+  "owners": {
+    "python": ["python", "tools/owners.py"],
+    "nv": ["bun", "tools/nv/main.ts", "owners"],
+    "unordered": {
+      "pattern": "^  crates/\\S+  gap # ",
+      "why": "Python lists a module's gaps in the order its doc writes them. A gap record carries no position, so nv lists them by slug."
+    },
+    "cases": [
+      [],
+      ["--check"],
+      ["--check", "--untagged-is-an-error"],
+      ["--check", "--reasons"],
+      ["--check", "--untagged-is-an-error", "--reasons", "--past-is-an-error"],
+      ["--closes", "tooling-overhaul"],
+      ["--closes", "decided-closures"],
+      ["--deferrals"],
+      ["--registers"],
+      ["--untagged"],
+      ["--unowned"],
+      ["--json"]
+    ]
   }
 }

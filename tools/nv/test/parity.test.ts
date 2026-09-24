@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compare, normalize, type Known } from "../cmd/parity.ts";
+import { compare, normalize, sortEntries, type Known } from "../cmd/parity.ts";
 import type { RunResult } from "../lib/proc.ts";
 
 const TOOL: Known = { side: "python", pattern: "python tools/([a-z_-]+)\\.py", replace: "bun nv $1", why: "renamed" };
@@ -40,5 +40,19 @@ describe("compare", () => {
   test("a missing line reads as no line", () => {
     const diff = compare(result("a\nb"), result("a"), [], new Set());
     expect(diff.at(-1)).toContain("(no line)");
+  });
+
+  test("declared unordered entries compare sorted, each with its deeper lines", () => {
+    const u = { pattern: "^  gap ", why: "no position" };
+    const py = "head\n  gap b\n      why b\n  gap a\ntail\n  gap z\n";
+    const nv = "head\n  gap a\n  gap b\n      why b\ntail\n  gap z\n";
+    expect(sortEntries(py, u)).toBe(sortEntries(nv, u));
+    expect(compare(result(py), result(nv), [], new Set(), u)).toEqual([]);
+    expect(compare(result(py), result(nv), [], new Set())).not.toEqual([]);
+  });
+
+  test("an unordered run ends at a line that is neither an entry nor deeper", () => {
+    const u = { pattern: "^  gap ", why: "no position" };
+    expect(sortEntries("  gap b\nmid\n  gap a\n", u)).toBe("  gap b\nmid\n  gap a\n");
   });
 });

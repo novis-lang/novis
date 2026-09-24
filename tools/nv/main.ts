@@ -4,6 +4,7 @@
 import * as brief from "./cmd/brief.ts";
 import * as check from "./cmd/check.ts";
 import * as importCmd from "./cmd/import.ts";
+import * as owners from "./cmd/owners.ts";
 import * as parity from "./cmd/parity.ts";
 import * as query from "./cmd/query.ts";
 import * as render from "./cmd/render.ts";
@@ -14,7 +15,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, check, import: importCmd, parity, query, render, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, import: importCmd, owners, parity, query, render, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

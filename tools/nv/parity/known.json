@@ -13,12 +13,68 @@
       "pattern": "^brief\\.py --where:",
       "replace": "nv brief --where:",
       "why": "A message names the program that printed it."
+    }
+  ],
+  "owners": [
+    {
+      "side": "python",
+      "pattern": "^owners\\.py:",
+      "replace": "nv owners:",
+      "why": "A message names the program that printed it."
     },
     {
       "side": "python",
-      "pattern": "^     \\d+ of \\d+ tagged item\\(s\\) name a milestone still ahead today, and \\d+ name an owner the gate refuses; `bun nv owners --check` lists those with their anchors$",
-      "replace": "     `bun nv owners --check` counts them and lists the refused ones with their anchors",
-      "why": "The Python answer counts the gap register through owners.py. nv brief names the command instead, until `nv owners` classifies the gap records and nv brief takes its counts from there."
+      "pattern": "^(  crates/\\S+?):\\d+  gap \\d+  ",
+      "replace": "$1  gap # ",
+      "why": "Python names a gap by its line and its number in the module doc, which are positions. nv names it by its record's slug, which never moves."
+    },
+    {
+      "side": "nv",
+      "pattern": "^(  crates/\\S+)  gap [a-z0-9-]+  ",
+      "replace": "$1  gap # ",
+      "why": "The other half of the rewrite above: the slug is erased so the module and the title are what is compared."
+    },
+    {
+      "side": "both",
+      "pattern": "^(  crates/\\S+  gap # .*?\\.) .*$",
+      "replace": "$1",
+      "why": "An item that opens on no bold run is led by its whole text in Python, cut at 78 characters. Its record's title is the first sentence, so a gap line is compared up to its first sentence's end."
+    },
+    {
+      "side": "python",
+      "pattern": "^(  module docs  .*)crates/\\*/src/\\*\\*/\\*\\.rs$",
+      "replace": "$1data/gaps/",
+      "why": "nv reads the gap records, not the module docs they were imported from."
+    },
+    {
+      "side": "python",
+      "pattern": "a numbered item under a `# Known gaps` block, tagged with its owner",
+      "replace": "a gap record, naming the goal or milestone that owns it",
+      "why": "The same register, described as the record nv reads."
+    },
+    {
+      "side": "python",
+      "pattern": "^(  playbook until  .*)docs/agent/playbook$",
+      "replace": "$1data/playbook/",
+      "why": "nv reads the playbook bullet records, not the fragments they were imported from."
+    },
+    {
+      "side": "python",
+      "pattern": "a trap whose `\\[until:\\]` trailer names",
+      "replace": "a trap whose `until` names",
+      "why": "A bullet record's `until` is a field, not a trailer."
+    },
+    {
+      "side": "python",
+      "pattern": "^== (\\d+) item\\(s\\) in \\d+ block\\(s\\) across (\\d+) file\\(s\\)$",
+      "replace": "== $1 item(s) across $2 module(s)",
+      "why": "A block is a module doc's grouping, and a gap record has none."
+    },
+    {
+      "side": "both",
+      "pattern": "^  \"(goal|milestone|past|unowned|untagged|broken|retired)\": \\[\\n[\\s\\S]*?\\n  \\]",
+      "replace": "  \"$1\": [...]",
+      "why": "A gap object is a record in nv (slug, module, title, text) and a parsed doc item in Python (file, line, block, item). The counts per owner under `registers` are what callers read, and they are compared."
     }
   ]
 }
