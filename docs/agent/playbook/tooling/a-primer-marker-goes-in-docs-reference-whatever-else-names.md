@@ -1,4 +1,4 @@
-- A `<!-- primer -->` marker goes in `docs/reference/`, whatever else names `docs/spec/`.
+- **A `<!-- primer -->` marker goes in `docs/reference/`, whatever else names `docs/spec/`.**
   `tools/reference.py`'s `SOURCES` is `docs/reference`, and the one spec file it reads is
   `docs/spec/02-php-migration.md` for Part D's crosswalk table — so a marker written into
   `docs/spec/` is read by nothing and lifts nothing into `nvs agent primer`. Put it on the line
