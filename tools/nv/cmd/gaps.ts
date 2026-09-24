@@ -128,7 +128,7 @@ function cpSlice(s: string, from: number, count: number): string {
 }
 
 /** Every file under `dir` ending in `ext`, repo-relative, in the order Python sorts its paths: component by component. */
-function filesUnder(dir: string, ext: string): string[] {
+export function filesUnder(dir: string, ext: string): string[] {
   if (!existsSync(join(ROOT, dir))) return [];
   const out: string[][] = [];
   const walk = (parts: string[]) => {
@@ -176,7 +176,7 @@ let treeConsts: Map<string, string> | null = null;
  * own. A name declared in more than one file with different values is left out of the tree's map, so
  * a literal spelling an imported const never resolves to whichever file sorts last.
  */
-function classConsts(path: string, text: string): Map<string, string> {
+export function classConsts(path: string, text: string): Map<string, string> {
   if (treeConsts === null) {
     const seen = new Map<string, Set<string>>();
     for (const root of CONST_ROOTS) {
@@ -215,7 +215,7 @@ function ownerAt(starts: [number, string][], offset: number): string {
 }
 
 /** `Class::member` -> `[file, line, symbol]`, read out of the `CoreClass` literals themselves. */
-function registry(): Map<string, Pos> {
+export function registry(): Map<string, Pos> {
   const found = new Map<string, Pos>();
   for (const path of filesUnder(STDLIB, ".rs")) {
     const text = read(path);
@@ -277,7 +277,7 @@ function anchorOf(reg: Map<string, Pos>, syms: Map<string, [string, number]>, ke
 // ----------------------------------------------------------------------------- the spec
 
 /** `[classes named by the enclosing heading, member, signature, replaces]`, one per member row. */
-function specRows(): [string[], string, string, string][] {
+export function specRows(): [string[], string, string, string][] {
   const rows: [string[], string, string, string][] = [];
   let heading: string[] = [];
   for (const line of read(SPEC).split(/[\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]/)) {
@@ -291,7 +291,7 @@ function specRows(): [string[], string, string, string][] {
 }
 
 /** The PHP built-ins a **Replaces** cell names, or nothing when it names none. */
-function phpTwins(cell: string): string[] {
+export function phpTwins(cell: string): string[] {
   if (cell.toLowerCase().includes("nothing")) return [];
   return [...cell.matchAll(PHP_NAME_RE)].map((m) => m[1]!);
 }
