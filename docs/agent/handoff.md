@@ -30,7 +30,9 @@ These habits hold for every session of this goal. A mechanical change goes throu
 its replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tools, and `bun nv
 selftest` runs every tools test. A scratch worktree needs `target/debug/nvs.exe` copied in and a
 junction to `node_modules`. It has none of the git-ignored fixtures. Code copied into it is
-uncommitted there, so a `git reset --hard` in the worktree silently puts the old tools back.
+uncommitted there, so a `git reset --hard` in the worktree silently puts the old tools back. Wrap
+with `bun nv session --wrap`, not the pack's `python tools/session.py --wrap`: only the first also
+writes `data/goals/tooling-overhaul.handoff.json`.
 
 ## Next group
 
