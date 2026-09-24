@@ -7,7 +7,7 @@
 Settled before the first session: the rule is `docs/examples/README.md` § *How a comment is
 written*, the bounds a script can judge are `comment_problems` in `tools/dossier.py`, and neither is
 reopened here. This goal changes comment lines in programs already on disk and nothing else. The
-gate's switch, `[all] comments = true`, is **off** and stays off until Stage 2 is green.
+gate's switch, `"comments": true` under `owes.all` in `data/proofs/policy.json`, is **off** and stays off until Stage 2 is green.
 
 ## Next group
 
@@ -23,7 +23,7 @@ gate's switch, `[all] comments = true`, is **off** and stays off until Stage 2 i
 
 ## Backlog
 
-- **Stage 3: the gate** — `tools/data/dossier-policy.toml` alone. Add `comments = true` under `[all]`
+- **Stage 3: the gate** — `data/proofs/policy.json` alone. Add `"comments": true` under `owes.all`
   once Stage 2's check is green, and `python tools/dossier.py --gate` then passes on a line naming
   plain comments. One small slice; take it in the session that finishes the sweep.
 - When this goal's last check goes green the driver takes goal `ci-green`.

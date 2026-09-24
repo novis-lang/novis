@@ -5,7 +5,7 @@
   "context": {
     "modules": [
       "docs/examples/README.md",
-      "tools/data/dossier-policy.toml",
+      "data/proofs/policy.json",
       "tools/dossier.py"
     ],
     "rules": [

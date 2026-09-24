@@ -1,10 +1,8 @@
 // The proof policy's legacy homes. The policy file under `tools/data/` gives its `[report]` and
 // `[skip]` to `data/proofs/policy.json`, with the Python proof tool's `REPORT` filling a report key the
-// file leaves out. `tools/data/help-backlog.toml`'s `features` becomes `data/proofs/help-backlog.json`.
-//
-// The file's per-kind sections, `[all]` and `[<kind>]`, have no record: what each kind owes is
-// `POLICY` in `tools/nv/proofs/collect.ts`. One found in the file is reported, so an override is never
-// dropped without a line saying so.
+// file leaves out, and its per-kind sections, `[all]` and `[<kind>]`, become `owes` under the same key.
+// A section named for no kind, or a key no kind owes, is reported rather than carried.
+// `tools/data/help-backlog.toml`'s `features` becomes `data/proofs/help-backlog.json`.
 
 import { parse as parseToml } from "smol-toml";
 import { helpBacklog, proofPolicy } from "../schema/proofs.ts";
@@ -13,6 +11,9 @@ import { exists, extraKeys, OLD, text, type Importer, type ImportResult } from "
 const POLICY = `tools/data/${OLD}-policy.toml`;
 const BACKLOG = "tools/data/help-backlog.toml";
 const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
+/** The keys a per-kind section may set, and the sections that may set them: `all` and each kind. */
+const OWED = ["tests", "rust", "examples", "perf", "hostile", "about", "help", "comments"] as const;
+const OWNERS = ["all", "member", "lang", "exception", "enum", "interface", "tool", "directive"];
 const REPORT_DEFAULT = { outlierFactor: 5, ceiling: {} as Record<string, number> };
 
 type Table = Record<string, unknown>;
@@ -24,8 +25,14 @@ export const proofs: Importer = {
     const out: ImportResult = { records: [], unread: [], files: 0 };
 
     const policy: Table = exists(root, POLICY) ? (out.files++, parseToml(text(root, POLICY))) : {};
-    for (const key of Object.keys(policy).filter((k) => k !== "report" && k !== "skip")) {
-      out.unread.push({ path: POLICY, reason: `[${key}] overrides what a kind owes, which no record holds` });
+    const owes: Record<string, Table> = {};
+    for (const [key, entry] of Object.entries(policy).filter(([k]) => k !== "report" && k !== "skip")) {
+      if (!OWNERS.includes(key) || !isTable(entry)) {
+        out.unread.push({ path: POLICY, reason: `[${key}] is neither a kind nor \`all\`, or is not a table` });
+        continue;
+      }
+      out.unread.push(...extraKeys(POLICY, `[${key}]`, entry, OWED));
+      owes[key] = Object.fromEntries(Object.entries(entry).filter(([k]) => (OWED as readonly string[]).includes(k)));
     }
     const report = isTable(policy.report) ? policy.report : {};
     out.unread.push(...extraKeys(POLICY, "[report]", report, ["outlier_factor", "ceiling"]));
@@ -43,6 +50,7 @@ export const proofs: Importer = {
         outlierFactor: report.outlier_factor ?? REPORT_DEFAULT.outlierFactor,
         ceiling: isTable(report.ceiling) ? report.ceiling : REPORT_DEFAULT.ceiling,
       },
+      ...(Object.keys(owes).length ? { owes } : {}),
       skip,
     };
     out.records.push({ type: proofPolicy, id: proofPolicy.name, value, from: POLICY });

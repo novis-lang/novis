@@ -36,7 +36,7 @@ export interface Owes {
 }
 
 // `help` is off for an exception, an interface and a directive: the binary has no card or index entry to
-// show for one yet. `about` is off for every kind until the policy file's `[all] about = true`.
+// show for one yet. `about` is off for every kind until the policy file's override for `all` turns it on.
 const POLICY: Record<Kind, Owes> = {
   member: { tests: 2, rust: 1, examples: 3, perf: true, hostile: 1, about: false, help: true },
   lang: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true },

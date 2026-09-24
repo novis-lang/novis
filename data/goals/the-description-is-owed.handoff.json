@@ -6,7 +6,7 @@
     "items": [
       {
         "done": false,
-        "text": "Add `about = true` under `[all]` in `tools/data/dossier-policy.toml`."
+        "text": "Add `\"about\": true` under `owes.all` in `data/proofs/policy.json`."
       },
       {
         "done": false,

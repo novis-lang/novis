@@ -19,10 +19,10 @@ finished means in this repository.
 
 One file set -- the policy file and the example tree -- so this is one group.
 
-- [ ] **Switch it on.** Add `about = true` under `[all]` in
-      `tools/data/dossier-policy.toml`, creating the table if the file has none. Nothing
-      in `tools/dossier.py` changes: `POLICY` stays the default and the file is the
-      repository's durable answer, exactly as it is for `perf`.
+- [ ] **Switch it on.** Add `"about": true` under `owes.all` in `data/proofs/policy.json`,
+      creating `owes` if the file has none. Nothing in `tools/nv/proofs/collect.ts`
+      changes: `POLICY` stays the default and the file is the repository's durable
+      answer, exactly as it is for `perf`.
 - [ ] **Read what is left.** `python tools/dossier.py --owed` now lists every feature
       with no description, and every description outside 40 to 200 words, opening
       with a heading, or carrying a code block.

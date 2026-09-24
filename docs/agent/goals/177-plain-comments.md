@@ -45,7 +45,7 @@ who has understood the member once rewrites all of its programs with that one un
 
 **Does:** Makes the comment bounds owed, so a program outside them is a red check.
 
-Add `comments = true` under `[all]` in `tools/data/dossier-policy.toml`. From then on `owed()` counts
+Add `"comments": true` under `owes.all` in `data/proofs/policy.json`. From then on `owed()` counts
 a feature whose programs leave the bounds, `--gate` names it, and `--id` and a worker's brief say
 which file and which line. Nothing in `tools/dossier.py` changes: the file is the repository's
 durable answer, exactly as it is for `perf` and `about`.

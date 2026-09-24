@@ -16,7 +16,7 @@ modules = [
   "docs/examples/README.md",
   "tests/hostile/README.md",
   "benches/members/README.md",
-  "tools/data/dossier-policy.toml",
+  "data/proofs/policy.json",
   "tools/dossier.py",
 ]
 

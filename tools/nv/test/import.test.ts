@@ -435,20 +435,42 @@ describe("import", () => {
     ]);
   });
 
-  test("the proof policy keeps its report and skips, fills a missing report key, and names what no record holds", () => {
+  test("the proof policy keeps its report, overrides and skips, fills a missing report key, and names what no record holds", () => {
     tmp = scratch();
     tmp.put(
       `tools/data/${OLD}-policy.toml`,
-      ['[member]', 'tests = 3', '', '[report]', 'outlier_factor = 4', '', '[skip."Core\\\\Str::length"]', 'perf = "It is one call."', 'rust = "none"'].join("\n"),
+      [
+        "[all]",
+        "about = true",
+        "",
+        "[member]",
+        "tests = 3",
+        "cake = 1",
+        "",
+        "[nobody]",
+        "tests = 1",
+        "",
+        "[report]",
+        "outlier_factor = 4",
+        "",
+        '[skip."Core\\\\Str::length"]',
+        'perf = "It is one call."',
+        'rust = "none"',
+      ].join("\n"),
     );
     tmp.put("tools/data/help-backlog.toml", 'features = ["Core\\\\Arr::all", "lang:x/y"]\n');
     const got = proofs.read(tmp.root);
     expect(values(got)).toEqual({
-      proof_policy: { report: { outlierFactor: 4, ceiling: {} }, skip: { "Core\\Str::length": { perf: "It is one call." } } },
+      proof_policy: {
+        report: { outlierFactor: 4, ceiling: {} },
+        owes: { all: { about: true }, member: { tests: 3 } },
+        skip: { "Core\\Str::length": { perf: "It is one call." } },
+      },
       help_backlog: { features: ["Core\\Arr::all", "lang:x/y"] },
     });
     expect(got.unread.map((u) => `${u.path}: ${u.reason}`)).toEqual([
-      `tools/data/${OLD}-policy.toml: [member] overrides what a kind owes, which no record holds`,
+      `tools/data/${OLD}-policy.toml: [member] carries cake, which no record holds`,
+      `tools/data/${OLD}-policy.toml: [nobody] is neither a kind nor \`all\`, or is not a table`,
       `tools/data/${OLD}-policy.toml: [skip."Core\\Str::length"] carries rust, which no record holds`,
     ]);
   });

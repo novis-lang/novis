@@ -9,7 +9,7 @@ This goal has just been installed. The description is not owed yet.
 
 ## Next group
 
-- [ ] Add `about = true` under `[all]` in `tools/data/dossier-policy.toml`.
+- [ ] Add `"about": true` under `owes.all` in `data/proofs/policy.json`.
 - [ ] `python tools/dossier.py --owed`, and write or rewrite each description it names.
 
 ## Backlog
