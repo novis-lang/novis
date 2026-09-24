@@ -3,30 +3,32 @@
 ## State
 
 **Goal `tooling-overhaul`: Stages 3 to 7 have landed, Stage 4's records are valid, and Stage 8's
-checks are green. Stage 8's prose still owes the `nv session --wrap` apply half and the copy-free
-goal switch.** `bun nv check` prints `nv check: 0 findings`, and `bun nv render --check` is current.
-The driver's red check is Stage 9's `bun nv audit goals`, which is the cutover and is not started.
+checks are green. Stage 8's prose still owes the handoff record from `nv session --wrap`, the
+playbook retirement in TypeScript, and the copy-free goal switch.** `bun nv check` prints
+`nv check: 0 findings`, and `bun nv render --check` is current. The driver's red check is Stage 9's
+`bun nv audit goals`, which is the cutover and is not started.
 
-`bun nv session` exists. `parseWrap` and `parseEdits` in `tools/nv/cmd/session.ts` are the wrap
-file's reader, and `validate` there is `tools/session.py`'s `validate`, ported: every section kind,
-the no-commit refusal, body links, `rule:` citations, goal numbers, the link gate, the three tree
-gates and `manifestProblems`. `--wrap F` runs it and refuses with every problem at once. Two parts
-are not ported yet: the playbook lead-in collision check (`playbook_collisions`), and the playbook
-fragment file names (`writtenPaths` names a bullet by its section's directory). A valid wrap is
-still handed to `python tools/session.py --wrap`, which validates again and applies.
-`bun nv parity writers` is 7 of 7, with its differences in `tools/nv/parity/known.json`. Two of
-those entries are reported `unused`: they declare message differences in branches no fixture
-reaches (a goal number, a broken link), because a fixture carrying either would turn a floor check red.
+`bun nv session --wrap` now validates and applies a wrap by itself: `applyWrap` in
+`tools/nv/cmd/session.ts` is `tools/session.py`'s `wrap`, ported with every `apply_*`,
+`playbook_targets` and `playbook_collisions`. A plan field is written to the plan's Markdown and to
+`data/plan/status.json`. A playbook bullet goes to its fragment file and to its record under
+`data/playbook/`. Applied for real in a scratch worktree, every byte under `docs/` matched what
+`tools/session.py` writes on the same base, and both records matched what `nv import` builds. Two
+parts still call Python: `retireExpired` runs `tools/playbook.py`'s `expiry_report` and `retire`,
+and `recordPack` measures `python tools/orient.py`, which is the pack the driver pipes in.
+`bun nv parity writers` is 8 of 8, including a valid wrap under `--dry-run`.
 
-`bun nv chain`, `loop --list`, `loop --goal`, `bg`, `guard`, `splice`, `verify`, `orient` and
-`session` are written. `bun nv parity orient` and `bun nv parity writers` are green.
+The collision check names a lead-in by its whole bold text, as `nv orient` reads it through the
+importer. `tools/session.py` cuts a lead-in that wraps across lines at 78 characters, so the two
+tools name a different selector in the same refusal. No parity case covers a collision, because a
+fixture that collides with a live bullet breaks when that bullet retires.
+
+Seven bullet records under `data/playbook/` disagree with their fragment files (the `tools/verify.py`
+and `tools/splice.py` bullets among them). This was already the case before this session.
 
 `tools/orient.py`, `chain.py`, `session.py` and `tools/verify_keys.py` stay until the Stage 9
-cutover. `main` is frozen. Tag `pre-overhaul` is the rollback.
-
-The playbook still has two homes: `docs/agent/playbook/` (read by `playbook.py`, `orient.py` and
-`nv orient` through the importer) and `data/playbook/`. An edit to a bullet goes into both until
-Stage 9.
+cutover. `main` is frozen. Tag `pre-overhaul` is the rollback. An edit to a bullet goes into both
+playbook homes until Stage 9, and a wrap now does that by itself.
 
 These habits hold for every session of this goal. A mechanical change goes through a script under
 `.agent-tmp/`, written with Write. Never prove a cut with a sweep. A Python tool is deleted only after
@@ -35,19 +37,21 @@ its replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tool
 
 ## Next group
 
-**Stage 8: the writers and the driver** — one file set: `tools/nv/cmd/session.ts`, `tools/session.py`, `tools/nv/parity/groups.json`. loop-goal.md § *Stage 8* specifies it: "`nv session --wrap` keeps the wrap file's shape … one parser reads it, and it applies every write as records, all or nothing".
+**Stage 8: the writers and the driver** — one file set: `tools/nv/cmd/session.ts`, `tools/nv/import/goals.ts`, `tools/nv/import/playbook.ts`. loop-goal.md § *Stage 8* specifies it: "The handoff section writes the handoff record", and the playbook section "writes bullet records with `files` and `until`".
 
-- [ ] **`nv session --wrap` applies.** Port the `apply_*` functions (`tools/session.py:1238`) and
-      `playbook_targets` (`tools/session.py:1342`) into `tools/nv/cmd/session.ts`, and replace the
-      pass-through at `tools/nv/cmd/session.ts:1215`. Make `writtenPaths`
-      (`tools/nv/cmd/session.ts:759`) name each bullet's own fragment file once `playbook_targets`
-      is ported. A playbook bullet is written to `data/playbook/` too while the playbook has two homes.
-      Parity: a valid wrap under `--dry-run` prints the same `would apply` lines on both sides.
-- [ ] **The collision check.** Port `playbook_collisions` (`tools/session.py:1315`) into
-      `validatePlaybook` (`tools/nv/cmd/session.ts:683`), reading `sliceBullets` in
-      `tools/nv/cmd/orient.ts:1129`.
+- [ ] **The handoff section writes the handoff record.** `applyHandoff`
+      (`tools/nv/cmd/session.ts:1430`) writes only the Markdown. Build the record with `handoffValue`
+      (`tools/nv/import/goals.ts:241`) after the Markdown is written, and add its path to
+      `writtenPaths`. Prove it as this session did: a real apply in a detached worktree under
+      `.agent-tmp/worktrees/`, then `nv import`'s records compared with `data/`.
+- [ ] **Resync the seven stale bullet records.** Compare each record under `data/playbook/` with
+      what `bulletValue` (`tools/nv/import/playbook.ts:51`) builds from its fragment file, and
+      rewrite the ones that differ, with a script under `.agent-tmp/`.
+- [ ] **Retirement in TypeScript.** Port `expiry_report` and `retire` (`tools/playbook.py:547`) and
+      replace the Python bridge in `retireExpired` (`tools/nv/cmd/session.ts:1507`).
 
 ## Backlog
 
 - The copy-free goal switch: Stage 8's prose in `docs/agent/loop-goal.md`.
+- `recordPack` (`tools/nv/cmd/session.ts:1553`) measures `python tools/orient.py`; it moves to `nv orient` when the driver does.
 - Stage 9, the cutover: `bun nv audit goals`, `audit checks`, `audit eol` (loop-goal.toml Stage 9).
