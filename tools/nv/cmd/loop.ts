@@ -34,23 +34,25 @@
 //
 // `bun nv loop` with none of those modes is one turn of the driver: one session, its acceptance sweep and
 // its ledger lines in `.loop/log.md`, then exit 75, which asks `tools/respawn.py` for the next turn. It
-// takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions` and
-// `--max-stalls` (10). The run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its session
+// takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions`,
+// `--max-stalls` (10), `--max-retries` (3) and `--max-limit-wait` (21600 seconds). The run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its session
 // count from turn to turn in the shape `loop.py` writes, so a run the Python driver started goes on here
 // with its numbering. A turn refuses a tree whose `.loop/running` names another run. With no
 // `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
 //
 // The session is `driver/launch.ts`'s: the session prompt with `nv orient`'s pack behind it, down
 // `claude -p`'s stdin as stream-json. Each event repaints `driver/status.ts`'s status row when stdout is a
-// terminal. The sweep behind it is the goal's own checks, with the carried floor and the release checks
+// terminal. A session that ends without wrapping has its own uncommitted paths swept into a wip commit,
+// and a session the usage wall refused or the CLI dropped is run again inside the same turn, after the
+// wall reopens or a backoff: `driver/sweep.ts` says how. The acceptance sweep behind it is the goal's own checks, with the carried floor and the release checks
 // held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in `.loop/accept-floor.json`). A scoped sweep
 // that is green with checks held runs again over the whole plan, collecting every red, since a goal is
 // never reached on a held floor. The run ends on a reached goal, a `BLOCKED` status, `--max-stalls`
-// sessions in a row without a commit, `--max-sessions`, or a CLI that exits non-zero.
+// sessions in a row without a commit, `--max-sessions`, `--max-retries` non-zero CLI exits in a row,
+// `MAX_WALLS` refused sessions in a row, or a wall further out than `--max-limit-wait`.
 //
-// Not here yet, and each is `loop.py`'s until it is: the chain switch after a reached goal, the usage
-// wall, overload and dropped-stream retries, sweeping an unwrapped session's paths into a wip commit,
-// the hold and the keys, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
+// Not here yet, and each is `loop.py`'s until it is: the chain switch after a reached goal, the overload
+// retries that cost no attempt, rejoining a dropped stream with `--resume`, the hold and the keys, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
 // the checkpoint's optimization pass, and the disk and context sweeps.
 //
 // `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` and
@@ -71,6 +73,8 @@ import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, memoResults, Session, statusRow, title, type Results } from "../driver/status.ts";
+import { MAX_WALLS, type RateLimit, type Swept, Touched, backoff, hms, markInterrupted, readLimit, standingLimit, waitOutLimit, wallAfter } from "../driver/sweep.ts";
+import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isFloor, isRelease, tiers } from "../driver/accept.ts";
 import { checkName, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
@@ -90,7 +94,7 @@ const GREEN = ".loop/accept-green.json";
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
 const USAGE =
-  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] | --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] |--list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -384,10 +388,14 @@ async function goalOnly(filters: Filters): Promise<number> {
 interface TurnFlags extends LaunchOptions {
   maxSessions: number;
   maxStalls: number;
+  /** Non-zero CLI exits in a row that end the run. */
+  maxRetries: number;
+  /** Seconds of usage wall the turn sleeps through; a wall further out ends the run. */
+  maxLimitWait: number;
 }
 
 function parseTurn(args: string[]): TurnFlags | null {
-  const out: TurnFlags = { model: "opus", permissionMode: "bypassPermissions", maxSessions: Infinity, maxStalls: 10 };
+  const out: TurnFlags = { model: "opus", permissionMode: "bypassPermissions", maxSessions: Infinity, maxStalls: 10, maxRetries: 3, maxLimitWait: 6 * 3600 };
   for (let i = 0; i < args.length; i += 2) {
     const value = args[i + 1];
     if (value === undefined) return null;
@@ -397,6 +405,8 @@ function parseTurn(args: string[]): TurnFlags | null {
     else if (args[i] === "--permission-mode") out.permissionMode = value;
     else if (args[i] === "--max-sessions" && Number.isInteger(count) && count > 0) out.maxSessions = count;
     else if (args[i] === "--max-stalls" && Number.isInteger(count) && count > 0) out.maxStalls = count;
+    else if (args[i] === "--max-retries" && Number.isInteger(count) && count > 0) out.maxRetries = count;
+    else if (args[i] === "--max-limit-wait" && Number.isFinite(count) && count >= 0) out.maxLimitWait = count;
     else return null;
   }
   return out;
@@ -459,20 +469,7 @@ async function turn(f: TurnFlags): Promise<number> {
   const green = jsonObject(GREEN).green;
   if (typeof green === "object" && green !== null) for (const id of Object.keys(green)) results.set(id, true);
 
-  state.index++;
-  const index = state.index;
-  const number = String(index).padStart(4, "0");
-  const log = join(ROOT, LOGDIR, `${state.run_id}-${number}.log`);
-  rmSync(join(ROOT, RUNDIR, "status.txt"), { force: true });
-  const base = await head();
-  console.log(`== session ${index}  ${stamp()}`);
-  const oriented = await runProc([process.execPath, join(ROOT, "tools/nv/main.ts"), "orient"], { timeoutMs: 120_000 });
-  const pack = oriented.code === 0 ? oriented.stdout : "";
-  if (!pack) console.log("orientation pack: `nv orient` failed, so the session runs it itself");
-  const prompt = readFileSync(join(ROOT, PROMPT), "utf8");
-
   const session = new Session(plan, results);
-  session.begin(index);
   const tty = process.stdout.isTTY === true;
   const paint = () => {
     if (!tty) return;
@@ -480,26 +477,100 @@ async function turn(f: TurnFlags): Promise<number> {
     process.stdout.write(`\r\x1b[2K${row}${title(row)}`);
   };
   const exe = Bun.which("claude") ?? "claude";
-  const launched = await launch([exe], f, openingLine(prompt, pack), log, { bytes: Buffer.byteLength(pack), goal: live.slug }, (e) => {
-    session.feed(e);
-    paint();
-  });
-  if (tty) process.stdout.write("\r\x1b[2K");
-  const where = log.slice(ROOT.length + 1).replace(/\\/g, "/");
-  if (launched.code !== 0) {
-    ledger(`- ${number} CLI exit ${launched.code} -- see ${where}`);
-    return finish(state, `claude exited ${launched.code}; retrying a failed session is still loop.py's`);
+  const touched = new Touched();
+  const sweptBy = (swept: Swept) =>
+    swept.paths === 0
+      ? "; the tree is clean"
+      : swept.committed
+        ? `; ${swept.paths} path(s) swept into a wip commit`
+        : `; ${swept.paths} path(s) left uncommitted, the sweep's commit failed`;
+
+  // A session the account refused or the CLI dropped is swept and run again, in this turn, until one is
+  // served or the run ends. `index` goes up on every launch, so no log is written twice.
+  let wall = standingLimit();
+  let walls = 0;
+  let fails = 0;
+  let index = 0;
+  let number = "";
+  let base = "";
+  for (;;) {
+    if (wall !== null) {
+      session.phase(`usage wall, ${hms(wall.left())} left`);
+      paint();
+      const stop = await waitOutLimit(wall, f.maxLimitWait, ledger);
+      if (stop) return finish(state, stop);
+      wall = null;
+    }
+    state.index++;
+    index = state.index;
+    number = String(index).padStart(4, "0");
+    saveRun(state);
+    const log = join(ROOT, LOGDIR, `${state.run_id}-${number}.log`);
+    rmSync(join(ROOT, RUNDIR, "status.txt"), { force: true });
+    base = await head();
+    console.log(`== session ${index}  ${stamp()}`);
+    const oriented = await runProc([process.execPath, join(ROOT, "tools/nv/main.ts"), "orient"], { timeoutMs: 120_000 });
+    const pack = oriented.code === 0 ? oriented.stdout : "";
+    if (!pack) console.log("orientation pack: `nv orient` failed, so the session runs it itself");
+    const prompt = readFileSync(join(ROOT, PROMPT), "utf8");
+
+    session.begin(index);
+    touched.start();
+    let latest: RateLimit | null = null;
+    const launched = await launch(
+      [exe],
+      f,
+      openingLine(prompt, pack),
+      log,
+      { bytes: Buffer.byteLength(pack), goal: live.slug },
+      (e) => {
+        latest = readLimit(e) ?? latest;
+        touched.note(e);
+        session.feed(e);
+        paint();
+      },
+      { [WRITES_ENV]: touched.ledger },
+    );
+    if (tty) process.stdout.write("\r\x1b[2K");
+    const where = log.slice(ROOT.length + 1).replace(/\\/g, "/");
+
+    // The wall is judged before the exit code, because it explains it: a refused session exits non-zero
+    // exactly like a crashed one, and neither a retry nor the tree can help with it.
+    const limit = wallAfter(latest, launched.code, launched.result);
+    if (limit !== null) {
+      walls++;
+      const swept = await markInterrupted(index, limit.describe(), touched);
+      ledger(`- ${number} refused by the usage wall -- ${limit.describe()}${sweptBy(swept)} -- see ${where}`);
+      if (walls >= MAX_WALLS) return finish(state, `${walls} sessions in a row were refused by the usage limit`);
+      wall = limit;
+      continue;
+    }
+    if (launched.code !== 0) {
+      fails++;
+      const swept = await markInterrupted(index, `the CLI exited ${launched.code}`, touched);
+      ledger(`- ${number} CLI exit ${launched.code} (attempt ${fails}/${f.maxRetries})${sweptBy(swept)} -- see ${where}`);
+      if (fails >= f.maxRetries) return finish(state, `claude CLI failed ${fails} times in a row`);
+      const back = backoff(fails);
+      console.log(`backing off ${hms(back)} before retry ${fails + 1}`);
+      await Bun.sleep(back * 1000);
+      continue;
+    }
+    break;
   }
   state.served++;
   saveRun(state);
 
   const statusPath = join(ROOT, RUNDIR, "status.txt");
   const line = existsSync(statusPath) ? readFileSync(statusPath, "utf8").trim() : "";
+  // A session that exits zero without wrapping, cut off by the harness or out of turns, leaves its
+  // unfinished slice as surely as a crashed one, and one that wrapped leaves nothing and closes an earlier
+  // interruption.
+  const swept = await markInterrupted(index, "it exited without wrapping", touched);
   const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
   const commits = Number(counted.stdout.trim()) || 0;
-  const dirty = (await runProc(["git", "status", "--porcelain"])).stdout.split("\n").filter((l) => l.trim() !== "").length;
-  const left = dirty > 0 ? ` | ${dirty} path(s) left uncommitted` : "";
-  ledger(`- ${number} ${commits} commit(s)${left} | ${line || "(no status written)"}`);
+  const left = swept.left > 0 ? ` | ${swept.left} path(s) the session never wrote left in the tree` : "";
+  const wip = swept.committed ? ` | ${swept.paths} path(s) swept into a wip commit` : swept.paths > 0 ? ` | ${swept.paths} path(s) left uncommitted, the sweep's commit failed` : "";
+  ledger(`- ${number} ${commits} commit(s)${wip}${left} | ${line || "(no status written)"}`);
 
   // The sweep, over the goal's list as the session left it.
   const again = selected({});

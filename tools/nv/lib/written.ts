@@ -6,7 +6,7 @@ import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { rel } from "./paths.ts";
 
-const ENV = "NOVIS_LOOP_WRITES";
+export const ENV = "NOVIS_LOOP_WRITES";
 
 /**
  * Notes that this process wrote `paths`, in the spelling `git status` uses. Never throws and never

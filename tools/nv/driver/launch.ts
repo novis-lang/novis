@@ -5,9 +5,9 @@
 //
 // The opening message is the session prompt with the pack behind it, the order the CLI itself puts an
 // argv prompt and a piped stdin in. Stdin stays open until the terminal `result` event, because it is
-// the channel a later message to the session would use. The child's environment drops `NOVIS_LOOP_RUN`:
-// that variable tells a turn it belongs to the run holding `.loop/running`, and a session that inherited
-// it would say the same of a `bun nv loop` it typed.
+// the channel a later message to the session would use. The child's environment is this process's with
+// `extraEnv` over it, less `NOVIS_LOOP_RUN`: that variable tells a turn it belongs to the run holding
+// `.loop/running`, and a session that inherited it would say the same of a `bun nv loop` it typed.
 //
 // `RunState` is `.loop/run.json`, in the shape `loop.py` writes, so a run continues across the cutover
 // with its numbering intact: `index` names the logs and only goes up, and `served` is what
@@ -64,10 +64,11 @@ export async function launch(
   log: string,
   pack: { bytes: number; goal: string },
   onEvent: (e: Record<string, any>) => void,
+  extraEnv: Record<string, string> = {},
 ): Promise<Launched> {
   mkdirSync(dirname(log), { recursive: true });
   appendFileSync(log, `${JSON.stringify({ type: "loop_pack", ...pack })}\n`);
-  const env: Record<string, string | undefined> = { ...process.env };
+  const env: Record<string, string | undefined> = { ...process.env, ...extraEnv };
   delete env[RUN_ENV];
   const child = Bun.spawn([...exe, ...claudeArgs(o)], { cwd: ROOT, env, stdin: "pipe", stdout: "pipe", stderr: "inherit" });
   child.stdin.write(opening);
