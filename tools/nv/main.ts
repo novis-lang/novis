@@ -6,6 +6,7 @@ import * as bg from "./cmd/bg.ts";
 import * as brief from "./cmd/brief.ts";
 import * as chain from "./cmd/chain.ts";
 import * as check from "./cmd/check.ts";
+import * as dbMatrix from "./cmd/db-matrix.ts";
 import * as decisions from "./cmd/decisions.ts";
 import * as directives from "./cmd/directives.ts";
 import * as disk from "./cmd/disk.ts";
@@ -42,7 +43,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bg, brief, chain, check, decisions, directives, disk, gaps, goal, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bg, brief, chain, check, "db-matrix": dbMatrix, decisions, directives, disk, gaps, goal, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

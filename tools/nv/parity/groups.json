@@ -17,6 +17,22 @@
     "nv": ["bun", "tools/nv/main.ts", "chain"],
     "cases": [["--check"]]
   },
+  "db-matrix": {
+    "python": ["python", "tools/db-matrix.py"],
+    "nv": ["bun", "tools/nv/main.ts", "db-matrix"],
+    "sequential": "Both programs run `cargo test` over the one target directory, and cargo's lock on it would make one wait for the other anyway.",
+    "cases": [
+      ["--list"],
+      ["--driver", "sqlite", "--list"],
+      ["--driver", "postgres", "--driver=postgres", "--dr", "mssql", "--list"],
+      ["--all", "--driver", "sqlite", "--list"],
+      ["--driver", "nosuch"],
+      ["--driver"],
+      ["--d", "sqlite"],
+      ["--bogus"],
+      ["--driver", "sqlite"]
+    ]
+  },
   "decisions": {
     "python": ["python", "tools/decisions.py"],
     "nv": ["bun", "tools/nv/main.ts", "decisions"],

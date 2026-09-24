@@ -144,6 +144,10 @@ export interface ArgSpec {
   short?: Record<string, string>;
   /** Options that take one value or none, argparse's `nargs="?"`, each with the value it has bare. */
   optional?: Record<string, string>;
+  /** Options that take one value and may be given again, argparse's `action="append"`. */
+  repeated?: string[];
+  /** Every option in the order the Python parser declared them, which is the order an ambiguous prefix lists its matches in. Without it, the order of the fields above. */
+  order?: string[];
 }
 
 export interface Parsed {
@@ -151,6 +155,8 @@ export interface Parsed {
   flags: Set<string>;
   /** Each valued option given, by its long name, with the last value it was given. */
   values: Map<string, string>;
+  /** Each repeated option given, by its long name, with every value in the order it was given. */
+  lists: Map<string, string[]>;
 }
 
 /** A word argparse would take as a value rather than as an option. */
@@ -167,7 +173,8 @@ function looksLikeValue(word: string): boolean {
 export function parseArgs(args: string[], spec: ArgSpec): Parsed {
   const flags = ["--help", ...spec.flags];
   const optional = spec.optional ?? {};
-  const all = [...flags, ...spec.valued, ...Object.keys(optional)];
+  const repeated = spec.repeated ?? [];
+  const all = spec.order ? ["--help", ...spec.order] : [...flags, ...spec.valued, ...Object.keys(optional), ...repeated];
   const short: Record<string, string> = { "-h": "--help", ...spec.short };
   const resolve = (word: string): string | null => {
     if (all.includes(word)) return word;
@@ -181,7 +188,11 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
     const eq = word.indexOf("=");
     return resolve(eq >= 0 ? word.slice(0, eq) : word);
   });
-  const out: Parsed = { flags: new Set(), values: new Map() };
+  const out: Parsed = { flags: new Set(), values: new Map(), lists: new Map() };
+  const give = (option: string, value: string) => {
+    if (repeated.includes(option)) out.lists.set(option, [...(out.lists.get(option) ?? []), value]);
+    else out.values.set(option, value);
+  };
   const unknown: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const option = classified[i] ?? null;
@@ -195,8 +206,8 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
     }
     const word = args[i]!;
     const eq = word.indexOf("=");
-    if (eq >= 0) out.values.set(option, word.slice(eq + 1));
-    else if (i + 1 < args.length && looksLikeValue(args[i + 1]!)) out.values.set(option, args[++i]!);
+    if (eq >= 0) give(option, word.slice(eq + 1));
+    else if (i + 1 < args.length && looksLikeValue(args[i + 1]!)) give(option, args[++i]!);
     else if (option in optional) out.values.set(option, optional[option]!);
     else {
       const spellings = [...Object.keys(short).filter((s) => short[s] === option), option];

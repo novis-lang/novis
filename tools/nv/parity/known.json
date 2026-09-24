@@ -15,6 +15,20 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "db-matrix": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)db-matrix\\.py(:? )",
+      "replace": "$1nv db-matrix$2",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "both",
+      "pattern": "^(db-matrix: sqlite against ).*$",
+      "replace": "$1<scratch>/matrix.sqlite",
+      "why": "The SQLite leg's file is in a fresh directory each run. Python makes it in the system temp directory, and nv makes it under `.agent-tmp/db-matrix/`, where every scratch file of this repository goes."
+    }
+  ],
   "peek": [
     {
       "side": "both",
