@@ -12,6 +12,20 @@
       ["--where", "no-such-topic-anywhere"]
     ]
   },
+  "holes": {
+    "python": ["python", "tools/holes.py"],
+    "nv": ["bun", "tools/nv/main.ts", "holes"],
+    "cases": [
+      [],
+      ["--guarded"],
+      ["--sites"],
+      ["--unattributed"],
+      ["--cases"],
+      ["--item", "900"],
+      ["--item", "7"],
+      ["--json"]
+    ]
+  },
   "owners": {
     "python": ["python", "tools/owners.py"],
     "nv": ["bun", "tools/nv/main.ts", "owners"],
@@ -78,8 +92,19 @@
   "records": {
     "python": ["python", "tools/records.py"],
     "nv": ["bun", "tools/nv/main.ts", "records"],
+    "unordered": {
+      "pattern": "^  \\d{4}\\s+\\d+ inbound$",
+      "why": "Python breaks a tie among the most-cited records in set-hash order, which changes from run to run. nv breaks it by number."
+    },
     "cases": [
-      ["--stats"]
+      [],
+      ["--check"],
+      ["--only", "links"],
+      ["--only", "structure", "--only", "section refs"],
+      ["--only", "no-such-check"],
+      ["--residue"],
+      ["--stats"],
+      ["--orphans"]
     ]
   }
 }
