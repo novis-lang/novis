@@ -132,14 +132,15 @@ describe("import", () => {
 
   test("goal numbers become the chain, and the installed goal is read from loop-goal and the handoff", () => {
     tmp = scratch();
-    const prose = (n: number | null, title: string, extra = "") =>
-      `---\nmilestone: M1\n${extra}---\n\n# ${n === null ? "Side goal" : `Loop goal ${n}`} — ${title}\n\nBody.\n`;
+    const prose = (n: number | null, title: string, extra = "", tail = "") =>
+      `---\nmilestone: M1\n${extra}---\n\n# ${n === null ? "Side goal" : `Loop goal ${n}`} — ${title}\n\nBody.\n\n${tail}`;
     tmp.put("docs/agent/goals/1-first.md", prose(1, "First"));
-    tmp.put("docs/agent/goals/dossier/2-core-x.md", prose(2, "Core\\X"));
+    const live = prose(2, "Core\\X", "", "## Stage 1 — the floor\n\nNo summary.\n\n## Stage 2 — the work\n\n**Does:** Makes it\nwork.\n\nMore.\n");
+    tmp.put("docs/agent/goals/dossier/2-core-x.md", live);
     tmp.put("docs/agent/goals/dossier/2-core-x.toml", "files = []\n[context]\nrules = []\n");
     tmp.put("docs/agent/goals/dossier/2-core-x.handoff.md", "# Handoff\n\n## State\n\nOld.\n\n## Next group\n\n- [ ] x\n");
     tmp.put("docs/agent/goals/3-last.md", prose(3, "Last", "position: last\n"));
-    tmp.put("docs/agent/loop-goal.md", prose(2, "Core\\X"));
+    tmp.put("docs/agent/loop-goal.md", live);
     tmp.put(
       "docs/agent/loop-goal.toml",
       [
@@ -213,7 +214,7 @@ describe("import", () => {
         context: { rules: ["types/a"] },
         stages: [
           { number: 1, title: "floor" },
-          { number: 2, title: "the work", context: { shapes: ["A commit message"] } },
+          { number: 2, title: "the work", summary: "Makes it work.", context: { shapes: ["A commit message"] } },
         ],
         checks: [
           { id: "exact-examples-a-nvs", kind: "exact", stage: 1, file: "examples/a.nvs", want: ["a"] },

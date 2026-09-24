@@ -22,8 +22,8 @@ const TOOLS = {
   files: [],
   context: { modules: ["tools/nv/main.ts"] },
   stages: [
-    { number: 1, title: "floor" },
-    { number: 4, title: "the records", context: { rules: ["testing/feature-proofs"] } },
+    { number: 1, title: "floor", summary: "Every check of every walked goal still passes." },
+    { number: 4, title: "the records", summary: "Reads every legacy home into records.", context: { rules: ["testing/feature-proofs"] } },
   ],
   checks: [
     { id: "nv-check", kind: "command" as const, stage: 4, name: "every record is valid", argv: ["bun", "nv", "check"], want: ["nv check: 0 findings"] },
@@ -75,7 +75,7 @@ describe("record types", () => {
 
   test("each invariant no foreign key declares is a finding", () => {
     const index = seed();
-    write(goal, "stray", { ...TOOLS, checks: [...TOOLS.checks, { ...TOOLS.checks[0]!, stage: 7 }] }, tmp.root);
+    write(goal, "stray", { ...TOOLS, stages: [TOOLS.stages[0]!, { number: 4, title: "the records" }], checks: [...TOOLS.checks, { ...TOOLS.checks[0]!, stage: 7 }] }, tmp.root);
     write(gap, "nvs-cli/unowned", { module: "crates/nvs-cli/src/runner.rs", title: "No owner.", text: "Open." }, tmp.root);
     write(topic, "testing", { title: "Testing", order: 90, rules: [] }, tmp.root);
     write(playbookBullet, "gone/a-bullet", { lead: "A.", body: "B.", files: [], until: { kind: "reviewed", arg: "2026-09-24" } }, tmp.root);
@@ -87,6 +87,7 @@ describe("record types", () => {
       `${pathOf(gap, "nvs-cli/unowned")}: a gap has exactly one owner: names no owner`,
       `${stray}: a check id is used once per goal: check id nv-check is used 2 times`,
       `${stray}: a check names a stage of its own goal: check nv-check names stage 7, which the goal does not have`,
+      `${stray}: a stage says what it does: stage 4 (the records) has no summary`,
       `${stray}: every goal is in the chain: stray is not in data/chain.json`,
       `${pathOf(playbookBullet, "gone/a-bullet")}: a bullet is in a section: no section gone`,
       `${pathOf(rule, "testing/feature-proofs")}: a rule is in its topic's list: testing/feature-proofs is not in its topic's rules`,

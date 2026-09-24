@@ -215,6 +215,8 @@ A probe loaded 3,109 of these files into SQLite in 0.51 s with Python and 0.22 s
 
 ## Stage 0 — the catch-up
 
+**Does:** Rewrites a comment or module doc in the session whose change makes it untrue.
+
 This goal makes most of the process docs wrong. They are rewritten whole in Stage 12, once, from what
 is true then. The sentences are rewritten earlier in these two cases:
 
@@ -231,6 +233,8 @@ is true then. The sentences are rewritten earlier in these two cases:
 
 ## Stage 1 — the floor
 
+**Does:** Every check of every goal already walked still passes.
+
 Goal `core-json-and-6-more`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`.
 It is never traded.
 
@@ -240,6 +244,8 @@ changes only where it says `dossier`. **Every `want` line stays.** So the output
 wants is a contract the port keeps.
 
 ## Stage 2 — the Rust and Cargo cuts first
+
+**Does:** Makes the Rust tests faster and steadier, and adds the build profile the proofs run on.
 
 One file set: `crates/nvs-cli/src/script.rs`, the four flaky tests' files, the crates' `Cargo.toml`,
 the workspace `Cargo.toml`, `tools/verify.py`. They go first because they make every later session's
@@ -255,6 +261,8 @@ the workspace `Cargo.toml`, `tools/verify.py`. They go first because they make e
   `codegen-units = 256`. Overflow checks stay on and debug assertions stay off. Stage 7 wires it in.
 
 ## Stage 3 — the foundation: `bun nv`, its library and its index
+
+**Does:** Builds `bun nv`: the command, its record library and its index.
 
 One file set: `package.json`, `bun.lock`, `tsconfig.json`, `tools/nv/**`, `.gitignore`,
 `tools/verify.py` (one step).
@@ -284,6 +292,8 @@ One file set: `package.json`, `bun.lock`, `tsconfig.json`, `tools/nv/**`, `.giti
 
 ## Stage 4 — the importer
 
+**Does:** Reads every legacy home into records and compares them with the files on disk.
+
 One file set: `tools/nv/import/**`.
 
 - **`bun nv import`** reads every legacy home in the entity table and builds the records in memory.
@@ -299,6 +309,8 @@ One file set: `tools/nv/import/**`.
   others as ordinary goals, in the same order.
 
 ## Stage 5 — the read-only tools, proven by parity
+
+**Does:** Ports the read-only Python tools to `bun nv`, each proven to print what the old one did.
 
 One file set: `tools/nv/cmd/{peek,brief,plan,records,rules,decisions,owners,gaps,holes,links,layout,disk,directives,migration,reference}.ts`, `tools/nv/parity/**`.
 
@@ -317,6 +329,8 @@ One file set: `tools/nv/cmd/{peek,brief,plan,records,rules,decisions,owners,gaps
   mode the floor, a goal `.toml` or a process doc invokes.
 
 ## Stage 6 — one key for what a check reads (the keystone)
+
+**Does:** Gives every check one key over exactly what it reads, held to that by probes.
 
 One file set: `tools/nv/keys/**`, `tools/nv/cmd/{impact,why}.ts`, `data/impact-probes.json`.
 
@@ -372,6 +386,8 @@ first.
 
 ## Stage 7 — proofs: the dossier becomes ordinary feature-proof machinery
 
+**Does:** Replaces `dossier.py` with `bun nv proofs`, and a comment no longer stales a perf figure.
+
 One file set: `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**`, `Cargo.toml`'s proof profile,
 `docs/perf/members.ndjson`.
 
@@ -414,6 +430,8 @@ One file set: `tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**`, `Cargo.toml`'s pro
   <file> -- …` becomes `// proof: gap <gap-id>`. A script does both.
 
 ## Stage 8 — the writers and the driver
+
+**Does:** Ports the tools that write, and the loop driver with its status row and goal table.
 
 One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splice,bg,guard}.ts`,
 `tools/nv/driver/**`, `.claude/settings.json`.
@@ -534,6 +552,8 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
 
 ## Stage 9 — the cutover
 
+**Does:** Writes the records, deletes the legacy homes and hands the loop to the new driver.
+
 One slice, in one commit.
 
 1. `bun nv import --write`.
@@ -561,6 +581,8 @@ Before the commit, `bun nv loop --goal-only` must be green under the new driver.
 new driver.
 
 ## Stage 10 — the playbook triage, on records
+
+**Does:** Sorts each playbook bullet: delete it, move it to a module doc, or keep it as a record.
 
 One file set per section: `data/playbook/<section>/`, plus the module whose doc comment a moved
 bullet lands in, and `tools/nv/cmd/playbook.ts`. This is side goal `playbook-triage`'s work.
@@ -600,6 +622,8 @@ bullet lands in, and `tools/nv/cmd/playbook.ts`. This is side goal `playbook-tri
 
 ## Stage 11 — every other tool, CI, the website and the hooks
 
+**Does:** Ports every other tool, CI, the website and the git hooks to `bun nv`.
+
 One file set per bullet.
 
 - **Ported to `bun nv <name>`:**
@@ -627,6 +651,8 @@ One file set per bullet.
   after a clone.
 
 ## Stage 12 — no Python, and the contract says what is true
+
+**Does:** Deletes the Python tools, and rewrites the process docs to say what is true.
 
 One file set: `AGENTS.md`, `docs/agent/*.md`, `docs/agent/goals/README.md`, `docs/setup.md`,
 `docs/rules/` wherever a rule is about the old tooling.

@@ -14,7 +14,8 @@
 // milestone, so its `milestone` is null and the generated feature-proof goals are ordinary goals. A
 // retired goal has no `.toml`, so its lists are empty: its checks live on in the floor of every goal
 // after it. TOML keys become camelCase, a check's `stage = "N title"` becomes its stage number with the
-// title on the goal's `stages`, and `[context.stage.N]` folds into that stage's `context`. A check's id
+// title on the goal's `stages`, `[context.stage.N]` folds into that stage's `context`, and the `.md`'s
+// `**Does:**` line under `## Stage N — <title>` becomes that stage's `summary`. A check's id
 // is its name as a slug, or its kind and what it runs when it has no name, with `-2` and on for a
 // repeat, and it never changes after the import.
 //
@@ -35,6 +36,8 @@ const LIVE = { md: "docs/agent/loop-goal.md", toml: "docs/agent/loop-goal.toml",
 const CHAIN_NAME = /^(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
 const SIDE_NAME = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
 const H1 = /^# (?:Loop goal \d+|Side goal) — (.+)$/m;
+const STAGE_HEADING = /^## Stage (\d+) — /;
+const DOES = /^\*\*Does:\*\*\s*/;
 /** The front-matter tags that name no row of the plan's milestone table. */
 const NO_MILESTONE = ["post-parity", "dossier"];
 /** The note `tools/dossier.py --emit-goals` writes under a handoff's H1, which no record keeps. */
@@ -127,19 +130,43 @@ function goalValue(root: string, g: GoalFiles, unread: Unread[]): Record<string,
   for (const n of Object.keys(stageContext)) {
     if (!titles.has(Number(n))) unread.push({ path: g.toml, reason: `[context.stage.${n}] is for a stage no check is in` });
   }
+  const summaries = stageSummaries(fm.body);
   const stages = [...titles]
     .sort((a, b) => a[0] - b[0])
     .map(([number, title]) => {
+      const summary = summaries.get(number);
+      const stage: Record<string, unknown> = summary === undefined ? { number, title } : { number, title, summary };
       const own = stageContext[String(number)];
-      if (own === undefined) return { number, title };
+      if (own === undefined) return stage;
       const ctx = camelKeys(own);
       unread.push(...extraKeys(g.toml!, `its [context.stage.${number}]`, ctx, CONTEXT_KEYS));
-      return { number, title, context: ctx };
+      return { ...stage, context: ctx };
     });
 
   const env: Record<string, unknown> = {};
   for (const k of ["docker", "valgrind", "wsl"]) if (t[k] !== undefined) env[k] = camelKeys(t[k]);
   return { ...value, files: t.files ?? [], context, stages, checks, env };
+}
+
+/**
+ * Each stage's `summary` in the goal's prose `body`, by stage number: the paragraph that opens on
+ * `**Does:**` as the first line under the stage's `## Stage N — <title>` heading, unwrapped to one line.
+ * A stage whose heading has no such line has no summary.
+ */
+function stageSummaries(body: string): Map<number, string> {
+  const out = new Map<number, string>();
+  const lines = body.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const heading = STAGE_HEADING.exec(lines[i]!);
+    if (!heading) continue;
+    let j = i + 1;
+    while (j < lines.length && lines[j]!.trim() === "") j++;
+    if (!DOES.test(lines[j] ?? "")) continue;
+    const para: string[] = [];
+    for (; j < lines.length && lines[j]!.trim() !== ""; j++) para.push(lines[j]!);
+    out.set(Number(heading[1]), unwrap(para).replace(DOES, ""));
+  }
+  return out;
 }
 
 /** The installed goal's record, read from the acceptance list the driver keeps current, or null with the reason in `unread`. */

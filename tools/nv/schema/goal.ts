@@ -21,6 +21,8 @@ const context = s.object({
 const stage = s.object({
   number: s.int(),
   title: s.string(),
+  /** One sentence saying what the stage does, which the goal table prints; read from its prose's `**Does:**` line. */
+  summary: s.optional(s.string()),
   /** Added to the goal's own `context` while a handoff's next group names this stage. */
   context: s.optional(context),
 });
@@ -95,6 +97,12 @@ function goalChecks(t: string): { name: string; sql: string }[] {
       name: "a stage number is used once per goal",
       sql: `SELECT min(path) AS path, 'stage ' || number || ' is declared ' || count(*) || ' times' AS detail
             FROM ${t}__stages GROUP BY owner, number HAVING count(*) > 1`,
+    },
+    {
+      // The goal table prints the summary in `what it does`, and the stage's title when it has none.
+      name: "a stage says what it does",
+      sql: `SELECT path, 'stage ' || number || ' (' || title || ') has no summary' AS detail
+            FROM ${t}__stages WHERE summary IS NULL`,
     },
   ];
 }
