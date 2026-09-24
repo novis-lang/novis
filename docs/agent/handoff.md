@@ -3,60 +3,62 @@
 ## State
 
 **Goal `tooling-overhaul`: Stages 3 to 7 have landed, and Stage 8 is in progress.** `bun nv chain`,
-`bun nv loop --list`, `bun nv loop --goal`, `bun nv bg`, `bun nv guard` and `bun nv splice` are
-written, and the status row and goal table are pure functions in `tools/nv/driver/status.ts`.
-`chain.py` stays until the Stage 9 cutover, because its `--show`, `--retire`, `--set` and `--retitle`
-have no successor yet. `main` is frozen. Tag `pre-overhaul` is the rollback.
+`bun nv loop --list`, `bun nv loop --goal`, `bun nv bg`, `bun nv guard`, `bun nv splice` and now
+`bun nv verify` are written. `chain.py` stays until the Stage 9 cutover, because its `--show`,
+`--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag `pre-overhaul` is the
+rollback.
 
-**`tools/splice.py` is deleted.** Every citation names `bun nv splice`, and the `splice` parity group
-is gone with it. `tools/loop-stats.py` counts a Bash call as an edit when it names `nv splice` or
-`splice.py` (`SPLICE_MARKERS`), because older logs carry the Python name. The one citation left is a
-measured figure in the goal's own prose, `docs/agent/goals/122-tooling-overhaul.md:528`, which is
-history and stays.
+**`bun nv verify` runs `verify.py`'s steps in the same order, with the same flags.** It ran green over
+the whole tree (15 of 15), and a second run answered 14 steps from its cache. Its module doc is
+`tools/nv/cmd/verify.ts`. Each step's key is in `tools/nv/keys/steps.ts`, over `builtFrom`. Each test
+binary's key is its `checks.ts` unit. The wide-binary check `impact.py --check` ran inside `test`, and
+it is ported to `tools/nv/keys/escape.ts`. `--start` runs through `nv bg` and keeps the job id in
+`.agent-tmp/verify-background.json`. `tools/verify.py` still exists, and nothing calls the new command
+yet.
 
-The playbook still has two homes: the pages under `docs/agent/playbook/` are what `playbook.py` and
-`orient.py` read, and `data/playbook/` is what `nv import` made from them. No renderer writes the
-pages yet, so `bun nv render` does not touch them, and an edit to a bullet goes into both by hand or by
-script until Stage 9.
+These are the differences from `verify.py` that slice 2's parity group must list, each with its
+reason:
+- The green cache is shape 3, so the two programs never read each other's step entries.
+- `verify-test-green.json` holds the TS binary keys. `loop.py`'s `crate_tests` then misses verify's
+  record until the driver is ported, and runs the binary itself, which is the safe direction.
+- `impact-reads.json` entries have no `compiled` field. Python's `impact.Reach` then treats them as
+  unrecorded, and an `nvs_repo` reader goes wide there, which is also safe.
+- The case trees key at `card`, as `checks.ts` keys suites. `nv` also keys `data/`.
 
-A goal's stage record carries `summary`, from a `**Does:**` line under the stage's `## Stage N` heading.
-`nv check`'s 80 findings are all "a stage says what it does": `data/goals/*.json` was imported before
-`summary` existed, and `nv import --write` refuses while `impact_probes` has no importer. So the
-acceptance check `every record is valid and every reference resolves` stays red until that importer
-lands or the records are rewritten (see Backlog).
-
-`bun nv loop --goal` reads its results from the Python driver's memo `.loop/goal-green.json`
-(`memoResults`), matched by check name, and the memo is not re-checked against the tree.
-
-One Stage 7 bullet waits for Stage 9's cutover: deleting `dossier.py`'s `--emit-goals`,
-`--check-goals` and fan-out flags, and `generated_by` in `tools/loop.py`.
+The playbook still has two homes: `docs/agent/playbook/` (read by `playbook.py` and `orient.py`) and
+`data/playbook/` (what `nv import` made). An edit to a bullet goes into both until Stage 9.
+`nv check`'s 80 findings are all "a stage says what it does", because `data/goals/*.json` was imported
+before `summary` existed and `nv import --write` refuses while `impact_probes` has no importer. So the
+acceptance check `every record is valid and every reference resolves` stays red until that lands (see
+Backlog).
 
 These habits hold for every session of this goal. A mechanical change goes through a script under
 `.agent-tmp/`, written with Write. Never prove a cut with a sweep. A Python tool is deleted only after
-its replacement's parity is green. `tools/nv/lib/py.ts` holds what a port needs to print exactly what
-Python printed. `bun x tsc --noEmit -p .` typechecks the tools, and `bun nv selftest` runs every tools
-test.
+its replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tools, and
+`bun nv selftest` runs every tools test.
 
 ## Next group
 
-**Stage 8: `nv verify`** — one file set: `tools/verify.py`, `tools/verify_keys.py`,
-`tools/nv/cmd/bg.ts`, `tools/nv/cmd/guard.ts`. The goal's Stage 8 bullet "`nv verify` takes over
-`verify.py`'s steps unchanged, over the Stage 6 keys" specifies it.
+**Stage 8: `nv verify` replaces `verify.py`** — one file set: `tools/nv/parity/groups.json`,
+`tools/nv/parity/known.json`, `tools/loop.py`, `tools/session.py`, `tools/orient.py`. The goal's
+Stage 8 bullet "`nv verify` takes over `verify.py`'s steps unchanged, over the Stage 6 keys" specifies
+it.
 
-- [ ] **Port `verify.py`'s steps to `tools/nv/cmd/verify.ts`**, run detached through `nv bg`, from
-      `tools/verify.py:1266` (`main`) and `tools/nv/cmd/bg.ts:161`. `--start`, `--wait`, `--fast`,
-      `-p` and `--doc` keep their meaning, and each step's key comes from the Stage 6 key function.
-- [ ] **Add a `verify` parity group** after `reference` at `tools/nv/parity/groups.json:279`, and delete `tools/verify.py`
-      only in a later slice after it is green (§ *Standing decisions* "Parity before deletion").
-- [ ] **Name `verify` in the `cargo-p` rule's `commands`** at `tools/nv/cmd/guard.ts:451`.
+- [ ] **Add a `verify` parity group** after `reference` at `tools/nv/parity/groups.json:279`. The run
+      itself cannot be compared, because it prints timings and each program keeps its own cache. So
+      the cases are the deterministic ones: `--list`, with `--fast`, `-p nvs-ir` and `--doc`, and the
+      flag conflicts `--start --wait`, `--doc --fast` and `--list --start`. `--list` already matched
+      byte for byte. List the State's differences in `tools/nv/parity/known.json` or in the commit.
+- [ ] **Point every caller at `bun nv verify`, and delete `tools/verify.py`.** The callers are the
+      driver's rustdoc gate at `tools/loop.py:1045` (`VerifyWatch`) and its `--doc` call, then
+      `tools/session.py` and `tools/orient.py`. The 344 citations are a script's job, as the `splice`
+      rewrite was. `tools/verify_keys.py` stays while `loop.py` and `impact.py` import it.
 
 ## Backlog
 
-- The acceptance check `bun nv check` needs a `summary` on every open goal's stages. Either the
-  `impact_probes` importer lands so `nv import --write` re-reads the `**Does:**` lines, or a script
-  writes `summary` into `data/goals/*.json`. 54 of the 78 open stages have no `## Stage N` heading to
-  put a line under (goal § *Stage 9*).
-- `nv orient` and `nv session --wrap` (goal § *Stage 8*).
-- The driver half of `nv loop`, which paints `tools/nv/driver/status.ts` and feeds `[g]` from its
-  own results (goal § *Stage 8*).
-- A renderer for the playbook pages, so `data/playbook/` becomes their one home (goal § *Stage 9*).
+- `nv import` needs an `impact_probes` importer. Or rewrite `data/goals/*.json` with `summary`, which
+  closes `nv check`'s 80 findings (`tools/nv/cmd/import.ts`).
+- Stage 9 cutover: delete `dossier.py`'s `--emit-goals`, `--check-goals` and fan-out flags, and
+  `generated_by` in `tools/loop.py`.
+- `chain.py`'s `--show`, `--retire`, `--set` and `--retitle` have no `nv chain` successor yet.
+- `docs/agent/playbook/` has no renderer from `data/playbook/`.

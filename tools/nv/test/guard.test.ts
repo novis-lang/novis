@@ -76,7 +76,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     allow: [
       ["Bash", { command: "cargo build --release -p nvs-cli" }],
       ["Bash", { command: "cargo test --test meta" }],
-      ["Bash", { command: "python tools/verify.py -p nvs-stdlib" }],
+      ["Bash", { command: "bun nv verify -p nvs-stdlib" }],
     ],
   },
 };

@@ -448,7 +448,7 @@ export const RULES: Rule[] = [
   {
     name: "cargo-p",
     tools: ["Bash", "PowerShell"],
-    commands: [],
+    commands: ["verify"],
     deny(_call, parsed) {
       for (const seg of parsed!.segments) {
         const words = plain(seg);
@@ -460,7 +460,7 @@ export const RULES: Rule[] = [
         return (
           `\`cargo ${sub} -p\` resolves features over one package and writes a second copy of every workspace crate ` +
           `(AGENTS.md rule 5). Leave out \`-p\` and narrow what runs with \`--test <name>\` or \`--lib\`, or run ` +
-          `\`python tools/verify.py -p <crate>\`.`
+          `\`bun nv verify -p <crate>\`.`
         );
       }
       return null;
