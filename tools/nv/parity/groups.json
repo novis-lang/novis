@@ -1,4 +1,29 @@
 {
+  "bench": {
+    "python": ["python", "tools/bench.py"],
+    "nv": ["bun", "tools/nv/main.ts", "bench"],
+    "cases": [
+      ["--bogus"],
+      ["--reps", "x"],
+      ["--reps"],
+      ["--re", "3"],
+      ["--max", "3"],
+      ["--php-mode", "x"],
+      ["--serve-baseline", "x"],
+      ["--max-work-ms", "x"],
+      ["a", "--check", "b"],
+      ["--max-ms", "10"],
+      ["--reps", "0"],
+      ["--nvs", "nosuch.exe"],
+      ["--nvs", "target/debug/nvs.exe", "--warm-start"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--record", "x.json"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--max-work-ms", "5"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--engines", "nvs,bogus"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--engines", "php"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--check", "--engines", "nvs,php", "zzz"],
+      ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--check", "--engines", "nvs,php", "01", "03"]
+    ]
+  },
   "brief": {
     "python": ["python", "tools/brief.py"],
     "nv": ["bun", "tools/nv/main.ts", "brief"],

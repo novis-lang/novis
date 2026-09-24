@@ -7,6 +7,20 @@
       "why": "A command a tool prints for the reader to run next is spelled as the nv subcommand that replaces the Python tool, which keeps the Python tool's name."
     }
   ],
+  "bench": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)bench\\.py(:? )",
+      "replace": "$1nv bench$2",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "python",
+      "pattern": "`warm_start` in this file says why\\.",
+      "replace": "`--warm-start` in `nv bench` says why.",
+      "why": "The message names where the reasoning lives, and in nv that is the command's own module doc."
+    }
+  ],
   "brief": [
     {
       "side": "python",

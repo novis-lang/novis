@@ -148,6 +148,11 @@ export interface ArgSpec {
   repeated?: string[];
   /** Every option in the order the Python parser declared them, which is the order an ambiguous prefix lists its matches in. Without it, the order of the fields above. */
   order?: string[];
+  /**
+   * The parser has one positional argument with `nargs="*"`. It takes the first run of bare words, and
+   * argparse reports a bare word after an option that ends that run as unrecognized.
+   */
+  positionals?: boolean;
 }
 
 export interface Parsed {
@@ -157,6 +162,8 @@ export interface Parsed {
   values: Map<string, string>;
   /** Each repeated option given, by its long name, with every value in the order it was given. */
   lists: Map<string, string[]>;
+  /** The positional argument's words, when the spec has one. */
+  positionals: string[];
 }
 
 /** A word argparse would take as a value rather than as an option. */
@@ -188,7 +195,9 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
     const eq = word.indexOf("=");
     return resolve(eq >= 0 ? word.slice(0, eq) : word);
   });
-  const out: Parsed = { flags: new Set(), values: new Map(), lists: new Map() };
+  const out: Parsed = { flags: new Set(), values: new Map(), lists: new Map(), positionals: [] };
+  // The positional's run is open until an option follows a bare word it took.
+  let run: "before" | "open" | "closed" = spec.positionals ? "before" : "closed";
   const give = (option: string, value: string) => {
     if (repeated.includes(option)) out.lists.set(option, [...(out.lists.get(option) ?? []), value]);
     else out.values.set(option, value);
@@ -197,9 +206,13 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
   for (let i = 0; i < args.length; i++) {
     const option = classified[i] ?? null;
     if (option === null) {
-      unknown.push(args[i]!);
+      if (run !== "closed" && !args[i]!.startsWith("-")) {
+        out.positionals.push(args[i]!);
+        run = "open";
+      } else unknown.push(args[i]!);
       continue;
     }
+    if (run === "open") run = "closed";
     if (flags.includes(option)) {
       out.flags.add(option);
       continue;
