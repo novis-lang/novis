@@ -15,7 +15,7 @@ So those crates must restate the whole table, and a restated table drifts. It
 already had: `benches/abi-probe` was missing seven of the lints every other
 crate carries, with nothing to say whether that was a decision or an omission.
 This script is what makes the copies copies — one home, mechanically enforced,
-the same shape as `tools/gen-attribution.py`.
+the same shape as `tools/nv/cmd/gen-attribution.ts`.
 
     python tools/lints.py            # rewrite the generated tables
     python tools/lints.py --check    # exit 1 if any has drifted (CI, nv verify)

@@ -65,7 +65,7 @@ const LANES: Record<string, string[]> = {
   // none of these (ADR 0068 § Verification).
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
-    "tools/gen-attribution.py", ".github/workflows/",
+    "tools/gen-attribution.py", "tools/nv/cmd/gen-attribution.ts", ".github/workflows/",
   ],
   // docs/novis.md is generated from the binary's registry and the chapters, so either side moving can
   // make the committed file stale.

@@ -41,7 +41,7 @@ nvs-config.workspace = true
 # taken here one driver at a time, so the audit surface this crate exists to
 # concentrate stays a list of what is actually reachable. `rusqlite` is the one
 # that costs something to add: it is a C dependency, and ADR 0132 § 2 requires
-# the slice that takes it to add its row to `tools/gen-attribution.py`'s
+# the slice that takes it to add its row to `tools/nv/cmd/gen-attribution.ts`'s
 # `C_DEPENDENCIES` ledger in the same commit -- that gate fails both ways, on an
 # unrecorded C crate in the graph and on a recorded one that is not in it.
 #
@@ -71,7 +71,7 @@ bytes.workspace = true
 fallible-iterator.workspace = true
 # SQLite, and the edge the comment at the top of this block is about: taking it
 # puts `libsqlite3-sys` in the shipped graph, so this crate's slice also carries
-# that crate's row in `tools/gen-attribution.py`'s `C_DEPENDENCIES` ledger. It
+# that crate's row in `tools/nv/cmd/gen-attribution.ts`'s `C_DEPENDENCIES` ledger. It
 # is the only backend with no wire at all -- there is no framing to borrow and
 # no handshake to write, so unlike the other four this dependency *is* the
 # protocol, and what `sqlite.rs` adds around it is the blocking-pool handoff

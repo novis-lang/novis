@@ -13,6 +13,6 @@ via libwebp is admitted exactly that way. An authentication handshake handles at
 so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a
 C dependency.
 
-The test is enforced rather than remembered: `python tools/gen-attribution.py --check` enumerates the
+The test is enforced rather than remembered: `bun nv gen-attribution --check-c-deps` enumerates the
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 (`rule:testing/attribution-is-diffed-in-ci`).

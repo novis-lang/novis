@@ -421,7 +421,7 @@
       "status": "shipped",
       "because": ["0065", "0143"],
       "seeAlso": ["testing/lane-table", "testing/ci-lanes"],
-      "guardedBy": ["tools/gen-attribution.py", ".github/workflows/ci.yml"]
+      "guardedBy": ["tools/nv/cmd/gen-attribution.ts", ".github/workflows/ci.yml"]
     },
     {
       "id": "testing/debug-mode-directive",

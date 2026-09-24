@@ -458,16 +458,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
       # The generator reads each dependency's own LICENSE file out of its
       # source, so the sources have to be on disk. `cargo fetch` is enough —
       # nothing here compiles.
       - name: Fetch dependency sources
         run: cargo fetch --locked
       - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
-        run: python tools/gen-attribution.py --check
+        run: bun nv gen-attribution --check
 
   # ---------------------------------------------------------------------------
   # Every PHP built-in has exactly one recorded outcome, and every Core member a

@@ -4,7 +4,7 @@ its `NOTICE`, Unicode-3.0 its own notice. None is satisfied by an SPDX identifie
 names is not attribution.
 
 The notice, `THIRD-PARTY-LICENSES.txt` at the repository root, is **generated** by
-`tools/gen-attribution.py` from the resolved dependency graph reachable from the package that ships,
+`tools/nv/cmd/gen-attribution.ts` from the resolved dependency graph reachable from the package that ships,
 normal and build dependencies alike, reading each component's own license file from its source. Four
 properties are load-bearing:
 

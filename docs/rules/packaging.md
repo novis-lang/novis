@@ -583,7 +583,7 @@ its `NOTICE`, Unicode-3.0 its own notice. None is satisfied by an SPDX identifie
 names is not attribution.
 
 The notice, `THIRD-PARTY-LICENSES.txt` at the repository root, is **generated** by
-`tools/gen-attribution.py` from the resolved dependency graph reachable from the package that ships,
+`tools/nv/cmd/gen-attribution.ts` from the resolved dependency graph reachable from the package that ships,
 normal and build dependencies alike, reading each component's own license file from its source. Four
 properties are load-bearing:
 
@@ -1609,7 +1609,7 @@ via libwebp is admitted exactly that way. An authentication handshake handles at
 so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a
 C dependency.
 
-The test is enforced rather than remembered: `python tools/gen-attribution.py --check` enumerates the
+The test is enforced rather than remembered: `bun nv gen-attribution --check-c-deps` enumerates the
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
 
