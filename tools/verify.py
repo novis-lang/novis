@@ -314,7 +314,7 @@ NEEDS_BINARY = {"nvs-fmt", "test", "conformance", "differential", "reference", "
 #: The steps that rewrite source, after which every later step's key is taken again.
 WRITES = {"fmt", "nvs-fmt"}
 #: The script steps, which run at the same time as `build` -- *Why steps overlap*.
-BESIDE_BUILD = {"lints", "directives", "template", "owners", "fuzz-lock"}
+BESIDE_BUILD = {"lints", "directives", "template", "owners", "nv", "fuzz-lock"}
 #: Where `nvs-fmt` looks for a new or modified `.nvs` file, and the one directory under them whose
 #: files are unformatted on purpose. The first is `crates/nvs-fmt/tests/identity.rs`'s corpus.
 NVS_FMT_TREES = ("tests", "examples")
@@ -860,6 +860,15 @@ def summarize_owners(out):
         "ran, but printed no summary line -- check the log"
 
 
+def summarize_nv(out):
+    if "nv selftest: every test passes" in out:
+        m = re.search(r"^\s*(\d+) pass$", out, re.MULTILINE)
+        return f"the types check, {m.group(1)} test(s) pass" if m else "the types check, every test passes"
+    if "nv selftest: the types check" in out:
+        return "the types check, and `bun test` failed -- check the log"
+    return "`tsc` failed or did not run -- check the log"
+
+
 FUZZ = ROOT / "fuzz"
 
 
@@ -970,6 +979,12 @@ def steps_for(opts):
         # Sub-second, and unscoped: it walks every crate's doc comments, so `-p` narrows nothing.
         steps.append(Step("owners", ["tools/owners.py", "--check"], summarize_owners,
                           exe=sys.executable))
+        # The tools' own gate: `bun nv selftest` type-checks `tools/nv/` and runs its tests. It
+        # reads nothing cargo writes, so it runs beside `build`. Unscoped, because `-p` names a
+        # crate and this is no crate. A machine without `bun` fails it, because docs/setup.md
+        # makes Bun a requirement of working on the tree.
+        if (ROOT / "package.json").is_file():
+            steps.append(Step("nv", ["nv", "selftest"], summarize_nv, exe="bun"))
         # The last of the steps that cost under a second, and the second that writes: `fuzz/` is
         # a workspace of its own, so its lock follows a dependency added under `crates/` only
         # when something resolves it, and `run_fuzz_lock` is that something. Unscoped, because a

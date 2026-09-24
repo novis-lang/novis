@@ -405,6 +405,8 @@ STEP_READS = {
     "directives": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "template": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "owners": lambda t: t.part(under("crates")) + t.part(under(*OWNERS_READS)),
+    "nv": lambda t: t.part(under("tools/nv"))
+    + t.part(_only("package.json", "bun.lock", "tsconfig.json")),
     "fuzz-lock": lambda t: [("rustc", t.toolchain)] + t.part(is_manifest),
     "build": lambda t: t.binary(),
     "test": _everything,
