@@ -12,6 +12,11 @@
       ["--where", "no-such-topic-anywhere"]
     ]
   },
+  "chain": {
+    "python": ["python", "tools/chain.py"],
+    "nv": ["bun", "tools/nv/main.ts", "chain"],
+    "cases": [["--check"]]
+  },
   "decisions": {
     "python": ["python", "tools/decisions.py"],
     "nv": ["bun", "tools/nv/main.ts", "decisions"],
