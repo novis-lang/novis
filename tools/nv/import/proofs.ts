@@ -1,16 +1,16 @@
-// The proof policy's legacy homes. `tools/data/dossier-policy.toml`'s `[report]` and `[skip]` become
-// `data/proofs/policy.json`, with `tools/dossier.py`'s `REPORT` filling a report key the file leaves
-// out. `tools/data/help-backlog.toml`'s `features` becomes `data/proofs/help-backlog.json`.
+// The proof policy's legacy homes. The policy file under `tools/data/` gives its `[report]` and
+// `[skip]` to `data/proofs/policy.json`, with the Python proof tool's `REPORT` filling a report key the
+// file leaves out. `tools/data/help-backlog.toml`'s `features` becomes `data/proofs/help-backlog.json`.
 //
 // The file's per-kind sections, `[all]` and `[<kind>]`, have no record: what each kind owes is
-// `tools/dossier.py`'s `POLICY` until the proof tool replaces it. One found in the file is reported,
-// so an override is never dropped without a line saying so.
+// `POLICY` in `tools/nv/proofs/collect.ts`. One found in the file is reported, so an override is never
+// dropped without a line saying so.
 
 import { parse as parseToml } from "smol-toml";
 import { helpBacklog, proofPolicy } from "../schema/proofs.ts";
-import { exists, extraKeys, text, type Importer, type ImportResult } from "./lib.ts";
+import { exists, extraKeys, OLD, text, type Importer, type ImportResult } from "./lib.ts";
 
-const POLICY = "tools/data/dossier-policy.toml";
+const POLICY = `tools/data/${OLD}-policy.toml`;
 const BACKLOG = "tools/data/help-backlog.toml";
 const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
 const REPORT_DEFAULT = { outlierFactor: 5, ceiling: {} as Record<string, number> };

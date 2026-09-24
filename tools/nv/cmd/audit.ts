@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { OLD } from "../import/lib.ts";
 import { indexEol, tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
@@ -22,8 +23,6 @@ import { goal, sideGoal } from "../schema/goal.ts";
 
 export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol]";
 
-/** The word the feature proofs were once named by, built in halves so this file does not say it. */
-const OLD = ["doss", "ier"].join("");
 const OLD_RE = new RegExp(OLD, "i");
 const DIRECTIVE_RE = new RegExp(`^\\s*(?://|#)\\s*${OLD}\\s*:`, "im");
 

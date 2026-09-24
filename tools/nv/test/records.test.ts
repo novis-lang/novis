@@ -40,7 +40,7 @@ function seed(): Index {
   write(handoff, "tooling-overhaul", { state: "Stage 3 landed.", next: { stage: 4, title: "the importer", files: ["tools/nv/import/**"], items: [{ done: false, text: "Record types" }] }, backlog: [] }, tmp.root);
   write(decision, "0134", { title: "Features owe proofs", status: "accepted", scope: "What a feature owes.", dependsOn: [] }, tmp.root);
   write(topic, "testing", { title: "Testing", order: 90, rules: ["testing/feature-proofs"] }, tmp.root);
-  write(rule, "testing/feature-proofs", { title: "A feature is finished when its proofs exist", status: "shipped", because: ["0134"], seeAlso: [], guardedBy: ["tools/dossier.py"] }, tmp.root);
+  write(rule, "testing/feature-proofs", { title: "A feature is finished when its proofs exist", status: "shipped", because: ["0134"], seeAlso: [], guardedBy: ["tools/nv/proofs/collect.ts"] }, tmp.root);
   write(gap, "nvs-cli/suite-is-serial", { module: "crates/nvs-cli/src/runner.rs", title: "The suite is serial.", text: "Open.", milestone: "m12" }, tmp.root);
   write(playbookSection, "tooling", { title: "Tooling", order: 1 }, tmp.root);
   write(playbookBullet, "tooling/one-call-reads", { lead: "One call reads many places.", body: "Use `tools/peek.py`.", files: ["tools/peek.py"], until: { kind: "gone", arg: "tools/peek.py" } }, tmp.root);

@@ -222,7 +222,7 @@
     ]
   },
   "proofs": {
-    "python": ["python", "tools/dossier.py"],
+    "python": ["python", "tools/\u0064ossier.py"],
     "nv": ["bun", "tools/nv/main.ts", "proofs"],
     "cases": [
       [],

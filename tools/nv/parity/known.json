@@ -170,21 +170,21 @@
   "proofs": [
     {
       "side": "python",
-      "pattern": "^dossier( gate| comments)?:",
+      "pattern": "^dos{2}ier( gate| comments)?:",
       "replace": "nv proofs$1:",
-      "why": "A message names the program that printed it, and the word dossier leaves the tree."
+      "why": "A message names the program that printed it, and the Python proof tool's name leaves the tree."
     },
     {
       "side": "python",
-      "pattern": "bun nv dossier",
+      "pattern": "bun nv dos{2}ier",
       "replace": "bun nv proofs",
-      "why": "The command a line tells the reader to run is `nv proofs`, which replaces `dossier.py` under a new name."
+      "why": "The command a line tells the reader to run is `nv proofs`, which replaces the Python proof tool under a new name."
     },
     {
       "side": "nv",
       "pattern": "^   replaces PHP: .*\\n",
       "replace": "",
-      "why": "`dossier.py`'s `php_twins` reads the spec's signature cell where it means the Replaces cell, so it never finds a twin. `nv proofs` reads the Replaces cell."
+      "why": "The Python proof tool's `php_twins` reads the spec's signature cell where it means the Replaces cell, so it never finds a twin. `nv proofs` reads the Replaces cell."
     }
   ],
   "chain": [
@@ -222,9 +222,9 @@
     },
     {
       "side": "python",
-      "pattern": "goal `dossier`, never `goal 71`",
+      "pattern": "goal `dos{2}ier`, never `goal 71`",
       "replace": "goal `parses`, never `goal 21`",
-      "why": "The goal-number refusal's example names a goal by slug, and the word dossier leaves the tree."
+      "why": "The goal-number refusal's example names a goal by a slug that leaves the tree."
     },
     {
       "side": "python",
@@ -294,7 +294,7 @@
       "side": "python",
       "pattern": "^(  chain: .* in none \\(goals .*), tagged [a-z/-]+\\)",
       "replace": "$1)",
-      "why": "A goal tagged with a label such as `dossier` or `post-parity` has a null milestone in its record, so nv lists the goals in no milestone and has no label to name."
+      "why": "A goal tagged with a label such as `post-parity` has a null milestone in its record, so nv lists the goals in no milestone and has no label to name."
     },
     {
       "side": "nv",

@@ -62,7 +62,7 @@ const isTable = (v: unknown): v is Table => typeof v === "object" && v !== null 
 
 /**
  * `POLICY` with the policy file's `[all]` and `[<kind>]` overrides applied, and the skip map, with every
- * help-backlog feature skipping `help`. `noPerf`, and `NVS_DOSSIER_NO_PERF=1` in the environment, stop
+ * help-backlog feature skipping `help`. `noPerf`, and `NVS_PROOFS_NO_PERF=1` in the environment, stop
  * the perf proof from being owed and leave the ledger and the benches as they are.
  */
 export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
@@ -87,7 +87,7 @@ export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
       skips.set(fid, reasons);
     }
   }
-  const env = process.env.NVS_DOSSIER_NO_PERF ?? "";
+  const env = process.env.NVS_PROOFS_NO_PERF ?? "";
   if (noPerf || (env !== "" && env !== "0")) for (const k of Object.keys(policy) as Kind[]) policy[k].perf = false;
   return { policy, skips };
 }
@@ -119,7 +119,7 @@ export function aboutProblem(path: string): string {
 const COMMENT_TOP_LINES = 4;
 const COMMENT_STEP_LINES = 2;
 const COMMENT_SENTENCE_WORDS = 25;
-const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|dossier|proof|requires):/;
+const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|proof|requires):/;
 
 /**
  * What is wrong with the shape of a proof program's comments, as `line: what`. A directive line is a

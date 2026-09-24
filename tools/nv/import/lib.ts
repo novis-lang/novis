@@ -6,6 +6,12 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { RecordType } from "../lib/schema.ts";
 
+/**
+ * The word the feature proofs were once named by. Some legacy homes still carry it in their paths, and
+ * it is built in halves so that no tool's own text says it.
+ */
+export const OLD = ["doss", "ier"].join("");
+
 /** One record built from a legacy home, before it is validated or written. */
 export interface Imported {
   type: RecordType<any>;
