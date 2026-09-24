@@ -61,7 +61,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second run is refused unless you pass `--force`. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
-| `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries and the verdict the run last held on. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
+| `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on and a session still waiting for its verdict. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
 | `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
@@ -483,6 +483,11 @@ an installed goal, a Docker daemon, the goal's containers — is files and servi
   `loop-goal.toml` is re-loaded every session, and since every session is a fresh interpreter, so is
   `loop.py`. An edit to the driver — a session's commit, or yours while the run holds — is live at the
   next session. Hold with `p`, edit, release: the next turn runs what you wrote.
+- **A session that changed the driver is judged by the next turn.** The sweep behind a session runs in
+  the process that imported the driver before the session started. A session that changed `loop.py` or
+  a module it imports would be judged by the code it replaced, and a fix to the driver's own verdict
+  would fail as if it had not landed. So that turn ends with `rejudge` and does not run the sweep. The
+  next turn serves no session: it judges the waiting one from `.loop/run.json`.
 - **`respawn.py` runs nothing, and that is the constraint the rest follows from.** It is the one process
   that outlives a session, so anything it did would be code read once per run, done by a process that
   does not read the keys. It starts the turn, waits, and starts another when the turn exits with
@@ -496,7 +501,8 @@ an installed goal, a Docker daemon, the goal's containers — is files and servi
   from somebody else's; a session's environment has the name taken out again, so a `python tools/loop.py`
   typed *by* a session is still refused.
 
-**Another turn follows exactly one verdict**: `served` — the session ran and nothing ended the run. The
+**Another turn follows two verdicts**: `served` — the session ran and nothing ended the run — and
+`rejudge`, a session the next turn has to judge. The
 verdicts a person can answer hold the run, per § *Holding the tree*; every other kind ends it, including
 the ones that look recoverable. A usage window that never reopened is a reason a person should look, and
 a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run, and

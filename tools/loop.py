@@ -5138,11 +5138,13 @@ def git(*args):
 
 
 #: How `drive` ended, as a *kind* rather than a sentence. `reason` is written for a person and is
-#: reworded whenever the wording improves; this is what `turn` branches on, and only one of these
-#: is followed by another turn without a person. Adding a kind here is free; changing one renames
-#: an API.
+#: reworded whenever the wording improves; this is what `turn` branches on, and only `served` and
+#: `rejudge` are followed by another turn without a person. Adding a kind here is free; changing
+#: one renames an API.
 #:
 #:   served          the turn's session was served and nothing below happened: `SERVED`
+#:   rejudge         the session changed driver code this process had imported, so the next
+#:                   turn judges it with no session of its own: `driver_changed`
 #:   budget          the run has served its --max-sessions
 #:   chain-complete  the last goal in the chain is green
 #:   chain-error     a chain switch could not be made
@@ -5178,6 +5180,8 @@ class Run:
         done_retries  DONE-claim retries the live goal has spent
         retry_check   the check the next session is handed as one, or ""
         last_hand     the verdict the run last held on, so the same one twice ends it
+        judge         a served session no sweep has judged yet, because it changed the driver's
+                      own code: its log index, status line, commit count and base sha, or {}
 
     The sessions since the last optimization pass are not here: `.loop/optimization/state.json`
     has always held that count across runs, and `credit` is its one writer outside a checkpoint.
@@ -5186,7 +5190,7 @@ class Run:
     would read as a run that had served nothing."""
 
     DEFAULTS = {"run": "", "run_id": "", "served": 0, "index": 0, "stalls": 0,
-                "done_retries": 0, "retry_check": "", "last_hand": []}
+                "done_retries": 0, "retry_check": "", "last_hand": [], "judge": {}}
 
     def __init__(self, stamp):
         state = read_json(RUNSTATE, default={}) or {}
@@ -6776,6 +6780,44 @@ def check_of(fail):
     return head + "]" if sep else fail
 
 
+def driver_files():
+    """Every `.py` file under `tools/` this process has imported, with the digest of its bytes.
+    This is the code a sweep run by this process judges with: `loop.py` itself and the modules
+    it imports. A tool the sweep starts as a subprocess is read off disk when it starts, and is
+    never stale."""
+    tools = ROOT / "tools"
+    out = {}
+    for mod in list(sys.modules.values()):
+        path = getattr(mod, "__file__", None)
+        if not path:
+            continue
+        p = Path(path).resolve()
+        if p.suffix != ".py" or tools not in p.parents:
+            continue
+        with contextlib.suppress(OSError):
+            out[p] = hashlib.sha256(p.read_bytes()).hexdigest()
+    return out
+
+
+def driver_changed(before):
+    """The files in `before`, a `driver_files()` snapshot, whose bytes differ now, as paths from
+    the root.
+
+    A non-empty answer after a session means this process would judge the session with the code
+    the session replaced. A session that fixes the driver's own verdict then fails the same check
+    again, and a retry that fixed its check is held as if it had fixed nothing. So `drive` ends the
+    turn without a sweep, and the next turn, a fresh process, judges that session."""
+    changed = []
+    for p, digest in before.items():
+        try:
+            now = hashlib.sha256(p.read_bytes()).hexdigest()
+        except OSError:
+            now = ""
+        if now != digest:
+            changed.append(rel_to_root(p))
+    return sorted(changed)
+
+
 def drive(opts, goal, chain, run):
     """One turn's session: launch it, judge it, and say how it ended as `(kind, reason)`.
 
@@ -6813,6 +6855,22 @@ def drive(opts, goal, chain, run):
     wall = standing_limit()  # left standing by a driver killed or rebooted during one
     if wall:
         step(f"{rel_to_root(LIMIT)} says {wall.describe()}", C.YELLOW)
+
+    # The code this turn judges with, taken before any session can change it: `driver_changed`.
+    imported = driver_files()
+    # A session the last turn served and could not judge, because it changed that code. This turn
+    # serves no session: it writes the sweep into that session's log and judges it below.
+    judge, run.judge = run.judge, {}
+    if judge:
+        index = int(judge.get("index", index))
+        line = str(judge.get("line", ""))
+        commits = int(judge.get("commits", 0))
+        # Where the session began, which `context_sweep` reads its edits from.
+        SLICES.base = str(judge.get("base", ""))
+        served = 1
+        CONSOLE.open_session(LOGDIR / f"{run_id}-{index:04d}.log")
+        step(f"judging session {index} with the driver code it committed -- no session this turn",
+             C.CYAN)
 
     while not served:
         asked = CONTROL.stop_reason()
@@ -7008,6 +7066,19 @@ def drive(opts, goal, chain, run):
         ledger(f"- {index:04d} {commits} commit(s){delegated}{wip}{attended} | "
                f"{line or '(no status written)'}")
 
+        stale = driver_changed(imported)
+        if stale:
+            run.judge = {"index": index, "line": line, "commits": commits, "base": SLICES.base}
+            reason = (f"session {index} changed the driver's own code ({', '.join(stale)}), "
+                      f"so a fresh turn judges it")
+            kind = "rejudge"
+            ledger(f"       {reason}")
+            CONSOLE.close_session()
+            break
+
+    # The verdict on the session, which is one pass: every way out of it is a `break`. A loop
+    # above that ended without a session to judge skips it.
+    while kind == SERVED:
         # The deterministic goal check outranks whatever the session reported -- against the list
         # as the session left it, which is why this is re-read rather than held from start-up. A
         # `loop-goal.toml` that does not parse keeps the last good spec: a run of 300 sessions must
@@ -7120,7 +7191,7 @@ def drive(opts, goal, chain, run):
                 break
             TICKER.set(loop_goal=goal_title(chain))
             verdict(False, f"goal reached -- the run carries on with `{chain.current.slug}`")
-            continue
+            break
         if fail:
             ledger(f"       goal check: {fail}")
 
@@ -7176,6 +7247,7 @@ def drive(opts, goal, chain, run):
             step(f"--delay-seconds: waiting {mmss(opts.delay_seconds)} before the next session")
             TICKER.set(phase="waiting")
             wait(opts.delay_seconds, "--delay-seconds")
+        break
 
     # Whatever ended it, and in one place: a verdict reached with a `break` leaves through here
     # exactly as a served session does. `turn` says the verdict; this only hands it over.
@@ -8151,10 +8223,16 @@ def turn(opts, goal, chain, run):
         return 0 if kind == "side-landed" else 1
     if run.fresh:
         open_run(opts, run)
-    if run.served >= opts.max_sessions:
+    if run.served >= opts.max_sessions and not run.judge:
         return finish(run, "budget", f"hit --max-sessions ({opts.max_sessions})")
 
     kind, reason = drive(opts, goal, chain, run)
+
+    if kind == "rejudge":
+        # Straight to the next turn: no checkpoint and no budget check stand between a session
+        # and its verdict.
+        say(reason, C.CYAN)
+        return again(run)
 
     if kind == "side-land":
         kind, reason = land_side(run)
