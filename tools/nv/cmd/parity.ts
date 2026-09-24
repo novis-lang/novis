@@ -1,0 +1,120 @@
+// `bun nv parity <group>...`: runs a Python tool and the `nv` command that replaces it on the same tree,
+// once per case, and compares what each printed and the status it exited with. A group and its cases
+// are `tools/nv/parity/groups.json`. The comparison ignores only what `tools/nv/parity/known.json`
+// declares: a rewrite of one side's text, a regex and its replacement, each carrying its reason. The
+// `*` entries apply to every group. A Python tool is deleted only after its group matches here.
+//
+// With no group, prints the groups. With `--all`, runs every group. Exits 0 when every case matches,
+// 1 when one differs, and 2 on a bad argument.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { ROOT } from "../lib/paths.ts";
+import { run as runProc, type RunResult } from "../lib/proc.ts";
+
+export const summary = "compare a Python tool with its nv replacement: nv parity <group>... | --all";
+
+const GROUPS = "tools/nv/parity/groups.json";
+const KNOWN = "tools/nv/parity/known.json";
+
+interface Group {
+  python: string[];
+  nv: string[];
+  /** The argument lists both programs are run with, one case each. */
+  cases: string[][];
+}
+
+export interface Known {
+  /** Whose output the rewrite applies to. */
+  side: "python" | "nv" | "both";
+  /** A JavaScript regex, matched with the `g` and `m` flags. */
+  pattern: string;
+  replace: string;
+  why: string;
+}
+
+function readJson<T>(path: string): T {
+  return JSON.parse(readFileSync(join(ROOT, path), "utf8")) as T;
+}
+
+/** `text` with every declared rewrite for `side` applied, counting each rewrite that matched. */
+export function normalize(text: string, side: "python" | "nv", known: Known[], used: Set<Known>): string {
+  let out = text.replace(/\r\n/g, "\n");
+  for (const k of known) {
+    if (k.side !== side && k.side !== "both") continue;
+    const re = new RegExp(k.pattern, "gm");
+    if (re.test(out)) used.add(k);
+    out = out.replace(new RegExp(k.pattern, "gm"), k.replace);
+  }
+  return out;
+}
+
+/** The first line where `a` and `b` differ, as report lines, or none when they are the same. */
+function firstDifference(label: string, a: string, b: string): string[] {
+  if (a === b) return [];
+  const al = a.split("\n");
+  const bl = b.split("\n");
+  let i = 0;
+  while (i < al.length && i < bl.length && al[i] === bl[i]) i++;
+  const show = (s: string | undefined) => (s === undefined ? "(no line)" : JSON.stringify(s));
+  return [
+    `     ${label} line ${i + 1} of ${al.length} / ${bl.length}:`,
+    `       python: ${show(al[i])}`,
+    `       nv:     ${show(bl[i])}`,
+  ];
+}
+
+/** Report lines for every way the two runs differ once normalized, or none when they match. */
+export function compare(py: RunResult, nv: RunResult, known: Known[], used: Set<Known>): string[] {
+  const out: string[] = [];
+  if (py.code !== nv.code) out.push(`     exit status: python ${py.code}, nv ${nv.code}`);
+  out.push(...firstDifference("stdout", normalize(py.stdout, "python", known, used), normalize(nv.stdout, "nv", known, used)));
+  out.push(...firstDifference("stderr", normalize(py.stderr, "python", known, used), normalize(nv.stderr, "nv", known, used)));
+  return out;
+}
+
+async function runGroup(name: string, group: Group, known: Known[]): Promise<boolean> {
+  const used = new Set<Known>();
+  let same = 0;
+  console.log(`parity ${name}: ${group.cases.length} case(s), ${group.python.join(" ")} against ${group.nv.join(" ")}`);
+  for (const args of group.cases) {
+    const [py, nv] = await Promise.all([runProc([...group.python, ...args]), runProc([...group.nv, ...args])]);
+    const diff = compare(py, nv, known, used);
+    const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
+    if (diff.length === 0) {
+      same++;
+      console.log(`  same     ${shown}`);
+    } else {
+      console.log(`  differs  ${shown}`);
+      for (const line of diff) console.log(line);
+    }
+  }
+  for (const k of known) {
+    if (!used.has(k)) console.log(`  unused   a declared difference matched nothing: /${k.pattern}/ (${k.why})`);
+  }
+  console.log(`parity ${name}: ${same} of ${group.cases.length} case(s) match`);
+  return same === group.cases.length;
+}
+
+export async function run(args: string[]): Promise<number> {
+  const groups = readJson<Record<string, Group>>(GROUPS);
+  const knownByGroup = readJson<Record<string, Known[]>>(KNOWN);
+  const all = args.includes("--all");
+  const names = all ? Object.keys(groups) : args;
+  if (names.length === 0) {
+    console.log("usage: bun nv parity <group>... | --all\n");
+    for (const [name, g] of Object.entries(groups)) console.log(`  ${name}  ${g.cases.length} case(s)`);
+    return 2;
+  }
+  const unknown = names.filter((n) => !(n in groups));
+  if (unknown.length > 0) {
+    console.error(`nv parity: no group ${unknown.join(", ")} in ${GROUPS}`);
+    return 2;
+  }
+  let ok = true;
+  for (const name of names) {
+    const known = [...(knownByGroup["*"] ?? []), ...(knownByGroup[name] ?? [])];
+    if (!(await runGroup(name, groups[name]!, known))) ok = false;
+  }
+  return ok ? 0 : 1;
+}

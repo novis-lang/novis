@@ -1,0 +1,15 @@
+{
+  "brief": {
+    "python": ["python", "tools/brief.py"],
+    "nv": ["bun", "tools/nv/main.ts", "brief"],
+    "cases": [
+      ["--where"],
+      ["--where", "testing"],
+      ["--where", "plan"],
+      ["--where", "comment"],
+      ["--where", "owners"],
+      ["--where", "types", "conversion"],
+      ["--where", "no-such-topic-anywhere"]
+    ]
+  }
+}
