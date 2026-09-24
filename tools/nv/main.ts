@@ -3,6 +3,7 @@
 
 import * as brief from "./cmd/brief.ts";
 import * as check from "./cmd/check.ts";
+import * as gaps from "./cmd/gaps.ts";
 import * as holes from "./cmd/holes.ts";
 import * as importCmd from "./cmd/import.ts";
 import * as owners from "./cmd/owners.ts";
@@ -19,7 +20,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, check, holes, import: importCmd, owners, parity, peek, plan, query, records, render, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, gaps, holes, import: importCmd, owners, parity, peek, plan, query, records, render, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
