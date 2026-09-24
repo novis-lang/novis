@@ -1,0 +1,1 @@
+- **Write and Edit turn a backslash-u escape in their text into the raw character.** A regex copied with the line-separator escapes reached `tools/nv/cmd/migration.ts` as a real line break and did not parse, while the `\x85` beside it survived. Write `\p{Zl}\p{Zp}` under the `u` flag instead, or import the one shared helper once it exists. [until: exists tools/nv/lib/pytext.ts]

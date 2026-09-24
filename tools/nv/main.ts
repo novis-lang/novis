@@ -3,11 +3,13 @@
 
 import * as brief from "./cmd/brief.ts";
 import * as check from "./cmd/check.ts";
+import * as disk from "./cmd/disk.ts";
 import * as gaps from "./cmd/gaps.ts";
 import * as holes from "./cmd/holes.ts";
 import * as importCmd from "./cmd/import.ts";
 import * as layout from "./cmd/layout.ts";
 import * as links from "./cmd/links.ts";
+import * as migration from "./cmd/migration.ts";
 import * as owners from "./cmd/owners.ts";
 import * as parity from "./cmd/parity.ts";
 import * as peek from "./cmd/peek.ts";
@@ -22,7 +24,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, check, gaps, holes, import: importCmd, layout, links, owners, parity, peek, plan, query, records, render, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, disk, gaps, holes, import: importCmd, layout, links, migration, owners, parity, peek, plan, query, records, render, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

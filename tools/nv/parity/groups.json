@@ -12,6 +12,22 @@
       ["--where", "no-such-topic-anywhere"]
     ]
   },
+  "disk": {
+    "python": ["python", "tools/disk.py"],
+    "nv": ["bun", "tools/nv/main.ts", "disk"],
+    "cases": [
+      [],
+      ["--clean"],
+      ["--clean", "-n"],
+      ["--clean", "--dry-run", "--grace-hours", "0"],
+      ["--bogus"],
+      ["--keep"],
+      ["--keep-runs", "abc"],
+      ["--grace-hours"],
+      ["--grace-hours=x1"],
+      ["--scratch", "3", "extra"]
+    ]
+  },
   "gaps": {
     "python": ["python", "tools/gaps.py"],
     "nv": ["bun", "tools/nv/main.ts", "gaps"],
@@ -63,6 +79,21 @@
       ["crates/nvs-host/src", "tests/hostile"],
       ["docs/dec"],
       ["no/such/dir"]
+    ]
+  },
+  "migration": {
+    "python": ["python", "tools/check-migration.py"],
+    "nv": ["bun", "tools/nv/main.ts", "migration"],
+    "cases": [
+      [],
+      ["--report"],
+      ["--min", "33"],
+      ["--min", "100"],
+      ["--min", "101"],
+      ["--report", "--min", "101"],
+      ["--min"],
+      ["--min", "most"],
+      ["--seed"]
     ]
   },
   "owners": {

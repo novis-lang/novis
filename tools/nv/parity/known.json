@@ -31,6 +31,22 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "disk": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)disk\\.py(:? )",
+      "replace": "$1nv disk$2",
+      "why": "A message names the program that printed it."
+    }
+  ],
+  "migration": [
+    {
+      "side": "python",
+      "pattern": "\\(tools\\\\data\\\\php-builtins\\.txt\\)$",
+      "replace": "(tools/data/php-builtins.txt)",
+      "why": "Python prints the inventory's path with the platform's separator. nv prints every path with forward slashes."
+    }
+  ],
   "owners": [
     {
       "side": "python",
