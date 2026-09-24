@@ -1,8 +1,10 @@
 // `bun nv <command> [args]`: the one entry point of the repository's tools. Each command is a module
 // under `cmd/` exporting a `summary` line and `run(args)`, which returns the exit status.
 
+import * as brief from "./cmd/brief.ts";
 import * as check from "./cmd/check.ts";
 import * as importCmd from "./cmd/import.ts";
+import * as parity from "./cmd/parity.ts";
 import * as query from "./cmd/query.ts";
 import * as render from "./cmd/render.ts";
 import * as selftest from "./cmd/selftest.ts";
@@ -12,7 +14,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { check, import: importCmd, query, render, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, import: importCmd, parity, query, render, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

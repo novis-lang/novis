@@ -2,16 +2,16 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stages 3 and 4 are landed whole, and every Stage 4 check passes.**
-`bun nv import` reads all thirteen legacy homes into 3174 records of 18 types. `--check` writes
-nothing and exits 0. `--write` wrote `data/`, and a second run changes nothing. `bun nv check`
-reports 0 findings over `data/` and 3767 prose files, and `render --check` passes only because
-`tools/nv/renderers/index.ts` lists no renderer yet. `tools/nv/import/known.json` declares the five
-files where the import and the Python tools disagree, one reason each.
-**`data/` is a snapshot, not yet the authority.** The legacy homes still are, and every wrap edits
-some of them (the handoff at least). Re-run `bun nv import --write` before a stage reads `data/` as
-the truth, and at the cutover. `main` is still frozen, and the tag `pre-overhaul` is the rollback
-point.
+**Goal `tooling-overhaul`: Stages 3 and 4 are landed whole, and Stage 5 has begun.** `bun nv
+parity <group>` runs a Python tool and its `nv` replacement over the cases in
+`tools/nv/parity/groups.json` and ignores only the rewrites `tools/nv/parity/known.json` declares.
+`bun nv brief --where` reads the rulebook from `data/rules/` and matches `python tools/brief.py
+--where` on all seven cases, so Stage 5's one acceptance check now passes. `nv brief` has no other
+mode yet, and its owners home names `bun nv owners --check` instead of counting, a declared
+difference that `nv owners` removes.
+**`data/` is a snapshot, not yet the authority.** The legacy homes still are. Re-run `bun nv import
+--write` before a stage reads `data/` as the truth, and at the cutover. `main` is still frozen, and
+the tag `pre-overhaul` is the rollback point.
 
 Three habits hold for every session of this goal: a mechanical change goes through a script under
 `.agent-tmp/`; never prove a cut with a sweep; a Python tool is deleted only after its
@@ -20,32 +20,22 @@ replacement's parity is green.
 ## Next group
 
 **Stage 5: the read-only tools, proven by parity** — one file set: `tools/nv/cmd/**`,
-`tools/nv/parity/**`, `tools/nv/main.ts`. loop-goal.md § *Stage 5* is the spec. A subcommand is
-registered in `tools/nv/main.ts:15`'s `COMMANDS`.
+`tools/nv/parity/**`, `tools/nv/main.ts`. loop-goal.md § *Stage 5* is the spec. Each new command
+adds its group to `tools/nv/parity/groups.json` with every mode the floor, a goal `.toml` or a
+process doc invokes, and is registered in `tools/nv/main.ts:17`'s `COMMANDS`.
 
-- [ ] **`bun nv parity <group>` and `tools/nv/parity/known.json`** (`tools/nv/main.ts:15`): runs
-      the Python tool and its replacement on one tree and compares their output, ignoring only what
-      `known.json` declares. loop-goal.md § *Stage 5*, last bullet. Build it first, since every
-      command after it is proven with it.
-- [ ] **`bun nv brief --where`** (`tools/brief.py:515`): routes a keyword to the rulebook chapter
-      or home that owns it, reading `data/rules` and `data/topics`. It is the stage's acceptance
-      check (`--where testing` prints `docs/rules/testing.md`). Prove it with `nv parity brief`.
-- [ ] **`bun nv migration` and `bun nv reference`** (`tools/check-migration.py:167`,
-      `tools/reference.py:199`): read `data/spec/php-migration.json` in place of the table. The
-      `Core\Jwt` row difference is declared in `tools/nv/import/known.json`, and parity has to
-      declare it again in its own list.
+- [ ] **`bun nv owners`** (`tools/owners.py:512`): classifies the gap records under `data/gaps/`
+      by owner, with `--check` and `--registers`. Then `nv brief --where owners` counts from it,
+      and the `brief` entry about the owners line leaves `tools/nv/parity/known.json`.
+- [ ] **`bun nv peek` with `--locate` and `--outline`** (`tools/peek.py:45`): the read tool
+      every session uses. A `rule:` target reads `docs/rules/<topic>/<slug>.md`.
+- [ ] **`bun nv plan --show` and `bun nv records --stats`** (`tools/plan.py:917`,
+      `tools/records.py:566`): read-only modes over the milestone and decision records.
 
 ## Backlog
 
-- `tools/check-migration.py` reads the `**Complete:**` line out of `docs/spec/02-php-migration.md`'s
-  prose. The standing decisions say no tool reads a field from prose, so `nv migration` needs a record
-  field for it (loop-goal.md § *Stage 5*).
-- `website/scripts/sync-core.mjs` parses `docs/spec/01-core-library.md` with its own parser and
-  `spec-overrides.mjs`. Moving it onto `data/spec/core-members.json` is cutover work (loop-goal.md
-  § *Stage 9*).
-- No test covers `--write`'s refusal or its removal of a stale record file, because `build()` in
-  `tools/nv/cmd/import.ts` reads `ROOT`. A root parameter would let `tools/nv/test/import.test.ts`
-  cover both.
-- The pack for Stage 5 has no `[context.stage.5]` overlay in `docs/agent/loop-goal.toml`, so it
-  carries the base manifest. Add one naming `tools/brief.py` and `tools/nv/main.ts` if the base
-  pack reads wide.
+- `nv gaps`, `nv holes`, `nv links`, `nv layout`, `nv disk`, `nv directives` — loop-goal.md § *Stage 5*.
+- `nv migration` and `nv reference` (`tools/check-migration.py:230`); `reference.py` runs the
+  binary and every example, so it is the largest of them — loop-goal.md § *Stage 5*.
+- The rest of `nv brief` (status, milestones, map) — `tools/brief.py`.
+- Each replaced check becomes a query in `nv check`, its old flag an alias — loop-goal.md § *Stage 5*.
