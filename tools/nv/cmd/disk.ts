@@ -25,14 +25,32 @@
 // there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule. `release/deps` is never
 // swept: its live set can only be asked for with a release build.
 //
+// Those cargo runs are nearly all of a sweep's time, so their answer is remembered in
+// `.cache/nv-disk-live.json` under `liveKey`, a hash of everything that decides an artifact's name, and
+// cargo is asked again only when that key changes. Editing source never changes it; a manifest, the
+// lock file, a new build target, the toolchain or the build environment does. Deleting the file makes
+// the next sweep ask.
+//
 // Nothing here can produce a wrong build. Cargo re-checks every fingerprint against the files on disk,
 // so the worst a mistake costs is rebuilding something that was still wanted. Everything outside this
 // repository is reported and never touched: it is other tools' state.
 
-import { existsSync, readdirSync, rmSync, statfsSync, statSync, unlinkSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statfsSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { ROOT } from "../lib/paths.ts";
+import { dirname, join, resolve } from "node:path";
+import { CACHE, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
 import { pyInt } from "../lib/py.ts";
 
@@ -42,6 +60,8 @@ const TARGET = join(ROOT, "target");
 const LOGDIR = join(ROOT, ".loop", "logs");
 const SCRATCH = join(ROOT, ".agent-tmp");
 const RUNNING = join(ROOT, ".loop", "running");
+/** The live set the last sweep asked cargo for, and the `liveKey` it was asked under. */
+const LIVE_CACHE = join(CACHE, "nv-disk-live.json");
 
 // The retention policy has exactly one home, and this is it.
 /** `.loop/logs`: how many loop runs keep their session logs. */
@@ -336,6 +356,99 @@ async function liveArtifacts(): Promise<Set<string> | null> {
   return live;
 }
 
+/** The environment variables that change what cargo builds or what it names the result. */
+const BUILD_ENV =
+  /^(RUSTFLAGS|RUSTDOCFLAGS|RUSTC|RUSTC_WRAPPER|RUSTC_WORKSPACE_WRAPPER|CARGO_ENCODED_RUSTFLAGS|CARGO_INCREMENTAL|CARGO_TARGET_DIR|CARGO_BUILD_\w+|CARGO_PROFILE_\w+|CARGO_TARGET_\w+)$/;
+
+/**
+ * A hash of everything an artifact's name depends on: `LIVE_QUERIES`, `Cargo.lock`, every manifest in
+ * the workspace, the build targets cargo discovers, the compiler, the cargo configuration and the build
+ * environment. Source contents are not in it, because cargo's metadata hash does not cover them. Null
+ * when cargo or rustc cannot be asked.
+ */
+export async function liveKey(root: string = ROOT): Promise<string | null> {
+  const [meta, rustc] = await Promise.all([
+    runProgram(["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"], { cwd: root, timeoutMs: 60_000 }),
+    runProgram(["rustc", "-vV"], { cwd: root, timeoutMs: 60_000 }),
+  ]).catch(() => [null, null]);
+  if (!meta || !rustc || meta.code !== 0 || rustc.code !== 0) return null;
+  let workspace: string;
+  let manifests: string[];
+  try {
+    const parsed = JSON.parse(meta.stdout);
+    workspace = parsed.workspace_root;
+    manifests = parsed.packages.map((p: { manifest_path: string }) => p.manifest_path);
+  } catch {
+    return null;
+  }
+  const hash = createHash("sha256");
+  const part = (label: string, text: string) => hash.update(`${label}\0${text.length}\0${text}\0`, "utf8");
+  const file = (path: string) => {
+    try {
+      part(path, readFileSync(path, "utf8"));
+    } catch {
+      part(path, "\0missing");
+    }
+  };
+  part("queries", JSON.stringify(LIVE_QUERIES));
+  part("metadata", meta.stdout);
+  part("rustc", rustc.stdout);
+  const cargoHome = process.env.CARGO_HOME ?? join(homedir(), ".cargo");
+  const configs = [".cargo/config.toml", ".cargo/config", "rust-toolchain.toml", "rust-toolchain"].map((p) => join(workspace, p));
+  for (const path of [join(workspace, "Cargo.toml"), join(workspace, "Cargo.lock"), ...manifests.sort(), ...configs])
+    file(path);
+  file(join(cargoHome, "config.toml"));
+  for (const name of Object.keys(process.env).filter((n) => BUILD_ENV.test(n)).sort()) part(`env ${name}`, process.env[name]!);
+  return hash.digest("hex");
+}
+
+/** The live set remembered in `file` under `key`, or null when none is. */
+function recall(key: string, file: string): Set<string> | null {
+  try {
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    if (saved?.key === key && Array.isArray(saved.live)) return new Set<string>(saved.live);
+  } catch {
+    // No file, or one this code did not write: ask cargo.
+  }
+  return null;
+}
+
+/** Remembers `live` under `key`. A failure only means the next sweep asks cargo again. */
+function remember(key: string, live: Set<string>, file: string): void {
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(`${file}.tmp`, `${JSON.stringify({ key, live: [...live].sort() })}\n`);
+    renameSync(`${file}.tmp`, file);
+  } catch {
+    // Nothing to do: the sweep itself does not depend on the file.
+  }
+}
+
+export interface LiveSetOptions {
+  root?: string;
+  file?: string;
+  ask?: () => Promise<Set<string> | null>;
+}
+
+/**
+ * The live set, from `file` when `liveKey` is what it was the last time cargo was asked, and from
+ * `liveArtifacts` otherwise. A new answer is remembered only when the key is the same after the asking
+ * as before it, so a manifest edited during a sweep is never stored under the key from before the edit.
+ * An answer cargo could not give is never remembered.
+ */
+export async function liveSet(opts: LiveSetOptions = {}): Promise<Set<string> | null> {
+  const root = opts.root ?? ROOT;
+  const file = opts.file ?? LIVE_CACHE;
+  const before = await liveKey(root);
+  if (before !== null) {
+    const saved = recall(before, file);
+    if (saved) return saved;
+  }
+  const live = await (opts.ask ?? liveArtifacts)();
+  if (live !== null && before !== null && (await liveKey(root)) === before) remember(before, live, file);
+  return live;
+}
+
 /**
  * The files in `target/debug/{deps,examples}` that no live unit claims and nothing has written for
  * `graceHours`. `debug` only: the live set is asked of the debug profile, so under any other profile
@@ -424,7 +537,7 @@ export interface CleanOptions {
 export async function clean(opts: CleanOptions = {}): Promise<Record<string, number | null>> {
   const dryRun = opts.dryRun ?? false;
   const grace = opts.graceHours ?? GRACE_HOURS;
-  const live = await liveArtifacts();
+  const live = await liveSet();
   const logs = pruneLogs(opts.keepRuns ?? KEEP_RUNS, dryRun);
   const scratch = pruneScratch(opts.scratchDays ?? SCRATCH_DAYS, dryRun);
   const deps = live === null ? null : deadDeps(live, grace).reduce((sum, p) => sum + rm(p, dryRun), 0);
