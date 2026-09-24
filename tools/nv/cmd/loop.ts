@@ -18,9 +18,16 @@
 // columns when the output is not one, and it draws its lines in box-drawing characters on Windows and
 // under a UTF-8 locale.
 //
-// The driver itself is not written yet, so `--list` and `--goal` are the forms this command takes.
+// `bun nv loop --run` takes the same three filters, at least one of them, and runs each check they
+// select once, through `driver/accept.ts`'s `Sweep`. It prints one line per check, `ok`, `FAIL` with the
+// line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
+// What each process is doing goes to stderr as it starts. A session proves its own check this way, one
+// command at a time, rather than by starting a sweep.
 //
-// Exits 0 when the plan is read, whether or not a check matches, and 2 on a bad argument or when there
+// The driver's turn, which runs a session and then the sweep, is not written yet.
+//
+// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` exits 0
+// when every check it ran is green and 1 when one is not. Each exits 2 on a bad argument or when there
 // is no live goal to read.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -33,8 +40,9 @@ import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, memoResults, Session } from "../driver/status.ts";
+import { type Check, PROGRAM_KINDS, Sweep } from "../driver/accept.ts";
 
-export const summary = "the live goal's acceptance plan: nv loop --list [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+export const summary = "the live goal's acceptance plan: nv loop --list|--run [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The Python driver's acceptance list, the plan until the cutover deletes it. */
 const LEGACY = "docs/agent/loop-goal.toml";
@@ -44,22 +52,7 @@ const RUN = ".loop/run.json";
 
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
-const USAGE = "bun nv loop --list [--stage <label>] [--name <text>] [--feature <id>] | --goal";
-
-interface Check {
-  id: string;
-  kind: string;
-  stage: number;
-  name?: string;
-  argv?: string[];
-  args?: string[];
-  cwd?: string;
-  cases?: string[];
-  file?: string;
-  setup?: boolean;
-  memoize?: boolean;
-  overlap?: boolean;
-}
+const USAGE = "bun nv loop --list|--run [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 interface Filters {
   stage?: string;
@@ -68,7 +61,6 @@ interface Filters {
 }
 
 function parse(args: string[]): Filters | null {
-  if (args[0] !== "--list") return null;
   const out: Filters = {};
   for (let i = 1; i < args.length; i += 2) {
     const flag = args[i]!;
@@ -180,25 +172,32 @@ function goalView(): number {
   return 0;
 }
 
-function list(filters: Filters): number {
+/** The live goal's checks that match every filter given, with its stage labels, or null once the reason is printed. */
+function selected(filters: Filters): { live: NonNullable<ReturnType<typeof liveGoal>>; goal: Goal; total: number; shown: Check[]; labelOf: (n: number) => string } | null {
   const found = livePlan();
-  if (found === null) return 2;
-  const { live, goal, total } = found;
-  const path = existsSync(join(ROOT, LEGACY)) ? LEGACY : `data/goals/${live.slug}.json`;
+  if (found === null) return null;
+  const { live, goal } = found;
   const labels = new Map(goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
   const labelOf = (n: number) => labels.get(n) ?? String(n);
   if (filters.stage !== undefined && !goal.stages.some((s) => stageMatches(labelOf(s.number), s.number, filters.stage!))) {
     console.error(`nv loop: no stage of \`${live.slug}\` is \`${filters.stage}\`; its stages are ${[...labels.values()].map((l) => `\`${l}\``).join(", ")}`);
-    return 2;
+    return null;
   }
-
-  const checks = goal.checks as Check[];
-  const shown = checks.filter(
+  const shown = (goal.checks as Check[]).filter(
     (c) =>
       (filters.stage === undefined || stageMatches(labelOf(c.stage), c.stage, filters.stage)) &&
       (filters.name === undefined || nameOf(c).toLowerCase().includes(filters.name.toLowerCase())) &&
       (filters.feature === undefined || featureMatches(c, filters.feature)),
   );
+  return { ...found, shown, labelOf };
+}
+
+function list(filters: Filters): number {
+  const found = selected(filters);
+  if (found === null) return 2;
+  const { live, goal, total, shown, labelOf } = found;
+  const path = existsSync(join(ROOT, LEGACY)) ? LEGACY : `data/goals/${live.slug}.json`;
+  const checks = goal.checks as Check[];
 
   console.log(`${path}: ${checks.length} checks, ${goal.files.length} fixtures, goal \`${live.slug}\` (${live.num} of ${total})`);
   for (const c of shown) {
@@ -217,12 +216,41 @@ function list(filters: Filters): number {
   return 0;
 }
 
+/**
+ * Runs the checks the filters select, once each, and prints one verdict a line. The order is the
+ * sweep's tiers in outline: a `setup` command, then the fixtures, then everything else, each tier in
+ * the plan's order.
+ */
+async function runChecks(filters: Filters): Promise<number> {
+  if (filters.stage === undefined && filters.name === undefined && filters.feature === undefined) {
+    console.error("nv loop: --run needs --stage, --name or --feature; the whole plan is the acceptance sweep's to run");
+    return 2;
+  }
+  const found = selected(filters);
+  if (found === null) return 2;
+  const { shown, labelOf } = found;
+  const tier = (c: Check) => (c.setup ? 0 : PROGRAM_KINDS.has(c.kind) ? 1 : 2);
+  const order = shown.map((c, i) => ({ c, i })).sort((a, b) => tier(a.c) - tier(b.c) || a.i - b.i).map((x) => x.c);
+  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  let red = 0;
+  for (const c of order) {
+    const v = await sweep.check(c);
+    if (v.fail !== "") console.log(`  FAIL  ${v.fail}`);
+    else if (v.short !== "") console.log(`  SHORT ${v.short}`);
+    else console.log(`  ok    ${nameOf(c)} [${labelOf(c.stage)}]`);
+    if (v.fail !== "" || v.short !== "") red++;
+  }
+  console.log(`run: ${order.length - red} green, ${red} red, of ${order.length} ${order.length === 1 ? "check" : "checks"}`);
+  return red === 0 ? 0 : 1;
+}
+
 export async function run(args: string[]): Promise<number> {
   if (args.length === 1 && args[0] === "--goal") return goalView();
-  const filters = parse(args);
+  const mode = args[0];
+  const filters = mode === "--list" || mode === "--run" ? parse(args) : null;
   if (filters === null) {
     console.error(`usage: ${USAGE}`);
     return 2;
   }
-  return list(filters);
+  return mode === "--run" ? runChecks(filters) : list(filters);
 }
