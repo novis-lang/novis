@@ -27,8 +27,8 @@ changes about them, and step 6.
    files you have already loaded, and you are under 120k of context with the previous one committed.
    Past 120k, stop and say in the handoff where you stopped. The gate and its measurement are
    `AGENTS.md` § *Session workflow* step 2.
-3. **Verify once, at the end of the group, and start it before you write the wrap.** `python
-   tools/verify.py --start` returns at once, `--wait` collects the verdict, and the wrap file gets
+3. **Verify once, at the end of the group, and start it before you write the wrap.** `bun nv
+   verify --start` returns at once, `--wait` collects the verdict, and the wrap file gets
    written in between. A mid-work check is `--fast` or `-p <crate>`, never the full gate. Add a
    `valgrind` run for a new refcount edge (`docs/agent/commands.md`).
 4. **Write the docs and the handoff once for the whole group**, and **choose the next group** — you hold
@@ -38,8 +38,8 @@ changes about them, and step 6.
 5. **Commit one slice at a time**, staging each slice's own files.
 6. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you landed>` — the normal case.
-   - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met. Run `python
-     tools/verify.py --doc` first and fix every broken doc link it names, then `python
+   - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met. Run `bun nv
+     verify --doc` first and fix every broken doc link it names, then `python
      tools/owners.py --closes <slug>` and `python tools/playbook.py --closes <slug>` and close or
      re-owner every gap they name: those are the gates a goal meets only at its end, and the driver
      does not reach the goal while one is red. A tag is not a build.
@@ -91,7 +91,7 @@ has read well before its window is full. `orient.py` starts you under 20k of it.
       Search only under crates/nvs-stdlib/src. Find every CoreMethod row whose return type is
       CoreTy::Instance. Return one line each: `file.rs:NN  Class::member  -> instance name`.
       No excerpts, no commentary. If you find none, say so.
-- **`python tools/verify.py` once, for the whole group** — and `--start` it *before* you write the
+- **`bun nv verify` once, for the whole group** — and `--start` it *before* you write the
   wrap, so the build runs while you write. That is the one piece of parallelism that is free every
   single session, and step 3 above is where it belongs.
 

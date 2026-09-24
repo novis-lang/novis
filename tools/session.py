@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* steps 4 and 5, as one call.
 
-Measured over a full loop run, the tail of a session -- everything from the first `verify.py` to
+Measured over a full loop run, the tail of a session -- everything from the first verification to
 the last commit -- was **33 of 98 tool calls**, and because context is at its peak by then those
 turns carried **42% of the whole token bill** at roughly twice the cost of a turn at the start.
 Almost none of it was thinking. Per session it was 6.0 calls touching the plan, 5.2 re-deriving
@@ -168,7 +168,7 @@ if SIDE:
     HANDOFF = SIDE.handoff
 
 #: `check-links.py` cannot be imported by name -- a hyphen is not an identifier -- and renaming it
-#: would change a command that CI, `verify.py`'s docstring and the playbook all already spell. So
+#: would change a command that CI, `nv verify`'s module doc and the playbook all already spell. So
 #: it is loaded by path. Every rule about what a link is and where it resolves lives there.
 _LINKS = importlib.util.spec_from_file_location(
     "check_links", Path(__file__).resolve().parent / "check-links.py")
@@ -437,7 +437,7 @@ def covers(pathspec: str, path: str) -> bool:
     return path == spec or path.startswith(spec + "/") or fnmatch.fnmatch(path, spec)
 
 
-#: Files no session writes by hand and every session can leave dirty: `verify.py` regenerates
+#: Files no session writes by hand and every session can leave dirty: `bun nv verify` regenerates
 #: them in place, on purpose, so the tree follows the registry -- and `fuzz/`'s lock follows the
 #: workspace's dependencies -- without a session remembering to.
 #: They are derived from what the session's own commits changed, so they belong to this session
@@ -445,7 +445,7 @@ def covers(pathspec: str, path: str) -> bool:
 #: them and the sweep below would leave them for a hand-rolled `git add` that never comes.
 #:
 #: This is the one leak that survived `uncommitted_writes`: a session adding a `Core` member ran
-#: `verify.py`, which rewrote `docs/novis.md`, and ended with the file dirty. The next session
+#: the verification, which rewrote `docs/novis.md`, and ended with the file dirty. The next session
 #: inherited it, and an INTERRUPTED session left it behind for good.
 GENERATED = ("docs/novis.md", "fuzz/Cargo.lock")
 
@@ -460,15 +460,14 @@ def refresh_generated(dry: bool) -> str:
     """Regenerate `docs/novis.md` when the tree has left it stale; return a refusal if it cannot.
 
     `dirty_generated` sweeps the file only after something else has rewritten it, which covers
-    the session whose `verify.py` ran after its last edit. The other order is the workflow's own:
+    the session whose `bun nv verify` ran after its last edit. The other order is the workflow's own:
     step 3 verifies and step 4 writes docs, so a step-4 edit to `docs/spec/02-php-migration.md`
     or to a chapter under `docs/reference/` leaves the reference stale *and clean*. Nothing in
     the session sees that. The driver's acceptance sweep does, after the session is gone, and a
     run that stops there needs a person; a quarter of a second here is what that costs instead.
 
     A tree with no debug binary cannot answer the question at all, and this refuses rather than
-    guessing -- the wrap writes nothing, and `python tools/verify.py` is the one command that
-    clears it."""
+    guessing -- the wrap writes nothing, and `bun nv verify` is the one command that clears it."""
     def run(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(ROOT / "tools" / "reference.py"), *args],
                               cwd=ROOT, capture_output=True, text=True,
@@ -487,7 +486,7 @@ def refresh_generated(dry: bool) -> str:
 
 
 def uncommitted_writes(sections: list[Section], extra: list[str] = ()) -> list[str]:
-    """What this wrap writes -- or `verify.py` wrote under it, or `retire_expired` changed --
+    """What this wrap writes -- or `bun nv verify` wrote under it, or `retire_expired` changed --
     that no `## commit:` carries."""
     specs = [spec for s in sections if s.kind == "commit" for spec in s.arg.split()]
     owed = list(written_paths(sections)) + dirty_generated() + list(extra)
@@ -623,7 +622,7 @@ def validate(sections: list[Section]) -> list[str]:
                     if not playbookmod.anchors(b["body"]):
                         errors.append(
                             f"{which} names no file in the tree. A trap is about a file: name it in "
-                            f"backticks, as its path from the repository root (`tools/verify.py`, "
+                            f"backticks, as its path from the repository root (`tools/session.py`, "
                             f"`crates/nvs-ir/src/lib.rs`, `Cargo.toml`). A rule every agent needs "
                             f"whatever it edits is not a trap: it belongs in "
                             f"docs/agent/commands.md or docs/agent/conventions.md.")
@@ -677,8 +676,8 @@ def validate(sections: list[Section]) -> list[str]:
             f"{len(broke)} link(s) resolved at HEAD and do not resolve now, so they are this "
             f"session's: {shown}{more}. Most often that is a file renamed under the citations of "
             f"it, which is how the four this gate was added for got there. Nothing else catches it "
-            f"before the push -- `check-links.py` is CI's `docs` job, and `verify.py` deliberately "
-            f"does not run it (its own docstring says why), so a green verify says nothing here. "
+            f"before the push -- `check-links.py` is CI's `docs` job, and `bun nv verify` does not "
+            f"run it, so a green verify says nothing here. "
             f"A link already dead at the commit this session opened on is not counted: that one is "
             f"not yours. A slice you committed by hand earlier in this session is still yours.")
     errors += rulebook_findings() + record_findings() + migration_findings() + manifest_findings()
@@ -1527,7 +1526,7 @@ def wrap(path: Path, dry: bool) -> int:
                 say(f"  {ln}")
             say()
             say("That is step 5. The tree is committed and the handoff is written -- there is")
-            say("nothing a `git log`, a `git status` or a second `verify.py` can add. Stop here.")
+            say("nothing a `git log`, a `git status` or a second `nv verify` can add. Stop here.")
         record_pack()
     return 0
 

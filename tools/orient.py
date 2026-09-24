@@ -548,10 +548,9 @@ def triage_applies() -> bool:
 def doc_gate_failure() -> tuple[str, str] | None:
     """The rustdoc gate's standing verdict, out of `.loop/doc-gate.json`, or `None` when green.
 
-    `tools/loop.py` runs `verify.py --doc` only on an acceptance sweep that would reach the goal,
-    and holds the goal open while it is red -- `tools/verify.py`'s *Why `doc` runs when a goal
-    ends* is the argument. It has to be printed here because no session's own `verify.py` will
-    mention it, and the comment that broke it may be as old as the goal."""
+    `tools/loop.py` runs `bun nv verify --doc` only on an acceptance sweep that would reach the
+    goal, and holds the goal open while it is red. It has to be printed here because no session's
+    own verification will mention it, and the comment that broke it may be as old as the goal."""
     return gate_failure(DOCGATE)
 
 
@@ -561,7 +560,7 @@ def owner_gate_failure() -> tuple[str, str] | None:
     `tools/loop.py`'s `owner_gate` runs `owners.py --closes <slug>` and `playbook.py --closes
     <slug>` on the same sweep as the rustdoc gate and holds the goal open while a gap still names
     it; its docstring is the argument. Printed here for the same reason the rustdoc gate is: no
-    session's own `verify.py` asks it."""
+    session's own verification asks it."""
     return gate_failure(OWNERGATE)
 
 
@@ -812,7 +811,7 @@ def run_marker() -> None:
         emit(f"THE RUSTDOC GATE IS RED, as of session {since}:")
         emit(f"  {why}")
         emit("The driver runs it only on a sweep where every acceptance check passed, and the goal is")
-        emit("not reached while it is red. `python tools/verify.py --doc` is the whole check, and")
+        emit("not reached while it is red. `bun nv verify --doc` is the whole check, and")
         emit("rustdoc names the file and the line. Fix every finding, run `--doc` until it is green,")
         emit("and say so in the handoff.")
     gate = owner_gate_failure()
@@ -1717,7 +1716,7 @@ def wrap_template() -> str:
 def run_closing() -> None:
     template = wrap_template()
     section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-5")
-    emit("  python tools/verify.py            build + test + clippy + fmt, once, at the end")
+    emit("  bun nv verify --start / --wait    build + test + clippy + fmt, once, at the end")
     if template:
         emit("  <Fill in the skeleton below>      plan fields, playbook bullet, handoff, commits, status")
     else:
