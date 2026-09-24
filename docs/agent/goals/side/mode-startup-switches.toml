@@ -1,0 +1,110 @@
+# Side goal mode-startup-switches -- an unwritten `dispatch` and `static` follow the mode a configuration names
+# The acceptance test, as data.
+#
+# `mode-startup-switches.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No fixture of this goal's own: every check is a named Rust test or a tool over the tree. The
+  # side run unions main's floor fixtures into this list, so the key is what has to be here.
+]
+
+[context]
+
+modules = [
+  # `Table::from_config` and the module doc's § *Decision*: where the two switches are read.
+  "crates/nvs-server/src/mount.rs",
+  # `switches` and `Local`: what a core compares to rebuild its table after a reload.
+  "crates/nvs-cli/src/serve/mounts.rs",
+  # The `[server]` readers, where the one resolving function goes.
+  "crates/nvs-config/src/server.rs",
+  # `Revalidation::from_config`: the startup row already on disk, and the shape to copy.
+  "crates/nvs-config/src/cache.rs",
+  # `DEVELOPMENT` and `PRODUCTION`.
+  "crates/nvs-config/src/mode.rs",
+]
+
+rules = [
+  "config/a-startup-default-is-never-flipped",
+]
+
+adrs = []
+
+shapes = ["A commit message"]
+
+milestones = []
+
+playbook = []
+
+plan = []
+
+[context.stage.3]
+rules = ["testing/feature-proofs"]
+
+# The environment tables of the chain goal this was written beside: main's carried floor drives a
+# database and a cache, so the daemon is preflighted before this goal's first session. The side
+# run gives the WSL leg a target dir of its own.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the switches follow the mode. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the switches"
+name = "the mount table reads an unwritten switch from the mode, and a written one as written"
+args = ["test"]
+tests = [
+  "an_unwritten_switch_follows_the_development_mode",
+  "a_written_switch_wins_over_the_mode",
+  "production_and_no_mode_keep_the_closed_switches",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the switches"
+name = "a reload that changes only the mode rebuilds a core's mount table"
+args = ["test"]
+tests = [
+  "a_snapshot_that_differs_only_in_its_mode_rebuilds_the_table",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the template and the reference say it. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the template and the reference"
+name = "the template names the development value of both switches"
+argv = ["git", "grep", "-n", "in development", "--", "crates/nvs-config/src/default.toml"]
+want = ["#dispatch = \"entry\"", "#static = false"]
+
+[[check]]
+kind = "command"
+stage = "3 the template and the reference"
+name = "the template still spells every key with a note saying what unset does"
+argv = ["python", "tools/directives.py", "--check-template"]
+want = ["each saying what unset does"]
+
+[[check]]
+kind = "command"
+stage = "3 the template and the reference"
+name = "the server chapter's [server] block names the development value of both switches"
+argv = ["git", "grep", "-n", "in development", "--", "docs/reference/tools/25-server.md"]
+want = ["dispatch           = \"entry\"", "static             = false"]
