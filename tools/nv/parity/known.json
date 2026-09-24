@@ -201,6 +201,32 @@
       "why": "nv names the installed goal and its position as `N of M`, which chain.py read as a bare number from .loop/chain.json."
     }
   ],
+  "writers": [
+    {
+      "side": "python",
+      "pattern": "^session\\.py:",
+      "replace": "nv session:",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "python",
+      "pattern": "`plan\\.py --check`",
+      "replace": "`nv plan --check`",
+      "why": "`--check` names the tool the reader runs next as the nv subcommand that replaces it."
+    },
+    {
+      "side": "python",
+      "pattern": "bun nv check-(links|migration)\\b",
+      "replace": "bun nv $1",
+      "why": "`--check` names `check-links.py` and `check-migration.py` by the nv subcommands that replace them, `nv links` and `nv migration`, which drop the `check-` prefix."
+    },
+    {
+      "side": "both",
+      "pattern": "^ {2,3}([MADRCU?][MADRCU?]?) ",
+      "replace": "  $1 ",
+      "why": "`--check` lists `git status --short` indented. Python strips the whole output first, which takes the leading space off the first line's status column and off no other line's. nv keeps every line as git printed it."
+    }
+  ],
   "orient": [
     {
       "side": "both",

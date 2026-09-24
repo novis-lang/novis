@@ -310,5 +310,15 @@
       ["--only"],
       ["--bogus"]
     ]
+  },
+  "writers": {
+    "python": ["python", "tools/session.py"],
+    "nv": ["bun", "tools/nv/main.ts", "session"],
+    "cases": [
+      ["--template"],
+      ["--counts"],
+      ["--check"],
+      ["--wrap", "tools/nv/parity/fixtures/session-malformed-wrap.md", "--dry-run"]
+    ]
   }
 }
