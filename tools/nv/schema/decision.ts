@@ -18,6 +18,11 @@ export const decision = defineRecord({
     /** Markdown: what this decides, and what it leaves to another record. */
     scope: s.string(),
     dependsOn: s.array(s.ref("decision")),
+    /**
+     * Markdown: the **Depends on:** field as written, for one that says more than its links, such as
+     * what each record is depended on for. Its links are `dependsOn`, in the same order.
+     */
+    dependsOnText: s.optional(s.string()),
     /** Markdown: the guard test or the measurement that holds it. */
     validatedBy: s.optional(s.string()),
     summary: s.optional(

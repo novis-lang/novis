@@ -2,16 +2,19 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stage 3 (the foundation) is landed whole, and Stage 4 (the importer) has
-its record types.** `tools/nv/schema/` declares one type per entity in loop-goal.md § *The data
-model*, all 18 listed in `RECORDS`: goal, handoff, side goal and side handoff, chain, topic, rule,
-decision, plan status, milestone, gap, playbook section and bullet, reference chapter, the two spec
-tables, proof policy and help backlog. The impact probe waits for Stage 6, which defines it. Each
-type's doc comment says what it holds; the invariants a foreign key cannot state are `checks` SQL,
-pinned by `tools/nv/test/records.test.ts`. `RecordType.suffix` lets a handoff live beside its goal as
-`<slug>.handoff.json`. `nv check`'s summary now opens `nv check: N findings`, which is the line the
-Stage 4 check wants. `data/` does not exist yet, so the check passes over zero records until the
-importer writes them. `main` is still frozen, and the tag `pre-overhaul` is the rollback point.
+**Goal `tooling-overhaul`: Stage 3 is landed whole. Stage 4 (the importer) has its record types and
+the first half of `bun nv import --check`.** `tools/nv/cmd/import.ts` runs every importer in
+`tools/nv/import/index.ts`. It stages their records under `.cache/nv-import/` and runs `nv check`'s own
+schema, foreign-key and invariant checks over them. Then it renders from them, and it prints each
+legacy file it could not read with the reason. It exits 1 while a record type has no importer, and it
+prints those types on a `not imported yet:` line. Six types are imported, and the command reports
+0 unread and 0 findings for them: topic and rule (`docs/rules/*.json`), decision (YAML block, H1, bold
+fields, `docs/decisions.toml`), reference chapter, playbook section and bullet. A decision whose
+**Depends on:** says more than its links keeps the text in the new `dependsOnText` field. The
+importer also checks that each record's `changes:` block matches what the rules' `because` lists
+derive. `bun nv render --check` now prints `render: every generated file is current`, but only because
+`tools/nv/renderers/index.ts` lists no renderer yet. `data/` does not exist yet. `main` is still
+frozen, and the tag `pre-overhaul` is the rollback point.
 
 Three habits hold for every session of this goal: a mechanical change goes through a script under
 `.agent-tmp/`; never prove a cut with a sweep; a Python tool is deleted only after its
@@ -19,29 +22,32 @@ replacement's parity is green.
 
 ## Next group
 
-**Stage 4: the importer** — one file set: `tools/nv/import/**`, `tools/nv/schema/**`. loop-goal.md
-§ *Stage 4* is the spec, and the types under `tools/nv/schema/` are what each record holds.
+**Stage 4: the importer** — one file set: `tools/nv/import/**`, `tools/nv/schema/**`,
+`tools/nv/cmd/import.ts`. loop-goal.md § *Stage 4* is the spec. Each new importer is a module under
+`tools/nv/import/` and is listed in `tools/nv/import/index.ts:10`, with a case in
+`tools/nv/test/import.test.ts`.
 
-- [ ] **`bun nv import --check`**: reads every legacy home into records in memory, prints each file
-      it could not read with the reason, then renders and compares (`docs/agent/loop-goal.md:289`).
-      The mappings the types already fixed: TOML keys become camelCase (`min_bytes` is `minBytes`);
-      `[context.stage.N]` folds into `stages[].context`; a stage's title comes from its checks'
-      `stage = "N title"`; a milestone id is lower case (`m4s`), so the goal tags `dossier` and
-      `post-parity` need milestone records of their own or a declared difference
-      (`tools/nv/schema/goal.ts:66`); a decision's title is its H1 after `ADR NNNN — `; a reference
-      chapter's `id` is the field `slug`, and `keywords` is split on `, `
-      (`tools/nv/schema/reference.ts:12`).
-- [ ] **Declared differences and gap slugs**: `tools/nv/import/known.json`, a slug per gap from its
-      bold title, and the list of positional gap citations for Stage 9 (`docs/agent/loop-goal.md:293`).
-- [ ] **`data/chain.json` and `--write`**: goal numbers become the slug list, the dossier goals join
-      as ordinary goals in order, and `--write` writes `data/` (`docs/agent/loop-goal.md:298`).
+- [ ] **Goals, handoffs and side goals**: import `docs/agent/goals/N-<slug>.{md,toml,handoff.md}`,
+      `docs/agent/goals/side/<slug>/`, `docs/agent/loop-goal.*` and `docs/agent/handoff.md` into
+      the types at `tools/nv/schema/goal.ts:65` and `tools/nv/schema/handoff.ts:1`. TOML keys become
+      camelCase, `[context.stage.N]` folds into `stages[].context`, and a stage's title comes from its
+      checks' `stage = "N title"`. The goal tags `dossier` and `post-parity` need milestone records
+      of their own or a declared difference. Read TOML with `smol-toml`.
+- [ ] **`data/chain.json` and the dossier goals** (`docs/agent/loop-goal.md:298`): goal numbers
+      become the slug list in `tools/nv/schema/chain.ts:1`, and the 102 goals under
+      `docs/agent/goals/dossier/` join the others in the same order.
+- [ ] **Milestones and the plan status**: `docs/implementation-plan.md`'s status block and
+      milestone table and `docs/plan/<id>.md` into `tools/nv/schema/milestone.ts:1` and
+      `tools/nv/schema/plan-status.ts:1`.
+- [ ] **Gaps with slugs, spec rows, proof policy and help backlog**, then `known.json` and
+      `--write` (`tools/nv/cmd/import.ts:20`): `tools/nv/schema/gap.ts:1`, `tools/nv/schema/spec.ts:1`,
+      `tools/nv/schema/proofs.ts:1`. `--write` writes `data/` and rewrites the prose files' front matter.
 
 ## Backlog
 
-- `data/schema/` publishes each type's `jsonSchema()`, and nothing writes it yet. `nv check` would
-  call those files orphans, so `recordFiles` must skip `data/schema/` when it lands
-  (`tools/nv/lib/store.ts`).
-- `.gitattributes` `linguist-generated` for rendered files lands with the first renderer
-  (`tools/nv/lib/render.ts` holds `MARKER`).
-- The installed TypeScript is 7.0.2, the native `tsc`. `tsconfig.json` uses `module: Preserve` and
-  `moduleResolution: bundler`, which it accepts.
+- No stage owns the renderers for the legacy generated files: `docs/rules/<topic>.md`,
+  `ground-rules.md`, `decisions.md` and the rest named in loop-goal.md § *The data model*. Until they
+  exist, `render --check` and the compare step of `import --check` pass over zero files. They
+  belong with `--write`, before Stage 5's parity.
+- A playbook bullet's `files` is computed against the tree at import time, as `tools/playbook.py`'s
+  `anchors` does, so a path that is deleted later falls out of the list at the next import.
