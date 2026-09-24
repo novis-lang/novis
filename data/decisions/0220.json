@@ -1,0 +1,11 @@
+{
+  "title": "a perf figure is current against its implementing file's code, so a comment, a card or a reformat stales nothing",
+  "status": "accepted",
+  "scope": "what a member-perf record's `impl_hash` is a hash of, and what that means for the\nrecords already in the ledger. It does not change what a record measures, how the report compares\ntwo records, or which binary measures.",
+  "dependsOn": [
+    "0191",
+    "0134"
+  ],
+  "dependsOnText": "[0191](0191.md) for the ledger's counts and its currency by text rather than commit;\n[0134](0134.md) for the feature proofs that owe a figure.",
+  "validatedBy": "`bun nv proofs --owed` and `python tools/dossier.py --owed` print the same list\nbefore and after the ledger migration, and `bun nv parity proofs`."
+}

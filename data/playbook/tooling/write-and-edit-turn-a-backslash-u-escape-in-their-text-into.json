@@ -1,0 +1,11 @@
+{
+  "lead": "Write and Edit turn a backslash-u escape in their text into the raw character.",
+  "body": "A regex written with the line-separator escapes reaches the file as a real line break and does not parse, while the `\\x85` beside it survives; it happened again while writing the shared helper itself. Import `splitlines` from `tools/nv/lib/py.ts` rather than writing that class again, and spell a line or paragraph separator as `\\p{Zl}` or `\\p{Zp}` under the `u` flag.",
+  "files": [
+    "tools/nv/lib/py.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/lib/py.ts:\\p{Zl}\\p{Zp}"
+  }
+}
