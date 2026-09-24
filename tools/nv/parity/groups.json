@@ -146,6 +146,10 @@
   "orient": {
     "python": ["python", "tools/orient.py"],
     "nv": ["bun", "tools/nv/main.ts", "orient"],
+    "select": {
+      "pattern": "^(== |!! |-- YOUR|   \\[\\d+\\])",
+      "why": "A pack is prose for a session to read, and nv's names nv commands, prints the goal's place as `N of M` and quotes each record's text unwrapped. What the two must agree on is which sections, warnings and items the pack carries, and those are its section heads, its `!!` lines, the current item's head and the numbers of the rest of the group."
+    },
     "cases": [
       [],
       ["--item", "2"],

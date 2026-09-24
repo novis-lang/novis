@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compare, layOut, normalize, snapshot, sortEntries, type Known } from "../cmd/parity.ts";
+import { compare, layOut, normalize, selectLines, snapshot, sortEntries, type Known } from "../cmd/parity.ts";
 import type { RunResult } from "../lib/proc.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -57,6 +57,15 @@ describe("compare", () => {
   test("an unordered run ends at a line that is neither an entry nor deeper", () => {
     const u = { pattern: "^  gap ", why: "no position" };
     expect(sortEntries("  gap b\nmid\n  gap a\n", u)).toBe("  gap b\nmid\n  gap a\n");
+  });
+
+  test("a declared selection compares only the lines it names, after the rewrites", () => {
+    const s = { pattern: "^== ", why: "prose differs" };
+    const py = "== one\nrun python tools/brief.py\n== two\n";
+    const nv = "== one\nrun something else\n== two\n";
+    expect(selectLines(py, s)).toBe("== one\n== two");
+    expect(compare(result(py), result(nv), [], new Set(), undefined, s)).toEqual([]);
+    expect(compare(result(py), result("== one\n== three\n"), [], new Set(), undefined, s)[0]).toContain("stdout line 2");
   });
 
   test("the files two writers left are compared, and a declaration covers a line ending", () => {

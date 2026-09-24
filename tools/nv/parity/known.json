@@ -201,6 +201,14 @@
       "why": "nv names the installed goal and its position as `N of M`, which chain.py read as a bare number from .loop/chain.json."
     }
   ],
+  "orient": [
+    {
+      "side": "both",
+      "pattern": "^(   \\[\\d+\\]) .*$",
+      "replace": "$1",
+      "why": "Python prints the first wrapped line of each other item in the group, and nv prints the item's record text, which is not wrapped. Which items the group holds is their numbers."
+    }
+  ],
   "plan": [
     {
       "side": "python",

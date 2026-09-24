@@ -3,7 +3,8 @@
 // are `tools/nv/parity/groups.json`. The comparison ignores only what `tools/nv/parity/known.json`
 // declares: a rewrite of one side's text, a regex and its replacement, each carrying its reason. The
 // `*` entries apply to every group. A group may also declare `unordered`: the entries whose order is not
-// part of the output, compared sorted, with the reason. The two programs of a case run at once unless
+// part of the output, compared sorted, with the reason. A group may declare `select`: the only lines
+// compared, for a pair whose outputs differ on purpose everywhere else, with the reason. The two programs of a case run at once unless
 // the group declares `sequential`, with the reason, for a pair that writes the same scratch files.
 //
 // A group for a tool that edits files declares a `tree`: the files it works on, by path and text. Each
@@ -35,6 +36,8 @@ interface Group {
   cases: string[][];
   /** Lines whose order is not part of the output, declared with the reason. */
   unordered?: Unordered;
+  /** The only lines compared, when the rest differ on purpose, declared with the reason. */
+  select?: Select;
   /** Why the two programs cannot run at once, when they cannot: each case then runs Python first. */
   sequential?: string;
   /** The files a writing tool is run over, by path relative to the tree and their text. */
@@ -48,6 +51,21 @@ interface Group {
 export interface Unordered {
   pattern: string;
   why: string;
+}
+
+/** A group compares only the lines that match `pattern`, once each side is normalized. */
+export interface Select {
+  pattern: string;
+  why: string;
+}
+
+/** `text` with only the lines `s` declares. */
+export function selectLines(text: string, s: Select): string {
+  const re = new RegExp(s.pattern);
+  return text
+    .split("\n")
+    .filter((line) => re.test(line))
+    .join("\n");
 }
 
 function indent(line: string): number {
@@ -123,10 +141,18 @@ export interface Outcome extends RunResult {
 }
 
 /** Report lines for every way the two runs differ once normalized, or none when they match. */
-export function compare(py: Outcome, nv: Outcome, known: Known[], used: Set<Known>, unordered?: Unordered): string[] {
+export function compare(
+  py: Outcome,
+  nv: Outcome,
+  known: Known[],
+  used: Set<Known>,
+  unordered?: Unordered,
+  select?: Select,
+): string[] {
   const out: string[] = [];
   const norm = (text: string, side: "python" | "nv") => {
-    const n = normalize(text, side, known, used);
+    let n = normalize(text, side, known, used);
+    if (select) n = selectLines(n, select);
     return unordered ? sortEntries(n, unordered) : n;
   };
   if (py.code !== nv.code) out.push(`     exit status: python ${py.code}, nv ${nv.code}`);
@@ -190,7 +216,7 @@ async function runGroup(name: string, group: Group, known: Known[]): Promise<boo
     const runPy = () => inTree("python", group.python, PYTHON_ENV.env);
     const runNv = () => inTree("nv", group.nv, {});
     const [py, nv] = group.sequential ? [await runPy(), await runNv()] : await Promise.all([runPy(), runNv()]);
-    const diff = compare(py, nv, known, used, group.unordered);
+    const diff = compare(py, nv, known, used, group.unordered, group.select);
     const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
     if (diff.length === 0) {
       same++;
