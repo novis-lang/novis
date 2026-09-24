@@ -2,15 +2,17 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stages 3 to 6 have landed, and Stage 7 has started.** Every Stage 6 check
-is green. `bun nv proofs` is `dossier.py`'s audit: the roster, the per-group status, `--group`,
-`--id`, `--owed`, `--gaps`, `--gate`, `--json`, `--only` and `--no-perf`. Parity group `proofs`
-matches in 20 of 20 cases. The one declared difference: `nv proofs` prints a feature's PHP twins,
-because `dossier.py`'s `php_twins` reads the wrong spec cell. `tools/nv/proofs/roster.ts` is the
-roster and `tools/nv/proofs/collect.ts` is the policy, the markers, the ledger and `owed`.
-`dossier.py --group X` with no other flag crashes (`KeyError: 'help'` in `print_group`). `nv proofs`
-prints that listing, so it has no parity case. Running the proofs, `--bless`, `--comments` and the
-perf ledger are still `dossier.py`'s. `main` is frozen. Tag `pre-overhaul` is the rollback.
+**Goal `tooling-overhaul`: Stages 3 to 6 have landed, and Stage 7 is in progress.** `bun nv proofs` is
+`dossier.py`'s audit (parity group `proofs`, 20 of 20) plus `--run` and `--verify`, which take
+`--group` more than once, `--id`, `--only`, `--valgrind`, `--quiet`, `--no-cache`, `--strict` and
+`--show`. `tools/nv/proofs/run.ts` runs and judges the programs on the proof binary
+(`target/proof/`), rebuilt when the Stage 6 key of `nvs-cli` at the `shipped` tier moves; the key it
+was built at is `target/proof/nvs.key`, and green verdicts live in `.loop/proofs-green.json`. Checks
+1 and 3 of Stage 7 print every `want` line. `--run` takes no suite name: it runs examples and attacks
+both, and a `--run` output cannot be a parity case because its counts carry times and cache hits.
+`--bless`, `--comments` and the perf ledger are still `dossier.py`'s. `dossier.py --group X` alone
+crashes (`KeyError: 'help'`), so that listing has no parity case. `main` is frozen. Tag
+`pre-overhaul` is the rollback.
 
 These habits hold for every session of this goal. A mechanical change goes through a script under
 `.agent-tmp/`. Never prove a cut with a sweep. A Python tool is deleted only after its
@@ -27,23 +29,23 @@ What the probes do not assert yet:
 ## Next group
 
 **Stage 7: proofs, the dossier becomes ordinary feature-proof machinery** — one file set:
-`tools/nv/cmd/proofs.ts`, `tools/nv/proofs/**` and `tools/dossier.py`. loop-goal.md § *Stage 7* is
-the spec.
+`tools/nv/keys/checks.ts`, `tools/nv/cmd/why.ts`, `tools/nv/cmd/proofs.ts` and `tools/nv/proofs/**`.
+loop-goal.md § *Stage 7* is the spec.
 
-- [ ] **`--run` and `--verify` with several `--group` values over one roster**, ported from
-      `tools/dossier.py:1449` (`run_suite`), `tools/dossier.py:1273` (`run_one_example`) and
-      `tools/dossier.py:1317` (`run_one_hostile`), into `tools/nv/cmd/proofs.ts:241`
-      (`run`). The check wants `lang:types`, `types:exception`, `nothing owed` and `0 failed`.
+- [ ] **A proofs check is a unit keyed on what it read**: `bun nv why "proofs: lang:types"` must
+      print `source: observed`, so each group a `--verify` names is a unit `proofs: <group>` in
+      `tools/nv/keys/checks.ts:260` (`units`), keyed on the proof binary's key
+      (`tools/nv/proofs/run.ts:69`, `proofBinary`) and the group's example and attack files.
       `rule:testing/feature-proofs`.
-- [ ] **`--run --id <feature> --show`**: each program's `== <path>` line, its output, then
-      `exit N · T ms`, and an attack's `T ms of L ms`. Examples first, then attacks, then the
-      bench. Written in `tools/nv/cmd/proofs.ts:241`.
-- [ ] **`--comments` and `--bless`**, from `tools/dossier.py:730` and `tools/dossier.py:3354`.
-      `commentProblems` is already at `tools/nv/proofs/collect.ts:129`.
+- [ ] **`--comments` and `--bless`**, from `tools/dossier.py:730` and `tools/dossier.py:3354`, into
+      `tools/nv/cmd/proofs.ts:308` (`run`); `--bless` runs on `tools/nv/proofs/run.ts:69`'s binary.
+- [ ] **The directive rename**: `// dossier: exit N` to `// proof: exit N` and `// dossier:
+      known-gap` to `// proof: gap <gap-id>`, by one script under `.agent-tmp/`, with the regexes in
+      `tools/nv/proofs/run.ts:50` and `tools/nv/proofs/collect.ts:166`.
 
 ## Backlog
-- `nv why "proofs: lang:types"` must answer `source: observed` (Stage 7's third check). `tools/nv/keys/checks.ts` owns it.
-- The proof profile and binary currency by the Stage 6 key, not by mtime. loop-goal.md § *Stage 7*.
-- `impl_hash` at the card tier, the ledger rewrite and its decision record. `rule:testing/member-perf-ledger`.
-- The `// dossier:` directives become `// proof:` by script. loop-goal.md § *Stage 7*.
-- The policy is read from `tools/data/dossier-policy.toml` until the cutover makes `data/proofs/` the authority. `tools/nv/proofs/collect.ts`.
+
+- `--record-perf` and the perf report, and the perf-currency decision record — loop-goal.md § *Stage 7*.
+- The driver runs every proof check a sweep owes in one `nv proofs` call — loop-goal.md § *Stage 7*.
+- `nv disk` counts `target/proof/` — loop-goal.md § *Stage 7*.
+- Deleting `dossier.py`'s fan-out and goal emission — loop-goal.md § *Stage 7*.
