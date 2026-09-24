@@ -381,7 +381,10 @@
   "gen-attribution": {
     "python": ["python", "tools/gen-attribution.py"],
     "nv": ["bun", "tools/nv/main.ts", "gen-attribution"],
+    "sequential": "Both programs write the same THIRD-PARTY-LICENSES.txt at the repository root, and a check would read it while the other side writes it.",
     "cases": [
+      [],
+      ["--check"],
       ["--check-c-deps"],
       ["--check-c", "--check-c-deps"],
       ["--help"],
