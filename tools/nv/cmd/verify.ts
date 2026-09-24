@@ -9,6 +9,7 @@
 //     bun nv verify --full           do not truncate the failing step's output
 //     bun nv verify --no-cache       run every step, whatever the green cache holds
 //     bun nv verify --list           the steps in order, running none of them
+//     bun nv verify --keys           each test binary's key over the tree now, as JSON
 //
 // The steps, in order, stopping at the first failure: `cargo fmt`, `tools/lints.py --check`,
 // `tools/directives.py --check` and `--check-template`, `tools/owners.py --check`, `bun nv selftest`,
@@ -42,7 +43,9 @@
 // a binary that passes alone shares a port, a path or a container with another, and is reported red
 // with that diagnosis rather than retried into green. A binary whose key in `tools/nv/keys/checks.ts`
 // has not moved is answered from `.agent-tmp/verify-test-green.json`, with the `test result:` line and
-// the test lines it printed when green, which the loop driver reads too. Each binary run records the
+// the test lines it printed when green, which the loop driver reads too. `--keys` prints each binary the
+// last build recorded, with its key over the tree now and whether that key is wide, so the driver
+// compares a record with the same key this command would. Each binary run records the
 // paths it opened through `nvs_repo` in the file `NVS_READS_LOG` names, and those go into its key.
 // An unscoped run fails on a wide binary `tools/data/impact-wide.txt` does not list, and on a listed
 // one that is narrow now (`tools/nv/keys/escape.ts`).
@@ -70,7 +73,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
-import { type Unit, loadRecords, units } from "../keys/checks.ts";
+import { type Unit, isWide, loadRecords, units } from "../keys/checks.ts";
 import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
@@ -375,6 +378,12 @@ class Reach {
       this.keys.set(job.name, k);
     }
     return k;
+  }
+
+  /** Is `job`'s key on everything? A binary with no unit is. */
+  wide(job: Job): boolean {
+    const u = this.units.get(job.name);
+    return !u || isWide(u.parts(this.ctx.tree));
   }
 
   reads(name: string): string[] | undefined {
@@ -1104,15 +1113,30 @@ async function verify(opts: Opts): Promise<number> {
   return 1;
 }
 
+/** `--keys`: `{name: {key, wide}}` for every binary the last build recorded, keyed as `test` keys it. */
+async function printKeys(): Promise<number> {
+  const ctx = await takeTree();
+  if (!ctx?.graph) {
+    console.error("nv verify: the tree or `cargo metadata` could not be read, and every key needs both");
+    return 2;
+  }
+  const built = readJson(TEST_BUILT) as { jobs?: Job[] } | undefined;
+  const reach = new Reach(ctx, ctx.graph);
+  const out: Record<string, { key: string; wide: boolean }> = {};
+  for (const j of built?.jobs ?? []) out[j.name] = { key: reach.key(j), wide: reach.wide(j) };
+  console.log(JSON.stringify(out));
+  return 0;
+}
+
 const USAGE = [
   "usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]",
-  "                 [--start] [--wait] [--list]",
+  "                 [--start] [--wait] [--list] [--keys]",
 ].join("\n");
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list"], valued: ["--package"], short: { "-p": "--package" } });
+    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list", "--keys"], valued: ["--package"], short: { "-p": "--package" } });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv verify: error: ${e.message}`);
@@ -1122,6 +1146,13 @@ export async function run(args: string[]): Promise<number> {
   if (flags.has("--help")) {
     console.log(`${USAGE}\n\nnv verify: ${summary}\n\nThe module doc of tools/nv/cmd/verify.ts says what each step is and why.`);
     return 0;
+  }
+  if (flags.has("--keys")) {
+    if (flags.size > 1 || values.size > 0) {
+      console.log("verify: --keys runs nothing, and takes no other flag.");
+      return 2;
+    }
+    return printKeys();
   }
   const opts: Opts = {
     ...(values.has("--package") ? { package: values.get("--package")! } : {}),

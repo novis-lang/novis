@@ -1042,21 +1042,22 @@ class Control:
 
 
 class VerifyWatch:
-    """What `tools/verify.py` is doing inside a session's tool call, on the status line.
+    """What `bun nv verify` is doing inside a session's tool call, on the status line.
 
     The harness hands the driver a tool call's output only when the call returns, so a session's
-    verification -- one call, a minute and a half at the end of every session -- was a spinner
-    behind `Bash python tools/verify.py` with nothing moving for the whole of it. `verify.py`
-    therefore writes `.agent-tmp/verify-progress.json` at every step boundary (its module doc is
-    the format's home), and this reads it: the step in flight and its clock go on the status line
-    behind the tool call, and each boundary gets one grey line in the scrollback and the session
-    log, so the timeline is still there once the call has returned. A `--start` run shows the
-    same way while the session writes its wrap file beside it.
+    verification -- one call at the end of every session -- would be a spinner with nothing moving
+    for the whole of it. `nv verify` therefore writes `.agent-tmp/verify-progress.json` at every
+    step boundary (`tools/nv/cmd/verify.ts`'s `progress` is the format's home), and this reads
+    it: the step in flight and its clock go on the status line behind the tool call, and each
+    boundary gets one grey line in the scrollback and the session log, so the timeline is still
+    there once the call has returned. A `--start` run shows the same way while the session writes
+    its wrap file beside it. `tools/verify.py` writes the same file in the same shape, so a
+    session that still runs it shows too.
 
     Armed for the life of a session and nothing else. A file older than the arming is a previous
-    session's -- `verify.py` rewrites it `finished` at the end, but a run killed mid-step leaves
+    session's -- `nv verify` rewrites it `finished` at the end, but a run killed mid-step leaves
     its last entry behind forever -- and so is a step "in flight" for longer than `STALE`, which
-    is `verify.py`'s own `--wait` timeout."""
+    is `nv verify`'s own `--wait` timeout."""
 
     FILE = ROOT / ".agent-tmp" / "verify-progress.json"
     EVERY = 0.5  # seconds between reads; the ticker fires eight times a second
@@ -1930,7 +1931,7 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 #
 # A partition is the WIDEST key a check can have, and three kinds of check are answered more
 # narrowly before `reads_of` is asked (`Goal.inputs_for`). A `cargo test -p <crate>` check is
-# keyed on that crate's test binaries as `tools/impact.py` keys them (`binary_inputs`): its own
+# keyed on that crate's test binaries as `bun nv verify` keys them (`binary_inputs`): its own
 # package, the packages it is compiled against, and what its tests record opening through
 # `nvs_repo`. A Python gate is keyed on what `tools/observe.py` last saw it open, list and start
 # (`observed_inputs`), which is what took the handoff out of two hundred keys. And a row of
@@ -2595,9 +2596,10 @@ class Goal:
         self._proofs_lock = threading.Lock()
         self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
-        self._verify_green = None  # `verify.py`'s per-binary green record, read once a sweep
+        self._verify_green = None  # `nv verify`'s per-binary green record, read once a sweep
+        self._binary_keys = None  # each test binary's key now, off `nv verify --keys`; see binary_keys
         self._audited = set()  # (crate, target) pairs an audit is running; `verify_green` skips them
-        self.reused = 0  # binaries `crate_tests` answered from `verify.py`'s record this sweep
+        self.reused = 0  # binaries `crate_tests` answered from `nv verify`'s record this sweep
         self._tree = ""
         self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
         self._tiers = None  # the `verify_keys.Tree` that walk took, which `binary_inputs` keys on
@@ -3011,7 +3013,7 @@ class Goal:
             for target, exe, cwd in chosen:
                 held = self.verify_green(exe) if key not in self._audited else None
                 if held is not None:
-                    self.trace(f"{crate} ({target}) green in verify.py's run over these inputs")
+                    self.trace(f"{crate} ({target}) green in nv verify's run over these inputs")
                     self.reused += 1
                     outs.append(held)
                     errs.append("")
@@ -3032,20 +3034,37 @@ class Goal:
         self._crate_runs[key] = r
         return r
 
-    def verify_green(self, exe):
-        """The output `verify.py`'s `test` step recorded for the binary `exe` when it last ran green,
-        or `None` when that record does not stand for the bytes on disk now.
+    def binary_keys(self):
+        """Each test binary's key over the tree now, as `bun nv verify --keys` prints it: `{name:
+        {"key", "wide"}}`, the key `nv verify`'s `test` step files a binary's green record under.
 
-        The record is `.agent-tmp/verify-test-green.json`, keyed per binary by `tools/impact.py`
-        over what the binary reads -- the same key `binary_inputs` files this sweep's own memo
-        under. A session runs `verify.py` over its work, and the sweep behind it would otherwise run
-        every binary that work reached a second time over the same inputs, which for the server's
-        end-to-end binaries is minutes a session. So a binary with a matching key is answered from
-        the record and not run. A binary `impact` calls wide is keyed over the whole tree, so its
-        record stands only while nothing at all has changed, which is the trust `verify.py` itself
-        gives it. Never under `--full`, never for a check `audits` is running to test the memo, and
-        never for a record written before the record carried its test lines, since a `cargo-named`
-        check reads those lines for the names it wants."""
+        One call a sweep, since the tree does not move under one. `{}` when the call fails, and
+        then no record is trusted and every `cargo test -p` check keeps its partitions -- the safe
+        direction, paid in reruns."""
+        if self._binary_keys is None:
+            r = capture("bun", ["nv", "verify", "--keys"], timeout=300, log_stdout=False)
+            try:
+                got = json.loads(r.out) if r.code == 0 else {}
+            except ValueError:
+                got = {}
+            self._binary_keys = got if isinstance(got, dict) else {}
+        return self._binary_keys
+
+    def verify_green(self, exe):
+        """The output `bun nv verify`'s `test` step recorded for the binary `exe` when it last ran
+        green, or `None` when that record does not stand for the bytes on disk now.
+
+        The record is `.agent-tmp/verify-test-green.json`, keyed per binary by
+        `tools/nv/keys/checks.ts` over what the binary reads, and `binary_keys` is that same key
+        taken over the tree now -- the key `binary_inputs` files this sweep's own memo under too. A
+        session verifies its work, and the sweep behind it would otherwise run every binary that
+        work reached a second time over the same inputs, which for the server's end-to-end
+        binaries is minutes a session. So a binary with a matching key is answered from the record
+        and not run. A wide binary is keyed over the whole tree, so its record stands only while
+        nothing at all has changed, which is the trust `nv verify` itself gives it. Never under
+        `--full`, never for a check `audits` is running to test the memo, and never for a record
+        written before the record carried its test lines, since a `cargo-named` check reads those
+        lines for the names it wants."""
         if self.full or self._tiers is None:
             return None
         reach = self.reach()
@@ -3064,10 +3083,11 @@ class Goal:
         entry = self._verify_green.get(job["name"])
         if not isinstance(entry, dict) or not isinstance(entry.get("tests"), list):
             return None
-        if entry.get("key") != reach.key(job)[0]:
+        now = self.binary_keys().get(job["name"])
+        if not isinstance(now, dict) or not now.get("key") or entry.get("key") != now["key"]:
             return None
         # A record carries one line per test its result line counts, or it is missing some: a
-        # line shape `verify.py`'s pattern did not match, and a check naming that test would read
+        # line shape `nv verify`'s pattern did not match, and a check naming that test would read
         # it as one that did not run.
         counted = sum(int(p) + int(i) for p, i in
                       re.findall(r"(\d+) passed; \d+ failed; (\d+) ignored", entry.get("result", "")))
@@ -3260,7 +3280,7 @@ class Goal:
                     code.update(path.read_bytes())
                 code.update(b"\0")
 
-        self._tiers = self._reach = None
+        self._tiers = self._reach = self._binary_keys = None
         try:
             tiers = self._tiers = verify_keys.Tree()
             for top in sorted(os.listdir(ROOT)):
@@ -3478,16 +3498,16 @@ class Goal:
         return self._digests[rel]
 
     def binary_inputs(self, c):
-        """A `cargo test -p <crate>` check's inputs as `tools/impact.py` keys them -- one key per
-        test binary of that crate, over what that binary reads -- or `None`, and then
+        """A `cargo test -p <crate>` check's inputs as `bun nv verify --keys` keys them -- one key
+        per test binary of that crate, over what that binary reads -- or `None`, and then
         `CARGO_READS` stands, which is every crate and every case tree.
 
         `CARGO_READS` holds all of `crates/` because a partition cannot say which crate a binary
         is compiled from, so an edit to `nvs-lsp` staled every check naming `nvs-syntax`. The
-        binaries are the ones `verify.py` last built (`impact.last_jobs`), and what each opens
-        while it runs is what `verify.py` last recorded for it. `None` whenever that cannot be
+        binaries are the ones `nv verify` last built (`impact.last_jobs`), and what each opens
+        while it runs is what `nv verify` last recorded for it. `None` whenever that cannot be
         shown: a check that is not the plain `-p <crate>` form, a crate with no binary on
-        record, or a binary `impact` calls wide."""
+        record, or a binary whose key is wide."""
         if c["kind"] != "cargo-named" or self._tiers is None:
             return None
         plain = plain_crate_test(c.get("args", []))
@@ -3502,12 +3522,13 @@ class Goal:
                 and (target is None or j.get("name") == f"{crate} test {target}")]
         if not jobs:
             return None
+        keys = self.binary_keys()
         h = hashlib.blake2b(digest_size=16)
         for job in sorted(jobs, key=lambda j: j["name"]):
-            key, wide = self._reach.key(job)
-            if wide:
+            now = keys.get(job["name"])
+            if not isinstance(now, dict) or not now.get("key") or now.get("wide", True):
                 return None
-            h.update(job["name"].encode("utf-8") + b"\0" + key.encode("utf-8") + b"\0")
+            h.update(job["name"].encode("utf-8") + b"\0" + now["key"].encode("utf-8") + b"\0")
         self._reach.answers[plain] = h.hexdigest()
         return self._reach.answers[plain]
 
@@ -4460,7 +4481,7 @@ class Goal:
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
         skipped = f", {len(self.skipped)} remembered" if self.skipped else ""
-        reused = f", {self.reused} test binaries from verify.py's run" if self.reused else ""
+        reused = f", {self.reused} test binaries from nv verify's run" if self.reused else ""
         audited = f", {len(self._claimed)} audited" if self._claimed else ""
         held = f", {len(self.held)} held (floor gate shut)" if self.held else ""
         reds = f", {len(self.reds)} red" if self.reds else ""
@@ -6856,7 +6877,7 @@ def context_sweep(base, slug):
 
 
 def doc_gate(index):
-    """`verify.py --doc`, on a sweep that would reach the goal, and a goal is not reached while it
+    """`bun nv verify --doc`, on a sweep that would reach the goal, and a goal is not reached while it
     is red. Returns the finding, or "" when green.
 
     A broken intra-doc link stops no build and changes no behaviour, so a goal in progress may
@@ -6873,7 +6894,7 @@ def doc_gate(index):
     step("rustdoc gate: every link in a doc comment, resolved (the acceptance list is green)",
          C.CYAN)
     began = time.monotonic()
-    r = capture(sys.executable, ["tools/verify.py", "--doc"], timeout=900)
+    r = capture("bun", ["nv", "verify", "--doc"], timeout=900)
     spent = mmss(time.monotonic() - began)
     if r.code == 0:
         step(f"rustdoc gate green in {spent}", C.CYAN)
@@ -6881,7 +6902,7 @@ def doc_gate(index):
         return ""
     text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
     first = next((ln.strip() for ln in text.split("\n") if ln.strip().startswith("error")), "")
-    why = first or f"`python tools/verify.py --doc` exited {r.code}"
+    why = first or f"`bun nv verify --doc` exited {r.code}"
     step(f"rustdoc gate FAILED in {spent} -- {why}", C.RED)
     write_doc_gate(failed=why, session=f"{index:04d}")
     ledger(f"       doc gate: {why}")

@@ -8,13 +8,14 @@
 `--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag `pre-overhaul` is the
 rollback.
 
-**`bun nv parity verify` matches 12 of 12.** The cases are `--list` in four shapes, the flag conflicts
-and the argument errors. `nv verify` now parses through `parseArgs` in `tools/nv/lib/py.ts`, so its
-usage errors are argparse's. The run itself is not compared, because it prints timings and each
-program keeps its own cache. The commit that added the group lists the differences in the run, each
-with its reason: the green cache shape, the TS binary keys in `verify-test-green.json`, no `compiled`
-field in `impact-reads.json`, and the case trees keyed at `card`. `tools/verify.py` still exists, and
-nothing calls `bun nv verify` yet.
+**The driver now reads `bun nv verify`, and sessions still run `verify.py`.** `tools/loop.py`'s rustdoc
+gate runs `bun nv verify --doc`, and its per-binary reuse (`verify_green`, `binary_inputs`) compares
+against `bun nv verify --keys`, which prints each test binary's key as `nv verify`'s `test` step files
+it. `VerifyWatch` reads `.agent-tmp/verify-progress.json`, which both programs write in one shape.
+Until slice 2 lands, a session's `verify.py` run writes Python keys into `verify-test-green.json`, so
+the sweep behind it finds no match and reruns those binaries. That costs time and is safe, and it is
+why slice 2 is next. `bun nv parity verify` matched 12 of 12 before `--keys` was added, and `--keys`
+has no `verify.py` twin.
 
 The playbook still has two homes: `docs/agent/playbook/` (read by `playbook.py` and `orient.py`) and
 `data/playbook/` (what `nv import` made). An edit to a bullet goes into both until Stage 9.
@@ -30,20 +31,19 @@ its replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tool
 
 ## Next group
 
-**Stage 8: `nv verify` replaces `verify.py`** — one file set: `tools/loop.py`, `tools/session.py`,
-`tools/orient.py`. The goal's Stage 8 bullet "`nv verify` takes over `verify.py`'s steps unchanged,
-over the Stage 6 keys" specifies it. `tools/verify.py` is cited from 345 files, so this is three slices.
+**Stage 8: `nv verify` replaces `verify.py`** — one file set: `tools/session.py`, `tools/orient.py`,
+`docs/agent/session-prompt.md`. The goal's Stage 8 bullet "`nv verify` takes over `verify.py`'s steps
+unchanged, over the Stage 6 keys" specifies it.
 
-- [ ] **Point the driver at `bun nv verify`.** `VerifyWatch` at `tools/loop.py:1045` reads
-      `verify.py`'s progress file, the rustdoc gate calls `verify.py --doc`, and `crate_tests` at
-      `tools/loop.py:3036` reads `verify-test-green.json`, whose keys are now the TS binary keys. Port
-      all three together, or the driver reruns every binary verify already ran.
 - [ ] **Point `tools/session.py` and `tools/orient.py` at `bun nv verify`.** Anchors:
       `tools/session.py:463` and `tools/session.py:470` (the wrap's verify-ran check), and the pack's
-      "WHEN YOU ARE DONE" block in `tools/orient.py`.
+      "WHEN YOU ARE DONE" block in `tools/orient.py`. The loop prompt's step 3 names
+      `python tools/verify.py --start` too, so change it in the same slice, or sessions go on writing
+      Python keys the driver no longer reads.
 - [ ] **Rewrite the remaining citations with a script under `.agent-tmp/`, and delete
       `tools/verify.py`.** `tools/verify_keys.py` stays while `tools/loop.py:70` and `tools/impact.py`
-      import it.
+      import it. The driver's other `verify.py` calls, the optimization pass's baseline at
+      `tools/loop.py:7647` and the side-goal landing at `tools/loop.py:8391`, move in this slice.
 
 ## Backlog
 
