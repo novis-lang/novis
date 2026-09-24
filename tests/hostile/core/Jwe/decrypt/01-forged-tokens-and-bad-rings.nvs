@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a client sends forged tokens: a very large one, one that asks for a slow password
+// derivation, and many random ones. Each call must throw an error quickly, and must not crash.
+// hostile: timeout-ms 30000
+
+Core\Jwe\Key $shared = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+Core\Jwe\Key $password = Core\Jwe\Key::password('correct horse battery staple');
+
+// 1. An empty list of keys throws a `LogicError`.
+try {
+    Core\Jwe::decrypt('a.b.c.d.e', []);
+    throw new RuntimeError('an empty list of keys opened a token');
+} catch (LogicError $empty) {
+}
+echo 'step 1: done', "\n";
+
+// 2. A public key made with `Core\Jwe\Key::recipient` cannot open a token.
+// `decrypt` throws a `LogicError`.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+try {
+    Core\Jwe::decrypt('a.b.c.d.e', [Core\Jwe\Key::recipient($pair->publicKey())]);
+    throw new RuntimeError('a public key opened a token');
+} catch (LogicError $public) {
+}
+echo 'step 2: done', "\n";
+
+// 3. A password key and a second key in one list throws a `LogicError`.
+try {
+    Core\Jwe::decrypt('a.b.c.d.e', [$password, $shared]);
+    throw new RuntimeError('a list with a password and another key was used');
+} catch (LogicError $crowded) {
+}
+echo 'step 3: done', "\n";
+
+// 4. The header below is a password token that asks for four billion derivation rounds (`"p2c":4000000000`).
+// `decrypt` must throw a `RuntimeError` without running them.
+string $slow = 'eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo0MDAwMDAwMDAwLCJwMnMiOiJjMkZzZEhOaGJIUnpZV3gwYzJGc2RBIn0';
+try {
+    Core\Jwe::decrypt($slow . '.AAAA.AAAA.AAAA.AAAA', [$password]);
+    throw new LogicError('a token with four billion rounds opened');
+} catch (RuntimeError $slowRefused) {
+}
+echo 'step 4: done', "\n";
+
+// 5. A token of eight million characters is sent. `decrypt` must throw a `RuntimeError`.
+string $huge = Core\Str::repeat('A', 8000000) . '.' . Core\Str::repeat('.', 100000);
+try {
+    Core\Jwe::decrypt($huge, [$shared]);
+    throw new LogicError('a huge text opened');
+} catch (RuntimeError $hugeRefused) {
+}
+echo 'step 5: done', "\n";
+
+// 6. A real token is changed at one position after another. Every changed token must throw.
+string $token = Core\Jwe::encrypt('id=7; role=admin', $shared);
+int $length = Core\Str::length($token) as int;
+int $i = 0;
+while ($i < $length) {
+    string $forged = Core\Str::slice($token, 0, $i) . '*' . Core\Str::slice($token, $i + 1);
+    try {
+        Core\Jwe::decrypt($forged, [$shared]);
+        throw new LogicError('a changed token opened');
+    } catch (RuntimeError $forgedRefused) {
+    }
+    $i = $i + 1;
+}
+echo 'step 6: done', "\n";
+
+// 7. A list of ten thousand wrong keys tries one forged token. Each key is tried once.
+array<Core\Jwe\Key> $wrong = [];
+uint $k = 0;
+while ($k < 10000) {
+    $wrong[] = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+    $k = $k + 1;
+}
+try {
+    Core\Jwe::decrypt($token, $wrong);
+    throw new LogicError('a wrong key opened the token');
+} catch (RuntimeError $noKey) {
+}
+echo 'step 7: done', "\n";

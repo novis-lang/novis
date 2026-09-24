@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to change to a new key and still read the tokens made with the old key.
+
+Core\Jwe\Key $old = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+Core\Jwe\Key $new = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+
+// One token was made before the change, and one after it.
+string $before = Core\Jwe::encrypt("made with the old key", $old);
+string $after = Core\Jwe::encrypt("made with the new key", $new);
+
+// `decrypt` tries the keys in order. The new key is first, the old key is second.
+// This prints both texts.
+array<Core\Jwe\Key> $keys = [$new, $old];
+echo Core\Jwe::decrypt($before, $keys), "\n";
+echo Core\Jwe::decrypt($after, $keys), "\n";
+
+// When the old key is removed from the list, the old token cannot be read.
+// This prints `the old token is no longer valid`.
+try {
+    Core\Jwe::decrypt($before, [$new]);
+} catch (RuntimeError $expired) {
+    echo "the old token is no longer valid", "\n";
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Reads a short session value from a token with a shared key, as a server does with each request's cookie.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+        array<Core\Jwe\Key> $keys = [$key];
+        array<string> $tokens = [
+            Core\Jwe::encrypt("user=1", $key),
+            Core\Jwe::encrypt("user=22", $key),
+            Core\Jwe::encrypt("user=333", $key),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The token in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Str::length(Core\Jwe::decrypt($tokens[($total + $i) % 3], $keys));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

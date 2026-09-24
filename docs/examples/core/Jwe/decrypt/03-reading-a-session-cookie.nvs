@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a server reads a session cookie that it encrypted. A visitor with an invalid cookie is a guest.
+
+class Session {
+    // `user` returns the user name inside the cookie. It returns `guest` when no key opens the cookie.
+    public static function user(string $cookie, array<Core\Jwe\Key> $keys): tainted string {
+        try {
+            return Core\Jwe::decrypt($cookie, $keys);
+        } catch (RuntimeError $invalid) {
+            return "guest";
+        }
+    }
+}
+
+// In real code, the key comes from the server's configuration.
+array<Core\Jwe\Key> $keys = [Core\Jwe\Key::shared(Core\Crypto::generateKey())];
+
+// The server made this cookie when the user signed in.
+string $cookie = Core\Jwe::encrypt("maria", $keys[0]);
+
+// This prints `maria`.
+echo Session::user($cookie, $keys), "\n";
+
+// A visitor wrote their own cookie. This prints `guest`.
+echo Session::user("maria", $keys), "\n";

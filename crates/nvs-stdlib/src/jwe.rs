@@ -1604,4 +1604,224 @@ mod tests {
             );
         }
     }
+
+    /// One call of `decrypt` over a ring of `keys`, answering the payload or
+    /// the sentence the member left pending.
+    ///
+    /// The ring takes over each key's reference, so releasing it releases
+    /// them; the token is borrowed and released here too.
+    fn decrypted(
+        ctx: &mut nvs_runtime::Ctx,
+        token: &str,
+        keys: Vec<Value>,
+    ) -> Result<Vec<u8>, String> {
+        let mut ring = nvs_runtime::NvsArray::new();
+        for key in keys {
+            ring.append(key);
+        }
+        let ring = Value::array(ring);
+        let token = Value::str(NvsStr::new(token.as_bytes()));
+        let answer = nvs_runtime::call(nvs_core_jwe_decrypt, ctx, &[token, ring]);
+        let out = match answer {
+            Ok(plain) => {
+                let bytes = plain
+                    .as_str_bytes()
+                    .expect("decrypt answers a string")
+                    .to_vec();
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    plain.release();
+                }
+                Ok(bytes)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .expect("a refusal leaves its sentence pending")),
+        };
+        #[expect(unsafe_code, reason = "this frame holds the only references")]
+        unsafe {
+            token.release();
+            ring.release();
+        }
+        out
+    }
+
+    /// The member as a program calls it: the ring is tried in order, so a
+    /// token sealed under a key that is second in the ring still opens, and a
+    /// ring without that key throws the one `RuntimeError` sentence.
+    ///
+    /// The three `LogicError`s are the ring's *shape*, and each is thrown
+    /// before the token is read: every refusal below is handed a text that is
+    /// no token at all, so a check that ran after the token was parsed would
+    /// read the forgery sentence instead. The classes are pinned by
+    /// `tests/hostile/core/Jwe/decrypt/01-forged-tokens-and-bad-rings.nvs`,
+    /// which catches each by name.
+    // covers: Core\Jwe::decrypt
+    #[test]
+    fn decrypt_tries_the_ring_in_order_and_refuses_a_ring_of_the_wrong_shape_first() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let old = [3_u8; crypto::KEY_LEN];
+        let new = [4_u8; crypto::KEY_LEN];
+        let shared = |octets: &[u8]| built(USE_SHARED, octets, NO_KIND);
+
+        let payload = Value::str(NvsStr::new(b"id=42"));
+        let sealer = shared(&new);
+        let token = encrypted(&mut ctx, payload, sealer);
+        #[expect(unsafe_code, reason = "this frame holds the only references")]
+        unsafe {
+            sealer.release();
+            payload.release();
+        }
+
+        // The key that sealed it is second; the first one does not open it,
+        // and the ring goes on to the next.
+        assert_eq!(
+            decrypted(&mut ctx, &token, vec![shared(&old), shared(&new)]),
+            Ok(b"id=42".to_vec())
+        );
+        let forged = decrypted(&mut ctx, &token, vec![shared(&old)])
+            .expect_err("a ring without the sealing key opens nothing");
+        assert!(
+            forged.contains("is not a token any key in $keys opens"),
+            "{forged}"
+        );
+
+        let not_a_token = "not a token";
+        let empty = decrypted(&mut ctx, not_a_token, Vec::new()).expect_err("an empty ring");
+        assert!(empty.contains("$keys is empty"), "{empty}");
+
+        let recipient = built(USE_RECIPIENT, &[9_u8; 32], KeyKind::X25519.tag());
+        let public = decrypted(&mut ctx, not_a_token, vec![shared(&new), recipient])
+            .expect_err("a public key in the ring");
+        assert!(public.contains("Core\\Jwe\\Key::recipient"), "{public}");
+
+        let password = built(USE_PASSWORD, b"correct horse", NO_KIND);
+        let crowded = decrypted(&mut ctx, not_a_token, vec![password, shared(&new)])
+            .expect_err("a password beside another key");
+        assert!(
+            crowded.contains("a password ring holds exactly one"),
+            "{crowded}"
+        );
+
+        // A password alone is a ring of the right shape, so the same text
+        // reaches the token check and reads the forgery sentence.
+        let password = built(USE_PASSWORD, b"correct horse", NO_KIND);
+        let alone =
+            decrypted(&mut ctx, not_a_token, vec![password]).expect_err("a text that is no token");
+        assert!(
+            alone.contains("is not a token any key in $keys opens"),
+            "{alone}"
+        );
+    }
+
+    /// One call of a one-argument constructor, answering the key or the
+    /// sentence it left pending. The argument is released here.
+    fn constructed(
+        ctx: &mut nvs_runtime::Ctx,
+        member: unsafe extern "C" fn(*mut nvs_runtime::Ctx, *const Value, *mut Value) -> i32,
+        argument: Value,
+    ) -> Result<Value, String> {
+        let answer = nvs_runtime::call(member, ctx, &[argument]);
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            argument.release();
+        }
+        answer.map_err(|_| {
+            ctx.take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .expect("a refusal leaves its sentence pending")
+        })
+    }
+
+    /// `shared` takes exactly a key's length: the key it builds seals a token
+    /// its own octets open, and a length one short, one long or empty throws a
+    /// `LogicError` whose sentence names the length and never the octets.
+    // covers: Core\Jwe\Key::shared
+    #[test]
+    fn shared_builds_a_dir_key_of_exactly_the_key_length_and_never_quotes_a_wrong_one() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let octets = [5_u8; crypto::KEY_LEN];
+        let key = constructed(
+            &mut ctx,
+            nvs_core_jwe_key_shared,
+            Value::bytes(NvsStr::new(&octets)),
+        )
+        .expect("a key of the right length builds");
+        let payload = Value::str(NvsStr::new(b"cart=3"));
+        let token = encrypted(&mut ctx, payload, key);
+        #[expect(unsafe_code, reason = "this frame holds the only references")]
+        unsafe {
+            key.release();
+            payload.release();
+        }
+        assert!(protected_of(&token).starts_with(&format!(r#"{{"alg":"{DIR}""#)));
+        assert_eq!(
+            plaintext(&[(USE_SHARED, octets.as_slice(), None)], &token)
+                .expect("the payload is affordable"),
+            Some(b"cart=3".to_vec())
+        );
+
+        for len in [0, crypto::KEY_LEN - 1, crypto::KEY_LEN + 1] {
+            let wrong = vec![b'Z'; len];
+            let refused = constructed(
+                &mut ctx,
+                nvs_core_jwe_key_shared,
+                Value::bytes(NvsStr::new(&wrong)),
+            )
+            .expect_err("a key of the wrong length");
+            assert!(
+                refused.contains(&format!("$key is {len} octets")),
+                "{refused}"
+            );
+            assert!(
+                !refused.contains("ZZ"),
+                "the sentence quotes the key: {refused}"
+            );
+        }
+    }
+
+    /// `password` takes any text, the empty one and one outside ASCII
+    /// included: the key it builds seals a `PBES2` token that the same text
+    /// opens, and a text one character away does not.
+    // covers: Core\Jwe\Key::password
+    #[test]
+    fn password_builds_a_pbes2_key_from_any_text_and_only_that_text_opens_it() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let payload = Value::str(NvsStr::new(b"note"));
+        for password in ["", "correct horse", "pässwört 🔑"] {
+            let key = constructed(
+                &mut ctx,
+                nvs_core_jwe_key_password,
+                Value::str(NvsStr::new(password.as_bytes())),
+            )
+            .expect("every text is a password");
+            let token = encrypted(&mut ctx, payload, key);
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                key.release();
+            }
+            assert!(
+                protected_of(&token).starts_with(&format!(r#"{{"alg":"{PBES2}""#)),
+                "{password:?}"
+            );
+            assert_eq!(
+                plaintext(&[(USE_PASSWORD, password.as_bytes(), None)], &token)
+                    .expect("the payload is affordable"),
+                Some(b"note".to_vec()),
+                "{password:?}"
+            );
+            let other = format!("{password}!");
+            assert!(
+                plaintext(&[(USE_PASSWORD, other.as_bytes(), None)], &token)
+                    .expect("the payload is affordable")
+                    .is_none(),
+                "{password:?} opened under {other:?}"
+            );
+        }
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            payload.release();
+        }
+    }
 }
