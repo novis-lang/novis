@@ -14,7 +14,11 @@
 //   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
 //   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
-// - `observed`: a Python gate, over what `tools/observe.py` last saw it open, list and start.
+// - `observed`: a check over what it was last seen to read. A Python gate keys on what
+//   `tools/observe.py` saw it open, list and start. A proofs group, the unit `proofs: <group>` for
+//   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, what the
+//   roster and the audit read for every group, and the example, attack and bench paths `nv proofs`
+//   last recorded for that group. A check that names groups is the union of its groups.
 // - `partitions`: a check whose reads are whole directories or files it names.
 // - `everything`: anything else, and every doubt.
 //
@@ -72,12 +76,16 @@ export interface Records {
   wide: Set<string>;
   /** Each Python gate's reads, by `argv` and `cwd` joined with NULs. */
   observed: Map<string, Observed>;
+  /** Each proofs group's own paths, as `nv proofs` last recorded them. */
+  proofReads: Map<string, string[]>;
 }
 
 export const GOAL = "docs/agent/loop-goal.toml";
 const READS = ".agent-tmp/impact-reads.json";
 const WIDE = "tools/data/impact-wide.txt";
 const OBSERVED = ".loop/check-reads.json";
+/** Each proofs group's example and attack directories and bench file, which `nv proofs` writes. */
+export const PROOF_READS = ".loop/proof-reads.json";
 
 /** The two memos that are a whole leg rather than a check, keyed like a program. */
 export const LEGS = ["wsl leg", "valgrind sweep"];
@@ -128,7 +136,14 @@ export function loadRecords(graph: Graph, goal = GOAL): Records {
       if (v && Array.isArray(v.files) && Array.isArray(v.dirs) && Array.isArray(v.spawns)) observed.set(key, v);
     }
   }
-  return { graph, checks: doc.check ?? [], reads, wide, observed };
+  const proofReads = new Map<string, string[]>();
+  const recorded = readJson(PROOF_READS);
+  if (recorded && typeof recorded === "object") {
+    for (const [group, v] of Object.entries(recorded as Record<string, unknown>)) {
+      if (Array.isArray(v)) proofReads.set(group, v.filter((p): p is string => typeof p === "string"));
+    }
+  }
+  return { graph, checks: doc.check ?? [], reads, wide, observed, proofReads };
 }
 
 /** A check's name, as the driver files its verdict: its `name`, else its `file`, else what it runs. */
@@ -268,7 +283,43 @@ export function units(r: Records): Unit[] {
   }
   for (const leg of LEGS) out.push({ name: leg, source: "package key", role: "leg", parts: (t) => programParts(t, r.graph, PROGRAM_READS) });
   for (const c of r.checks) out.push(checkUnit(r, c));
+  const groups = new Set(r.checks.flatMap((c) => proofGroups(c) ?? []));
+  for (const group of groups) out.push({ name: `proofs: ${group}`, source: "observed", role: "nv", parts: (t) => proofParts(t, r, group) });
   return out;
+}
+
+/** The groups an `nv proofs --run` or `--verify` check runs, each a unit of its own. `undefined` when it
+ * runs no group as a whole: it names none, or `--id` narrows it to one feature. */
+export function proofGroups(c: Check): string[] | undefined {
+  const argv = strings(c.argv);
+  if (c.kind !== "command" || argv[0] !== "bun" || argv[1] !== "nv" || argv[2] !== "proofs") return undefined;
+  if (!argv.includes("--run") && !argv.includes("--verify")) return undefined;
+  if (argv.some((a) => a === "--id" || a.startsWith("--id="))) return undefined;
+  const groups: string[] = [];
+  argv.forEach((a, i) => {
+    if (a === "--group" && argv[i + 1] !== undefined) groups.push(argv[i + 1]!);
+    else if (a.startsWith("--group=")) groups.push(a.slice("--group=".length));
+  });
+  return groups.length > 0 ? groups : undefined;
+}
+
+/** What `nv proofs` reads for every group: its own code and runtime, the policy, the help backlog and
+ * the perf ledger. */
+const PROOF_INPUTS = ["tools/nv", "package.json", "bun.lock", "tools/data/dossier-policy.toml", "tools/data/help-backlog.toml", "docs/perf/members.ndjson"];
+/** The partitions it reads for every group: the roster's chapters and spec, the registry and its tables,
+ * and each `covers:` marker and plain call in the case trees and in `crates/`. */
+const PROOF_PARTITIONS = ["crates", "crate-tests", "docs", "conformance", "differential"];
+
+/** A proofs group's parts: the proof binary, what every group reads, and the group's own paths. A group
+ * with no record keys on everything until it has run once. */
+function proofParts(tree: Tree, r: Records, group: string): Part[] {
+  const own = r.proofReads.get(group);
+  if (!own) return everything(tree);
+  return union(
+    build(tree, r.graph, program("shipped")),
+    ...PROOF_PARTITIONS.map((p) => partition(tree, p)),
+    ...[...PROOF_INPUTS, ...own].map((p) => path(tree, p)),
+  );
 }
 
 /** A test binary's parts. Its name is `<package> <kind> <target>`, as `testBinaries` writes it. */
@@ -433,6 +484,9 @@ function checkUnit(r: Records, c: Check): Unit {
     if (!seen || c.setup) return wide;
     return unit("observed", (t) => observedParts(t, g, seen) ?? everything(t));
   }
+
+  const groups = proofGroups(c);
+  if (groups) return unit("observed", (t) => union(...groups.map((gr) => proofParts(t, r, gr))));
 
   // A `git grep` over literal paths reads those paths and nothing else.
   if (argv[0] === "git" && argv[1] === "grep" && argv.includes("--")) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, checkName, roleOf, suitesIn, testTargets, units } from "../keys/checks.ts";
+import { type Check, checkName, isWide, proofGroups, roleOf, suitesIn, testTargets, units } from "../keys/checks.ts";
 import type { Graph, Package } from "../keys/graph.ts";
 import { testBuild } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
@@ -14,7 +14,7 @@ const graph: Graph = new Map([
 ]);
 
 function sources(checks: Check[], wide: string[] = []): Record<string, string> {
-  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), observed: new Map() });
+  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), observed: new Map(), proofReads: new Map() });
   return Object.fromEntries(us.map((u) => [u.name, u.source]));
 }
 
@@ -64,6 +64,29 @@ describe("the units a key answers for", () => {
       glob: "everything",
       bun: "everything",
     });
+  });
+
+  test("each group a proofs run names is a unit, and one narrowed to a feature is not", () => {
+    const got = sources([
+      { kind: "command", name: "two groups", argv: ["bun", "nv", "proofs", "--verify", "--group", "lang:types", "--group=types:enum"] },
+      { kind: "command", name: "one feature", argv: ["bun", "nv", "proofs", "--run", "--group", "Core\\Arr", "--id", "Core\\Arr::map"] },
+      { kind: "command", name: "audit", argv: ["bun", "nv", "proofs", "--group", "Core\\Str"] },
+    ]);
+    expect(got).toMatchObject({ "two groups": "observed", "proofs: lang:types": "observed", "proofs: types:enum": "observed", "one feature": "everything", audit: "everything" });
+    expect(Object.keys(got).filter((n) => n.startsWith("proofs: ")).sort()).toEqual(["proofs: lang:types", "proofs: types:enum"]);
+    expect(proofGroups({ kind: "command", argv: ["bun", "nv", "proofs", "--verify"] })).toBeUndefined();
+  });
+
+  test("a proofs group keys on its own recorded paths, and on everything before it has run", async () => {
+    const check: Check = { kind: "command", name: "g", argv: ["bun", "nv", "proofs", "--verify", "--group", "lang:types"] };
+    const records = (proofReads: Map<string, string[]>) => ({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), observed: new Map(), proofReads });
+    const tree = await Tree.read();
+    const unit = (proofReads: Map<string, string[]>) => units(records(proofReads)).find((u) => u.name === "proofs: lang:types")!;
+    expect(isWide(unit(new Map()).parts(tree))).toBe(true);
+    const labels = unit(new Map([["lang:types", ["docs/examples/lang/types", "tests/hostile/lang/types"]]])).parts(tree).map((p) => p.label);
+    expect(labels).toContain("docs/examples/lang/types/");
+    expect(labels).toContain("<conformance>");
+    expect(labels).not.toContain("<hostile>");
   });
 
   test("an unnamed check is named by its file, else by what it runs", () => {
