@@ -21,13 +21,15 @@
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
-import { goalValue } from "../import/goals.ts";
+import { goalValue, handoffValue } from "../import/goals.ts";
+import type { Unread } from "../import/lib.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
+import { handoff as handoffType, sideHandoff as sideHandoffType } from "../schema/handoff.ts";
 import { planStatus } from "../schema/plan-status.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_EXTS, readText, type Resolver, SOURCE_EXTS, sortKey, trackedFiles } from "./links.ts";
@@ -883,7 +885,11 @@ function writtenPaths(sections: Section[]): string[] {
       if (entry) out.push(entry.rel);
     } else if (s.kind === "playbook") {
       for (const [path] of playbookTargets(sections, s)) out.push(path, bulletRecord(path).path);
-    } else if (s.kind === "handoff") out.push(handoffPath(sideGoal()));
+    } else if (s.kind === "handoff") {
+      const owner = handoffOwner(sideGoal());
+      out.push(handoffPath(sideGoal()));
+      if (owner) out.push(pathOf(owner.type, owner.slug));
+    }
   }
   return [...new Set(out)];
 }
@@ -1435,8 +1441,23 @@ function applyHandoff(s: Section, dry: boolean): string {
   if (n > HANDOFF_TARGET_LINES + 25) {
     note += `  (over the ~${HANDOFF_TARGET_LINES}-line target by ${n - HANDOFF_TARGET_LINES}; a target for the author, not a check -- do not spend a turn trimming it)`;
   }
-  if (!dry) writeFileSync(join(ROOT, handoffPath(sideGoal())), body);
+  if (dry) return note;
+  const side = sideGoal();
+  writeFileSync(join(ROOT, handoffPath(side)), body);
+  const owner = handoffOwner(side);
+  if (owner === null) return note;
+  const unread: Unread[] = [];
+  const value = handoffValue(ROOT, handoffPath(side), owner.slug, unread);
+  if (value) writeRecord(owner.type, owner.slug, value as any);
+  for (const u of unread) note += `\n  its record is not written: ${u.reason}`;
   return note;
+}
+
+/** The record type and id the handoff's record is written under, or null while no goal is live. */
+function handoffOwner(side: string | null): { type: typeof handoffType; slug: string } | null {
+  if (side) return { type: sideHandoffType, slug: side };
+  const live = liveGoal();
+  return live && !live.retired ? { type: handoffType, slug: live.slug } : null;
 }
 
 /**

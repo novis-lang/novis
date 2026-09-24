@@ -243,6 +243,18 @@
       "pattern": "^ {2,3}([MADRCU?][MADRCU?]?) ",
       "replace": "  $1 ",
       "why": "`--check` lists `git status --short` indented. Python strips the whole output first, which takes the leading space off the first line's status column and off no other line's. nv keeps every line as git printed it."
+    },
+    {
+      "side": "nv",
+      "pattern": "\\(\\d+ path\\(s\\)\\)  \\[\\+1 this wrap wrote: data/goals/\\S+\\.handoff\\.json\\]$",
+      "replace": "(N path(s))",
+      "why": "nv writes the handoff's record beside its Markdown, so a wrap with a handoff commits one more path than Python does, and names it."
+    },
+    {
+      "side": "python",
+      "pattern": "(?<=^  commit: .*)\\(\\d+ path\\(s\\)\\)$",
+      "replace": "(N path(s))",
+      "why": "The other half of the handoff record's difference: a Python commit line has no record in its path count."
     }
   ],
   "orient": [
