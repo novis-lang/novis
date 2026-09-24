@@ -187,6 +187,21 @@
       ]
     },
     {
+      "name": "one-group-example",
+      "what": "a line at the end of one `lang:types` example: that group's proofs unit re-runs, and every other group's is kept",
+      "edit": {
+        "path": "docs/examples/lang/types/literals/01-the-ways-to-write-a-number.nvs",
+        "insert": "\n"
+      },
+      "rerun": [
+        "^nv: proofs: lang:types$",
+        "^nv: one proofs run verifies several groups$"
+      ],
+      "keep": [
+        "^nv: proofs: (?!lang:types$)"
+      ]
+    },
+    {
       "name": "editor",
       "what": "a space in the extension's `package.json`",
       "edit": {
