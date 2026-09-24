@@ -33,7 +33,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { liveGoal } from "../lib/chain.ts";
 import { ROOT, abs } from "../lib/paths.ts";
+import { loadFile } from "../lib/store.ts";
+import { goal as goalType } from "../schema/goal.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
@@ -112,10 +115,24 @@ function readJson(rel: string): unknown {
   }
 }
 
+/**
+ * The live goal's checks. While the Python driver runs, `docs/agent/loop-goal.toml` is the list it runs;
+ * once that file is gone, the record under `data/goals/` that the driver's pointer names is. A goal with no
+ * record reads no checks.
+ */
+function goalChecks(goal: string): Check[] {
+  if (goal !== GOAL || existsSync(join(ROOT, goal))) {
+    return ((parseToml(readFileSync(join(ROOT, goal), "utf8")) as { check?: Check[] }).check ?? []);
+  }
+  const live = liveGoal();
+  if (live === null) return [];
+  return (loadFile(goalType, `data/goals/${live.slug}.json`).value?.checks ?? []) as Check[];
+}
+
 /** The records on disk. A missing one reads as empty, which only ever widens a key. A `goal` of `null`
  * reads no checks, for a caller that keys only the test binaries. */
 export function loadRecords(graph: Graph, goal: string | null = GOAL): Records {
-  const doc = (goal === null ? {} : parseToml(readFileSync(join(ROOT, goal), "utf8"))) as { check?: Check[] };
+  const doc = { check: goal === null ? [] : goalChecks(goal) };
   const reads = new Map<string, string[]>();
   const got = readJson(READS);
   if (got && typeof got === "object") {
