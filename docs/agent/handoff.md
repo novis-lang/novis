@@ -8,7 +8,7 @@ now has `about.md`, three examples, a hostile case, a bench and the Rust test
 member itself under `dir`, PBES2 and `ECDH-ES`. `Core\Jwe` and `Core\Jwe\Key` both carry their class
 cards now, so no `Jwe` member owes help. The attack found no new bug. The decoder's debug-build stack
 overflow stays `# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12. `encrypt`'s bench
-still needs its first recorded figure (`--record-perf --id 'Core\Jwe::encrypt'`) if the sweep asks.
+has its first recorded figure in `docs/perf/members.ndjson`.
 
 ## Next group
 
