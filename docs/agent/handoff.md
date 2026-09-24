@@ -21,10 +21,13 @@ blake2b of size 6, which Bun cannot compute, and the memo is not re-checked agai
 floor shows only the verdicts that memo has filed, and a check that a later edit broke still shows as
 green.
 
-`nv splice` (`tools/nv/cmd/splice.ts`) ports all four forms of `splice.py`. It differs in three ways:
-its messages open `nv splice:`, its help names `bun nv splice`, and a CRLF target keeps CRLF, where
-`splice.py` writes it back as LF. `cargo-p` still names no `nv` command. It gets `verify` in its
-`commands` when `nv verify` lands. `nv import --write` refuses while `impact_probes` has no importer.
+`nv parity` runs a tool that writes: a group with a `tree` lays it out twice under
+`.agent-tmp/parity/<group>/`, runs each side in its own copy, and compares the files each run changed
+as well as the output. **`bun nv parity splice` is green, 20 of 20**, and `known.json` declares its six
+differences with their reasons: the message prefix, the help's pointer to a docstring, the OS error
+wording, CRLF kept by nv and turned into LF by `splice.py`, and two help paragraphs nv rewrote.
+`cargo-p` still names no `nv` command. It gets `verify` in its `commands` when `nv verify` lands.
+`nv import --write` refuses while `impact_probes` has no importer.
 
 One Stage 7 bullet waits for Stage 9's cutover: deleting `dossier.py`'s `--emit-goals`,
 `--check-goals` and fan-out flags, and `generated_by` in `tools/loop.py`.
@@ -37,18 +40,19 @@ test.
 
 ## Next group
 
-**Stage 8: parity for the ported writers** — one file set: `tools/nv/parity/groups.json`,
-`tools/nv/parity/known.json`, `tools/nv/cmd/parity.ts`. The goal's § *Stage 8* **Parity** bullet and
-§ *Standing decisions* "Parity before deletion" specify it.
+**Stage 8: retire `splice.py`** — one file set: `tools/splice.py` and every file that names it, which
+`git grep -l "splice\.py"` lists (about 180, most of them playbook records under `data/playbook/` and
+their rendered pages, and generated goals under `docs/agent/goals/dossier/`). The goal's § *Standing
+decisions* "Parity before deletion" and "A mechanical change … is made by a script" specify it.
 
-- [ ] **A `splice` parity group** beside `peek` at `tools/nv/parity/groups.json:168`. Run both tools
-      against two copies of one scratch tree and compare the files and output. List the three
-      differences in § State in `tools/nv/parity/known.json:18`, each with its reason. First check
-      that `tools/nv/cmd/parity.ts` can run a tool that writes.
-- [ ] **Delete `tools/splice.py`** in its own slice once that group is green. Then point every
-      place that still names it at `bun nv splice`: AGENTS.md rules 1 and 2,
-      `docs/agent/commands.md:38` and `docs/agent/commands.md:157` (`git grep splice\.py` for the rest).
-      `nv bg` and `nv guard` owe no parity group, because no Python tool of theirs is left.
+- [ ] **Delete `tools/splice.py`, and point every citation at `bun nv splice`** with one script under
+      `.agent-tmp/`. Edit a playbook record in `data/playbook/` and re-render with `bun nv render`,
+      never the page. Hand-read these, because they are code or prose rather than a citation:
+      AGENTS.md rules 1 and 2, `docs/agent/commands.md:38`, `tools/brief.py:468` together with
+      `tools/nv/cmd/brief.ts:21` (keep the `brief` parity group green), and `tools/loop-stats.py:326`,
+      which counts a session's edits by the text `splice.py` and must also count `nv splice`. Drop the
+      `splice` group from `tools/nv/parity/groups.json:190` and `tools/nv/parity/known.json:26` in the
+      same slice, since no Python side is left to run.
 
 ## Backlog
 
