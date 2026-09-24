@@ -4,8 +4,9 @@
 `nv verify` answers a step from its green cache when the step's key is the one it was green
 under, and `tools/nv/keys/steps.ts` is the key it uses. This file is the Python copy of that
 table and its scanner -- which files a step reads, and for Rust how much of each file it reads --
-kept for `tools/loop.py` and `tools/impact.py`, which still import it. *Why a step whose inputs
-did not change is not run* in `git show pre-overhaul:tools/verify.py` is the reasoning.
+kept for `tools/loop.py` and `tools/impact.py`, which still import it. The reasoning is *Why a
+step whose inputs did not change is not run*, in the module doc of the deleted
+`tools/verify.py` (check-links:retired), which `git show pre-overhaul:tools/verify.py` prints.
 
 ## A step reads a partition, not the tree
 
