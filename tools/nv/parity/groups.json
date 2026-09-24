@@ -12,6 +12,22 @@
       ["--where", "no-such-topic-anywhere"]
     ]
   },
+  "gaps": {
+    "python": ["python", "tools/gaps.py"],
+    "nv": ["bun", "tools/nv/main.ts", "gaps"],
+    "cases": [
+      [],
+      ["--errors"],
+      ["--differential"],
+      ["--coverage", "--limit", "0"],
+      ["--errors", "--limit", "3"],
+      ["--differential", "--coverage", "--limit=5"],
+      ["--member", "Core\\Arr::chunk"],
+      ["--member=Core\\NoSuch::thing"],
+      ["--json"],
+      ["--json", "--coverage"]
+    ]
+  },
   "holes": {
     "python": ["python", "tools/holes.py"],
     "nv": ["bun", "tools/nv/main.ts", "holes"],
@@ -93,11 +109,15 @@
     "python": ["python", "tools/records.py"],
     "nv": ["bun", "tools/nv/main.ts", "records"],
     "unordered": {
-      "pattern": "^  \\d{4}\\s+\\d+ inbound$",
-      "why": "Python breaks a tie among the most-cited records in set-hash order, which changes from run to run. nv breaks it by number."
+      "pattern": "^  \\d{4}\\s+\\d+ inbound$|^    [a-z0-9-]+/[a-z0-9-]+ +(also shaped by |no other record|created by )",
+      "why": "Python breaks a tie among the most-cited records in set-hash order, which changes from run to run. nv breaks it by number. And `--graph` lists a record's rules in the order its prose front matter wrote them, which nv does not read: it derives them from the rules' `because` lists and lists them by id."
     },
     "cases": [
       [],
+      ["--graph", "0066"],
+      ["--graph", "0134"],
+      ["--graph", "0205"],
+      ["--graph", "9999"],
       ["--check"],
       ["--only", "links"],
       ["--only", "structure", "--only", "section refs"],

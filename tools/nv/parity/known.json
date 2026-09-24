@@ -85,6 +85,14 @@
       "why": "A gap object is a record in nv (slug, module, title, text) and a parsed doc item in Python (file, line, block, item). The counts per owner under `registers` are what callers read, and they are compared."
     }
   ],
+  "records": [
+    {
+      "side": "python",
+      "pattern": "^(  depends on:    (?:\\[\\d{4}\\]\\(\\d{4}\\.md\\)(?:, )?)+)\\.$",
+      "replace": "$1",
+      "why": "A **Depends on:** field that is only links is stored as its record numbers, so the period the prose closes the list with is not kept, and `--graph` prints the links alone."
+    }
+  ],
   "plan": [
     {
       "side": "python",

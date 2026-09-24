@@ -6,6 +6,7 @@
 //     bun nv records --residue       the changelog residue check alone, exit 1 on a finding
 //     bun nv records --stats         one line per record: size, section shape, rationale share
 //     bun nv records --orphans       the records no other record links to, and the most cited
+//     bun nv records --graph 0066    the rules one record creates and amends, and who else shaped them
 //
 // The set is the `decision` records under `data/decisions/`. Each one's reasoning is prose,
 // `docs/decisions/NNNN.md`, whose front matter and bold field lines are rendered from the record, so
@@ -23,7 +24,7 @@ import { load } from "../lib/store.ts";
 import { decision } from "../schema/decision.ts";
 import { rule } from "../schema/rule.ts";
 
-export const summary = "the decision records, read-only: nv records [--check] [--only <check>] | --residue | --stats | --orphans";
+export const summary = "the decision records, read-only: nv records [--check] [--only <check>] | --residue | --stats | --orphans | --graph NNNN";
 
 /** The bold field lines a record's prose may carry between its title and its `In short` block. */
 const FIELDS = ["Scope", "Depends on", "Validated by"];
@@ -420,16 +421,74 @@ function orphans(set: RecordSet): number {
   return 0;
 }
 
-const USAGE = "usage: bun nv records [--check] [--only <check>]... | --residue | --stats | --orphans\n" +
-  "  --graph is still `python tools/records.py`'s";
+/** A field as the prose's bullet writes it on one line: its continuation lines joined by a space. */
+function oneLine(value: string): string {
+  return value.split("\n").map((l) => l.trim()).join(" ").trim();
+}
+
+/**
+ * One record's place in the set: its fields, then each rule it created or amended with who else shaped
+ * it, then the records it links to and the ones that cite it. A rule's `because` is creator-first, so a
+ * record created the rules whose list it opens and amended the rest it appears in; the rules are listed
+ * by id, and the other records by number, which is the order the decisions were taken in.
+ */
+function graph(set: RecordSet, num: string): number {
+  const r = set.records.get(num);
+  const p = set.prose.get(num);
+  if (!r || !p) {
+    console.log(`no record ${num}`);
+    return 1;
+  }
+  const v = r.value;
+  const fields: [string, string | undefined][] = [
+    ["scope", v.scope === "" ? undefined : v.scope],
+    ["depends on", v.dependsOnText ?? (v.dependsOn.length > 0 ? v.dependsOn.map((n) => `[${n}](${n}.md)`).join(", ") : undefined)],
+    ["validated by", v.validatedBy],
+  ];
+  console.log(`${num}.md\n  ADR ${num} — ${v.title}\n`);
+  console.log(`  ${"status:".padEnd(15)}${v.status}`);
+  for (const [name, value] of fields) {
+    if (value === undefined) continue;
+    const line = oneLine(value);
+    console.log(`  ${`${name}:`.padEnd(15)}${head(line, 110)}${[...line].length > 110 ? "..." : ""}`);
+  }
+  const touched: Record<"creates" | "modifies", [string, string[]][]> = { creates: [], modifies: [] };
+  for (const rr of load(rule).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const because = rr.value.because;
+    if (!because.includes(num)) continue;
+    touched[because[0] === num ? "creates" : "modifies"].push([rr.id, because]);
+  }
+  for (const key of ["creates", "modifies"] as const) {
+    console.log(`\n  ${key} (${touched[key].length}):`);
+    for (const [id, because] of touched[key]) {
+      const others = because.filter((n) => n !== num).sort();
+      const rest = others.filter((n) => n !== because[0]);
+      const note = key === "creates"
+        ? others.length > 0 ? `also shaped by ${others.join(", ")}` : "no other record"
+        : `created by ${because[0]}` + (rest.length > 0 ? `; also ${rest.join(", ")}` : "");
+      console.log(`    ${id.padEnd(58)} ${note}`);
+    }
+  }
+  const links = [...refs(p)].filter((n) => n !== num).sort();
+  const citedBy = [...set.prose.values()].filter((o) => o.num !== num && refs(o).has(num)).map((o) => o.num).sort();
+  const sections = [...p.subsections].sort((a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0));
+  console.log(`\n  links to:      ${links.join(", ") || "-"}`);
+  console.log(`  cited by:      ${citedBy.join(", ") || "-"}`);
+  console.log(`  sections:      ${sections.join(", ") || "-"}`);
+  return 0;
+}
+
+const USAGE = "usage: bun nv records [--check] [--only <check>]... | --residue | --stats | --orphans | --graph NNNN";
 
 export async function run(args: string[]): Promise<number> {
   let check = false;
   const only = new Set<string>();
   let mode: string | null = null;
+  let graphOf: string | null = null;
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
     if (a === "--check") check = true;
+    else if (a === "--graph" && i + 1 < args.length) graphOf = args[++i]!;
     else if (a === "--only" && i + 1 < args.length) only.add(args[++i]!);
     else if (a === "--stats" || a === "--orphans" || a === "--residue") mode = a;
     else {
@@ -438,6 +497,7 @@ export async function run(args: string[]): Promise<number> {
     }
   }
   const set = loadSet();
+  if (graphOf) return graph(set, graphOf);
   if (mode === "--stats") return stats(set);
   if (mode === "--orphans") return orphans(set);
   if (mode === "--residue") return report(set, new Set(["changelog residue"]), false) > 0 ? 1 : 0;
