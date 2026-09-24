@@ -180,7 +180,7 @@ describe("import", () => {
         "",
         "## State",
         "",
-        "Where it stands.",
+        "**Goal 2 — Core\\X — has just started.** Where it stands.",
         "",
         "## Next group",
         "",
@@ -226,7 +226,7 @@ describe("import", () => {
     });
     expect(of("handoff")).toEqual({
       "core-x": {
-        state: "Where it stands.",
+        state: "**Goal `core-x` — Core\\X — has just started.** Where it stands.",
         next: {
           stage: 2,
           title: "the work",

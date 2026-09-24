@@ -199,8 +199,14 @@ function leadOf(lead: string): { stage: number | null; title?: string; files: st
   return { ...out, files: [], ...(rest === "" ? {} : { note: rest }) };
 }
 
-/** The handoff record `path` holds, or null with the reason in `unread`. */
-function handoffValue(root: string, path: string, unread: Unread[]): Record<string, unknown> | null {
+/**
+ * The handoff record `path` holds, or null with the reason in `unread`.
+ *
+ * A seed handoff's state opens on `**Goal N — `, the goal naming itself by its position. A record
+ * carries no position, since `data/chain.json` is where one is computed from, so the header names
+ * the goal by `slug` instead.
+ */
+function handoffValue(root: string, path: string, slug: string, unread: Unread[]): Record<string, unknown> | null {
   const parts = text(root, path).split(/^## /m);
   const head = parts.shift()!.trim().replace(GENERATED, "# Handoff");
   if (head !== "# Handoff") unread.push({ path, reason: "it does not open on `# Handoff` alone" });
@@ -232,7 +238,8 @@ function handoffValue(root: string, path: string, unread: Unread[]): Record<stri
     return null;
   }
   const group = { ...lead, items: checklist, ...(after === "" ? {} : { after }) };
-  return { state: state.join("\n").trim(), next: group, backlog: backlog.items };
+  const said = state.join("\n").trim().replace(/^\*\*Goal \d+ —/, `**Goal \`${slug}\` —`);
+  return { state: said, next: group, backlog: backlog.items };
 }
 
 export const goals: Importer = {
@@ -288,7 +295,7 @@ export const goals: Importer = {
         if (value) out.records.push({ type: goalType, id: g.slug, value, from: g.toml ?? g.md });
         if (g.toml !== null && g.handoff === null) out.unread.push({ path: g.toml, reason: "its goal is not retired and has no handoff" });
         if (g.handoff === null) continue;
-        const h = handoffValue(root, g.handoff, out.unread);
+        const h = handoffValue(root, g.handoff, g.slug, out.unread);
         if (h) out.records.push({ type: handoffType, id: g.slug, value: h, from: g.handoff });
       }
     }

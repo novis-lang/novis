@@ -82,6 +82,11 @@ SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 #: the wrong form to name it -- and quoting a spelling is not spelling it.
 NUMBER_CITE_RE = re.compile(r"(?<![`\w])[Gg]oals?\s+\d+")
 
+#: A goal's own header, found anywhere on a line rather than only where it opens one. The headers
+#: below are the one place a number belongs, and a program that reads or writes goal files -- the
+#: importer, its tests -- quotes them inside a string, which is the header being shown, not prose.
+SHOWN_HEADER_RE = re.compile(r"#\s*Loop goal \d+|#\s*Goal \d+ --|\*\*Goal \d+ —")
+
 #: The two headers that carry a goal's number, and the only text this tool rewrites besides the
 #: filenames themselves. Both are the goal naming *itself*, which is the one place a number belongs.
 H1_RE = re.compile(r"^(#\s*Loop goal )\d+", re.M)
@@ -184,8 +189,10 @@ def number_citations():
         for i, line in enumerate(text.split("\n"), 1):
             if H1_RE.match(line) or TOML_HEAD_RE.match(line) or HANDOFF_RE.match(line):
                 continue
+            shown = [h.span() for h in SHOWN_HEADER_RE.finditer(line)]
             for m in NUMBER_CITE_RE.finditer(line):
-                out.append((rel(path), i, m.group(0)))
+                if not any(a <= m.start() < b for a, b in shown):
+                    out.append((rel(path), i, m.group(0)))
     return out
 
 
