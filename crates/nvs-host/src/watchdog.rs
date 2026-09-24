@@ -907,29 +907,49 @@ mod tests {
         let cpu = a_cpu();
 
         // A core that keeps turning, for twice the margin, while never leaving
-        // a deadline unanswered for more than the sleep that armed it.
+        // a deadline unanswered for more than the sleep that armed it. Each
+        // wake measures how late it came: a loaded machine can keep this thread
+        // off every CPU for longer than the margin, and then the core really
+        // did stall and a report is the right answer.
+        let (late_tx, late_rx) = mpsc::channel();
         let busy = Arc::clone(&dog);
         let working = Worker::spawn(cpu, move |sched| {
             let _installed = install(Reactor::new().expect("the OS refused a poll"));
             let view =
                 with_current(|reactor| reactor.deadline_view()).expect("no reactor installed");
             let _watched = busy.register(cpu, view);
-            sched.spawn(ctx(), TaskRoot::Worker, |_ctx| {
+            sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
                 for _ in 0..5 {
+                    // At or before the instant `sleep` files, so a lateness
+                    // measured from it is never an underestimate.
+                    let due = Instant::now() + Duration::from_millis(100);
                     sleep(Duration::from_millis(100));
+                    let _ = late_tx.send(Instant::now().saturating_duration_since(due));
                 }
             });
             run_until_idle(sched).expect("the loop failed")
         })
         .expect("the OS refused a thread");
         assert_eq!(working.join().expect("the worker panicked").finished, 1);
-        assert!(
-            rx.try_recv().is_err(),
-            "a core that answered every deadline was reported as wedged"
-        );
+        let latest = late_rx.try_iter().max().expect("the busy task never woke");
+        let reported = rx.try_iter().count();
+        // A sweep reads its clock before it reads a core's deadline, so a
+        // report means a deadline was still filed a whole margin after it fell
+        // due. The reactor takes a deadline off before the task it wakes runs,
+        // so a task that woke sooner than that from every sleep filed none.
+        if latest < margin {
+            assert_eq!(
+                reported, 0,
+                "a core that answered every deadline was reported as wedged"
+            );
+        }
 
         // And a core that files a deadline and then never polls again — § 7's
-        // own example, a loop with no poll site in it.
+        // own example, a loop with no poll site in it. It stays wedged until
+        // the test has its report, however long the watchdog thread waits for
+        // a CPU; dropping `release` is what lets it go.
+        let started = Instant::now();
+        let (release, held) = mpsc::channel::<()>();
         let stuck = Arc::clone(&dog);
         let wedged = Worker::spawn(cpu, move |_sched| {
             let _installed = install(Reactor::new().expect("the OS refused a poll"));
@@ -942,13 +962,23 @@ mod tests {
                     Instant::now() + Duration::from_millis(10),
                 );
             });
-            std::thread::sleep(margin * 4);
+            let _ = held.recv();
         })
         .expect("the OS refused a thread");
 
-        let stall = rx
-            .recv_timeout(Duration::from_secs(10))
-            .expect("the wedged worker was never reported");
+        // The first half's core may have been reported late, after the drain
+        // above, and every deadline it filed fell due before `started`. The
+        // bound only turns a watchdog that never reports into a failure rather
+        // than a hang.
+        let stall = loop {
+            let stall = rx
+                .recv_timeout(Duration::from_secs(60))
+                .expect("the wedged worker was never reported");
+            if stall.deadline > started {
+                break stall;
+            }
+        };
+        drop(release);
         assert_eq!(stall.cpu, cpu);
         assert!(stall.overdue_by >= margin);
         wedged.join().expect("the worker panicked");
