@@ -1,0 +1,29 @@
+<?nvs
+// Shows that `verify` throws an error for a token somebody changed, and for a token signed
+// with another key.
+
+secret bytes $key = Core\Crypto::generateKey();
+string $token = Core\Jwt::sign(["sub" => "42", "role" => "reader"], 1h, $key);
+array<string> $parts = Core\Str::split($token, ".");
+
+// Somebody writes new claims into the middle part and keeps the old signature.
+bytes $json = Core\Encoding::encodeText("{\"sub\":\"42\",\"role\":\"admin\"}", Core\Charset::Utf8);
+string $payload = Core\Encoding::toBase64Url($json);
+string $changed = $parts[0] . "." . $payload . "." . $parts[2];
+
+// The signature does not match the new claims, so `verify` throws a `RuntimeError`.
+// This prints `changed token: refused`.
+try {
+    Core\Jwt::verify($changed, $key);
+    echo "changed token: accepted", "\n";
+} catch (RuntimeError $error) {
+    echo "changed token: refused", "\n";
+}
+
+// A token signed with a different key also throws. This prints `other key: refused`.
+try {
+    Core\Jwt::verify($token, Core\Crypto::generateKey());
+    echo "other key: accepted", "\n";
+} catch (RuntimeError $error) {
+    echo "other key: refused", "\n";
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check a token and read its claims.
+
+// `Core\Crypto::generateKey` returns 32 random secret bytes. They are the key.
+secret bytes $key = Core\Crypto::generateKey();
+string $token = Core\Jwt::sign(["sub" => "42", "plan" => "pro"], 1h, $key);
+
+// `verify` checks the signature and the expiry with the same key.
+// It returns every claim as text. This prints `42` and `pro`.
+array<tainted string> $claims = Core\Jwt::verify($token, $key);
+echo $claims["sub"], "\n";
+echo $claims["plan"], "\n";
+
+// `exp` is the expiry, in seconds since 1 January 1970. It comes back as text too.
+// `as ?int` converts it to a whole number. This prints `3600`, one hour.
+int $exp = $claims["exp"] as ?int ?? 0;
+int $iat = $claims["iat"] as ?int ?? 0;
+echo $exp - $iat, "\n";

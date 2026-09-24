@@ -1,0 +1,24 @@
+<?nvs
+// Checks a short login token with a shared key, as a server does on each request.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $key = Core\Crypto::generateKey();
+        array<string> $tokens = [
+            Core\Jwt::sign(["sub" => "1042", "role" => "editor"], 1h, $key),
+            Core\Jwt::sign(["sub" => "7", "role" => "reader"], 1h, $key),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round checks the token the round before chose, so no round can be left out.
+            array<tainted string> $claims = Core\Jwt::verify($tokens[$total % 2], $key);
+            $total = $total + Core\Str::length($claims["sub"]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
