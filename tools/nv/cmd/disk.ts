@@ -48,8 +48,10 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import type { Dirent } from "node:fs";
+import { readdir, stat as statAsync } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
 import { pyInt } from "../lib/py.ts";
@@ -158,36 +160,61 @@ interface FileAge {
   mtime: number;
 }
 
+/** How many directories `walk` lists at the same time. */
+const WALK_DIRS_AT_ONCE = 32;
+
 /**
- * The total bytes under `root`, and every file's size and age. A missing directory is zeroes. A link
- * to a directory is not followed, and a link to a file counts as the file, the way `os.walk` reads a
- * tree.
+ * The total bytes under `root`, and every file's size and age, in no fixed order. A missing directory
+ * is zeroes. A link to a directory is not followed, and a link to a file counts as the file, the way
+ * `os.walk` reads a tree. A directory listing carries no sizes, so a walk costs one `stat` per file;
+ * all of a directory's files are stat'ed together and `WALK_DIRS_AT_ONCE` directories are listed at a
+ * time, because waiting for each `stat` in turn is nearly all of a walk's time.
  */
-function walk(root: string): { total: number; files: FileAge[] } {
+async function walk(root: string): Promise<{ total: number; files: FileAge[] }> {
   const files: FileAge[] = [];
   let total = 0;
   if (!isDir(root)) return { total, files };
   const pending = [root];
-  while (pending.length > 0) {
-    const dir = pending.pop()!;
-    let entries;
+  const visit = async (dir: string): Promise<void> => {
+    let entries: Dirent[];
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = await readdir(dir, { withFileTypes: true });
     } catch {
-      continue;
+      return;
     }
-    for (const entry of entries) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        pending.push(path);
-        continue;
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(path);
+          return;
+        }
+        let st;
+        try {
+          st = await statAsync(path);
+        } catch {
+          return;
+        }
+        if (st.isDirectory()) return;
+        total += st.size;
+        files.push({ path, size: st.size, mtime: st.mtimeMs / 1000 });
+      }),
+    );
+  };
+  await new Promise<void>((done) => {
+    let busy = 0;
+    const pump = (): void => {
+      while (busy < WALK_DIRS_AT_ONCE && pending.length > 0) {
+        busy += 1;
+        void visit(pending.pop()!).then(() => {
+          busy -= 1;
+          pump();
+        });
       }
-      const st = stat(path);
-      if (!st || st.isDirectory()) continue;
-      total += Number(st.size);
-      files.push({ path, size: Number(st.size), mtime: Number(st.mtimeMs) / 1000 });
-    }
-  }
+      if (busy === 0) done();
+    };
+    pump();
+  });
   return { total, files };
 }
 
@@ -215,9 +242,9 @@ function mtime(path: string): number {
  * mtime moves only when an entry directly inside it is added or removed, so a directory whose files
  * are still being rewritten reads as old as the day it was made.
  */
-function newest(path: string): number {
+async function newest(path: string): Promise<number> {
   let latest = mtime(path);
-  if (latest && isDir(path)) for (const f of walk(path).files) latest = Math.max(latest, f.mtime);
+  if (latest && isDir(path)) for (const f of (await walk(path)).files) latest = Math.max(latest, f.mtime);
   return latest;
 }
 
@@ -234,10 +261,10 @@ function splitSuffix(name: string): [string, string] {
  * sweep that aborts halfway because one file was locked has deleted some of what it meant to and
  * reported nothing.
  */
-function rm(path: string, dryRun: boolean): number {
+async function rm(path: string, dryRun: boolean): Promise<number> {
   try {
     if (isDir(path)) {
-      const size = walk(path).total;
+      const size = (await walk(path)).total;
       if (!dryRun) {
         try {
           rmSync(path, { recursive: true, force: true });
@@ -270,13 +297,13 @@ function runIdOf(name: string): string {
  * Whole runs rather than the newest files, because a run is read as a unit and half a run measures
  * nothing.
  */
-function pruneLogs(keep: number = KEEP_RUNS, dryRun = false): number {
+async function pruneLogs(keep: number = KEEP_RUNS, dryRun = false): Promise<number> {
   if (!isDir(LOGDIR)) return 0;
   const entries = listDir(LOGDIR).sort();
   const runs = [...new Set(entries.map(runIdOf))].filter((r) => r !== "").sort();
   const doomed = new Set(keep > 0 ? runs.slice(0, Math.max(0, runs.length - keep)) : runs);
   let freed = 0;
-  for (const name of entries) if (doomed.has(runIdOf(name))) freed += rm(join(LOGDIR, name), dryRun);
+  for (const name of entries) if (doomed.has(runIdOf(name))) freed += await rm(join(LOGDIR, name), dryRun);
   return freed;
 }
 
@@ -286,15 +313,15 @@ function pruneLogs(keep: number = KEEP_RUNS, dryRun = false): number {
  * wrote. `worktrees/` is never swept and never walked: a git worktree is somebody's branch, removed
  * with `git worktree remove` by whoever made it.
  */
-function pruneScratch(days: number = SCRATCH_DAYS, dryRun = false): number {
+async function pruneScratch(days: number = SCRATCH_DAYS, dryRun = false): Promise<number> {
   if (!isDir(SCRATCH)) return 0;
   const cutoff = now() - days * 86400;
   let freed = 0;
   for (const name of listDir(SCRATCH)) {
     if (name === WORKTREES) continue;
     const path = join(SCRATCH, name);
-    const seen = newest(path);
-    if (seen && seen < cutoff) freed += rm(path, dryRun);
+    const seen = await newest(path);
+    if (seen && seen < cutoff) freed += await rm(path, dryRun);
   }
   return freed;
 }
@@ -538,13 +565,15 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   const dryRun = opts.dryRun ?? false;
   const grace = opts.graceHours ?? GRACE_HOURS;
   const live = await liveSet();
-  const logs = pruneLogs(opts.keepRuns ?? KEEP_RUNS, dryRun);
-  const scratch = pruneScratch(opts.scratchDays ?? SCRATCH_DAYS, dryRun);
-  const deps = live === null ? null : deadDeps(live, grace).reduce((sum, p) => sum + rm(p, dryRun), 0);
-  const incremental = staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace).reduce(
-    (sum, p) => sum + rm(p, dryRun),
-    0,
-  );
+  const logs = await pruneLogs(opts.keepRuns ?? KEEP_RUNS, dryRun);
+  const scratch = await pruneScratch(opts.scratchDays ?? SCRATCH_DAYS, dryRun);
+  let deps: number | null = null;
+  if (live !== null) {
+    deps = 0;
+    for (const p of deadDeps(live, grace)) deps += await rm(p, dryRun);
+  }
+  let incremental = 0;
+  for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
   return { ".loop/logs": logs, ".agent-tmp": scratch, "target/deps": deps, "target/incremental": incremental };
 }
 
@@ -564,23 +593,31 @@ export function freedLines(freed: Record<string, number | null>, verb = "freed")
 
 // ------------------------------------------------------------------------------------------- report
 
-function report(deep: boolean): void {
+async function report(deep: boolean): Promise<void> {
   const drive = WINDOWS ? (/^[A-Za-z]:/.exec(ROOT)?.[0] ?? "/") : "/";
   console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (tools/loop.py refuses to start a run below ${MIN_FREE_GB}G)`);
   console.log();
 
-  const targetTotal = walk(TARGET).total;
+  const [target, logs, scratchDir] = await Promise.all([walk(TARGET), walk(LOGDIR), walk(SCRATCH)]);
   const { files, names } = generations();
-  const logTotal = walk(LOGDIR).total;
-  const scratchTotal = walk(SCRATCH).total;
 
-  const inc = walk(join(TARGET, "debug", "incremental")).total + walk(join(TARGET, "release", "incremental")).total;
-  const staleInc = staleIncremental().reduce((sum, p) => sum + walk(p).total, 0);
+  // Both incremental figures come from the one walk of `target/`: under it, a cache file's path is
+  // `<profile>/incremental/<cache directory>/...`. Every path `walk` returns starts with its root and a
+  // separator, so cutting that off is the relative path; `path.relative` costs far more per file.
+  const stale = new Set(staleIncremental());
+  let inc = 0;
+  let staleInc = 0;
+  for (const f of target.files) {
+    const parts = f.path.slice(TARGET.length + 1).split(sep);
+    if (parts.length < 3 || parts[1] !== "incremental") continue;
+    if (parts[0] === "debug" || parts[0] === "release") inc += f.size;
+    if (parts.length > 3 && stale.has(join(TARGET, parts[0]!, "incremental", parts[2]!))) staleInc += f.size;
+  }
 
   const blank = `  ${"".padEnd(12)} ${"".padStart(8)}   `;
   console.log("in this repository");
   console.log(
-    `  target/       ${human(targetTotal).padStart(8)}   deps/: ${files} files for ${names} artifacts` +
+    `  target/       ${human(target.total).padStart(8)}   deps/: ${files} files for ${names} artifacts` +
       (names ? ` -- about ${fixed(files / names, 1)} generations` : ""),
   );
   console.log(
@@ -591,9 +628,9 @@ function report(deep: boolean): void {
     `${blank}\`--clean\` keeps what verify builds and anything written in the ` +
       `last ${GRACE_HOURS}h; release/deps is never swept`,
   );
-  console.log(`  .loop/logs    ${human(logTotal).padStart(8)}   kept: newest ${KEEP_RUNS} runs -- swept after every loop session`);
+  console.log(`  .loop/logs    ${human(logs.total).padStart(8)}   kept: newest ${KEEP_RUNS} runs -- swept after every loop session`);
   console.log(
-    `  .agent-tmp    ${human(scratchTotal).padStart(8)}   kept: written within ${SCRATCH_DAYS}d -- swept after every loop session`,
+    `  .agent-tmp    ${human(scratchDir.total).padStart(8)}   kept: written within ${SCRATCH_DAYS}d -- swept after every loop session`,
   );
   console.log();
 
@@ -603,7 +640,7 @@ function report(deep: boolean): void {
   const indent = `  ${"".padEnd(20)} ${"".padStart(8)}  `;
   for (const [name, path, what, how] of ELSEWHERE) {
     const shown = path.replace("{home}", home).replace("{tmp}", tmp);
-    const size = deep && isDir(shown) ? human(walk(shown).total).padStart(8) : "       ?";
+    const size = deep && isDir(shown) ? human((await walk(shown)).total).padStart(8) : "       ?";
     console.log(`  ${name.padEnd(20)} ${size}  ${shown}`);
     console.log(`${indent}${what}`);
     console.log(`${indent}$ ${how}`);
@@ -737,7 +774,7 @@ export async function run(args: string[]): Promise<number> {
   }
 
   if (!opts.clean) {
-    report(opts.deep);
+    await report(opts.deep);
     return 0;
   }
 
