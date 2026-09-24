@@ -1,0 +1,15 @@
+{
+  "title": "A program opens a WebSocket the way it makes a call, and holds it as a value that dies with its task",
+  "status": "accepted",
+  "scope": "how a Novis program opens a WebSocket to another server and talks over it — the door it is\nopened through, the schemes, the bounds, what owns the open socket, and how a test answers one. Not in\nscope: the server's half, which [0083](0083.md) settled and this decision does not touch;\n`permessage-deflate`; WebSocket over HTTP/2 (RFC 8441); reconnecting; a socket handed to another isolate;\nand the subprotocol libraries — STOMP, Socket.IO, GraphQL over WebSocket — that are packages built on\nthis.",
+  "dependsOn": [
+    "0058",
+    "0180",
+    "0182",
+    "0074",
+    "0083",
+    "0060"
+  ],
+  "dependsOnText": "[0058](0058.md) for the launderer, the address policy and the pin;\n[0180](0180.md) for the client whose door this row joins, its bag, its TLS trust and its per-core pool;\n[0182](0182.md) for the tunnel a proxied deployment reaches the other host through;\n[0074](0074.md) for a bound that has no unbounded spelling and a default that is a defect when it is one;\n[0083](0083.md) for `Core\\Socket\\Message`, the shape both halves now answer in;\n[0060](0060.md) for the admission test a transport passes and a flow does not.",
+  "validatedBy": "the four rules it creates are `designed` on acceptance; the goal's last stage fills\ntheir `guardedBy` from what stages 3–5 write — a scripted-peer conformance suite under\n`tests/conformance/core/`, and loopback Rust tests beside the ones\n`crates/nvs-stdlib/src/http/transport.rs` already carries for what a scripted peer cannot reach."
+}

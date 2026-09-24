@@ -1,0 +1,20 @@
+{
+  "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
+  "status": "shipped",
+  "because": [
+    "0156"
+  ],
+  "divergesFromPhp": "`$_POST` is populated before the program runs and leaves `php://input` empty for a multipart body; here nothing is read until a member asks, and which reader may follow which is stated rather than decided by `enable_post_data_reading`",
+  "seeAlso": [
+    "http-server/the-body-is-read-on-demand-under-two-caps",
+    "http-server/a-part-is-a-file-iff-it-carries-a-filename",
+    "http-server/an-upload-is-received-only-through-files",
+    "errors/ambiguous-input-refused",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
+    "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst",
+    "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst"
+  ]
+}

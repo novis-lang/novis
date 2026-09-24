@@ -1,0 +1,16 @@
+{
+  "title": "Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both",
+  "status": "designed",
+  "because": [
+    "0112",
+    "0081"
+  ],
+  "divergesFromPhp": "a Composer package may declare any PSR-4 prefix, including the application's; here a package file declaring `namespace App;` to reach the application's grants fails to compile",
+  "seeAlso": [
+    "security/grants-are-keyed-on-a-namespace",
+    "security/authority-is-the-enclosing-namespace",
+    "security/an-unmatched-namespace-holds-the-application",
+    "packaging/a-fetched-package-is-an-autoload-line"
+  ],
+  "guardedBy": []
+}

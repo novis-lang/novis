@@ -1,0 +1,17 @@
+{
+  "title": "A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric",
+  "status": "designed",
+  "because": [
+    "0041",
+    "0076"
+  ],
+  "divergesFromPhp": "an OpenTelemetry SDK installed as a library lets a program open a span around any function; here the set of things that become a span is closed and a function call is not in it",
+  "seeAlso": [
+    "observability/trace-events-carry-a-kind",
+    "observability/gc-pause-is-its-own-event",
+    "observability/spawn-is-its-own-event",
+    "observability/default-series",
+    "observability/a-registry-is-per-core-and-nothing-reads-it"
+  ],
+  "guardedBy": []
+}

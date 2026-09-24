@@ -1,0 +1,26 @@
+{
+  "title": "Programs",
+  "order": 10,
+  "rules": [
+    "programs/audience",
+    "programs/three-claims",
+    "programs/no-compatibility-promise",
+    "programs/slice-ranking",
+    "programs/memory-priority",
+    "programs/implementing",
+    "programs/implementing-with",
+    "programs/compile-target",
+    "programs/no-runtime-autoload",
+    "programs/autoload",
+    "programs/one-declaration-per-autoloaded-file",
+    "programs/path-case",
+    "programs/program-id",
+    "programs/bundle-trust-domain",
+    "programs/first-party-framework",
+    "programs/framework-core-half",
+    "programs/framework-web-package",
+    "programs/framework-refusals",
+    "programs/no-migration-runner",
+    "programs/nvs-new"
+  ]
+}

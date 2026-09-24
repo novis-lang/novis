@@ -1,0 +1,17 @@
+{
+  "title": "An options bag tells an omitted key from a written `null`, and `null` is the one spelling that removes",
+  "status": "accepted",
+  "scope": "how a `Core` member's trailing options bag ([0063](0063.md) R2) and a\nfixed-key shape parameter ([0135](0135.md))\nlet a call site say *\"leave this alone\"* and *\"clear this\"* as two different things; what an omitted\n**nullable** field materializes at the ABI; what a member is then allowed to read that distinction\nas; and the three members on `Core\\Uri` that spend it first, § 5. Not in scope: which *other*\nmembers adopt it, which is each member's own row in\n[docs/spec/01-core-library.md](../spec/01-core-library.md) — that file stays the home of every\nsignature, and a row lands there with its implementation, never ahead of one; a **user-declared**\nfunction's optional parameter, which is unchanged and § 3 says why; and the derived-codec table in\n[0071](0071.md) § 4, which already separates the two questions for a decoded payload\nand needs nothing from this.",
+  "dependsOn": [
+    "0063",
+    "0135",
+    "0022"
+  ],
+  "dependsOnText": "[0063](0063.md), whose R2 bag is the surface this changes;\n[0135](0135.md), whose § 3 fill list is the\nmechanism; and [0022](0022.md), whose § 3 storage state this\nreuses rather than inventing a second one.",
+  "validatedBy": "[crates/nvs-stdlib/src/registry.rs](../../crates/nvs-stdlib/src/registry.rs) —\nthe pair that today holds the invariant § 1 replaces, `a_shape_field_is_never_nullable` and\n`a_union_option_excludes_null`. § 1 renames them to `a_nullable_shape_field_omits_as_the_never_written_marker`\nand `a_nullable_option_omits_as_the_never_written_marker` and they hold the pairing rule instead,\nover the same rows; they land with the implementation, at loop goal `unowned-sweep` stage 2.",
+  "summary": {
+    "group": "core",
+    "headline": "An options bag tells an omitted key from a written `null`, and `null` removes",
+    "body": "An optional field of an options bag may be nullable, and leaving it out is not the same as\nwriting `null`. `$uri->with({})` leaves every component alone; `$uri->with({fragment: null})`\nremoves the fragment. Wherever a `Core` member accepts a written `null`, in a bag or as an\nordinary argument, it means remove and never some second operation the member invented. Fields\nthat are not nullable behave as before. `Core\\Uri` also has `queryParameter` and\n`withQueryParameter`, which edit one query parameter by name, something `with` cannot do because\na parameter's name is chosen at run time."
+  }
+}

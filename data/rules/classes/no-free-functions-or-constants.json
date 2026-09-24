@@ -1,0 +1,20 @@
+{
+  "title": "No `function` and no `const` may be declared outside a class body",
+  "status": "shipped",
+  "because": [
+    "0011",
+    "0008",
+    "0003"
+  ],
+  "divergesFromPhp": "a global function or a global constant cannot be declared at all — every callable is a method, every constant a class constant, and there is no exception for built-ins",
+  "seeAlso": [
+    "statements/static-is-a-member-modifier",
+    "statements/no-function-static-and-no-global",
+    "statements/storage-that-outlives-a-call",
+    "types/class-constant"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-top-level-function-must-be-a-method.nvst",
+    "tests/conformance/reject/a-top-level-constant-must-belong-to-a-class.nvst"
+  ]
+}

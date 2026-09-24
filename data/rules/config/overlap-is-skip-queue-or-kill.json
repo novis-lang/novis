@@ -1,0 +1,16 @@
+{
+  "title": "`overlap` is `skip` by default, `queue` holds exactly one pending run, and `kill` cancels before it starts",
+  "status": "shipped",
+  "because": [
+    "0073"
+  ],
+  "seeAlso": [
+    "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",
+    "concurrency/deferred-is-bounded-by-two-directives",
+    "concurrency/cancellation-runs-no-user-code"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/schedule.rs",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

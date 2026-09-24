@@ -1,0 +1,12 @@
+{
+  "lead": "A compiled method's argument array starts with a receiver, so a hand-built call needs `1 + arity` slots.",
+  "body": "Slot 0 is `$this` or the called class descriptor and the first declared parameter is slot 1 (`nvs_ir::lower`, `nvs_runtime::NvsFn`), so a Rust caller passing only the declared arguments reads one `Value` past its slice with no diagnostic — the tell is an answer that is a neighbouring argument or a plausible zero. Call through `nvs_codegen::Unit`'s `call_static`, `call_on_new_instance` or `build_fixture`; `raw_function` is for `benches/abi-probe`'s timed loops only.",
+  "files": [
+    "benches/abi-probe",
+    "crates/nvs-codegen/src/lib.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-codegen/src/lib.rs:fn raw_function"
+  }
+}

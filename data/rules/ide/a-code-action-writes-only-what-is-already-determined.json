@@ -1,0 +1,17 @@
+{
+  "title": "A code action that writes may write only text the type system has already fully determined, and never makes a choice",
+  "status": "designed",
+  "because": [
+    "0108",
+    "0114"
+  ],
+  "divergesFromPhp": "implement-missing-members copies real signatures instead of guessing at them, and there is no getter/setter generator because property hooks make the pair pointless",
+  "seeAlso": [
+    "ide/narrowing-is-a-diff-never-a-save-time-fix",
+    "classes/property-observer",
+    "statements/inout-is-the-by-reference-spelling",
+    "routing/a-quick-fix-writes-a-derived-path",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": []
+}

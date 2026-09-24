@@ -1,0 +1,18 @@
+{
+  "title": "An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`",
+  "status": "designed",
+  "because": [
+    "0097",
+    "0095",
+    "0197"
+  ],
+  "divergesFromPhp": "there is no `ALLOWED_HOSTS`-style allowlist and no `$_SERVER['HTTP_HOST']`: the host mounts are the allowlist, and nginx must send `proxy_set_header Host $host`",
+  "seeAlso": [
+    "http-server/a-mount-table-expands-at-boot",
+    "http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs"
+  ]
+}

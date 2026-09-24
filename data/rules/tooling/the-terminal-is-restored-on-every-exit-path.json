@@ -1,0 +1,20 @@
+{
+  "title": "Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0020"
+  ],
+  "divergesFromPhp": "a script that dies mid-prompt does not leave the shell in raw mode; restoration is the runtime's obligation rather than a `finally` the author remembers",
+  "seeAlso": [
+    "tooling/in-place-output-is-a-scoped-live-region",
+    "tooling/the-tty-belongs-to-the-main-task",
+    "errors/escalation-ladder",
+    "errors/panics-bypass-user-code",
+    "errors/engine-floor"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/cli.rs",
+    "tests/conformance/core/a-progress-bar-nests-inside-a-live-region.nvst"
+  ]
+}

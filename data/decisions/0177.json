@@ -1,0 +1,10 @@
+{
+  "title": "`Core\\Sse` is one type behind two doors, its waits are derived rather than configured, and every framing hazard is refused instead of stripped",
+  "status": "accepted",
+  "scope": "the event-stream surface — the two doors onto it, what `receive()` means on each, the\nthree refusals its framing has, the two waits an operator does not write, and the headers it opens\nwith. It decides nothing about the body a stream writes into, which [0176](0176.md) owns, and\nnothing about the isolate a connection is, which [0083](0083.md) owns.",
+  "dependsOn": [
+    "0083",
+    "0176"
+  ],
+  "validatedBy": "`tests/conformance/core/an-event-stream-refuses-what-a-client-could-not-act-on.nvst`,\n`tests/conformance/core/an-event-stream-that-ends-with-its-request-frames-every-event.nvst`,\n`crates/nvs-server/src/bounds.rs`'s cases over the derived beat and the drawn hint."
+}

@@ -1,0 +1,195 @@
+{
+  "title": "every Core class and every diagnostic code carries its card, and the binary's help reaches every feature",
+  "milestone": null,
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-stdlib/src/registry.rs",
+      "tools/class-cards.py",
+      "crates/nvs-lsp/src/card.rs",
+      "crates/nvs-stdlib/src/json.rs",
+      "crates/nvs-cli/src/agent.rs",
+      "crates/nvs-diagnostics/src/lib.rs",
+      "tools/dossier.py",
+      "tools/data/dossier-policy.toml",
+      "tools/data/help-backlog.toml"
+    ],
+    "rules": [
+      "core-api/reference-card",
+      "ide/a-completion-row-reads-as-a-declaration"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message",
+      "A `Core` member — the five edits"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Writing a test case > a -p*"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the cards",
+      "context": {
+        "rules": [],
+        "adrs": [
+          "0203"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the index entries",
+      "context": {
+        "rules": [
+          "tooling/an-agent-asks-the-binary",
+          "tooling/the-index-is-one-line-per-member",
+          "tooling/the-index-names-every-key-command-and-code"
+        ],
+        "adrs": [
+          "0216"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "the code cards",
+      "context": {
+        "rules": [
+          "tooling/a-diagnostic-code-carries-its-card"
+        ],
+        "adrs": [
+          "0216"
+        ],
+        "shapes": [
+          "A diagnostic"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "help is owed",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "testing/roster-is-derived"
+        ],
+        "adrs": [
+          "0216"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "every-registry-row-class-included-carries-its-card-and-no",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "every registry row, class included, carries its card, and no carded class is still listed as owing one",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "every_registry_row_carries_a_reference_card"
+      ]
+    },
+    {
+      "id": "no-core-class-still-owes-a-card",
+      "kind": "command",
+      "stage": 2,
+      "name": "no Core class still owes a card",
+      "argv": [
+        "python",
+        "tools/class-cards.py",
+        "--check"
+      ],
+      "want": [
+        "every Core class carries its card"
+      ]
+    },
+    {
+      "id": "every-configuration-key-command-flag-and-diagnostic-code-is",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "every configuration key, command, flag and diagnostic code is an index entry",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "every_key_command_flag_and_code_is_an_index_entry"
+      ]
+    },
+    {
+      "id": "every-diagnostic-code-carries-its-card-or-is-listed-as-owing",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "every diagnostic code carries its card or is listed as owing one, and no code still owes one",
+      "args": [
+        "test",
+        "-p",
+        "nvs-diagnostics"
+      ],
+      "tests": [
+        "every_code_carries_its_card_or_is_listed",
+        "no_code_still_owes_a_card"
+      ]
+    },
+    {
+      "id": "dossier-help-is-owed-the-whole-roster-owes-nothing-and-the",
+      "kind": "command",
+      "stage": 5,
+      "name": "dossier: help is owed, the whole roster owes nothing, and the help backlog is empty",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster",
+        "hostile, about, help",
+        "help backlog: empty"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

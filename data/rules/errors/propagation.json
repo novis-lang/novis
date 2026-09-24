@@ -1,0 +1,20 @@
+{
+  "title": "An error propagates as a checked return, never by unwinding",
+  "status": "shipped",
+  "because": [
+    "0002"
+  ],
+  "divergesFromPhp": "an exception is a status value checked after every call, not a stack unwind",
+  "seeAlso": [
+    "errors/helper-abi",
+    "errors/throw-is-not-slower",
+    "errors/escalation-ladder"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/a-throw-crosses-two-frames.nvst",
+    "crates/nvs-codegen/tests/throwing.rs",
+    "crates/nvs-codegen/tests/calls.rs",
+    "benches/abi-probe/tests/invariants.rs",
+    "benches/abi-probe/tests/unwind_unavailable.rs"
+  ]
+}

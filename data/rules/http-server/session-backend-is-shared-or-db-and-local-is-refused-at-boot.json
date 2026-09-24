@@ -1,0 +1,24 @@
+{
+  "title": "`[session] backend` admits `shared` and `db`, and writing `local` is a boot refusal naming the file it was written in",
+  "status": "shipped",
+  "because": [
+    "0139",
+    "0059",
+    "0005",
+    "0219"
+  ],
+  "divergesFromPhp": "`session.save_handler = files` and an APCu-backed handler have no counterpart; the choices are the shared tier or the database, and `local` is `E0626` where it is written rather than a session that forgets people",
+  "seeAlso": [
+    "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
+    "http-server/no-session-block-means-no-store",
+    "config/cache-shared-is-the-grant-over-the-configured-store",
+    "config/system-means-a-request-may-not-set-it",
+    "core-api/two-cache-tiers"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/session.rs",
+    "crates/nvs-stdlib/src/session.rs",
+    "tests/conformance/core/a-session-survives-a-request-on-another-core.nvst",
+    "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "summary": "octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack`",
+  "keywords": [
+    "strlen",
+    "ord",
+    "chr",
+    "substr",
+    "strpos",
+    "strcmp",
+    "str_contains",
+    "str_starts_with",
+    "str_ends_with",
+    "str_repeat",
+    "implode",
+    "pack",
+    "unpack",
+    "binary string",
+    "byte offset",
+    "magic bytes",
+    "wire format",
+    "bytes"
+  ]
+}

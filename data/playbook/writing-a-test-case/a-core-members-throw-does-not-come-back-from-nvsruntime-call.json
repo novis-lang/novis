@@ -1,0 +1,9 @@
+{
+  "lead": "A `Core` member's throw does not come back from `nvs_runtime::call` — it is on the context, and the `Err` is a bare status integer.",
+  "body": "Asserting a refusal's wording off the `expect_err` value reads `the refusal did not name the missing connection: 1`. `Fault::thrown` records the message on the context, so read `ctx.pending()` after the call; `an_upgrade_on_a_request_no_connection_offered_a_slot_for_is_refused` is the shape.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

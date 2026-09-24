@@ -1,0 +1,21 @@
+{
+  "title": "Three sites accept a `class<T>`, and every other operand is still refused there",
+  "status": "shipped",
+  "because": [
+    "0125",
+    "0007",
+    "0126",
+    "0192"
+  ],
+  "seeAlso": [
+    "types/class-reference",
+    "types/property-key-access",
+    "types/type-test",
+    "php-migration/one-type-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst",
+    "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
+    "crates/nvs-ir/tests/class_reference.rs"
+  ]
+}

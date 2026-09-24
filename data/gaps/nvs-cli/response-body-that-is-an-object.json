@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/openapi.rs",
+  "title": "A response body that is an object.",
+  "text": "The declared return type is on the row and [`responses`] renders it, but only through [`schema`] — so a handler answering with a *class* gets the empty schema, because the fields of one are `rule:core-classes/derive-attribute`'s codec and the codec is not on the row. It is that roster and not the class's declared properties: a property map holds the private ones too, and a document that published those would be leaking exactly what `#[Json\\Derive]` exists to decide. Carrying that roster on the row is M10's, with the rest of a document a strict validator accepts (`docs/plan/m10.md`); [`schema`] renders it then with no change here.",
+  "milestone": "M10"
+}

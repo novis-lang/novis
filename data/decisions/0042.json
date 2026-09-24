@@ -1,0 +1,11 @@
+{
+  "title": "The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable",
+  "status": "accepted",
+  "scope": "the on-disk half of the \"Code cache\" decision the plan already names (content-addressed,\nBLAKE3) and M6's \"content-addressed artifact cache with integrity verification and a refusal to use a\nworld-writable cache directory.\" This ADR is the only copy of the file layout, the header shape, the\nwrite/verify/evict mechanics, and the `opcache.*` directives that govern it. It does not touch the\nin-process `DashMap<UnitKey, CompileState>` cache or the hot-reload pointer swap — those stay exactly as\n`rule:config/an-edit-reaches-the-next-request-without-a-restart` defines them.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Compiled code is cached on disk as immutable files, verified before they run",
+    "body": "Compiled code is kept as one file per compiled unit, never touched again once written. A file's\nname is a hash of the source with the machine, the compiler build and the loaded extensions, so\nan artifact built for the wrong machine is not found at all. Each file carries its own header\nand checksum; a reader verifies all of it, copies it into memory it owns, and only then makes\nthose pages executable. The checksum guards against corruption; a hostile neighbour is kept out\nby refusing a cache directory anyone else can write to."
+  }
+}

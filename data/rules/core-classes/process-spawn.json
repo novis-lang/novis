@@ -1,0 +1,16 @@
+{
+  "title": "`spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type",
+  "status": "shipped",
+  "because": [
+    "0044"
+  ],
+  "seeAlso": [
+    "core-classes/process-run",
+    "core-classes/process-is-argv-only"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/process.rs",
+    "tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst",
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

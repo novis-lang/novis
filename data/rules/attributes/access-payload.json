@@ -1,0 +1,19 @@
+{
+  "title": "`#[Access]` names one resolvable decision in `allow`, and one of them covers a method",
+  "status": "shipped",
+  "because": [
+    "0096",
+    "0046",
+    "0007",
+    "0110"
+  ],
+  "seeAlso": [
+    "attributes/access-is-a-required-sibling",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/repeatable"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/routes.rs",
+    "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst"
+  ]
+}

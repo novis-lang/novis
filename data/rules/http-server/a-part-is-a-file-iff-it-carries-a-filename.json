@@ -1,0 +1,23 @@
+{
+  "title": "A part is a file part iff its `Content-Disposition` carries `filename`; every other part is buffered into `post()`",
+  "status": "shipped",
+  "because": [
+    "0105",
+    "0095",
+    "0024",
+    "0156"
+  ],
+  "divergesFromPhp": "a part answers `name()`, `filename()` and `contentType()` as tainted strings through members, and there is no `size`, no `tmp_name` and no `error` slot",
+  "seeAlso": [
+    "http-server/an-upload-is-received-only-through-files",
+    "http-server/request-body-and-upload-total-are-two-caps",
+    "security/tainted-sources",
+    "errors/ambiguous-input-refused",
+    "errors/multipart-part-count"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-file-parts-three-readers-are-all-tainted-and-a-plain-binding-refuses.nvst",
+    "tests/conformance/core/a-file-parts-filename-is-a-claim-and-a-path-sink-refuses-it.nvst",
+    "crates/nvs-stdlib/src/request.rs"
+  ]
+}

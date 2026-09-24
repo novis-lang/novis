@@ -1,0 +1,16 @@
+{
+  "title": "An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0051"
+  ],
+  "seeAlso": [
+    "packaging/three-tiers",
+    "packaging/values-cross-as-handles",
+    "core-classes/image-pipeline"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

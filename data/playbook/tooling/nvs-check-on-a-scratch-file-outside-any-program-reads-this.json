@@ -1,0 +1,12 @@
+{
+  "lead": "`nvs check` on a scratch file outside any program reads this repository's `nvs.toml` and aborts on its `[db]` block.",
+  "body": "The block's `tls_ca_file` names `tests/db/ca.crt`, which is absent, so `E0605` stops the run before the file is looked at. Ask `nvs ast <file>` for a parse question, or hand `nvs check --config` a configuration with no `[db]`.",
+  "files": [
+    "tests/db/ca.crt",
+    "nvs.toml"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2027-03-31"
+  }
+}

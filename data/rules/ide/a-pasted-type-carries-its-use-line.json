@@ -1,0 +1,17 @@
+{
+  "title": "A type name pasted from one file into another brings the `use` line that resolves it, read at copy time from the file it came from",
+  "status": "shipped",
+  "because": [
+    "0201"
+  ],
+  "seeAlso": [
+    "ide/the-request-set-is-closed",
+    "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+    "ide/an-undeclared-name-offers-its-import",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/imports.rs"
+  ]
+}

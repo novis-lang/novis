@@ -1,0 +1,15 @@
+{
+  "title": "`nvs --help` is written for the person reading it, and it names no PHP input",
+  "status": "accepted",
+  "scope": "what a doc comment clap renders may contain, and the removal of `.php` from every input\nthe CLI names — the four subcommands that never read an extension, and `nvs test`, which does. Not\nin scope: which short flags exist, which is [0151](0151.md)'s; what `nvs info` reports, which is\n[0065](0065.md)'s; and the lexer's treatment of a `<?php` tag, which is\n`rule:statements/nvs-is-the-only-open-tag` and unchanged.",
+  "dependsOn": [
+    "0151"
+  ],
+  "dependsOnText": "[0151](0151.md), which made the banner the first thing a user reads.",
+  "validatedBy": "`nvs --help`, and every subcommand's `--help`, carrying no `rule:` token, no bare\n`§`, no `docs/` path and no `.php`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The nvs help text is written for the person reading it, and names no PHP input",
+    "body": "The argument parser prints a command's doc comment verbatim, so those comments are the program's\noutput rather than notes about it — and they had been written as notes, citing internal rules\nand pointing at documents a user cannot open. Each citation moves into an ordinary comment a\nline below, where the project still finds it, and what a user sees now describes the flag. In\nthe same pass, the commands that never read a file's extension stop advertising a .php input,\nand the one that does read it stops taking one."
+  }
+}

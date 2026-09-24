@@ -1,0 +1,17 @@
+{
+  "title": "Planning is an ordinary read, and applying takes `db.schema` under a member named for its risk",
+  "status": "shipped",
+  "because": [
+    "0145",
+    "0067",
+    "0084"
+  ],
+  "seeAlso": [
+    "core-classes/db-capabilities",
+    "core-classes/schema-plan",
+    "core-classes/queue-storage-is-a-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst"
+  ]
+}

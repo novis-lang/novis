@@ -1,0 +1,11 @@
+{
+  "title": "Literal arguments to intrinsic `Core` calls are validated and prepared at compile time",
+  "status": "accepted",
+  "scope": "a closed list of `Core` methods the compiler knows by name; what it does when their\npattern-like arguments are compile-time constants; and the rule that this never changes observable\nbehaviour. Not in scope: general constant folding of arithmetic, which is an ordinary optimisation\nneeding no ADR.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A literal regex, URI or format string is checked while building, not when run",
+    "body": "A short, closed list of `Core` methods take an argument that is really a small program: a regex,\na URI, a date format, a format string. When that argument is a constant, the compiler validates\nit while building and prepares whatever the call would otherwise have built on first use. A\nmalformed literal becomes a build error instead of an exception on the first request to reach\nthat line. The prepared path and the ordinary run-time path share one implementation, so\npreparation can only give the same answer earlier, never a different one."
+  }
+}

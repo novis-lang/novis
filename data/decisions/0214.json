@@ -1,0 +1,13 @@
+{
+  "title": "every `Core` name hovers to its card and jumps to a generated stub",
+  "status": "accepted",
+  "scope": "what an editor answers for a name under `Core` that is not a resolved member call — a\nclass, an enum, an enum case, a constant, a compiler attribute, a namespace segment — on hover, on\ngo-to-definition and in the semantic tokens; the stub tree those jumps open, where it lives and who\nwrites it; and the reference intros compiled into the registry. It does not change what a `Core`\nmember call hovers to, which is [0117](0117.md)'s card, or what a completion row shows, which is\n[0203](0203.md)'s.",
+  "dependsOn": [
+    "0117",
+    "0203",
+    "0099",
+    "0195"
+  ],
+  "dependsOnText": "[0117](0117.md) for the reference card, [0203](0203.md) for the class line and the\ncard renderer, [0099](0099.md) for the request set and the one server behind two clients,\n[0195](0195.md) for the per-version storage the extension already keeps.",
+  "validatedBy": "`crates/nvs-lsp/src/stubs.rs`'s tests (every stub parses, every name and member\nhas a line, one file is frozen verbatim, a tree is written once and rewritten when a file is\nmissing), the `tests/lsp/hover/`, `tests/lsp/definition/` and `tests/lsp/semantic/` cases that name\nthis record's rule, `crates/nvs-types/src/derive.rs`'s attribute roster, `crates/nvs-stdlib`'s\n`every_intro_page_names_a_registry_class`, and `editors/vscode/test/client/stubs.test.ts`."
+}

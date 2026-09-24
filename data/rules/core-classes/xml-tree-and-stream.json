@@ -1,0 +1,23 @@
+{
+  "title": "`Core\\Xml` is a materialising tree beside a one-window stream, and no operation is available through both",
+  "status": "shipped",
+  "because": [
+    "0168"
+  ],
+  "divergesFromPhp": "`DOMDocument`, `SimpleXMLElement`, `XMLReader` and the expat callbacks are four vocabularies for one document — there are two here, they share a node family, and they share no operation",
+  "seeAlso": [
+    "core-classes/html-parsing",
+    "core-classes/xml-refuses-by-construction",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/xml-a-reader-answers-one-node-at-a-time-in-document-order.nvst",
+    "tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst",
+    "tests/conformance/core/xml-a-writer-refuses-every-call-that-would-not-leave-a-document.nvst",
+    "tests/conformance/core/xml-a-writers-indent-is-layout-and-never-lands-beside-character-data.nvst",
+    "tests/conformance/core/xml-a-node-writes-its-own-subtree-and-escapes-what-it-carries.nvst",
+    "tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst",
+    "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
+    "tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "title": "Every execution context binds `echo` to a sink, and the default sink is the terminal",
+  "status": "shipped",
+  "because": [
+    "0088",
+    "0086",
+    "0024",
+    "0092",
+    "0177"
+  ],
+  "divergesFromPhp": "`echo` in a scheduled script, a job worker or a test neutralizes control bytes rather than writing raw, and only an HTTP request makes it HTML",
+  "seeAlso": [
+    "tooling/terminal-output-is-a-sink",
+    "tooling/the-tty-belongs-to-the-main-task",
+    "core-classes/html-auto-escape",
+    "security/response-body-is-one-typed-member",
+    "security/capture-answers-the-carrier",
+    "security/isolate-output-is-captured",
+    "errors/renderings",
+    "config/a-scheduled-run-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst",
+    "tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst",
+    "crates/nvs-types/tests/response.rs"
+  ]
+}

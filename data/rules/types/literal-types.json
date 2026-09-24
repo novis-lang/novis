@@ -1,0 +1,24 @@
+{
+  "title": "A `string` or `int` literal is its own type, and a union of them is a closed set",
+  "status": "shipped",
+  "because": [
+    "0047",
+    "0007",
+    "0024",
+    "0033",
+    "0066"
+  ],
+  "seeAlso": [
+    "types/constant-in-type-position",
+    "types/enum-case-type",
+    "types/conversion",
+    "types/narrowing"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-conversion-into-a-closed-set-of-literals-is-checked-at-run-time.nvst",
+    "tests/conformance/lang/a-conversion-into-a-set-of-mixed-literal-kinds-tags-its-operand.nvst",
+    "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-true-or-false-target-is-a-literal-type-of-bool.nvst",
+    "crates/nvs-types/tests/literal_types.rs"
+  ]
+}

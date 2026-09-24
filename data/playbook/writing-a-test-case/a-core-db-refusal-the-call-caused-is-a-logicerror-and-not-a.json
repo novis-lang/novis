@@ -1,0 +1,11 @@
+{
+  "lead": "A `Core\\Db` refusal the *call* caused is a `LogicError` and not a `Core\\Db\\DbError`, so a case catching the wrong one dies on an uncaught throw with the right message.",
+  "body": "`nvs-db` builds no fault and answers in `io::ErrorKind`s, and `crates/nvs-stdlib/src/db/bind.rs:149` splits them: `InvalidInput` is every mistake in the call — a nested `transaction` asking for its own isolation level, a value with no bound form — while only a refusal the server itself worded is a `DbError` carrying a `kind`. Read the driver member's own `# Errors` paragraph for which one it answers before writing the `catch`.",
+  "files": [
+    "crates/nvs-stdlib/src/db/bind.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-18"
+  }
+}

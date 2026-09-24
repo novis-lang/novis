@@ -1,0 +1,17 @@
+{
+  "title": "Tier 4 — the floor is native, bounded, and gives up rather than escalating",
+  "status": "shipped",
+  "because": [
+    "0020",
+    "0086",
+    "0106"
+  ],
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/handler-script",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-target-both-writers-land-in-the-destination-the-deployment-named.nvst"
+  ]
+}

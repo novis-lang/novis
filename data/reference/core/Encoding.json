@@ -1,0 +1,23 @@
+{
+  "summary": "the seam between `string` and `bytes` — charset conversion, and base64, base64url, base32 and hex spellings of a buffer",
+  "keywords": [
+    "iconv",
+    "mb_convert_encoding",
+    "mb_check_encoding",
+    "utf8_encode",
+    "utf8_decode",
+    "base64_encode",
+    "base64_decode",
+    "bin2hex",
+    "hex2bin",
+    "unpack(\"H*\")",
+    "base32",
+    "charset",
+    "UTF-8",
+    "Latin1",
+    "ISO-8859-1",
+    "Windows-1252",
+    "UTF-16",
+    "Shift_JIS"
+  ]
+}

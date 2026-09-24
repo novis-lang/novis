@@ -1,0 +1,18 @@
+{
+  "title": "No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0051"
+  ],
+  "divergesFromPhp": "`setlocale`, `date_default_timezone_set`, the internal array pointer and every error global are absent; a `Zone` is an argument at every instant↔calendar conversion",
+  "seeAlso": [
+    "core-api/removals",
+    "core-api/tier-placement",
+    "statements/no-function-static-and-no-global"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/cldr.rs",
+    "crates/nvs-config/src/schedule.rs"
+  ]
+}

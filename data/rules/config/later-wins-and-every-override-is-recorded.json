@@ -1,0 +1,20 @@
+{
+  "title": "The tree is one ordered stream, a later assignment wins, and every override is recorded with both origins",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0064"
+  ],
+  "divergesFromPhp": "an include may override the file that pulled it in — the base-plus-local shape — but only because the override is reported; nothing is shadowed silently the way a later `php.ini` line shadows an earlier one",
+  "seeAlso": [
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "config/a-value-array-replaces-and-a-table-appends",
+    "config/check-and-dump-audit-the-tree-offline",
+    "config/every-matching-app-block-applies-least-specific-first"
+  ],
+  "guardedBy": [
+    "tests/conformance/config/a-later-file-wins-and-both-origins-are-reported.nvst",
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/tests/parse.rs"
+  ]
+}

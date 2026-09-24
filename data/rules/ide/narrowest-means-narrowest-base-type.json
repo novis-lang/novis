@@ -1,0 +1,17 @@
+{
+  "title": "The synthesized element type is the canonical union of the elements' base types, recursed through nested literals and bounded at depth 32",
+  "status": "designed",
+  "because": [
+    "0114",
+    "0047",
+    "0007"
+  ],
+  "seeAlso": [
+    "ide/narrow-an-annotation-to-its-literal",
+    "types/literal-types",
+    "types/enum-case-type",
+    "types/unions-and-mixed",
+    "types/arrays"
+  ],
+  "guardedBy": []
+}

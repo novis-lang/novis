@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/decimal.rs",
+  "title": "Nothing inlines.",
+  "text": "That ADR expects `+`, `-` and comparison at equal scale to become i128 instructions in the emitted code; today every operator is an out-of-line helper call. That is a latency question (priority 3) to close in the backend, not a semantic one — the results are identical either way.",
+  "milestone": "M12"
+}

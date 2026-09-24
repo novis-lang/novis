@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/arr.rs",
+  "title": "A callback that reshapes the subject reshapes what the walk is reading.",
+  "text": "Every member here borrows its subject ([`crate`]'s *Arguments are borrowed, never consumed*), so a subject reached through a static or instance property has no second reference while the member holds it: a predicate appending to that property appends under the cursor, and [`nvs_core_arr_filter`] over it walks the entries it is adding until the request's memory limit. PHP's `array_filter` walks its own copy and ends, and Novis's own `foreach` holds a reference for the loop's length so the body's write copies first. The fix is one retained reference for the length of the walk in every member that calls back into Novis code, which prices a refcount pair onto every one of those calls and is a decision about the helper convention rather than about one member. `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs` step 4 is the attack, and it passes: the ending is the memory ceiling rather than a crash.",
+  "milestone": "M11"
+}

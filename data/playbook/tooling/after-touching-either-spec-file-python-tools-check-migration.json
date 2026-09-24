@@ -1,0 +1,9 @@
+{
+  "lead": "After touching either spec file, `python tools/check-migration.py`; after moving or renaming a doc, `python tools/check-links.py`.",
+  "body": "The link check reports broken *and* mis-cased relative links.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

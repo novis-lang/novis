@@ -1,0 +1,22 @@
+{
+  "title": "`implements I by $field` forwards every member `I` requires to that property",
+  "status": "shipped",
+  "because": [
+    "0043",
+    "0022",
+    "0038"
+  ],
+  "seeAlso": [
+    "classes/no-traits",
+    "classes/member-conflict-is-an-error",
+    "classes/definite-property-initialization",
+    "classes/an-unwritten-property-read-throws",
+    "statements/inout-is-written-at-the-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
+    "tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst",
+    "tests/conformance/class/a-delegated-member-the-forward-cannot-express-is-refused.nvst",
+    "tests/conformance/class/two-interfaces-delegating-to-one-field-both-forward-to-it.nvst"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Types are declared, checked, and never change by themselves",
+  "status": "accepted",
+  "scope": "the type grammar; the declaration requirement at every binding site; `uint`; typed and\nnested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of\nevery arithmetic operator",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "Everything has a written type, and a type never changes on its own",
+    "body": "Every variable, parameter, property, constant and return value says what it holds, and that\nnever silently becomes something else. A value changes type only where you write the conversion\nout, and a conversion that would lose information fails loudly instead of quietly rounding or\ntruncating. There is one escape hatch, for the cases that genuinely are not known ahead of time,\nand it is the only unchecked position in the language."
+  }
+}

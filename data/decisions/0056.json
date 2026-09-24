@@ -1,0 +1,11 @@
+{
+  "title": "Regex runs on a linear-time engine by default; backtracking is opt-in and budgeted",
+  "status": "accepted",
+  "scope": "which regular-expression engine `Core\\Regex` uses, when the backtracking engine is reached,\nwhat happens when its budget is exhausted, and which patterns are refused. Not in scope: the `Core\\Regex`\nmethod roster, which M8 designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Regular expressions run in linear time unless a pattern needs backtracking",
+    "body": "`Core\\Regex` runs on an engine that cannot be made to blow up: matching time grows linearly with\nthe input. Patterns that need lookaround or backreferences run on a second, backtracking engine\nunder a step budget, and exhausting the budget throws. PHP's equivalent limit makes `preg_match`\nreturn `false`, a value almost nobody checks, so its denial-of-service guard becomes a wrong\nanswer. When the pattern is a literal, which engine it needs is known while building, so `nvs\ncheck` can report a backtracking pattern on a request path."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "title": "In-place output is a scoped live region the runtime paints, never a cursor primitive",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0067"
+  ],
+  "divergesFromPhp": "there is no `\\r`-and-overwrite progress bar and no cursor movement; `Cli::live` and `Cli::progress` hand the body a handle and paint nothing at all on a pipe",
+  "seeAlso": [
+    "tooling/the-terminal-is-restored-on-every-exit-path",
+    "tooling/the-terminal-profile-resolves-once",
+    "tooling/no-raw-handle-onto-standard-output",
+    "core-classes/db-transactions"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-live-region-answers-what-its-body-computed.nvst",
+    "tests/conformance/core/a-live-handle-is-dead-once-its-region-has-closed.nvst",
+    "tests/conformance/core/a-progress-bar-counts-toward-its-total-and-answers-its-body.nvst",
+    "tests/conformance/core/cli-a-live-regions-rows-are-the-sinks-own-table.nvst"
+  ]
+}

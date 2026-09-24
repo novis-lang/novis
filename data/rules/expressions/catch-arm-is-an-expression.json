@@ -1,0 +1,17 @@
+{
+  "title": "An arm body is an expression, which admits `throw` and refuses `return` by name",
+  "status": "shipped",
+  "because": [
+    "0119"
+  ],
+  "seeAlso": [
+    "expressions/catch-expression",
+    "expressions/catch-result-type",
+    "expressions/bare-throwable-arm-warns"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-return-in-a-catch-arm-is-refused-naming-the-block-form.nvst",
+    "tests/conformance/lang/a-throw-arm-leaves-through-the-enclosing-finally.nvst",
+    "crates/nvs-types/tests/catch_expression.rs"
+  ]
+}

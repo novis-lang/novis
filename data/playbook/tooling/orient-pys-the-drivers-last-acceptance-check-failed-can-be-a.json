@@ -1,0 +1,11 @@
+{
+  "lead": "`orient.py`'s \"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED\" can be a record from the *previous* run, already repaired.",
+  "body": "The ledger keeps the last *recorded* result in `.loop/log.md` across the `## run started` boundary, so a failure repaired at the end of a run is what the next run's first session reads. Two calls settle it: `git log --format=%ad --date=iso <the fixing commit>` against the `started:` line the pack prints, and running the check's own `argv` by hand.",
+  "files": [
+    "tools/orient.py"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/orient.py:LAST ACCEPTANCE CHECK FAILED"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "title": "The address policy lives in the capability, so every client obeys it and none of them may hold its own",
+  "status": "shipped",
+  "because": [
+    "0058",
+    "0118",
+    "0055",
+    "0051"
+  ],
+  "seeAlso": [
+    "security/net-address-policy",
+    "security/capability-check-at-the-door",
+    "security/outbound-url-is-a-sink"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst"
+  ]
+}

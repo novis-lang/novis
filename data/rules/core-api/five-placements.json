@@ -1,0 +1,17 @@
+{
+  "title": "A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered",
+  "status": "shipped",
+  "because": [
+    "0051",
+    "0003",
+    "0081"
+  ],
+  "seeAlso": [
+    "core-api/tier-placement",
+    "core-api/tier-roster",
+    "core-api/core-means-always-present"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs"
+  ]
+}

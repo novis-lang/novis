@@ -1,0 +1,18 @@
+{
+  "title": "A visibility keyword on a parameter promotes it to a property only in the `constructor`",
+  "status": "shipped",
+  "because": [
+    "0043",
+    "0022",
+    "0094"
+  ],
+  "seeAlso": [
+    "classes/constructor-is-a-method-named-constructor",
+    "classes/definite-property-initialization",
+    "classes/delegation-by-field"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-visibility-keyword-promotes-only-in-the-constructor.nvst",
+    "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
+  ]
+}

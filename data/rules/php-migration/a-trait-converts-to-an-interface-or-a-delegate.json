@@ -1,0 +1,17 @@
+{
+  "title": "`nvs convert` turns a stateless trait into an interface with defaults and a stateful one into a delegate, and names what it cannot decide",
+  "status": "designed",
+  "because": [
+    "0043"
+  ],
+  "divergesFromPhp": "`use T;` becomes `implements T`, a trait with state becomes a `{Trait}Impl` delegate flagged for review, and a trait `static` or a callback into the consuming class is a `TODO`",
+  "seeAlso": [
+    "classes/no-traits",
+    "classes/interface-default-methods",
+    "classes/delegation-by-field",
+    "classes/member-conflict-is-an-error",
+    "statements/nothing-gets-a-second-name",
+    "statements/static-is-a-member-modifier"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Exceptions propagate by checked return, not by unwinding",
+  "status": "accepted",
+  "scope": "how an Novis exception and a contained runtime panic cross a native\nframe; the normative call ABI every compiled function and every runtime helper carries; and the\n`catch_unwind` wrapper that keeps a panic inside one request. Not in scope: what happens *at* the\nrequest boundary once a `FATAL` arrives there, which is [0020](0020.md).",
+  "dependsOn": [],
+  "validatedBy": "[`benches/abi-probe`](../../benches/abi-probe/) — `tests/unwind_unavailable.rs`\n(the premise), `tests/invariants.rs` (propagation and containment), `tests/perf_guards.rs` (the\ncost). Originally spikes #1 and #2, on Rust 1.97.1 + Cranelift 0.128.4, `x86_64-pc-windows-msvc`.",
+  "summary": {
+    "group": "foundations",
+    "headline": "Errors travel home on every call’s return value",
+    "body": "When something throws, the failure is handed back as a value that each call checks and passes\non, rather than by tearing the stack apart the way most languages do. The machine code Novis\ngenerates carries no tables for the operating system to unwind, so this is the only way it could\nwork. It also means a crash deep inside the runtime becomes one failed request instead of a dead\nserver."
+  }
+}

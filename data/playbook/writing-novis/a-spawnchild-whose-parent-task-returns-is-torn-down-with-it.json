@@ -1,0 +1,11 @@
+{
+  "lead": "A `spawn_child` whose parent task returns is torn down with it, and the test sees nothing rather than a failure.",
+  "body": "`rule:concurrency/nothing-is-still-running-when-a-call-returns` is enforced by tearing children down, so an accept loop or ticker that spawns and returns leaves an empty log or a `ConnectionReset` at the peer, with no error server-side. Copy `crates/nvs-server/src/serve.rs`'s `Served` tail with the spawn: a tally incremented before it, a guard whose `Drop` decrements and wakes the parent, and `while outstanding > 0 { suspend_current(Waiting::Parked) }` before returning.",
+  "files": [
+    "crates/nvs-server/src/serve.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

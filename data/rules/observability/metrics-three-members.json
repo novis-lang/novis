@@ -1,0 +1,21 @@
+{
+  "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0051"
+  ],
+  "divergesFromPhp": "there is no client library to install and no `record(name, value, kind)`; a counter, a histogram and a gauge are three members, and a name is validated at a literal call site",
+  "seeAlso": [
+    "observability/a-name-is-fixed-to-one-kind",
+    "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+    "security/metric-label-refuses-tainted",
+    "core-api/core-means-always-present",
+    "security/secret-sinks-refuse"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/metrics.rs",
+    "crates/nvs-types/tests/intrinsics.rs",
+    "tests/conformance/core/metrics-increment-observe-and-gauge-accumulate.nvst"
+  ]
+}

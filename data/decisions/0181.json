@@ -1,0 +1,17 @@
+{
+  "title": "A third cache tier is the serving process's own, and a secret outlives a request only sealed",
+  "status": "accepted",
+  "scope": "`Core\\Cache::process()` and what backs it; a lifetime and a `forget` on every tier; the two\nmembers through which a secret may meet a cache at all, and the single-flight `fill` behind the second;\nthe same sealing in `Core\\Session`; and the `[cache.process]` block. Not in scope: a fleet-wide single\nfill, which is a lease over the shared tier and has no record yet; a `secret bytes` value; and the\n`nvs/rest` package, which is the first caller of all of this.",
+  "dependsOn": [
+    "0059",
+    "0033",
+    "0161",
+    "0174",
+    "0179",
+    "0075",
+    "0073",
+    "0004"
+  ],
+  "dependsOnText": "[0059](0059.md) for the two tiers, the copy across the boundary and the cap;\n[0033](0033.md) for the `secret` qualifier and the boundary that refuses it; [0161](0161.md) for the\nper-core workers this tier is shared between; [0174](0174.md) for the detached balance a store's bytes\nmove; [0179](0179.md) for the AEAD roster the seal comes from; [0075](0075.md) and [0073](0073.md) for\nwhat the shared tier already carries; [0004](0004.md) for the ordering that lets this spend memory.",
+  "validatedBy": "the conformance cases goal `process-cache` adds in its stages 3–7, which become each\ncreated rule's `guardedBy` when that goal's last stage flips the four from `designed` to `shipped`."
+}

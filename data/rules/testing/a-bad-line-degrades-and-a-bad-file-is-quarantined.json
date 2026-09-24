@@ -1,0 +1,11 @@
+{
+  "title": "A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops",
+  "status": "designed",
+  "because": [
+    "0163"
+  ],
+  "seeAlso": [
+    "testing/the-ingester-runs-whether-or-not-anyone-is-looking"
+  ],
+  "guardedBy": []
+}

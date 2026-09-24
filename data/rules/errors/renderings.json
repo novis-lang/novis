@@ -1,0 +1,17 @@
+{
+  "title": "The sink in force picks the rendering, and no call site may name one",
+  "status": "designed",
+  "because": [
+    "0092",
+    "0088"
+  ],
+  "divergesFromPhp": "one member replaces `var_dump`, `print_r`, `var_export` and `json_encode`, and reads correctly in every medium",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/debug-dump",
+    "errors/no-render-hook"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster",
+  "status": "designed",
+  "because": [
+    "0112",
+    "0081",
+    "0064"
+  ],
+  "seeAlso": [
+    "security/authority-is-the-enclosing-namespace",
+    "security/capability-roster-is-closed",
+    "security/longest-prefix-wins"
+  ],
+  "guardedBy": []
+}

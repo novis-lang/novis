@@ -1,0 +1,15 @@
+{
+  "title": "One wake permission is installed per drive, and a fresh one is issued only after it fires",
+  "status": "shipped",
+  "because": [
+    "0138",
+    "0115"
+  ],
+  "seeAlso": [
+    "concurrency/a-waker-is-one-permission-to-poll",
+    "concurrency/a-wake-never-moves-a-task"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs"
+  ]
+}

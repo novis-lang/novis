@@ -1,0 +1,23 @@
+{
+  "title": "Running another script is an in-process isolate that shares nothing with its parent but compiled code",
+  "status": "shipped",
+  "because": [
+    "0006",
+    "0116",
+    "0023",
+    "0052"
+  ],
+  "divergesFromPhp": "there is no subprocess and no `exec('php …')`; a second script runs in this process, under this request's budget and its own arena",
+  "seeAlso": [
+    "security/isolate-values-cross-by-copy",
+    "security/isolate-budget-is-the-trees",
+    "security/script-spawn-capability",
+    "security/request-state-throws-in-an-isolate",
+    "statements/an-isolate-has-its-own-statics"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
+    "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst",
+    "crates/nvs-types/tests/isolates.rs"
+  ]
+}

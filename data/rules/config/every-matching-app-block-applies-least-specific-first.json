@@ -1,0 +1,20 @@
+{
+  "title": "Every matching `[[app]]` block applies, least-specific `root` first, and two blocks on one canonical path are a duplicate",
+  "status": "shipped",
+  "because": [
+    "0104",
+    "0103"
+  ],
+  "divergesFromPhp": "PHP applies the nearest `.user.ini` and stops; here a host-wide block and an application's own block compose, the narrower one winning only the keys it states",
+  "seeAlso": [
+    "config/an-application-is-its-entry-file-path",
+    "config/later-wins-and-every-override-is-recorded",
+    "config/a-value-array-replaces-and-a-table-appends",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/app.rs",
+    "crates/nvs-config/tests/snapshot.rs",
+    "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst"
+  ]
+}

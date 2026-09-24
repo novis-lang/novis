@@ -1,0 +1,22 @@
+{
+  "title": "`==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse",
+  "status": "shipped",
+  "because": [
+    "0090",
+    "0013",
+    "0029"
+  ],
+  "divergesFromPhp": "there is no loose-versus-strict pair to pick between — one operator, which never converts either operand",
+  "seeAlso": [
+    "expressions/disjoint-comparison-refused",
+    "expressions/equality-semantics",
+    "expressions/object-identity-equality",
+    "expressions/mixed-equality",
+    "expressions/switch-match-equality"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/not-equal-is-spelled-bang-equals.nvst",
+    "tests/conformance/lang/equality-and-inequality-over-scalars.nvst",
+    "tests/conformance/lang/comparison-operators.nvst"
+  ]
+}

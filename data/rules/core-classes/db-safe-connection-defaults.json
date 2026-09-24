@@ -1,0 +1,17 @@
+{
+  "title": "Three connection defaults close holes PHP leaves open, and none can be configured to the unsafe value",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0009"
+  ],
+  "divergesFromPhp": "`LOCAL INFILE` cannot be enabled, TLS verifies fully rather than `prefer`, and the charset is forced to UTF-8",
+  "seeAlso": [
+    "core-classes/db-capabilities",
+    "core-classes/db-column-types",
+    "types/bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst"
+  ]
+}

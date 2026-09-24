@@ -1,0 +1,14 @@
+{
+  "title": "Enums",
+  "order": 60,
+  "rules": [
+    "enums/declaration",
+    "enums/no-case-keyword",
+    "enums/closed-integer-type",
+    "enums/one-backing-type",
+    "enums/representation",
+    "enums/truthiness",
+    "enums/no-class-machinery",
+    "enums/reflection"
+  ]
+}

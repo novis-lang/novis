@@ -1,0 +1,21 @@
+{
+  "title": "The configuration file is `nvs.toml`, and it is TOML",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0103",
+    "0078"
+  ],
+  "divergesFromPhp": "there is no INI dialect: the file is TOML, its name is `nvs.toml`, and no `php.ini` carries over under any syntax because the directive set shares almost no key with it",
+  "seeAlso": [
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+    "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
+    "config/three-changeability-classes",
+    "config/the-config-is-an-immutable-snapshot"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/tree.rs",
+    "crates/nvs-config/tests/parse.rs"
+  ]
+}

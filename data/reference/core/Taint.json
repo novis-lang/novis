@@ -1,0 +1,15 @@
+{
+  "summary": "the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason",
+  "keywords": [
+    "taint",
+    "tainted",
+    "assertTrusted",
+    "trust",
+    "untrusted input",
+    "injection",
+    "sanitize",
+    "allowlist",
+    "escape hatch",
+    "validation"
+  ]
+}

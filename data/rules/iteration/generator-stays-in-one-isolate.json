@@ -1,0 +1,12 @@
+{
+  "title": "A generator does not cross a boundary and does not clone",
+  "status": "designed",
+  "because": [
+    "0053",
+    "0023"
+  ],
+  "seeAlso": [
+    "iteration/generators"
+  ],
+  "guardedBy": []
+}

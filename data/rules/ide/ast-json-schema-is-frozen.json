@@ -1,0 +1,16 @@
+{
+  "title": "`nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` literal's placeholder",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101",
+    "0040"
+  ],
+  "seeAlso": [
+    "security/redaction-reaches-the-tools-own-renderings",
+    "security/secret-sinks-refuse",
+    "ide/one-grammar-one-tree",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": []
+}

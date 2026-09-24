@@ -1,0 +1,11 @@
+{
+  "title": "A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step",
+  "status": "shipped",
+  "because": [
+    "0048"
+  ],
+  "seeAlso": [
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+  ],
+  "guardedBy": []
+}

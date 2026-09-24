@@ -1,0 +1,24 @@
+{
+  "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
+  "status": "shipped",
+  "because": [
+    "0039",
+    "0169",
+    "0173"
+  ],
+  "seeAlso": [
+    "tooling/fmt-base-style-is-per",
+    "tooling/fmt-trailing-commas",
+    "security/tainted-qualifier",
+    "security/secret-qualifier",
+    "types/closure-literal",
+    "types/object-literal",
+    "types/shape-type",
+    "enums/declaration",
+    "core-classes/html-literal"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/novis_constructs.rs",
+    "crates/nvs-fmt/tests/two_modes.rs"
+  ]
+}

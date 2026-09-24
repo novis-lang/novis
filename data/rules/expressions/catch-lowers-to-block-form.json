@@ -1,0 +1,19 @@
+{
+  "title": "The expression form lowers to the block form's landing pad, with the value in a temporary",
+  "status": "shipped",
+  "because": [
+    "0119",
+    "0002"
+  ],
+  "seeAlso": [
+    "expressions/catch-expression",
+    "expressions/catch-result-type",
+    "errors/propagation",
+    "errors/throw-is-not-slower"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/catch-arms-are-tried-in-order-and-the-rest-is-rethrown.nvst",
+    "tests/conformance/lang/a-throw-arm-leaves-through-the-enclosing-finally.nvst",
+    "crates/nvs-ir/src/lower/exception.rs"
+  ]
+}

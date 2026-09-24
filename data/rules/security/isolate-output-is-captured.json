@@ -1,0 +1,15 @@
+{
+  "title": "An isolate's output is captured by default and carries the parent's sink carrier",
+  "status": "shipped",
+  "because": [
+    "0006",
+    "0088"
+  ],
+  "seeAlso": [
+    "security/capture-answers-the-carrier",
+    "security/isolate-shares-nothing"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst"
+  ]
+}

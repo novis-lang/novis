@@ -1,0 +1,14 @@
+{
+  "title": "A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened",
+  "status": "designed",
+  "because": [
+    "0084",
+    "0005"
+  ],
+  "divergesFromPhp": "background work carries its own memory, CPU and time budget, and its permissions can only shrink from those of the code that enqueued it",
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "concurrency/a-job-runs-as-a-root-isolate"
+  ],
+  "guardedBy": []
+}

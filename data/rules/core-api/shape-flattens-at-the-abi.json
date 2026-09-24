@@ -1,0 +1,21 @@
+{
+  "title": "A shape argument flattens into one argument per field of the merged list, so no shape exists at run time",
+  "status": "shipped",
+  "because": [
+    "0135",
+    "0063",
+    "0067",
+    "0024"
+  ],
+  "seeAlso": [
+    "core-api/shape-parameter",
+    "core-api/the-bag-abi-is-unchanged",
+    "core-api/qualifier-behaviour-is-declared",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/core_lib.rs",
+    "crates/nvs-ir/src/lower/call.rs",
+    "crates/nvs-stdlib/src/db/open.rs"
+  ]
+}

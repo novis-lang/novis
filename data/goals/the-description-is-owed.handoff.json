@@ -1,0 +1,20 @@
+{
+  "state": "This goal has just been installed. The description is not owed yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "items": [
+      {
+        "done": false,
+        "text": "Add `about = true` under `[all]` in `tools/data/dossier-policy.toml`."
+      },
+      {
+        "done": false,
+        "text": "`python tools/dossier.py --owed`, and write or rewrite each description it names."
+      }
+    ]
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

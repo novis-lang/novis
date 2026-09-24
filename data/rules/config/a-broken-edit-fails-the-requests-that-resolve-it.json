@@ -1,0 +1,14 @@
+{
+  "title": "A revalidated file that no longer compiles fails the requests that resolve it afterwards, loudly, and the last good version is never served in its place",
+  "status": "shipped",
+  "because": [
+    "0017",
+    "0078"
+  ],
+  "divergesFromPhp": "the same behaviour as `validate_timestamps`, chosen over the more forgiving keep-serving policy some caches adopt",
+  "seeAlso": [
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "config/a-request-keeps-the-unit-it-resolved"
+  ],
+  "guardedBy": []
+}

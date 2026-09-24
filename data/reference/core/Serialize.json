@@ -1,0 +1,13 @@
+{
+  "summary": "a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it",
+  "keywords": [
+    "serialize",
+    "unserialize",
+    "__serialize",
+    "__sleep",
+    "__wakeup",
+    "persistence",
+    "byte format",
+    "graph copy"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "title": "An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "curl takes `CURLOPT_POSTFIELDS` as a string, an array or a file handle and infers the encoding from which one it got; here the key names what is sent, two keys are refused before the program runs, and a `Part::file` streams from disk rather than being held whole",
+  "seeAlso": [
+    "core-api/shape-rules",
+    "core-api/options-bag",
+    "core-api/no-mode-strings",
+    "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+    "security/secret-sinks-refuse"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
+    "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
+    "tests/conformance/reject/http-client-a-content-type-without-a-body-is-refused.nvst",
+    "tests/conformance/core/http-client-sends-a-json-a-form-a-raw-and-a-multipart-body.nvst",
+    "tests/conformance/core/http-client-every-body-carrying-verb-frames-a-body-alike.nvst",
+    "tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst",
+    "tests/conformance/core/http-part-refuses-what-it-cannot-send-and-draws-a-boundary-per-call.nvst"
+  ]
+}

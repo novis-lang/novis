@@ -1,0 +1,15 @@
+{
+  "title": "Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists",
+  "status": "shipped",
+  "because": [
+    "0143"
+  ],
+  "seeAlso": [
+    "testing/ci-lanes",
+    "testing/probes-on-is-a-tested-configuration",
+    "testing/valgrind-on-wsl"
+  ],
+  "guardedBy": [
+    ".github/workflows/ci.yml"
+  ]
+}

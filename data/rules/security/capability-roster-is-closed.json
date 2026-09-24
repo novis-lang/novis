@@ -1,0 +1,18 @@
+{
+  "title": "Every capability name that exists is on one roster, and a name outside it is refused where it is written",
+  "status": "shipped",
+  "because": [
+    "0112",
+    "0118",
+    "0064"
+  ],
+  "seeAlso": [
+    "security/capability-declaration-is-one-table",
+    "security/grants-are-keyed-on-a-namespace",
+    "security/optional-capability-degrades"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-capability-query-refuses-a-name-no-grant-can-hold.nvst",
+    "crates/nvs-types/src/capability.rs"
+  ]
+}

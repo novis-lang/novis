@@ -1,0 +1,25 @@
+{
+  "title": "A `callable` type may name its parameters, and must then name its return type",
+  "status": "shipped",
+  "because": [
+    "0136",
+    "0007",
+    "0031",
+    "0027",
+    "0015"
+  ],
+  "seeAlso": [
+    "types/callable-arity",
+    "types/callable-variance",
+    "types/callable-literal-inference",
+    "types/callable-is-a-closure"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-call-through-a-written-signature-is-checked-where-it-is-written.nvst",
+    "tests/conformance/lang/a-call-through-a-written-signature-refuses-the-argument-the-type-names.nvst",
+    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-closures-own-parameters.nvst",
+    "tests/conformance/lang/a-spread-argument-through-a-written-signature-answers-the-declared-return-type.nvst",
+    "crates/nvs-syntax/src/parser/tests/ty.rs",
+    "crates/nvs-types/tests/callable.rs"
+  ]
+}

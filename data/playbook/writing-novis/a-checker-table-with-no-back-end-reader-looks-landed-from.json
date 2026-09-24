@@ -1,0 +1,11 @@
+{
+  "lead": "A checker table with no back-end reader looks landed from the front, and a member planned against it has nothing to read.",
+  "body": "`nvs_types::derive`'s `#[Db\\Derive]` roster and `ExprTypeTable::db_codec` were filled while `nvs_ir::ir::Class::codec` and `nvs_runtime::ClassDesc::codec()` still carried `#[Json\\Derive]`'s list alone, so a derived class reached runtime with an empty codec. Grep the consumer of a table the checker fills before planning the member that spends it; `crates/nvs-types/src/derive.rs`'s known gaps say which half landed.",
+  "files": [
+    "crates/nvs-types/src/derive.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

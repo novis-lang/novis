@@ -1,0 +1,15 @@
+{
+  "title": "`current()` outside the protocol throws rather than answering",
+  "status": "shipped",
+  "because": [
+    "0053"
+  ],
+  "divergesFromPhp": "reading a cursor before it has advanced, or after it is drained, is an error rather than a `null` or a stale element",
+  "seeAlso": [
+    "iteration/two-interfaces",
+    "iteration/generators"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/iterator-current-outside-the-protocol-throws.nvst"
+  ]
+}

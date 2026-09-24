@@ -1,0 +1,22 @@
+{
+  "title": "`{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent",
+  "status": "shipped",
+  "because": [
+    "0036",
+    "0015",
+    "0007",
+    "0013",
+    "0157"
+  ],
+  "seeAlso": [
+    "types/object-literal",
+    "types/object-top",
+    "types/type-alias",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-shape-read-through-a-widened-view-is-name-keyed.nvst",
+    "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
+    "crates/nvs-types/tests/objects_and_shapes.rs"
+  ]
+}

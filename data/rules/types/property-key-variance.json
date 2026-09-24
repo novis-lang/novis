@@ -1,0 +1,17 @@
+{
+  "title": "`property<T>` widens as `T` narrows, because the argument bounds the receiver",
+  "status": "shipped",
+  "because": [
+    "0126",
+    "0125"
+  ],
+  "seeAlso": [
+    "types/property-key",
+    "types/class-reference-variance",
+    "types/property-key-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
+    "crates/nvs-types/tests/subtyping.rs"
+  ]
+}

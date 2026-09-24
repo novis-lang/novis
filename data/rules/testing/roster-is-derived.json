@@ -1,0 +1,15 @@
+{
+  "title": "The roster of features is read from the registry and the reference chapters, never kept as a list",
+  "status": "shipped",
+  "because": [
+    "0134",
+    "0117"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/proof-attribution"
+  ],
+  "guardedBy": [
+    "tools/dossier.py"
+  ]
+}

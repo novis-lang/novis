@@ -1,0 +1,22 @@
+{
+  "title": "A default that is unsafe inbound or unbounded outbound is a defect, not a neutral starting point",
+  "status": "shipped",
+  "because": [
+    "0074"
+  ],
+  "divergesFromPhp": "php-fpm behind nginx ships no security headers, no cookie flags and no outbound timeout until somebody writes them; here nothing written is already the safe and finite configuration",
+  "seeAlso": [
+    "http-server/secure-headers-with-nothing-written",
+    "http-server/cors-is-closed-until-origins-are-named",
+    "http-server/cookies-are-secure-httponly-and-lax",
+    "http-server/no-spelling-for-an-unbounded-wait",
+    "config/no-configuration-file-is-a-complete-configuration",
+    "http-server/the-server-block-is-boot-class",
+    "http-server/the-body-is-read-on-demand-under-two-caps",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/secure.rs",
+    "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst"
+  ]
+}

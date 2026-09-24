@@ -1,0 +1,14 @@
+{
+  "title": "Every driver parks its stream's read on the connection, `serverVersion` answers what the handshake already said, a unique key's nulls are distinct on all five backends, and a job keeps every attempt's error on its own row",
+  "status": "accepted",
+  "scope": "the four answers the database and queue halves owe that no rule states — the read state\n`stream` leaves between steps on MySQL, MariaDB, SQL Server and SQLite; what `serverVersion` answers\non each driver; the null semantics of the schema vocabulary's unique key and the DDL SQL Server needs\nfor them; and where a job's earlier attempts' errors live. Not in scope: `streamAs<T>`'s hydration,\nwhich is `rule:core-classes/derive-attribute`'s and `queryAs`'s shape repeated at a written type; the\nqueue's SQL Server statement texts, which are a dialect rather than a decision; the rest of the schema\nvocabulary's v1 exclusions, which `rule:core-classes/schema-vocabulary-is-closed` keeps.",
+  "dependsOn": [
+    "0004",
+    "0067",
+    "0132",
+    "0145",
+    "0084"
+  ],
+  "dependsOnText": "[0004](0004.md) for the ordering all four are argued under; [0067](0067.md) for\n`Core\\Db`'s shape and its statement members; [0132](0132.md) for the busy state a parked read is read\noff; [0145](0145.md) for the plan grades the new DDL is graded under; [0084](0084.md) for the queue\ntables the `errors` column joins.",
+  "validatedBy": "the streaming, `serverVersion`, schema and queue stages of goal `m8-db-queue` —\na scripted-server proof per wire driver, a `.nvst` case over SQLite's `:memory:` block, and the\nfive-driver matrix `python tools/db-matrix.py --all` runs."
+}

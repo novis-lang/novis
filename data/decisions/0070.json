@@ -1,0 +1,11 @@
+{
+  "title": "A duration is a literal: `30s`, `1h30m`",
+  "status": "accepted",
+  "scope": "the lexical form `30s`/`1h30m`, its type, its constant-folding, and the one grammar it shares\nwith `Core\\Time\\Duration::parse` and `nvs.toml`. Not in scope: `Core\\Time`'s member list, which is\n[docs/spec/01-core-library.md](../spec/01-core-library.md) § 4, and the calendar-versus-exact arithmetic\nsplit, which that section owns.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "A duration is written as a literal: 30s, 500ms, 1h30m",
+    "body": "Durations are a type rather than an integer of unstated units, and writing Duration::seconds(30)\nat every timeout, sleep, retry and cache lifetime is the pressure under which integer-seconds\nparameters grow back. So a duration is a literal: 30s, 500ms or 1h30m is one token, typed as a\nduration, and folded to a constant while building, so it costs nothing at run time. The grammar\nis Go's ParseDuration with days and weeks added, and one implementation serves the literal, the\nparser for a string that arrives at run time, and the server's configuration file."
+  }
+}

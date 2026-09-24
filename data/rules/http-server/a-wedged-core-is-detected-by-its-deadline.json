@@ -1,0 +1,18 @@
+{
+  "title": "A watchdog reads the in-flight deadline each worker already keeps, and reports a core whose oldest deadline is past by a margin",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0020"
+  ],
+  "seeAlso": [
+    "http-server/a-wedged-core-is-shed-never-killed",
+    "http-server/time-is-bounded-inside-a-helper",
+    "http-server/the-floor-cannot-fill-the-disk",
+    "errors/engine-floor"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/watchdog.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Spreadsheet reading and generation are one sandboxed component with no I/O",
+  "status": "accepted",
+  "scope": "where spreadsheet reading and generation are placed — Tier 1, first-party, the roster\namendment that admits a fourth entry — and the contract any implementation must meet: the no-I/O rule,\nwhat reading may never execute, formulas as typed values, the macro refusal, the read/write format\nsplit, explicit second-wave evaluation, the declared-size cap, and byte-reproducible output. Not in\nscope: the API of the builder and the component's entry points, which the milestone that builds it\ndesigns the way [0120](0120.md) did\nfor images; the sandbox contract itself ([0003](0003.md)); how the package is named,\npinned and granted ([0081](0081.md)); how an upload\nreaches the builder ([0105](0105.md));\nCSV, which stays `Core\\Csv`'s ([0051](0051.md) § 3); scheduling — no milestone\nowns this, deliberately.",
+  "dependsOn": [
+    "0003",
+    "0051"
+  ],
+  "dependsOnText": "[0003](0003.md) — the sandbox and the cost model that shape the\nboundary; [0051](0051.md) — the tests that decide the placement.",
+  "summary": {
+    "group": "core",
+    "headline": "Spreadsheet files cross the sandbox as bytes, and nothing in them runs",
+    "body": "A workbook goes in as bytes and comes out as bytes. Reading executes nothing: a formula comes\nback as text plus the result the file cached, macros are inert payload, and an external\nreference is data, never a fetch. Writing closes the injection class by type — only an explicit\n`Formula` value becomes a formula cell, so untrusted text beginning with `=` is a text cell by\nconstruction — and macros are never written; a filled `.xlsm` template comes out as `.xlsx`.\nOutput has no timestamps and is reproducible byte for byte. Not yet scheduled."
+  }
+}

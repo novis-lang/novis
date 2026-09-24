@@ -1,0 +1,21 @@
+{
+  "title": "`[mode] ceiling` is `System`-class, bounds a runtime flip and not the startup value, and unset equals the mode the server started in",
+  "status": "shipped",
+  "because": [
+    "0091",
+    "0005",
+    "0104"
+  ],
+  "divergesFromPhp": "there is no `php.ini-development` to copy: a production host that wrote nothing is unreachable from code, and one root-owned line opens it",
+  "seeAlso": [
+    "config/a-program-may-read-and-flip-its-mode",
+    "config/ceilings-are-their-own-directives",
+    "config/the-mode-flag-wins-over-the-file",
+    "config/a-mount-routes-and-an-app-block-sets-policy",
+    "http-server/a-mount-carries-no-policy"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
+    "crates/nvs-config/src/request.rs"
+  ]
+}

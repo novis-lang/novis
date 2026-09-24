@@ -1,0 +1,24 @@
+{
+  "title": "`Core\\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0102"
+  ],
+  "divergesFromPhp": "a link is built from the route's name and checked while compiling, never assembled by hand — a renamed route fails the build at every stale `url()` rather than in a sent email",
+  "seeAlso": [
+    "routing/route-attribute",
+    "routing/link-carries-the-mount-prefix",
+    "routing/path-grammar",
+    "security/launderers-are-sink-named",
+    "routing/an-absolute-link-takes-a-configured-origin",
+    "routing/a-leftover-link-key-is-a-query-string",
+    "routing/a-query-parameter-is-declared-like-a-capture"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst",
+    "tests/conformance/core/router-url-and-url-absolute-refuse-the-same-unknown-names.nvst",
+    "tests/conformance/core/router-url-encodes-a-capture-into-its-own-segment.nvst",
+    "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst"
+  ]
+}

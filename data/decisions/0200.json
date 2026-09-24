@@ -1,0 +1,11 @@
+{
+  "title": "`nvs serve` needs no file over a written mount table, a mount table needs a written root, and a start that names nothing is refused",
+  "status": "accepted",
+  "scope": "what `nvs serve` serves when its command line names no file, which configuration that\nprocess reads, where a mount table is found, and what `nvs service install` asks of a stored\n`serve`. The rest of the mount table's rules are [0097](0097.md)'s and unchanged, and so is a\nstart that names a file over a tree that writes no mount.",
+  "dependsOn": [
+    "0097",
+    "0104",
+    "0093"
+  ],
+  "validatedBy": "`a_start_with_no_file_serves_every_mount_the_configuration_writes` and\n`a_start_with_no_file_and_no_mounts_is_refused` in `crates/nvs-cli/src/serve.rs`,\n`a_serve_argv_with_no_file_is_stored_only_over_a_configuration_that_mounts_an_entry` in\n`crates/nvs-cli/src/service.rs`, `a_mount_table_with_no_root_written_is_refused` in\n`crates/nvs-config/tests/mount.rs`, `the_hosts_snapshot_folds_no_block_and_names_no_entry` in\n`crates/nvs-config/tests/snapshot.rs`, and the run under *Verification*."
+}

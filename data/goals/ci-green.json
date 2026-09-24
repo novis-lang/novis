@@ -1,0 +1,77 @@
+{
+  "title": "CI is green on `main`, for the commit the run stands on",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "tools/ci-green.py",
+      "tools/ci-changes.py"
+    ],
+    "rules": [
+      "testing/ci-lanes"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > orient.py prints",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "ci is green"
+    }
+  ],
+  "checks": [
+    {
+      "id": "the-latest-ci-run-on-main-succeeded-for-the-code-head-holds",
+      "kind": "command",
+      "stage": 2,
+      "name": "the latest CI run on main succeeded for the code HEAD holds",
+      "argv": [
+        "python",
+        "tools/ci-green.py"
+      ],
+      "want": [
+        "the latest ci.yml run on main succeeded, and it ran the code HEAD holds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

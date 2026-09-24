@@ -1,0 +1,15 @@
+{
+  "title": "A class is reachable under its declared name and nowhere else",
+  "status": "shipped",
+  "because": [
+    "0015",
+    "0011"
+  ],
+  "divergesFromPhp": "`class_alias` does not exist and will not be added, so no class ever answers to a second runtime-reachable name",
+  "seeAlso": [
+    "statements/nothing-gets-a-second-name",
+    "types/type-alias",
+    "types/alias-is-never-a-bare-class"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,19 @@
+{
+  "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
+  "status": "shipped",
+  "because": [
+    "0078",
+    "0219"
+  ],
+  "divergesFromPhp": "a changed listen address is named in the reply rather than silently ignored until the next restart",
+  "seeAlso": [
+    "config/reloadability-is-its-own-field",
+    "config/the-config-is-an-immutable-snapshot",
+    "config/one-local-control-socket"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/control.rs",
+    "crates/nvs-config/tests/snapshot.rs",
+    "crates/nvs-cli/tests/live_config.rs"
+  ]
+}

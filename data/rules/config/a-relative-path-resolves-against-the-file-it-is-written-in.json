@@ -1,0 +1,19 @@
+{
+  "title": "A relative path resolves against the directory of the file it is written in; a command-line path against the working directory",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0175"
+  ],
+  "divergesFromPhp": "a relative path in `php.ini` resolves against whatever the process's working directory happens to be; here it resolves against the file that wrote it, so a config directory survives being copied whole",
+  "seeAlso": [
+    "config/include-takes-a-path-or-a-dir",
+    "config/app-keys-are-canonicalized-before-matching",
+    "config/a-secret-is-a-file-whose-content-is-the-value"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst",
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/tests/app.rs"
+  ]
+}

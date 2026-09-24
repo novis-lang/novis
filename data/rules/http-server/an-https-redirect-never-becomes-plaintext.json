@@ -1,0 +1,19 @@
+{
+  "title": "A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "curl follows a hop from `https` to `http` silently, so one `Location` header strips a call's TLS; here it needs a grant and a call-site option, and the refusal names the grant",
+  "seeAlso": [
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+    "security/capability-question-is-grant-and-scope",
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "http-server/a-cross-origin-redirect-drops-credentials"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-config/src/capability.rs",
+    "crates/nvs-config/tests/capability.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "A PDF page is a decode source of the image component",
+  "status": "accepted",
+  "scope": "admitting PDF to the image component's format roster as a decode-only source — the `open`\noptions that select a page and a scale, what `info` reports without rasterising, how the pixel cap\nprices a page, what is refused rather than approximated, and the engine. Not in scope: PDF\n*generation* ([0121](0121.md)); text extraction,\npage manipulation and forms, which stay in the third-party channel (§ 5); the sandbox contract\n([0003](0003.md)); the builder's plan/terminal shape and the component's entry points\n([0120](0120.md) §§ 2–3, which gain\noptions here but no new member); scheduling — the second wave has no milestone, deliberately, like\nthe roster it joins.",
+  "dependsOn": [
+    "0120",
+    "0003"
+  ],
+  "dependsOnText": "[0120](0120.md) —\nthe pipeline, roster and cap this ADR extends; [0003](0003.md) — the sandbox that\nmakes shipping a PDF interpreter admissible at all.",
+  "summary": {
+    "group": "core",
+    "headline": "A PDF page is an image you can open, not a program you run",
+    "body": "`Image::open($bytes, {page: 3, dpi: 150})` rasterises one page of a PDF into the ordinary image\npipeline, and `Image::info($bytes)->frames` reports the page count without allocating a pixel.\nThe interpreter is pure Rust and runs inside the sandbox — replacing PHP's usual ImageMagick-to-\nGhostscript route, an unsandboxed interpreter with an exploit history long enough that\nImageMagick ships with PDF disabled. The page's size at the requested dpi is checked against the\npixel cap before any buffer exists. An encrypted file, a page out of range or an object the\nengine cannot decode throws rather than rendering approximately."
+  }
+}

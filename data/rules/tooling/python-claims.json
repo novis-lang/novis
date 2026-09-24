@@ -1,0 +1,28 @@
+{
+  "title": "Against Python, Novis claims the tool that gets handed over; \"faster than Python\" and \"replaces Python\" are forbidden",
+  "status": "shipped",
+  "because": [
+    "0100",
+    "0080",
+    "0044",
+    "0033",
+    "0024",
+    "0048",
+    "0052"
+  ],
+  "seeAlso": [
+    "programs/audience",
+    "programs/three-claims",
+    "programs/no-compatibility-promise",
+    "tooling/no-repl",
+    "tooling/bench-engine-list-is-data",
+    "core-classes/process-is-argv-only",
+    "security/secret-qualifier",
+    "security/tainted-qualifier",
+    "security/no-ffi",
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+    "tooling/commands-are-compiled",
+    "concurrency/one-scheduler"
+  ],
+  "guardedBy": []
+}

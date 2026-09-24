@@ -1,0 +1,11 @@
+{
+  "title": "`decimal` is a scalar type; `bcmath` and `gmp` are retired",
+  "status": "accepted",
+  "scope": "a `decimal` scalar type, its literal form, its place in the conversion and arithmetic tables,\nits division policy, and what replaces PHP's `bcmath` and `gmp`. Not in scope: `Core\\Decimal`'s full\nmethod roster, which M8 designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "decimal is a scalar type for exact money arithmetic; bcmath and gmp are gone",
+    "body": "`decimal` sits beside `int`, `float` and `string` as a scalar: a 128-bit value with 29\nsignificant digits and up to 28 decimal places. It is a scalar rather than a class because Novis\nhas no operator overloading, and `$price->mul($qty)->add($shipping)` is exactly why PHP\ndevelopers reach for `float` and accept the rounding. A literal takes `decimal` or `float` from\nits target type, so there is no suffix. Mixing `decimal` and `float` in one expression stops the\nbuild. Arbitrary-magnitude integers are `Core\\BigInt`; beyond 29 digits is `Core\\BigDecimal`, a\nclass."
+  }
+}

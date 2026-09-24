@@ -1,0 +1,14 @@
+{
+  "title": "A background job is a durable row, enqueued in your transaction and run as an isolate",
+  "status": "accepted",
+  "scope": "`Core\\Queue` — what a job is, where it is stored, how it is claimed by a fleet, its delivery\nguarantee, retries and dead-lettering, which process runs one, and what a payload may carry. Not in scope:\nthe `Web\\Job` ergonomics that sit on top ([0082](0082.md) § 3), and any\nexternal broker, which § 8 places outside the runtime.",
+  "dependsOn": [
+    "0067"
+  ],
+  "dependsOnText": "[0067](0067.md) — the queue has no storage engine of its own.",
+  "summary": {
+    "group": "core",
+    "headline": "A background job is a database row that commits with your transaction",
+    "body": "The job queue is a table in a database you already talk to. Pushing a job inside a transaction\ncommits with it, so the order and the email confirming it are saved together or not at all. A\njob names a script file and runs as its own sandbox with its own budget and permissions.\nDelivery is at-least-once: bounded attempts, backoff with jitter, and a dead-letter row never\nsilently discarded. One locking query claims a job, so a fleet of servers needs no coordination.\nA payload refuses secrets, because a durable row is an output."
+  }
+}

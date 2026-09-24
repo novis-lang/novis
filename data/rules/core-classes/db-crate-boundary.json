@@ -1,0 +1,15 @@
+{
+  "title": "The wire lives in `nvs-db` below the standard library, where a codec is borrowed and a state machine is written",
+  "status": "shipped",
+  "because": [
+    "0132",
+    "0067",
+    "0051"
+  ],
+  "seeAlso": [
+    "core-classes/db-drivers-are-an-enum",
+    "core-classes/db-connection-busy-state",
+    "core-classes/schema-introspection"
+  ],
+  "guardedBy": []
+}

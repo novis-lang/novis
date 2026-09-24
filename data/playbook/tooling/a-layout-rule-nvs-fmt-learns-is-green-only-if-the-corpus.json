@@ -1,0 +1,13 @@
+{
+  "lead": "A layout rule `nvs fmt` learns is green only if the corpus already follows it.",
+  "body": "`crates/nvs-fmt/tests/identity.rs` asserts every `.nvs` file under `examples/` and `tests/` comes back byte for byte, and that test is goal `fmt`'s stage-2 acceptance check, so it is a floor every later stage has to keep green. Before writing a rule into the printer, format the corpus with it and read what moves — a rule the corpus disagrees with lands *with* a corpus reformat or not at all.",
+  "files": [
+    "crates/nvs-fmt/tests/identity.rs",
+    "examples/",
+    "tests/"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file"
+  }
+}

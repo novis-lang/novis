@@ -1,0 +1,11 @@
+{
+  "title": "Cross-request state is explicit: `Core\\Cache` is per-core, copied in and out, and capped",
+  "status": "accepted",
+  "scope": "what replaces APCu and the SysV shared-memory family; the per-core cache's coherence model,\nvalue-crossing rule, memory accounting and cap. Not in scope: the `Core\\Cache` method roster, or the\nRedis backend's own configuration, both of which M8 designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A cache belongs to one core; anything that needs agreement uses a real store",
+    "body": "Nothing survives from one request to the next inside a process, so there is no shared memory\nsegment of the kind APCu offers. Instead each processor core keeps a cache for itself, with no\ncoordination between cores, and it must always be correct to find nothing there. Values are\ncopied in and out, so a cached value cannot point into memory a finished request has released.\nIts memory is capped. Sessions, locks, rate limits and counters use the shared tier, a store\nreached over the network."
+  }
+}

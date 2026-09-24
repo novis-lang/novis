@@ -1,0 +1,11 @@
+{
+  "title": "Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary",
+  "status": "accepted",
+  "scope": "`clone`, `serialize()`/`unserialize()`, and the deep-copy rule already governing the\n`spawn`/`spawn worker`/`spawn script` boundary (`rule:security/isolate-shares-nothing`); the\nexplicit rejection of `__clone`, `__serialize`, `__unserialize`, `__sleep` and `__wakeup` as customization\nhooks for any of it.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "There are two copy depths, and no class can change what either means",
+    "body": "`clone` is PHP's shallow copy: one level of the object's fields, with everything reachable\nthrough them still shared. The graph copy is the deep one, and it is a single operation with two\nuses: values crossing into another sandbox, and `Core\\Serialize`, to and from bytes. Neither can\nbe customized — there is no `__clone`, `__serialize`, `__unserialize`, `__sleep` or `__wakeup` —\nso no method runs while an object is rebuilt from data, which closes PHP's unserialize attacks.\nDecoding accepts only bytes Novis produced, and refuses a payload whose fields do not match the\nclass."
+  }
+}

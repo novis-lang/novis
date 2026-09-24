@@ -1,0 +1,19 @@
+{
+  "title": "A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0051"
+  ],
+  "divergesFromPhp": "roughly 1,900 built-ins become about 450 members covering strictly more ground",
+  "seeAlso": [
+    "core-api/no-ambient-state",
+    "core-api/one-paradigm-per-operation",
+    "types/no-legacy-cast",
+    "types/array-combination"
+  ],
+  "guardedBy": [
+    "docs/spec/02-php-migration.md",
+    "tools/check-migration.py"
+  ]
+}

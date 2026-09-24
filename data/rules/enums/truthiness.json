@@ -1,0 +1,16 @@
+{
+  "title": "An enum case is always truthy, whatever integer backs it",
+  "status": "shipped",
+  "because": [
+    "0035",
+    "0010"
+  ],
+  "seeAlso": [
+    "enums/representation",
+    "enums/no-class-machinery",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-codegen/tests/arithmetic.rs"
+  ]
+}

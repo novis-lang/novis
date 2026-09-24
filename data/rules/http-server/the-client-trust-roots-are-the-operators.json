@@ -1,0 +1,21 @@
+{
+  "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "`curl.cainfo` and `openssl.cafile` are `ini` settings a script can widen with `ini_set`; here the three keys are `System` class and no code-side spelling for any of them exists",
+  "seeAlso": [
+    "security/one-tls-client",
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "config/three-changeability-classes",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/http.rs",
+    "crates/nvs-cli/src/config.rs",
+    "crates/nvs-host/src/tls.rs",
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "`serverVersion` answers what the server said during the handshake, and never spends a round trip",
+  "status": "shipped",
+  "because": [
+    "0187"
+  ],
+  "seeAlso": [
+    "core-classes/db-connection-is-named",
+    "core-classes/db-drivers-are-an-enum",
+    "core-classes/schema-plan"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/db_stream.rs",
+    "tests/conformance/core/db-server-version-answers-what-the-connection-kept.nvst",
+    "tests/conformance/core/db-server-version-costs-no-statement-so-a-held-connection-answers-it.nvst"
+  ]
+}

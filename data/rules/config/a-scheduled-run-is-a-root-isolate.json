@@ -1,0 +1,21 @@
+{
+  "title": "A scheduled run is a root isolate that spends a root's budget, and only `nvs serve` fires one",
+  "status": "shipped",
+  "because": [
+    "0073",
+    "0006"
+  ],
+  "divergesFromPhp": "a cron-invoked `php` process gets no limits, no capability narrowing and no place to report but a mail spool; a scheduled run gets the deployment's `[limits]`, its `[capabilities]` and the escalation ladder because it is an ordinary isolate",
+  "seeAlso": [
+    "security/isolate-budget-is-the-trees",
+    "security/request-state-throws-in-an-isolate",
+    "statements/no-host-populated-variables",
+    "errors/escalation-ladder",
+    "core-classes/script-args",
+    "concurrency/a-job-runs-as-a-root-isolate",
+    "config/a-schedule-entry-narrows-only"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/schedule.rs"
+  ]
+}

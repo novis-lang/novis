@@ -1,0 +1,15 @@
+{
+  "title": "The block roster is closed, and each block's directives are argued by the rule that adds it",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0103",
+    "0104"
+  ],
+  "seeAlso": [
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

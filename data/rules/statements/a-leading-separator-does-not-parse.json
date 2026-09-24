@@ -1,0 +1,17 @@
+{
+  "title": "A leading separator does not parse, in any of the three positions PHP writes one",
+  "status": "shipped",
+  "because": [
+    "0113",
+    "0095",
+    "0029",
+    "0039"
+  ],
+  "divergesFromPhp": "`\\App\\Models\\User`, `use \\App\\Models\\User;` and `namespace \\App;` are each refused rather than accepted and ignored",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-name-is-absolute-and-a-leading-separator-does-not-parse.nvst"
+  ]
+}

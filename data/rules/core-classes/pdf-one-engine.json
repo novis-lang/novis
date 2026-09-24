@@ -1,0 +1,19 @@
+{
+  "title": "The only input language is HTML plus a CSS subset, and every backend answers that one interface",
+  "status": "designed",
+  "because": [
+    "0121",
+    "0051",
+    "0120",
+    "0122",
+    "0044"
+  ],
+  "divergesFromPhp": "there is no second FPDF-shaped imperative engine with its own coordinate model — drawings are inline SVG",
+  "seeAlso": [
+    "core-classes/pdf-render-has-no-io",
+    "core-classes/pdf-css-subset",
+    "core-classes/html-parsing",
+    "core-classes/process-is-argv-only"
+  ],
+  "guardedBy": []
+}

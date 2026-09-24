@@ -1,0 +1,14 @@
+{
+  "title": "A doc comment is `///`, and its only tags are `@see` and `@example`",
+  "status": "accepted",
+  "scope": "what marks a comment in *Novis source* as documentation, what may appear inside one, which\ntools consume it, and when an undocumented public member is reported. Not in scope: where an\nimplemented `Core` member's documentation lives, which is\n[0117](0117.md) and is unchanged — a\n`Core` member is Rust and documents itself in the registry, so it never carries a `///`; the trivia\nlayer's losslessness property and the `SyntaxIndex`, which are\n[0099](0099.md) § 1; the LSP's request set, which is\n[0099](0099.md) § 5 and M4B; the website's rendering, which\n[website/README.md](../../website/README.md) owns; and Rust's own `///`/`//!` in `crates/`, which is a\ndifferent language's mechanism entirely.",
+  "dependsOn": [
+    "0099",
+    "0117"
+  ],
+  "summary": {
+    "group": "tooling",
+    "headline": "A doc comment is `///`, and its only tags are `@see` and `@example`",
+    "body": "A documentation comment starts with `///`; four slashes or more is an ordinary comment. Inside\nis Markdown prose plus exactly two tags, `@see` naming a member and `@example` naming a file,\nand any other `@tag` stops the build. There is deliberately no `@param`, `@return`, `@throws` or\n`@var`: the signature already says the first two. The reference, the website and `nvs doc` all\nrender the one JSON `nvs meta --json` emits. Nothing requires a doc comment by default: `nvs\ncheck --strict-docs` reports a public member without one, and publishing a package turns that\non."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "title": "`nvs serve` is one process for requests, schedules and jobs, and the drain stops all three",
+  "status": "accepted",
+  "scope": "where queue workers run, what stops them, which core arms them, and the changeability\nclass of the `[queue]` block. It changes nothing about how a job is claimed, retried, dead-lettered\nor removed, and it adds no surface a program can see.",
+  "dependsOn": [
+    "0084",
+    "0073",
+    "0078"
+  ],
+  "dependsOnText": "[0084](0084.md), whose `workers` is a count per instance; [0073](0073.md), whose\nticker is the shape this copies; [0078](0078.md), whose drain is what stops it.",
+  "validatedBy": "`examples/queue.nvs` run under the served binary, and the checks\n§ *Verification* names.",
+  "summary": {
+    "group": "core",
+    "headline": "`nvs serve` is one process for requests, schedules and jobs",
+    "body": "The served process runs the queue workers itself, started alongside the schedule ticker before\nit begins accepting connections, so `[queue] workers` in the configuration means what it says in\nproduction and no second process has to be deployed. Shutting down drains all three: in- flight\nrequests finish, the ticker stops, and a worker stops when its current job is done. The worker\ncount is per instance, not per core. A CLI run is unchanged."
+  }
+}

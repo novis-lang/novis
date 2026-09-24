@@ -1,0 +1,15 @@
+{
+  "title": "A `callable` carries its signature",
+  "status": "accepted",
+  "scope": "the `callable` type atom's parameter list and return type; how two callable types compare;\nthe arity rule; where a closure literal's parameter types come from; what replaces\n`CoreTy::CallableTo` and `CoreTy::CallableShapeTo`; and the per-argument runtime tag check a\nstatically proven call site stops paying. Not in scope: *which values* satisfy `callable`, which is\n[0027](0027.md) and is unchanged; the closure literal grammar and its\ncapture rule, which are [0031](0031.md) §§ 1-3 and are unchanged;\nwhole-body return-type inference, which [0031](0031.md)'s M2 entry\nrefused and this ADR does not reopen; and user-declared generic functions and classes, which stay\nparked in [0007](0007.md) § *Revisiting*.",
+  "dependsOn": [
+    "0007",
+    "0027",
+    "0031"
+  ],
+  "summary": {
+    "group": "types",
+    "headline": "A callable type spells out its parameters and its return type",
+    "body": "`callable(User, string): string` is a type: parameters in parentheses, then a mandatory return\ntype after the colon. Bare `callable` still accepts anything callable, so nothing already\nwritten breaks, but it keeps the slower dynamic call. A closure may take fewer parameters than\nthe type names; the extra arguments are dropped. Assignment follows the usual function rule. A\n`fn` literal takes its parameter types from where it is written, so `Core\\Arr::map($users,\nfn($u) => $u->name)` knows `$u` is a `User` with no annotation, and the per-argument check on\nevery call is gone."
+  }
+}

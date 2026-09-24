@@ -1,0 +1,20 @@
+{
+  "title": "There are no destructors: cleanup is an explicit method call the holder makes",
+  "status": "shipped",
+  "because": [
+    "0028",
+    "0002",
+    "0004"
+  ],
+  "divergesFromPhp": "`__destruct` does not exist in any form, and nothing user-declared runs when a refcount reaches zero",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "iteration/generators",
+    "errors/propagation",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst",
+    "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "a value outlives a request in the serving process, and a secret does so only sealed",
+  "milestone": "M8",
+  "files": [],
+  "context": {},
+  "stages": [],
+  "checks": [],
+  "env": {}
+}

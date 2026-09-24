@@ -1,0 +1,11 @@
+{
+  "title": "`object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is Novis's one structurally-checked type",
+  "status": "accepted",
+  "scope": "PHP's `stdClass` and the general \"a bag of named values, shared by reference, without declaring\na class\" need — the `object` type atom (already reserved in `nvs-syntax`/`nvs-types` but never given\nsubtyping semantics), a new anonymous object-literal expression (`{a: 1, b: 2}`), and a new inline\nstructural shape type (`{name: T, ...}`) usable anywhere a type is expected. Does not add methods,\ninheritance, or any nominal contract to these values — they stay pure data.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "`object` is the top of every class, and `{x: 1}` builds one without a class",
+    "body": "`{x: 1, y: 2}` creates an ordinary object with exactly those fields, typed from the values, no\nmethods, shared by reference. `object` is the type above every class, promising nothing about\nshape; a field read through it is looked up by name at run time, throwing if absent. For checked\naccess without a class, a shape goes inline in a signature — `{x: int, y: int}` — and any object\nwith at least those fields, of those types, satisfies it. That structural check is the one\nexception in a name-based type system."
+  }
+}

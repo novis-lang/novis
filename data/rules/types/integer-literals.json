@@ -1,0 +1,17 @@
+{
+  "title": "An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix",
+  "status": "shipped",
+  "because": [
+    "0007"
+  ],
+  "divergesFromPhp": "`017` is decimal seventeen where PHP reads octal fifteen; PHP's leading-zero octal is refused rather than reinterpreted",
+  "seeAlso": [
+    "types/uint",
+    "types/numeric-literal-placement",
+    "types/arithmetic"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
+    "crates/nvs-syntax/src/lexer.rs"
+  ]
+}

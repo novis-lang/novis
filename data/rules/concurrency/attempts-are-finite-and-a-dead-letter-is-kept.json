@@ -1,0 +1,21 @@
+{
+  "title": "Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0074",
+    "0076",
+    "0187"
+  ],
+  "divergesFromPhp": "nothing is discarded silently and nothing retries forever — an exhausted job is a row in a dead-letter table rather than a line in a log",
+  "seeAlso": [
+    "concurrency/delivery-is-at-least-once",
+    "concurrency/a-budget-overrun-is-a-failed-attempt",
+    "core-classes/queue-storage-is-a-table"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/queue.rs",
+    "crates/nvs-stdlib/tests/queue.rs",
+    "tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"
+  ]
+}

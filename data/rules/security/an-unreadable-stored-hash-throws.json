@@ -1,0 +1,17 @@
+{
+  "title": "A stored value outside the read roster throws, and the message never quotes the bytes",
+  "status": "shipped",
+  "because": [
+    "0129",
+    "0033"
+  ],
+  "divergesFromPhp": "`password_verify` answers `false` for a column it cannot read; this throws, so a wrong column wakes an operator",
+  "seeAlso": [
+    "security/bcrypt-read-roster",
+    "security/secret-sinks-refuse",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst"
+  ]
+}

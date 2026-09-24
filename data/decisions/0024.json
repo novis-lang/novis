@@ -1,0 +1,11 @@
+{
+  "title": "Untrusted input is a distinct type; injection sinks demand laundering",
+  "status": "accepted",
+  "scope": "a `tainted` compile-time qualifier on `string`/`bytes`; how it enters, propagates, and is\nremoved; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP\nheader values, filesystem paths); the `Core\\Html\\Markup` safe-markup type and the HTML output sink's\nauto-escape default.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "Untrusted input has its own type and cannot reach a page or a query",
+    "body": "A string or bytes from outside the program is `tainted string` or `tainted bytes`, a mark\nchecked while building and gone at run time. Joining a tainted value with anything else taints\nthe result, and HTML output, SQL text, process arguments, headers and file paths refuse it. A\nconversion that proves a shape, like `as int`, clears the mark; otherwise only a function named\nfor one sink does, or the loud `Core\\Taint::assertTrusted`. HTML is the one implicit step:\n`echo` escapes everything that is not `Markup`, and only a literal in the source becomes\n`Markup`."
+  }
+}

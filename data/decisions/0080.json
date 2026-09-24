@@ -1,0 +1,11 @@
+{
+  "title": "Novis is built to serve web applications of every kind",
+  "status": "accepted",
+  "scope": "who Novis is for, what that ranks first when two slices compete, the three claims the project\nmakes about itself, and the explicit answer to *why this does not end where Hack ended*. Not in scope:\nany language semantics — this ADR changes no rule and adds no surface. It decides what gets built next\nand what the documentation says, which is why it is here rather than in a README.",
+  "dependsOn": [],
+  "summary": {
+    "group": "foundations",
+    "headline": "Novis is for anyone building for the web, and promises no PHP compatibility",
+    "body": "Novis is built to serve web applications of every kind. Its safety properties — injection and\nsecret leaks caught while building, one sandbox per request in a single process, permissions\ngranted rather than assumed — exist to catch an ordinary application's own mistakes; that they\nalso make it safe to run code you did not write is a benefit, not the point. Command-line\nprograms are a second use of the same runtime. The pitch is isolation and typed qualifiers,\nnever \"faster than PHP\", and the PHP-shaped syntax is a way in, not a compatibility promise."
+  }
+}

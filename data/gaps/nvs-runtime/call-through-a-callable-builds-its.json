@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/lib.rs",
+  "title": "A call through a `callable` builds its argument slots in a heap vector.",
+  "text": "[`call_closure`] collects the closure and the trimmed arguments into a `Vec` per invocation, so every callback costs one allocation of one `Value` per slot where a compiled call writes the same slots into a stack frame. `benches/members/lang/expressions/calls.nvs` measures it as 32 bytes a round against a declared `allocations 0`. Closing it is an inline representation for a call site's arguments, which is the optimising tier's work and not a slice's.",
+  "milestone": "M12"
+}

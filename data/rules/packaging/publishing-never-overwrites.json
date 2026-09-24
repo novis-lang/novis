@@ -1,0 +1,15 @@
+{
+  "title": "`nvs publish` uploads a clean-checkout archive, and the registry never overwrites a published `name@version`",
+  "status": "designed",
+  "because": [
+    "0081"
+  ],
+  "divergesFromPhp": "a Packagist release is whatever tag the repository points at and can be moved; here a published version is immutable and is in the transparency log before it is downloadable",
+  "seeAlso": [
+    "packaging/the-registry-keeps-an-append-only-log",
+    "packaging/a-git-dependency-is-root-only",
+    "packaging/a-package-cannot-reach-its-host",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": []
+}

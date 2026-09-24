@@ -1,0 +1,14 @@
+{
+  "title": "`docs/examples/` is authoritative and the website mirrors it",
+  "status": "shipped",
+  "because": [
+    "0134"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/proof-attribution"
+  ],
+  "guardedBy": [
+    "docs/examples/README.md"
+  ]
+}

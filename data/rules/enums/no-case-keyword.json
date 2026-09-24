@@ -1,0 +1,15 @@
+{
+  "title": "PHP's `case` keyword does not parse, and each one is diagnosed where it is written",
+  "status": "shipped",
+  "because": [
+    "0010"
+  ],
+  "divergesFromPhp": "`case Hearts = 1;` is not a spelling this language has — an enum body is a comma list",
+  "seeAlso": [
+    "enums/declaration",
+    "enums/no-class-machinery"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

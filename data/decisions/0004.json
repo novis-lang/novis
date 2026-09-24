@@ -1,0 +1,11 @@
+{
+  "title": "Memory is spent for security, speed and simplicity",
+  "status": "accepted",
+  "scope": "project-wide; constrains every later design decision rather than one subsystem",
+  "dependsOn": [],
+  "summary": {
+    "group": "foundations",
+    "headline": "Memory is what we spend to buy safety, speed and simplicity",
+    "body": "When a design has to give something up, memory goes first. Novis is not built to run in the\nsmallest possible footprint, and \"this allocates less\" is never on its own a reason to change\nanything. The limit is that memory spent must belong to a request, stay under a ceiling the\noperator sets, and be released when that request ends. Growth that tracks total traffic served\nis a leak, not a trade."
+  }
+}

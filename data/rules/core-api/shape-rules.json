@@ -1,0 +1,23 @@
+{
+  "title": "Every `Core` member obeys the same twenty shape rules, R1–R20",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0011",
+    "0051",
+    "0135",
+    "0147"
+  ],
+  "divergesFromPhp": "PHP's built-ins have no API at all — argument order, failure signalling and option encoding vary between neighbouring functions in the same extension",
+  "seeAlso": [
+    "core-api/subject-first",
+    "core-api/options-bag",
+    "core-api/nothing-mutates",
+    "core-api/failure-throws",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
+  ]
+}

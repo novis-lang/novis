@@ -1,0 +1,20 @@
+{
+  "title": "`at:` and `seed:` fix the clock and the generator of the test's own isolate",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0008"
+  ],
+  "divergesFromPhp": "time and randomness are controlled by a declaration on the test rather than by a clock parameter threaded through every time-aware class",
+  "seeAlso": [
+    "testing/task-tree-and-virtual-clock",
+    "testing/isolate-per-test",
+    "testing/tests-never-reach-a-build"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/test-advance-refuses-without-a-fixed-clock.nvst",
+    "tests/conformance/core/test-advance-refuses-the-same-way-for-every-duration.nvst",
+    "tests/conformance/core/the-members-a-test-makes-deterministic-agree-on-which-one-is-the-mutator.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

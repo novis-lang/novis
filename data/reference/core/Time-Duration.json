@@ -1,0 +1,16 @@
+{
+  "summary": "an exact, signed span of nanoseconds — the duration literal `1h30m` as a value",
+  "keywords": [
+    "DateInterval",
+    "sleep",
+    "usleep",
+    "hrtime",
+    "strtotime(\"+3 days\")",
+    "duration literal",
+    "1h30m",
+    "250ms",
+    "nanoseconds",
+    "exact offset",
+    "timeout"
+  ]
+}

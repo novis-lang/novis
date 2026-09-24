@@ -1,0 +1,11 @@
+{
+  "title": "`Core` API conventions: one shape for every built-in",
+  "status": "accepted",
+  "scope": "the *shape* of every member of every `Core` class — argument order, optional arguments,\nfailure signalling, naming, mutation, callbacks — and the standing rules that decide which of PHP's\n~1,900 built-ins survive at all. Not in scope: which tier a subsystem lands at, which is\n`rule:core-api/tier-placement`; and not the member list itself, which is\n[docs/spec/01-core-library.md](../spec/01-core-library.md).",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Every built-in has the same shape: subject first, options last, failure throws",
+    "body": "The standard library is written to twenty rules fixed before any of it was written. The thing\nbeing operated on is always the first argument. Optional arguments are one trailing literal of\nnamed fields, never flags or bitmasks. Nothing modifies its argument in place and nothing takes\na reference. Failure throws, absence is a nullable return, and false is never an answer. No\noperation is reachable two ways: no procedural twin of a class, no mutable and immutable pair,\nno methods on plain strings or arrays. Roughly 1,900 PHP functions become about 450 members."
+  }
+}

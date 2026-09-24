@@ -1,0 +1,11 @@
+{
+  "title": "Trace/profile output gains a speedscope-evented timeline export, plus GC-pause and isolate-spawn trace events",
+  "status": "accepted",
+  "scope": "the trace/profile event taxonomy and export formats defined in\n`rule:testing/debug-probes`. Adds a `kind` field to trace\nevents (`call` | `gc` | `spawn` | `query`), three new instrumentation points (the cycle collector's run\nroutine; the three isolate-spawn/join runtime routines; each `Core\\Db` statement, per\n`rule:observability/a-query-is-a-trace-event`), and a speedscope \"evented\" export alongside `rule:testing/debug-probes`'s existing\nClover/lcov/Callgrind/NDJSON output. Does **not** add any probe to the per-statement/per-call hot path `rule:testing/debug-probes` already committed to, and does not cover coroutine suspend/resume events, an external/live attach\nmechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "A trace shows garbage-collection pauses and sandbox spawns on one timeline",
+    "body": "When tracing is on, every recorded event says what kind it is: a call, a garbage-collection\npause, the start or join of a spawned sandbox, or a database statement. The run exports in the\nformat speedscope reads, so all four kinds scroll past on one timeline in an existing viewer. A\nstop-the-world collection shows up as its own pause instead of being charged to whatever\nfunction was running. The bookkeeping lives in routines that are already rare and slow, and\ncosts nothing when tracing is off."
+  }
+}

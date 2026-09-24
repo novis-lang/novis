@@ -1,0 +1,16 @@
+{
+  "title": "An `accept` that fails on descriptor exhaustion is retried under a bounded backoff and logged once per window",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0095"
+  ],
+  "seeAlso": [
+    "http-server/the-floor-cannot-fill-the-disk",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "errors/multipart-part-count"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "A bundle is recognised by a footer the host reads before it parses one argument",
+  "status": "shipped",
+  "because": [
+    "0048"
+  ],
+  "seeAlso": [
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+    "packaging/a-bundle-carries-source-not-artifacts"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

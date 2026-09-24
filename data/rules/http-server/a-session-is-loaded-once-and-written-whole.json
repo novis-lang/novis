@@ -1,0 +1,19 @@
+{
+  "title": "A session record is loaded once at `start`, written back whole only when it changed, and never locked",
+  "status": "shipped",
+  "because": [
+    "0139",
+    "0052"
+  ],
+  "divergesFromPhp": "PHP holds an exclusive lock on the session for the length of the request, so two requests from one browser serialize; here there is no lock, and two concurrent writes to one session are last-write-wins over the whole record",
+  "seeAlso": [
+    "http-server/a-session-store-answers-four-operations",
+    "security/closed-doors",
+    "concurrency/cross-request-state-is-explicit",
+    "core-api/session-roster",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/session.rs"
+  ]
+}

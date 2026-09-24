@@ -1,0 +1,19 @@
+{
+  "title": "An attribute is a shape literal on a declaration, and nothing is ever declared or instantiated for it",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0036"
+  ],
+  "divergesFromPhp": "an attribute is never an object — PHP builds a real one the first time `ReflectionAttribute::newInstance()` is called, and needs a declared `#[Attribute]` class for every attribute kind",
+  "seeAlso": [
+    "attributes/attach-sites-and-forms",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/structural-retrieval",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+    "crates/nvs-types/src/attributes.rs"
+  ]
+}

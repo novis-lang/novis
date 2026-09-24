@@ -1,0 +1,19 @@
+{
+  "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
+  "status": "shipped",
+  "because": [
+    "0073",
+    "0059",
+    "0219"
+  ],
+  "seeAlso": [
+    "config/scope-has-no-default",
+    "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",
+    "concurrency/a-cached-value-is-copied-across-the-boundary",
+    "concurrency/cross-request-state-is-explicit"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/schedule.rs",
+    "crates/nvs-cli/tests/live_config.rs"
+  ]
+}

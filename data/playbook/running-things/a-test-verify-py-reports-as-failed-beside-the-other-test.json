@@ -1,0 +1,11 @@
+{
+  "lead": "A test `verify.py` reports as \"failed beside the other test binaries and passed alone\" is red, and running the gate again is not the fix.",
+  "body": "The tool has already re-run that binary by itself; what is left is a test leaning on something the load beside it takes away — a wall-clock spin read as CPU time, a channel checked after its sender's thread may have exited, a cost margin that holds only on an idle box. Give the test what it depends on (`nvs_host::cpuclock::burn_at_least`, an assertion that tolerates a dropped sender, `#[cfg_attr(debug_assertions, ignore)]` into the driver's release slot) in a commit of its own.",
+  "files": [
+    "tools/verify.py"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/verify.py:alone"
+  }
+}

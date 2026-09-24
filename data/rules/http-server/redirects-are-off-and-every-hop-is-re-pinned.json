@@ -1,0 +1,19 @@
+{
+  "title": "Redirects are not followed by default; when enabled every hop is re-checked and re-pinned, a denied hop fails the request, and a retry never re-resolves",
+  "status": "shipped",
+  "because": [
+    "0058",
+    "0074"
+  ],
+  "divergesFromPhp": "curl's `FOLLOWLOCATION` is off by default too, but a hop it follows is never checked against anything; here each hop passes the same policy the first URL did and a denied one fails the call rather than being dropped from the chain",
+  "seeAlso": [
+    "http-server/allow-url-pins-the-address",
+    "http-server/one-deadline-covers-the-whole-call",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "security/net-address-policy"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

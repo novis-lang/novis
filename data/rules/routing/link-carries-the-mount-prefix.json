@@ -1,0 +1,17 @@
+{
+  "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0097",
+    "0102"
+  ],
+  "divergesFromPhp": "a link is never the declared path concatenated by hand, because the path a route is declared against is the mount-stripped one and the prefix is known only where the request is",
+  "seeAlso": [
+    "routing/link-name-and-params-are-checked",
+    "routing/a-request-reads-its-mount"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-url-prepends-the-mount-prefix-the-door-stripped.nvst"
+  ]
+}

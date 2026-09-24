@@ -1,0 +1,20 @@
+{
+  "title": "Every accessor that hands a program bytes from outside answers the `tainted` form, and the list of them is enumerable",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0012",
+    "0058",
+    "0067"
+  ],
+  "seeAlso": [
+    "security/tainted-qualifier",
+    "security/secret-has-no-ambient-source",
+    "statements/no-host-populated-variables"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-request-value-arrives-tainted-and-is-laundered-to-be-used.nvst",
+    "tests/conformance/reject/a-response-body-is-tainted-and-its-status-is-not.nvst",
+    "tests/conformance/core/env-a-variable-name-is-a-sink-and-every-value-is-tainted.nvst"
+  ]
+}

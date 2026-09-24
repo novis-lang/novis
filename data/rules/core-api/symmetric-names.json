@@ -1,0 +1,14 @@
+{
+  "title": "A symmetric operation gets a symmetric name, and which pair to reach for is a rule rather than taste",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "seeAlso": [
+    "core-api/verb-lexicon",
+    "core-api/members-are-full-words"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Array combination is key-type-independent",
+  "status": "accepted",
+  "scope": "how two or more arrays combine into one, and what the result's keys and order are; the removal\nof PHP's `array_merge` and `array + array` rules and the three members that replace them; what\n`{preserveKeys: false}` means; the `Core\\Arr` shape corrections that follow from the same audit. Not in\nscope: the array container itself, which is `rule:types/arrays`, and the set\noperations `diff`/`intersect`, whose *selection* rule is unchanged here.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Combining two arrays does one thing to every key, whatever the key looks like",
+    "body": "array_merge renumbers integer keys and overwrites string keys, and `$a + $b` does a third thing\nunder a spelling that looks like arithmetic. Novis arrays have no integer keys, so copying\neither rule would mean inspecting the text of a key to choose a behaviour. Instead there are\nthree operations, each treating every key alike: overlay, where the right side wins; underlay,\nwhere the left side wins; and appendAll, which drops the keys and appends the values. There is\nno member called merge, and adding two arrays is a build error that names underlay."
+  }
+}

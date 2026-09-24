@@ -1,0 +1,14 @@
+{
+  "title": "An isolate's arena is an ownership root, not an address range",
+  "status": "accepted",
+  "scope": "what an isolate's *arena* is in this runtime, what one costs, what \"released wholesale\" runs,\nand how a value crosses the boundary in each direction. It does not decide the `spawn script` surface,\nthe option names or failure-as-a-value — [0006](0006.md) owns all three — nor\nthe walk itself, which is [0023](0023.md) § 2 and lives in\n`crates/nvs-runtime/src/graph.rs`. Enforcement of a byte cap is `[limits]`' and is goal `governance`'s, not this\nADR's; where the cap *attaches* is § 3 below.",
+  "dependsOn": [
+    "0006",
+    "0023"
+  ],
+  "summary": {
+    "group": "security",
+    "headline": "A sandbox owns what it can reach, not a slab of memory",
+    "body": "Entering a sandbox maps no memory and leaving one unmaps none. What the sandbox owns is\neverything reachable from its own context, and the only way a value moves in or out is a copy at\nthe boundary. Tearing one down releases that whole tree and then sweeps the cycles the counts\ncould not free, running each object's proper cleanup. Because both sides allocate from the same\nplace, a value nothing else holds can cross by a plain handoff that costs nothing. A sandbox\nnever shares its parent's static variables."
+  }
+}

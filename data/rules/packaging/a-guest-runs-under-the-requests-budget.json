@@ -1,0 +1,15 @@
+{
+  "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0020"
+  ],
+  "seeAlso": [
+    "errors/on-limit",
+    "packaging/a-fresh-instance-per-request"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/wasm_sandbox.rs"
+  ]
+}

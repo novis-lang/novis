@@ -1,0 +1,13 @@
+{
+  "title": "The conformance suite runs with the probes on, and once per optimisation level",
+  "status": "designed",
+  "because": [
+    "0018"
+  ],
+  "seeAlso": [
+    "testing/debug-probes",
+    "testing/the-deep-lane",
+    "testing/nvst-is-separate"
+  ],
+  "guardedBy": []
+}

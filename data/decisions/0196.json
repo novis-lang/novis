@@ -1,0 +1,10 @@
+{
+  "title": "`nvs.exe` carries the logo as its icon and the manifest's facts as its version information, written by the build script itself",
+  "status": "accepted",
+  "scope": "what the Windows binary says about itself to the operating system — its icon, its version\ninformation, which build gets which — and how that is compiled in. An application manifest, a code\nsignature, and an icon of an author's own on a `nvs build --compile` bundle are not decided here.",
+  "dependsOn": [
+    "0065",
+    "0151"
+  ],
+  "validatedBy": "`crates/nvs-cli/tests/windows_resource.rs`, and the reading under *Verification*."
+}

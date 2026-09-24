@@ -1,0 +1,19 @@
+{
+  "title": "A connection is one future, driven to completion by the coroutine that owns it",
+  "status": "shipped",
+  "because": [
+    "0138",
+    "0115",
+    "0097",
+    "0106"
+  ],
+  "seeAlso": [
+    "concurrency/a-waker-is-one-permission-to-poll",
+    "concurrency/the-park-route-is-chosen-once",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

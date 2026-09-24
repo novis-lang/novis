@@ -1,0 +1,18 @@
+{
+  "title": "Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0117"
+  ],
+  "seeAlso": [
+    "core-api/options-bag",
+    "core-api/reference-card",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
+    "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

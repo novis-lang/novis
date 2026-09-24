@@ -1,0 +1,18 @@
+{
+  "title": "An existing database is read by catalog query, and no DDL parser exists at any tier",
+  "status": "shipped",
+  "because": [
+    "0145",
+    "0067",
+    "0051"
+  ],
+  "seeAlso": [
+    "core-classes/schema-is-a-value",
+    "core-classes/db-literal-query-checking",
+    "core-classes/schema-converges"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst",
+    "tests/conformance/core/db-schema-normalizes-every-spelling-of-one-schema.nvst"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network",
+  "status": "designed",
+  "because": [
+    "0108",
+    "0111"
+  ],
+  "divergesFromPhp": "framework-aware IntelliSense built from convention scans, annotation dialects and an `ide.json` patch file has no counterpart; a route name or a directive completes from the table the compiler built, and an ORM column or a view name has nothing to complete from because Novis has neither",
+  "seeAlso": [
+    "ide/three-of-four-item-shapes-insert-nothing",
+    "routing/routes-are-compiled-not-registered",
+    "routing/link-name-and-params-are-checked",
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "routing/api-document-is-generated-from-the-route-table",
+    "programs/first-party-framework",
+    "php-migration/every-php-builtin-is-a-completion-candidate",
+    "php-migration/an-item-inserts-only-a-registered-member"
+  ],
+  "guardedBy": []
+}

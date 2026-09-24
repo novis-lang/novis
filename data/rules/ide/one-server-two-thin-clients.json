@@ -1,0 +1,19 @@
+{
+  "title": "Language smarts and formatting of Novis have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040",
+    "0173"
+  ],
+  "divergesFromPhp": "PhpStorm's PHP support is a native PSI plugin with its own formatter and refactorings, whereas its Novis plugin is a bridge to the same server VS Code drives, so nothing about `.nvs` is decided in the editor",
+  "seeAlso": [
+    "ide/vscode-is-the-reference-client",
+    "ide/phpstorm-bridges-to-the-same-server",
+    "ide/one-crate-and-one-extension-grow-in-place",
+    "ide/redaction-ranges-come-from-the-server",
+    "tooling/fmt-is-one-canonical-style",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": []
+}

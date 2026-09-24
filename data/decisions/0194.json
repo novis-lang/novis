@@ -1,0 +1,9 @@
+{
+  "title": "Accepting a type writes `Name::` inside an expression and `Name()` after `new`, and the name alone wherever a type or a statement may start",
+  "status": "accepted",
+  "scope": "what a type's completion item inserts, which names are offered after `new`, and which\npositions are read as a written type. What is offered at a bare position, the ranking and the `use` line\nare [0193](0193.md)'s and unchanged.",
+  "dependsOn": [
+    "0193"
+  ],
+  "validatedBy": "`crates/nvs-lsp/tests/completion_edits.rs`, `crates/nvs-lsp/tests/handshake.rs`, and\nthe three cases under `tests/lsp/completion/` that cite the rule this creates."
+}

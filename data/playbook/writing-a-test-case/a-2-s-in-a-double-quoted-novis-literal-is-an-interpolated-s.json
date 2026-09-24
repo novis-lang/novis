@@ -1,0 +1,9 @@
+{
+  "lead": "A `%2$s` in a *double-quoted* Novis literal is an interpolated `$s`, not a `Core\\Str::format` placeholder.",
+  "body": "Interpolation happens in the lexer, long before the intrinsic pass reads the template, so a positional-placeholder fixture written with double quotes fails as ``E0301 `$s` is not declared`` and pins nothing about `format`. Single-quote any template containing `$` (`'%2$s'`), which is what the cases in `crates/nvs-types/tests/intrinsics.rs` already do.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-10-16"
+  }
+}

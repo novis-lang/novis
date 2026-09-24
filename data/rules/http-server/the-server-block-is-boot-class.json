@@ -1,0 +1,29 @@
+{
+  "title": "Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0091",
+    "0005",
+    "0106",
+    "0161",
+    "0186",
+    "0219"
+  ],
+  "divergesFromPhp": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool",
+  "seeAlso": [
+    "http-server/four-idle-waits-all-finite",
+    "http-server/max-in-flight-refuses-before-allocating",
+    "http-server/health-path-is-off-and-checks-nothing",
+    "http-server/the-accept-fan-out-is-one-worker-per-core",
+    "http-server/a-unix-socket-listener",
+    "config/three-changeability-classes",
+    "config/the-mode-flag-wins-over-the-file",
+    "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "http-server/the-accept-loop-backs-off"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/server.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

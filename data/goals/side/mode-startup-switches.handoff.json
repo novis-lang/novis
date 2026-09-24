@@ -1,0 +1,34 @@
+{
+  "state": "**Side goal `mode-startup-switches` — an unwritten `dispatch` and `static` follow the mode a\nconfiguration names — has just started; nothing of it has landed yet.** It runs in its own worktree\nunder `loop.py --side mode-startup-switches`, over main's carried floor, and lands on `main` when it\nis green.\n\nThe design is the user's and the rule's. The goal file's § *Standing decisions* answers every call a\nsession meets, and no session re-decides one. § *What is on disk today, measured* is the starting\npoint.",
+  "next": {
+    "stage": 2,
+    "title": "the switches follow the mode",
+    "files": [
+      "crates/nvs-config/src/server.rs",
+      "crates/nvs-server/src/mount.rs",
+      "crates/nvs-cli/src/serve/mounts.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**One resolving function in `nvs-config`**, reading the mode as `Revalidation::from_config` does (`crates/nvs-config/src/cache.rs:517`)."
+      },
+      {
+        "done": false,
+        "text": "**`Table::from_config` calls it** (`crates/nvs-server/src/mount.rs:176`), and § *Decision* (`mount.rs:35`) is rewritten whole."
+      },
+      {
+        "done": false,
+        "text": "**`switches` compares its result** (`crates/nvs-cli/src/serve/mounts.rs:125`)."
+      },
+      {
+        "done": false,
+        "text": "**The four named tests** in the goal's `.toml`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the template, the server chapter and the rule say it**, and `dossier.py --id` names any proof still owed.",
+    "When the last check goes green the side run lands itself on `main`."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Nothing a request does is observable by another request except through an explicit, capability-gated store",
+  "status": "shipped",
+  "because": [
+    "0052",
+    "0059",
+    "0006"
+  ],
+  "divergesFromPhp": "`shmop`, `sysvshm`, APCu, `putenv`, `setlocale`, `bcscale`, `mb_internal_encoding` and `date_default_timezone_set` have no replacement",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/isolate-shares-nothing",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst"
+  ]
+}

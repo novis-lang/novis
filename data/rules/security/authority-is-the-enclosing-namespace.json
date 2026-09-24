@@ -1,0 +1,16 @@
+{
+  "title": "Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called",
+  "status": "designed",
+  "because": [
+    "0112",
+    "0081",
+    "0061"
+  ],
+  "seeAlso": [
+    "security/grants-are-keyed-on-a-namespace",
+    "security/longest-prefix-wins",
+    "security/an-unmatched-namespace-holds-the-application",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": []
+}

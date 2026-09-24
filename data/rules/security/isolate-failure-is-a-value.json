@@ -1,0 +1,18 @@
+{
+  "title": "A child isolate's failure arrives as data on the result and never unwinds into its parent",
+  "status": "shipped",
+  "because": [
+    "0006",
+    "0002",
+    "0020"
+  ],
+  "seeAlso": [
+    "errors/propagation",
+    "security/isolate-shares-nothing",
+    "security/isolate-values-cross-by-copy"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-childs-failure-is-a-value-not-an-exception.nvst",
+    "tests/conformance/isolate/a-spawn-that-cannot-start-throws-in-the-parent.nvst"
+  ]
+}

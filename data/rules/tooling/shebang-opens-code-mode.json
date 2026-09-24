@@ -1,0 +1,21 @@
+{
+  "title": "A file whose first two bytes are `#!` starts in code mode, and its first line is trivia",
+  "status": "shipped",
+  "because": [
+    "0100",
+    "0049",
+    "0099",
+    "0095"
+  ],
+  "divergesFromPhp": "a `#!` first line is stripped by PHP but the file still needs `<?php` on line 2; here the shebang itself opens code mode, and a `<?nvs` after it is E0009",
+  "seeAlso": [
+    "statements/nvs-is-the-only-open-tag",
+    "statements/exit-is-the-only-termination-keyword",
+    "errors/ambiguous-input-refused",
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+    "ide/one-grammar-one-tree"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-shebang-line-opens-code.nvst"
+  ]
+}

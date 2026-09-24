@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Process` is the one way to run another program, and there is no shell string anywhere in it",
+  "status": "shipped",
+  "because": [
+    "0044",
+    "0024",
+    "0118"
+  ],
+  "divergesFromPhp": "`exec`, `system`, `shell_exec`, `passthru`, `popen`, `proc_open` and backticks are all gone, and no flag brings a command line back",
+  "seeAlso": [
+    "core-classes/process-run",
+    "core-classes/process-refuses-a-shell-target",
+    "core-classes/process-spawn"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst",
+    "tests/conformance/core/process-exec-is-deny-by-default.nvst",
+    "tests/conformance/core/process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst"
+  ]
+}

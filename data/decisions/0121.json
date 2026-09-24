@@ -1,0 +1,15 @@
+{
+  "title": "PDF generation is sandboxed HTML rendering with no I/O",
+  "status": "accepted",
+  "scope": "where PDF generation is placed — Tier 1, first-party, the roster amendment that admits it —\nand the contract any implementation must meet: the no-I/O render, the one-engine rule, how the CSS\nsubset is bounded and reported, what the output file may never contain, and the fidelity escape hatch.\nNot in scope: the API of the builder and the component's entry points, which the milestone that builds\nit designs the way [0120](0120.md) did\nfor images; the sandbox contract itself ([0003](0003.md)); how the package is named,\npinned and granted ([0081](0081.md)); reading or\nrasterising an existing PDF, which is the image component's decode format\n([0128](0128.md)); scheduling — no\nmilestone owns this, deliberately.",
+  "dependsOn": [
+    "0003",
+    "0051"
+  ],
+  "dependsOnText": "[0003](0003.md) — the sandbox this ADR spends its whole argument on;\n[0051](0051.md) — the tests that decide the placement.",
+  "summary": {
+    "group": "core",
+    "headline": "HTML becomes PDF inside a sandbox that cannot fetch anything",
+    "body": "One component turns HTML, a documented CSS subset and inline SVG into PDF. It has no I/O at all:\nevery image, stylesheet and font is bytes the program hands in, and a reference nothing was\nhanded for throws instead of rendering a gap. That makes the classic exploit — the renderer\nfetched what the HTML named — impossible rather than audited away. A document built top-down\ngoes through a builder that emits the same HTML; there is no second engine. Unsupported CSS is\ndropped and reported. The output carries no scripts and no timestamps."
+  }
+}

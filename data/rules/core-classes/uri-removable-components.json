@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time",
+  "status": "shipped",
+  "because": [
+    "0147",
+    "0146"
+  ],
+  "divergesFromPhp": "there is no `parse_url`/`http_build_query` round trip to lose a component in — removing one is a written `null`, and an empty query is a different value from no query",
+  "seeAlso": [
+    "core-classes/signature"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst",
+    "tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst",
+    "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst",
+    "tests/conformance/core/uri-query-parameter-reads-one-pair-by-a-name-chosen-at-run-time.nvst",
+    "tests/conformance/core/uri-with-query-parameter-edits-one-pair-and-carries-every-other-over.nvst",
+    "tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"
+  ]
+}

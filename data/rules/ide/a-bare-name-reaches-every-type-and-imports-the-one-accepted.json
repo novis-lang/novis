@@ -1,0 +1,16 @@
+{
+  "title": "A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line",
+  "status": "shipped",
+  "because": [
+    "0193"
+  ],
+  "seeAlso": [
+    "ide/completion-offers-only-what-the-compiler-derived",
+    "ide/check-scope-defaults-to-the-workspace",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion_edits.rs",
+    "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"
+  ]
+}

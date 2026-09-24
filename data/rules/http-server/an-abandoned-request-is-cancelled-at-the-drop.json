@@ -1,0 +1,20 @@
+{
+  "title": "A client that goes away cancels its request tree at the next safepoint; nothing is waited out",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0072",
+    "0115"
+  ],
+  "divergesFromPhp": "PHP-FPM learns of a closed tab at the script's next write and holds the worker until `max_execution_time`; here the connection's drop is an event, the tree is cancelled and no worker was ever held",
+  "seeAlso": [
+    "concurrency/cancellation-runs-no-user-code",
+    "concurrency/after-response-outlives-the-connection",
+    "concurrency/nothing-is-still-running-when-a-call-returns",
+    "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/admission-is-arithmetic-not-a-number"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "A size or a duration is a quoted string carrying its suffix, a count is an integer, and `false` removes a ceiling",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0005"
+  ],
+  "divergesFromPhp": "`memory_limit = 128M` becomes `memory = \"128M\"` — quoted, because the value is typed and the suffix is part of it — and `-1` for no limit becomes `false`",
+  "seeAlso": [
+    "config/one-parser-for-the-boot-path-and-config-set"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/value.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

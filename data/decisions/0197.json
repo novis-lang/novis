@@ -1,0 +1,10 @@
+{
+  "title": "A mount capture may be written in lower case, a brace that is not a reference is refused, and no part of a URL takes its case rule from the filesystem",
+  "status": "accepted",
+  "scope": "how case is treated along a URL as the mount table sees it — what a capture expands\nto, what a brace in `prefix`, `host` or `origin` means, how a host is held, and what steps 3 and 4\ndo with a remainder the disk holds in another case. Case-insensitive prefix matching and a redirect\nto a canonical case are considered and declined. Route matching is not touched.",
+  "dependsOn": [
+    "0097",
+    "0104"
+  ],
+  "validatedBy": "`crates/nvs-config/tests/mount.rs` and the `mount` tests in\n`crates/nvs-server/src/mount.rs`."
+}

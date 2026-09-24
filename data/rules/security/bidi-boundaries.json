@@ -1,0 +1,20 @@
+{
+  "title": "The lexer refuses an unterminated control and the sinks substitute it, and nobody writes a second predicate",
+  "status": "shipped",
+  "because": [
+    "0087",
+    "0086",
+    "0024",
+    "0137"
+  ],
+  "seeAlso": [
+    "security/bidi-predicate",
+    "security/launderers-are-sink-named",
+    "errors/record-transformations"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-bidi-scope-may-not-cross-a-heredoc-line.nvst",
+    "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-inline-html.nvst",
+    "tests/conformance/core/html-escape-neutralizes-an-unterminated-bidi-control-and-passes-a-balanced-one.nvst"
+  ]
+}

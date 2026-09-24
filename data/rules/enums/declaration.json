@@ -1,0 +1,18 @@
+{
+  "title": "A case with no written value counts on from the one before it, starting at zero",
+  "status": "shipped",
+  "because": [
+    "0010"
+  ],
+  "divergesFromPhp": "every case has an integer value even where none is written, so PHP's valueless pure case does not exist",
+  "seeAlso": [
+    "enums/closed-integer-type",
+    "enums/one-backing-type",
+    "enums/no-case-keyword"
+  ],
+  "guardedBy": [
+    "tests/conformance/enum/enum-cases-count-on-from-the-last-explicit-value.nvst",
+    "tests/conformance/enum/an-enum-carries-negative-and-zero-cases.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

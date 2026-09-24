@@ -1,0 +1,224 @@
+{
+  "title": "`var` is a `foreach` binding's type wherever a local allows it",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-syntax/src/parser/stmt.rs",
+      "crates/nvs-syntax/src/ast.rs",
+      "crates/nvs-types/src/locals.rs",
+      "crates/nvs-types/src/expr/iteration.rs",
+      "crates/nvs-ir/src/lower/mod.rs",
+      "crates/nvs-ir/src/lower/control.rs",
+      "crates/nvs-lsp/src/hints.rs"
+    ],
+    "rules": [
+      "types/var-inference",
+      "iteration/foreach-subjects",
+      "types/declaration"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the binding",
+      "context": {
+        "rules": [
+          "types/arrays",
+          "iteration/for-init-clause"
+        ],
+        "adrs": [
+          "0037"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment",
+          "A `.nvst` test case",
+          "A diagnostic"
+        ],
+        "playbook": [
+          "Writing a test case > a rule*",
+          "Writing a test case > a -p*"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "lowering and the editor",
+      "context": {
+        "rules": [
+          "iteration/two-interfaces"
+        ],
+        "adrs": []
+      }
+    },
+    {
+      "number": 4,
+      "title": "the proofs",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-syntax-a-foreach-binding-parses-var-and-an-untyped-one",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-syntax (a `foreach` binding parses `var`, and an untyped one is still refused)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-syntax"
+      ],
+      "tests": [
+        "foreach_binding_accepts_var_for_the_key_and_the_value",
+        "foreach_binding_accepts_var_after_inout",
+        "foreach_binding_with_no_type_and_no_var_is_still_refused"
+      ]
+    },
+    {
+      "id": "nvs-types-a-var-binding-takes-the-subject-s-element-type-and",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-types (a `var` binding takes the subject's element type, and what a `var` local refuses it refuses)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "foreach_var_value_takes_the_element_type_and_fixes_it",
+        "foreach_var_key_is_a_string",
+        "foreach_var_keeps_the_element_types_qualifiers",
+        "foreach_var_over_a_mixed_subject_is_mixed",
+        "foreach_var_over_a_bare_array_literal_is_refused",
+        "foreach_var_key_over_a_cursor_is_still_refused",
+        "foreach_inout_var_is_the_element_type_exactly"
+      ]
+    },
+    {
+      "id": "a-foreach-binding-written-var-runs-and-the-bare-literal",
+      "kind": "nvs-suite",
+      "stage": 2,
+      "name": "a `foreach` binding written `var` runs, and the bare-literal subject does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/iter/a-foreach-binding-written-var-takes-its-type-from-the-subject.nvst",
+        "tests/conformance/reject/a-foreach-var-binding-refuses-a-bare-array-literal-subject.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ir-a-var-binding-lowers-to-the-ir-the-written-type",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ir (a `var` binding lowers to the IR the written type lowers to)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ir"
+      ],
+      "tests": [
+        "foreach_var_binding_lowers_as_the_written_type_does",
+        "foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-var-foreach-binding-carries-the-inlay-hint-a-var",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-lsp (a `var` foreach binding carries the inlay hint a `var` local carries)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_var_foreach_binding_is_hinted_with_its_inferred_type"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-the-var-binding-s",
+      "kind": "command",
+      "stage": 4,
+      "name": "dossier: the whole roster owes nothing with the `var` binding's proofs in it",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-the-programs-this-goal-added-carry-comments-inside",
+      "kind": "command",
+      "stage": 4,
+      "name": "dossier: the programs this goal added carry comments inside the plain-comment bounds",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--comments",
+        "docs/examples/lang/statements/foreach",
+        "tests/hostile/lang/iteration/what-foreach-walks"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

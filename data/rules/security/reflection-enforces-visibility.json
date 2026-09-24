@@ -1,0 +1,16 @@
+{
+  "title": "A reflective call faces exactly the visibility check ordinary code at that site would, and there is no `setAccessible`",
+  "status": "shipped",
+  "because": [
+    "0019",
+    "0014"
+  ],
+  "divergesFromPhp": "`ReflectionProperty::setAccessible(true)` and every equivalent are rejected outright, not merely undocumented",
+  "seeAlso": [
+    "security/reflection-needs-no-capability",
+    "enums/reflection"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/visibility.rs"
+  ]
+}

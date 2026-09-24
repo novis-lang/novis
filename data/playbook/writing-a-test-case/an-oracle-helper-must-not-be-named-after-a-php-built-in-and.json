@@ -1,0 +1,9 @@
+{
+  "lead": "An `--ORACLE--` helper must not be named after a PHP built-in, and the failure does not say so.",
+  "body": "PHP writes *Cannot redeclare function* to stdout, which the runner compares, not reports, so a helper named `pos` fails as `--ORACLE--: PHP exited 255` with `php stderr: <empty>`. Name a helper for what it renders (`render`, `show`); `php -r 'var_dump(function_exists(\"<name>\"));'` settles a doubt, and `key`, `next`, `end`, `reset`, `current`, `compact` collide too.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites",
+  "status": "designed",
+  "because": [
+    "0153"
+  ],
+  "seeAlso": [
+    "concurrency/queue-four-members",
+    "concurrency/queue-deletion-is-explicit-and-bounded",
+    "core-classes/queue-storage-is-a-table"
+  ],
+  "guardedBy": []
+}

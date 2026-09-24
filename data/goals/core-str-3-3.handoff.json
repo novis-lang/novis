@@ -1,0 +1,26 @@
+{
+  "state": "This goal has just been installed. Nothing in Core\\Str (3/3) has been taken yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "items": [
+      {
+        "done": false,
+        "text": "**`Core\\Str::replaceAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:405`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::replaceRange`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:418`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::reverse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:503`"
+      }
+    ],
+    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "A capability is checked at the door to the effect, and declared in one table",
+  "status": "accepted",
+  "scope": "where a capability check runs, what it is checked against, where the declaration that a\nmember needs one lives, and what proves the set of checked members is closed. It does **not** decide\nthe roster of capability names or their `nvs.toml` spelling — that is\n[0064](0064.md) § 2a's `[capabilities]` block, typed in\n`crates/nvs-config/src/tree.rs`; it does not decide limit enforcement, which is a `FATAL` and\n[0020](0020.md)'s; and it does not decide how a child isolate derives its\ngrants from its parent's, which is [0006](0006.md) § 5's.",
+  "dependsOn": [
+    "0078"
+  ],
+  "dependsOnText": "[0078](0078.md) § 1, without whose immutable\nper-request snapshot there is nothing a check could read that two checks in one request would agree\nabout.",
+  "validatedBy": "`crates/nvs-stdlib/tests/capability.rs`",
+  "summary": {
+    "group": "security",
+    "headline": "Capabilities are checked at the door to the operating system",
+    "body": "Every built-in that touches the outside world — a file, a socket, a process — does so through\none function in the runtime, and that function is the check. A member cannot forget to ask\npermission, because the only way to do anything at all is the thing that asks. Each question is\na grant plus a scope, answered from the request's own settings. What each member needs is\nwritten in one table, and a test proves table and doors agree. A denial is an ordinary catchable\nerror, and a member needing nothing pays nothing."
+  }
+}

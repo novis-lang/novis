@@ -1,0 +1,16 @@
+{
+  "title": "A bundled executable is one trust domain: a program, never a service",
+  "status": "shipped",
+  "because": [
+    "0048",
+    "0093"
+  ],
+  "seeAlso": [
+    "programs/compile-target",
+    "programs/audience"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/service.rs",
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

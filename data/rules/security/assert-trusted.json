@@ -1,0 +1,19 @@
+{
+  "title": "`Core\\Taint::assertTrusted` is the one generic way out, and it carries a written reason at the call site",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0088",
+    "0076"
+  ],
+  "seeAlso": [
+    "security/launderers-are-sink-named",
+    "security/every-grammar-is-a-sink",
+    "security/metric-label-refuses-tainted"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/taint-assert-trusted-launders-for-every-sink-and-names-none.nvst",
+    "tests/conformance/core/taint-assert-trusted-is-the-identity-and-the-reason-reaches-no-byte.nvst",
+    "tests/conformance/reject/assert-trusted-removes-tainted-and-refuses-a-secret.nvst"
+  ]
+}

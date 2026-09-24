@@ -1,0 +1,20 @@
+{
+  "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
+  "status": "designed",
+  "because": [
+    "0097",
+    "0091",
+    "0092",
+    "0076"
+  ],
+  "divergesFromPhp": "there is no Common or Combined Log Format and no pool `access.log`: the line is a diagnostic record, text in development and JSON in production",
+  "seeAlso": [
+    "http-server/the-trace-id-is-the-request-identifier",
+    "http-server/health-path-is-off-and-checks-nothing",
+    "config/a-mode-is-five-defaults",
+    "errors/log-fields",
+    "errors/renderings",
+    "observability/the-runtime-exports-what-it-already-measures"
+  ],
+  "guardedBy": []
+}

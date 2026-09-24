@@ -1,0 +1,13 @@
+{
+  "title": "The ingester owns every write to the index and runs without a browser, and the viewer only ever reads",
+  "status": "designed",
+  "because": [
+    "0163"
+  ],
+  "seeAlso": [
+    "testing/the-debug-stream-reaches-the-service-through-the-disk",
+    "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
+    "errors/log-write"
+  ],
+  "guardedBy": []
+}

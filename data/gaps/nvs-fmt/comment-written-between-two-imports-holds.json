@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/lib.rs",
+  "title": "A comment written between two imports holds the block it is in unsorted on either side of it.",
+  "text": "A comment belongs to the declaration it was written above, and `imports.rs` moves a path without moving anything around it, so sorting across one would leave it standing over an import it does not describe. The safe direction is the one taken: the run ends at the comment and each half is sorted alone, so `rule:tooling/fmt-sorts-the-use-block` is satisfied for an uncommented block and under-applied for a commented one. What closes it is the comment moving with the declaration below it, which is a second span per element rather than a second scan.",
+  "milestone": "M10"
+}

@@ -1,0 +1,11 @@
+{
+  "title": "No PHP-style name aliasing; `type` aliases are the disciplined exception",
+  "status": "accepted",
+  "scope": "`class_alias()`; the `use X as Y;` import form for classes, interfaces and enums; and, as the\none thing this ADR *adds* rather than removes, a new `type Name = TypeExpr;` declaration. Not in scope:\ntrait composition, which has no aliasing rule to state because\n[0043](0043.md) leaves no trait.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Nothing gets a second name, except a `type` alias for a shape",
+    "body": "A class, interface, enum, method or constant is reachable under the name it was declared with —\nshort or fully qualified — and under no other. There is no `class_alias()`, and `use Foo\\Bar as\nBaz;` does not compile. What survives is a `type` alias, such as `type UserId = uint;` or `type\nRow = array<string, int|string>;`: a synonym for a type expression that the checker resolves and\nnothing at run time ever sees. An alias may not name a single bare class, which would be import\nrenaming through a different door."
+  }
+}

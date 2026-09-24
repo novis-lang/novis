@@ -1,0 +1,14 @@
+{
+  "title": "A launderer answers its sink's carrier, and only an idempotent escape answers a `string`",
+  "status": "accepted",
+  "scope": "what the *return type* of a laundering `Core` member is, and the predicate that decides it;\n`Core\\Html::escape` answering `Core\\Html\\Markup`; `Core\\Html::toSource` as the one reasoned way back to a\n`string`; the return type `Core\\Html::sanitize` will have when it lands. Not in scope: what makes a\nparameter a sink, which is [0088 § 1](0088.md); the\n`tainted` qualifier, its sources and its propagation, which are\n[0024](0024.md); the terminal's substitution table, which is\n[0086 § 1](0086.md); the HTML parser `sanitize` waits on, which is\n[0122](0122.md).",
+  "dependsOn": [
+    "0024"
+  ],
+  "dependsOnText": "[0024](0024.md) — § 3 is the rule this refines and\n§ 5 is the sink that makes the refinement necessary.",
+  "summary": {
+    "group": "security",
+    "headline": "Escaping for HTML returns markup, so a value is never escaped twice",
+    "body": "`Core\\Html::escape` returns `Core\\Html\\Markup`, not a `string`. An escaped value returned as\nplain text looks like text nobody escaped, so a page that escapes automatically would escape it\nagain and `&` would arrive as `&amp;amp;`. Markup is joined with `+`, refused by `.`, and placed\ninto a page as it stands, so a double escape is a compile error; `sanitize` returns markup for\nthe same reason. Every other cleaning function still returns a plain `string`, because you call\nits sink by hand. `Core\\Html::toSource` is the one way back, and it takes a written reason."
+  }
+}

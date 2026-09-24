@@ -1,0 +1,21 @@
+{
+  "title": "A member's optional knobs are one trailing shape literal, never a flag or a bitmask",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0147",
+    "0135"
+  ],
+  "divergesFromPhp": "there are no `bool` flag parameters, no `int` bitmask constants and no positional optional tail longer than one",
+  "seeAlso": [
+    "core-api/parameters-are-callable-by-name",
+    "core-api/shape-parameter",
+    "core-api/omission-is-not-a-written-null",
+    "types/object-top"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/core_members.rs",
+    "crates/nvs-codegen/tests/core_str.rs",
+    "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst"
+  ]
+}

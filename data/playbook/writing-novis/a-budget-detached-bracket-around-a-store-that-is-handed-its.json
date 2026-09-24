@@ -1,0 +1,12 @@
+{
+  "lead": "A `budget::Detached` bracket around a store that is *handed* its bytes corrupts both balances.",
+  "body": "The caller's `Vec` was allocated under the request, so releasing it inside the bracket charges the process for what the request was charged — `live_bytes` drifts up and `detached_bytes` down without bound, each wrong alone though the sum is right. Copy into an allocation the bracket makes and release the caller's temporary outside it (`crates/nvs-stdlib/src/cache.rs:@store_put`); a store whose entry is an `Rc` the request also holds cannot be bracketed at all.",
+  "files": [
+    "crates/nvs-stdlib/src/cache.rs",
+    "crates/nvs-runtime/src/budget.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/budget.rs:pub struct Detached"
+  }
+}

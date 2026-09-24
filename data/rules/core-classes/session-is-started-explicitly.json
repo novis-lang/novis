@@ -1,0 +1,22 @@
+{
+  "title": "A session is opened by calling `Core\\Session::start`, and there is no ambient session array",
+  "status": "shipped",
+  "because": [
+    "0012",
+    "0139",
+    "0059",
+    "0008"
+  ],
+  "divergesFromPhp": "`$_SESSION` does not exist, nothing starts a session implicitly, and a member called before `start` throws",
+  "seeAlso": [
+    "statements/no-host-populated-variables",
+    "core-classes/cli-arguments",
+    "core-classes/script-args"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
+    "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
+    "tests/conformance/core/session-start-takes-the-presented-identifier-or-none-at-all.nvst",
+    "tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst"
+  ]
+}

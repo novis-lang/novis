@@ -1,0 +1,19 @@
+{
+  "title": "A subscript through a `mixed` is the tag's question; every other base answers it where it is written",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0036"
+  ],
+  "divergesFromPhp": "a read that finds no array and no key is a catchable throw, never PHP's warning and a `null`",
+  "seeAlso": [
+    "types/arrays",
+    "types/erased-member-access",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst",
+    "tests/conformance/lang/reading-an-absent-array-key-throws.nvst",
+    "tests/conformance/array/a-subscript-needs-an-array-to-read-from.nvst"
+  ]
+}

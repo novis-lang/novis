@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Script::args` is the value the current isolate was spawned with, and `null` where there was none",
+  "status": "shipped",
+  "because": [
+    "0012",
+    "0006",
+    "0023"
+  ],
+  "divergesFromPhp": "Novis's own `$_ARGS` superglobal was retired for the same reason PHP's were — a spawned isolate reads its argument through a member",
+  "seeAlso": [
+    "core-classes/cli-arguments",
+    "statements/no-host-populated-variables",
+    "statements/an-isolate-has-its-own-statics"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/script-args-are-read.nvst",
+    "tests/conformance/core/script-args-are-each-isolates-own.nvst",
+    "tests/conformance/core/script-args-tell-an-empty-array-from-no-option.nvst"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "The VS Code extension is a deep, first-class client; `nvs-syntax` gains a resilient parse mode; a minimal `nvs-lsp` moves ahead of M10",
+  "status": "accepted",
+  "scope": "the VS Code half of `rule:ide/one-server-two-thin-clients` only — the PhpStorm plugin, and\n0016's \"one server, two thin clients\" split, are untouched. Covers: (1) pulling a minimal `nvs-lsp` and\n`editors/vscode` ahead of M10 into a new milestone, **M4B**, right after M4's \"usable CLI language\"; (2)\nthe full v1 feature catalog for the VS Code extension — inspections, refactorings, completion depth, a\nTest Explorer with coverage, an AST panel, profiler visualization, debugger UI — each tagged with the\nlanguage/runtime feature it is staged behind; (3) a required addition to `nvs-syntax`: a second,\nerror-recovering parse mode, alongside the existing strict one, needed for usable completion on a file\nthat is mid-edit.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "VS Code is the reference editor, and the parser is built for a half-typed file",
+    "body": "A language server gives diagnostics, hover, go-to-definition and completion, and the VS Code\nextension is the client it is built against, available from the point the command-line language\nbecomes usable. Deeper features each wait on the part of the language they depend on.\nUnderneath, the parser never gives up on a broken file: an unclosed brace or a half-typed\n`$user->` still produces a tree with the invented parts marked, so completion keeps working\naround the error. The price is that every analysis reparses the whole document."
+  }
+}

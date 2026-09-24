@@ -1,0 +1,23 @@
+{
+  "title": "A program holds state in five declared places, and the list is closed",
+  "status": "shipped",
+  "because": [
+    "0008",
+    "0011",
+    "0010",
+    "0012",
+    "0006"
+  ],
+  "divergesFromPhp": "there is no global constant and no superglobal, so nothing holds state without a declaration a reader can find",
+  "seeAlso": [
+    "statements/no-function-static-and-no-global",
+    "statements/no-host-populated-variables",
+    "statements/a-required-file-shares-declarations-not-locals"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-top-level-constant-must-belong-to-a-class.nvst",
+    "tests/conformance/reject/a-top-level-function-must-be-a-method.nvst",
+    "tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-nullable-static-property-starts-each-request-at-null.nvst"
+  ]
+}

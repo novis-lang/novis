@@ -1,0 +1,11 @@
+{
+  "title": "`.lspt` coverage is inferred from the node the cursor resolved to, never declared, and `every_request_answers_every_construct` names each empty cell",
+  "status": "designed",
+  "because": [
+    "0099"
+  ],
+  "seeAlso": [
+    "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
+  ],
+  "guardedBy": []
+}

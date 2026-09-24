@@ -1,0 +1,19 @@
+{
+  "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
+  "status": "shipped",
+  "because": [
+    "0018",
+    "0079",
+    "0041"
+  ],
+  "divergesFromPhp": "there is no instrumented build and no extension to load; the probes are compiled into every unit and a bit is flipped on a request already in flight",
+  "seeAlso": [
+    "testing/debug-surface",
+    "testing/debug-mode-directive",
+    "testing/bench-counters"
+  ],
+  "guardedBy": [
+    "crates/nvs-codegen/tests/probes.rs",
+    "crates/nvs-runtime/src/ctx/trace.rs"
+  ]
+}

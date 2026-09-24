@@ -1,0 +1,23 @@
+{
+  "title": "A package is an immutable source archive whose identity is its BLAKE3 digest",
+  "status": "designed",
+  "because": [
+    "0081",
+    "0120",
+    "0042",
+    "0003"
+  ],
+  "divergesFromPhp": "a Composer dependency is a name that resolves to whatever the registry serves today; here two archives with the same digest are the same package and two with different digests are different packages whatever they call themselves",
+  "seeAlso": [
+    "packaging/a-package-name-is-vendor-slash-name",
+    "packaging/a-package-cannot-reach-its-host",
+    "packaging/the-lockfile-holds-every-digest",
+    "security/package-authority-is-granted-one-line-at-a-time",
+    "security/extension-manifest-only-tightens",
+    "programs/bundle-trust-domain",
+    "packaging/an-extension-is-a-sandboxed-wasm-component",
+    "packaging/an-extension-package-carries-two-payloads",
+    "packaging/an-artifact-is-one-immutable-content-addressed-file"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,21 @@
+{
+  "title": "The server's match dispatches nothing, and a request the table does not claim is served by the program",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0077"
+  ],
+  "divergesFromPhp": "a matched route never calls anything; the program or the framework dispatches, and a `null` route is a fact the program reads rather than a 404 anything sends",
+  "seeAlso": [
+    "routing/matched-once-before-the-handler",
+    "routing/a-match-is-not-invocable",
+    "security/csrf-is-on-by-default",
+    "programs/framework-web-package",
+    "routing/matching-is-not-dispatching",
+    "routing/table-is-opt-in"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst",
+    "tests/conformance/core/a-matched-route-is-nullable-and-a-program-says-what-it-does-without-one.nvst"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Terminal output is a sink, and every control byte is substituted visibly regardless of qualifier or tty",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0024",
+    "0087"
+  ],
+  "divergesFromPhp": "`echo \"\\e[31m\"` prints `␛[31m` rather than turning the text red, on a pipe and a terminal alike; colour is `Core\\Cli\\Text`",
+  "seeAlso": [
+    "tooling/text-is-the-one-raw-path",
+    "tooling/an-escape-in-a-literal-is-a-compile-error",
+    "tooling/echo-always-has-a-sink",
+    "core-classes/html-auto-escape",
+    "security/secret-sinks-refuse",
+    "security/bidi-predicate",
+    "security/launderers-are-sink-named"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/terminal-output-substitutes-a-control-sequence-visibly.nvst",
+    "tests/conformance/core/cli-write-is-the-sink-echo-already-is.nvst",
+    "tests/conformance/core/cli-text-plain-passes-layout-and-shows-commands.nvst"
+  ]
+}

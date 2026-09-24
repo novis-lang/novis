@@ -1,0 +1,17 @@
+{
+  "title": "The five drivers are an enum with one `match` per entry point, not a `Driver` trait",
+  "status": "shipped",
+  "because": [
+    "0132",
+    "0067",
+    "0003"
+  ],
+  "seeAlso": [
+    "core-classes/db-crate-boundary",
+    "core-classes/db-one-api",
+    "core-classes/db-unix-socket-path"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst"
+  ]
+}

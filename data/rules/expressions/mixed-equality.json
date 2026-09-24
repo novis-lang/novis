@@ -1,0 +1,19 @@
+{
+  "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
+  "status": "shipped",
+  "because": [
+    "0090",
+    "0007"
+  ],
+  "divergesFromPhp": "a cross-type pairing is `false` rather than PHP's converting comparison, and it is the one place a comparison answers instead of refusing to compile",
+  "seeAlso": [
+    "expressions/disjoint-comparison-refused",
+    "expressions/equality-semantics",
+    "expressions/truthy-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/numeric-identity-is-one-domain-at-runtime.nvst",
+    "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+    "crates/nvs-types/tests/equality.rs"
+  ]
+}

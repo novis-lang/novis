@@ -1,0 +1,15 @@
+{
+  "title": "The performance history is an append-only NDJSON file in the repository",
+  "status": "shipped",
+  "because": [
+    "0026"
+  ],
+  "seeAlso": [
+    "testing/perf-two-mechanisms",
+    "testing/perf-secondary-figures",
+    "testing/valgrind-on-wsl"
+  ],
+  "guardedBy": [
+    "docs/perf/history.ndjson"
+  ]
+}

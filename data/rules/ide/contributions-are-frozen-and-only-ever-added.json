@@ -1,0 +1,19 @@
+{
+  "title": "A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101",
+    "0108",
+    "0111"
+  ],
+  "seeAlso": [
+    "ide/reveal-is-explicit-and-window-local",
+    "ide/tainted-has-no-default-decoration",
+    "ide/the-extension-claims-nvs-only",
+    "ide/dependencies-are-allowlisted",
+    "ide/check-json-is-the-diagnostic-record-as-a-document",
+    "php-migration/completion-php-names-setting"
+  ],
+  "guardedBy": []
+}

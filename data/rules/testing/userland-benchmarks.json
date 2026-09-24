@@ -1,0 +1,17 @@
+{
+  "title": "A cross-engine comparison is a `benches/userland/` case with one twin per engine",
+  "status": "shipped",
+  "because": [
+    "0026",
+    "0100"
+  ],
+  "seeAlso": [
+    "testing/perf-secondary-figures",
+    "testing/member-perf-ledger",
+    "testing/perf-two-mechanisms"
+  ],
+  "guardedBy": [
+    "benches/userland/README.md",
+    "tools/bench.py"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time",
+  "status": "shipped",
+  "because": [
+    "0165"
+  ],
+  "seeAlso": [
+    "http-server/the-floor-cannot-fill-the-disk",
+    "errors/log-write",
+    "errors/log-fields",
+    "testing/the-ingester-runs-whether-or-not-anyone-is-looking"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/floor.rs",
+    "crates/nvs-stdlib/src/log.rs"
+  ]
+}

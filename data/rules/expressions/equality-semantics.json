@@ -1,0 +1,26 @@
+{
+  "title": "Equality has one row per type, and every row is the strict reading",
+  "status": "shipped",
+  "because": [
+    "0090",
+    "0054",
+    "0010",
+    "0007",
+    "0031",
+    "0009"
+  ],
+  "divergesFromPhp": "each row where PHP's two operators disagreed takes `===`'s answer — two strings compare as text and never as numbers, and an array compares in key order",
+  "seeAlso": [
+    "expressions/one-equality-operator",
+    "expressions/object-identity-equality",
+    "expressions/mixed-equality",
+    "expressions/disjoint-comparison-refused",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/equality-over-strings-and-bools.nvst",
+    "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+    "tests/conformance/lang/float-comparisons-and-equality.nvst",
+    "tests/conformance/lang/two-nulls-are-equal-and-two-bools-order.nvst"
+  ]
+}

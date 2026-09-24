@@ -1,0 +1,21 @@
+{
+  "title": "A library candidate is placed by six ordered tests, not by PHP's extension list",
+  "status": "shipped",
+  "because": [
+    "0051",
+    "0003",
+    "0082",
+    "0145",
+    "0024"
+  ],
+  "divergesFromPhp": "PHP's extension partition tracks 1997 C build engineering and is not inherited — `ctype` and `str_pad` land in the same place",
+  "seeAlso": [
+    "core-api/five-placements",
+    "core-api/tier-roster",
+    "core-api/core-means-always-present",
+    "programs/framework-core-half"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "title": "The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region",
+  "status": "designed",
+  "because": [
+    "0040",
+    "0099"
+  ],
+  "divergesFromPhp": "an editor over PHP goes dark below the first syntax error until it is fixed; here completion and hover keep working on the well-formed code around it",
+  "seeAlso": [
+    "ide/one-grammar-one-tree",
+    "ide/the-first-server-answers-a-closed-list",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/tests/prefixes.rs"
+  ]
+}

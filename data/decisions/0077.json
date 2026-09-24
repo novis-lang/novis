@@ -1,0 +1,11 @@
+{
+  "title": "Routes are compiled, not registered, and the router stops at matching",
+  "status": "accepted",
+  "scope": "the `#[Route]` attribute, the compile-time route table built from it, `Core\\Router::match` and\n`::url`, the path-pattern grammar, which failures are compile errors, and how a matched segment's\nqualifier and type are resolved. Not in scope: dispatch, a controller convention, a middleware pipeline\nand any rule mapping a return value to a response — § 4 says why none of those is here.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Routes are declared on the method, checked while building, and only matched",
+    "body": "A route is an attribute on the method that handles it, and the compiler bakes every one into a\ntable in the program. Two routes with the same shape, a placeholder with no matching parameter,\nand a link to a route that does not exist all stop the build. A placeholder takes its type from\nthe method's parameter: `{id}` on `show(uint $id)` is converted during matching, so a\nnon-numeric segment simply does not match, while a text parameter arrives marked untrusted. The\nrouter matches and reverses URLs and nothing more."
+  }
+}

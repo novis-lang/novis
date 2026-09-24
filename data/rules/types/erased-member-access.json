@@ -1,0 +1,25 @@
+{
+  "title": "A member reached through an erased receiver is answered at run time, and a failure is a throw",
+  "status": "shipped",
+  "because": [
+    "0036",
+    "0014",
+    "0007",
+    "0022",
+    "0126"
+  ],
+  "divergesFromPhp": "a missing name, a wrong-typed write and a receiver holding no object are all catchable throws, never a warning plus a `null`, and a write can never create a field",
+  "seeAlso": [
+    "types/mixed-subscript",
+    "types/shape-type",
+    "types/property-key-access",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-property-access-through-a-mixed-receiver-is-a-runtime-fetch.nvst",
+    "tests/conformance/lang/a-shape-field-write-is-name-keyed-and-type-checked.nvst",
+    "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-call-through-a-mixed-receiver-is-dispatched-on-its-value.nvst",
+    "tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst"
+  ]
+}

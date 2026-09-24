@@ -1,0 +1,23 @@
+{
+  "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
+  "status": "shipped",
+  "because": [
+    "0078",
+    "0005",
+    "0154",
+    "0175",
+    "0219"
+  ],
+  "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
+  "seeAlso": [
+    "config/three-changeability-classes",
+    "config/system-means-a-request-may-not-set-it",
+    "config/a-reload-names-what-it-could-not-apply",
+    "config/every-schedule-key-is-system",
+    "config/opcache-file-cache-directives-are-system"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs",
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

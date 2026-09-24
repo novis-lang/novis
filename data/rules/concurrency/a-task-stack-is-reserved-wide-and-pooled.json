@@ -1,0 +1,19 @@
+{
+  "title": "A task's stack is 1 MiB of reserved address space, resident only where it is touched, and pooled per worker",
+  "status": "shipped",
+  "because": [
+    "0115",
+    "0106",
+    "0116"
+  ],
+  "divergesFromPhp": "concurrency costs a stack rather than a process, so one machine holds tasks in the hundred-thousands instead of workers in the hundreds",
+  "seeAlso": [
+    "programs/memory-priority",
+    "concurrency/a-tasks-recursion-limit-comes-from-its-own-stack",
+    "concurrency/a-stream-is-an-ordinary-io-stream"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/stack.rs",
+    "crates/nvs-host/src/scheduler.rs"
+  ]
+}

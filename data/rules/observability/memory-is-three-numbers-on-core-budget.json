@@ -1,0 +1,22 @@
+{
+  "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
+  "status": "shipped",
+  "because": [
+    "0148"
+  ],
+  "divergesFromPhp": "there is no `$real_usage` boolean and no second accounting behind it: `memory_get_usage`'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them",
+  "seeAlso": [
+    "observability/a-memory-peak-is-recorded-not-asked-for",
+    "observability/memory-high-water-writes-a-warn",
+    "core-api/no-mode-strings",
+    "core-api/tier-roster",
+    "config/three-changeability-classes",
+    "errors/on-limit"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/migration-members-outstanding.txt",
+    "crates/nvs-stdlib/src/budget.rs",
+    "tests/conformance/core/budget-held-never-exceeds-the-peak-at-any-point-in-a-request.nvst",
+    "tests/conformance/core/budget-the-limit-is-a-ceiling-and-not-a-third-reading.nvst"
+  ]
+}

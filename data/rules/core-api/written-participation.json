@@ -1,0 +1,23 @@
+{
+  "title": "A class participates in a wire format only where it writes so, never structurally",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0071",
+    "0028",
+    "0033"
+  ],
+  "divergesFromPhp": "there is no `JsonSerializable`-style magic hook and no structural encoding of public properties",
+  "seeAlso": [
+    "core-api/required-optional-and-nullable",
+    "classes/no-magic-methods",
+    "classes/serialize-is-a-closed-format",
+    "attributes/inert-metadata",
+    "types/object-top"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-encode-decode-and-validate.nvst",
+    "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
+    "tests/conformance/core/json-derive-encodes-declared-fields.nvst"
+  ]
+}

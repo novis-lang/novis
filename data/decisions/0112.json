@@ -1,0 +1,14 @@
+{
+  "title": "Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses",
+  "status": "accepted",
+  "scope": "what a capability grant is keyed on and how one is looked up; which code a grant covers, at\nevery nesting depth and however that code reached the program; what an unmatched namespace holds; how a\npackage is stopped from asserting an identity that is not its own; the split between a capability a\npackage *requires* and one it declares *optional*, and what each does when it is not granted; where the\ntwo enforcement points are and which of them may grant; and the roster of capability names itself. Not in\nscope: what any individual capability permits, which stays with the ADR that argues it (§ 8's table names\neach); the changeability-class model, which is [0005](0005.md); how packages are\nnamed, fetched, pinned and verified, which stays [0081](0081.md)\n§§ 1-3 and 6-9; and name resolution itself, which is\n[0061](0061.md) and gains nothing here.",
+  "dependsOn": [
+    "0081"
+  ],
+  "dependsOnText": "[0081](0081.md) — its § 4 established that a\ndependency's authority is not ambient. This ADR keeps that decision and replaces the key it is stored\nunder.",
+  "summary": {
+    "group": "security",
+    "headline": "A package's permissions are keyed on its namespace and checked while building",
+    "body": "A package declares which capabilities it needs — files, the network, a database — and the\napplication grants them per namespace, the longest matching prefix winning and `Vendor\\*`\ncovering a whole tree. The namespace is the one thing an override cannot change, so replacing a\nsingle class never quietly inherits the application's full authority. The check runs while\nbuilding and costs nothing while the program runs. A capability declared optional compiles\nungranted and throws only if that code is reached, so a library can degrade instead of refusing\nto build."
+  }
+}

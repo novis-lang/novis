@@ -1,0 +1,24 @@
+{
+  "title": "A connection is named in configuration or built from settings, and both memoize for the request",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0064",
+    "0103",
+    "0033",
+    "0047"
+  ],
+  "divergesFromPhp": "a credential is never a DSN string in program source, and there is no destructor to close a connection — the request teardown does it",
+  "seeAlso": [
+    "core-classes/db-capabilities",
+    "core-classes/db-safe-connection-defaults",
+    "core-classes/db-one-api"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst",
+    "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
+    "tests/conformance/core/db-settings-require-the-keys-of-the-arm-they-select.nvst",
+    "tests/conformance/core/db-a-closed-name-is-free-for-the-next-connect.nvst",
+    "tests/conformance/core/db-a-closed-connection-refuses-every-member-that-needs-it.nvst"
+  ]
+}

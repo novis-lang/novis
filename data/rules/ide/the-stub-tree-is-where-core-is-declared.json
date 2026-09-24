@@ -1,0 +1,19 @@
+{
+  "title": "A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed",
+  "status": "shipped",
+  "because": [
+    "0214"
+  ],
+  "divergesFromPhp": "PhpStorm ships a hand-maintained stub tree for PHP's built-ins; here the stubs are generated from the registry the runtime dispatches on, so a stub cannot say what the binary does not do",
+  "seeAlso": [
+    "ide/one-server-two-thin-clients",
+    "ide/the-index-answers-the-cursor",
+    "core-api/reference-card",
+    "core-api/reserved-namespace"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/src/stubs.rs",
+    "tests/lsp/definition/a-core-method-answers-its-stub.lspt",
+    "tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt"
+  ]
+}

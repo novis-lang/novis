@@ -1,0 +1,18 @@
+{
+  "title": "A plan is the difference between a schema value and a live database, and `Core` knows no migrations",
+  "status": "shipped",
+  "because": [
+    "0145",
+    "0082"
+  ],
+  "divergesFromPhp": "there is no version number, no history table, no `up`/`down` pair and no fleet lock — the plan is recomputed from the database every time",
+  "seeAlso": [
+    "core-classes/schema-plan",
+    "core-classes/schema-introspection",
+    "core-classes/schema-absence-never-destroys",
+    "programs/no-migration-runner"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"
+  ]
+}

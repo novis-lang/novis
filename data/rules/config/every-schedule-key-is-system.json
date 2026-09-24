@@ -1,0 +1,19 @@
+{
+  "title": "Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one",
+  "status": "shipped",
+  "because": [
+    "0073",
+    "0005",
+    "0017"
+  ],
+  "divergesFromPhp": "no `ini_set` or `.user.ini` can add, remove or retime a job — a request cannot touch the schedule at all",
+  "seeAlso": [
+    "config/scheduled-work-is-a-config-block",
+    "statements/static-is-a-member-modifier",
+    "config/three-changeability-classes",
+    "config/opcache-revalidation-is-system-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

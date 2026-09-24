@@ -1,0 +1,17 @@
+{
+  "title": "the type-argument door is a roster of members admitting a class or an inline shape, and the diagnostic names both",
+  "status": "accepted",
+  "scope": "what a call site may write between the angle brackets of a compiler-owned member that\ndeclares a type variable it cannot infer, and which members have that door. Not in scope: the members\nthemselves, whose rosters are [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 6, 15 and\n18, and the hydration walk a shape argument runs, which is [0157](0157.md)'s type surface and\n`crates/nvs-stdlib/src/json.rs`'s module doc.",
+  "dependsOn": [
+    "0007",
+    "0036",
+    "0157"
+  ],
+  "dependsOnText": "[0007](0007.md) § 5 — the door itself, and why user-written generics are not part of\nit; [0036](0036.md) — the inline shape type; [0157](0157.md) — the optional key and the qualifier\nthat made a shape worth writing there.",
+  "validatedBy": "`tests/conformance/core/db-query-as-builds-a-class-and-not-a-scalar.nvst`.",
+  "summary": {
+    "group": "types",
+    "headline": "A decoding member takes a class or an inline shape as its type argument",
+    "body": "`Core\\Json::decodeAs<User>`, `Core\\Db::queryAs<User>` and `Core\\Request::jsonAs<User>` build a\ntyped value straight from text, and the type written in the angle brackets may be a class, an\ninline shape such as `{id: int, name: string}`, or an array of either. A shape works there\nbecause it declares its own fields on the spot, so nothing has to be looked up elsewhere. Which\nmembers offer the angle brackets is a table the compiler holds, so adding one is a row, not a\nlanguage change."
+  }
+}

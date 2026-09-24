@@ -1,0 +1,11 @@
+{
+  "title": "The resilient tree is the AST plus a trivia layer, `nvs-lsp` is synchronous, and an LSP answer is frozen as a `.lspt` case",
+  "status": "accepted",
+  "scope": "the four things M4B could not start without, each of which\n`rule:ide/every-feature-is-staged-behind-its-dependency` either left open or specified against a\nparser that has since turned out to be shaped differently: (1) **what the resilient tree actually is** —\none grammar and one AST with a trivia layer, not a second `rowan` CST; (2) **what `nvs-lsp` is built on**\n— `lsp-server`/`lsp-types`, synchronously, not `tower-lsp` and therefore not tokio; (3) **how an LSP\nanswer is frozen and diffed by exit code** — a `.lspt` case, sibling to `.nvst`, run by `nvs lsp-test`;\n(4) **what \"syntax highlighting\" means concretely** — the two layers, what each must colour, and the\ntest each answers to. Beside those, the operational rules that are cheap to state and expensive to\ndiscover: **diagnostic phase gating** (§ 3), stdout belonging to the protocol, document encoding, the\nfrozen setting and command identifiers, and what `language-configuration.json` actually contains (§ 6).\nIt also closes `rule:ide/every-feature-is-staged-behind-its-dependency`'s two open *Revisiting* items that said to decide \"once M4B's implementation\nstarts\". It does **not** touch M10's deep half, PhpStorm, `nvs fmt`'s style, or `nvs dap`.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "One grammar serves editor and compiler, and an editor answer is a frozen test",
+    "body": "The editor's language server has no second, error-tolerant parser. The one grammar already\nyields a tree for any input, however broken; the editor mode adds only the comments and\nwhitespace the compiler discards, so a file can be rebuilt byte for byte, plus an index that\nanswers what sits under the cursor. `nvs check` and `nvs run` are that same parse followed by\nrefusing if anything was reported. An editor answer is frozen the way program output is: a case\nfile holds a document with a cursor marker, a request and the expected response."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "state": "This goal has just been installed. Nothing in Core\\Xml\\Node and 1 more has been taken yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "items": [
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:313`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::children`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:322`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::kind`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:277`"
+      }
+    ],
+    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

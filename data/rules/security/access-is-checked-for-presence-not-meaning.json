@@ -1,0 +1,23 @@
+{
+  "title": "The compiler proves a route's access decision was written, never that it was honoured",
+  "status": "shipped",
+  "because": [
+    "0096",
+    "0102",
+    "0077",
+    "0082",
+    "0199"
+  ],
+  "seeAlso": [
+    "attributes/access-is-a-required-sibling",
+    "attributes/access-payload",
+    "security/csrf-is-on-by-default",
+    "security/route-capture-is-laundered-by-its-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+    "tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst",
+    "tests/conformance/core/one-access-check-above-the-dispatch-switch-covers-every-route.nvst",
+    "crates/nvs-server/src/route.rs"
+  ]
+}

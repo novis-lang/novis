@@ -1,0 +1,21 @@
+{
+  "title": "Being current has a schedule, a stale dependency is a defect, and a human fires every pass — never an agent, cron or CI",
+  "status": "shipped",
+  "because": [
+    "0068",
+    "0143",
+    "0026"
+  ],
+  "divergesFromPhp": "a PHP shop's `composer update` and the runtime's own upgrade are separate projects on nobody's calendar; here the toolchain, every crate, CI actions and the PHP oracle move on one dated cadence",
+  "seeAlso": [
+    "packaging/a-dependency-break-is-absorbed-never-forwarded",
+    "packaging/a-dependency-move-proves-two-things",
+    "packaging/one-bump-one-commit",
+    "testing/ci-lanes",
+    "testing/perf-two-mechanisms"
+  ],
+  "guardedBy": [
+    ".github/dependabot.yml",
+    ".github/workflows/ci.yml"
+  ]
+}

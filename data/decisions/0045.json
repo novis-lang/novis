@@ -1,0 +1,11 @@
+{
+  "title": "PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`||` are the only logical connectives",
+  "status": "accepted",
+  "scope": "PHP's low-precedence logical keyword operators (`and`, `or`, `xor`); the corresponding AST\nvariants (`BinaryOp::LowAnd`/`LowOr`/`LowXor`) and diagnostic. `&&`, `||`, and `!` are untouched.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Logical and/or are spelled && and ||; the keyword forms are rejected",
+    "body": "PHP keeps two spellings of the same connective, `$a && $b` and `$a and $b`, with different\nprecedence, a well-known source of bugs in assignments. Novis keeps one. `and`, `or` and `xor`\nstay reserved words, so writing one is a build error that names the fix: `&&` or `||`. `xor` has\nno direct replacement, since there is no `^^` operator; its error suggests `$a != $b` when both\nsides are booleans, or `($a || $b) && !($a && $b)` otherwise. That is a small loss of capability\nrather than a spelling change, accepted on purpose."
+  }
+}

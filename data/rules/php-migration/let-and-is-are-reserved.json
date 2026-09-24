@@ -1,0 +1,21 @@
+{
+  "title": "`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test",
+  "status": "designed",
+  "because": [
+    "0124",
+    "0150",
+    "0192"
+  ],
+  "divergesFromPhp": "`let` and `is` cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them",
+  "seeAlso": [
+    "types/var-inference",
+    "types/narrowing",
+    "types/type-test",
+    "expressions/nullable-conversion",
+    "classes/reserved-spellings-are-lower-case",
+    "security/no-eval",
+    "php-migration/a-deprecation-is-a-refusal",
+    "php-migration/one-type-test"
+  ],
+  "guardedBy": []
+}

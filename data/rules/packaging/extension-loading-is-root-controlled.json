@@ -1,0 +1,20 @@
+{
+  "title": "An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0064",
+    "0078"
+  ],
+  "divergesFromPhp": "`extension=` in a `php.ini` names a file; an `[[extension]]` entry names a file and its digest, a project cannot add one, and a changed binary under its pin is refused rather than loaded",
+  "seeAlso": [
+    "config/ownership-is-the-trust-boundary",
+    "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
+    "config/the-extension-set-is-in-every-unit-key",
+    "packaging/an-extension-package-carries-two-payloads",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

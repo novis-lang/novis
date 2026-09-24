@@ -1,0 +1,19 @@
+{
+  "title": "A generator is a lazy sequence and nothing more",
+  "status": "shipped",
+  "because": [
+    "0053",
+    "0051"
+  ],
+  "divergesFromPhp": "no `yield from`, no `send()`, no `throw()` into a generator, no keyed `yield`, and no generator return value to retrieve",
+  "seeAlso": [
+    "iteration/generators",
+    "iteration/yield-lexical-confinement"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-yield-has-no-key-half.nvst",
+    "tests/conformance/lang/a-yield-is-a-statement-not-a-value.nvst",
+    "tests/conformance/iter/a-generator-drains-another-generator.nvst",
+    "tests/conformance/iter/a-generator-has-no-key-to-bind.nvst"
+  ]
+}

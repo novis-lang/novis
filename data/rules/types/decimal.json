@@ -1,0 +1,22 @@
+{
+  "title": "`decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28",
+  "status": "shipped",
+  "because": [
+    "0054",
+    "0007",
+    "0051",
+    "0004"
+  ],
+  "divergesFromPhp": "`bcmath` and `gmp` are retired rather than ported — exact fractional arithmetic is a register-sized scalar, and arbitrary-magnitude integers are `Core\\BigInt`",
+  "seeAlso": [
+    "types/numeric-literal-placement",
+    "types/arithmetic",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst",
+    "tests/conformance/lang/decimal-conversions-are-checked-in-both-directions.nvst",
+    "tests/conformance/core/decimal-division-refuses-a-zero-divisor-and-a-scale-it-cannot-hold.nvst",
+    "crates/nvs-types/tests/decimal.rs"
+  ]
+}

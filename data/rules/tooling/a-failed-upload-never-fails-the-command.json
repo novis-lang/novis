@@ -1,0 +1,12 @@
+{
+  "title": "An upload gets three seconds, is abandoned with its counters kept when that expires, says so, and never changes the carrying command's exit status",
+  "status": "designed",
+  "because": [
+    "0130"
+  ],
+  "seeAlso": [
+    "tooling/a-serving-process-never-uploads",
+    "tooling/update-check-states-the-whole-picture"
+  ],
+  "guardedBy": []
+}

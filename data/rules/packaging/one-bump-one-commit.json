@@ -1,0 +1,13 @@
+{
+  "title": "Each dependency bump is its own commit, classified in its message",
+  "status": "shipped",
+  "because": [
+    "0068"
+  ],
+  "seeAlso": [
+    "packaging/who-can-see-it-decides-the-release-slot",
+    "packaging/a-dependency-move-proves-two-things",
+    "packaging/the-sweep-is-fired-by-a-human"
+  ],
+  "guardedBy": []
+}

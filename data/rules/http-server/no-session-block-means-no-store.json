@@ -1,0 +1,17 @@
+{
+  "title": "A tree with no `[session]` block has no session store, and `start` throws naming the block to write",
+  "status": "shipped",
+  "because": [
+    "0139",
+    "0074"
+  ],
+  "divergesFromPhp": "`session_start()` with nothing configured writes files under `session.save_path`; here a store nobody chose is no store, and the first `start` says which block would choose one",
+  "seeAlso": [
+    "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+    "core-classes/session-is-started-explicitly"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst"
+  ]
+}

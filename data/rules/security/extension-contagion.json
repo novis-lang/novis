@@ -1,0 +1,15 @@
+{
+  "title": "An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration",
+  "status": "designed",
+  "because": [
+    "0055",
+    "0024",
+    "0088"
+  ],
+  "seeAlso": [
+    "security/taint-propagation",
+    "security/extension-manifest-only-tightens",
+    "security/image-component-declares-nothing"
+  ],
+  "guardedBy": []
+}

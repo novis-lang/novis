@@ -1,0 +1,16 @@
+{
+  "title": "A class cannot make `$obj[$k]` or a count into a method call",
+  "status": "shipped",
+  "because": [
+    "0053",
+    "0028",
+    "0014",
+    "0011"
+  ],
+  "divergesFromPhp": "`ArrayAccess` and `Countable` do not exist; a collection exposes `->get($k)`, `->set($k, $v)` and `->count()` instead",
+  "seeAlso": [
+    "iteration/foreach-subjects",
+    "iteration/two-interfaces"
+  ],
+  "guardedBy": []
+}

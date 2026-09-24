@@ -1,0 +1,18 @@
+{
+  "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
+  "status": "shipped",
+  "because": [
+    "0074",
+    "0058"
+  ],
+  "divergesFromPhp": "curl's `CURLOPT_TIMEOUT` bounds one transfer, so three attempts at five seconds is a fifteen-second call; here the stated number is the bound on everything",
+  "seeAlso": [
+    "http-server/no-spelling-for-an-unbounded-wait",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "tests/conformance/core/every-client-member-answers-a-response-with-the-same-two-readers.nvst"
+  ]
+}

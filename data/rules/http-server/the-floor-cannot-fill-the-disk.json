@@ -1,0 +1,24 @@
+{
+  "title": "The floor cannot fill the disk it writes to: a file target rotates under a retention bound, repeats coalesce into one record with a count, and a cache write failure compiles in memory",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0020",
+    "0092",
+    "0042"
+  ],
+  "seeAlso": [
+    "errors/engine-floor",
+    "errors/diagnostic-record",
+    "errors/renderings",
+    "http-server/the-accept-loop-backs-off",
+    "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "packaging/an-artifact-is-one-immutable-content-addressed-file"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/log.rs",
+    "crates/nvs-runtime/src/logfile.rs",
+    "crates/nvs-runtime/src/floor.rs",
+    "tests/conformance/core/log-target-both-writers-land-in-the-destination-the-deployment-named.nvst"
+  ]
+}

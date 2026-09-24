@@ -1,0 +1,21 @@
+{
+  "title": "Redaction, control bytes, bidi and elision are decided in the record",
+  "status": "shipped",
+  "because": [
+    "0092",
+    "0033",
+    "0086",
+    "0087"
+  ],
+  "divergesFromPhp": "a cut, a cycle and a redaction are nodes in the record, so every rendering agrees on them instead of truncating per formatter",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/renderings",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
+    "tests/conformance/core/a-repeat-is-a-cycle-only-when-it-is-an-ancestor.nvst",
+    "tests/conformance/core/a-dump-cuts-at-its-caps-and-not-one-entry-early.nvst"
+  ]
+}

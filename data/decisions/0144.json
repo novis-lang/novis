@@ -1,0 +1,16 @@
+{
+  "title": "`::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads",
+  "status": "accepted",
+  "scope": "what `::class` answers on the two sides that are not a name the compiler resolves —\n`static::class` and `$obj::class` — and the `class<T>` → `string` conversion that is the same read\none representation over. Covers which operand types are accepted, why the answer is not folded, and\nwhat it costs per evaluation. Not in scope: the reflective surface itself, which stays\n[0019](0019.md)'s `Core\\Reflect` and gains nothing here\n— a name is not a description; the `string` → `class<T>` direction and the three sites that consume a\nclass reference, which are [0125](0125.md)\n§ 2's and § 4's and are unchanged; and how late static binding *binds*, which is\n[0008](0008.md) § 1's and is only read here.",
+  "dependsOn": [
+    "0008",
+    "0125"
+  ],
+  "dependsOnText": "[0008](0008.md), which decides there is a called class to read,\nand [0125](0125.md), which decides a class\ndescriptor is a value with a type.",
+  "validatedBy": "[tests/differential/class/a-class-name-constant-matches-php.nvst](../../tests/differential/class/a-class-name-constant-matches-php.nvst),\n[tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst](../../tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst)\nand [tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst](../../tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst)",
+  "summary": {
+    "group": "language",
+    "headline": "`::class` names the class a value actually is",
+    "body": "`Foo::class`, `self::class` and `parent::class` name a class the compiler can resolve, so they\nare compile-time constants. `static::class` and `$obj::class` cannot be folded: given `User $u =\nnew Admin()`, `$u::class` must answer `Admin`, and `static::class` in an inherited method must\nanswer the subclass, so both read the name at run time from a descriptor the frame already\nholds. Converting a `class<T>` value to a string is that same read. The operand must be known to\ncarry a class while building: `mixed`, a nullable type and a scalar are refused, with a pointer\nto what answers instead."
+  }
+}

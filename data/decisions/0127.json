@@ -1,0 +1,11 @@
+{
+  "title": "The end of a script is observable: `Core\\Script::onExit` runs at every non-fatal ending",
+  "status": "accepted",
+  "scope": "the end-of-script hook queue — what registers a hook, the three endings that fire it, the\ntwo terminations that never do, its ordering against `rule:errors/escalation-ladder`'s\nladder and native teardown, and the report each hook receives. Not in scope: what runs after a `FATAL`\n([0020](0020.md) §§ 1–2 own the two `Core\\Fatal` hooks), post-response work\n([0072](0072.md) § 6 owns `afterResponse`), and graceful drain\n(`Core\\Signal`, [0051](0051.md)).",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A script's end is observable, except when it is fatal or cancelled",
+    "body": "`Core\\Script::onExit(callable $hook)` registers code that runs in order, once, as the last user\ncode of the script — after a normal finish, after `exit`, and after an uncaught throw — each\nhook receiving a read-only report saying which ending it was. Hooks observe an ending and never\nsteer one: the reason and the exit status are fixed before the first hook runs. A fatal error\nand a cancellation run none of them. This is PHP's `register_shutdown_function` for every ending\nthat is not a fatal."
+  }
+}

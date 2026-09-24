@@ -1,0 +1,11 @@
+{
+  "title": "A request is matched once, and the route table completes without crossing into dispatch",
+  "status": "accepted",
+  "scope": "where the match happens and who may read it; telling a missing path from a refused verb;\nbinding a query parameter; an absent trailing segment; the closed set a capture may narrow to; building\nan absolute link; reading the mount a request arrived through; which layer enforces `#[Access]`; and the\ncorrection that routing is not a forcing case for typed `callable`. **Not in scope:** dispatch, a\ncontroller convention, middleware and a return-value-to-response rule, all of which\n[0077](0077.md) § 4 refuses and this ADR upholds; the framework layer that does\nbuild them ([0082](0082.md) § 3); what an access *name* means\n([0096](0096.md) § 2); the mount table's own\ngrammar ([0097](0097.md) § 3); and typed `callable` itself, which\n§ 9 hands back to [0007](0007.md) § 3 with a corrected count.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A request is matched to its route once, before any of your code runs",
+    "body": "The server matches an incoming request against the route table exactly once, before the handler,\nand the result travels on the request, where `Core\\Request::route()` returns it. The CSRF check,\nthe metrics label and the access decision all read that one answer. Around it, the table gained\nwhat an application misses early: a wrong verb answers 405 rather than 404, a query parameter is\ndeclared like a path capture, a trailing segment may be optional, a capture can narrow to a\nclosed set of typed values but never a regex, and links can be built absolute."
+  }
+}

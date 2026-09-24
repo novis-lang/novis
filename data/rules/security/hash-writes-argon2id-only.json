@@ -1,0 +1,15 @@
+{
+  "title": "`hash` writes Argon2id and nothing else, and no member takes an algorithm argument",
+  "status": "shipped",
+  "because": [
+    "0129"
+  ],
+  "divergesFromPhp": "`password_hash($p, PASSWORD_BCRYPT)` has no spelling; the algorithm is not a parameter",
+  "seeAlso": [
+    "security/bcrypt-read-roster",
+    "security/needs-rehash-answers-weaker"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-hash-verify-and-needs-rehash-take-no-algorithm-argument.nvst"
+  ]
+}

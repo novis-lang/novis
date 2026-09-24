@@ -1,0 +1,18 @@
+{
+  "title": "An `int` or `uint` widening into a `float` position is the only implicit conversion in the language",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0054"
+  ],
+  "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
+  "seeAlso": [
+    "types/conversion",
+    "types/arithmetic",
+    "types/numeric-literal-placement"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
+    "tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst"
+  ]
+}

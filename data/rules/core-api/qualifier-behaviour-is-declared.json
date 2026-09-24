@@ -1,0 +1,18 @@
+{
+  "title": "Every `Core` member declares whether it is a sink, a launderer, contagious or neutral",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0024",
+    "0055",
+    "0135"
+  ],
+  "seeAlso": [
+    "core-api/shape-flattens-at-the-abi",
+    "core-api/tier-placement"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst"
+  ]
+}

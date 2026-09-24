@@ -1,0 +1,9 @@
+{
+  "lead": "A `Core` callback whose result the member discards returns `mixed`, never `void`.",
+  "body": "`void` is what the row means and it refuses every `fn (): int` body a program may reasonably write, where `Ty::Void` *is* assignable to `mixed` in return position — so `mixed` takes a `fn (): void` body and a value-returning one alike, and still constrains the parameters. Write `CoreTy::Mixed` at any callback the member does not read back, and a concrete return only where it uses the answer.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-07"
+  }
+}

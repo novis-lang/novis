@@ -1,0 +1,11 @@
+{
+  "title": "A bare name completes to every type the server holds, a list opens only where a spelling ends, and the index covers the workspace by default",
+  "status": "accepted",
+  "scope": "what `textDocument/completion` offers at a bare position, in markup and after a trigger\ncharacter, and the default of `nvs.check.scope`. Member lists after `->` and `::`, the namespace list\nafter `\\` and the PHP-name layer are unchanged.",
+  "dependsOn": [
+    "0099",
+    "0108",
+    "0111"
+  ],
+  "validatedBy": "`crates/nvs-lsp/tests/completion_edits.rs`, and the cases under\n`tests/lsp/completion/` that cite the three rules this creates."
+}

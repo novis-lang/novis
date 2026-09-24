@@ -1,0 +1,14 @@
+{
+  "title": "There is no `undefined`: a property that may legitimately hold no value is `?T`",
+  "status": "shipped",
+  "because": [
+    "0022"
+  ],
+  "seeAlso": [
+    "classes/definite-property-initialization",
+    "classes/an-unwritten-property-read-throws",
+    "types/declaration",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": []
+}

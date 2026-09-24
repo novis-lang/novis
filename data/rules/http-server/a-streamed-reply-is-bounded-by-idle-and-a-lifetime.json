@@ -1,0 +1,22 @@
+{
+  "title": "`deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "a PHP stream has `default_socket_timeout` and nothing that bounds how long a body may take; here a streamed body has two finite bounds it cannot be without, and reading it twice throws",
+  "seeAlso": [
+    "http-server/one-deadline-covers-the-whole-call",
+    "http-server/no-spelling-for-an-unbounded-wait",
+    "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
+    "core-classes/io-write-stream",
+    "config/three-changeability-classes"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-config/tests/tree.rs",
+    "tests/conformance/core/http-stream-reads-lines-and-chunks-and-refuses-a-second-read.nvst",
+    "tests/conformance/core/http-stream-caps-a-line-and-one-events-data.nvst",
+    "tests/conformance/core/http-stream-save-to-stops-at-its-bound.nvst"
+  ]
+}

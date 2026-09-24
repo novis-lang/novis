@@ -1,0 +1,16 @@
+{
+  "title": "`#[Test(db:)]` opens a transaction on the test's own context and rolls it back",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0067"
+  ],
+  "seeAlso": [
+    "testing/isolate-per-test",
+    "testing/runner-is-strict"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/runner.rs",
+    "crates/nvs-stdlib/src/db/transaction.rs"
+  ]
+}

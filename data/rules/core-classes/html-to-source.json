@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Html::toSource` is the one way out of a `Markup`, and it takes a written reason",
+  "status": "shipped",
+  "because": [
+    "0133",
+    "0024",
+    "0063"
+  ],
+  "seeAlso": [
+    "core-classes/html-escape-answers-markup",
+    "core-classes/html-auto-escape",
+    "core-classes/secret-reveal"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/to-source-hands-back-the-bytes-of-every-way-a-markup-is-obtained.nvst",
+    "tests/conformance/core/to-source-refuses-an-empty-reason-and-takes-any-written-one.nvst"
+  ]
+}

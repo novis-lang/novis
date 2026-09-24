@@ -1,0 +1,20 @@
+{
+  "title": "`fn` is the only closure literal, with an expression body or a block body",
+  "status": "shipped",
+  "because": [
+    "0031",
+    "0027",
+    "0015"
+  ],
+  "divergesFromPhp": "`function (...) {...}` and `function (...) use (...) {...}` do not parse at all; `fn` gains the block body PHP's arrow form never had",
+  "seeAlso": [
+    "types/implicit-capture",
+    "types/closure-self-name",
+    "types/callable-is-a-closure"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.nvst",
+    "tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst",
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ]
+}

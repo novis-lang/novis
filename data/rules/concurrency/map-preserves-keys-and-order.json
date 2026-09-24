@@ -1,0 +1,16 @@
+{
+  "title": "`Core\\Task::map` answers an array of the callback's own return type, in the input's keys and order",
+  "status": "shipped",
+  "because": [
+    "0072"
+  ],
+  "divergesFromPhp": "`array_map` runs sequentially; this one runs the callback concurrently and still answers in the input's order",
+  "seeAlso": [
+    "core-api/subject-first",
+    "core-api/callback-receives-value-and-key"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-task-map-answers-an-array-of-the-callbacks-own-return-type.nvst",
+    "tests/conformance/core/a-task-map-and-a-task-all-refuse-each-others-subject.nvst"
+  ]
+}

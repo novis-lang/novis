@@ -1,0 +1,14 @@
+{
+  "title": "A class cannot change how it is dumped",
+  "status": "shipped",
+  "because": [
+    "0092",
+    "0028"
+  ],
+  "divergesFromPhp": "no `__debugInfo` and no `__toString` in a dump — a dump shows declared state and never a prettier view of it",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/debug-dump"
+  ],
+  "guardedBy": []
+}

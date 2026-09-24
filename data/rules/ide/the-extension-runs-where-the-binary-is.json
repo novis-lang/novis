@@ -1,0 +1,20 @@
+{
+  "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
+  "status": "shipped",
+  "because": [
+    "0099",
+    "0155"
+  ],
+  "seeAlso": [
+    "ide/the-extension-claims-nvs-only",
+    "ide/the-extension-refuses-a-binary-it-does-not-understand",
+    "ide/the-lockfile-is-committed-and-build-output-is-not",
+    "ide/editor-clients-live-under-editors",
+    "ide/one-server-two-thin-clients",
+    "ide/the-extension-guides-an-install-and-never-bundles-one"
+  ],
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts",
+    ".github/workflows/ci.yml"
+  ]
+}

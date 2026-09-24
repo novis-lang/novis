@@ -1,0 +1,18 @@
+{
+  "title": "`object` is the opaque top of every class type",
+  "status": "shipped",
+  "because": [
+    "0036",
+    "0007"
+  ],
+  "seeAlso": [
+    "types/shape-type",
+    "types/object-literal",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/object-is-a-declared-type-in-every-position.nvst",
+    "tests/conformance/lang/an-object-target-naming-no-class-cannot-be-converted-to.nvst",
+    "crates/nvs-types/tests/objects_and_shapes.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "lead": "A `bun:sqlite` database closed on Windows can stay locked when its statements came from `db.query` or `db.transaction`.",
+  "body": "Bun caches those statements and does not finalize them on `close()`, so the handle lives on and deleting or rebuilding the file fails with `EBUSY`. In `tools/nv/lib/index.ts` every statement goes through `Index.stmt`, which `close` finalizes, and a transaction is `BEGIN`/`COMMIT` through `exec`. Never call `db.query` or `db.transaction` there.",
+  "files": [
+    "tools/nv/lib/index.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/lib/index.ts:private stmt("
+  }
+}

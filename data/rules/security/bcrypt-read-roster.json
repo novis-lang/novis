@@ -1,0 +1,18 @@
+{
+  "title": "A stored password hash is read from a roster of exactly two shapes, and the roster grows only by amendment",
+  "status": "shipped",
+  "because": [
+    "0129",
+    "0051"
+  ],
+  "divergesFromPhp": "`$2x$` is refused rather than emulated, because verifying it means reimplementing `crypt_blowfish`'s overflow",
+  "seeAlso": [
+    "security/hash-writes-argon2id-only",
+    "security/needs-rehash-answers-weaker",
+    "security/an-unreadable-stored-hash-throws"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-verify-reads-a-php-stored-bcrypt-hash-and-upgrades-it.nvst",
+    "tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst"
+  ]
+}

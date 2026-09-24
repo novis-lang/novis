@@ -1,0 +1,19 @@
+{
+  "title": "A closure captures by value exactly the outer names its body reads, and there is no `use` clause",
+  "status": "shipped",
+  "because": [
+    "0031",
+    "0008"
+  ],
+  "divergesFromPhp": "capture is never written, and `use (&$y)` has no replacement — a shared mutable cell is an ordinary object in user code",
+  "seeAlso": [
+    "types/closure-literal",
+    "types/closure-self-name",
+    "types/object-literal"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/closures.rs",
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"
+  ]
+}

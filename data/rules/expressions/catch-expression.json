@@ -1,0 +1,23 @@
+{
+  "title": "An expression-level `catch` is a chain of typed arms guarding one expression",
+  "status": "shipped",
+  "because": [
+    "0119",
+    "0002",
+    "0020"
+  ],
+  "divergesFromPhp": "PHP has no expression-level `catch`; a one-line fallback for a throwing call is a language form rather than a swallowed `@` or a five-line block",
+  "seeAlso": [
+    "expressions/catch-arm-is-an-expression",
+    "expressions/catch-result-type",
+    "expressions/catch-expression-precedence",
+    "expressions/catch-lowers-to-block-form",
+    "errors/throwable-hierarchy"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-expression-catch-yields-the-arm-where-the-guard-threw.nvst",
+    "tests/conformance/lang/catch-arms-are-tried-in-order-and-the-rest-is-rethrown.nvst",
+    "tests/conformance/reject/a-catch-arm-names-one-class-and-a-union-asks-for-two-arms.nvst",
+    "crates/nvs-types/tests/catch_expression.rs"
+  ]
+}

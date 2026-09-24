@@ -1,0 +1,11 @@
+{
+  "title": "Derived codecs: an explicit attribute generates `Json\\Codec`/`Db\\Codec`, and a decode reports every failed field",
+  "status": "accepted",
+  "scope": "the `#[Json\\Derive]`/`#[Db\\Derive]` opt-in attribute, the field list it reads, the per-field\n`#[Json\\Field]`/`#[Db\\Field]` override, how required/optional/null are expressed, the multi-field error\nreport, and the one general rule this needs from\n[0046](0046.md) — that a **compiler-recognized** attribute is matched\nnominally. Not in scope: `Core\\Json`'s and `Core\\Db`'s member lists, which are\n[docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 6 and 18; the JSON wire format itself; and\nevery other compiler-recognized attribute — `#[Route]` is now\n[0077](0077.md)'s, and `#[Deprecated]`, `#[Override]`, `#[Memoize]` and `#[Flags]`\neach still need their own decision.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "One attribute derives JSON and database decoding; a failure names every field",
+    "body": "Marking a class with a Derive attribute generates its JSON codec, or its reader from a database\nrow, from the class's own declared property types, so hand-written hydration code does not\nexist. Every field must also be a constructor parameter of the same name and type, so a decode\nis an ordinary new. A parameter default makes a key optional; a nullable type makes null legal;\nthe two are independent. A failed decode throws once, carrying every field that failed with its\npath and message, because a form needs the whole list."
+  }
+}

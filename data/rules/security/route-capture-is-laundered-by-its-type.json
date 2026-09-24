@@ -1,0 +1,20 @@
+{
+  "title": "A route capture is laundered by the parameter's own type, and a `string` capture stays tainted",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0024",
+    "0102",
+    "0160"
+  ],
+  "seeAlso": [
+    "security/taint-propagation",
+    "security/access-is-checked-for-presence-not-meaning",
+    "types/literal-types"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",
+    "tests/conformance/core/router-match-converts-a-capture-before-anything-decodes-it.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

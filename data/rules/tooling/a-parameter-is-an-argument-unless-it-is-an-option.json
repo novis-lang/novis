@@ -1,0 +1,22 @@
+{
+  "title": "A command parameter is a positional argument unless it carries `#[Option]`, and its type converts and launders the word",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0024",
+    "0077"
+  ],
+  "divergesFromPhp": "an argument arrives as the parameter's declared type, `uint` unqualified and `string` `tainted`, instead of every option being a string in an array",
+  "seeAlso": [
+    "tooling/commands-are-compiled",
+    "security/route-capture-is-laundered-by-its-type",
+    "routing/a-capture-narrows-to-a-closed-set",
+    "core-classes/cli-arguments"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst",
+    "tests/conformance/core/command-run-converts-an-enum-argument-by-its-case-name.nvst",
+    "tests/conformance/core/command-run-throws-for-a-parameter-no-argument-converts-into.nvst",
+    "tests/conformance/reject/an-option-marker-outside-a-command-method-supplies-nothing.nvst"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "What a peer sent arrives `tainted`, and `Core\\Validate` is the only way to launder it",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0024",
+    "0082",
+    "0033"
+  ],
+  "divergesFromPhp": "a frame is untrusted by type rather than by convention, so it reaches no sink until it has been validated",
+  "seeAlso": [
+    "concurrency/a-connection-is-a-loop",
+    "core-classes/topic"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-peer-frames-payload-is-tainted-and-a-sink-refuses-it.nvst",
+    "tests/conformance/core/a-socket-message-cannot-be-manufactured-only-received.nvst",
+    "crates/nvs-types/tests/sockets.rs"
+  ]
+}

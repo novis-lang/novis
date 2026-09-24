@@ -1,0 +1,14 @@
+{
+  "title": "bcrypt's 72-byte truncation is replicated exactly, because the stored row was written under it",
+  "status": "shipped",
+  "because": [
+    "0129"
+  ],
+  "seeAlso": [
+    "security/bcrypt-read-roster",
+    "security/needs-rehash-answers-weaker"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-verify-reads-a-php-stored-bcrypt-hash-and-upgrades-it.nvst"
+  ]
+}

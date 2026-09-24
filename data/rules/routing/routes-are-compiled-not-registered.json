@@ -1,0 +1,24 @@
+{
+  "title": "A route is a `#[Route]` compiled into the unit's table, and its three runtime bugs are compile errors",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0102",
+    "0110"
+  ],
+  "divergesFromPhp": "there is no runtime registry and no routes file — a `$router->get(...)` call has no counterpart, and a duplicate route, an unbound placeholder or a stale link name fails the build rather than a request",
+  "seeAlso": [
+    "routing/table-is-opt-in",
+    "routing/matching-is-not-dispatching",
+    "routing/link-name-and-params-are-checked",
+    "programs/implementing",
+    "core-classes/derive-attribute",
+    "security/route-capture-is-laundered-by-its-type",
+    "routing/repeated-routes-share-a-name-when-they-share-a-path"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+    "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

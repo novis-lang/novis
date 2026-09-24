@@ -1,0 +1,11 @@
+{
+  "title": "A scalar literal or a named enum case is itself a type; unioning them declares a closed set",
+  "status": "accepted",
+  "scope": "two new atom kinds in the type grammar — a `string`/`int` literal type, and an enum-case type\n(`EnumName::CaseName`) — unioned to declare an explicit closed set of accepted values; a class constant\n(`ClassName::CONST_NAME`) used in type position as sugar that folds to its own literal type when the\nconstant is scalar-eligible; the checked-conversion and narrowing rules for a value entering or leaving\none of these types. Does not touch `float` literal types (deferred, see *Revisiting*) or `match`/`switch`\nexhaustiveness (stays `rule:enums/closed-integer-type`'s own deferred item).",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "A literal or an enum case is a type, and a union of them is a closed set",
+    "body": "`\"asc\"|\"desc\"` and `1|2|3` are types, accepted anywhere a type is written, so a parameter can\nspell out exactly which values it takes. A scalar class constant used as a type stands for its\nown value, so `Sort::ASC|Sort::DESC` means the same as the two literals it names. An enum case\nused as a type is different on purpose: `Mode::A|Mode::B` accepts only those two cases of\n`Mode`, never a raw integer equal to their backing value. Widening to the base type is free;\nnarrowing back needs a check or an `as`."
+  }
+}

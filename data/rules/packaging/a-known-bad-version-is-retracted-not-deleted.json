@@ -1,0 +1,13 @@
+{
+  "title": "A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it",
+  "status": "designed",
+  "because": [
+    "0081"
+  ],
+  "divergesFromPhp": "Packagist lets a publisher delete a release, which breaks every lockfile naming it; here the bytes stay fetchable forever and only selection refuses them",
+  "seeAlso": [
+    "packaging/resolution-takes-the-highest-minimum",
+    "packaging/the-registry-keeps-an-append-only-log"
+  ],
+  "guardedBy": []
+}

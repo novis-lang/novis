@@ -1,0 +1,23 @@
+{
+  "title": "A store an operator configured is authorized by the configuring — `cache.shared` is the grant, unscoped, and asks no address",
+  "status": "shipped",
+  "because": [
+    "0142",
+    "0058",
+    "0059"
+  ],
+  "divergesFromPhp": "a Redis on loopback needs one grant naming the store, not a host allow-list plus an exception for the loopback range the store lives in",
+  "seeAlso": [
+    "security/net-address-policy",
+    "security/capability-question-is-grant-and-scope",
+    "core-classes/db-capabilities",
+    "core-api/two-cache-tiers",
+    "core-classes/ratelimit-two-members",
+    "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/capability.rs",
+    "crates/nvs-config/src/store.rs",
+    "crates/nvs-stdlib/src/cache.rs"
+  ]
+}

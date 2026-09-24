@@ -1,0 +1,9 @@
+{
+  "lead": "A handoff that says a dossier goal is complete can be wrong, and the driver's failure line hides the list that says so.",
+  "body": "The acceptance ledger prints the first stderr line of `dossier.py --verify --group`, which is the release-rebuild notice (`target/release/nvs.exe is missing or older than the tree`), not the features still owed below it. Before trusting a `DONE` handoff or reading that line as a stale binary, run the goal's own `python tools/dossier.py --verify --group '<Class>'` once per `[[check]]` group and read its `still owe a proof` list.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-10-23"
+  }
+}

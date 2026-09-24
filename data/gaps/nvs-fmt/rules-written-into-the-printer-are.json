@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/lib.rs",
+  "title": "The rules written into the printer are the ones its own modules name.",
+  "text": "The run walk `rule:ide/tokens-plus-trivia-reproduce-the-file` names is the frame every rule under `docs/rules/tooling/fmt-*` hangs off, and what lands in it is four spaces per enclosing body (`indent.rs`), one canonical order for a declaration's modifiers (`modifiers.rs`), the line each opening brace sits on (`brace.rs`), the order a run of imports goes out in (`imports.rs`), the run a qualified type, a one-line object literal and each arm of a multi-line `match` are written with (`space.rs`), and the quote a plain string literal is delimited by together with the comma a multi-line list ends its last element on and the one case a reserved spelling has (`tokens.rs`). PER's blank lines are still the author's, so a file that disagrees with them comes back disagreeing with them.",
+  "milestone": "M10"
+}

@@ -1,0 +1,14 @@
+{
+  "title": "`nvs-lsp` and `editors/vscode` are one crate and one package that grow in place; no prototype is built to be discarded",
+  "status": "designed",
+  "because": [
+    "0040",
+    "0016"
+  ],
+  "seeAlso": [
+    "ide/one-server-two-thin-clients",
+    "ide/the-first-server-answers-a-closed-list",
+    "ide/editor-clients-live-under-editors"
+  ],
+  "guardedBy": []
+}

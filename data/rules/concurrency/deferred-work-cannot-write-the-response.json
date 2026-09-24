@@ -1,0 +1,14 @@
+{
+  "title": "Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone",
+  "status": "designed",
+  "because": [
+    "0072"
+  ],
+  "divergesFromPhp": "output written after `fastcgi_finish_request` is silently discarded; here it is refused, at compile time where the call is statically visible",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/on-uncaught-throw",
+    "security/response-body-is-one-typed-member"
+  ],
+  "guardedBy": []
+}

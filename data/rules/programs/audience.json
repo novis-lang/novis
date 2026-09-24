@@ -1,0 +1,15 @@
+{
+  "title": "Novis is built for web applications of every kind, with command-line tooling second",
+  "status": "shipped",
+  "because": [
+    "0080",
+    "0100"
+  ],
+  "seeAlso": [
+    "programs/three-claims",
+    "programs/no-compatibility-promise",
+    "programs/slice-ranking",
+    "programs/first-party-framework"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,12 @@
+{
+  "lead": "A config field's `[unread:]` trailer is refused the moment *any* crate names the key, and `nvs_config::mode::DERIVED` counts as a namer.",
+  "body": "Three gates in `crates/nvs-config/tests/directives.rs` fail together, the decisive one being `no_key_with_a_reader_still_claims_to_be_unread`. Grep the dotted key across `crates/` first; where a reader exists, describe the directive plainly and put what is still owed in the consuming crate's own `# Known gaps`.",
+  "files": [
+    "crates/nvs-config/tests/directives.rs",
+    "crates/"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "lead": "A new `Core` member trips two gates the recipe does not name, one of them in another crate.",
+  "body": "`registry::tests::no_registry_card_cites_an_adr`: `nvs meta --json` ships a card verbatim, so a `short`, `ret` or `desc` may not cite a rule — leave the citation to the doc comment above the row. A row answering `CoreTy::TaintedStr` fails `nvs_types::core_lib`'s `a_verified_signature_does_not_launder_its_claims`, the closed set of members whose answer is qualified `tainted`; widening it is the point, but the edit is in `crates/nvs-types`, which `-p nvs-stdlib` never compiles.",
+  "files": [
+    "crates/nvs-types"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

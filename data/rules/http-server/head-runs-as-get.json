@@ -1,0 +1,17 @@
+{
+  "title": "`HEAD` runs as `GET` with the body discarded and `Content-Length` kept; `method()` reports `Get` and `isHead()` tells the truth",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0077"
+  ],
+  "divergesFromPhp": "`$_SERVER['REQUEST_METHOD']` would say `HEAD`; `Core\\Request::method()` says `Get` so the route matches, and `isHead()` is the only place the difference shows",
+  "seeAlso": [
+    "http-server/a-preflight-is-answered-before-any-code-runs",
+    "http-server/a-trailing-slash-is-never-normalised",
+    "routing/matching-is-not-dispatching"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-head-request-matches-a-get-route-and-is-head-says-so.nvst"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "title": "The job queue is two tables in a connection the operator names, converged by an explicit command",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0145",
+    "0067",
+    "0024",
+    "0153",
+    "0187"
+  ],
+  "divergesFromPhp": "there is no broker, no daemon of its own and no implicit boot-time DDL — the tables are created by `nvs queue migrate` and by nothing else",
+  "seeAlso": [
+    "core-classes/schema-converges",
+    "core-classes/schema-apply-capability",
+    "core-classes/db-capabilities"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst",
+    "tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"
+  ]
+}

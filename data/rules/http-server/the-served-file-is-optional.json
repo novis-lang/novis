@@ -1,0 +1,18 @@
+{
+  "title": "`nvs serve` needs no file over a written mount table, serves that table whole under the global configuration, and refuses a start that names nothing",
+  "status": "shipped",
+  "because": [
+    "0200"
+  ],
+  "seeAlso": [
+    "http-server/a-mount-table-expands-at-boot",
+    "http-server/a-mount-carries-no-policy",
+    "http-server/a-path-is-never-derived-from-a-url",
+    "config/every-matching-app-block-applies-least-specific-first"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/serve.rs",
+    "crates/nvs-cli/src/service.rs",
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

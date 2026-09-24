@@ -1,0 +1,18 @@
+{
+  "title": "An isolate's arena is an ownership root, not an address range",
+  "status": "shipped",
+  "because": [
+    "0116",
+    "0006",
+    "0004"
+  ],
+  "seeAlso": [
+    "security/isolate-teardown-is-a-drain-then-a-sweep",
+    "security/isolate-values-cross-by-copy",
+    "security/isolate-budget-is-the-trees"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/object.rs",
+    "crates/nvs-runtime/tests/configured_limits.rs"
+  ]
+}

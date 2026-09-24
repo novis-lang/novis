@@ -1,0 +1,18 @@
+{
+  "title": "An encoder ends a cycle at the first repeat, by identity, and never by exhausting a depth cap",
+  "status": "accepted",
+  "scope": "what every encoder that walks a program's own value graph does when it reaches a value it\nis already inside. It does not decide what the *record* renderings answer — [0092](0092.md) settled\nthat and this record leaves it exactly as it stands — and it does not move any depth cap, which\nstays as the bound on structure that is legal but deep.",
+  "dependsOn": [
+    "0023",
+    "0006",
+    "0024",
+    "0092"
+  ],
+  "dependsOnText": "[0023](0023.md), [0006](0006.md) and [0024](0024.md), whose graph copy is the walk\nthat already holds this property for the two carriers it owns; [0092](0092.md), whose record model\nresolves a repeat to an identity so a diagnostic rendering can link or reference it.",
+  "validatedBy": "the conformance cases the rule below names, landed by the goal that carries it.\nNothing holds this record on its own today, which is why the rule it creates is `designed`.",
+  "summary": {
+    "group": "core",
+    "headline": "Encoding a self-containing value fails at the first repeat, naming the path",
+    "body": "`Core\\Json::encode` and its peers remember which objects they are currently inside, and the\nfirst object met a second time on the way down ends the encoding with an error naming the\nproperty chain that closed the loop, such as `user.team.owner`. A value that merely appears\ntwice, in two places, is written twice. The encoder never invents a marker in the document to\nstand for the repeat, because the document is somebody else's contract. A separate depth limit\nstill exists, but it is no longer how a cycle is detected."
+  }
+}

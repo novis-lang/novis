@@ -1,0 +1,20 @@
+{
+  "title": "A schema is a value with three spellings, and its array form is the canonical one",
+  "status": "shipped",
+  "because": [
+    "0145",
+    "0090",
+    "0071",
+    "0067"
+  ],
+  "seeAlso": [
+    "core-classes/schema-vocabulary-is-closed",
+    "core-classes/schema-introspection",
+    "core-classes/schema-plan",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-schema-round-trips-its-canonical-array-form.nvst",
+    "tests/conformance/core/db-schema-normalizes-every-spelling-of-one-schema.nvst"
+  ]
+}

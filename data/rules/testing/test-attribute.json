@@ -1,0 +1,27 @@
+{
+  "title": "A test is a method marked `#[Test]`, and its table is built while compiling",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0077",
+    "0046",
+    "0063",
+    "0071",
+    "0011",
+    "0029",
+    "0172"
+  ],
+  "divergesFromPhp": "there is no test framework to install, no naming convention and no base class; a malformed test is a compile error rather than a case that silently never runs",
+  "seeAlso": [
+    "testing/isolate-per-test",
+    "testing/fixtures",
+    "testing/data-rows",
+    "testing/runner-is-strict"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-test-method-is-a-public-void-instance-method.nvst",
+    "tests/conformance/reject/a-test-attribute-payload-is-checked-against-its-option-shape.nvst",
+    "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
+    "crates/nvs-types/tests/testing.rs"
+  ]
+}

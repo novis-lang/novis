@@ -1,0 +1,26 @@
+{
+  "state": "This goal has just been installed. Nothing in Core\\Serialize and 1 more has been taken yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "items": [
+      {
+        "done": false,
+        "text": "**`Core\\Serialize::decode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/serialize.rs:56`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Serialize::encode`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/serialize.rs:47`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Server::isDraining`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/server.rs:37`"
+      }
+    ],
+    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

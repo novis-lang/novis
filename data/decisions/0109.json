@@ -1,0 +1,11 @@
+{
+  "title": "A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both",
+  "status": "accepted",
+  "scope": "the `for` statement's **init clause** only — whether it may hold one\n[0007](0007.md) § 3.1 typed local declaration, and what a header that does not is\ndiagnosed as. It does **not** touch the condition or step clauses, which stay expression lists; it does\n**not** change scoping, which stays function-scoped for every binding\n([0007](0007.md) § 1); and it does **not** touch `foreach`, whose binding slot\n[0007](0007.md) § 3.2 already owns.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "A `for` header may declare its own typed counter",
+    "body": "`for (int $i = 0; $i < $n; $i++)` is the normal way to write a counted loop. The init clause is\neither one typed local declaration or a list of expressions, never both; a header that mixes\nthem gets one message naming that rule rather than a cascade of errors about a semicolon.\nNothing about scope changes — a variable declared in the header is visible for the rest of the\nfunction, as one declared on the line above would be — so this is purely `for` getting the type\nslot `foreach` already had."
+  }
+}

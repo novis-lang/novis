@@ -1,0 +1,19 @@
+{
+  "title": "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0073",
+    "0067",
+    "0170"
+  ],
+  "divergesFromPhp": "a fleet needs no supervisor, no heartbeat and no coordinator process — the database provides the mutual exclusion",
+  "seeAlso": [
+    "core-classes/db-one-api",
+    "concurrency/delivery-is-at-least-once"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/queue.rs",
+    "crates/nvs-stdlib/tests/queue_sqlite.rs"
+  ]
+}

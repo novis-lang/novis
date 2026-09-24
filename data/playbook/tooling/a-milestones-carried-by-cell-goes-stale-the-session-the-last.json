@@ -1,0 +1,9 @@
+{
+  "lead": "A milestone's `Carried by` cell goes stale the session the *last* goal carrying it walks, and only the goal-end sweep reads it, so it turns a DONE claim red one check before the switch.",
+  "body": "M7's cell still listed nine walked goals because nothing rewrites it when a goal is reached — the cell is derived from the chain and the registers, and no session-level gate derives it. When `plan.py --check` reports a structural finding naming a milestone, run `python tools/plan.py --past` to see which milestone completed and `python tools/plan.py --sync` to write the cell; it is one edit and never the work the goal was doing.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-18"
+  }
+}

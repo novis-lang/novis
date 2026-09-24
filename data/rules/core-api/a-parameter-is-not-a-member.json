@@ -1,0 +1,15 @@
+{
+  "title": "A constructor parameter is not a member, because visibility is what promotes one",
+  "status": "shipped",
+  "because": [
+    "0094"
+  ],
+  "seeAlso": [
+    "core-api/written-visibility",
+    "classes/promotion-is-constructor-only"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
+  ]
+}

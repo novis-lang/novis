@@ -1,0 +1,20 @@
+{
+  "title": "A core is never blocked on a syscall: filesystem calls, name resolution and waiting on a child go to a blocking pool bounded at twice the core count",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0072",
+    "0004",
+    "0115"
+  ],
+  "seeAlso": [
+    "concurrency/the-reactor-reports-readiness",
+    "concurrency/the-parking-contract",
+    "concurrency/try-the-syscall-then-park",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/blocking.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "A development-mode server binding a non-loopback address prints a banner, writes one `Warn` record naming the address, and serves",
+  "status": "designed",
+  "because": [
+    "0091",
+    "0092"
+  ],
+  "divergesFromPhp": "`php -S 0.0.0.0:8000` says nothing; here the bind is announced on the console and in the log stream, and it is not refused",
+  "seeAlso": [
+    "http-server/the-server-block-is-boot-class",
+    "config/the-mode-flag-wins-over-the-file",
+    "errors/log-level"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,12 @@
+{
+  "title": "The third-party notice is generated from the dependency graph, fails closed, and is never written by hand",
+  "status": "shipped",
+  "because": [
+    "0065"
+  ],
+  "seeAlso": [
+    "testing/attribution-is-diffed-in-ci",
+    "packaging/the-notice-is-embedded-in-the-binary"
+  ],
+  "guardedBy": []
+}

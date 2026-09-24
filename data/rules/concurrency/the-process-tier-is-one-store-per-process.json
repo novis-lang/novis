@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends",
+  "status": "shipped",
+  "because": [
+    "0181"
+  ],
+  "divergesFromPhp": "APCu's segment is shared between every worker of an FPM pool and outlives any one of them; this tier is one process's own memory and goes when that process does",
+  "seeAlso": [
+    "core-api/two-cache-tiers",
+    "concurrency/cross-request-state-is-explicit",
+    "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
+    "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
+    "http-server/the-accept-fan-out-is-one-worker-per-core"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst",
+    "tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst",
+    "crates/nvs-stdlib/src/cache.rs"
+  ]
+}

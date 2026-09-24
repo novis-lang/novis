@@ -1,0 +1,14 @@
+{
+  "title": "A warm hit skips codegen and nothing else, and it must beat the compile it replaces",
+  "status": "shipped",
+  "because": [
+    "0042"
+  ],
+  "seeAlso": [
+    "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
+    "packaging/an-artifact-is-verified-whole-before-a-page-is-executable"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

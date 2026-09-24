@@ -1,0 +1,27 @@
+{
+  "slug": "enums",
+  "title": "Enums",
+  "summary": "`enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods",
+  "keywords": [
+    "enum",
+    "case",
+    "backed enum",
+    "BackedEnum",
+    "UnitEnum",
+    "int enum",
+    "uint enum",
+    "string enum",
+    "->name",
+    "->value",
+    "cases()",
+    "from()",
+    "tryFrom()",
+    "as int",
+    "as E",
+    "enum match",
+    "enum switch",
+    "enum case type",
+    "closed set",
+    "Core\\Order"
+  ]
+}

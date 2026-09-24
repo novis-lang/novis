@@ -1,0 +1,22 @@
+{
+  "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it",
+  "status": "shipped",
+  "because": [
+    "0108",
+    "0169",
+    "0173"
+  ],
+  "divergesFromPhp": "the markup half of a file gets Emmet, tag closing, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the `?>` that opened it — the Novis block's depth — rather than from the markup's own nesting alone",
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "programs/first-party-framework",
+    "tooling/fmt-is-never-a-diagnostic",
+    "ide/one-server-two-thin-clients",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/regions.rs",
+    "editors/vscode/test/contributions/contributions.test.ts",
+    "editors/vscode/test/surfaces/template.test.ts"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "title": "Developer tooling and IDE integration",
+  "order": 13,
+  "estimate": "~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined",
+  "loopDays": "~8",
+  "state": "open"
+}

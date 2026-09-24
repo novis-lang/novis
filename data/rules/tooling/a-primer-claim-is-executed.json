@@ -1,0 +1,15 @@
+{
+  "title": "The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it",
+  "status": "shipped",
+  "because": [
+    "0167"
+  ],
+  "seeAlso": [
+    "tooling/an-agent-asks-the-binary",
+    "tooling/the-index-is-one-line-per-member"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/agent.rs",
+    "tools/reference.py"
+  ]
+}

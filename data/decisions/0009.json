@@ -1,0 +1,11 @@
+{
+  "title": "`string` is text; binary data is a distinct `bytes` type",
+  "status": "accepted",
+  "scope": "the `string` and `bytes` primitive types; the UTF-8 invariant on `string`; the conversion\nbetween them; the default granularity of `string` length, indexing and iteration",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "Text and raw bytes are two different types",
+    "body": "In PHP a string is both a piece of text and a buffer of bytes, and nothing tells you which one\nyou are holding — that ambiguity is why it needs two whole families of string functions and a\nglobal setting to make either half work. Novis splits them. Text is always valid UTF-8 and\ncounts the characters a reader sees; raw data is its own type and counts bytes. Turning raw data\ninto text is checked, and it can fail."
+  }
+}

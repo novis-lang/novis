@@ -1,0 +1,22 @@
+{
+  "title": "Reflection and source parsing are built into `Core`, and `Core\\Ast` is the compiler's own parser",
+  "status": "shipped",
+  "because": [
+    "0019"
+  ],
+  "divergesFromPhp": "`Core\\Ast` is built in where PHP needs `nikic/php-parser` or the PECL `ast` extension, and there is no `setAccessible(true)`",
+  "seeAlso": [
+    "core-classes/reflect",
+    "core-classes/ast-is-inert",
+    "security/reflection-enforces-visibility",
+    "security/reflection-needs-no-capability",
+    "enums/reflection",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
+    "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
+    "tests/conformance/core/reflect-forclass-reaches-a-description-by-name-and-absence-is-null.nvst",
+    "tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst"
+  ]
+}

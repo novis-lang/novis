@@ -1,0 +1,26 @@
+{
+  "summary": "the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone`",
+  "keywords": [
+    "time",
+    "microtime",
+    "date_create",
+    "hrtime",
+    "sleep",
+    "usleep",
+    "time_nanosleep",
+    "time_sleep_until",
+    "DateTime::setTimestamp",
+    "strtotime",
+    "DateTime::__construct",
+    "DateTime::createFromFormat",
+    "strptime",
+    "mktime",
+    "gmmktime",
+    "DateTime::setDate",
+    "DateTimeImmutable",
+    "checkdate",
+    "date_default_timezone_set",
+    "clock",
+    "timestamp"
+  ]
+}

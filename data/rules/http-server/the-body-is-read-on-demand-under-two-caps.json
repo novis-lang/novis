@@ -1,0 +1,27 @@
+{
+  "title": "`[limits] request_body` bounds bytes parsed into memory and `upload_total` bounds a streamed multipart body, each with a hard ceiling, and a route that never reads a body allocates nothing",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0105",
+    "0005",
+    "0053",
+    "0095",
+    "0156"
+  ],
+  "divergesFromPhp": "`upload_max_filesize`, `post_max_size` and `$_FILES['tmp_name']` have no counterpart: there is no temp file, `Core\\Request::files()` yields streams, and a route raises its own cap before reading",
+  "seeAlso": [
+    "http-server/four-idle-waits-all-finite",
+    "core-classes/io-write-stream",
+    "errors/multipart-part-count",
+    "config/ceilings-are-their-own-directives",
+    "security/tainted-sources",
+    "http-server/a-part-is-a-file-iff-it-carries-a-filename",
+    "http-server/there-is-no-temp-file"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-upload-is-received-only-through-files.nvst",
+    "tests/conformance/core/a-body-stream-chunk-is-tainted-and-a-plain-bytes-binding-refuses-it.nvst",
+    "tests/conformance/core/a-body-stream-is-named-before-it-is-walked-and-refuses-there.nvst"
+  ]
+}

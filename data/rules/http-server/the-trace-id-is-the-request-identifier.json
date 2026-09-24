@@ -1,0 +1,17 @@
+{
+  "title": "The trace id exists on every request regardless of sampling, is the only request identifier, is emitted on the response, and an inbound `X-Request-ID` is ignored",
+  "status": "designed",
+  "because": [
+    "0097",
+    "0076"
+  ],
+  "divergesFromPhp": "there is no `X-Request-ID` and no `$_SERVER['UNIQUE_ID']`; the W3C trace id is the one identifier on every log line, error page and response",
+  "seeAlso": [
+    "http-server/the-access-log-is-a-mode-default",
+    "errors/log-fields",
+    "observability/a-trace-id-exists-for-every-request"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs"
+  ]
+}

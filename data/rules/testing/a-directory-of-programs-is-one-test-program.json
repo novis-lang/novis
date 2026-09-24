@@ -1,0 +1,15 @@
+{
+  "title": "A directory handed to `nvs test` that holds `.nvs` files is one program requiring every one of them in name order, and a file in it that requires the bootstrap gives it its `autoload` map",
+  "status": "shipped",
+  "because": [
+    "0208"
+  ],
+  "seeAlso": [
+    "testing/nvst-is-separate",
+    "programs/autoload",
+    "ide/an-autoloaded-file-borrows-its-programs-map"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/test_dir.rs"
+  ]
+}

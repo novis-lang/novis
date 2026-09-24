@@ -1,0 +1,14 @@
+{
+  "title": "Every token and every trivium, concatenated in offset order, reproduce the file byte for byte",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0137"
+  ],
+  "seeAlso": [
+    "ide/one-grammar-one-tree",
+    "tooling/doc-comment-is-three-slashes",
+    "tooling/fmt-quotes"
+  ],
+  "guardedBy": []
+}

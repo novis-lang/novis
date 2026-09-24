@@ -1,0 +1,21 @@
+{
+  "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
+  "status": "shipped",
+  "because": [
+    "0179"
+  ],
+  "divergesFromPhp": "there is no `zip`, no `jku` and no `x5u`, so a token cannot talk the verifier into a fetch or a decompression",
+  "seeAlso": [
+    "security/algorithm-comes-from-the-key",
+    "security/jws-issued-subset",
+    "security/verification-does-not-launder",
+    "core-classes/crypto-interop-tier",
+    "core-classes/decompression-bound"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst",
+    "tests/conformance/core/jwe-a-token-opens-only-under-the-static-that-sealed-it.nvst",
+    "tests/conformance/core/jwe-refuses-every-unopenable-token-with-one-sentence.nvst",
+    "tests/conformance/core/jwe-round-trips-under-every-key-and-answers-a-tainted-payload.nvst"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "lead": "A `Core\\Db` statement member is declared twice under one symbol, and changing its arity means changing both rows.",
+  "body": "`nvs_stdlib::db::registry` gives `query`, `queryAs`, `execute`, `executeMany` and `stream` a row on `CONNECTION` and one on `TRANSACTION` reaching the same body, so editing one leaves a helper declared at two arities — a runtime panic in `nvs_helper!`'s `args: [N]` check, not a build error. `grep -c 'name: \"<member>\"' crates/nvs-stdlib/src/db/registry.rs` and expect `2`; a `splice.py` \"block appears 2 times\" refusal is the same tell.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

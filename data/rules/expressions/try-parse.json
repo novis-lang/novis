@@ -1,0 +1,18 @@
+{
+  "title": "A failable single-`string` parse is spelled `tryParse`, and no separate validity predicate stands beside it",
+  "status": "shipped",
+  "because": [
+    "0066",
+    "0063"
+  ],
+  "divergesFromPhp": "no validator sits next to a parser the way `filter_var` sits next to `parse_url`; `tryParse` is `parse` with the throw caught, so the two can never read one string differently",
+  "seeAlso": [
+    "expressions/nullable-conversion-availability",
+    "expressions/nullable-conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/uri-parse-and-try-parse-are-one-reader-asked-two-ways.nvst",
+    "tests/conformance/core/uuid-tryparse-and-parse-are-one-reader.nvst",
+    "tests/conformance/core/uri-try-parse-is-total-over-an-ascii-sweep-and-partitions-it-exactly-as-parse.nvst"
+  ]
+}

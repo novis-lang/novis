@@ -1,0 +1,12 @@
+{
+  "title": "No migration runner ships until migration semantics are decided",
+  "status": "designed",
+  "because": [
+    "0082"
+  ],
+  "seeAlso": [
+    "programs/framework-web-package",
+    "programs/first-party-framework"
+  ],
+  "guardedBy": []
+}

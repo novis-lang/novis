@@ -1,0 +1,11 @@
+{
+  "title": "Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic`",
+  "status": "accepted",
+  "scope": "what runs when a declared property is read or written beyond a plain field access — PHP\n8.4-style per-property hooks (already scoped for parsing in [M1](../implementation-plan.md)) and a new\nglobal `PropertyObserver` interface; what happens when the property named at a read or write site does\nnot exist on the class; the explicit rejection of `__call`/`__callStatic` as a dispatch mechanism.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Property hooks stay; `__get`, `__set` and `__call` are gone",
+    "body": "A property may declare `get` and `set` hooks exactly as PHP 8.4 spells them. Touching a property\nthe class never declared is an error, so there is nothing left for `__get` and `__set` to catch,\nand neither name means anything. A class that wants to watch all of its own properties from one\nplace implements `PropertyObserver`: once a hook or plain storage has settled a value, the\nobserver is told, and it can report but not change the result. `__call` and `__callStatic` have\nno replacement; calling a method that does not exist stops the build."
+  }
+}

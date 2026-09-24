@@ -1,0 +1,17 @@
+{
+  "title": "`var $x;` and a bare `int $x;` in a class body report the missing visibility, not a statement error",
+  "status": "shipped",
+  "because": [
+    "0094",
+    "0037"
+  ],
+  "seeAlso": [
+    "core-api/written-visibility",
+    "classes/no-dynamic-properties",
+    "types/var-inference"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-member-must-declare-its-visibility.nvst",
+    "crates/nvs-syntax/src/casing.rs"
+  ]
+}

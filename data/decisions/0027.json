@@ -1,0 +1,11 @@
+{
+  "title": "`callable` is satisfied only by a closure; Novis has no `__invoke`",
+  "status": "accepted",
+  "scope": "what values satisfy the `callable` type atom; PHP's three dynamic callable spellings (a bare\nname string, an `\"Class::method\"` string, a `[$obj_or_class, 'method']` array); whether an object may\never be invoked with `()` syntax; how a first-class-callable-syntax expression (`Foo::bar(...)`,\n`$obj->method(...)`) produces one",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Only a closure is `callable`, and no object can be called with `()`",
+    "body": "A `callable` is a closure and nothing else. PHP's other spellings — the bare string `'strlen'`,\nthe string `'Class::method'`, the array `[$obj, 'method']` — are refused, and the error points\nat first-class callable syntax: `Core\\Str::length(...)`, `$obj->method(...)`,\n`self::helper(...)`. There is no `__invoke`; `$obj(...)` is an error whenever `$obj` is not a\nclosure, whatever its class declares, so `()` means one thing everywhere. The rule holds at\nevery `callable` position — parameter, property, return type, library signature — so a callee\nnever has to interpret what it was handed."
+  }
+}

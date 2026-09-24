@@ -1,0 +1,15 @@
+{
+  "title": "A compiled-unit cache entry is read into memory, never mapped",
+  "status": "designed",
+  "because": [
+    "0106",
+    "0042"
+  ],
+  "seeAlso": [
+    "errors/panics-bypass-user-code",
+    "config/the-extension-set-is-in-every-unit-key",
+    "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+  ],
+  "guardedBy": []
+}

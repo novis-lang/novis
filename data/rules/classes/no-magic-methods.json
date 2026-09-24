@@ -1,0 +1,23 @@
+{
+  "title": "No method name changes a class's behaviour by being present; every PHP magic method is replaced by a declared interface or gone",
+  "status": "shipped",
+  "because": [
+    "0028",
+    "0014",
+    "0023",
+    "0027",
+    "0029"
+  ],
+  "divergesFromPhp": "a double-underscore method name is refused where it is written, so no class can declare a hook the runtime would call on its own",
+  "seeAlso": [
+    "classes/stringable",
+    "classes/no-destructors",
+    "classes/no-call-magic",
+    "classes/property-observer",
+    "classes/two-copy-depths",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst"
+  ]
+}

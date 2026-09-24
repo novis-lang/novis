@@ -1,0 +1,16 @@
+{
+  "title": "A domain class is a singular noun and its object types nest under it",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0011"
+  ],
+  "seeAlso": [
+    "core-api/members-are-full-words",
+    "core-api/reserved-namespace",
+    "classes/no-free-functions-or-constants"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "title": "There is no `eval`, and no `Core` member compiles a string produced at run time",
+  "status": "shipped",
+  "because": [
+    "0052",
+    "0019",
+    "0022",
+    "0024",
+    "0042",
+    "0048"
+  ],
+  "divergesFromPhp": "`eval`, a string-argument `assert` and `create_function` do not exist in any spelling",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/reflection-needs-no-capability",
+    "security/isolate-shares-nothing"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/eval-is-refused.nvst"
+  ]
+}

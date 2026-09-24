@@ -1,0 +1,22 @@
+{
+  "title": "One verdict, three renderings, a machine format owns stdout alone, and the JSON one locates every test it reports",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0018",
+    "0040",
+    "0172"
+  ],
+  "seeAlso": [
+    "testing/runner-is-strict",
+    "testing/data-rows",
+    "testing/nvst-is-separate",
+    "ide/the-test-tree-is-discovered-and-run-through-the-cli"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst",
+    "tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst",
+    "tests/conformance/lang/a-test-run-lists-what-it-declares-without-running-it.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

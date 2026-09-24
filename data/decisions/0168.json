@@ -1,0 +1,17 @@
+{
+  "title": "`Core\\Xml` is a materialising tree beside a one-window stream, and it refuses a document type declaration whole",
+  "status": "accepted",
+  "scope": "the two shapes `Core\\Xml` offers and why they share no operation; what a strict XML parse\nrefuses and why each refusal is an absent code path rather than a bounded one; where a `<!DOCTYPE …>`\nstops. Not in scope: the node family and the WHATWG parser that shares it, which are\n[0122](0122.md)'s and are not reopened here; the members' signatures, which\n`crates/nvs-stdlib/src/xml.rs` declares; the compression bound this record declines to reuse, which is\n[0154](0154.md)'s.",
+  "dependsOn": [
+    "0122",
+    "0051",
+    "0019"
+  ],
+  "dependsOnText": "[0122](0122.md) — the node family both doors produce, and\nthe refuse-hard contract this record gives its refusals to; [0051](0051.md)\n— `Core\\Xml` as Tier 0, one API replacing six extensions;\n[0019](0019.md) — inert parsed data with no path back into execution.",
+  "validatedBy": "`an_external_entity_is_not_a_code_path_rather_than_a_flag_defaulting_to_off`,\n`a_dtd_naming_an_external_subset_is_refused_rather_than_fetched` and\n`a_billion_laughs_document_is_refused_at_its_doctype_rather_than_bounded`, in\n`crates/nvs-stdlib/src/xml.rs`'s test module.",
+  "summary": {
+    "group": "core",
+    "headline": "XML is a whole tree or a one-window stream, and a DOCTYPE is refused outright",
+    "body": "`Core\\Xml` offers a tree that loads the whole document and answers walks in any order, and a\nreader and writer that hold one element at a time. No operation is available through both, so a\nprogram picks the shape for how much of the document it needs at once and pays for that alone.\nThere is no code that resolves an entity, so external entities are not a setting that could be\nleft on, and a `<!DOCTYPE>` is refused whole, which ends the billion-laughs family before it\nstarts. Nesting depth is the one numeric bound."
+  }
+}

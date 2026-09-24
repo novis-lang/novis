@@ -1,0 +1,17 @@
+{
+  "title": "format-on-save runs `nvs fmt`, then the editor's own HTML formatter over each markup chunk, starting at the Novis block's indentation",
+  "status": "accepted",
+  "scope": "what a format request in an editor does to a `.nvs` file with inline HTML in it, and the\none layout rule `nvs fmt` gains so the two halves meet. It changes nothing else `nvs fmt` does, and it\ndoes not decide how the PhpStorm client formats markup.",
+  "dependsOn": [
+    "0039",
+    "0108",
+    "0169"
+  ],
+  "dependsOnText": "[0039](0039.md) for `nvs fmt`, [0108](0108.md) for the template region,\n[0169](0169.md) for the markup literal.",
+  "validatedBy": "goal `template-format`'s acceptance list, and goal `fmt`'s for the `?>` rule.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Format-on-save formats the HTML too, indented from the code that opened it",
+    "body": "Saving a `.nvs` file runs `nvs fmt` over the whole file, asks the compiler where the markup\nregions are, and then runs the editor's own HTML formatter over each region, starting at the\nindentation of the `?>` line that opened it. `nvs fmt` gains one rule to make that work: a `?>`\nthat begins its line sits at the depth of the block it is in. Markup therefore indents from\nwhere the code is, so a file no longer jumps between the two. The pass is on by default and\n`nvs.template.format` turns it off."
+  }
+}

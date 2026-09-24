@@ -1,0 +1,20 @@
+{
+  "title": "A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0052"
+  ],
+  "divergesFromPhp": "there is no `extension=` line and no `.so`; an extension is one portable `.nvsx` that cannot address host memory, and nothing loads native code at runtime",
+  "seeAlso": [
+    "packaging/three-tiers",
+    "packaging/values-cross-as-handles",
+    "packaging/a-guest-has-no-ambient-authority",
+    "security/no-ffi",
+    "security/closed-doors",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/wasm_sandbox.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "PHP 8.6 lands as four compile-time refusals and one session rule",
+  "status": "accepted",
+  "scope": "what Novis does about each item PHP 8.6 announces — partial function application, defaults on\n`readonly` properties, the `Io\\Poll` API, `clamp`, `Time\\Duration`, the reflection and session changes,\nand the deprecation list. Explicitly *not*: the `Core\\Session` storage design\n([0012](0012.md) *Revisiting*, due M8, though § 6 here fixes one point of it), the\n`Core\\Reflect` class roster ([0019](0019.md), due M8), and\nthe migration table's unaudited domains ([docs/spec/02-php-migration.md](../spec/02-php-migration.md)\nowns those rows).",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "PHP 8.6's deprecations are build errors here, not warnings",
+    "body": "Most of PHP 8.6 asks nothing of Novis: `clamp` and a duration type already exist, and nearly\nevery deprecation names something Novis never shipped. What remains is refused while building\nrather than warned about at run time: a `return` cannot leave a `finally` block, a constructor's\n`return` carries no value, `let` and `is` are reserved words, and a `readonly` property declares\nno default. Partial function application is not adopted, because `fn` already spells it. And a\nsession id the store did not issue is always rejected, with no setting to turn that off."
+  }
+}

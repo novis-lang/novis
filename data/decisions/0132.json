@@ -1,0 +1,15 @@
+{
+  "title": "A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait",
+  "status": "accepted",
+  "scope": "the *shape* of `crates/nvs-db` — where it sits in the crate graph, which protocol crate backs\nwhich driver, how a driver reaches the network and how TLS layers on it, how a connection's busy state is\nrepresented, and how five drivers share code. Not in scope: everything a Novis program can observe, which\nis [0067](0067.md); the signature list, which is [docs/spec/01-core-library.md](../spec/01-core-library.md)\n§ 18; tier placement and the C-dependency test, which are [0051](0051.md); the job\ntable that runs on top of this, which is [0084](0084.md).",
+  "dependsOn": [
+    "0067",
+    "0115"
+  ],
+  "dependsOnText": "[0067](0067.md) — it specifies the behaviour this implements and deliberately not\nthe implementation; [0115](0115.md) —\nthe stream every driver but SQLite is written against.",
+  "summary": {
+    "group": "internal",
+    "headline": "Five database drivers share one network stream and one connection model",
+    "body": "PostgreSQL, MySQL, MariaDB, SQLite and SQL Server each get a driver that speaks its protocol\nitself over the runtime's own network stream, so no driver brings an async runtime of its own,\nand all share the one TLS client. Whether a connection is busy is tracked on the connection, not\nthe stream. A connection whose wire is not at a clean message boundary is closed rather than\nreset, because a reset written into the middle of another message proves nothing. The drivers\nare a fixed set with one branch per operation, not a plug-in interface."
+  }
+}

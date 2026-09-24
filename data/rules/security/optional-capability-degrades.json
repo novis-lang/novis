@@ -1,0 +1,19 @@
+{
+  "title": "A capability is required or optional, and only a required one refuses to build",
+  "status": "designed",
+  "because": [
+    "0112",
+    "0081",
+    "0061",
+    "0020"
+  ],
+  "seeAlso": [
+    "security/no-runtime-grant",
+    "security/capability-roster-is-closed",
+    "security/authority-is-the-enclosing-namespace"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-capability-query-answers-the-grant-table-both-ways.nvst",
+    "tests/conformance/core/a-capability-query-refuses-a-name-no-grant-can-hold.nvst"
+  ]
+}

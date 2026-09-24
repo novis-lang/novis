@@ -1,0 +1,15 @@
+{
+  "title": "Which process runs a job is configuration, and every spelling drives the identical isolate",
+  "status": "designed",
+  "because": [
+    "0084",
+    "0154"
+  ],
+  "divergesFromPhp": "workers are the runtime's own and start from configuration — there is no separate daemon or process manager to install beside the server",
+  "seeAlso": [
+    "core-classes/queue-storage-is-a-table",
+    "concurrency/a-job-runs-as-a-root-isolate",
+    "concurrency/one-process-serves-requests-schedules-and-jobs"
+  ],
+  "guardedBy": []
+}

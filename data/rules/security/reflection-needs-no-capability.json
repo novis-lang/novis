@@ -1,0 +1,17 @@
+{
+  "title": "Reflection and AST parsing are capability-free, because neither reaches the world outside the process",
+  "status": "shipped",
+  "because": [
+    "0019",
+    "0052",
+    "0118"
+  ],
+  "seeAlso": [
+    "security/no-eval",
+    "security/capability-declaration-is-one-table",
+    "security/reflection-enforces-visibility"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

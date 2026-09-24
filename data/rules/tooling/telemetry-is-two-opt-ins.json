@@ -1,0 +1,16 @@
+{
+  "title": "Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other",
+  "status": "designed",
+  "because": [
+    "0130"
+  ],
+  "divergesFromPhp": "PHP advertises itself through `X-Powered-By` and measures nothing; here nothing leaves the machine unless the operator switched it on",
+  "seeAlso": [
+    "tooling/telemetry-counters-are-a-closed-set",
+    "tooling/a-serving-process-never-uploads",
+    "tooling/telemetry-show-prints-the-payload",
+    "config/telemetry-and-update-endpoints-are-configuration",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": []
+}

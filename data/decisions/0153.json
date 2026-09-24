@@ -1,0 +1,18 @@
+{
+  "title": "a job is removed from the language, by receipt or by tag, and the removing half takes a capability",
+  "status": "accepted",
+  "scope": "the two members that remove rows from the queue's tables, the `tag` column they select on,\nand the capability that gates them. It decides no retention *policy* — no default lifetime, no\nsweeper of the runtime's own, no `[queue]` key that expires anything — and it changes nothing about\nhow a job is claimed, retried or dead-lettered.",
+  "dependsOn": [
+    "0084",
+    "0145",
+    "0067",
+    "0112"
+  ],
+  "dependsOnText": "[0084](0084.md), which makes a job a row in two tables an operator names;\n[0145](0145.md), whose converging schema is what makes a new column cheap; [0067](0067.md), whose\n`db.connect`/`db.schema` split is the shape the new grant copies; [0112](0112.md), the capability\nroster it joins.",
+  "validatedBy": "`examples/queue-purge.nvs` and the conformance cases § *Verification* names.",
+  "summary": {
+    "group": "core",
+    "headline": "A job can be deleted by receipt or purged by tag, and both need a capability",
+    "body": "`Core\\Queue::delete` removes the one job named by its receipt, and `Core\\Queue::purge` removes a\npopulation chosen by state, by a tag written at push time, or by age, always under a limit that\nis finite even when nothing is written. Finished jobs are the default set. A job currently being\nworked can never be removed, and a dead job only when the call names that state, so no record of\na failure disappears without a line of source saying so. Both members take the deny-by-default\n`queue.purge` capability; pushing, checking, cancelling and counting still take none."
+  }
+}

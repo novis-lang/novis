@@ -1,0 +1,9 @@
+{
+  "lead": "A `grep … | head` that finds nothing is not the same as a grep that finds nothing.",
+  "body": "The lines `head` keeps can end one line before the rows you are asking about, so a handoff that reports \"X is not written yet\" on that evidence sizes the next slice at half its real scope. Never `| head` a grep whose result you are about to assert is empty (use `-c`, `-l`, or no pipe at all), and re-check a handoff's \"not written yet\" in one call before scoping around it.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

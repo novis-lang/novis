@@ -1,0 +1,17 @@
+{
+  "title": "A PHP-name completion item inserts only a `Core` member the registry already holds",
+  "status": "designed",
+  "because": [
+    "0111",
+    "0108"
+  ],
+  "divergesFromPhp": "a suggestion whose destination is dropped, undecided or not built yet appears and inserts nothing, where a PHP editor completes any name it has indexed",
+  "seeAlso": [
+    "php-migration/every-php-builtin-is-a-completion-candidate",
+    "php-migration/the-php-name-layer-is-joined-at-build-time",
+    "php-migration/completion-php-names-setting",
+    "ide/three-of-four-item-shapes-insert-nothing",
+    "ide/completion-offers-only-what-the-compiler-derived"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,11 @@
+{
+  "title": "A by-reference binding is spelled `inout`, at the declaration and at the call",
+  "status": "accepted",
+  "scope": "the surface spelling of a by-reference binding — a parameter, a `foreach` value binding, a\ndestructuring leaf — and whether the marker is written at the call site. Not in scope: *which* declarations\nmay carry one, which stays with [0031](0031.md) § 4 (a closure may not)\nand [0053](0053.md) § 4 (a generator may not); the lowering rule, which is\nunchanged and stays in [README](../adr/README.md) § *Decisions taken at project start*; `&` as bitwise AND and\n`A&B` as an intersection type, both untouched.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "A by-reference binding is spelled `inout`, at the declaration and at the call",
+    "body": "A parameter, `foreach` binding or destructuring slot that writes back to its source is written\n`inout` before the type — `inout int $x` — and the caller writes it again: `Adder::bump(inout\n$n)`. `&` is not a by-reference marker; using it that way stops the build with a message naming\n`inout`, and so does a missing or spurious marker at a call. The word describes what happens, a\ncopy in and a copy back, so a reader can see at the call that an argument will be written. There\nis no `out`-only mode."
+  }
+}

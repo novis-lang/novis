@@ -1,0 +1,15 @@
+{
+  "summary": "a compiled pattern carrying its flags, taken by every `Core\\Regex` member in place of a pattern string",
+  "keywords": [
+    "/i",
+    "/m",
+    "/s",
+    "/U",
+    "pattern modifiers",
+    "compiled regex",
+    "case-insensitive",
+    "multiline",
+    "dotall",
+    "ungreedy"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "title": "The type grammar is a closed set of atoms under unions and intersections",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0009",
+    "0015",
+    "0024",
+    "0031",
+    "0033",
+    "0036",
+    "0047",
+    "0053",
+    "0054",
+    "0125",
+    "0126",
+    "0136"
+  ],
+  "seeAlso": [
+    "types/declaration",
+    "types/unions-and-mixed",
+    "types/type-alias",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/ty.rs",
+    "crates/nvs-ir/tests/type_atoms.rs",
+    "tests/conformance/lang/object-is-a-declared-type-in-every-position.nvst",
+    "tests/conformance/lang/a-core-collection-takes-the-type-arguments-it-declares.nvst",
+    "tests/conformance/reject/a-class-keyword-is-a-whole-type-and-never-carries-a-member.nvst"
+  ]
+}

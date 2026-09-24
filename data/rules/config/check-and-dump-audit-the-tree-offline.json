@@ -1,0 +1,20 @@
+{
+  "title": "`nvs config check` and `nvs config dump` resolve the tree with no server, and `dump --origin` names where every value came from",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0093"
+  ],
+  "divergesFromPhp": "`php --ini` names the files read and `phpinfo()` prints values from inside a request; here one offline command validates the whole tree in CI and names, per key, the file and line that set it and the one it overrode",
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/ctl-config-reports-the-live-snapshot",
+    "config/the-ownership-check-runs-where-it-can-be-answered",
+    "config/a-secret-is-a-file-whose-content-is-the-value"
+  ],
+  "guardedBy": [
+    "tests/conformance/config/a-later-file-wins-and-both-origins-are-reported.nvst",
+    "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+    "tests/conformance/config/a-secret-is-rendered-as-secret-and-names-the-file-it-came-from.nvst"
+  ]
+}

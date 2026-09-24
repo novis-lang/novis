@@ -1,0 +1,19 @@
+{
+  "title": "A request reads its memory as three numbers on `Core\\Budget`, and the runtime records the peak rather than waiting to be asked",
+  "status": "accepted",
+  "scope": "where a request's memory figures live, what they are called, and how the high-water mark\nreaches an operator who never wrote a line to ask for it. Not in scope: what the counter measures,\nwhich [0005](0005.md) settled and\n`crates/nvs-runtime/src/budget.rs` implements; whether a memory budget is per request or per\nisolate tree, which is `rule:security/isolate-budget-is-the-trees`' to\nsettle and which this inherits rather than decides; and the `Core\\Net` socket surface, which is the\none ADR loop goal `net-os-signal` was already authorised to open.",
+  "dependsOn": [
+    "0005",
+    "0051",
+    "0076",
+    "0127",
+    "0067"
+  ],
+  "dependsOnText": "[0005](0005.md), whose `[limits] memory` is the ceiling all\nthree numbers are read against; [0051](0051.md), whose roster placed the\nfigure on `Core\\Os`; [0076](0076.md), whose default series this adds a tenth\nrow to; [0127](0127.md), whose `Script\\ExitReport` gains a fourth accessor;\nand [0067](0067.md), whose `slow_query` threshold is the shape the warning\ncopies rather than reinvents.",
+  "validatedBy": "`crates/nvs-stdlib/tests/migration-members-outstanding.txt`, whose keys move from\n`Core\\Os::memoryUsage` to the three on `Core\\Budget` and stay owed until loop goal `net-os-signal` strikes them;\nand `benches/abi-probe`, which is where the claim that the high-water update is free has to survive\nmeasurement rather than assertion.",
+  "summary": {
+    "group": "core",
+    "headline": "A request reads its memory as three numbers, and the peak is always recorded",
+    "body": "`Core\\Budget::memoryHeld`, `memoryPeak` and `memoryLimit` are the three numbers a request can\nask about itself; the process's resident size stays on `Core\\Os`, where a fact about the machine\nbelongs. The peak is recorded by the runtime as it happens, not on request, because Novis frees\nmemory promptly: a script that spent most of its life near the ceiling would otherwise report a\ncomfortable number at exit. Operators get the peak without any application code, in the exit\nreport, in a metric, and as a warning when a configured high-water mark is crossed."
+  }
+}

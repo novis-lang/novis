@@ -1,0 +1,15 @@
+{
+  "title": "A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists",
+  "status": "designed",
+  "because": [
+    "0123",
+    "0120"
+  ],
+  "divergesFromPhp": "there is no per-cell accessor to loop over, which is the shape most PhpSpreadsheet code takes",
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/image-pixel-cap",
+    "core-classes/spreadsheet-has-no-io"
+  ],
+  "guardedBy": []
+}

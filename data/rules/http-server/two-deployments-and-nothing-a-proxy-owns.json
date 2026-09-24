@@ -1,0 +1,24 @@
+{
+  "title": "The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0083",
+    "0075",
+    "0074",
+    "0095"
+  ],
+  "divergesFromPhp": "there is no php-fpm and no FastCGI: the origin speaks HTTP/1.1 over TCP or a Unix socket, terminates no TLS and compresses nothing, so nginx's `fastcgi_pass` becomes `proxy_pass`",
+  "seeAlso": [
+    "http-server/a-path-is-never-derived-from-a-url",
+    "errors/http-message-defects",
+    "security/one-tls-client",
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+    "core-classes/ratelimit-two-members"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/io.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

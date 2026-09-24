@@ -1,0 +1,17 @@
+{
+  "title": "The artifact cache's directory has one spelling, `opcache.file_cache_dir`, and `[cache]` holds `Core\\Cache`'s two tiers and nothing else",
+  "status": "accepted",
+  "scope": "which of two parsed keys names the directory compiled artifacts are read from, and what\nhappens to a file that writes the other one. It changes nothing about the cache's layout, how an\nentry is verified before it is mapped, the ownership check on the directory, or either\n`Core\\Cache` tier.",
+  "dependsOn": [
+    "0042",
+    "0005",
+    "0078",
+    "0103"
+  ],
+  "validatedBy": "`crates/nvs-config/tests/directives.rs`, `crates/nvs-config/tests/snapshot.rs`,\n`crates/nvs-config/tests/request.rs`, `crates/nvs-config/tests/tree.rs`,\n`tests/conformance/core/config-unconfigured-host-answers-as-an-empty-configuration.nvst`, and\n`python tools/directives.py --check`, which fails on any leaf key that reaches no reader.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The compile cache directory has one spelling; `[cache]` is the value cache",
+    "body": "`opcache.file_cache_dir` is where compiled programs are cached, and it is the only key that says\nso. `[cache] dir` used to parse and be read by nobody, so an operator who set it moved nothing\nand was told nothing; writing it now is an unknown-directive error naming the file and line.\n`[cache]` holds the settings of `Core\\Cache`'s local and shared tiers and nothing else. Changing\nthe compile cache directory takes a restart; the rest of `[opcache]` is read at the next\ncompile."
+  }
+}

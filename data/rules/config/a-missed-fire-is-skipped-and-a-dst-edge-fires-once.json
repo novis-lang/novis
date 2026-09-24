@@ -1,0 +1,18 @@
+{
+  "title": "A missed fire is never caught up, `timezone` defaults to UTC, and a DST gap or repeat fires exactly once",
+  "status": "shipped",
+  "because": [
+    "0073",
+    "0063"
+  ],
+  "divergesFromPhp": "there is no ambient timezone to fall back on and no anacron-style replay — the interval a host slept through is logged as skipped, not run late",
+  "seeAlso": [
+    "config/overlap-is-skip-queue-or-kill",
+    "config/cron-is-five-fields-and-nothing-more",
+    "concurrency/after-response-outlives-the-connection"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/schedule.rs",
+    "crates/nvs-server/src/schedule.rs"
+  ]
+}

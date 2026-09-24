@@ -1,0 +1,11 @@
+{
+  "lead": "A group test that cancels the task awaiting it sees `Outcome::Cancelled` only when that task stands on a `HelperFrame`.",
+  "body": "A stack carrying no helper frame is one the scheduler may force-unwind, so a bare Rust closure parked inside `run_group` is torn down where it parks and never reaches the line that records the answer — the assertion then reads as though the group answered something else. Open `nvs_runtime::HelperFrame::enter()` at the top of the awaiting task's body, which is what a real `Core\\Task::all` stands on.",
+  "files": [
+    "crates/nvs-host/src/scheduler.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-host/src/scheduler.rs:unwindable"
+  }
+}

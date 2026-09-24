@@ -1,0 +1,15 @@
+{
+  "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0055"
+  ],
+  "divergesFromPhp": "a PHP extension is a per-platform binary registered by an ini line; an `.nvsx` is one file for every platform and carries its own declarations inside it",
+  "seeAlso": [
+    "packaging/extension-calls-are-statically-typed",
+    "security/extension-manifest-only-tightens",
+    "config/the-extension-set-is-in-every-unit-key"
+  ],
+  "guardedBy": []
+}

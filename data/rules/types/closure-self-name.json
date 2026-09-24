@@ -1,0 +1,17 @@
+{
+  "title": "A closure may carry a self-name, visible only inside its own body",
+  "status": "shipped",
+  "because": [
+    "0031",
+    "0011"
+  ],
+  "seeAlso": [
+    "types/closure-literal",
+    "types/implicit-capture",
+    "types/callable-signature"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-named-closure-recurses.nvst",
+    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-closures-own-parameters.nvst"
+  ]
+}

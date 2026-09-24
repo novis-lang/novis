@@ -1,0 +1,19 @@
+{
+  "title": "A trace event carries one of five kinds — `call`, `gc`, `spawn`, `query`, `http` — and a `call` keeps its probe shape",
+  "status": "shipped",
+  "because": [
+    "0041",
+    "0018",
+    "0067",
+    "0180"
+  ],
+  "divergesFromPhp": "Xdebug's trace is a log of function calls; here a collector pause, an isolate spawn and a database statement are events of their own on the same stream, tagged so a viewer can tell them apart",
+  "seeAlso": [
+    "testing/debug-probes",
+    "security/secret-qualifier",
+    "observability/a-query-is-a-trace-event"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/ctx/trace.rs"
+  ]
+}

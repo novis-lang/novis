@@ -1,0 +1,17 @@
+{
+  "title": "An open connection runs to completion on the code it started with, and an edit reaches only the next one",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0017",
+    "0042"
+  ],
+  "divergesFromPhp": "a deploy does not break what is open — there is no per-request re-read of a file a live connection is standing in",
+  "seeAlso": [
+    "concurrency/a-connection-is-a-root-isolate",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/script.rs"
+  ]
+}

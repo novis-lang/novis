@@ -1,0 +1,11 @@
+{
+  "title": "No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct`",
+  "status": "accepted",
+  "scope": "revokes `rule:core-api/identifier-casing`'s leading-underscore allowance for\nproperties, parameters and local variables — no identifier in any category may start with `_`, ever, with\nno exception left standing. Names `constructor` as Novis's one reserved constructor-method spelling,\nreplacing PHP's `__construct`, and removes the `__construct` casing exception `rule:core-api/identifier-casing` carried for it,\nbecause a plain `constructor` needs no exception at all.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "The constructor is a method named `constructor`, and nothing starts with `_`",
+    "body": "A class's constructor is spelled `constructor`, an ordinary lowercase method name. It does\neverything `__construct` did: `new` calls it, a subclass calls `parent::constructor(...)`, and\nit is where the duty to assign every property attaches. `__construct` itself gets a dedicated\nerror naming the rename, rather than a generic casing complaint. No property, parameter or local\nmay begin with an underscore either, so the casing rule has no exception left to remember for\nany identifier. Converting a PHP class means one mechanical rename per constructor."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "title": "An isolate ends by draining its roots through the one release worklist and then sweeping what a cycle held up",
+  "status": "shipped",
+  "because": [
+    "0116",
+    "0006",
+    "0004"
+  ],
+  "seeAlso": [
+    "security/arena-is-an-ownership-root",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/object.rs"
+  ]
+}

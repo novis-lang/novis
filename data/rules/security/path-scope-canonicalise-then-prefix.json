@@ -1,0 +1,20 @@
+{
+  "title": "A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor",
+  "status": "shipped",
+  "because": [
+    "0118",
+    "0104"
+  ],
+  "divergesFromPhp": "`..` and a planted symlink cannot leave a granted root, because the comparison is made after resolution and never on the text",
+  "seeAlso": [
+    "security/capability-question-is-grant-and-scope",
+    "security/a-path-is-not-a-url",
+    "security/script-spawn-capability",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": [
+    "tests/conformance/cap/a-path-outside-the-granted-roots-is-refused.nvst",
+    "tests/conformance/core/file-refuses-every-spelling-of-an-ungranted-path.nvst",
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

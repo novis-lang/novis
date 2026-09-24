@@ -1,0 +1,22 @@
+{
+  "title": "There is no wildcard verb: `method` is required, singular, and one case of a closed enum",
+  "status": "shipped",
+  "because": [
+    "0110",
+    "0077",
+    "0102",
+    "0096",
+    "0010"
+  ],
+  "divergesFromPhp": "`Route::any()` and `methods: ['*']` have no spelling — each verb a route answers is its own `#[Route]` line, because `Allow:` and the CSRF classification read the exact set",
+  "seeAlso": [
+    "routing/repeated-routes-share-a-name-when-they-share-a-path",
+    "security/csrf-is-on-by-default",
+    "enums/closed-integer-type",
+    "routing/a-refused-verb-is-not-a-missing-path"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/routes.rs",
+    "tests/conformance/core/a-paths-verbs-are-answered-once-each-as-http-method-cases.nvst"
+  ]
+}

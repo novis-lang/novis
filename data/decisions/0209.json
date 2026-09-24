@@ -1,0 +1,10 @@
+{
+  "title": "A WebSocket program that only sends is ended by its next `send` once the period has passed, and a sleep on the connection is cut by the drain",
+  "status": "accepted",
+  "scope": "what the drain does with a WebSocket program that never calls `receive`: what its\n`send` does after the period, and what a `Core\\Time::sleep` on that connection does under a\ndrain. A program parked on something that is neither the socket nor a sleep is left as it is.",
+  "dependsOn": [
+    "0186",
+    "0206"
+  ],
+  "validatedBy": "`crates/nvs-server/src/serve.rs`'s\n`a_send_only_websocket_program_is_ended_at_the_periods_end`."
+}

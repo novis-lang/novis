@@ -1,0 +1,18 @@
+{
+  "summary": "RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention",
+  "keywords": [
+    "parse_url",
+    "filter_var",
+    "FILTER_VALIDATE_URL",
+    "rawurlencode",
+    "rawurldecode",
+    "urlencode",
+    "urldecode",
+    "parse_str",
+    "http_build_query",
+    "URL",
+    "URI",
+    "query string",
+    "percent-encoding"
+  ]
+}

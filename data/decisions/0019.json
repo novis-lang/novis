@@ -1,0 +1,11 @@
+{
+  "title": "Reflection and AST/source parsing are first-class `Core` features, not aftermarket extensions",
+  "status": "accepted",
+  "scope": "whether a running Novis program can introspect its own compiled program (classes, methods,\nproperties, constants, attributes) and whether it can parse Novis/PHP source text into a structured AST at\nruntime; the shape both take as `Core` domain classes; what each is and is not allowed to do",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Reflection and source parsing are built in, and neither opens a back door",
+    "body": "`Core\\Reflect` reads the shape of a program — its classes, interfaces, enums, methods,\nproperties, constants, attributes and parameters — and `Core\\Ast` parses a string or a file into\na typed syntax tree using the very same parser the compiler runs. Neither is an extension you\ninstall. Reflection follows the rules ordinary code follows: there is no `setAccessible(true)`,\nso a private property stays private however you reach for it. A parsed tree is inert data with\nno way back into execution, because `eval` does not exist; that is also why neither needs a\npermission grant."
+  }
+}

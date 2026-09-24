@@ -1,0 +1,11 @@
+{
+  "title": "A dependency is a digest, resolution is a maximum, and a package's authority is granted one line at a time",
+  "status": "accepted",
+  "scope": "how third-party Novis code is named, fetched, pinned, resolved, verified, granted authority,\npublished, retracted and vendored; the two source kinds (registry and git) and why only one of them is\ntransitive; the manifest and lock files and how they avoid contradicting\n[0061](0061.md) and\n[0064](0064.md). Not in scope: the registry's server implementation, the\nfirst-party framework's contents ([0082](0082.md)), and the wasm sandbox an\nextension package runs in, which is [0003](0003.md)'s.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "A package is its hash, the highest minimum wins, and nothing runs on install",
+    "body": "A package is identified by the hash of its contents; a name is only a way to find one. A\npublished package may depend only on registry packages, so no git URL reaches you through a\ndependency. Each dependency names a minimum and the build takes the highest minimum anyone asked\nfor: no solver, no unsolvable graph. No install script ever runs before your program does. Each\npackage declares the permissions it wants, you grant them one line per package, and a call\nneeding an ungranted one stops the build."
+  }
+}

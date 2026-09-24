@@ -1,0 +1,15 @@
+{
+  "title": "A query value that fails to convert is a `400`, where a path capture that fails is a `404`",
+  "status": "designed",
+  "because": [
+    "0102",
+    "0077",
+    "0160"
+  ],
+  "divergesFromPhp": "a bad query value is refused with a 400 before the handler sees it, instead of arriving as a string the handler casts and checks",
+  "seeAlso": [
+    "routing/a-query-parameter-is-declared-like-a-capture",
+    "security/route-capture-is-laundered-by-its-type"
+  ],
+  "guardedBy": []
+}

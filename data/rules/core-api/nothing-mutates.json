@@ -1,0 +1,17 @@
+{
+  "title": "No `Core` member mutates its argument and none takes a reference",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "divergesFromPhp": "`sort($a)` becomes `$a = Arr::sort($a)`; there are no by-reference mutators, no out-parameters and no in-place variants",
+  "seeAlso": [
+    "core-api/shape-rules",
+    "core-api/no-mutable-immutable-twins",
+    "statements/inout-is-the-by-reference-spelling"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-map-and-filter-keep-their-keys.nvst",
+    "crates/nvs-stdlib/src/arr.rs"
+  ]
+}

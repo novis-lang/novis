@@ -1,0 +1,15 @@
+{
+  "title": "An artifact is a self-describing header over one relocatable object, and it carries no class metadata",
+  "status": "shipped",
+  "because": [
+    "0042"
+  ],
+  "seeAlso": [
+    "packaging/an-artifact-is-one-immutable-content-addressed-file",
+    "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
+    "packaging/a-warm-hit-skips-codegen-not-the-front-end"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

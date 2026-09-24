@@ -1,0 +1,20 @@
+{
+  "title": "A `public` interface method with a body is a default method, and `$this` inside it is the interface",
+  "status": "shipped",
+  "because": [
+    "0043",
+    "0094"
+  ],
+  "seeAlso": [
+    "classes/no-traits",
+    "classes/interface-private-methods",
+    "classes/member-conflict-is-an-error",
+    "iteration/two-interfaces"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/an-interface-default-method-is-inherited.nvst",
+    "tests/conformance/class/an-interface-default-calls-the-implementors-method.nvst",
+    "tests/conformance/class/an-interface-default-method-is-overridden-and-still-reachable.nvst",
+    "crates/nvs-types/tests/interface_defaults.rs"
+  ]
+}

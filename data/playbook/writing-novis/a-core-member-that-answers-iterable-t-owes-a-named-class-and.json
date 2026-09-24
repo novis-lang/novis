@@ -1,0 +1,9 @@
+{
+  "lead": "A `Core` member that answers `Iterable<T>` owes a named class, and `CoreTy::Iterated` is not it.",
+  "body": "That variant is \"parameter position only\", so a member returning a sequence answers a `CoreTy::Instance` of a class carrying the list, plus a `registry::ITERABLES` row for its element type and an `iterate()` on `instance::DISPATCH_ROSTER` (held in step by `an_iterable_class_answers_the_iteration_protocol`). Such a class has one slot and no member of its own, which fails `a_class_with_slots_has_instance_members_and_the_reverse` until it is added to that test's `HANDLES` list — the failure names the class and not the rule; `Core\\IO\\Lines` is the worked example and `crate::cursor::over` does the rest.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

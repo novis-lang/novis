@@ -1,0 +1,16 @@
+{
+  "title": "Where a drive parks is decided once when it starts, and off a core it blocks the thread",
+  "status": "shipped",
+  "because": [
+    "0138",
+    "0115",
+    "0106"
+  ],
+  "seeAlso": [
+    "concurrency/one-future-per-connection",
+    "concurrency/a-waker-is-one-permission-to-poll"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs"
+  ]
+}

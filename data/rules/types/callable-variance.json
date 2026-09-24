@@ -1,0 +1,17 @@
+{
+  "title": "A callable's parameters are contravariant and its return type covariant",
+  "status": "shipped",
+  "because": [
+    "0136",
+    "0007"
+  ],
+  "seeAlso": [
+    "types/callable-signature",
+    "types/callable-arity",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-call-through-a-written-signature-refuses-the-argument-the-type-names.nvst",
+    "crates/nvs-types/tests/callable.rs"
+  ]
+}

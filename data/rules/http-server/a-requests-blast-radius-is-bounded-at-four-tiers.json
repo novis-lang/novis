@@ -1,0 +1,29 @@
+{
+  "title": "Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class",
+  "status": "designed",
+  "because": [
+    "0106",
+    "0002",
+    "0020",
+    "0004"
+  ],
+  "divergesFromPhp": "there is no worker process per request to die and be respawned; a request is contained in-process and the process boundary is reserved for one named residue",
+  "seeAlso": [
+    "http-server/containment-does-not-end-at-the-helper",
+    "http-server/no-path-reaches-abort",
+    "http-server/engine-depth-is-bounded-per-decoder",
+    "http-server/time-is-bounded-inside-a-helper",
+    "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "http-server/admission-is-arithmetic-not-a-number",
+    "http-server/the-residue-is-one-named-fault-class",
+    "errors/propagation",
+    "errors/escalation-ladder",
+    "security/isolate-shares-nothing",
+    "packaging/the-artifact-cache-is-read-not-mapped",
+    "packaging/a-service-is-one-stored-argv"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/invariants.rs"
+  ]
+}

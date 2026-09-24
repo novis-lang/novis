@@ -1,0 +1,17 @@
+{
+  "title": "Precedence is structural — a literal beats a capture beats an optional beats a catch-all — never declaration order",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0102"
+  ],
+  "divergesFromPhp": "a routes file is not read top to bottom — first-match-wins does not exist, so moving a declaration between files cannot change which route answers",
+  "seeAlso": [
+    "routing/path-grammar",
+    "routing/routes-are-compiled-not-registered",
+    "security/route-capture-is-laundered-by-its-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/routes.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "One database API: `Core\\Db` is connection-named, prepared-only and capability-gated",
+  "status": "accepted",
+  "scope": "the whole `Core\\Db` subsystem — how a connection is obtained, configured, pooled and reused;\nhow a statement runs; how a row becomes typed values; transactions; errors; the SQL↔Novis type map; what is\nrefused outright. Not in scope: the signature list, which is\n[docs/spec/01-core-library.md](../spec/01-core-library.md) § 18; tier placement, which is\n[0051](0051.md); and the shape rules every member obeys, which are\n[0063](0063.md).",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "One database API: connections are named, every statement is prepared",
+    "body": "One API replaces PDO, mysqli, pgsql and sqlite3. A program opens a connection by name, and the\ncredentials live in the server's root-owned configuration behind a permission that is off by\ndefault. Every statement is prepared and parameterised: there is no quote function, no separate\nprepare step and no multi-statement form. A row is read with typed readers or into a declared\nclass. A transaction is a closure, nesting as a savepoint. Every failure is one error carrying a\nnormalised kind, so \"duplicate key\" is a match on a name, not on a vendor's message."
+  }
+}

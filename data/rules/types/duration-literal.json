@@ -1,0 +1,21 @@
+{
+  "title": "`1h30m` is a `Core\\Time\\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`",
+  "status": "shipped",
+  "because": [
+    "0070",
+    "0046",
+    "0057",
+    "0062",
+    "0039"
+  ],
+  "seeAlso": [
+    "types/numeric-literal-placement",
+    "types/integer-literals"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/duration-literal-and-parse-share-one-grammar.nvst",
+    "tests/conformance/reject/a-duration-literal-follows-one-grammar.nvst",
+    "tests/conformance/reject/a-duration-unit-is-lower-case-only.nvst",
+    "tests/conformance/core/time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst"
+  ]
+}

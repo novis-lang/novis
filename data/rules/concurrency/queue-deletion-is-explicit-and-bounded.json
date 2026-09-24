@@ -1,0 +1,16 @@
+{
+  "title": "A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so",
+  "status": "designed",
+  "because": [
+    "0153"
+  ],
+  "divergesFromPhp": "removing queued work is two members of the runtime behind a capability, rather than a framework command or a raw delete against a table the runtime owns",
+  "seeAlso": [
+    "concurrency/queue-four-members",
+    "concurrency/cancel-is-a-race-it-can-lose",
+    "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
+    "concurrency/a-tag-groups-jobs-and-a-key-dedupes-them",
+    "security/capability-roster-is-closed"
+  ],
+  "guardedBy": []
+}

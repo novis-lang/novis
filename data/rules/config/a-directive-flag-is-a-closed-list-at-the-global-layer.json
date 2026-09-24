@@ -1,0 +1,19 @@
+{
+  "title": "A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`",
+  "status": "designed",
+  "because": [
+    "0103",
+    "0091",
+    "0097",
+    "0064"
+  ],
+  "divergesFromPhp": "there is no `php -d key=value`: argv is world-readable and would be a second spelling of the whole format, so only the flags a rule introduces by name reach a directive",
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/every-matching-app-block-applies-least-specific-first",
+    "config/ini-set-is-core-config-set",
+    "config/the-mode-flag-wins-over-the-file",
+    "config/a-startup-default-is-never-flipped"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist",
+  "status": "shipped",
+  "because": [
+    "0118"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/hostile-case-contract"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

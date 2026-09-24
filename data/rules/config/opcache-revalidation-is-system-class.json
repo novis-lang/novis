@@ -1,0 +1,20 @@
+{
+  "title": "`opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode",
+  "status": "shipped",
+  "because": [
+    "0017",
+    "0091",
+    "0005",
+    "0218"
+  ],
+  "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either, and there is no value that turns checking off",
+  "seeAlso": [
+    "config/system-means-a-request-may-not-set-it",
+    "config/a-startup-default-is-never-flipped",
+    "config/an-edit-reaches-the-next-request-without-a-restart"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs",
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "title": "`request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows",
+  "status": "designed",
+  "because": [
+    "0105",
+    "0005",
+    "0064",
+    "0097"
+  ],
+  "divergesFromPhp": "`upload_max_filesize` and `post_max_size` are replaced by a cap on what is parsed into memory and a cap on what is streamed past it, and a file's size is never checked against the first",
+  "seeAlso": [
+    "http-server/upload-total-is-enforced-on-the-wire",
+    "http-server/a-part-is-consumed-in-one-of-three-ways",
+    "config/three-changeability-classes",
+    "config/ceilings-are-their-own-directives",
+    "errors/multipart-part-count",
+    "http-server/the-body-is-read-on-demand-under-two-caps"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-file-parts-read-all-bound-is-a-count-of-bytes-in-a-closed-bag.nvst",
+    "crates/nvs-stdlib/src/request.rs"
+  ]
+}

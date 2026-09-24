@@ -1,0 +1,15 @@
+{
+  "title": "No property, parameter or local name may begin with `_`",
+  "status": "shipped",
+  "because": [
+    "0030",
+    "0029"
+  ],
+  "divergesFromPhp": "PHP's `_private` and `$_unused` conventions do not compile; there is no leading-underscore allowance in any identifier category",
+  "seeAlso": [
+    "classes/constructor-is-a-method-named-constructor"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-leading-underscore-is-refused-on-a-local.nvst"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "`nvs build --openapi` writes OpenAPI 3.1 as a build artifact, and two builds of one source are byte-identical",
+  "status": "shipped",
+  "because": [
+    "0085",
+    "0082",
+    "0051"
+  ],
+  "divergesFromPhp": "no `/openapi.json` endpoint the running server assembles — the document is written at build time and served as a file, and there is no 3.0 or Swagger 2 output",
+  "seeAlso": [
+    "routing/api-document-is-generated-from-the-route-table",
+    "routing/api-diff-fails-a-breaking-change"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/openapi.rs"
+  ]
+}

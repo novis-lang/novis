@@ -1,0 +1,21 @@
+{
+  "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
+  "status": "shipped",
+  "because": [
+    "0054",
+    "0007",
+    "0037"
+  ],
+  "divergesFromPhp": "a fractional literal is not born a `float` — `decimal $price = 19.99;` is exact — and there is no literal suffix for any numeric type",
+  "seeAlso": [
+    "types/decimal",
+    "types/integer-literals",
+    "types/var-inference",
+    "types/implicit-widening"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
+    "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
+    "crates/nvs-types/tests/decimal.rs"
+  ]
+}

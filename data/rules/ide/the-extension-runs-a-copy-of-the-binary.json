@@ -1,0 +1,15 @@
+{
+  "title": "Every process the extension starts runs from a verified copy of the binary that is never older than the build on disk, so the file the user named is never held",
+  "status": "shipped",
+  "because": [
+    "0195"
+  ],
+  "seeAlso": [
+    "ide/the-extension-refuses-a-binary-it-does-not-understand",
+    "ide/the-extension-guides-an-install-and-never-bundles-one",
+    "ide/the-extension-is-a-workspace-extension"
+  ],
+  "guardedBy": [
+    "editors/vscode/test/client/shadow.test.ts"
+  ]
+}

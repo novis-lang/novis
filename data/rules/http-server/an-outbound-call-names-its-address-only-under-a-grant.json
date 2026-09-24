@@ -1,0 +1,19 @@
+{
+  "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "`CURLOPT_RESOLVE` takes any host-to-address mapping a script writes; here the host must be granted, the address is judged by the same policy a resolved one is, and the certificate is still checked against the URL's host",
+  "seeAlso": [
+    "http-server/an-outbound-call-tries-every-approved-address",
+    "security/net-address-policy",
+    "security/capability-question-is-grant-and-scope",
+    "http-server/allow-url-pins-the-address"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http.rs",
+    "crates/nvs-config/src/capability.rs",
+    "crates/nvs-config/tests/capability.rs"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "The field list is the declared property list, and every field is a constructor parameter of the same name",
+  "status": "shipped",
+  "because": [
+    "0071",
+    "0022",
+    "0038",
+    "0030",
+    "0067"
+  ],
+  "seeAlso": [
+    "core-classes/derive-attribute",
+    "core-classes/derive-reports-every-field",
+    "core-classes/db-column-types"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-json-derive-field-needs-a-matching-constructor-parameter.nvst",
+    "tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst",
+    "tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst",
+    "tests/conformance/reject/a-db-derive-field-with-no-column-mapping-is-refused-at-its-declaration.nvst",
+    "tests/conformance/reject/a-skipped-field-that-stayed-a-constructor-parameter-is-refused-at-the-decode-site.nvst",
+    "tests/conformance/core/json-decodes-a-nested-field-and-a-promoted-one.nvst"
+  ]
+}

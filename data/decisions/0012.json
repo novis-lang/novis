@@ -1,0 +1,11 @@
+{
+  "title": "There are no superglobals; request, session, environment and CLI state are `Core` accessor classes",
+  "status": "accepted",
+  "scope": "PHP's superglobal variables (`$GLOBALS`, `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`,\n`$_REQUEST`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and Novis's own `$_ARGS` from\n`rule:security/isolate-shares-nothing`; the `Core\\Server`, `Core\\Request`, `Core\\Session`,\n`Core\\Cli` and `Core\\Script` classes; what `Core\\Env` gains beyond the `EOL` constant\n`rule:classes/no-free-functions-or-constants` already gave it",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "No superglobals: request, session and environment data are `Core` calls",
+    "body": "No variable is ever filled in by the server behind your back. `$_SERVER` is `Core\\Server`;\n`$_GET`, `$_POST`, `$_COOKIE` and `$_FILES` are `Core\\Request`; `$_SESSION` is `Core\\Session`\nafter an explicit start; `$_ENV` is `Core\\Env` and `$argv` is `Core\\Cli`. `$GLOBALS` and\n`$_REQUEST` have no replacement at all. Where no web request is being handled — a command-line\nprogram, a scheduled script, a test, or a script spawned by another — asking `Core\\Request` for\ninput throws rather than returning something empty, because \"no request\" and \"a request that\nsent nothing\" are different facts."
+  }
+}

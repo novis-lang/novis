@@ -1,0 +1,19 @@
+{
+  "title": "`Cli::displayWidth` measures the string the sink will write, in grapheme-cluster columns",
+  "status": "shipped",
+  "because": [
+    "0086"
+  ],
+  "divergesFromPhp": "`mb_strwidth` counts code points and sees an escape sequence as zero columns; `displayWidth` counts the substituted string, so a control byte costs one column",
+  "seeAlso": [
+    "tooling/the-terminal-profile-resolves-once",
+    "tooling/terminal-output-is-a-sink",
+    "types/string-is-utf8",
+    "types/bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-displaywidth-measures-what-the-sink-will-show.nvst",
+    "tests/conformance/core/cli-displaywidth-tab-reaches-the-stop-and-a-newline-ends-the-row.nvst",
+    "tests/conformance/core/cli-displaywidth-asks-a-whole-cluster-what-its-code-points-cannot-answer.nvst"
+  ]
+}

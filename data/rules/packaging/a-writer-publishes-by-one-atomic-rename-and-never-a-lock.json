@@ -1,0 +1,13 @@
+{
+  "title": "A writer publishes by one atomic rename, and a path that already exists wins",
+  "status": "shipped",
+  "because": [
+    "0042"
+  ],
+  "seeAlso": [
+    "packaging/an-artifact-is-one-immutable-content-addressed-file"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

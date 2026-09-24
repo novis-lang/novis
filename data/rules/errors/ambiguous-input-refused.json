@@ -1,0 +1,16 @@
+{
+  "title": "Ambiguous input is refused whole, never repaired",
+  "status": "shipped",
+  "because": [
+    "0095",
+    "0097"
+  ],
+  "divergesFromPhp": "nothing is normalised, unfolded, mangled or truncated into an interpretation",
+  "seeAlso": [
+    "errors/http-message-defects",
+    "errors/cookie-name-bytes",
+    "errors/multipart-part-count",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": []
+}

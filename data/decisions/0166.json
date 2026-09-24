@@ -1,0 +1,18 @@
+{
+  "title": "Every decompression runs under two numbers, and neither has a spelling for \"off\"",
+  "status": "accepted",
+  "scope": "the bound `Core\\Compress` and `Core\\Zip` share — what it is made of, where its default\ncomes from, which direction a call may move it, and what a breach is. It decides nothing about\neither class's surface, which is [0051](0051.md) § 3's roster row and\n[01 § 17](../spec/01-core-library.md)'s, and nothing about the archive-entry policy, which is\n`Core\\Zip`'s own.",
+  "dependsOn": [
+    "0051",
+    "0097",
+    "0004",
+    "0064"
+  ],
+  "dependsOnText": "[0051](0051.md), which puts both classes at Tier 0 *because* this is policy;\n[0097](0097.md) § 1, which drops response compression at the edge and leaves the decompression\nbudget to the request; [0004](0004.md), whose ordering is what spends a request's memory on a\nrefusal it can survive; [0064](0064.md), whose `[limits]` block carries the ceiling.",
+  "validatedBy": "`crates/nvs-stdlib/src/compress.rs`'s six bound cases and\n`tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst`.",
+  "summary": {
+    "group": "security",
+    "headline": "Decompression runs under a size ceiling and a ratio, and neither turns off",
+    "body": "Inflating compressed input, whether a gzip body or a zip entry, is bounded by an absolute output\nsize and by the ratio of output to input, together, because a small bomb beats one and a large\nhonest file beats the other. `[limits] max_decompressed` and `[limits] max_decompression_ratio`\nare the operator's, default to 64 MiB and 1000 to 1, and a call may ask for less but never for\nmore. `false`, which means no ceiling elsewhere, means the shipped default here. Crossing either\nbound throws; nothing is ever silently truncated."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Outbound connections carry an address policy; a tainted URL must be laundered and pinned",
+  "status": "accepted",
+  "scope": "server-side request forgery — how an attacker-influenced URL reaches an outbound connection,\nand what stops it. Covers `Core\\Http\\Client`, `Core\\Net`, and any host-provided socket a Tier 1 extension\nis granted. Not in scope: the HTTP client's API, which M8 designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "A URL from user input cannot be fetched until it has been checked and pinned",
+    "body": "Server-side request forgery is an injection like any other. A URL built from user input cannot\nreach the HTTP client until one named check has resolved the hostname, tested the address\nagainst a policy and pinned it, so the connection goes to the address that was checked, not to\nwhatever the name resolves to a moment later. The policy belongs to the network permission and\ncovers hardcoded URLs too: loopback, private and link-local addresses are refused by default.\nRedirects are off, and each hop is checked again."
+  }
+}

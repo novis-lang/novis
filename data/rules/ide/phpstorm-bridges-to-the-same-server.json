@@ -1,0 +1,16 @@
+{
+  "title": "PhpStorm drives the same `nvs lsp` and `nvs fmt` through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040"
+  ],
+  "divergesFromPhp": "Reformat Code runs `nvs fmt` with no PhpStorm Code Style page behind it, and PSI-level refactoring, structural search and the native debugger are absent for `.nvs`",
+  "seeAlso": [
+    "ide/one-server-two-thin-clients",
+    "ide/nvs-is-its-own-file-type",
+    "ide/the-debug-adapter-does-not-wait-for-an-editor",
+    "ide/editor-clients-live-under-editors"
+  ],
+  "guardedBy": []
+}

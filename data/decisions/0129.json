@@ -1,0 +1,14 @@
+{
+  "title": "`Core\\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one",
+  "status": "accepted",
+  "scope": "the read roster of `Core\\Password::verify` and `::needsRehash` — which stored shapes they\naccept, what a bcrypt hash answers, the bcrypt cost ceiling, and what still throws. Not in scope: the\nwrite side's algorithm and parameters, whose home stays `crates/nvs-stdlib/src/password.rs`'s module\ndoc; the class's placement in `Core` ([0082](0082.md) § 2 by\n[0051](0051.md) § 3's tests); what a `secret` may reach\n([0033](0033.md)).",
+  "dependsOn": [
+    "0082"
+  ],
+  "dependsOnText": "[0082](0082.md) — the decision that `Core\\Password` exists\nand what its three members are.",
+  "summary": {
+    "group": "security",
+    "headline": "A PHP-stored bcrypt hash still verifies, but a new hash is always Argon2id",
+    "body": "`Core\\Password::verify` reads exactly two stored shapes: the Argon2id string that `hash` writes,\nand the bcrypt hash PHP has produced by default since 5.5 (`$2y$`, `$2a$`, `$2b$`), because that\nis what the user table of almost every migrating application holds. A bcrypt hash verifies,\n`needsRehash` answers true for every one of them, and `hash` still writes only Argon2id — so the\nusual verify-then-rehash login loop migrates the table one login at a time, with no algorithm\nargument anywhere. Anything else throws, and a bcrypt cost above 17 is refused before any work."
+  }
+}

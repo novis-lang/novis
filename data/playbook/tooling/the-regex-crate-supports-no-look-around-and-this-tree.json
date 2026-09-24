@@ -1,0 +1,12 @@
+{
+  "lead": "The `regex` crate supports no look-around, and this tree carries `fancy-regex` for exactly that.",
+  "body": "A `(?!...)` pattern compiles and then panics at run time with `error: look-around ... is not supported`, naming the caret position and not the crate; both are `nvs-stdlib` dependencies, so the failing import and the working one differ by one word. For a right-hand boundary alone neither is needed: a `match_indices` walk plus one `chars().next()` check, as `corpus::mentions` in `crates/nvs-stdlib/tests/corpus/mod.rs` does.",
+  "files": [
+    "crates/nvs-stdlib/tests/corpus/mod.rs",
+    "crates/nvs-stdlib/Cargo.toml"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/Cargo.toml:fancy-regex"
+  }
+}

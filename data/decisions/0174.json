@@ -1,0 +1,17 @@
+{
+  "title": "A resource ceiling stops the request that broke it: the allocator publishes into the word compiled code polls, the value allocators refuse in front of the allocation, and a store no request owns is accounted apart",
+  "status": "accepted",
+  "scope": "how `rule:errors/on-limit`'s memory and CPU ceilings are enforced against a request that\nreaches no member call and no back edge that looks at them, and whose bytes a request is measured\nagainst. It changes nothing about what a breach *reports* — the tier it lands in, the\n`LimitReport` it carries, whether it is catchable — and it does not give a freed block per-request\nprovenance, which waits on the request arena.",
+  "dependsOn": [
+    "0020",
+    "0004",
+    "0006",
+    "0059"
+  ],
+  "validatedBy": "`tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`,\n`tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst`,\n`tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst`,\n`crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/allocator_ceiling.rs`,\n`crates/nvs-runtime/tests/detached_accounting.rs`.",
+  "summary": {
+    "group": "security",
+    "headline": "A resource ceiling stops the request that broke it, where the resource goes",
+    "body": "A request that exceeds its memory or CPU budget is stopped by the runtime, not by a check the\nprogram happens to run. The allocator raises a flag the compiled code polls on every loop, which\nbounds a runaway loop; each value allocation asks before it allocates, which bounds a single\nhuge operation a loop check would reach too late; and a watchdog samples each core's CPU clock.\nBytes held by a store that outlives requests, such as a process-wide cache, are accounted to the\nprocess, so no request is charged or credited for them."
+  }
+}

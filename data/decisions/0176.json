@@ -1,0 +1,14 @@
+{
+  "title": "A response body may be written over time, and the streaming response ADR 0083 § 5 drew its line against was never built",
+  "status": "accepted",
+  "scope": "the body a response carries while it is being sent, and the two doors onto it — a stream\nthat ends with its request, and one that outlives it. It changes nothing about a response this\nserver already holds in full, and nothing about the isolate a connection is, which\n[0083](0083.md) decides.",
+  "dependsOn": [
+    "0083"
+  ],
+  "validatedBy": "`crates/nvs-runtime/src/stream.rs`'s own cases, and\n`crates/nvs-server/src/serve.rs`'s cases over `Answer`'s two arms.",
+  "summary": {
+    "group": "core",
+    "headline": "A response body can be written over time, one chunk in flight at a time",
+    "body": "A response is either a whole body with an exact length, as before, or a stream the handler\nwrites to while the connection sends it. Only the stream is chunked. The writer hands over one\nchunk and waits until the connection has taken it before it may write the next, so a slow client\ncannot make the server buffer an unbounded body. The stream ends with its request; a stream that\noutlives the request is a separate door and is not this one."
+  }
+}

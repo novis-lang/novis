@@ -1,0 +1,20 @@
+{
+  "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
+  "status": "shipped",
+  "because": [
+    "0093",
+    "0078"
+  ],
+  "divergesFromPhp": "there is no shim — no NSSM, no WinSW, no hand-written unit around `php-fpm` — and the hosted program's own flags follow a `--` the installer never reads past",
+  "seeAlso": [
+    "packaging/the-installer-is-a-sink",
+    "packaging/the-argv-lives-in-imagepath",
+    "packaging/the-unit-is-printed-and-install-is-the-opt-in",
+    "config/one-local-control-socket",
+    "core-classes/process-is-argv-only"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/service.rs",
+    "crates/nvs-cli/src/ctl.rs"
+  ]
+}

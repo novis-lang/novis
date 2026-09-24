@@ -1,0 +1,19 @@
+{
+  "title": "The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040",
+    "0137"
+  ],
+  "divergesFromPhp": "a PHP editor — PhpStorm, Intelephense — carries a parser of its own beside `php`; here the editor parses with the compiler's one grammar, so what the editor accepts and what `nvs check` accepts cannot drift",
+  "seeAlso": [
+    "ide/tokens-plus-trivia-reproduce-the-file",
+    "ide/recovery-is-explicit",
+    "ide/the-index-answers-the-cursor",
+    "ide/a-full-reanalysis-stays-under-a-bound",
+    "tooling/fmt-quotes",
+    "ide/the-tree-survives-a-syntax-error"
+  ],
+  "guardedBy": []
+}

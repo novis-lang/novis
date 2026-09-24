@@ -1,0 +1,16 @@
+{
+  "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
+  "status": "designed",
+  "because": [
+    "0148"
+  ],
+  "divergesFromPhp": "PHP has no warning short of the fatal: a request that touched 96% of `memory_limit` and returned successfully is indistinguishable from one that never passed 30%",
+  "seeAlso": [
+    "observability/a-memory-peak-is-recorded-not-asked-for",
+    "observability/a-slow-query-is-logged-past-a-threshold",
+    "observability/the-runtime-exports-what-it-already-measures",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling",
+    "errors/on-limit"
+  ],
+  "guardedBy": []
+}

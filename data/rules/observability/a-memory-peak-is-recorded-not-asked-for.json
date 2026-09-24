@@ -1,0 +1,19 @@
+{
+  "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
+  "status": "shipped",
+  "because": [
+    "0148"
+  ],
+  "divergesFromPhp": "`memory_get_peak_usage` reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike",
+  "seeAlso": [
+    "observability/memory-is-three-numbers-on-core-budget",
+    "observability/memory-high-water-writes-a-warn",
+    "security/arena-is-an-ownership-root",
+    "security/isolate-budget-is-the-trees",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/budget.rs",
+    "tests/conformance/core/budget-the-peak-outlives-a-spike-the-held-figure-gives-back.nvst"
+  ]
+}

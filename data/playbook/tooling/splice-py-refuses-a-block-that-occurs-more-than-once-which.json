@@ -1,0 +1,9 @@
+{
+  "lead": "`splice.py` refuses a block that occurs more than once, which is exactly the shape of adding a payload to an AST variant: fifteen identical `kind: ExprKind::Error,` lines at five different indentations.",
+  "body": "Giving each one unique surrounding context is a page of anchors that must be byte-perfect, and a single wrong space fails the whole patch. Use `Edit` with `replace_all` once per indentation level, with a leading newline inside `old_string` so a 12-space block cannot match inside a 16-space line, and keep `splice.py` for the blocks that really are one of a kind.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-07"
+  }
+}

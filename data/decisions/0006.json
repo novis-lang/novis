@@ -1,0 +1,12 @@
+{
+  "title": "Running another script is an in-process isolate, not a subprocess",
+  "status": "accepted",
+  "scope": "the `spawn script` construct, `nvs-host`'s isolation boundary, the value-crossing rules, the\n`script.spawn` capability, per-tree limit accounting",
+  "dependsOn": [],
+  "validatedBy": "`benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`\n(`an_os_process_costs_orders_of_magnitude_more_than_a_task`)",
+  "summary": {
+    "group": "foundations",
+    "headline": "Running another script starts a sandbox, not a second process",
+    "body": "One script can run another. The child gets fresh memory, fresh variables and its own settings,\nand shares nothing with its parent except the compiled code itself. Values passed between them\nare copied, never handed over as a pointer into shared memory. Limits are counted against the\nrequest that began the whole chain, so a script cannot escape its budget by spawning more work,\nand a child never holds more permission than its parent."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "summary": "what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time, each with one attribute read off it — and the one thing only the host knows, its identity",
+  "keywords": [
+    "get_declared_classes",
+    "class_implements",
+    "implementing",
+    "implementingWith",
+    "plugin discovery",
+    "registry",
+    "autoload",
+    "enumerate implementors",
+    "service locator",
+    "attributes of discovered classes",
+    "routes of every page",
+    "program id",
+    "build id",
+    "deployment fingerprint",
+    "cache busting",
+    "asset version",
+    "revision hash"
+  ]
+}

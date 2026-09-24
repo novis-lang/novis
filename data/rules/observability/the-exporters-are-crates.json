@@ -1,0 +1,19 @@
+{
+  "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0186"
+  ],
+  "seeAlso": [
+    "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+    "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",
+    "observability/four-kinds-become-a-span",
+    "observability/a-registry-is-per-core-and-nothing-reads-it"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/prometheus.rs",
+    "crates/nvs-server/src/otlp.rs",
+    "crates/nvs-config/src/export.rs"
+  ]
+}

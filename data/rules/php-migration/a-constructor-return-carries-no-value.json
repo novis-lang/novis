@@ -1,0 +1,15 @@
+{
+  "title": "A constructor's `return` carries no value; a bare `return;` may still leave early",
+  "status": "designed",
+  "because": [
+    "0124",
+    "0022"
+  ],
+  "divergesFromPhp": "`return $value;` in a constructor does not compile (deprecated in 8.6)",
+  "seeAlso": [
+    "classes/constructor-is-a-method-named-constructor",
+    "classes/definite-property-initialization",
+    "php-migration/a-deprecation-is-a-refusal"
+  ],
+  "guardedBy": []
+}

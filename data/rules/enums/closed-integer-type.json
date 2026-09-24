@@ -1,0 +1,22 @@
+{
+  "title": "An enum declares a new, closed, named integer type",
+  "status": "shipped",
+  "because": [
+    "0010",
+    "0007",
+    "0008"
+  ],
+  "divergesFromPhp": "an enum is not a class in disguise — a case is a compile-time constant, with no singleton, no allocation and no identity",
+  "seeAlso": [
+    "enums/declaration",
+    "enums/one-backing-type",
+    "enums/no-class-machinery",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "tests/conformance/enum/an-enum-case-is-its-integer.nvst",
+    "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
+    "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
+    "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+  ]
+}

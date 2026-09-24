@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/lib.rs",
+  "title": "A comma-separated list whose closing delimiter is not its node's last byte keeps the comma its author wrote.",
+  "text": "`tokens.rs` tells a list's closer from a block's by the node that ends there, and three lists end inside a node that runs on past them: a parameter list inside the `Function` or `Method` whose body follows it, an enum-case list inside the `EnumDecl`, and a shape type's fields inside a declaration whose type `crates/nvs-syntax/src/walk.rs` gives no node at all. So `rule:tooling/fmt-trailing-commas` reaches call arguments and array, object and `match` arm lists today, and what closes the rest is a boundary for each in that walk rather than a bracket-matching scan here, which would have to tell a `)` in an attribute's argument list from the one that ends the parameters — gap 4's absence again. A shape type's braces are outside `space.rs`'s one-space rule for the same reason they are outside this one: `{a: string}` is a node to nobody, so the `{` that opens it cannot be told from the `{` that opens a block.",
+  "milestone": "M10"
+}

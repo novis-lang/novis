@@ -1,0 +1,14 @@
+{
+  "title": "The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope",
+  "status": "designed",
+  "because": [
+    "0108"
+  ],
+  "divergesFromPhp": "break-on-uncaught and break-on-thrown are two exception filters rather than PHP's five categories, and a spawned isolate appears as a thread rather than as a second session",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "security/isolate-shares-nothing",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": []
+}

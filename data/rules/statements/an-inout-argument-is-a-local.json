@@ -1,0 +1,16 @@
+{
+  "title": "An `inout` argument is a local, and never an element or a property",
+  "status": "shipped",
+  "because": [
+    "0107",
+    "0014"
+  ],
+  "seeAlso": [
+    "statements/inout-is-written-at-the-call",
+    "statements/inout-is-the-by-reference-spelling"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-by-reference-array-element-is-a-diagnostic.nvst",
+    "tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst"
+  ]
+}

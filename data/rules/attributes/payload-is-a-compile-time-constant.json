@@ -1,0 +1,20 @@
+{
+  "title": "Every field value in an attribute payload is a compile-time constant",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0033",
+    "0012"
+  ],
+  "divergesFromPhp": "PHP admits any expression as an attribute argument, `new` included, so building one has an execution order and side effects",
+  "seeAlso": [
+    "attributes/inert-metadata",
+    "attributes/retrieval-folds-while-checking",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-attribute-payload-is-a-compile-time-constant.nvst",
+    "tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst",
+    "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst"
+  ]
+}

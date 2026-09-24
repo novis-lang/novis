@@ -1,0 +1,25 @@
+{
+  "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0047",
+    "0066",
+    "0150",
+    "0192"
+  ],
+  "seeAlso": [
+    "types/unions-and-mixed",
+    "types/conversion",
+    "types/enum-case-type",
+    "types/type-test",
+    "types/class-reference-sites"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst",
+    "tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst",
+    "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
+    "tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst",
+    "crates/nvs-types/tests/narrowing.rs"
+  ]
+}

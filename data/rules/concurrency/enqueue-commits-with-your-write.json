@@ -1,0 +1,17 @@
+{
+  "title": "A `push` on the queue's connection commits with the write that caused it, or neither happens",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0067"
+  ],
+  "divergesFromPhp": "a queued job and the database write that justified it commit together, where an application on a broker writes an outbox row and relays it afterwards",
+  "seeAlso": [
+    "core-classes/queue-storage-is-a-table",
+    "concurrency/foreign-connection-enqueue-is-counted",
+    "concurrency/no-broker-and-no-driver-interface"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/queue.rs"
+  ]
+}

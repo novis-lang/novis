@@ -1,0 +1,21 @@
+{
+  "title": "Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws",
+  "status": "shipped",
+  "because": [
+    "0007"
+  ],
+  "divergesFromPhp": "reading an undefined variable or an absent array key does not warn and yield `null`, and `$a[] .= \"x\"` does not append; `??`, `isset` and `empty` keep PHP's answer",
+  "seeAlso": [
+    "types/arrays",
+    "types/declaration",
+    "types/mixed-subscript",
+    "classes/no-undefined-value",
+    "classes/an-unwritten-property-read-throws"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/reading-an-absent-array-key-throws.nvst",
+    "tests/conformance/lang/a-coalesce-guards-every-level-of-a-subscript-chain.nvst",
+    "tests/conformance/array/an-append-in-a-read-position-is-refused.nvst",
+    "tests/conformance/lang/isset-answers-a-null-test-over-every-storage-shape.nvst"
+  ]
+}

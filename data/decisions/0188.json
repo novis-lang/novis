@@ -1,0 +1,12 @@
+{
+  "title": "`array<T>` reads covariantly in its element type, because an array is a copy-on-write value",
+  "status": "accepted",
+  "scope": "the variance of `array<T>` in the assignability relation, and nothing about the `as`\nconversion that restamps one. What a *write* through a widened view is checked against is decided\nhere too, because it is the half that makes the read sound.",
+  "dependsOn": [
+    "0007",
+    "0002",
+    "0125"
+  ],
+  "dependsOnText": "[0007](0007.md) (the element type and its invariance), [0002](0002.md) (copy-on-write\nvalue semantics), [0125](0125.md) (`class<T>`'s covariance, the other road to the same answer).",
+  "validatedBy": "`crates/nvs-types/tests/arrays.rs`,\n`tests/conformance/core/arr-flip-takes-an-array-of-string-without-a-conversion.nvst`,\n`tests/conformance/lang/an-array-of-string-is-passed-where-an-array-of-int-or-string-is-read.nvst`."
+}

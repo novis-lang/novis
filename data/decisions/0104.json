@@ -1,0 +1,11 @@
+{
+  "title": "An application is an entry file path, and a per-app block is keyed on it",
+  "status": "accepted",
+  "scope": "what an *application* is for configuration purposes, how a per-app block is spelled and\nmatched, which of several matching blocks wins, and whether such a block may widen a limit or grant a\ncapability. It does **not** decide the directive registry or the changeability classes, which stay\n[0005](0005.md)'s; nor the file's syntax ([0064](0064.md));\nnor how the configuration tree is assembled and trusted, which is\n[0103](0103.md)'s.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "An application is its entry file, and per-app settings are keyed on that path",
+    "body": "An application is the path of the file that starts it, so a command-line run has an identity\njust as a served request does. A per-application block, `[[app]]`, names either a `root`\ndirectory covering every entry file beneath it or a single `entry` file, resolved to its real\nlocation first so no `..` segment and no symlink inherits another application's rights. Every\nmatching block applies, least specific first. A block may widen as well as narrow — raising a\nlimit up to the global hard ceiling, or granting a capability the global settings withhold."
+  }
+}

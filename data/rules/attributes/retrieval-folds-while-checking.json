@@ -1,0 +1,19 @@
+{
+  "title": "A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0036"
+  ],
+  "divergesFromPhp": "\"which one did I get?\" for a repeated attribute is a diagnostic at the call site rather than a question a test run answers, and no reflection table reaches the compiled unit",
+  "seeAlso": [
+    "attributes/structural-retrieval",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/repeatable"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst",
+    "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst",
+    "crates/nvs-types/tests/attributes.rs"
+  ]
+}

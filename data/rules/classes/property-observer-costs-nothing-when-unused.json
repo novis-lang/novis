@@ -1,0 +1,15 @@
+{
+  "title": "A class that implements no `PropertyObserver` pays nothing for one",
+  "status": "shipped",
+  "because": [
+    "0014",
+    "0004"
+  ],
+  "seeAlso": [
+    "classes/property-observer-pipeline",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

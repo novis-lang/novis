@@ -1,0 +1,18 @@
+{
+  "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
+  "status": "shipped",
+  "because": [
+    "0147",
+    "0135",
+    "0022"
+  ],
+  "seeAlso": [
+    "core-api/omission-is-not-a-written-null",
+    "core-api/the-marker-never-reaches-a-program",
+    "core-api/shape-flattens-at-the-abi"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"
+  ]
+}

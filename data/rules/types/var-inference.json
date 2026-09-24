@@ -1,0 +1,19 @@
+{
+  "title": "`var` takes a local's type from its initializer and fixes it there for good",
+  "status": "shipped",
+  "because": [
+    "0037",
+    "0007",
+    "0114"
+  ],
+  "seeAlso": [
+    "types/declaration",
+    "types/numeric-literal-placement",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/var-infers-from-its-initializer.nvst",
+    "tests/conformance/lang/var-refuses-a-bare-array-literal.nvst",
+    "crates/nvs-types/tests/locals.rs"
+  ]
+}

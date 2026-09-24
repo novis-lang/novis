@@ -1,0 +1,19 @@
+{
+  "title": "An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class",
+  "status": "designed",
+  "because": [
+    "0120",
+    "0081",
+    "0123"
+  ],
+  "divergesFromPhp": "a Composer package is source only and a PHP extension is a binary only; an extension package here is both, and the builder a program names is ordinary Novis source",
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/spreadsheet-has-no-io",
+    "packaging/an-nvsx-is-one-file-carrying-its-manifest",
+    "packaging/extension-loading-is-root-controlled",
+    "packaging/the-boundary-is-the-cost",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": []
+}

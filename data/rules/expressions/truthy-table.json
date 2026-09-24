@@ -1,0 +1,20 @@
+{
+  "title": "The truthy table is PHP's, and `bytes` is falsy only when it is empty",
+  "status": "shipped",
+  "because": [
+    "0035",
+    "0009",
+    "0007"
+  ],
+  "divergesFromPhp": "`bytes` has no PHP neighbour and takes emptiness alone, so a one-octet `\"0\"` buffer is truthy where the string `\"0\"` is falsy",
+  "seeAlso": [
+    "expressions/truthy-positions",
+    "enums/truthiness",
+    "expressions/equality-semantics"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-bytes-in-a-condition-is-falsy-only-when-empty.nvst",
+    "tests/conformance/lang/a-mixed-in-a-condition-resolves-the-truthy-table-at-run-time.nvst",
+    "tests/conformance/lang/empty-answers-the-truthy-table-for-every-nvs-type.nvst"
+  ]
+}

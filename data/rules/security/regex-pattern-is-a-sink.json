@@ -1,0 +1,19 @@
+{
+  "title": "A regex pattern is a sink with no launderer; the subject is data and may be tainted",
+  "status": "shipped",
+  "because": [
+    "0056",
+    "0024",
+    "0088"
+  ],
+  "seeAlso": [
+    "security/sink-predicate",
+    "security/every-grammar-is-a-sink",
+    "security/assert-trusted",
+    "core-classes/regex-two-tiers"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst",
+    "tests/conformance/core/regex-tiers-and-the-backtracking-budget.nvst"
+  ]
+}

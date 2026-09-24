@@ -1,0 +1,21 @@
+{
+  "title": "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0051",
+    "0122"
+  ],
+  "divergesFromPhp": "the procedural twin of every OOP subsystem is gone — `date_*`, `collator_*`, the `fopen` family beside `SplFileObject`, `mysqli` twice",
+  "seeAlso": [
+    "core-api/no-methods-on-scalars-or-arrays",
+    "core-api/no-mutable-immutable-twins",
+    "core-api/each-door-takes-a-different-thing",
+    "classes/no-call-magic",
+    "expressions/pipeline-substitution"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-core-instance-member-has-one-spelling.nvst",
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

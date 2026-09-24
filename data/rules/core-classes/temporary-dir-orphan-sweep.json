@@ -1,0 +1,11 @@
+{
+  "title": "The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places",
+  "status": "shipped",
+  "because": [
+    "0131"
+  ],
+  "seeAlso": [
+    "core-classes/temporary-dir-sweep"
+  ],
+  "guardedBy": []
+}

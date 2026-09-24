@@ -1,0 +1,11 @@
+{
+  "lead": "`cargo deny check`'s advisories leg can fail on a crate no session added, and the failure arrives inside the diff of the one you just added.",
+  "body": "A yank is a fact about crates.io that changes under a tree nobody touched, so this leg goes red on its own schedule, naming a transitive crate that has been in the lock file for months. Read the finding's own package before suspecting the dependency in your diff; `cargo update -p <crate>` to the next patch is the whole fix for a yank, in the same commit as the `Cargo.lock` you were already writing.",
+  "files": [
+    "Cargo.lock"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

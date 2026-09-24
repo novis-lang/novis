@@ -1,0 +1,21 @@
+{
+  "title": "The `route` label carries the route's declared name, never the request path, and a route without one has no label",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0077",
+    "0102",
+    "0110"
+  ],
+  "divergesFromPhp": "a series is keyed by the route's compiled name rather than by the request path a StatsD client would key on, so `/users/1`, `/users/2` is one series and not one per user",
+  "seeAlso": [
+    "observability/default-series",
+    "routing/routes-are-compiled-not-registered",
+    "routing/table-is-opt-in",
+    "security/metric-label-refuses-tainted"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/route.rs",
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "A metric label value refuses `tainted`, and there is deliberately no launderer for one",
+  "status": "designed",
+  "because": [
+    "0076",
+    "0024",
+    "0033",
+    "0077"
+  ],
+  "seeAlso": [
+    "security/sink-predicate",
+    "security/assert-trusted",
+    "security/route-capture-is-laundered-by-its-type"
+  ],
+  "guardedBy": []
+}

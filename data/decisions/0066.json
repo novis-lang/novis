@@ -1,0 +1,11 @@
+{
+  "title": "`expr as ?T` converts without throwing, yielding `null` on failure",
+  "status": "accepted",
+  "scope": "the meaning of the conversion operator when its target type is nullable; which conversions\nadmit that form and which refuse it; the removal of `Core\\Validate`'s three numeric predicates. Not in\nscope: the throwing form's behaviour, unchanged in every particular, and class downcasting, which stays\n`instanceof`.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "Write `as ?int` to convert without throwing, and get null when it fails",
+    "body": "`$s as int` converts and throws if it cannot; `$s as ?int` gives the same value where that would\nsucceed and null where it would throw, so a failed conversion is a value you test with an if\nrather than an exception you catch. A null operand gives null. Where a conversion cannot fail\nthe form is refused as pointless, and where no conversion exists it is still a build error. The\nkeyword never targets a class; text becomes a Uri through that class's own tryParse. It never\nremoves a tainted or secret marking."
+  }
+}

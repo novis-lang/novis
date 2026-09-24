@@ -1,0 +1,17 @@
+{
+  "title": "PHP's `(T)expr` cast does not parse, and the diagnostic names the `as` that replaces it",
+  "status": "shipped",
+  "because": [
+    "0034",
+    "0007",
+    "0049"
+  ],
+  "divergesFromPhp": "`(int)`, `(uint)`, `(float)`, `(string)`, `(bool)`, `(array)` and `(object)` are all parse errors rather than a second spelling of `as`",
+  "seeAlso": [
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-legacy-cast-does-not-parse.nvst",
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ]
+}

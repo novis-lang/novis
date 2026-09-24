@@ -1,0 +1,20 @@
+{
+  "title": "The debug service reads the disk, the application only writes to it, and the viewer renders the one thing no existing tool does",
+  "status": "accepted",
+  "scope": "how a developer sees what a request did while it is happening — where a debug record\ngoes, what carries it to a service, how that service stores and serves it, and what its UI is\nallowed to draw. It decides nothing about the probes themselves, which [0018](0018.md) and\n[0041](0041.md) own and which this record only consumes, and it does not move `Core\\Debug`'s\nsurface or `Core\\Log`'s.",
+  "dependsOn": [
+    "0018",
+    "0092",
+    "0041",
+    "0040",
+    "0078",
+    "0020"
+  ],
+  "dependsOnText": "[0018](0018.md), whose probe word and named sinks are what produces the stream;\n[0092](0092.md), whose record model is what crosses to disk and already answers redaction, elision\nand cycles; [0041](0041.md), whose four event kinds and speedscope export are the artifacts this\nhands off rather than renders; [0040](0040.md), whose no-bespoke-UI principle this record bounds an\nexception to; [0078](0078.md), whose control-surface reasoning the network bind reuses;\n[0020](0020.md), whose log target is the second thing the service reads.",
+  "validatedBy": "the conformance and integration cases the five rules below name, landed by the\ngoals that carry them. Nothing holds this record on its own today, which is why every rule it\ncreates is `designed`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The debug viewer is a separate service that reads files the application wrote",
+    "body": "An application writes debug records to a spool file it owns alone and opens no socket for them;\na separate service ingests those files continuously and serves a viewer that only reads. The\nviewer renders the one thing no existing tool does, the live stream of correlated requests, and\nhands any artifact that already has a good viewer, such as a profile, to that viewer. Writing\nthe records at all is the `[debug] store` setting, off by default, and it can only reduce what\nis kept."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "`autoload` maps names to files at compile time; `Core\\Program` enumerates what nothing names",
+  "status": "accepted",
+  "scope": "how a class/interface/enum reference reaches the file that declares it without a hand-written\n`require`; the `autoload` declaration and its two forms; the one-declaration-per-autoloaded-file rule;\n`Core\\Program::implementing<T>()`; what the two add to the artifact cache's invalidation set;\n`Core\\Program::id()`, the same class's one runtime member, and the formula behind it. Not in\nscope: `require`'s own semantics, which are unchanged.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Autoloading is a declaration resolved while building, not a function that runs",
+    "body": "An autoload declaration says which files declare which names, using literal paths relative to\nthe file that holds it. There is no manifest, no directory search and nothing that runs when a\nclass is first used: every name is resolved while the program is built, and a missing file stops\nthe build. A file reached this way declares exactly one thing. The question an autoloader cannot\nanswer, which classes exist that nothing names, is a built-in query that expands while building\nto every class implementing an interface."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes",
+  "status": "designed",
+  "because": [
+    "0040"
+  ],
+  "divergesFromPhp": "PhpStorm's auto-import may add `use Foo as Bar` to dodge a clash; here an alias is not a spelling the language has, so the editor cannot write one",
+  "seeAlso": [
+    "statements/nothing-gets-a-second-name",
+    "types/var-inference",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "ide/five-features-are-one-reference-index"
+  ],
+  "guardedBy": []
+}

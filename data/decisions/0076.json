@@ -1,0 +1,11 @@
+{
+  "title": "The runtime exports what it already measures, and a label may not be `tainted`",
+  "status": "accepted",
+  "scope": "what the runtime exports without a line of application code — the default metric set, the spans\nderived from `rule:observability/trace-events-carry-a-kind`'s existing event kinds, and\nW3C TraceContext in both directions — plus the three-member `Core\\Metrics`, the `[metrics]`/`[trace]`\ndirectives, and the cardinality bound. Not in scope: the coverage/trace/profile *probes* themselves, which\nare `rule:testing/debug-probes`'s and\n`rule:observability/trace-events-carry-a-kind`'s, and are reused here unchanged; and the\nsampling profiler, which stays M10's.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Metrics and traces come out of the box, and a label cannot hold user input",
+    "body": "Request duration, database query time and garbage-collection pauses are measured by the runtime\nand exported without a line of code. Traces come from the same measurements, and an incoming\ntrace header is continued on outbound HTTP calls. Your numbers go through three calls:\n`increment`, `observe` and `gauge`. A label value refuses untrusted input while building, so\nuser text can never explode the number of series. At the cap a new series is dropped rather than\nan old one evicted, because a counter that appears to reset corrupts every rate over it."
+  }
+}

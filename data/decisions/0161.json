@@ -1,0 +1,18 @@
+{
+  "title": "`nvs serve` accepts on one worker per core over every listener, and the compiled unit is published once for the fleet",
+  "status": "accepted",
+  "scope": "how many accept loops a served process runs, what each of them binds, which key bounds\nthe count, and what the cores share. It decides nothing about how a request is resolved once\naccepted ([0097](0097.md) § 4), nothing about the in-flight ceiling's arithmetic\n([0106](0106.md)), and nothing about the drain that stops the process ([0078](0078.md),\n[0154](0154.md)) beyond the fact that a fleet has more than one loop to stop.",
+  "dependsOn": [
+    "0097",
+    "0017",
+    "0006",
+    "0004"
+  ],
+  "dependsOnText": "[0097](0097.md) § 5 for the `[server]` block and its listeners, [0017](0017.md)\nfor the compiled-unit cache and its single publisher, [0006](0006.md) for an isolate sharing\nimmutable compiled code and nothing else, [0004](0004.md) for what the fan-out is allowed to\nspend.",
+  "validatedBy": "`benches/serve-proxied.json`'s two arms, and the fan-out's own checks —\n`crates/nvs-cli/src/serve.rs`'s `a_server_workers_key_bounds_the_count_and_defaults_to_available_parallelism`\nbeside the entry and worker cases § *Verification* names.",
+  "summary": {
+    "group": "core",
+    "headline": "The server accepts on one worker per core, and the program is compiled once",
+    "body": "`nvs serve` binds every listener first, then starts one worker per core, each with its own\nscheduler and its own accept loop over every listener. No single core hands connections out to\nthe others, so there is no accepting core to become the bottleneck. `[server] workers` sets the\ncount and defaults to the machine's parallelism; there is no automatic spelling. The compiled\nprogram stays one copy shared read-only by every core, so it is compiled once per source change,\nnot once per core."
+  }
+}

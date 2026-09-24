@@ -1,0 +1,21 @@
+{
+  "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
+  "status": "shipped",
+  "because": [
+    "0161",
+    "0181"
+  ],
+  "divergesFromPhp": "php-fpm sizes a pool of request *processes* with `pm.*`; `workers` counts accept cores, and one core answers many requests at once",
+  "seeAlso": [
+    "http-server/the-server-block-is-boot-class",
+    "http-server/a-unix-socket-listener",
+    "http-server/the-accept-loop-backs-off",
+    "http-server/admission-is-arithmetic-not-a-number",
+    "security/isolate-shares-nothing",
+    "config/an-edit-reaches-the-next-request-without-a-restart"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/server.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

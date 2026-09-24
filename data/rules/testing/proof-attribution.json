@@ -1,0 +1,15 @@
+{
+  "title": "An example, an attack and a bench are attributed by path; a test is attributed by a marker",
+  "status": "shipped",
+  "because": [
+    "0134"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/roster-is-derived",
+    "testing/examples-live-in-the-repository"
+  ],
+  "guardedBy": [
+    "tools/dossier.py"
+  ]
+}

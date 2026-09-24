@@ -1,0 +1,20 @@
+{
+  "title": "There is one TLS client in the tree, and a driver reaches it over a generic transport rather than building a second",
+  "status": "shipped",
+  "because": [
+    "0132",
+    "0067",
+    "0058",
+    "0180"
+  ],
+  "seeAlso": [
+    "security/db-pool-reset-is-a-boundary",
+    "security/the-policy-lives-in-the-capability",
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "core-classes/db-safe-connection-defaults",
+    "core-classes/db-crate-boundary"
+  ],
+  "guardedBy": [
+    "crates/nvs-db/tests/handshake.rs"
+  ]
+}

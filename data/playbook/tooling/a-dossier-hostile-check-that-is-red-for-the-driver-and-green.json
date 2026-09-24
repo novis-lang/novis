@@ -1,0 +1,9 @@
+{
+  "lead": "A `dossier` hostile check that is red for the driver and green every time you run it by hand is a clock, not a weak proof.",
+  "body": "`types:exception`'s two `Core\\Db` attacks run in 1.3s and 3.4s standalone and still hit their 60s limit under the acceptance sweep, on the same release binary and an idle machine whose neighbouring checks took 2-5s. Read the FAIL line's `having printed N line(s)` clause in `.loop/logs/<run>-console.log` before touching the attack: a program hung on one step and one running every step too slowly have different repairs, and raising the timeout is weakening the proof either way.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-27"
+  }
+}

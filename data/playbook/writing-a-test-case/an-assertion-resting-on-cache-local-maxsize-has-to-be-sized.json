@@ -1,0 +1,11 @@
+{
+  "lead": "An assertion resting on `[cache.local] max_size` has to be sized against a probe; the arithmetic is not the writes' sum.",
+  "body": "`Local::put` (`crates/nvs-stdlib/src/cache.rs`) prices an incoming entry before removing the one it replaces, so a rewrite needs room for the two largest entries and a cap at twice the total evicts nothing. Run a copy writing the same values under distinct keys; if it does not forget the first key, the case is vacuous.",
+  "files": [
+    "crates/nvs-stdlib/src/cache.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

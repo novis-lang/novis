@@ -1,0 +1,19 @@
+{
+  "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
+  "status": "shipped",
+  "because": [
+    "0186"
+  ],
+  "seeAlso": [
+    "observability/the-exporters-are-crates",
+    "observability/a-registry-is-per-core-and-nothing-reads-it",
+    "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+    "concurrency/one-scheduler",
+    "packaging/a-c-dependency-answers-two-questions"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/prometheus.rs",
+    "crates/nvs-server/src/otlp.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "An assertion names its subject first and compares two values of one type",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0063",
+    "0013",
+    "0090",
+    "0007"
+  ],
+  "divergesFromPhp": "the argument order is `(actual, expected)`, the reverse of PHPUnit's, and comparing an `int` against a `string` does not compile",
+  "seeAlso": [
+    "testing/failure-ledger",
+    "testing/runner-is-strict",
+    "testing/inline-snapshots"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-assertion-compares-its-subject-against-its-expectation.nvst",
+    "tests/conformance/core/a-predicate-assertion-judges-the-one-subject-its-type-admits.nvst",
+    "tests/conformance/core/an-assertion-over-a-callable-judges-what-came-back.nvst",
+    "tests/conformance/core/test-assert-equals-refuses-an-object-with-no-compare-to.nvst",
+    "tests/conformance/core/test-assert-same-and-assert-equals-deep-part-only-at-a-copy.nvst"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "lead": "A `Qual::Contagious` string parameter answering an *object* refuses a tainted argument, exactly as an unclassified `CoreTy::Str` does.",
+  "body": "`crates/nvs-types/src/expr/quals.rs:304` admits one there only where `tainted_result(return_ty) != return_ty`, and a class never carries the qualifier. `Qual::Neutral` is the mark for a parse that checks its text and answers an object (`crates/nvs-stdlib/src/time.rs:251`), and classifying a row means deleting its line from `registry.rs`'s `UNCLASSIFIED` ratchet in the same edit.",
+  "files": [
+    "crates/nvs-types/src/expr/quals.rs",
+    "crates/nvs-stdlib/src/time.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-types/src/expr/quals.rs:tainted_result(return_ty, interner) != return_ty"
+  }
+}

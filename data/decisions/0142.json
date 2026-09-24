@@ -1,0 +1,16 @@
+{
+  "title": "A store an operator configured is authorized by the configuring, and may be a Unix socket",
+  "status": "accepted",
+  "scope": "what authorizes an outbound connection to a store named in root-owned configuration, and\nhow such a store is reached over a Unix domain socket. Covers the grant `Core\\Cache::shared()` and\n`Core\\RateLimit::consume` ask, the spelling a socket takes in `[cache.shared] url` and in\n`[db.<name>] host`, what a platform without `AF_UNIX` does with one, and how a Postgres socket path\nis read. Not in scope: the address policy itself, which is [0058](0058.md)\n§ 3's and is only *narrowed in reach* here; the two tiers and why the local one is a cache rather\nthan a store, which is [0059](0059.md) § 1's; the transport, which\n`crates/nvs-host/src/net.rs` owns and already carries.",
+  "dependsOn": [
+    "0058",
+    "0059"
+  ],
+  "dependsOnText": "[0058](0058.md), whose § 3 already decided that an endpoint\nan operator wrote is not attacker-influenceable, and [0059](0059.md),\nwhich decides there is a coherent tier to reach at all.",
+  "validatedBy": "`crates/nvs-stdlib/src/cache.rs`'s `a_configured_store_needs_no_address_grant` and\n`a_program_supplied_socket_path_is_never_a_target`.",
+  "summary": {
+    "group": "security",
+    "headline": "A configured store is already authorized, and may be a Unix socket",
+    "body": "When an operator writes a cache or database endpoint into root-owned configuration, that act is\nthe authorization. A program asking for the shared cache or a rate limiter asks for the\n`cache.shared` grant with no host attached, exactly as a database connection asks by name.\nBecause the question is no longer \"which address\", the endpoint may have none: a Unix socket is\nallowed, as a `unix:` URL where the setting is a URL and a bare path where it is a host. A\nsocket path supplied by the program is refused."
+  }
+}

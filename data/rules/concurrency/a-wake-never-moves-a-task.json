@@ -1,0 +1,15 @@
+{
+  "title": "A wake from another core queues an id on the task's own core and never migrates it",
+  "status": "shipped",
+  "because": [
+    "0138",
+    "0115"
+  ],
+  "seeAlso": [
+    "concurrency/one-future-per-connection",
+    "concurrency/one-permission-per-drive"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs"
+  ]
+}

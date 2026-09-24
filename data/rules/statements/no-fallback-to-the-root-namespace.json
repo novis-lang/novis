@@ -1,0 +1,16 @@
+{
+  "title": "A short name resolves through the imports and then the enclosing namespace, and stops",
+  "status": "shipped",
+  "because": [
+    "0113",
+    "0011"
+  ],
+  "divergesFromPhp": "there is no fallback to the root namespace, so a namespaced file that catches writes `use Throwable;`",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-name-is-absolute-and-a-leading-separator-does-not-parse.nvst"
+  ]
+}

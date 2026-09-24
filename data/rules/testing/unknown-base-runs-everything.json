@@ -1,0 +1,14 @@
+{
+  "title": "A run with no base commit to diff against runs every lane",
+  "status": "shipped",
+  "because": [
+    "0143"
+  ],
+  "seeAlso": [
+    "testing/lane-table",
+    "testing/ci-lanes"
+  ],
+  "guardedBy": [
+    "tools/ci-changes.py"
+  ]
+}

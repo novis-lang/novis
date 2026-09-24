@@ -1,0 +1,10 @@
+{
+  "title": "a markup literal takes `<?= expr ?>` as a hole for any expression",
+  "status": "accepted",
+  "scope": "the second hole a markup literal has, what it accepts, and what a `<?nvs` tag inside a\nliteral is. It does not touch double-quoted strings or heredocs, whose `{$…}` grammar stays PHP's,\nand it does not change what a hole's value goes through at the sink, which is [0169](0169.md)'s.",
+  "dependsOn": [
+    "0169"
+  ],
+  "dependsOnText": "[0169](0169.md) for the literal and its `{$…}` holes.",
+  "validatedBy": "`tests/conformance/core/a-markup-literal-takes-an-output-tag-hole-for-any-expression.nvst`\nand the reject cases beside it."
+}

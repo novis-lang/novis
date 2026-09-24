@@ -1,0 +1,13 @@
+{
+  "title": "A member's perf record is four counts that compare on any machine and one clock that compares on its own, and a bench declares what its first run must show",
+  "status": "accepted",
+  "scope": "what `docs/perf/members.ndjson` records per feature, which of it is comparable across\nmachines and across days, how a bench with no history is judged, and what makes a figure stale. It\ndoes not reopen [ADR 0026](0026.md)'s two mechanisms — the per-PR guards and the instruction-count\ndashboard stay as they are — and it does not add a column for another engine.",
+  "dependsOn": [
+    "0134",
+    "0026",
+    "0079",
+    "0018"
+  ],
+  "dependsOnText": "[0134](0134.md) (the four proofs, and the ledger as one of them), [0026](0026.md)\n(wall clock is not comparable across machines; instruction counts are), [0079](0079.md) § 15 (what\na benchmark of Novis code is, and its counter stream), [0018](0018.md) (the probe sites every\ncompiled unit carries).",
+  "validatedBy": "`crates/nvs-runtime/src/ctx/trace.rs`'s\n`count_totals_statements_and_calls_and_files_nothing`, and `tools/dossier.py --record-perf` over\n`benches/members/core/Str/length.nvs` and its `.scale.nvs` sibling."
+}

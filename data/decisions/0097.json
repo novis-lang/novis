@@ -1,0 +1,11 @@
+{
+  "title": "The built-in server is a development server and a proxied origin, and a URL never becomes a path",
+  "status": "accepted",
+  "scope": "what the built-in server is for and, as a closed list, what it deliberately is not; the mount\ntable and how a URL selects one entry point out of many; the `[server]` block, its listeners and its\nfinite waits; which facts a proxy in front is trusted to assert and under what condition; the in-flight\nceiling; and which HTTP conventions the server applies above\n[0077](0077.md)'s route table. Not in scope: the response policy — secure headers,\nCORS and cookies — which stays [0074](0074.md); rate limiting\n([0075](0075.md)); the control socket and `nvs ctl`\n([0078](0078.md)); the service installer\n([0093](0093.md)); hot reload's mechanism\n([0017](0017.md)); the route table, its grammar and its three compile errors\n([0077](0077.md)); persistent connections ([0083](0083.md));\nhow a message's spelling is read ([0095](0095.md)); and the\nper-app capability, limit and mode block, which is [0005](0005.md)'s model and\n[0104](0104.md)'s spelling rather than this ADR's (§ 10).",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "The built-in server has two jobs, and a URL never turns into a file path",
+    "body": "Novis ships one HTTP server with exactly two deployments: a development server that serves\nstatic files beside your scripts, and a production origin behind a reverse proxy. Everything a\nproxy does better — TLS, HTTP/2, compression, rate limiting — is left out. The governing rule is\nthat a filesystem path is never derived from a URL while a request is being served. Instead the\nURL selects a mount from a table expanded against the disk at boot, so a fleet of applications\ncosts one wildcard line of configuration."
+  }
+}

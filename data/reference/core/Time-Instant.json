@@ -1,0 +1,18 @@
+{
+  "summary": "an absolute point on the timeline, to the nanosecond, with no zone",
+  "keywords": [
+    "getTimestamp",
+    "date(\"U\")",
+    "microtime(true)",
+    "date_add",
+    "date_sub",
+    "modify",
+    "date_diff",
+    "DateInterval",
+    "DATE_ATOM",
+    "timestamp",
+    "epoch",
+    "timeline",
+    "UTC"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "`::class` answers the class the value is, and folding is an optimization of that",
+  "status": "shipped",
+  "because": [
+    "0144",
+    "0125",
+    "0007"
+  ],
+  "divergesFromPhp": "`$m::class` on a `mixed` is refused where it is written rather than failing at run time; narrow the receiver first, the way `->` already requires",
+  "seeAlso": [
+    "types/class-reference",
+    "types/conversion",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-class-name-constant-is-its-own-fully-qualified-name.nvst",
+    "tests/conformance/lang/a-class-name-constant-needs-a-class-the-compiler-resolves.nvst",
+    "tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst"
+  ]
+}

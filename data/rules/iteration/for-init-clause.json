@@ -1,0 +1,18 @@
+{
+  "title": "A `for` init clause is one typed declaration or a list of expressions, never both",
+  "status": "shipped",
+  "because": [
+    "0109",
+    "0007",
+    "0037"
+  ],
+  "seeAlso": [
+    "iteration/for-counter-scope",
+    "iteration/for-init-refusals"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-for-header-declares-its-own-counter.nvst",
+    "tests/conformance/lang/a-for-loop-runs-init-condition-and-step.nvst",
+    "crates/nvs-syntax/src/parser/tests/stmt.rs"
+  ]
+}

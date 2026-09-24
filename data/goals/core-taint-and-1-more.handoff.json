@@ -1,0 +1,26 @@
+{
+  "state": "This goal has just been installed. Nothing in Core\\Taint and 1 more has been taken yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "items": [
+      {
+        "done": false,
+        "text": "**`Core\\Taint::assertTrusted`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/taint.rs:58`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Task::afterResponse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:156`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Task::all`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/task.rs:134`"
+      }
+    ],
+    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

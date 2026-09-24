@@ -1,0 +1,20 @@
+{
+  "title": "Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0018",
+    "0041"
+  ],
+  "divergesFromPhp": "there is no APM extension in the request path and no userland StatsD or OpenTelemetry client to reconcile with it; the runtime's own probes are the only instrumentation",
+  "seeAlso": [
+    "testing/debug-probes",
+    "observability/default-series",
+    "observability/four-kinds-become-a-span",
+    "observability/metrics-three-members",
+    "observability/trace-events-carry-a-kind"
+  ],
+  "guardedBy": [
+    "crates/nvs-codegen/tests/probes.rs"
+  ]
+}

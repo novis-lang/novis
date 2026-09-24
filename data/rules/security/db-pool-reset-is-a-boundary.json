@@ -1,0 +1,18 @@
+{
+  "title": "A pooled database connection is proven clean before it is reused, and a failed reset destroys it",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0078",
+    "0074"
+  ],
+  "seeAlso": [
+    "security/no-cross-request-state",
+    "security/one-tls-client",
+    "security/net-address-policy",
+    "core-classes/db-connection-is-named"
+  ],
+  "guardedBy": [
+    "crates/nvs-db/tests/pool_reuse.rs"
+  ]
+}

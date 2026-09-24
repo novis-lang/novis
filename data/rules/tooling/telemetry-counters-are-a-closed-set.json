@@ -1,0 +1,13 @@
+{
+  "title": "A counter is `invocation.<subcommand>` from the compiled-in command table or `invocation.unknown`, and nothing derived from traffic is ever counted",
+  "status": "designed",
+  "because": [
+    "0130"
+  ],
+  "seeAlso": [
+    "tooling/telemetry-is-two-opt-ins",
+    "tooling/telemetry-show-prints-the-payload",
+    "observability/the-runtime-exports-what-it-already-measures"
+  ],
+  "guardedBy": []
+}

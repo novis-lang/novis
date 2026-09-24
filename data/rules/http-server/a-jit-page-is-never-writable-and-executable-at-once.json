@@ -1,0 +1,13 @@
+{
+  "title": "A page holding generated code is writable while written and executable only after being made read-only",
+  "status": "shipped",
+  "because": [
+    "0106"
+  ],
+  "seeAlso": [
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "http-server/the-residue-is-one-named-fault-class",
+    "programs/compile-target"
+  ],
+  "guardedBy": []
+}

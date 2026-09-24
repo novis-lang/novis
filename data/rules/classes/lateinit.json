@@ -1,0 +1,17 @@
+{
+  "title": "A `lateinit` property is assigned after the constructor rather than inside it",
+  "status": "shipped",
+  "because": [
+    "0038",
+    "0022"
+  ],
+  "seeAlso": [
+    "classes/lateinit-restrictions",
+    "classes/lateinit-read-before-write",
+    "classes/definite-property-initialization",
+    "classes/an-unwritten-property-read-throws"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/lateinit-holds-a-property-assigned-after-the-constructor.nvst"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "title": "A task registers before it suspends, treats a wake as a hint, and leaves the reactor holding nothing when it ends",
+  "status": "shipped",
+  "because": [
+    "0115",
+    "0106"
+  ],
+  "divergesFromPhp": "a request that waits on I/O suspends one task and hands its core to another, rather than occupying a process until the kernel answers",
+  "seeAlso": [
+    "concurrency/the-reactor-reports-readiness",
+    "concurrency/try-the-syscall-then-park",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/reactor.rs",
+    "crates/nvs-host/src/scheduler.rs"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "A member reachable from two default or delegated sources with no override is a compile error",
+  "status": "designed",
+  "because": [
+    "0043"
+  ],
+  "divergesFromPhp": "there is no `insteadof`; the only way to pick a winner is an ordinary override that calls the source it wants by name",
+  "seeAlso": [
+    "classes/no-traits",
+    "classes/interface-default-methods",
+    "classes/delegation-by-field"
+  ],
+  "guardedBy": []
+}

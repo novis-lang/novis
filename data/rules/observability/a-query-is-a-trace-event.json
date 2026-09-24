@@ -1,0 +1,21 @@
+{
+  "title": "A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0041"
+  ],
+  "divergesFromPhp": "there are no mysqlnd statistics and no general query log; a statement is a trace event, filed in the driver and off the hot path, and it never carries a bound value",
+  "seeAlso": [
+    "observability/a-slow-query-is-logged-past-a-threshold",
+    "observability/four-kinds-become-a-span",
+    "core-classes/db-error",
+    "core-classes/db-connection-is-named",
+    "testing/debug-probes",
+    "observability/trace-events-carry-a-kind"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/ctx/trace.rs",
+    "crates/nvs-db/src/span.rs"
+  ]
+}

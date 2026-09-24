@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0097"
+  ],
+  "divergesFromPhp": "the deployment prefix is never derived from `REQUEST_URI` or `SCRIPT_NAME`; the server hands it over, and a tenant is a mount capture rather than a `host` field on the route",
+  "seeAlso": [
+    "routing/matched-once-before-the-handler",
+    "routing/an-origin-is-per-mount-and-checked-at-boot",
+    "security/tainted-qualifier",
+    "security/request-state-throws-in-an-isolate",
+    "routing/link-carries-the-mount-prefix"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-mount-is-one-member-for-the-pair-and-it-is-never-absent.nvst",
+    "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
+  ]
+}

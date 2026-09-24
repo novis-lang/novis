@@ -1,0 +1,12 @@
+{
+  "summary": "output buffering scoped to a closure — what it echoes is captured as the sink's carrier instead of reaching the output",
+  "keywords": [
+    "ob_start",
+    "ob_get_clean",
+    "ob_get_contents",
+    "ob_end_clean",
+    "output buffering",
+    "capture",
+    "echo"
+  ]
+}

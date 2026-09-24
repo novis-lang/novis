@@ -1,0 +1,11 @@
+{
+  "lead": "A `Core` member whose error paths only a served request reaches fails the error-path gate under both obvious declarations.",
+  "body": "\"unreachable from source\" claims the checker refuses the call, and `OWED_A_CASE` claims a case nobody can write. Use `ASSERTED_OFF_THE_CORPUS`: \"no case can reach this\" within eight lines above the site plus a `#[test]` asserting it, only when no case can exist.",
+  "files": [
+    "crates/nvs-stdlib/tests/conformance_coverage.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/conformance_coverage.rs:ASSERTED_OFF_THE_CORPUS"
+  }
+}

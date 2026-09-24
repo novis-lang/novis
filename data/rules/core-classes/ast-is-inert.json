@@ -1,0 +1,25 @@
+{
+  "title": "`Core\\Ast` runs the compiler's own parser and hands back typed, inert nodes",
+  "status": "shipped",
+  "because": [
+    "0019",
+    "0006"
+  ],
+  "divergesFromPhp": "`token_get_all`'s untyped arrays are replaced by one type per production, and there is no `eval` for a rewritten tree to reach",
+  "seeAlso": [
+    "core-classes/reflect",
+    "types/declaration",
+    "programs/compile-target"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
+    "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
+    "tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst",
+    "tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst",
+    "tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst",
+    "tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst",
+    "tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst",
+    "tests/conformance/core/core-ast-node-positions-hold-over-the-whole-walk-asserted-by-counting.nvst",
+    "tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst"
+  ]
+}

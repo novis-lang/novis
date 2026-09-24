@@ -1,0 +1,19 @@
+{
+  "title": "Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off",
+  "status": "shipped",
+  "because": [
+    "0166"
+  ],
+  "divergesFromPhp": "`$max_length` was optional and defaulted to unlimited, so the safe call was the one the caller had to remember to write",
+  "seeAlso": [
+    "core-api/tier-roster",
+    "config/three-changeability-classes",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst",
+    "tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst",
+    "crates/nvs-stdlib/src/compress.rs",
+    "crates/nvs-stdlib/src/zip.rs"
+  ]
+}

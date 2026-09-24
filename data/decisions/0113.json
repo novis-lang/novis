@@ -1,0 +1,14 @@
+{
+  "title": "A qualified name is absolute, and the leading `\\` does not parse",
+  "status": "accepted",
+  "scope": "how a name written in source — a class, interface, enum, `type` alias or attribute\nreference — resolves to a fully-qualified name, and the spelling of the `namespace` declaration\nitself. Not in scope: *what* may be imported and under which short name\n([0015](0015.md)), the `Core` prefix's reservation\n([0011](0011.md) § 2), how a name's case is compared\n([0062](0062.md) § 1), or which file a name is loaded from\n([0061](0061.md)).",
+  "dependsOn": [
+    "0011"
+  ],
+  "dependsOnText": "[0011](0011.md) — removing free functions\nand constants is what leaves classes as the only kind of name to resolve, and so what makes PHP's\nfallback-to-global rule removable rather than load-bearing.",
+  "summary": {
+    "group": "syntax",
+    "headline": "A name containing a backslash is always read from the root",
+    "body": "`App\\Models\\User` means the same thing in every file, wherever it is written. A name with no\nbackslash is short, and is resolved through the file's imports and then its own namespace,\nnowhere else. There is no relative form — inside `namespace App;`, writing `Models\\User` does\nnot find `App\\Models\\User` — and importing `Core\\Json` does not let you write `Json\\Derive`; an\nimport binds one whole name, never a prefix. A leading backslash does not parse at all, and the\nerror names the spelling without it. One rule decides every name."
+  }
+}

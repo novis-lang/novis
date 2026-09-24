@@ -1,0 +1,12 @@
+{
+  "lead": "`nvs-server`'s `a_fleet_lease_is_renewed_while_its_run_is_in_flight` fails under `verify.py` and passes alone.",
+  "body": "It asserts a lease was renewed inside a wall-clock window, and 160 sibling tests sharing the machine widen it. Re-run it with `cargo test -p nvs-server --lib schedule::tests::a_fleet_lease_is_renewed_while_its_run_is_in_flight`, and when it passes finish the gate by hand: `cargo clippy --all-targets`, then `nvs test tests/conformance` and `tests/differential`.",
+  "files": [
+    "tests/differential",
+    "crates/nvs-server/src/schedule.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-server/src/schedule.rs:the key was held again while the run was in flight"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "title": "HTML parsing is a WHATWG entry on `Core\\Html`, over `Core\\Xml`'s tree",
+  "status": "accepted",
+  "scope": "that HTML parsing exists in Core and where it lives; the algorithm it implements and the\ncontract that separates it from `Core\\Xml`; that both parsers produce one tree; the engine and what it\nshares with [0121](0121.md)'s PDF component; the\nscheduling constraint tying it to `Core\\Xml`. Not in scope: the signatures of the tree, the streaming\nreader/writer and the parse entries, which the milestone that builds them designs; the sanitizer's\nfiltering rules ([0024](0024.md) owns the launderers); the PDF\nrender contract (0121).",
+  "dependsOn": [
+    "0024",
+    "0063"
+  ],
+  "dependsOnText": "[0024](0024.md) — `Core\\Html` as the HTML domain\nhome this entry joins; [0063](0063.md) — R17 and the retired-twin table this\nextends.",
+  "summary": {
+    "group": "core",
+    "headline": "HTML is parsed the way browsers parse it, into the same tree XML uses",
+    "body": "`Core\\Html` parses HTML with the algorithm browsers run, so a document is read exactly as a\nbrowser reads it and parsing never fails: recovery from broken markup is the specified behaviour\nevery browser agrees on, not a guess. It produces the same node tree the XML API builds, so\nthere is one family of nodes with two front doors. It is never a mode of the XML parser, because\nthat one refuses malformed input on purpose. PHP's `DOMDocument::loadHTML` parsed unlike any\nbrowser, which is the root of a whole class of sanitizer bypasses."
+  }
+}

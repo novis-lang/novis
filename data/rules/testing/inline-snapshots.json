@@ -1,0 +1,18 @@
+{
+  "title": "A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0033"
+  ],
+  "seeAlso": [
+    "testing/assertions-are-typed",
+    "testing/report-formats"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/test-assert-matches-inline-agrees-with-debug-render-over-every-value-kind.nvst",
+    "tests/conformance/core/test-assert-matches-inline-quotes-both-sides-of-a-mismatch.nvst",
+    "tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

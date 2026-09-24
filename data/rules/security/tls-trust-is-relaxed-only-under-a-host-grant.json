@@ -1,0 +1,21 @@
+{
+  "title": "Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "`CURLOPT_SSL_VERIFYPEER = false` is one line of userland; here the same effect needs the deployment to name the host in a grant and the call to ask for it, and the boot prints every grant that was written",
+  "seeAlso": [
+    "security/one-tls-client",
+    "security/capability-question-is-grant-and-scope",
+    "http-server/the-client-trust-roots-are-the-operators",
+    "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+    "http-server/a-reply-reports-its-tls-session"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/capability.rs",
+    "crates/nvs-config/tests/capability.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-host/src/tls.rs"
+  ]
+}

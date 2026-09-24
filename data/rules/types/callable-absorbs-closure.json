@@ -1,0 +1,19 @@
+{
+  "title": "`callable` is the only closure type name, and a callable value is invoked directly",
+  "status": "shipped",
+  "because": [
+    "0031",
+    "0027",
+    "0007"
+  ],
+  "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`",
+  "seeAlso": [
+    "types/callable-is-a-closure",
+    "types/closure-literal",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/callable.rs",
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ]
+}

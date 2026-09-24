@@ -1,0 +1,21 @@
+{
+  "title": "`clone` copies an object's declared storage one level deep and shares every object it reaches",
+  "status": "shipped",
+  "because": [
+    "0023",
+    "0014",
+    "0022"
+  ],
+  "seeAlso": [
+    "classes/two-copy-depths",
+    "classes/graph-copy",
+    "classes/property-observer-pipeline",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/clone-copies-one-level-only.nvst",
+    "tests/conformance/class/a-clone-shares-the-object-its-property-holds.nvst",
+    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst",
+    "tests/differential/class/clone-is-shallow-like-phps.nvst"
+  ]
+}

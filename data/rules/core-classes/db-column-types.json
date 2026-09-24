@@ -1,0 +1,29 @@
+{
+  "title": "Every column has one natural Novis type, and the requested type converts losslessly or throws",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0054",
+    "0009",
+    "0024",
+    "0036",
+    "0063",
+    "0071",
+    "0145"
+  ],
+  "divergesFromPhp": "nothing is a string because the text protocol made it one — a `DECIMAL` is a `decimal`, a `BIGINT UNSIGNED` is a `uint`, and `TINYINT(1)` holding `7` refuses to read as `bool`",
+  "seeAlso": [
+    "core-classes/db-statement-members",
+    "core-classes/schema-vocabulary-is-closed",
+    "types/decimal",
+    "types/uint",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-row-reads-a-column-by-type-and-answers-nullable.nvst",
+    "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
+    "tests/conformance/core/db-column-type-is-a-case-and-not-a-vendor-name.nvst",
+    "tests/conformance/core/db-a-sqlite-column-reads-back-as-the-type-its-schema-declared.nvst",
+    "tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst"
+  ]
+}

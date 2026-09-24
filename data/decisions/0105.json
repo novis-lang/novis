@@ -1,0 +1,14 @@
+{
+  "title": "An uploaded file is a stream, and there is one way to receive it",
+  "status": "accepted",
+  "scope": "how an uploaded file reaches an application and what bounds it — the single receiving\naccessor, what a part is, the three ways to consume one, where a stream reaches disk, and the two caps\nthat replace one. Not in scope: the raw request body, which stays\n[0097](0097.md) § 8; how a multipart message's *spelling* is read,\nincluding the part-count cap, which stays\n[0095](0095.md); what `tainted` means and where it must be\nlaundered ([0024](0024.md)); the changeability classes the two caps\nare instances of ([0005](0005.md)); and everything else about the server\n([0097](0097.md)).",
+  "dependsOn": [
+    "0097"
+  ],
+  "dependsOnText": "[0097](0097.md) — § 8 is the decision this one\nreplaces, and the server whose body reader this is.",
+  "summary": {
+    "group": "core",
+    "headline": "An uploaded file is a stream, and there is one way to receive it",
+    "body": "`Core\\Request::files()` yields uploaded parts lazily, one at a time as they arrive, and it is\nthe only way to receive an uploaded file; there is no array of finished uploads. A part is\nconsumed in one of three ways: read whole, bounded by the request body cap; iterated as chunks\nof bytes; or written straight to disk. Peak memory for an upload of any size is one chunk per\nin-flight request. `request_body` bounds what is parsed into memory and `upload_total` bounds a\nstreamed multipart body. There is no temporary file."
+  }
+}

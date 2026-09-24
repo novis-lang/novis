@@ -1,0 +1,18 @@
+{
+  "title": "An unbound `catch (Throwable)` arm that supplies a value is warned about",
+  "status": "shipped",
+  "because": [
+    "0119",
+    "0007",
+    "0066"
+  ],
+  "divergesFromPhp": "PHP's `@` is gone, and the one-liner that would regrow it is named at compile time instead",
+  "seeAlso": [
+    "expressions/catch-arm-is-an-expression",
+    "expressions/catch-expression",
+    "expressions/nullable-condition-lint"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/catch_expression.rs"
+  ]
+}

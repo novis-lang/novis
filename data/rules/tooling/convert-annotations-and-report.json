@@ -1,0 +1,16 @@
+{
+  "title": "A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML",
+  "status": "designed",
+  "because": [
+    "0089",
+    "0064",
+    "0080"
+  ],
+  "seeAlso": [
+    "tooling/convert-one-table-two-modes",
+    "programs/no-compatibility-promise",
+    "programs/three-claims",
+    "config/the-file-is-nvs-toml-and-it-is-toml"
+  ],
+  "guardedBy": []
+}

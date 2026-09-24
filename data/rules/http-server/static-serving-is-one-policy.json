@@ -1,0 +1,16 @@
+{
+  "title": "Static serving is one policy in both modes: the exact file, never a listing, one `ETag`, one `Range`, and a `.nvs` file is never served as source",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0074"
+  ],
+  "divergesFromPhp": "there is no `Last-Modified`, no directory index, no `.htaccess` and no `max-age`; `php -S` serving any file under the root, source included, has no counterpart",
+  "seeAlso": [
+    "http-server/a-request-resolves-in-five-steps",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/statics.rs"
+  ]
+}

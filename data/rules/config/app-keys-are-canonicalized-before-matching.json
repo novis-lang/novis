@@ -1,0 +1,16 @@
+{
+  "title": "Both sides of an `[[app]]` match are canonicalized first, and a key naming nothing examinable refuses the boot",
+  "status": "shipped",
+  "because": [
+    "0104",
+    "0006"
+  ],
+  "seeAlso": [
+    "config/an-application-is-its-entry-file-path",
+    "config/every-matching-app-block-applies-least-specific-first",
+    "security/path-scope-canonicalise-then-prefix"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/app.rs"
+  ]
+}

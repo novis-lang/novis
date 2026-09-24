@@ -1,0 +1,16 @@
+{
+  "title": "Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only",
+  "status": "shipped",
+  "because": [
+    "0026"
+  ],
+  "seeAlso": [
+    "testing/perf-two-mechanisms",
+    "testing/perf-history-file",
+    "testing/userland-benchmarks"
+  ],
+  "guardedBy": [
+    "tools/bench.py",
+    "docs/perf/history.ndjson"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "lead": "A live `nvs serve` probe that asks once, right after an edit, can get the old unit and look like a bug.",
+  "body": "The resolve-time check re-reads a path at most once per `opcache.revalidate_freq`, which is `2s` by default, and the background check of stage 3 adds `settle` on top. Poll until the answer changes, as `crates/nvs-cli/tests/live_edit.rs`'s `Server::awaits` does, and read a single answer only after a poll has seen the edit.",
+  "files": [
+    "crates/nvs-cli/tests/live_edit.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-23"
+  }
+}

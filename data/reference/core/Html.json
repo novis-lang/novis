@@ -1,0 +1,23 @@
+{
+  "summary": "HTML as a page writes it — the ``html`…` `` literal, `Core\\Html\\Markup`, escaping, sanitizing and parsing",
+  "keywords": [
+    "html",
+    "markup",
+    "template",
+    "template literal",
+    "page",
+    "view",
+    "render",
+    "escape",
+    "escaping",
+    "xss",
+    "htmlspecialchars",
+    "htmlentities",
+    "html_entity_decode",
+    "strip_tags",
+    "DOMDocument",
+    "loadHTML",
+    "sanitize",
+    "parse"
+  ]
+}

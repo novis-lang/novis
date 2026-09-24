@@ -1,0 +1,22 @@
+{
+  "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
+  "status": "shipped",
+  "because": [
+    "0179"
+  ],
+  "divergesFromPhp": "a token with no `kid` cannot be walked against a key set, so verification costs one signature check whatever the sender wrote",
+  "seeAlso": [
+    "security/algorithm-comes-from-the-key",
+    "security/jwt-expiry-is-mandatory",
+    "security/verification-does-not-launder",
+    "security/derived-codec-qualifiers",
+    "security/jwe-compact-subset"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/jwt-verify-issued-finds-one-key-and-tries-no-other.nvst",
+    "tests/conformance/core/jwt-verify-issued-refuses-a-header-a-verifier-may-not-honour.nvst",
+    "tests/conformance/core/jwt-verify-issued-answers-the-written-type-from-either-key-spelling.nvst",
+    "tests/conformance/core/jwt-verify-issued-reaches-the-clock-and-the-claims-only-under-a-signature.nvst",
+    "tests/conformance/core/jwt-a-key-set-admits-what-it-serves-and-skips-the-rest.nvst"
+  ]
+}

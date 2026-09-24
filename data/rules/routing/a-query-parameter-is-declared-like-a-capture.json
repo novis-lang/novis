@@ -1,0 +1,25 @@
+{
+  "title": "A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0085",
+    "0071"
+  ],
+  "divergesFromPhp": "a query key is declared on the handler's parameter with a type, matched nominally as `Core\\Query`, rather than read out of `$_GET` and validated by hand",
+  "seeAlso": [
+    "routing/a-bad-query-value-is-a-400",
+    "routing/a-capture-narrows-to-a-closed-set",
+    "routing/a-leftover-link-key-is-a-query-string",
+    "security/route-capture-is-laundered-by-its-type",
+    "core-classes/derive-attribute",
+    "attributes/api-adds-and-cannot-contradict",
+    "routing/api-document-is-generated-from-the-route-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-query-marker-outside-a-route-method-binds-nothing.nvst",
+    "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
+    "crates/nvs-types/tests/routes.rs",
+    "crates/nvs-cli/tests/openapi.rs"
+  ]
+}

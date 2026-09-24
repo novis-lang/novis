@@ -1,0 +1,23 @@
+{
+  "title": "Every subsystem's tier is recorded once in the roster, including the ones no milestone has built",
+  "status": "designed",
+  "because": [
+    "0051",
+    "0067",
+    "0076",
+    "0086",
+    "0120",
+    "0121",
+    "0122",
+    "0123"
+  ],
+  "seeAlso": [
+    "core-api/tier-placement",
+    "core-api/five-placements",
+    "core-api/core-means-always-present"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs",
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

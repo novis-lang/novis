@@ -1,0 +1,13 @@
+{
+  "title": "The extension-host run is on every acceptance sweep, isolated from the developer's editor, and never answered from the memo",
+  "status": "accepted",
+  "scope": "where the extension-host tier runs, what makes running it beside a working developer\nsafe, and why its verdict is never taken from the acceptance memo. Not in scope: what the host\nsuite asserts, which the goal's own stages fix case by case; the headless tier, which is unchanged;\npublishing a `.vsix`, which `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps open; a\npixel tier, which stays refused.",
+  "dependsOn": [
+    "0099",
+    "0101",
+    "0143",
+    "0004"
+  ],
+  "dependsOnText": "[0099](0099.md), which created the two-tier rule and put the host run in CI alone;\n[0101](0101.md), which amended it for the concealment surfaces; [0143](0143.md) for the lanes the\nCI half runs in; [0004](0004.md) for the ordering a minute of wall-clock is spent under.",
+  "validatedBy": "the host suite's own first case, `runs in a throwaway profile and never the\ndeveloper's`, which asserts the app root, the user-data directory and the open folder; and the\nthree `command` checks that drive `npm run test:host` from the acceptance list."
+}

@@ -1,0 +1,21 @@
+{
+  "title": "An application is its entry file path, and an `[[app]]` block is keyed on a `root` directory or one `entry` file",
+  "status": "shipped",
+  "because": [
+    "0104",
+    "0097",
+    "0005"
+  ],
+  "divergesFromPhp": "a per-directory `php.ini`, a `.user.ini` or a PHP-FPM pool keys on a directory the web server chose; an `[[app]]` block keys on the entry file's own path, so `nvs run` has the same identity as a served request",
+  "seeAlso": [
+    "config/app-keys-are-canonicalized-before-matching",
+    "config/origin-is-a-block-key-and-there-is-no-app-table",
+    "config/every-matching-app-block-applies-least-specific-first",
+    "config/a-mount-routes-and-an-app-block-sets-policy",
+    "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/app.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

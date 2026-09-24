@@ -1,0 +1,22 @@
+{
+  "title": "A memory-safety fault in `unsafe` code or a miscompile is the one residue: the process dies, the supervisor restarts it, and the answer is frequency, not a boundary",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0093",
+    "0002"
+  ],
+  "divergesFromPhp": "there is no per-request worker process to absorb an engine crash; a fault of this class loses every request in flight and is answered by a restart in about a cold start",
+  "seeAlso": [
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "http-server/containment-does-not-end-at-the-helper",
+    "http-server/a-wedged-core-is-shed-never-killed",
+    "errors/propagation",
+    "security/isolate-shares-nothing",
+    "packaging/a-service-is-one-stored-argv",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "tools/leak-check.sh"
+  ]
+}

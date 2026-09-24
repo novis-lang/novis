@@ -1,0 +1,20 @@
+{
+  "title": "Verification answers a value or throws, and no member exposes a raw comparison for the caller to get wrong",
+  "status": "shipped",
+  "because": [
+    "0060",
+    "0033",
+    "0056"
+  ],
+  "divergesFromPhp": "no verifier returns a falsy value a loose comparison could read as success",
+  "seeAlso": [
+    "security/secret-comparison-is-constant-time",
+    "security/algorithm-comes-from-the-key",
+    "security/protocol-roster"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/csrf-binds-a-token-to-one-session-and-verify-is-the-only-comparison.nvst",
+    "tests/conformance/core/csrf-refuses-every-single-character-mutation-of-a-token-without-throwing.nvst",
+    "tests/conformance/core/signed-cookie-open-refuses-every-forgery-with-one-message.nvst"
+  ]
+}

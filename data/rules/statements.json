@@ -1,0 +1,29 @@
+{
+  "title": "Statements",
+  "order": 40,
+  "rules": [
+    "statements/nvs-is-the-only-open-tag",
+    "statements/a-qualified-name-is-absolute",
+    "statements/no-fallback-to-the-root-namespace",
+    "statements/a-leading-separator-does-not-parse",
+    "statements/one-function-resolves-every-name",
+    "statements/nothing-gets-a-second-name",
+    "statements/an-enum-name-is-a-type-everywhere",
+    "statements/require-is-the-only-inclusion-construct",
+    "statements/a-required-file-shares-declarations-not-locals",
+    "statements/a-require-expression-is-mixed",
+    "statements/static-is-a-member-modifier",
+    "statements/no-function-static-and-no-global",
+    "statements/storage-that-outlives-a-call",
+    "statements/an-isolate-has-its-own-statics",
+    "statements/no-host-populated-variables",
+    "statements/globals-and-request-are-dropped-outright",
+    "statements/a-closure-binds-this-only-where-it-uses-it",
+    "statements/inout-is-the-by-reference-spelling",
+    "statements/inout-is-written-at-the-call",
+    "statements/an-inout-argument-is-a-local",
+    "statements/there-is-no-out-mode",
+    "statements/ampersand-is-not-a-by-reference-marker",
+    "statements/exit-is-the-only-termination-keyword"
+  ]
+}

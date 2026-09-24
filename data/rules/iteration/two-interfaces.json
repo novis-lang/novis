@@ -1,0 +1,22 @@
+{
+  "title": "Two interfaces carry every iteration, and a cursor is `advance()` then `current()`",
+  "status": "shipped",
+  "because": [
+    "0053",
+    "0007",
+    "0028"
+  ],
+  "divergesFromPhp": "no `rewind()`, `key()`, `valid()` or `IteratorAggregate`, and none of the ~20 SPL iterator classes; a cursor has two members and no key half",
+  "seeAlso": [
+    "iteration/foreach-subjects",
+    "iteration/concrete-generic-implements",
+    "iteration/cursor-out-of-range",
+    "iteration/generators"
+  ],
+  "guardedBy": [
+    "tests/conformance/iter/an-iterator-object-is-driven-by-hand.nvst",
+    "tests/conformance/iter/an-iterable-object-is-drained-twice.nvst",
+    "tests/conformance/iter/an-iterator-subclass-overrides-what-current-yields.nvst",
+    "tests/conformance/lang/an-iterable-and-an-intersection-are-declarable.nvst"
+  ]
+}

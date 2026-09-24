@@ -1,0 +1,14 @@
+{
+  "title": "An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`",
+  "status": "designed",
+  "because": [
+    "0055",
+    "0024"
+  ],
+  "seeAlso": [
+    "security/extension-manifest-only-tightens",
+    "security/extension-contagion",
+    "security/sink-predicate"
+  ],
+  "guardedBy": []
+}

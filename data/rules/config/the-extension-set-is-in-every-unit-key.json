@@ -1,0 +1,18 @@
+{
+  "title": "The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss",
+  "status": "shipped",
+  "because": [
+    "0078",
+    "0017",
+    "0042"
+  ],
+  "seeAlso": [
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "config/a-reload-names-what-it-could-not-apply",
+    "programs/no-runtime-autoload",
+    "config/opcache-file-cache-directives-are-system"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

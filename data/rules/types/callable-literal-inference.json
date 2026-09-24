@@ -1,0 +1,20 @@
+{
+  "title": "An unannotated `fn` parameter takes its type from the position the literal is written in",
+  "status": "shipped",
+  "because": [
+    "0136",
+    "0036",
+    "0031"
+  ],
+  "seeAlso": [
+    "types/callable-signature",
+    "types/closure-literal",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-unannotated-closure-parameter-takes-its-type-from-the-position.nvst",
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "crates/nvs-types/tests/callable.rs",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "`&` in a by-reference position is refused at parse time",
+  "status": "shipped",
+  "because": [
+    "0107",
+    "0031",
+    "0045",
+    "0034"
+  ],
+  "divergesFromPhp": "`&` keeps only bitwise AND, logical AND and the intersection type; every by-reference spelling of it is a diagnostic",
+  "seeAlso": [
+    "statements/inout-is-the-by-reference-spelling",
+    "statements/inout-is-written-at-the-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst",
+    "tests/conformance/lang/a-reference-assignment-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-closure-refuses-a-by-reference-parameter.nvst"
+  ]
+}

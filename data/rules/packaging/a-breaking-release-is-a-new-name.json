@@ -1,0 +1,15 @@
+{
+  "title": "A package that breaks its API publishes under a new name carrying `supersedes`",
+  "status": "designed",
+  "because": [
+    "0081",
+    "0068"
+  ],
+  "divergesFromPhp": "`2.0.0` of the same name is how Composer ships a break; here the break is `acme/http2`, and the old and new package coexist in one graph without conflict",
+  "seeAlso": [
+    "packaging/resolution-takes-the-highest-minimum",
+    "packaging/a-dependency-break-is-absorbed-never-forwarded",
+    "packaging/a-known-bad-version-is-retracted-not-deleted"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "lead": "A prepared `Core` member has two bodies, and the registry names the one that throws.",
+  "body": "`nvs_stdlib::registry`'s `symbol` for `Core\\Router::url` is `nvs_core_router_url`, whose whole body is `Err(no_such_route(...))` — the unfolded path a computed argument takes — while `nvs_ir::lower::expr::lower_route_link` swaps a literal name for a prepared path and calls the second symbol, `nvs_core_router_link`, which does the work. For any member `rule:expressions/intrinsic-literals` prepares rather than folds, grep the crate for a sibling symbol before believing the body the row points at, or run four lines with `nvs run`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

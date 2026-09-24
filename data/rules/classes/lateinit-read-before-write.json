@@ -1,0 +1,17 @@
+{
+  "title": "A `lateinit` read the enclosing method can prove is too early is a compile error, and nothing wider is attempted",
+  "status": "shipped",
+  "because": [
+    "0038",
+    "0022",
+    "0017"
+  ],
+  "seeAlso": [
+    "classes/lateinit",
+    "classes/an-unwritten-property-read-throws"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst",
+    "crates/nvs-types/src/lateinit.rs"
+  ]
+}

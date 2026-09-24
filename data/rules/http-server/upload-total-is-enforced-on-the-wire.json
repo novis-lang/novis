@@ -1,0 +1,18 @@
+{
+  "title": "`upload_total` is enforced by the server on the wire: a declared oversize is refused before dispatch and a chunked one is stopped at the part being read",
+  "status": "shipped",
+  "because": [
+    "0105",
+    "0097"
+  ],
+  "seeAlso": [
+    "http-server/request-body-and-upload-total-are-two-caps",
+    "http-server/admission-is-arithmetic-not-a-number",
+    "security/isolate-budget-is-the-trees",
+    "http-server/the-server-block-is-boot-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-server/src/body.rs"
+  ]
+}

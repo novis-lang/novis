@@ -1,0 +1,17 @@
+{
+  "title": "Sampling is decided once at the root by `[trace] sample`, and an inbound trace that is already sampled is always continued",
+  "status": "shipped",
+  "because": [
+    "0076"
+  ],
+  "seeAlso": [
+    "observability/a-trace-id-exists-for-every-request",
+    "observability/an-inbound-traceparent-is-continued",
+    "observability/metrics-and-trace-blocks-are-system"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-runtime/src/trace_context.rs",
+    "crates/nvs-config/src/export.rs"
+  ]
+}

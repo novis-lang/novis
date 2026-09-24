@@ -1,0 +1,20 @@
+{
+  "title": "Every grammar the library parses is a sink, and none of the four gets a launderer",
+  "status": "shipped",
+  "because": [
+    "0088",
+    "0063",
+    "0057",
+    "0056"
+  ],
+  "seeAlso": [
+    "security/sink-predicate",
+    "security/regex-pattern-is-a-sink",
+    "security/assert-trusted",
+    "expressions/intrinsic-literals"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst",
+    "tests/conformance/reject/bytes-pack-and-unpack-refuse-a-tainted-format.nvst"
+  ]
+}

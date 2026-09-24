@@ -1,0 +1,25 @@
+{
+  "title": "The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub",
+  "status": "designed",
+  "because": [
+    "0040",
+    "0016",
+    "0099",
+    "0108"
+  ],
+  "seeAlso": [
+    "ide/the-first-server-answers-a-closed-list",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "ide/no-refactoring-introduces-an-alias",
+    "ide/the-ast-panel-shells-out-to-the-cli",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/the-debug-adapter-does-not-wait-for-an-editor",
+    "programs/first-party-framework",
+    "tooling/fmt-is-one-canonical-style",
+    "ide/five-features-are-one-reference-index",
+    "ide/completion-offers-only-what-the-compiler-derived",
+    "ide/a-template-region-gets-the-editors-services-and-formatter",
+    "ide/ast-json-schema-is-frozen"
+  ],
+  "guardedBy": []
+}

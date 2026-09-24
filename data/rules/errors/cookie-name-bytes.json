@@ -1,0 +1,17 @@
+{
+  "title": "A cookie name is bytes, and a prefix is enforced once",
+  "status": "shipped",
+  "because": [
+    "0095",
+    "0012"
+  ],
+  "divergesFromPhp": "no `.`-and-space mangling of cookie names, and `__Host-`/`__Secure-` are enforced by the runtime rather than by every read site",
+  "seeAlso": [
+    "errors/ambiguous-input-refused",
+    "errors/http-message-defects"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-request-cookie-refuses-before-it-reads-the-name-it-was-given.nvst",
+    "tests/conformance/core/a-response-add-cookie-enforces-a-cookie-name-prefix-on-write.nvst"
+  ]
+}

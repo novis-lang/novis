@@ -1,0 +1,11 @@
+{
+  "title": "`require` is the only same-frame file-inclusion construct",
+  "status": "accepted",
+  "scope": "PHP's four same-frame inclusion keywords (`include`, `include_once`, `require`,\n`require_once`); the corresponding AST shape and diagnostics",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "`require` is the only way to pull another file in",
+    "body": "`require 'header.nvs';` does what it does in PHP: it throws if the file is missing or does not\nparse, and it runs every time control reaches it, so a template partial inside a loop renders on\neach pass. `include`, `include_once` and `require_once` do not compile, and the error names\n`require` as the replacement. There is no warn-and-continue inclusion, because nothing in Novis\nfails quietly, and no once-only guard, because declarations resolve by namespace rather than by\nhow many times a file was spliced in."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "title": "`nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "php-cs-fixer and Prettier-style tools re-wrap to a column limit; here there is no line-length rule at all, soft or hard",
+  "seeAlso": [
+    "tooling/fmt-is-idempotent",
+    "tooling/fmt-trailing-commas",
+    "expressions/pipeline-substitution"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/never_reflows.rs"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "A file a program requires borrows that program's `autoload` map too",
+  "status": "accepted",
+  "scope": "which files a lender lends its map to, which files the survey walks, and what an edit to a\nrequired file re-walks. The map itself, the borrowed half's silence and `nvs check` stay\n[0198](0198.md)'s.",
+  "dependsOn": [
+    "0198",
+    "0099"
+  ],
+  "validatedBy": "`a_required_file_borrows_the_map_of_the_program_that_requires_it` and\n`a_require_added_to_a_required_file_lends_the_map_onward` in `crates/nvs-lsp/tests/autoload.rs`, and\n`the_declaring_file_is_analysed_as_it_always_was` there for the entry a lender never lends to."
+}

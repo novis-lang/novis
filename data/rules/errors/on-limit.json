@@ -1,0 +1,18 @@
+{
+  "title": "Tier 1 — a resource limit reaches the request that spent it",
+  "status": "shipped",
+  "because": [
+    "0020"
+  ],
+  "divergesFromPhp": "the handler is request-local rather than global, and runs on a reserve carved out before execution started",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/stack-depth",
+    "errors/panics-bypass-user-code"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst",
+    "tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst",
+    "crates/nvs-runtime/tests/configured_limits.rs"
+  ]
+}

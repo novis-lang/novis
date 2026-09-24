@@ -1,0 +1,17 @@
+{
+  "title": "The tty belongs to the main task of a CLI program, so a `Core\\Cli` member throws in a request and in a spawned isolate",
+  "status": "designed",
+  "because": [
+    "0086",
+    "0088",
+    "0006"
+  ],
+  "divergesFromPhp": "a request handler cannot reach the terminal at all, where PHP-FPM's `STDOUT` quietly lands in the server log",
+  "seeAlso": [
+    "tooling/echo-always-has-a-sink",
+    "tooling/the-terminal-is-restored-on-every-exit-path",
+    "security/isolate-output-is-captured",
+    "core-classes/cli-arguments"
+  ],
+  "guardedBy": []
+}

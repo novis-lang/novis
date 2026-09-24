@@ -1,0 +1,21 @@
+{
+  "title": "A shape's arms are pairwise disjoint, so exactly one accepts a written literal and no field is declared a discriminant",
+  "status": "shipped",
+  "because": [
+    "0135",
+    "0047",
+    "0067"
+  ],
+  "seeAlso": [
+    "core-api/shape-parameter",
+    "core-api/shape-reuses-the-option-diagnostics",
+    "types/literal-types",
+    "types/enum-case-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
+    "tests/conformance/core/db-settings-require-the-keys-of-the-arm-they-select.nvst",
+    "tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst",
+    "crates/nvs-types/src/expr/args.rs"
+  ]
+}

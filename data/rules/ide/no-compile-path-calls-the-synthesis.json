@@ -1,0 +1,17 @@
+{
+  "title": "The synthesis is one function in `nvs-types` that no compile path calls, so an array literal stays checked against a target and `var` still refuses a bare one",
+  "status": "designed",
+  "because": [
+    "0114",
+    "0007",
+    "0037"
+  ],
+  "seeAlso": [
+    "types/var-inference",
+    "types/arrays",
+    "ide/narrow-an-annotation-to-its-literal"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/var-refuses-a-bare-array-literal.nvst"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "A per-PR guard and the historical dashboard are separate measurements, and never one",
+  "status": "shipped",
+  "because": [
+    "0026",
+    "0143"
+  ],
+  "seeAlso": [
+    "testing/perf-secondary-figures",
+    "testing/perf-history-file",
+    "testing/bench-counters",
+    "testing/member-perf-ledger"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

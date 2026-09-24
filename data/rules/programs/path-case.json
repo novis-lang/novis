@@ -1,0 +1,16 @@
+{
+  "title": "A `require` path is compared against the on-disk entry exactly, on every OS",
+  "status": "shipped",
+  "because": [
+    "0062",
+    "0021"
+  ],
+  "divergesFromPhp": "`require` does not inherit the filesystem's case behaviour, so a path that resolves on Windows or macOS resolves on Linux or fails on all three",
+  "seeAlso": [
+    "programs/autoload"
+  ],
+  "guardedBy": [
+    "crates/nvs-hir/src/requires.rs",
+    "tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"
+  ]
+}

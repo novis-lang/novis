@@ -1,0 +1,18 @@
+{
+  "title": "A class observes every read and write of its own properties by implementing `PropertyObserver`, never by declaring `__get`/`__set`",
+  "status": "shipped",
+  "because": [
+    "0014",
+    "0011"
+  ],
+  "divergesFromPhp": "`__get`/`__set` are not recognized by name; observation is a declared `implements` that sees every property, not an ambient fallback that sees only the undefined ones",
+  "seeAlso": [
+    "classes/property-observer-pipeline",
+    "classes/no-dynamic-properties",
+    "classes/no-magic-methods",
+    "classes/stringable"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst"
+  ]
+}

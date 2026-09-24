@@ -1,0 +1,19 @@
+{
+  "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "php-cs-fixer's `ordered_class_elements` has no counterpart; a member's position is kept",
+  "seeAlso": [
+    "tooling/fmt-sorts-the-use-block",
+    "core-classes/derive-field-list",
+    "testing/bench-counters",
+    "core-api/written-visibility",
+    "classes/comparable",
+    "tooling/convert-one-table-two-modes"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/never_rewrites_a_declaration.rs"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into",
+  "status": "shipped",
+  "because": [
+    "0044",
+    "0118",
+    "0112",
+    "0024"
+  ],
+  "divergesFromPhp": "`shell_exec`, `system`, `passthru` and the backtick operator do not exist; there is an argv array and a grant",
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "security/sink-predicate",
+    "security/script-spawn-capability",
+    "core-classes/process-is-argv-only",
+    "core-classes/process-refuses-a-shell-target"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/process-exec-is-deny-by-default.nvst",
+    "tests/conformance/core/process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst",
+    "tests/conformance/core/process-run-refuses-every-shell-target-and-only-those.nvst"
+  ]
+}

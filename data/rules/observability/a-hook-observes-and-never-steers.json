@@ -1,0 +1,19 @@
+{
+  "title": "A hook observes the ending and never steers it: the report is fixed first, a throw is logged and abandoned, `exit` inside a hook throws, and the drain continues",
+  "status": "shipped",
+  "because": [
+    "0127",
+    "0020",
+    "0072"
+  ],
+  "divergesFromPhp": "a shutdown function in PHP can call `exit` to change the status or silently swallow the pending error; here neither is possible",
+  "seeAlso": [
+    "observability/script-on-exit",
+    "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-target-both-writers-land-in-the-destination-the-deployment-named.nvst",
+    "crates/nvs-runtime/src/ctx/hooks.rs"
+  ]
+}

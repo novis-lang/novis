@@ -1,0 +1,11 @@
+{
+  "title": "Configuration is TOML, in `nvs.toml`",
+  "status": "accepted",
+  "scope": "the on-disk syntax of the root-owned server configuration file, the file's name, and the\n`Core\\Config` accessor that replaces PHP's `ini_set`/`ini_get`/`ini_restore`. It does **not** touch\n[0005](0005.md)'s directive registry, changeability classes, ceilings or\nrequest-local overlay — every one of those is unchanged and still lives only there.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Server configuration is one TOML file, nvs.toml",
+    "body": "The server reads its configuration from a TOML file named nvs.toml, at boot and again on reload.\nTOML has a specification and real types, so a setting that is a boolean, a list or a repeated\nrecord is written as one rather than as a string somebody has to parse. A key that appears twice\nis an error, and so is a key the server does not know, which catches a typo where INI would\nsilently ignore it. The file is not a project manifest. ini_set and ini_get become\nCore\\Config::set and Core\\Config::get."
+  }
+}

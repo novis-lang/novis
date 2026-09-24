@@ -1,0 +1,14 @@
+{
+  "title": "Writing a `///` run is the editor's job: the configuration continues one, and a paste provider prefixes one",
+  "status": "accepted",
+  "scope": "the editor affordances for *writing* a doc comment in Novis source, and which of them\ncontribute a frozen name. Not in scope: what marks a doc comment and what may appear inside one, which\nis [0137](0137.md) and is unchanged; the rest of `language-configuration.json`, which is\n[0099](0099.md).",
+  "dependsOn": [
+    "0137",
+    "0099"
+  ],
+  "summary": {
+    "group": "tooling",
+    "headline": "Writing a doc comment is the editor’s job, not the language’s",
+    "body": "A doc comment is a run of `///` lines, and the per-line marker is what stops anything inside\nfrom ending it early. What it costs is typing, and both halves of that belong to the editor:\npressing Enter inside a doc comment starts the next line, and pasting several lines in offers to\nprefix them all. Neither adds a setting or a command. The alternative — a block form writing the\nmarker once at each end — was turned down: its closing marker is what a code example inside the\ncomment would contain."
+  }
+}

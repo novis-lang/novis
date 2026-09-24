@@ -1,0 +1,17 @@
+{
+  "title": "Declarations cross a `require` and variables do not",
+  "status": "shipped",
+  "because": [
+    "0021",
+    "0007",
+    "0006"
+  ],
+  "divergesFromPhp": "an included file cannot see the includer's locals, and the includer cannot see its own",
+  "seeAlso": [
+    "statements/require-is-the-only-inclusion-construct",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst"
+  ]
+}

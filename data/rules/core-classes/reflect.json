@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Reflect` is read-only structural introspection, and it is a first-class feature rather than an extension",
+  "status": "shipped",
+  "because": [
+    "0019",
+    "0043"
+  ],
+  "divergesFromPhp": "reflection is always present rather than a compiled-in extension, it covers no traits because there are none, and it never widens access",
+  "seeAlso": [
+    "core-classes/ast-is-inert",
+    "enums/reflection",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/reflect-forclass-reaches-a-description-by-name-and-absence-is-null.nvst",
+    "tests/conformance/core/reflect-describes-a-class-by-the-properties-visible-from-outside.nvst",
+    "tests/conformance/core/reflect-typeof-follows-the-value-and-forclass-follows-the-name.nvst",
+    "tests/conformance/core/reflect-reads-a-promoted-parameters-visibility-from-its-keyword.nvst"
+  ]
+}

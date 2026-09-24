@@ -1,0 +1,9 @@
+{
+  "lead": "`\"…\" as bytes` is how a case writes a `bytes` it can read, and `Core\\Encoding::fromHex(\"…\")` is how it writes one it cannot.",
+  "body": "There is no `bytes` literal; `as bytes` is total and free but only reaches octets that are valid UTF-8, so an arbitrary buffer — a lone `ff`, a truncated sequence — has to come from `fromHex`. Assert the result with `toHex` either way, since `echo` has no `bytes` row and `rule:types/conversion` makes `bytes as string` checked.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

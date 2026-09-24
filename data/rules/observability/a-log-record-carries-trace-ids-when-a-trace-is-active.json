@@ -1,0 +1,20 @@
+{
+  "title": "A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0020",
+    "0092"
+  ],
+  "divergesFromPhp": "`error_log` writes no correlation id; every JSON-Lines record written inside a traced request can be joined to its trace from the line alone",
+  "seeAlso": [
+    "errors/log-write",
+    "errors/log-fields",
+    "errors/diagnostic-record",
+    "observability/a-trace-id-exists-for-every-request"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/log.rs",
+    "crates/nvs-server/src/trace.rs"
+  ]
+}

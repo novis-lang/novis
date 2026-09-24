@@ -1,0 +1,25 @@
+{
+  "title": "Scheduled work is a `[[schedule]]` entry firing a `spawn script`, checked at boot, with no runtime API",
+  "status": "shipped",
+  "because": [
+    "0073",
+    "0064",
+    "0005",
+    "0006"
+  ],
+  "divergesFromPhp": "there is no crontab line and no scheduler API — a job, its cadence and its concurrency policy are an entry in `nvs.toml`, refused at boot when it cannot be armed",
+  "seeAlso": [
+    "config/scope-has-no-default",
+    "config/cron-is-five-fields-and-nothing-more",
+    "config/a-scheduled-run-is-a-root-isolate",
+    "security/isolate-shares-nothing",
+    "security/script-spawn-capability",
+    "concurrency/queued-work-is-not-scheduled-work",
+    "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "config/a-value-array-replaces-and-a-table-appends"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

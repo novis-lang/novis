@@ -1,0 +1,24 @@
+{
+  "title": "`Core\\Db` is the only database API, and every statement it runs is prepared",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0024",
+    "0028",
+    "0051",
+    "0063"
+  ],
+  "divergesFromPhp": "there is no PDO, no mysqli, no pgsql and no sqlite3 twin, no `quote`/`real_escape_string`, no emulated prepares and no multi-statement query",
+  "seeAlso": [
+    "core-classes/db-parameters",
+    "core-classes/db-statement-members",
+    "core-classes/db-drivers-are-an-enum",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-a-prepared-statement-binds-by-name-and-by-position.nvst",
+    "tests/conformance/core/db-query-takes-its-values-beside-the-statement.nvst",
+    "tests/conformance/core/db-query-refuses-a-tainted-statement-and-binds-one-freely.nvst",
+    "tests/conformance/core/db-quote-identifier-refuses-what-would-need-delimiting.nvst"
+  ]
+}

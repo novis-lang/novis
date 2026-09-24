@@ -1,0 +1,25 @@
+{
+  "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101",
+    "0040",
+    "0137",
+    "0171",
+    "0201"
+  ],
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+    "ide/diagnostics-are-phase-gated",
+    "ide/the-index-answers-the-cursor",
+    "tooling/doc-comment-tags-are-see-and-example",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "ide/five-features-are-one-reference-index"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/coverage.rs",
+    "crates/nvs-lsp/tests/navigation.rs"
+  ]
+}

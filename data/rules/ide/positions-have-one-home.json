@@ -1,0 +1,12 @@
+{
+  "title": "Position encoding is negotiated, every offset conversion lives in `nvs-diagnostics`, and a document's bytes are never normalised",
+  "status": "designed",
+  "because": [
+    "0099"
+  ],
+  "seeAlso": [
+    "types/bytes",
+    "ide/the-server-is-synchronous"
+  ],
+  "guardedBy": []
+}

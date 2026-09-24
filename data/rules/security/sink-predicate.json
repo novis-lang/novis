@@ -1,0 +1,21 @@
+{
+  "title": "A `string` or `bytes` parameter is a sink when its content becomes an instruction a parser executes",
+  "status": "shipped",
+  "because": [
+    "0088",
+    "0024",
+    "0063"
+  ],
+  "seeAlso": [
+    "security/unclassified-parameter-refuses-tainted",
+    "security/log-is-not-a-sink",
+    "security/every-grammar-is-a-sink",
+    "security/launderers-are-sink-named",
+    "core-classes/db-parameters"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst",
+    "tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst",
+    "tests/conformance/core/db-query-refuses-a-tainted-statement-and-binds-one-freely.nvst"
+  ]
+}

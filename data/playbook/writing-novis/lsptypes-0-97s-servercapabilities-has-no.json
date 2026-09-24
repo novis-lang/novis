@@ -1,0 +1,11 @@
+{
+  "lead": "`lsp_types` 0.97's `ServerCapabilities` has no `typeHierarchyProvider` member",
+  "body": ", though it carries the three requests, their params and the client half, so the gap reads as a misspelling. A capability the struct cannot express is one no client ever asks about, which looks exactly like a handler nobody wired up. `nvs_lsp::declared_capabilities` serializes the struct and inserts the key into the object.",
+  "files": [
+    "crates/nvs-lsp/src/capabilities.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-lsp/src/capabilities.rs:typeHierarchyProvider"
+  }
+}

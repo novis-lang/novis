@@ -1,0 +1,17 @@
+{
+  "title": "A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`",
+  "status": "designed",
+  "because": [
+    "0081",
+    "0061"
+  ],
+  "divergesFromPhp": "there is no `vendor/autoload.php` classmap or loader to `require`; the generated file holds declarations the compiler resolves like any other source",
+  "seeAlso": [
+    "programs/no-runtime-autoload",
+    "programs/autoload",
+    "packaging/a-package-file-stays-under-its-declared-prefix",
+    "packaging/package-toml-is-a-tool-input",
+    "packaging/autoload-probes-fold-into-the-cache-key"
+  ],
+  "guardedBy": []
+}

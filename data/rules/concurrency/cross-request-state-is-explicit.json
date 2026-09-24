@@ -1,0 +1,21 @@
+{
+  "title": "A value outlives the request that made it only by being put into a named store",
+  "status": "shipped",
+  "because": [
+    "0059",
+    "0052",
+    "0004",
+    "0181"
+  ],
+  "divergesFromPhp": "APCu, `shmop`, `sysvshm`, `sysvsem` and `sysvmsg` are gone, and there is no ambient place a value can be left for the next request to find",
+  "seeAlso": [
+    "security/no-cross-request-state",
+    "security/closed-doors",
+    "core-api/two-cache-tiers",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst",
+    "tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst"
+  ]
+}

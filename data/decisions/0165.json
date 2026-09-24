@@ -1,0 +1,19 @@
+{
+  "title": "The envelope's `source` and `count` are filled, and each is filled where it belongs",
+  "status": "accepted",
+  "scope": "the two envelope fields [0092](0092.md) declared and nothing outside the engine floor\nwrites — where a record says it was produced, and how a run of identical records is bounded. It\nadds no captured call stack, and it changes no part of the record model, which already has both\nslots.",
+  "dependsOn": [
+    "0092",
+    "0106",
+    "0020",
+    "0002",
+    "0163"
+  ],
+  "dependsOnText": "[0092](0092.md), whose envelope declares `source` and `count`; [0106](0106.md) and\n[0020](0020.md), whose floor already coalesces and whose target is already bounded;\n[0002](0002.md), whose propagation design is where a call-site constant already reaches the\nruntime; [0163](0163.md), whose viewer is the reader that makes the second half worth deciding now.",
+  "validatedBy": "the conformance and unit cases the two rules name, landed by the goal that\ncarries them. Nothing holds this record on its own today, which is why both rules are `designed`.",
+  "summary": {
+    "group": "core",
+    "headline": "A log record names the line that produced it, and the file log counts repeats",
+    "body": "Every log record carries the file and line it was written from, and an exception's location is\nfilled in at construction rather than left blank. When the same record repeats in a short\nwindow, the file log target merges the run into one line with a count, because a disk is what a\nflood would hurt. The debug stream does not merge: its store groups at read time, so every\noccurrence is kept. A per-line rate limit was considered and not taken."
+  }
+}

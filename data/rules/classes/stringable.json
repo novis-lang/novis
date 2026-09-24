@@ -1,0 +1,22 @@
+{
+  "title": "An object becomes a string only through `Stringable::toString`, and everywhere else is a diagnostic",
+  "status": "shipped",
+  "because": [
+    "0028",
+    "0013",
+    "0007"
+  ],
+  "divergesFromPhp": "`__toString` is not recognized; the capability is `implements Stringable` and its absence is refused where the object is rendered",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "classes/comparable",
+    "types/conversion",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-stringable-class-renders-through-tostring.nvst",
+    "tests/conformance/class/a-stringable-object-stringifies-at-every-implicit-site.nvst",
+    "tests/conformance/reject/an-object-without-stringable-cannot-be-interpolated.nvst",
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

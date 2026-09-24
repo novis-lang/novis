@@ -1,0 +1,16 @@
+{
+  "title": "`health_path` is off by default; set, it answers `200` while accepting and `503` while draining, and checks no dependency",
+  "status": "shipped",
+  "because": [
+    "0097"
+  ],
+  "divergesFromPhp": "php-fpm's `ping.path` and `pm.status_path` have a counterpart that reports no status page, no version and no pool statistics",
+  "seeAlso": [
+    "http-server/the-server-block-is-boot-class",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs",
+    "tests/conformance/core/server-is-draining-answers-a-bool-and-its-readings-agree.nvst"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "A multipart body is capped by part count, not only by size",
+  "status": "shipped",
+  "because": [
+    "0095",
+    "0064",
+    "0004"
+  ],
+  "seeAlso": [
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": []
+}

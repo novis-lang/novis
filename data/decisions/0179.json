@@ -1,0 +1,13 @@
+{
+  "title": "Novis reads what a browser encrypts and what an issuer signs, over a closed algorithm roster and one streamlined `Core\\Crypto`",
+  "status": "accepted",
+  "scope": "which cryptographic primitives `Core\\Crypto` exposes and in what shape; the closed roster of\nalgorithms the language will implement; the JWE and JWS subsets `Core\\Jwe` and `Core\\Jwt` speak; and\nthe dependency set all of it rests on. Not in scope: fetching, caching or discovering a key set, which\n`rule:security/protocol-admission-test` puts outside `Core`; the `nvs/rest` package built over this.",
+  "dependsOn": [
+    "0051",
+    "0060",
+    "0033",
+    "0146"
+  ],
+  "dependsOnText": "[0051](0051.md) for the tier the class already sits at, [0060](0060.md) for the\nroster and for the algorithm coming from the key, [0033](0033.md) for the `secret` qualifier,\n[0146](0146.md) for the payload-canonicalization half of the roster.",
+  "validatedBy": "`tools/webcrypto-vectors.mjs`'s frozen set, which is WebCrypto's own output for\nevery algorithm here, and the conformance cases each stage of goal `webcrypto` adds beside it."
+}

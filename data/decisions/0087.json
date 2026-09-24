@@ -1,0 +1,11 @@
+{
+  "title": "An unterminated bidirectional control is rejected at every boundary, by one predicate",
+  "status": "accepted",
+  "scope": "the rule that a bidirectional embedding, override or isolate control must be terminated inside\nthe span that opened it; the one predicate that decides it; and its four callers — the lexer, the\nterminal sink, the HTML escaper, and\n[0092](0092.md) § 5's diagnostic record model, which applies it\nonce so all three of that ADR's renderings inherit the same answer. Also, explicitly, what is *not*\ncovered: zero-width and invisible\ncharacters, homoglyphs, and the full Unicode Bidirectional Algorithm, each with its reason in § 4.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "An unclosed text-direction control stops the build and never reaches output",
+    "body": "Certain Unicode controls make text display in an order its bytes do not have, so a reviewer\napproves one program and the compiler builds another. Identifiers are ASCII-only, so names\ncannot be faked. Comments, string literals, inline HTML and runtime data are checked by one\ntest: a direction control that opens a scope and never closes. Balanced controls, which real\nArabic and Hebrew text uses, pass untouched. In source the unbalanced case stops the build; on\nthe terminal and in HTML it becomes a visible placeholder; and logs and stack traces get the\nsame answer."
+  }
+}

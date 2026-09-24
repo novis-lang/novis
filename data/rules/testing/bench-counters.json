@@ -1,0 +1,17 @@
+{
+  "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
+  "status": "designed",
+  "because": [
+    "0079",
+    "0018",
+    "0041",
+    "0026",
+    "0004"
+  ],
+  "seeAlso": [
+    "testing/debug-probes",
+    "testing/perf-two-mechanisms",
+    "testing/member-perf-ledger"
+  ],
+  "guardedBy": []
+}

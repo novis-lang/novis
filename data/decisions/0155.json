@@ -1,0 +1,15 @@
+{
+  "title": "The extension ships no binary, and a missing `nvs` is a guided install the user starts and can check for themselves",
+  "status": "accepted",
+  "scope": "how a VS Code user with no `nvs` on their machine gets one, and what the client may do\nabout it without being asked. It does not decide Marketplace publishing, which [ADR 0099](0099.md)\n*Revisiting* still holds, and it introduces no toolchain version manager.",
+  "dependsOn": [
+    "0016",
+    "0099"
+  ],
+  "validatedBy": "the extension's headless suite — the target table checked against\n`.github/workflows/release.yml`'s build matrix, the series selection, and a tampered archive that\nhas to be refused.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The editor extension ships no compiler, and a missing one is a guided install",
+    "body": "The VS Code extension does not bundle `nvs`. It looks in the `nvs.path` setting, then on the\n`PATH`, then in a copy it manages itself, and when none is found it offers two commands rather\nthan an error about environment variables: one downloads the release matching the extension's\nown version series and checks every byte against that release's published checksums, the other\nopens the release page so you can verify the bytes yourself. Nothing is fetched unless you run\nthe command, and the managed copy never rewrites your settings."
+  }
+}

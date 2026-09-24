@@ -1,0 +1,17 @@
+{
+  "title": "`as ?T` decides `tainted` and `secret` by exactly the rule `as T` uses, and launders nothing of its own",
+  "status": "shipped",
+  "because": [
+    "0066",
+    "0024",
+    "0033"
+  ],
+  "seeAlso": [
+    "expressions/nullable-conversion",
+    "expressions/nullable-conversion-availability"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/tainted.rs",
+    "crates/nvs-types/tests/secret.rs"
+  ]
+}

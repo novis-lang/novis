@@ -1,0 +1,12 @@
+{
+  "title": "A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one",
+  "status": "accepted",
+  "scope": "a new `nvs-cli` subcommand that packages an entry `.nvs` file plus its statically-resolvable\n`require` graph into a single, self-contained, runnable executable — the Bun/`pkg`/`deno compile` shape —\nand the small addition to `nvs-host`'s startup path needed to run one. CLI programs only; `nvs serve` is\nexplicitly out of scope (see *Decision* §1).",
+  "dependsOn": [],
+  "validatedBy": "[crates/nvs-cli/tests/bundle.rs](../../crates/nvs-cli/tests/bundle.rs)",
+  "summary": {
+    "group": "tooling",
+    "headline": "A command-line program can ship as one executable with its source appended",
+    "body": "`nvs build --compile entry.nvs -o app` produces a single file: the Novis runtime with the\nprogram's source tree appended after it and a small footer. At startup the runtime checks its\nown file for that footer and, if present, resolves `require` from the embedded tree instead of\nthe disk. The executable never rewrites itself; to update the program, the author runs the same\nbuild again. This is for command-line programs only. It ships source rather than machine code,\ntrading some startup time for one file that runs on any supported machine."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "title": "`#[Fixture]` is built once per class and injected into a test by the type it returns",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0023"
+  ],
+  "divergesFromPhp": "shared setup is resolved by declared type while compiling, so an unsatisfiable parameter is a diagnostic rather than a null at run time",
+  "seeAlso": [
+    "testing/data-rows",
+    "testing/constructor-is-setup",
+    "testing/isolate-per-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-fixture-is-built-once-and-injected-by-type.nvst",
+    "tests/conformance/reject/a-fixture-supplies-one-type-from-a-public-static-method.nvst",
+    "tests/conformance/reject/a-test-parameter-is-supplied-by-a-fixture-or-refused.nvst",
+    "crates/nvs-types/tests/testing.rs"
+  ]
+}

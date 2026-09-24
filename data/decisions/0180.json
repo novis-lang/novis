@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Http\\Client` is a client an API is driven through: one body per call, bounded streams, a pool keyed on what was approved, and trust the operator owns",
+  "status": "accepted",
+  "scope": "everything `Core`'s outbound HTTP half still owes a program driving a real API — a request\nbody and a run-time verb, a reply read through its headers and its shape, a streamed reply and the two\nbounds on it, connection reuse, content decoding, credentials across a redirect, a client identity, who\ndecides which certificates are trusted and where a program may relax that, naming an address, what a\nhandshake reports back, resolving a name off the core and trying every address it answers, and the trace\nevent one call files. Not in scope: the `nvs/rest` package and OAuth, and where a token lives between\nrequests, which is goal `process-cache`'s; HTTP/2 and HTTP/3; a forward proxy and TLS to it, which is\ngoal `outbound-proxy`'s; a resolver of Novis's own, DNS over HTTPS, CRL, OCSP, the OS certificate store,\ncipher-suite selection, HSTS, a cookie jar, and parsing `Link` or RFC 9457 problem details for a\nprogram.",
+  "dependsOn": [
+    "0058",
+    "0074",
+    "0166",
+    "0179",
+    "0041",
+    "0033",
+    "0088",
+    "0005",
+    "0064"
+  ],
+  "dependsOnText": "[0058](0058.md) for the launderer, the address policy and the pin; [0074](0074.md) for\nthe options bag, the one deadline and jittered opt-in retry; [0166](0166.md) for the decompression bound\nthis reuses rather than sets; [0179](0179.md) for the `Crypto\\KeyPair` a client identity is built from;\n[0041](0041.md) for the trace event a fifth kind joins; [0033](0033.md) and [0088](0088.md) for which of\nthese positions are sinks; [0005](0005.md) and [0064](0064.md) for the changeability class every new\ndirective carries.",
+  "validatedBy": "the conformance cases stages 3–13 of goal `http-client` add, all of them written\nagainst § 1's table with no listener and no outbound grant; the first end-to-end `https` test, a\nloopback origin with an `rcgen` certificate reached through `Core\\Http\\Client` under a `roots` file;\n`crates/nvs-config/tests/tree.rs` for the two new blocks and the refusals in § 16; and\n`crates/nvs-stdlib/tests/spec_registry_coverage.rs` for the surface."
+}

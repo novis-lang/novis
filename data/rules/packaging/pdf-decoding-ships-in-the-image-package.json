@@ -1,0 +1,17 @@
+{
+  "title": "PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`",
+  "status": "designed",
+  "because": [
+    "0128",
+    "0120",
+    "0121"
+  ],
+  "divergesFromPhp": "there is no Ghostscript to install and no ImageMagick policy to loosen; a page becomes an image through the same sandboxed component every other format uses",
+  "seeAlso": [
+    "core-classes/pdf-page-is-an-image-source",
+    "core-classes/image-format-roster",
+    "core-classes/pdf-render-has-no-io",
+    "packaging/an-extension-package-carries-two-payloads"
+  ],
+  "guardedBy": []
+}

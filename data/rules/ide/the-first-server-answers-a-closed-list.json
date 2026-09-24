@@ -1,0 +1,19 @@
+{
+  "title": "The first `nvs lsp` answers six requests and two code actions, and nothing else until the workspace index exists",
+  "status": "designed",
+  "because": [
+    "0040",
+    "0099"
+  ],
+  "seeAlso": [
+    "ide/one-crate-and-one-extension-grow-in-place",
+    "ide/the-tree-survives-a-syntax-error",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "core-api/identifier-casing",
+    "types/no-legacy-cast",
+    "ide/the-server-is-synchronous",
+    "ide/the-request-set-is-closed",
+    "ide/five-features-are-one-reference-index"
+  ],
+  "guardedBy": []
+}

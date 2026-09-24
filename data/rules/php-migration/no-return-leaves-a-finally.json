@@ -1,0 +1,13 @@
+{
+  "title": "A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it",
+  "status": "designed",
+  "because": [
+    "0124"
+  ],
+  "divergesFromPhp": "`return` inside `finally` does not compile, instead of overriding the region's result and discarding a throw in flight (deprecated in 8.6)",
+  "seeAlso": [
+    "php-migration/a-deprecation-is-a-refusal",
+    "php-migration/a-body-never-falls-off-its-end"
+  ],
+  "guardedBy": []
+}

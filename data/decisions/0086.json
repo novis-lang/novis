@@ -1,0 +1,11 @@
+{
+  "title": "The terminal is a sink, styling is a value, and a CLI's commands are compiled",
+  "status": "accepted",
+  "scope": "what `Core\\Cli` is — the terminal output sink and its substitution rule, the\n`Cli\\Text`/`Cli\\Style`/`Cli\\Color` value types, stream/tty/colour-depth/width resolution, the interactive\nprompt roster, the scoped live region, and the `#[Command]`/`#[Option]` compile-time command table with\nits generated help and completions. Also: who owns the tty, and what restores it. Not in scope: the\nbyte-and-line side of standard input, which stays `Core\\IO`\n([docs/spec/01-core-library.md](../spec/01-core-library.md) § 14); running another program, which is\n[0044](0044.md); bidirectional-Unicode spoofing, which § 7 declines with\nits reason; and a TUI widget layer, which § 7 also declines.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Terminal output is guarded, styling is a value, and commands are compiled",
+    "body": "Anything written to the terminal has every escape and control byte rendered visibly instead of\nacted on, so untrusted text cannot drive the terminal as it has `git`, `less` and `kubectl`.\nStyling is a value type, `Cli\\Text`, the one thing that writes raw. Prompts — `ask`, `confirm`,\n`select`, `secret` — are built in, and a password read at a prompt is a secret that cannot be\nechoed or logged. `#[Command]` methods form a table built while compiling, with `--help` and\nshell completions generated."
+  }
+}

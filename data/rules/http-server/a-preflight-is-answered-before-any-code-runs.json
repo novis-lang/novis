@@ -1,0 +1,19 @@
+{
+  "title": "A CORS preflight is answered from `[http.cors]` before the unit is loaded, and a plain `OPTIONS` is passed through",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0074",
+    "0102"
+  ],
+  "divergesFromPhp": "no `header('Access-Control-Allow-Origin: …')` in application code answers a preflight; the policy answers it before the program exists",
+  "seeAlso": [
+    "http-server/head-runs-as-get",
+    "routing/matched-once-before-the-handler",
+    "security/csrf-is-on-by-default",
+    "http-server/cors-is-closed-until-origins-are-named"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/cors.rs"
+  ]
+}

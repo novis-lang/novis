@@ -1,0 +1,15 @@
+{
+  "title": "every file a program reached is checked in the background, in every mode, and a change is compiled whole from a quiet tree before it is swapped in",
+  "status": "accepted",
+  "scope": "how a running process notices a source change and gets it to the next request: what a\ncompiled unit is keyed on, what a check of it looks at, where that check runs, when a changed\nprogram is compiled, and how the mount table follows the disk. It removes `[opcache] validate =\n\"never\"` and adds `[opcache] settle`. It does not decide how a *configuration* change is applied,\nwhich keys still need a restart, or anything a reload reports — the second record this work\nwrites owns those.",
+  "dependsOn": [
+    "0017",
+    "0042",
+    "0061",
+    "0097",
+    "0200",
+    "0091"
+  ],
+  "dependsOnText": "[0017](0017.md) for the unit table, its path pointer and the single-flight\ncompile; [0042](0042.md) for the on-disk artifact cache and its whole-program key;\n[0061](0061.md) for `autoload` and the discovery query; [0097](0097.md) and [0200](0200.md) for the\nmount table; [0091](0091.md) for the mode's startup rows.",
+  "validatedBy": "`crates/nvs-cli/tests/live_edit.rs`, which starts the built `nvs serve` over a\nprogram in a temporary directory, edits the tree, and polls until the answer changes; and\n`crates/nvs-config`'s tests that `validate = \"never\"` does not load and that `settle` has its two\nmode defaults."
+}

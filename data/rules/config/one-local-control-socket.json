@@ -1,0 +1,24 @@
+{
+  "title": "The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client",
+  "status": "shipped",
+  "because": [
+    "0078",
+    "0103",
+    "0042",
+    "0219"
+  ],
+  "divergesFromPhp": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back",
+  "seeAlso": [
+    "config/the-config-is-an-immutable-snapshot",
+    "config/a-reload-names-what-it-could-not-apply",
+    "config/no-network-control-surface",
+    "security/no-eval",
+    "config/ctl-config-reports-the-live-snapshot",
+    "config/ownership-is-the-trust-boundary"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/control.rs",
+    "crates/nvs-cli/src/ctl.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

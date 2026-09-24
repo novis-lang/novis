@@ -1,0 +1,16 @@
+{
+  "title": "The format roster is a closed table of decoders and encoders, each naming what implements it",
+  "status": "designed",
+  "because": [
+    "0120",
+    "0051",
+    "0128"
+  ],
+  "divergesFromPhp": "TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats are not readable at all, and JPEG XL decodes without encoding",
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/pdf-page-is-an-image-source",
+    "core-classes/image-pixel-cap"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,20 @@
+{
+  "title": "Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`",
+  "status": "shipped",
+  "because": [
+    "0074",
+    "0058",
+    "0180"
+  ],
+  "divergesFromPhp": "PHP's clients have no retry, so every application writes its own loop; here it is three flat options, the jitter is not configurable, and a `Retry-After` header replaces the computed wait",
+  "seeAlso": [
+    "http-server/one-deadline-covers-the-whole-call",
+    "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+    "http-server/no-spelling-for-an-unbounded-wait"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "tests/conformance/core/every-client-member-judges-a-request-before-it-leaves-the-process.nvst"
+  ]
+}

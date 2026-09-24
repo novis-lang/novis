@@ -1,0 +1,16 @@
+{
+  "title": "A `readonly` property declares no default; a value known at the declaration is a `const`",
+  "status": "designed",
+  "because": [
+    "0124"
+  ],
+  "divergesFromPhp": "`readonly int $n = 1;` is refused where PHP 8.6 allows it",
+  "seeAlso": [
+    "types/class-constant",
+    "classes/lateinit",
+    "classes/promotion-is-constructor-only",
+    "statements/nothing-gets-a-second-name",
+    "php-migration/a-deprecation-is-a-refusal"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Four closed doors: no FFI, no stream wrappers, no cross-request state, no `eval`",
+  "status": "accepted",
+  "scope": "four mechanisms PHP has that Novis will not implement at any tier, each because it contradicts a\ncommitment the project has already made rather than because it is unpopular or hard. Ordinary triage\noutcomes — extensions dropped because something better replaces them — stay in\n`rule:core-api/tier-roster`.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "Four doors stay shut: no FFI, no stream wrappers, no shared state, no eval",
+    "body": "Four PHP mechanisms have no Novis equivalent, and none has an opt-in, a setting or a trusted\nmode. There is no FFI and no native module, because loading native code into the process\ndestroys the safety claims the runtime rests on. A path argument is always a filesystem path, so\nthere is no `phar://`, no `php://filter` and no remote inclusion. Nothing is shared between\nrequests, neither memory nor a process-wide setting a script can change. And there is no `eval`;\ndynamic code runs as a spawned sandboxed script with its own budget."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "title": "A duplicate key is an error, and so is an unknown one — per file",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0103"
+  ],
+  "divergesFromPhp": "`php.ini` silently takes the last of two copies of a key and ignores one it does not recognise; both refuse the boot here, naming the line",
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/the-file-is-nvs-toml-and-it-is-toml",
+    "config/the-config-is-an-immutable-snapshot"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/parse.rs",
+    "crates/nvs-config/tests/tree.rs",
+    "crates/nvs-config/tests/resolve.rs",
+    "tests/config/duplicate-key.toml"
+  ]
+}

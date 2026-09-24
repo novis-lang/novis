@@ -1,0 +1,15 @@
+{
+  "title": "Only the leading character's case is checked, so `HTTPClient` and `HttpClient` both pass",
+  "status": "shipped",
+  "because": [
+    "0029"
+  ],
+  "seeAlso": [
+    "core-api/identifier-casing",
+    "core-api/casing-has-no-suppression"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "tests/conformance/reject/a-class-name-must-be-pascalcase.nvst"
+  ]
+}

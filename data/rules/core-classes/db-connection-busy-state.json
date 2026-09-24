@@ -1,0 +1,16 @@
+{
+  "title": "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset",
+  "status": "shipped",
+  "because": [
+    "0132",
+    "0067"
+  ],
+  "seeAlso": [
+    "core-classes/db-streaming",
+    "core-classes/db-statement-members",
+    "core-classes/db-drivers-are-an-enum"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-a-closed-connection-refuses-every-member-that-needs-it.nvst"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
+  "status": "shipped",
+  "because": [
+    "0005",
+    "0078",
+    "0064"
+  ],
+  "divergesFromPhp": "`ini_set` may widen `memory_limit` here too, but only up to a ceiling the file states in its own block, and a `System` directive has no `ini_set` at all",
+  "seeAlso": [
+    "config/ceilings-are-their-own-directives",
+    "config/a-refused-set-returns-false",
+    "config/a-runtime-set-is-request-local",
+    "config/system-means-a-request-may-not-set-it",
+    "config/reloadability-is-its-own-field",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/request.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

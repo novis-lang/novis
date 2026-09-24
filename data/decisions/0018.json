@@ -1,0 +1,11 @@
+{
+  "title": "Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier",
+  "status": "accepted",
+  "scope": "`Core\\Debug`, the `[debug]` `nvs.toml` section, the `debug.trace`/`debug.profile` capabilities,\nthe probe-emission points added to `nvs-codegen`, the `Ctx` fields that back them, and the coverage/trace/\nprofile output formats",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Coverage, tracing and profiling are built in and can start mid-request",
+    "body": "Code coverage, call tracing and a per-call profiler ship in the runtime, switched on with one\nsetting or one `Core\\Debug` call, and exported as Clover, lcov and Callgrind so the tools PHP\ndevelopers already use read the output unchanged. Every compiled program carries a tiny check at\neach statement and each call, so turning a probe on for a running request is just flipping a\nflag — which lets a test harness start coverage around one test inside a long-lived process. In\nproduction the setting is a ceiling a request can never widen."
+  }
+}

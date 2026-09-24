@@ -1,0 +1,20 @@
+{
+  "title": "`nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one",
+  "status": "shipped",
+  "because": [
+    "0117",
+    "0167"
+  ],
+  "divergesFromPhp": "there is no `php --rf`, no reflection dump and no phpDocumentor pass over the standard library; one command from the binary is the reference's only input",
+  "seeAlso": [
+    "core-api/reference-card",
+    "core-api/field-wise-precedence",
+    "core-api/parameters-are-callable-by-name",
+    "tooling/meta-json-takes-a-program",
+    "tooling/one-json-several-renderers"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/meta.rs",
+    "crates/nvs-cli/src/meta.rs"
+  ]
+}

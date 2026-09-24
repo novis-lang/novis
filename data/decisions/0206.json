@@ -1,0 +1,10 @@
+{
+  "title": "Whatever is idle closes the moment it sees the drain, and only work in progress is given a period",
+  "status": "accepted",
+  "scope": "what the drain does with a WebSocket whose program is waiting for its peer and with an\nevent stream that has nothing to write, and the seam that lets a read already parked see the\ndrain at all. What the drain does with an HTTP connection is [0205](0205.md)'s; what it does with\na request in flight is [0186](0186.md) § 3's.",
+  "dependsOn": [
+    "0186",
+    "0205"
+  ],
+  "validatedBy": "`crates/nvs-server/src/serve.rs`'s\n`a_websocket_parked_on_its_peer_is_closed_the_moment_the_drain_begins` and\n`a_drain_ends_the_body_cleanly_rather_than_resetting_the_connection`."
+}

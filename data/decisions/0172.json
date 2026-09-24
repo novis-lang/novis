@@ -1,0 +1,17 @@
+{
+  "title": "An editor reads the CLI's own documents: `nvs check --json` at version 1, the test report at version 2 with every record located, and a Test Explorer that is those two projected",
+  "status": "accepted",
+  "scope": "the two machine-readable surfaces the editor layer consumes — `nvs check --json` and\n`nvs test`'s JSON report, including the discovery document `--list` writes — and the shape of the\nVS Code Test Explorer that reads the second. It settles what each document carries and what its\nversion number means. It says nothing about coverage, which has no data source to wire, and\nnothing about when the client lands, which is\n`rule:ide/every-feature-is-staged-behind-its-dependency`'s question.",
+  "dependsOn": [
+    "0079",
+    "0108",
+    "0040",
+    "0099"
+  ],
+  "validatedBy": "`tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst`,\n`tests/conformance/lang/a-test-run-lists-what-it-declares-without-running-it.nvst`, and the named\ntests in `crates/nvs-cli/src/runner.rs` and `crates/nvs-cli/tests/check.rs`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The editor reads the CLI's own documents; the Test Explorer is those shown",
+    "body": "Every machine-readable surface an editor needs is a document the command line already writes,\nand each is versioned once at its root. `nvs check --json` is at version 1. The test report is\nat version 2, where every test carries the file, line and column it is declared at, and `nvs\ntest --list` writes the same document with no verdicts because nothing ran. The Test Explorer is\nbuilt from those two: the list fills the tree, a filtered run fills in results, and the editor\ncomputes nothing the documents do not already say."
+  }
+}

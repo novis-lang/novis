@@ -1,0 +1,21 @@
+{
+  "title": "Only the types the table orders may be ordered, and two objects need `Comparable`",
+  "status": "shipped",
+  "because": [
+    "0013",
+    "0007",
+    "0010",
+    "0047"
+  ],
+  "divergesFromPhp": "there is no fallback ordering — PHP orders anything by converting an operand first, and Novis refuses a `string`, `bytes`, `array<T>`, `callable`, enum case or `null` operand where it is written",
+  "seeAlso": [
+    "types/arithmetic",
+    "types/conversion",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-ordering-over-a-mixed-operand-is-decided-by-its-tag.nvst",
+    "tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst",
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

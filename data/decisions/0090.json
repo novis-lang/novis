@@ -1,0 +1,11 @@
+{
+  "title": "`==` is the only equality operator, and comparing two disjoint types does not compile",
+  "status": "accepted",
+  "scope": "the spelling of equality and inequality; what equality *means* for every Novis type, including\nthe three PHP compares two ways (strings, arrays, objects); what happens when the two operands' static\ntypes cannot both hold the same value; what a `mixed` or union operand does at runtime; and the\ncomparison `switch` and `match` arms perform. Not in scope: ordering `< <= > >= <=>`, which\n[0013](0013.md) owns and this ADR does not touch; truthiness, which\n[0035](0035.md) owns; converting between types, which is `as`\n([0034](0034.md), [0066](0066.md)); and the\nnatural ordering `Arr::sort`/`Math::min` use, which `crates/nvs-stdlib/src/ordering.rs` owns.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "`==` is the only equality operator, and unrelated types cannot be compared",
+    "body": "Novis has `==` and `!=`, and nothing else: `===` and `!==` do not parse. `==` never converts\neither side, and both sides must have types that can hold the same value — `\"1\" == 1` stops the\nbuild rather than answering true or false. Where PHP's operators disagreed, the strict answer\nwins: two strings compare as text, so `\"1\" == \"01\"` is false; objects compare by identity, and\ncontent comparison is a named method. An operand typed `mixed` is decided at run time, and there\na mismatch answers false."
+  }
+}

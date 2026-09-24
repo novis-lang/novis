@@ -1,0 +1,18 @@
+{
+  "summary": "reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims",
+  "keywords": [
+    "route",
+    "url",
+    "link",
+    "reverse routing",
+    "named route",
+    "#[Core\\Route]",
+    "origin",
+    "mount",
+    "router",
+    "methodsFor",
+    "Allow",
+    "404",
+    "405"
+  ]
+}

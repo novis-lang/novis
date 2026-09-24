@@ -1,0 +1,20 @@
+{
+  "title": "`is` tests a value against a type, answers `bool`, and is total",
+  "status": "accepted",
+  "scope": "the `is` operator, the type forms it accepts, the three it refuses, and the narrowing it\nperforms. It decides nothing about *patterns* — destructuring, array shapes, comparison patterns,\npinning, binding — which § 7 reserves and does not design.",
+  "dependsOn": [
+    "0007",
+    "0047",
+    "0066",
+    "0124",
+    "0033",
+    "0004"
+  ],
+  "dependsOnText": "[0007](0007.md) (the type system and `mixed`), [0047](0047.md) and\n[0066](0066.md) (narrowing), [0124](0124.md) (`let` and `is` reserved),\n[0033](0033.md) (the `tainted` qualifier), [0004](0004.md) (the priority ordering).",
+  "validatedBy": "goal `type-test`'s acceptance list.",
+  "summary": {
+    "group": "types",
+    "headline": "`$x is T` asks whether a value holds a type, and always answers `bool`",
+    "body": "`$x is User` is true when the value currently holds a `User`, and inside the branch it guards\nthe value is treated as one. It always compiles, even where the answer is knowable in advance,\nand it never throws. It closes the gap beside `as ?T`, which asks whether a value can become a\ntype rather than whether it is one. The spelling follows PHP's own pattern-matching proposal for\nthe type-test case; the pattern forms PHP has not settled on are left unclaimed, so a future PHP\nprogram will not mean something different here."
+  }
+}

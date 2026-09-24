@@ -1,0 +1,11 @@
+{
+  "title": "`nvs fmt` is the one canonical, unconfigurable formatting style, run on demand only",
+  "status": "accepted",
+  "scope": "the formatting *rules* `nvs fmt` (M10) applies — indentation, brace placement, blank lines,\nmodifier order, quoting, trailing commas, import ordering, and the reflow model — plus its CLI surface\n(`nvs fmt`, `nvs fmt --check`, `nvs fmt --diff`), what it deliberately does *not* rewrite (§§ 10-11), and\nhow an editor composes it with quick fixes on one keystroke (§ 9). Not `nvs-lsp`'s\n`textDocument/formatting` wiring or the editor clients, which `rule:ide/one-server-two-thin-clients` already\nsettles; not the quick fixes themselves, which are\n`rule:ide/every-feature-is-staged-behind-its-dependency`'s; not the parser or checker.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "`nvs fmt` has one style, no configuration, and never runs unless asked",
+    "body": "`nvs fmt` rewrites a file into one layout. The style is PER wherever Novis matches PHP, plus a\nfixed layout for each construct PER never saw. It never reflows: whether a call or array spans\none line or many is your choice, and only the indentation, spacing and braces around it are\nnormalized; there is no line-length rule. There is no config file and no flag that changes\noutput. No compiler command runs it; an unformatted file is not even a warning. `nvs fmt\n--check` reports what would change without touching disk."
+  }
+}

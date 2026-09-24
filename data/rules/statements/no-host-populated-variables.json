@@ -1,0 +1,21 @@
+{
+  "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
+  "status": "shipped",
+  "because": [
+    "0012",
+    "0011",
+    "0007",
+    "0009",
+    "0006"
+  ],
+  "divergesFromPhp": "`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV`, `$argv` and `$argc` do not exist as variables at all",
+  "seeAlso": [
+    "statements/globals-and-request-are-dropped-outright",
+    "statements/storage-that-outlives-a-call",
+    "errors/cookie-name-bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst",
+    "tests/conformance/core/env-get-answers-a-set-variable-and-null-for-everything-else.nvst"
+  ]
+}

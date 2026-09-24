@@ -1,0 +1,21 @@
+{
+  "title": "An options bag tells an omitted key from a written `null`",
+  "status": "shipped",
+  "because": [
+    "0147",
+    "0063",
+    "0135",
+    "0022"
+  ],
+  "divergesFromPhp": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member",
+  "seeAlso": [
+    "core-api/a-nullable-field-omits-as-the-never-written-marker",
+    "core-api/a-written-null-removes",
+    "core-api/the-bag-abi-is-unchanged",
+    "core-api/options-bag"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"
+  ]
+}

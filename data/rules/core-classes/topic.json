@@ -1,0 +1,22 @@
+{
+  "title": "`Core\\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0023",
+    "0033",
+    "0059",
+    "0051",
+    "0076"
+  ],
+  "seeAlso": [
+    "core-classes/ratelimit-two-members",
+    "core-classes/queue-storage-is-a-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-topic-name-is-a-sink-and-refuses-one-that-came-from-outside.nvst",
+    "tests/conformance/core/a-topic-needs-a-connection-to-subscribe-on.nvst",
+    "tests/conformance/core/a-topic-name-is-refused-in-the-same-words-by-all-three-members.nvst",
+    "tests/conformance/core/a-topic-name-is-refused-before-the-connection-is-asked-about.nvst"
+  ]
+}

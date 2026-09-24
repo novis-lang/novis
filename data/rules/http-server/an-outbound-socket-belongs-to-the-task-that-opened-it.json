@@ -1,0 +1,16 @@
+{
+  "title": "An outbound socket is charged to the task that opened it and closed with `1001` when that task ends, and it is never a root isolate",
+  "status": "shipped",
+  "because": [
+    "0183"
+  ],
+  "seeAlso": [
+    "concurrency/a-connection-is-a-root-isolate",
+    "classes/graph-copy",
+    "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/socket.rs",
+    "tests/conformance/core/an-outbound-socket-closes-once-and-answers-nothing-after.nvst"
+  ]
+}

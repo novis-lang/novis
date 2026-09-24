@@ -1,0 +1,15 @@
+{
+  "title": "security in an editor is the editor's chapter, and the security chapter is the running language's",
+  "status": "accepted",
+  "scope": "where a rule about concealing a `secret` on screen lives, and the test that decides it. The\nrules themselves are unchanged in substance; what changes is which chapter owns them, and therefore\nwhat a reader takes them to promise.",
+  "dependsOn": [
+    "0101",
+    "0004"
+  ],
+  "dependsOnText": "[0101](0101.md) — the concealment, the reveal and the four rules this re-homes;\n[0004](0004.md) — the priority ordering that makes \"security\" the word this record is protecting.",
+  "summary": {
+    "group": "internal",
+    "headline": "A rule about what the editor draws belongs to the editor chapter",
+    "body": "The rulebook's security chapter holds only rules that still hold with no editor running: what\nthe compiler refuses, what a running program can reach. Rules about blurring a secret on screen,\nthe editor's dependency allowlist or which server version a client accepts moved to the editor\nchapter, where they sit together as one section on security in the editor. No rule was weakened\nor changed; five rules changed address so that a reader of the ground rules can tell a compiler\nguarantee from an editor convenience."
+  }
+}

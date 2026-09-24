@@ -1,0 +1,17 @@
+{
+  "summary": "the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back",
+  "keywords": [
+    "ini_get",
+    "ini_set",
+    "ini_restore",
+    "ini_get_all",
+    "set_time_limit",
+    "nvs.toml",
+    "configuration",
+    "directive",
+    "[limits]",
+    "memory",
+    "cpu_time",
+    "hard ceiling"
+  ]
+}

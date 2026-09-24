@@ -1,0 +1,19 @@
+{
+  "title": "A host with no configuration file runs on the shipped defaults, which are a complete configuration and not an error",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0005",
+    "0091"
+  ],
+  "divergesFromPhp": "a host without a `php.ini` runs on PHP's built-in defaults, which allow nearly everything; the shipped defaults here deny every capability and start in `production`",
+  "seeAlso": [
+    "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+    "config/ini-set-is-core-config-set",
+    "config/two-modes-and-the-default-is-production"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-unconfigured-host-answers-as-an-empty-configuration.nvst",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

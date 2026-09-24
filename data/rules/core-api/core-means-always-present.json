@@ -1,0 +1,17 @@
+{
+  "title": "`Core` means always present, so nothing outside Tier 0 may register a name under it",
+  "status": "shipped",
+  "because": [
+    "0051",
+    "0011",
+    "0003"
+  ],
+  "seeAlso": [
+    "core-api/reserved-namespace",
+    "core-api/tier-placement",
+    "core-api/five-placements"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs"
+  ]
+}

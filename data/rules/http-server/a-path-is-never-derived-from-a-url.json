@@ -1,0 +1,18 @@
+{
+  "title": "A filesystem path is never derived from a URL at request time",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0095"
+  ],
+  "divergesFromPhp": "`cgi.fix_pathinfo`, `SCRIPT_FILENAME` and `PATH_INFO` have no counterpart: a request selects a mount from a table expanded at boot and can never name a file",
+  "seeAlso": [
+    "http-server/a-mount-table-expands-at-boot",
+    "security/a-path-is-not-a-url",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-config/src/mount.rs"
+  ]
+}

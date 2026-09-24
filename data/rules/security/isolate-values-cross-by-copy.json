@@ -1,0 +1,20 @@
+{
+  "title": "A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all",
+  "status": "shipped",
+  "because": [
+    "0006",
+    "0023",
+    "0116",
+    "0033"
+  ],
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "security/secret-crosses-no-boundary",
+    "security/arena-is-an-ownership-root"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
+    "tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst",
+    "crates/nvs-runtime/src/graph.rs"
+  ]
+}

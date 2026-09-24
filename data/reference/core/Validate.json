@@ -1,0 +1,15 @@
+{
+  "summary": "the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing",
+  "keywords": [
+    "filter_var",
+    "FILTER_VALIDATE_EMAIL",
+    "FILTER_VALIDATE_IP",
+    "FILTER_VALIDATE_DOMAIN",
+    "FILTER_VALIDATE_MAC",
+    "FILTER_FLAG_IPV4",
+    "FILTER_FLAG_IPV6",
+    "ctype_print",
+    "validation",
+    "predicate"
+  ]
+}

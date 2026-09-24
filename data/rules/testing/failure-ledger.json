@@ -1,0 +1,22 @@
+{
+  "title": "A failed assertion is a catchable `Throwable` and a ledger entry the test cannot erase",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0024",
+    "0020"
+  ],
+  "divergesFromPhp": "a `catch (Throwable)` around a failing assertion cannot turn a red test green; the runner reads its own ledger rather than the exception state",
+  "seeAlso": [
+    "testing/assertions-are-typed",
+    "testing/runner-is-strict",
+    "errors/throwable-hierarchy"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-failed-assertion-is-caught-by-name.nvst",
+    "tests/conformance/core/a-failure-consumed-on-purpose-is-spelled-expect-failure.nvst",
+    "tests/conformance/core/test-expect-failure-discharges-a-failed-assertion-and-refuses-a-passing-body.nvst",
+    "tests/conformance/core/test-three-assertions-agree-on-what-reaches-the-ledger.nvst",
+    "tests/conformance/core/test-assert-throws-consumes-the-throw-but-not-the-ledger-entry.nvst"
+  ]
+}

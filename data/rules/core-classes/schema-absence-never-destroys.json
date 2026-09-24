@@ -1,0 +1,16 @@
+{
+  "title": "Something in the database and not in the schema value is reported with its SQL, and never dropped",
+  "status": "shipped",
+  "because": [
+    "0145",
+    "0084"
+  ],
+  "seeAlso": [
+    "core-classes/schema-plan",
+    "core-classes/schema-converges",
+    "core-classes/queue-storage-is-a-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-schema-reports-a-table-it-does-not-declare-and-never-drops-it.nvst"
+  ]
+}

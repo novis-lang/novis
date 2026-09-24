@@ -1,0 +1,26 @@
+{
+  "state": "This goal has just been installed. Nothing in Core\\Test (1/2) has been taken yet.",
+  "next": {
+    "stage": null,
+    "files": [],
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "items": [
+      {
+        "done": false,
+        "text": "**`Core\\Test::advance`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:632`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Test::answerHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:681`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Test::answerSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:711`"
+      }
+    ],
+    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+  },
+  "backlog": [
+    "(nothing yet)"
+  ]
+}

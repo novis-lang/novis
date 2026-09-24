@@ -1,0 +1,15 @@
+{
+  "title": "A `require` used for its value hands back `mixed`, and converts like any other boundary",
+  "status": "shipped",
+  "because": [
+    "0021",
+    "0007"
+  ],
+  "seeAlso": [
+    "statements/require-is-the-only-inclusion-construct"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-required-file-hands-a-value-back.nvst",
+    "tests/conformance/core/a-child-without-return-answers-null.nvst"
+  ]
+}

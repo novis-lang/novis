@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/html.rs",
+  "title": "An element with many attributes costs time in the square of their count.",
+  "text": "One tag with a hundred thousand attributes takes about twenty seconds in [`parse`] on a release build. `html5ever`'s tokenizer compares every new attribute name with every earlier one on the same tag, to drop a duplicate, and [`Sink`] never sees the tag until that is done. Bounding it here means capping the attributes a tag may carry, and choosing that cap is the same kind of decision as item 1's. `tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs` and `tests/hostile/core/Html/sanitize/03-a-tag-with-two-hundred-thousand-attributes.nvs` are marked as this gap.",
+  "milestone": "M12"
+}

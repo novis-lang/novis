@@ -1,0 +1,20 @@
+{
+  "title": "`Cli\\Text` is the terminal's one raw path, and both of its constructors neutralize their input",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0088"
+  ],
+  "seeAlso": [
+    "tooling/terminal-output-is-a-sink",
+    "tooling/styling-is-a-value-not-a-grammar",
+    "core-classes/html-escape-answers-markup",
+    "security/capture-answers-the-carrier"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-text-plain-is-the-sinks-carrier.nvst",
+    "tests/conformance/core/cli-styled-neutralizes-its-body-exactly-as-plain-does.nvst",
+    "tests/conformance/core/cli-text-composes-with-plus-and-stays-the-carrier.nvst",
+    "tests/conformance/core/cli-text-plain-is-idempotent.nvst"
+  ]
+}

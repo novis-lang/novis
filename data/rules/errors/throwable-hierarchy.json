@@ -1,0 +1,17 @@
+{
+  "title": "A limit report is not a Throwable, and the type checker knows it",
+  "status": "shipped",
+  "because": [
+    "0020"
+  ],
+  "divergesFromPhp": "`catch (Throwable)` provably cannot see a resource-limit fatal; `Exception` and `Error` are not class names",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/on-limit",
+    "errors/compile-failure"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+    "tests/conformance/error/a-parse-error-carries-an-issue-list.nvst"
+  ]
+}

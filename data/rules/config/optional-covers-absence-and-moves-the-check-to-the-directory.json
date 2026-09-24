@@ -1,0 +1,14 @@
+{
+  "title": "`optional = true` covers absence and nothing else, and an absent include is checked at the directory that would hold it",
+  "status": "shipped",
+  "because": [
+    "0103"
+  ],
+  "seeAlso": [
+    "config/ownership-is-the-trust-boundary",
+    "config/include-takes-a-path-or-a-dir"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

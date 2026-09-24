@@ -1,0 +1,24 @@
+{
+  "title": "A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise",
+  "status": "shipped",
+  "because": [
+    "0133",
+    "0024",
+    "0067",
+    "0086",
+    "0056"
+  ],
+  "divergesFromPhp": "`htmlspecialchars($x)` in a string-building position does not compile, because escaping twice is a corruption the type can refuse",
+  "seeAlso": [
+    "security/launderers-are-sink-named",
+    "security/capture-answers-the-carrier",
+    "security/sink-predicate",
+    "core-classes/html-escape-answers-markup",
+    "core-classes/html-to-source"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-escaped-value-is-a-carrier-and-cannot-be-escaped-a-second-time.nvst",
+    "tests/conformance/core/to-source-hands-back-the-bytes-of-every-way-a-markup-is-obtained.nvst",
+    "tests/conformance/core/markup-refuses-a-computed-operand-and-a-half-markup-sum.nvst"
+  ]
+}

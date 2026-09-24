@@ -1,0 +1,9 @@
+{
+  "lead": "A `Fault` message's stem reaches `conformance_coverage.rs`'s corpus only through an `--EXPECT--` line, because a `\"Core\\\\Zip: ...\"` literal in a `--FILE--` section is two backslashes on disk.",
+  "body": "`every_error_path_is_asserted_or_declared_unreachable` does a plain substring search over each case's whole text for the run of the message before its first `{`, and `Core\\\\Zip` does not contain `Core\\Zip`. Print the message — `echo $e->message` — rather than testing it with `Core\\Str::startsWith`, and keep every hole out of the stem, which means a refusal must not interpolate a library's own error text if the case is to freeze it.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-09"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "lead": "A reconnect case over the shared store must let the first command land first.",
+  "body": "`crates/nvs-stdlib/src/cache/redis.rs`'s `Connection::command` replays only a command that met an already-open stream, so a scripted store that drops the socket before answering the *first* command makes the client fail where a case wanted it to re-dial, and the failure reads as a broken handshake rather than as a script that never reached the reconnect. Answer once, drop the socket, and assert on what the second command put on the second connection.",
+  "files": [
+    "crates/nvs-stdlib/src/cache/redis.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/cache/redis.rs:failure.sent && replay"
+  }
+}

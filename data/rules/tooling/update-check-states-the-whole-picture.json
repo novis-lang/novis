@@ -1,0 +1,14 @@
+{
+  "title": "`nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0",
+  "status": "designed",
+  "because": [
+    "0130"
+  ],
+  "seeAlso": [
+    "tooling/telemetry-is-two-opt-ins",
+    "tooling/a-failed-upload-never-fails-the-command",
+    "config/telemetry-and-update-endpoints-are-configuration",
+    "tooling/terminal-output-is-a-sink"
+  ],
+  "guardedBy": []
+}

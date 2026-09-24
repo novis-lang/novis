@@ -1,0 +1,16 @@
+{
+  "title": "`cancel` answers whether it won the race, and it changes the job's state rather than deleting the row",
+  "status": "shipped",
+  "because": [
+    "0084"
+  ],
+  "divergesFromPhp": "cancelling is a race against a worker rather than a command, and the answer says which side won it",
+  "seeAlso": [
+    "concurrency/claiming-is-one-statement",
+    "concurrency/queue-four-members"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/queue-cancel-answers-whether-it-won-the-race.nvst",
+    "tests/conformance/core/queue-a-cancelled-job-is-still-one-status-answers-about.nvst"
+  ]
+}

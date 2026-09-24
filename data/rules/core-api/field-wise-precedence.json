@@ -1,0 +1,15 @@
+{
+  "title": "Where the registry and the spec both describe an implemented member, precedence is field by field",
+  "status": "shipped",
+  "because": [
+    "0117"
+  ],
+  "seeAlso": [
+    "core-api/reference-card",
+    "core-api/tier-roster"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+    "crates/nvs-cli/src/meta.rs"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
+  "status": "shipped",
+  "because": [
+    "0137",
+    "0117"
+  ],
+  "seeAlso": [
+    "tooling/meta-json",
+    "tooling/one-json-several-renderers",
+    "tooling/doc-comment-tags-are-see-and-example",
+    "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/meta.rs"
+  ]
+}

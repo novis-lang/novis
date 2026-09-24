@@ -1,0 +1,21 @@
+{
+  "title": "A `url()` key that is not a capture becomes a percent-encoded query string, and one that is neither a capture nor a declared `#[Query]` parameter does not compile",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0077"
+  ],
+  "divergesFromPhp": "the query string is built by the same member that builds the path, and `url(...) . '?page=' . $n` is the concatenation the launderer exists to prevent",
+  "seeAlso": [
+    "routing/a-query-parameter-is-declared-like-a-capture",
+    "routing/an-absolute-link-takes-a-configured-origin",
+    "routing/a-capture-narrows-to-a-closed-set",
+    "security/launderers-are-sink-named",
+    "routing/link-name-and-params-are-checked"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-url-turns-a-leftover-params-key-into-a-query-string.nvst",
+    "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

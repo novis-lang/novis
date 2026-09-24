@@ -1,0 +1,16 @@
+{
+  "summary": "the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants",
+  "keywords": [
+    "SCRIPT_NAME",
+    "PATH_INFO",
+    "base path",
+    "base URL",
+    "RewriteBase",
+    "subdirectory install",
+    "sub-folder deployment",
+    "virtual host",
+    "multi-tenant",
+    "subdomain routing",
+    "$_SERVER['REQUEST_URI']"
+  ]
+}

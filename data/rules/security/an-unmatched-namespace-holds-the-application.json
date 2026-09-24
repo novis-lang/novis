@@ -1,0 +1,13 @@
+{
+  "title": "A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched",
+  "status": "designed",
+  "because": [
+    "0112",
+    "0081"
+  ],
+  "seeAlso": [
+    "security/grants-are-keyed-on-a-namespace",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": []
+}

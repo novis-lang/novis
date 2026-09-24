@@ -1,0 +1,15 @@
+{
+  "title": "The closed list of what makes an HTTP message ambiguous",
+  "status": "shipped",
+  "because": [
+    "0095",
+    "0097",
+    "0074"
+  ],
+  "divergesFromPhp": "the outbound half is held to the same list, with no per-call opt-out",
+  "seeAlso": [
+    "errors/ambiguous-input-refused",
+    "errors/cookie-name-bytes"
+  ],
+  "guardedBy": []
+}

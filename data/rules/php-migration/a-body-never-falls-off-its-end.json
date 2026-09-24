@@ -1,0 +1,18 @@
+{
+  "title": "A non-`void` body hands back a value at every exit; nothing returns `null` for a declaration it did not make",
+  "status": "shipped",
+  "because": [
+    "0007"
+  ],
+  "divergesFromPhp": "a body that falls off its end is `E0739` and a written `return;` under a non-`void` declaration is `E0822`, each where it stands rather than a `null` return or a `TypeError` at run time",
+  "seeAlso": [
+    "types/declaration",
+    "iteration/generators",
+    "classes/constructor-is-a-method-named-constructor"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/a-method-that-only-throws-satisfies-its-return-type.nvst",
+    "tests/conformance/reject/a-bare-return-is-refused-where-the-declaration-is-not-void.nvst",
+    "tests/conformance/reject/a-hook-and-a-block-bodied-closure-owe-a-value-at-every-exit.nvst"
+  ]
+}

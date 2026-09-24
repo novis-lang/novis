@@ -1,0 +1,15 @@
+{
+  "title": "A coding agent learns Novis by asking the binary, and every adapter that points it there carries no language content of its own",
+  "status": "accepted",
+  "scope": "how an agent writing Novis gets what it needs — the surface it asks, what that surface\nanswers, and what an install writes into a user's project. It decides nothing about the language,\nnothing about `nvs-lsp`, whose audience is an editor rather than a model, and nothing about the\none-file reference, which keeps the job [0089](0089.md) gave it.",
+  "dependsOn": [
+    "0089"
+  ],
+  "dependsOnText": "[0089](0089.md) for the reference pipeline, and `rule:tooling/one-json-several-renderers`\nfor the shape a fourth consumer joins.",
+  "validatedBy": "`tests/conformance/tooling/` — the index resolving member for member against the\nregistry, and every refusal the primer states proven against the compiler that refuses it.",
+  "summary": {
+    "group": "tooling",
+    "headline": "A coding agent learns Novis by asking the compiler, not by reading the repo",
+    "body": "`nvs agent` prints a short primer, searches a one-line-per-member index of the standard library\nand shows a card for one member, all generated from the same registry the compiler carries. An\nagent reads the primer once and pays a few hundred tokens per lookup, instead of loading a\nreference far larger than its context. `nvs agent init` writes one pointer file per coding\nharness, and the pointer says where to ask and nothing about the language itself, because a\nstated fact is a copy that goes stale the day a member changes."
+  }
+}

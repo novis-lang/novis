@@ -1,0 +1,19 @@
+{
+  "title": "Accepting a type writes `Name::` inside an expression and `Name()` after `new`, and the name alone wherever a type or a statement may start",
+  "status": "shipped",
+  "because": [
+    "0194"
+  ],
+  "seeAlso": [
+    "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+    "ide/completion-is-asked-where-a-spelling-ends",
+    "ide/keywords-are-offered-where-the-compiler-accepts-them"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion_edits.rs",
+    "crates/nvs-lsp/tests/handshake.rs",
+    "tests/lsp/completion/a-class-word-offers-the-static-half-of-the-class-it-names.lspt",
+    "tests/lsp/completion/a-new-offers-the-classes-it-compiles-on.lspt",
+    "tests/lsp/completion/a-parameters-type-offers-types-and-nothing-else.lspt"
+  ]
+}

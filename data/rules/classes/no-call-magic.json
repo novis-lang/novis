@@ -1,0 +1,19 @@
+{
+  "title": "There is no `__call` or `__callStatic`: a call to a method the class does not declare is a diagnostic",
+  "status": "shipped",
+  "because": [
+    "0014",
+    "0029",
+    "0011"
+  ],
+  "divergesFromPhp": "dispatch to an undeclared method name does not exist in any form, and the two names cannot even be written down",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "classes/no-dynamic-properties",
+    "types/callable-is-a-closure"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/an-unknown-method-is-a-compile-error.nvst",
+    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst"
+  ]
+}

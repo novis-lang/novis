@@ -1,0 +1,26 @@
+{
+  "title": "Every member declaration writes exactly one visibility keyword, and there is no implicit `public`",
+  "status": "shipped",
+  "because": [
+    "0094",
+    "0043",
+    "0029"
+  ],
+  "divergesFromPhp": "`function f()`, `const X = 1`, `var $x;` and `readonly int $x;` all fail to compile — PHP's silent `public` has no successor",
+  "seeAlso": [
+    "core-api/a-parameter-is-not-a-member",
+    "core-api/asymmetric-visibility-is-a-pair",
+    "core-api/legacy-property-shapes-name-the-visibility",
+    "classes/interface-private-methods",
+    "classes/property-hooks",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-member-must-declare-its-visibility.nvst",
+    "tests/conformance/lang/a-class-reaches-its-own-private-members.nvst",
+    "tests/conformance/lang/a-private-member-is-refused-outside-its-class.nvst",
+    "tests/conformance/lang/a-private-constructor-refuses-new-from-outside.nvst",
+    "crates/nvs-syntax/src/casing.rs",
+    "crates/nvs-types/tests/visibility.rs"
+  ]
+}

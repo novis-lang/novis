@@ -1,0 +1,11 @@
+{
+  "title": "Attributes are shape-literal metadata on declarations, retrieved structurally via `Core\\Attributes`",
+  "status": "accepted",
+  "scope": "a new `#[...]` syntax attaching structured metadata to a class/interface declaration, a method\ndeclaration, a property declaration, or a parameter — the PHP-Attributes/Java-annotations need, without\neither PHP's doc-comment convention (no compiler involvement at all) or PHP/Java/C#'s requirement that a\ncustom attribute be backed by its own declared class. Covers: the `#[Name(...)]`/`#[{...}]` payload syntax\nand its compile-time-constant-only contents, reusing `rule:types/object-top`'s\nanonymous-object-literal/shape-type machinery; repeatable attachment; and the `Core\\Attributes::get<T>`/\n`::all<T>` retrieval API, including the one new piece of grammar it needs (an explicit type argument at a\ncall site) and how a class/property/parameter — none of them a `callable` — gets named as a lookup target.\nDoes not decide any compiler-recognized attribute (`#[Deprecated]`, `#[Override]`, and the still-deferred\n`#[Memoize]`/`#[Flags]` bullets below) — those stay future work built *on* this mechanism, not part of it.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Attributes are constant data on a declaration, read back by shape, not by name",
+    "body": "`#[Route(path: \"/users\", method: \"GET\")]` attaches a small object literal to a class, interface,\nmethod, property or parameter. `Route` is a type alias for an object shape, and the literal is\nchecked against it while building like any other shape-typed value. No class is declared or\nconstructed, and every field must be a constant, so the whole thing is resolved during the\nbuild. Reading one is `Core\\Attributes::get<Route>(...)` or `::all<Route>(...)`: you ask for a\nshape, and the answer is fixed while building. Asking `get` when two literals fit is a build\nerror."
+  }
+}

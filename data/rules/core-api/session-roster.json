@@ -1,0 +1,21 @@
+{
+  "title": "The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it",
+  "status": "shipped",
+  "because": [
+    "0139",
+    "0012",
+    "0124"
+  ],
+  "divergesFromPhp": "`$_SESSION` does not exist and no member silently starts a session — `session_start` has to be written",
+  "seeAlso": [
+    "core-api/failure-throws",
+    "core-api/reserved-namespace",
+    "statements/no-host-populated-variables"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
+    "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
+    "tests/conformance/core/session-the-refusal-before-start-is-catchable-at-the-root.nvst",
+    "crates/nvs-stdlib/src/session.rs"
+  ]
+}

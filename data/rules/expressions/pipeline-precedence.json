@@ -1,0 +1,13 @@
+{
+  "title": "`|>` binds tighter than every binary operator and looser than unary",
+  "status": "designed",
+  "because": [
+    "0098"
+  ],
+  "seeAlso": [
+    "expressions/pipeline-substitution",
+    "expressions/pipeline-hole-once",
+    "expressions/catch-expression-precedence"
+  ],
+  "guardedBy": []
+}

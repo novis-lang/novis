@@ -1,0 +1,24 @@
+{
+  "title": "Every property a class declares is definitely assigned on every path out of every constructor",
+  "status": "shipped",
+  "because": [
+    "0022",
+    "0043",
+    "0023",
+    "0038"
+  ],
+  "divergesFromPhp": "a constructor that leaves a typed property unset on some path is refused at compile time rather than throwing at whichever read discovers it",
+  "seeAlso": [
+    "classes/an-unwritten-property-read-throws",
+    "classes/no-undefined-value",
+    "classes/lateinit",
+    "classes/constructor-is-a-method-named-constructor",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-constructor-must-assign-every-property.nvst",
+    "tests/conformance/class/a-property-with-no-constructor-at-all-is-refused.nvst",
+    "tests/conformance/class/an-inherited-constructor-does-not-discharge-a-subclass-property.nvst",
+    "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
+  ]
+}

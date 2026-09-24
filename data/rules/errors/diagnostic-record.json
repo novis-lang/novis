@@ -1,0 +1,19 @@
+{
+  "title": "Every developer-facing output is one closed record",
+  "status": "shipped",
+  "because": [
+    "0092",
+    "0106"
+  ],
+  "divergesFromPhp": "there is one model behind every diagnostic, so a value's type is never lost the way `print_r` loses it",
+  "seeAlso": [
+    "errors/renderings",
+    "errors/record-transformations",
+    "errors/record-producers",
+    "errors/log-fields"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
+    "tests/conformance/core/a-dump-and-an-encode-agree-on-what-an-array-is.nvst"
+  ]
+}

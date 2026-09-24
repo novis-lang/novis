@@ -1,0 +1,15 @@
+{
+  "title": "A path component that does not spell what it resolves to is refused, on every platform",
+  "status": "shipped",
+  "because": [
+    "0095"
+  ],
+  "divergesFromPhp": "Windows device names, trailing dots and 8.3 short names are refused on Linux and macOS too",
+  "seeAlso": [
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/io-every-listed-name-is-one-within-admits-against-its-own-directory.nvst",
+    "tests/conformance/core/io-within-resolves-and-then-proves-containment.nvst"
+  ]
+}

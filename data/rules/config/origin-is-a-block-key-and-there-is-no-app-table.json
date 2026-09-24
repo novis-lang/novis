@@ -1,0 +1,17 @@
+{
+  "title": "`origin` and `mode` sit on the `[[app]]` block itself, and there is no global `[app]` table",
+  "status": "shipped",
+  "because": [
+    "0104",
+    "0097"
+  ],
+  "seeAlso": [
+    "config/an-application-is-its-entry-file-path",
+    "config/every-matching-app-block-applies-least-specific-first",
+    "routing/an-absolute-link-takes-a-configured-origin"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-url-absolute-takes-its-origin-from-app-origin-and-from-nowhere-else.nvst",
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

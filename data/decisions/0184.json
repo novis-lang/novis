@@ -1,0 +1,13 @@
+{
+  "title": "A worker placement starts the child on another core through that core's inbox, and answers it with a copy in a slot",
+  "status": "accepted",
+  "scope": "the mechanism behind `on: \"worker\"` — which core runs the child, how it is started there,\nhow its answer comes back, what cancels it, and what bounds the set of cores that can take one. Not in\nscope: what a worker placement *means*, which [0006](0006.md) settled; what may cross the boundary,\nwhich `rule:security/isolate-values-cross-by-copy` settles; the surface itself — the `on:` option key is\nparsed already (`crates/nvs-types/src/expr/isolate.rs:387`) and the type check that narrows its value is\nwritten where that check is; `limits:` and `grants:`, whose enforcement M5 deferred.",
+  "dependsOn": [
+    "0006",
+    "0138",
+    "0072",
+    "0004"
+  ],
+  "dependsOnText": "[0006](0006.md) for the isolate, its budget accounting and the two crossings;\n[0138](0138.md) for the cross-thread wake that carries an id and nothing else;\n[0072](0072.md) for the guarantee that nothing is still running when a call returns;\n[0004](0004.md) for the ordering that puts the copy's cost below correctness and isolation.",
+  "validatedBy": "the one rule it creates is `designed` on acceptance; its `guardedBy` is filled from\nthe `.nvst` cases and the `nvs-host` tests the goal's later stages write, beside the existing\n`an_os_process_costs_orders_of_magnitude_more_than_a_task` baseline in `tests/perf_guards.rs`."
+}

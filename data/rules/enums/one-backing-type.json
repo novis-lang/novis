@@ -1,0 +1,19 @@
+{
+  "title": "Every enum is backed by exactly one integer type, and nothing else backs one",
+  "status": "shipped",
+  "because": [
+    "0010",
+    "0007"
+  ],
+  "divergesFromPhp": "there is no pure enum and no `string`-backed enum, and `BackedEnum` and `UnitEnum` do not exist",
+  "seeAlso": [
+    "enums/declaration",
+    "enums/closed-integer-type",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "crates/nvs-codegen/tests/arithmetic.rs",
+    "tests/conformance/core/json-decodes-an-enum-field.nvst"
+  ]
+}

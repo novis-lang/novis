@@ -1,0 +1,20 @@
+{
+  "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0004",
+    "0150"
+  ],
+  "divergesFromPhp": "PHP has one integer type; Novis has two, told apart by `Core\\Reflect::typeOf` and by `$x is uint` (`rule:types/type-test`), so a value PHP's `is_int()` accepted answers `is uint` and not `is int`, and the whole 64-bit range is representable",
+  "seeAlso": [
+    "types/arithmetic",
+    "types/integer-literals",
+    "types/conversion",
+    "types/type-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/uint-spans-its-whole-range.nvst",
+    "tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"
+  ]
+}

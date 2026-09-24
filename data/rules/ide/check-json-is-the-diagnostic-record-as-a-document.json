@@ -1,0 +1,18 @@
+{
+  "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one `schemaVersion: 1` document",
+  "status": "shipped",
+  "because": [
+    "0108",
+    "0172"
+  ],
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/renderings",
+    "ide/check-scope-defaults-to-the-workspace",
+    "packaging/a-dependency-break-is-absorbed-never-forwarded",
+    "ide/ast-json-schema-is-frozen"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/check.rs"
+  ]
+}

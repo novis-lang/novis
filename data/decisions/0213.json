@@ -1,0 +1,11 @@
+{
+  "title": "Two habits the compiler accepted and did nothing with are warned about where they are written: a `/** … */` block above a declaration, and `{Class::…}` inside a markup literal",
+  "status": "accepted",
+  "scope": "two advisory diagnostics, `W1011` and `W1012`, and the reference headings that make\n`///` and the `<?= … ?>` hole reachable through `nvs agent find`. What a doc comment is, and\nwhat a markup literal's holes admit, are unchanged and stay with [0137](0137.md) and\n[0202](0202.md).",
+  "dependsOn": [
+    "0137",
+    "0202",
+    "0169"
+  ],
+  "validatedBy": "`crates/nvs-syntax/tests/doc_comments.rs` and\n`crates/nvs-syntax/tests/markup_literal.rs`."
+}

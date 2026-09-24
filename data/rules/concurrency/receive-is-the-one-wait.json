@@ -1,0 +1,12 @@
+{
+  "title": "`receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first",
+  "status": "designed",
+  "because": [
+    "0083"
+  ],
+  "seeAlso": [
+    "concurrency/a-connection-is-a-loop",
+    "core-classes/topic"
+  ],
+  "guardedBy": []
+}

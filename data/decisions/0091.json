@@ -1,0 +1,11 @@
+{
+  "title": "A run mode is two closed values, a ceiling, and a list of defaults",
+  "status": "accepted",
+  "scope": "what a run mode is and which two values exist; where it is set and which source wins when two\ndisagree; the closed list of directives whose *defaults* it selects, and what it deliberately does not\ngovern; whether a program may read it and flip it, and the ceiling that bounds a flip; and what a\ndevelopment-mode server does when it binds a public interface. Not in scope: what any governed directive\n*means*, which stays with the ADR that owns its block —\n[0092](0092.md) for `[debug] inline` and `[log]`,\n[0020](0020.md) § 7 for `[http.errors]`; the changeability-class model itself,\nwhich is [0005](0005.md); the file's format, which is\n[0064](0064.md); and the reload mechanism, which is\n[0078](0078.md).",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Two run modes, production by default, and a mode is only a list of defaults",
+    "body": "A server runs in `development` or `production`, nothing else, and with nothing configured it\nruns in production. A mode is shorthand for the defaults of eight named settings — logging,\nerror detail, debug output, static files, code revalidation — and hides no other behaviour;\nevery setting stays individually settable. The mode is set in the root-owned `nvs.toml` or by\n`nvs serve --mode=`, never by an environment variable. A program may flip the request-level\nsettings for its own request, under a ceiling that defaults to the mode the server started in."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling",
+  "status": "accepted",
+  "scope": "PHP's parenthesized cast syntax (`(int)`, `(uint)`, `(float)`, `(string)`, `(bool)`, `(array)`,\n`(object)`); the corresponding AST shape (`ExprKind::Cast`/`CastType`) and diagnostic.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "`(int)$x` does not parse; `$x as int` is the only conversion",
+    "body": "PHP's cast family — `(int)`, `(float)`, `(string)`, `(bool)`, `(array)`, `(object)` — is\nrejected before anything runs. The parser still recognizes the shape so the error can name the\nexact replacement, `$x as int`, which throws instead of silently truncating. One conversion\noperator means one thing to learn, one thing to document and one behaviour to reason about. The\ncost is a mechanical rewrite of every legacy cast before a PHP file compiles, and Novis accepts\nthat break for a single spelling with no second one to explain."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "lead": "A `[limits]` reader answers off `Snapshot::table`, not the typed `Config` beside it.",
+  "body": "`Ctx::configured_memory_limit` reads `self.base.table` through `Request::get`, so `Snapshot { config: Config { limits: Some(..), .. }, .. }` reports no ceiling. Build both halves from one TOML string (`parse::<toml::Table>()`, then `table.clone().try_into()`) as `crates/nvs-runtime/tests/configured_limits.rs` does.",
+  "files": [
+    "crates/nvs-runtime/tests/configured_limits.rs",
+    "crates/nvs-config/src/snapshot.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-config/src/snapshot.rs:pub table: toml::Table"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice",
+  "status": "shipped",
+  "because": [
+    "0180"
+  ],
+  "divergesFromPhp": "curl tries every address a name answers and checks none of them; here each is checked before any is tried, one denied refuses the whole host, and the lookup runs off the core",
+  "seeAlso": [
+    "http-server/allow-url-pins-the-address",
+    "security/net-address-policy",
+    "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-stdlib/src/http/pool.rs",
+    "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst",
+    "tests/conformance/core/a-granted-host-is-still-refused-at-a-denied-address.nvst"
+  ]
+}

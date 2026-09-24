@@ -1,0 +1,18 @@
+{
+  "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
+  "status": "shipped",
+  "because": [
+    "0065",
+    "0151"
+  ],
+  "divergesFromPhp": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is spelled one way",
+  "seeAlso": [
+    "packaging/the-notice-is-embedded-in-the-binary",
+    "packaging/a-build-records-no-timestamp",
+    "packaging/the-cli-surface-is-novis-own",
+    "testing/debug-probes"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/info.rs"
+  ]
+}

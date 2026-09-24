@@ -1,0 +1,22 @@
+{
+  "title": "`[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0064",
+    "0005"
+  ],
+  "divergesFromPhp": "a request cannot switch tracing on for itself the way `xdebug_start_trace()` or an `ini_set` can; where telemetry ships is the deployment's decision",
+  "seeAlso": [
+    "config/system-means-a-request-may-not-set-it",
+    "config/three-changeability-classes",
+    "testing/debug-mode-directive",
+    "observability/sampling-is-head-based",
+    "observability/past-max-series-a-new-series-is-refused",
+    "observability/the-exporter-is-a-feature-and-core-metrics-is-not"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/export.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

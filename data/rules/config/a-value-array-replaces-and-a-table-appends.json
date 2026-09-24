@@ -1,0 +1,16 @@
+{
+  "title": "A value array is replaced wholesale by a later file; `[[table]]` entries accumulate across the tree",
+  "status": "shipped",
+  "because": [
+    "0103"
+  ],
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
+    "config/every-matching-app-block-applies-least-specific-first"
+  ],
+  "guardedBy": [
+    "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

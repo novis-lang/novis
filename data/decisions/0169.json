@@ -1,0 +1,16 @@
+{
+  "title": "markup is written as a literal whose segments are trusted and whose holes escape",
+  "status": "accepted",
+  "scope": "how a `Core\\Html\\Markup` is *written* in expression position, and why the terminal carrier\ngets no matching form. It does not touch what the HTML sink escapes with, which is\n[0024 § 5](0024.md)'s and *Revisiting*'s.",
+  "dependsOn": [
+    "0024",
+    "0133"
+  ],
+  "dependsOnText": "[0024](0024.md) for the sink and the carrier, [0133](0133.md) for the predicate that\nmade `escape` answer one.",
+  "validatedBy": "goal `markup-literal`'s acceptance list, which is where this record's *Verification*\nbecomes checks.",
+  "summary": {
+    "group": "syntax",
+    "headline": "HTML is written as a backtick literal whose holes are escaped",
+    "body": "`` html`<p>hello {$name}</p>` `` builds a `Core\\Html\\Markup` value. The parts you typed are\ntrusted because you wrote them, and every `{$…}` hole is escaped before it is spliced in, which\nis the same rule the `<?= ?>` template tag already follows. Backticks delimit it because HTML is\nfull of double quotes. `Core\\Html::join` composes a list of them. There is no way to turn\ncomputed text into markup through this literal, and the terminal output type gets no such\nliteral at all."
+  }
+}

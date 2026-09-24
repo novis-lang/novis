@@ -1,0 +1,16 @@
+{
+  "title": "Every way of failing a signature check is one refusal, and expiry is the single distinguishable one",
+  "status": "designed",
+  "because": [
+    "0146",
+    "0060"
+  ],
+  "seeAlso": [
+    "core-api/signing-is-over-a-payload",
+    "core-api/failure-throws",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/signed_cookie.rs"
+  ]
+}

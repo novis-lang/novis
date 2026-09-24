@@ -1,0 +1,20 @@
+{
+  "title": "`nvs fmt` is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "no `php -l`-style check ever holds a stylistic opinion, and formatting never lands in the same report as an error",
+  "seeAlso": [
+    "tooling/fmt-check-writes-nothing",
+    "tooling/fmt-is-one-canonical-style",
+    "core-api/identifier-casing",
+    "security/secret-qualifier",
+    "tooling/convert-one-table-two-modes",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/fmt.rs"
+  ]
+}

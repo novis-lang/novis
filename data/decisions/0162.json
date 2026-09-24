@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Net` is one socket API over three transports, and the grant follows the direction rather than the transport",
+  "status": "accepted",
+  "scope": "what a program may open through `Core\\Net`, which capability each of those openings asks,\nand why every one of them parks on the runtime's reactor. It does not decide the member spellings —\nthose are the registry rows the stages after it write — and it decides nothing about TLS, which\n`Core\\Crypto` owns and which a `Core\\Net` socket does not acquire after the fact.",
+  "dependsOn": [
+    "0051",
+    "0058",
+    "0142",
+    "0052"
+  ],
+  "dependsOnText": "[0051](0051.md), which placed `Core\\Net` in the Native tier over the runtime's own\nreactor; [0058](0058.md), whose address policy governs every program-supplied destination;\n[0142](0142.md) § 6, which named `net.local` and left it off the roster for this record to put on it;\n[0052](0052.md), whose closed doors are what the surface below may not reopen.",
+  "validatedBy": "the conformance cases the four rules below name once the stages after this one land\nthem; nothing holds this record on its own, which is why the rules it creates are `designed`.",
+  "summary": {
+    "group": "core",
+    "headline": "One socket class over three transports; the grant follows the direction",
+    "body": "`Core\\Net` replaces PHP's three overlapping socket APIs with one class and five ways in. The\ncapability an opening needs depends on what the program is doing, not on the transport:\nconnecting out is `net.connect` and carries the outbound address policy, listening is\n`net.listen` and names endpoints, and a socket path at either end is `net.local`. UDP is\ndatagrams and nothing more. Every socket is closed with the request that opened it. PHP's\n`stream_socket_pair` has no counterpart."
+  }
+}

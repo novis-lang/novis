@@ -1,0 +1,22 @@
+{
+  "title": "A body that yields is a generator, and calling one returns a state object without running a line of it",
+  "status": "shipped",
+  "because": [
+    "0053"
+  ],
+  "divergesFromPhp": "a generator is a compiled state machine rather than a suspended stack, so it costs one small object and behaves the same on every compile target",
+  "seeAlso": [
+    "iteration/yield-lexical-confinement",
+    "iteration/one-way-only",
+    "iteration/two-interfaces",
+    "iteration/generator-stays-in-one-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/iter/a-generator-is-drained-lazily.nvst",
+    "tests/conformance/iter/a-generator-yields-in-order.nvst",
+    "tests/conformance/iter/two-generators-from-one-method-advance-independently.nvst",
+    "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst",
+    "crates/nvs-types/tests/generators.rs",
+    "crates/nvs-ir/src/lower/tests.rs"
+  ]
+}

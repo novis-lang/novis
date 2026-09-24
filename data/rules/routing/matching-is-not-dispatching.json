@@ -1,0 +1,27 @@
+{
+  "title": "The router stops at matching: a match is a name and typed parameters, and nothing here dispatches",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0102",
+    "0199"
+  ],
+  "divergesFromPhp": "no framework router's dispatch is here — no controller base class, no middleware, no return-value-to-response rule, no `HEAD`-implies-`GET` or trailing-slash normalisation; the program or its framework writes the `switch`",
+  "seeAlso": [
+    "routing/link-name-and-params-are-checked",
+    "routing/routes-are-compiled-not-registered",
+    "core-classes/router-signed-url",
+    "core-classes/ratelimit-two-members",
+    "types/grammar",
+    "security/access-is-checked-for-presence-not-meaning",
+    "routing/matched-once-before-the-handler",
+    "routing/a-refused-verb-is-not-a-missing-path",
+    "routing/a-match-is-not-invocable"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-match-asks-the-table-about-a-verb-and-a-path-the-caller-chose.nvst",
+    "tests/conformance/core/a-matched-route-is-nullable-and-a-program-says-what-it-does-without-one.nvst",
+    "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst",
+    "tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "title": "A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log",
+  "status": "shipped",
+  "because": [
+    "0093",
+    "0078",
+    "0204"
+  ],
+  "divergesFromPhp": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process",
+  "seeAlso": [
+    "config/a-reload-names-what-it-could-not-apply",
+    "concurrency/a-drain-closes-a-connection-cleanly",
+    "packaging/a-service-runs-as-a-virtual-account",
+    "http-server/the-residue-is-one-named-fault-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/service.rs"
+  ]
+}

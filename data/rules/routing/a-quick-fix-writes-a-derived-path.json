@@ -1,0 +1,17 @@
+{
+  "title": "A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own",
+  "status": "designed",
+  "because": [
+    "0110",
+    "0077",
+    "0040",
+    "0108"
+  ],
+  "divergesFromPhp": "no convention routing — a class rename never moves a URL, because the derived path is inserted as source text once and is ordinary text from then on",
+  "seeAlso": [
+    "routing/repeated-routes-share-a-name-when-they-share-a-path",
+    "core-api/identifier-casing",
+    "routing/route-attribute"
+  ],
+  "guardedBy": []
+}

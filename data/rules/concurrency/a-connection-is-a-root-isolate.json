@@ -1,0 +1,23 @@
+{
+  "title": "A persistent connection is a root isolate, and the request that upgraded it ends",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0006",
+    "0017",
+    "0005",
+    "0072"
+  ],
+  "divergesFromPhp": "there is nothing a PHP process can hold across requests, so a connection has no counterpart at all — and it is a root rather than a request that never ends",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "errors/escalation-ladder",
+    "concurrency/an-upgrade-is-spawn-shaped",
+    "concurrency/connection-bounds-are-finite"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-socket-upgrade-reports-the-connection-it-cannot-open-yet.nvst",
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-host/src/isolate.rs"
+  ]
+}

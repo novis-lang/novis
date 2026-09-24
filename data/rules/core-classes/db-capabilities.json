@@ -1,0 +1,23 @@
+{
+  "title": "Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0058",
+    "0024",
+    "0118",
+    "0145"
+  ],
+  "divergesFromPhp": "opening a connection is a granted act rather than a library call, and a hostname reaching `Settings.host` may not be `tainted`",
+  "seeAlso": [
+    "core-classes/db-connection-is-named",
+    "core-classes/schema-apply-capability",
+    "core-classes/db-safe-connection-defaults"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-connect-refuses-a-name-the-grant-does-not-cover.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst",
+    "tests/conformance/core/db-connect-judges-its-options-before-it-consults-the-grant.nvst"
+  ]
+}

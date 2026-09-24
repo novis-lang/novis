@@ -1,0 +1,9 @@
+{
+  "title": "A connection idle between requests closes the moment it sees the drain",
+  "status": "accepted",
+  "scope": "what the drain does with an HTTP/1.1 connection that has answered its last request and\nis waiting for the next one. What it does with a request in flight, and with a WebSocket a program\nis speaking on, stays [0186](0186.md) § 3's.",
+  "dependsOn": [
+    "0186"
+  ],
+  "validatedBy": "`crates/nvs-server/src/serve.rs`'s\n`an_idle_kept_alive_connection_is_closed_when_the_drain_begins`, with both the keep-alive wait and\nthe drain period set far past what the case is allowed to take."
+}

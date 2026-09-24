@@ -1,0 +1,16 @@
+{
+  "title": "An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call",
+  "status": "designed",
+  "because": [
+    "0003",
+    "0011",
+    "0078"
+  ],
+  "divergesFromPhp": "a call into an extension is checked by `nvs check` like a call into `Core`, not dispatched by name at runtime",
+  "seeAlso": [
+    "classes/no-free-functions-or-constants",
+    "config/the-extension-set-is-in-every-unit-key",
+    "packaging/an-nvsx-is-one-file-carrying-its-manifest"
+  ],
+  "guardedBy": []
+}

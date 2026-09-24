@@ -1,0 +1,11 @@
+{
+  "lead": "`nvs_host::Isolate`'s `finish` classifies an ending from the context alone, and a `Program` hands it no status.",
+  "body": "A throw leaves its object in `Ctx::pending`, but an `exit` leaves only `Ctx::exit_code`, which reads `0` both for `exit(0)` and for a script that never called `exit`. A program records its frame's status with `Ctx::set_ending` and `finish` reads `Ctx::ending`; do not recover an ending from the *shape* of the pending value, because a `FATAL` and a throw both leave one and `Pending`'s variants are private.",
+  "files": [
+    "crates/nvs-runtime/src/script.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/script.rs:Value) -> Value"
+  }
+}

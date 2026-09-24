@@ -1,0 +1,133 @@
+{
+  "title": "Core\\Sse and 2 more",
+  "milestone": null,
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-stdlib/src/sse.rs",
+      "crates/nvs-stdlib/src/storage.rs"
+    ],
+    "rules": [
+      "testing/feature-proofs",
+      "testing/a-failing-proof-is-fixed-or-recorded",
+      "0134",
+      "0026",
+      "0117",
+      "0004",
+      "0088"
+    ],
+    "adrs": [
+      "0134",
+      "0079 §15"
+    ],
+    "shapes": [
+      "A `.nvst` test case",
+      "Feature proofs — an example, an attack, a bench, a `covers:` marker",
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Writing a test case > a rule*",
+      "Writing a test case > a -p*",
+      "Writing a test case > an array literal*",
+      "Writing a test case > two foreach headers*",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ]
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the dossier"
+    }
+  ],
+  "checks": [
+    {
+      "id": "dossier-core-sse",
+      "kind": "command",
+      "stage": 2,
+      "name": "dossier: Core\\Sse",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--verify",
+        "--group",
+        "Core\\Sse"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-core-sse-message",
+      "kind": "command",
+      "stage": 2,
+      "name": "dossier: Core\\Sse\\Message",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--verify",
+        "--group",
+        "Core\\Sse\\Message"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-core-storage",
+      "kind": "command",
+      "stage": 2,
+      "name": "dossier: Core\\Storage",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--verify",
+        "--group",
+        "Core\\Storage"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

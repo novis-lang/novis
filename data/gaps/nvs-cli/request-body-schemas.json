@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/openapi.rs",
+  "title": "Request body schemas",
+  "text": "for the same reason and one more: which parameter *is* the body is a question the row does not answer either. Both are the same widening of the row, so they land together.",
+  "milestone": "M10"
+}

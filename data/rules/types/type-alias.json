@@ -1,0 +1,23 @@
+{
+  "title": "A `type` alias is a transparent, compile-time-only synonym for a type expression",
+  "status": "shipped",
+  "because": [
+    "0015",
+    "0007",
+    "0036",
+    "0011",
+    "0190"
+  ],
+  "seeAlso": [
+    "types/class-scoped-alias",
+    "types/alias-is-never-a-bare-class",
+    "types/grammar",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst",
+    "tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst",
+    "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
+    "crates/nvs-hir/src/aliases.rs"
+  ]
+}

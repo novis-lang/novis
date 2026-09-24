@@ -1,0 +1,17 @@
+{
+  "title": "Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name",
+  "status": "designed",
+  "because": [
+    "0149"
+  ],
+  "divergesFromPhp": "a PHP editor continues a `/** */` docblock and autocompletes tags into it; here the continuation is a `///` run and there is no tag to complete",
+  "seeAlso": [
+    "ide/language-configuration-is-content",
+    "tooling/doc-comment-is-three-slashes",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/contributions-are-frozen-and-only-ever-added",
+    "ide/dependencies-are-allowlisted",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": []
+}

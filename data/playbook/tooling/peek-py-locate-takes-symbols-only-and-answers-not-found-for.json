@@ -1,0 +1,11 @@
+{
+  "lead": "`peek.py --locate` takes symbols only, and answers `NOT FOUND` for a `path:re:pattern` target instead of refusing it.",
+  "body": "That is the same line it prints for a name that is nowhere in the tree, and a path in that list is likewise read as one more symbol to search the whole repository for, which can run past a 120-second timeout. Use `--locate <symbol> --in '<glob>'` for symbols, and an ordinary `peek.py` target or `grep -n` for a pattern.",
+  "files": [
+    "tools/peek.py"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/peek.py:NOT FOUND"
+  }
+}

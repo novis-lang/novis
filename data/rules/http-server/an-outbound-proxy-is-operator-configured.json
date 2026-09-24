@@ -1,0 +1,23 @@
+{
+  "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
+  "status": "shipped",
+  "because": [
+    "0182"
+  ],
+  "divergesFromPhp": "curl and PHP's stream wrappers take a proxy from `HTTP_PROXY`/`HTTPS_PROXY` in the environment, or per handle from `CURLOPT_PROXY`; here it is one root-owned block, no environment variable is read, and no program-side spelling exists",
+  "seeAlso": [
+    "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+    "http-server/the-client-trust-roots-are-the-operators",
+    "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "security/no-cross-request-state",
+    "config/three-changeability-classes",
+    "config/a-secret-is-a-file-whose-content-is-the-value"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/tests/secret.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-stdlib/src/http.rs"
+  ]
+}

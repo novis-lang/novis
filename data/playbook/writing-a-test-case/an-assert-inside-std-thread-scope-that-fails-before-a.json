@@ -1,0 +1,11 @@
+{
+  "lead": "An `assert!` inside `std::thread::scope` that fails before a `Barrier::wait` the spawned thread still owes hangs the test binary rather than failing it.",
+  "body": "The scope joins its threads before it unwinds, and the spawned one waits on the barrier for ever, so `cargo test` shows nothing but `has been running for over 60 seconds` and the failing assertion is never printed. Read what the assertion needs into locals, pass the barrier, and only then assert, as `a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it` in `crates/nvs-cli/src/script.rs` does.",
+  "files": [
+    "crates/nvs-cli/src/script.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-23"
+  }
+}

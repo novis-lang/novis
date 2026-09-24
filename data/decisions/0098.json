@@ -1,0 +1,11 @@
+{
+  "title": "The pipeline operator is one hole substituted at parse time, never a callable applied at run time",
+  "status": "accepted",
+  "scope": "the `|>` operator, the `$_` hole it substitutes, its precedence and associativity, and the\nthree diagnostics that keep its one rule enforceable. Not in scope: whether scalars gain methods, which\n[0063](0063.md) R19 settles and this ADR does not reopen; the `Core` member roster\nand its argument order, which are [0063](0063.md) R1–R2 and\n[docs/spec/01-core-library.md](../spec/01-core-library.md); and a null-skipping `?|>`, which\n*Revisiting* defers with its trigger named.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "The pipeline operator is a rewrite of one hole, not a call",
+    "body": "`$subject |> Str::trim($_) |> Str::lower($_)` reads left to right. The right side of `|>` is an\nordinary expression containing the hole `$_` exactly once, and the parser replaces the hole with\nthe left side, producing exactly what the nested spelling would have; nothing later in the\ncompiler knows the operator exists. This is not PHP 8.5's version, which applies a callable\nwhile the program runs: that design needs free functions Novis does not have. The spelling is\nshared; the shape is not. A hole written zero times or twice stops the build."
+  }
+}

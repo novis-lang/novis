@@ -1,0 +1,15 @@
+{
+  "title": "A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date",
+  "status": "shipped",
+  "because": [
+    "0065",
+    "0151"
+  ],
+  "seeAlso": [
+    "packaging/nvs-info-is-the-one-call",
+    "packaging/the-banner-states-the-build"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/info.rs"
+  ]
+}

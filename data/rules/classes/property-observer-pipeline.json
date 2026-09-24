@@ -1,0 +1,16 @@
+{
+  "title": "A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer",
+  "status": "shipped",
+  "because": [
+    "0014"
+  ],
+  "seeAlso": [
+    "classes/property-observer",
+    "classes/property-hooks",
+    "classes/clone-is-shallow",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst"
+  ]
+}

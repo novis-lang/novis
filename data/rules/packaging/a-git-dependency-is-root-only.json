@@ -1,0 +1,14 @@
+{
+  "title": "A git dependency pins an exact commit, and only the root application may declare one",
+  "status": "designed",
+  "because": [
+    "0081"
+  ],
+  "divergesFromPhp": "a `vcs` repository in composer.json may name a branch and is honoured anywhere in the graph; here a git source names a commit and is refused below the root, at publish and at fetch",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "packaging/the-lockfile-holds-every-digest",
+    "packaging/publishing-never-overwrites"
+  ],
+  "guardedBy": []
+}

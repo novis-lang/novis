@@ -1,0 +1,11 @@
+{
+  "lead": "An all-`null` argument array in a `Core\\Http\\Client` test writes a body.",
+  "body": "`[Value::null(); REQUEST_ARITY]` leaves the `json` slot holding `Tag::Null`, and that key omits as `Const::NeverWritten`, so `judge_verb` refuses the call as a `GET` carrying a body before the case reaches the thing it is about. Write `args[JSON] = Value::unset()` in any request test that is not about the body.",
+  "files": [
+    "crates/nvs-stdlib/src/http.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/http.rs:Const::NeverWritten"
+  }
+}

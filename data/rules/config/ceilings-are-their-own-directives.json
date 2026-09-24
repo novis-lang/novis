@@ -1,0 +1,22 @@
+{
+  "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
+  "status": "shipped",
+  "because": [
+    "0005",
+    "0091",
+    "0004"
+  ],
+  "divergesFromPhp": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script — and PHP's one `max_execution_time`, CPU time on Linux and elapsed time on Windows, is two keys: `cpu_time` and `wall_time`",
+  "seeAlso": [
+    "config/three-changeability-classes",
+    "config/a-refused-set-returns-false",
+    "errors/on-limit",
+    "programs/memory-priority",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst",
+    "tests/conformance/core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst",
+    "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst"
+  ]
+}

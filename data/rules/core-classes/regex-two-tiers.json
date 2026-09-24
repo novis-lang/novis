@@ -1,0 +1,18 @@
+{
+  "title": "A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted",
+  "status": "shipped",
+  "because": [
+    "0056",
+    "0005",
+    "0020"
+  ],
+  "divergesFromPhp": "there is no modifier that asks for backtracking, and `preg_*`'s silent `false` on a backtrack limit is a catchable throw here",
+  "seeAlso": [
+    "core-classes/regex-literal-tiering",
+    "core-classes/regex-syntax",
+    "errors/escalation-ladder"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/regex-tiers-and-the-backtracking-budget.nvst"
+  ]
+}

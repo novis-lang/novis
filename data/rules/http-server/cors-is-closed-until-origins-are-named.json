@@ -1,0 +1,16 @@
+{
+  "title": "CORS is closed until `[http.cors] origins` names one: no header is emitted and a preflight is answered `403`",
+  "status": "shipped",
+  "because": [
+    "0074"
+  ],
+  "divergesFromPhp": "PHP has no CORS default at all, so a preflight nobody handled is whatever the route does; here it is a `403` until an origin is written",
+  "seeAlso": [
+    "http-server/a-wildcard-origin-with-credentials-is-refused",
+    "http-server/policy-headers-are-runtime-class-and-setheader-wins"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/cors.rs",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

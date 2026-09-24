@@ -1,0 +1,9 @@
+{
+  "lead": "Teaching `nvs-ir` a new receiver or value shape is two edits, and the second one panics somewhere else.",
+  "body": "Recording a new `ExprInfo` variant gets the *access* lowering; what still fails is `erase_checked_ty`, which owns the `nvs_types::ty::Ty` → `nvs_ir::Ty` map and whose panic names \"a resolved call's parameter or return type\", so the message points at a call boundary or a `foreach` element rather than at the feature you built. Add the erasing arm with the variant: `Ty::Shape` needed `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

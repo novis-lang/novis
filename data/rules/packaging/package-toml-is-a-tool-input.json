@@ -1,0 +1,19 @@
+{
+  "title": "`package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution",
+  "status": "designed",
+  "because": [
+    "0081",
+    "0061",
+    "0064",
+    "0112"
+  ],
+  "divergesFromPhp": "composer.json drives the autoloader; here a populated `vendor/` resolves every name identically whether the manifest is present, absent or malformed",
+  "seeAlso": [
+    "packaging/a-fetched-package-is-an-autoload-line",
+    "config/nvs-toml-is-not-a-project-manifest",
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "programs/no-runtime-autoload",
+    "security/optional-capability-degrades"
+  ],
+  "guardedBy": []
+}

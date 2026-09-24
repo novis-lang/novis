@@ -1,0 +1,23 @@
+{
+  "title": "A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test",
+  "status": "designed",
+  "because": [
+    "0060",
+    "0033",
+    "0055",
+    "0146",
+    "0179"
+  ],
+  "seeAlso": [
+    "security/protocol-admission-test",
+    "security/algorithm-comes-from-the-key",
+    "security/verification-does-not-launder",
+    "security/secret-does-not-cross-an-extension"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/csrf-binds-a-token-to-one-session-and-verify-is-the-only-comparison.nvst",
+    "tests/conformance/core/signed-cookie-seals-with-the-newest-key-and-opens-against-the-ring.nvst",
+    "tests/conformance/core/jwt-sign-and-verify-agree-over-a-sweep-of-claim-shapes.nvst",
+    "tests/conformance/core/totp-accepts-a-code-once-inside-a-window-with-no-widening-argument.nvst"
+  ]
+}

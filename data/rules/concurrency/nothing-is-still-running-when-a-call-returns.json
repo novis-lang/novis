@@ -1,0 +1,17 @@
+{
+  "title": "Control never leaves `all` or `map` with a child still running",
+  "status": "shipped",
+  "because": [
+    "0072"
+  ],
+  "divergesFromPhp": "a PHP script that starts something in the background has no construct that waits for it, so nothing there guarantees this",
+  "seeAlso": [
+    "concurrency/cancellation-runs-no-user-code",
+    "security/isolate-shares-nothing",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+    "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst"
+  ]
+}

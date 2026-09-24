@@ -1,0 +1,9 @@
+{
+  "lead": "A `Core` member that answers a walk returns a registered memberless class, never `crate::cursor`'s unregistered one.",
+  "body": "`every_instance_type_names_a_registered_class` requires a `CoreTy::Instance` return type to name a `CLASSES` row and `CoreTy::Iterated` is parameter position only, so a second internal class on `instance::INTERNAL_CLASSES` cannot compile. Copy `Core\\IO\\Lines`: a memberless `CLASSES` row, an `ITERABLES` row for the element type, a `HANDLES` entry, and `iterate`/`advance`/`current` on `instance`'s dispatch roster; `crate::cursor` is only for a snapshot already held.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

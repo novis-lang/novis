@@ -1,0 +1,11 @@
+{
+  "lead": "`Core\\Csv::format` takes no `escape` knob, and the module doc's dialect section reads as though it does.",
+  "body": "`csv.rs`'s *The dialect: three bytes* names `{separator?, quote?, escape?}`, which is the reader's set; `FORMAT_OPTIONS` is `separator`, `quote` and `header`, and the writer's only spelling of an inner quote is doubling. A case planning to turn `{escape:}` on the writer against `fputcsv`'s fifth argument has nothing to turn; what it can measure is that PHP's `\"\"` dialect is this writer's.",
+  "files": [
+    "crates/nvs-stdlib/src/csv.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/csv.rs:are the three knobs every real CSV dialect"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
+  "status": "designed",
+  "because": [
+    "0101",
+    "0033",
+    "0016",
+    "0099",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/redaction-covers-bytes-only",
+    "ide/reveal-is-explicit-and-window-local",
+    "ide/redaction-does-not-reach"
+  ],
+  "guardedBy": []
+}

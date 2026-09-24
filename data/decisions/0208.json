@@ -1,0 +1,10 @@
+{
+  "title": "A directory handed to `nvs test` is one program that requires every `.nvs` file under it",
+  "status": "accepted",
+  "scope": "what `nvs test <directory>` runs when the directory holds `.nvs` files, where that\nprogram's `autoload` map comes from, and which files the editor lends a map to so the directory reads\nas it runs. The `#[Test]` table, the report formats and the `.nvst` case tree are unchanged.",
+  "dependsOn": [
+    "0207",
+    "0198"
+  ],
+  "validatedBy": "`crates/nvs-cli/tests/test_dir.rs` and\n`a_plain_file_under_a_lenders_directory_borrows_its_map` in `crates/nvs-lsp/tests/autoload.rs`."
+}

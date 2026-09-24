@@ -1,0 +1,23 @@
+{
+  "title": "`Core\\Queue`'s four request-path members are each asked about a job or about a queue, never about a row number",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0063",
+    "0153"
+  ],
+  "divergesFromPhp": "the queue is four members of the runtime rather than a framework façade, and what `push` answers is a handle rather than an integer id",
+  "seeAlso": [
+    "core-api/shape-rules",
+    "concurrency/a-job-between-attempts-is-pending",
+    "concurrency/cancel-is-a-race-it-can-lose",
+    "concurrency/queue-deletion-is-explicit-and-bounded"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/queue-push-answers-an-id-and-not-a-number.nvst",
+    "tests/conformance/core/queue-cancel-and-status-are-asked-the-same-way.nvst",
+    "tests/conformance/core/queue-status-is-asked-with-the-receipt-and-not-the-row.nvst",
+    "tests/conformance/core/queue-stats-is-asked-about-a-queue-and-not-a-job.nvst",
+    "tests/conformance/core/queue-stats-answers-a-record-of-counters.nvst"
+  ]
+}

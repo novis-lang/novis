@@ -1,0 +1,11 @@
+{
+  "title": "Closing the remaining magic methods: `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property",
+  "status": "accepted",
+  "scope": "every PHP object magic method no prior ADR has ruled on — `__toString`, `__destruct`,\n`__isset`/`__unset`, `__debugInfo`, `__set_state` — plus a closing note on `__autoload`. Also serves as\nthe single index of every magic method's disposition across the project, since `rule:classes/property-observer`\nfirst opened the \"magic methods\" line item and three more ADRs have each closed a piece of it since.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "There are no magic methods, and no destructors",
+    "body": "No method changes what a class does merely by its name. `__toString` is the interface\n`Stringable`, one method `toString(): string`, required wherever an object meets a string.\n`__destruct` does not exist: cleanup is a method you call. `__debugInfo` is gone, so a debug\ndump shows the real properties and values. `__set_state` is gone; rebuilding an object from data\nis serialization's job. `unset()` on a declared property does not compile, since a property is\nnever unset, and `isset` on one is a plain null check. Nothing beginning with `_` can even be\ndeclared."
+  }
+}

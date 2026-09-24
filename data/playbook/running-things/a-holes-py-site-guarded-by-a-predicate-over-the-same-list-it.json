@@ -1,0 +1,9 @@
+{
+  "lead": "A `holes.py` site guarded by a predicate over the same list it matches is an internal-consistency check, and the reachable holes are its *neighbours*.",
+  "body": "A `panic!` arm below a predicate that already excluded every other atom owes `collect::<Option<_>>`, not a diagnostic, while each of the item's spellings hits a different site one call apart. Run the item's spellings as scratch files under `.agent-tmp/` before designing anything — the panic a worklist item names is often not the one that fires.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "title": "A case is an integer constant, and an enum body declares nothing but cases",
+  "status": "shipped",
+  "because": [
+    "0010",
+    "0008",
+    "0011"
+  ],
+  "divergesFromPhp": "no methods, no interfaces, no enum constants, and no `::cases()`, `::from()`, `::tryFrom()`, `->value` or `->name`",
+  "seeAlso": [
+    "enums/closed-integer-type",
+    "enums/representation",
+    "enums/no-case-keyword",
+    "enums/reflection"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "crates/nvs-ir/tests/class_constants.rs",
+    "tests/conformance/enum/an-enum-orders-and-sums-through-its-integer.nvst",
+    "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst"
+  ]
+}

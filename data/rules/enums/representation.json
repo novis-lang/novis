@@ -1,0 +1,21 @@
+{
+  "title": "An enum value costs nothing beyond the integer it is",
+  "status": "shipped",
+  "because": [
+    "0010",
+    "0007",
+    "0006",
+    "0004"
+  ],
+  "divergesFromPhp": "a case is a scalar, so it copies across an isolate boundary like an `int` and has no identity to preserve",
+  "seeAlso": [
+    "enums/no-class-machinery",
+    "enums/one-backing-type",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-decodes-an-enum-field.nvst",
+    "tests/conformance/enum/an-enum-fills-an-array-and-survives-a-sort.nvst",
+    "tests/conformance/enum/an-enum-flows-through-a-generator.nvst"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Only the request's own task may defer work, and deferred work may not defer more",
+  "status": "shipped",
+  "because": [
+    "0072"
+  ],
+  "seeAlso": [
+    "concurrency/after-response-outlives-the-connection",
+    "concurrency/a-child-belongs-to-the-calling-task"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/task-after-response-refuses-every-child-task.nvst"
+  ]
+}

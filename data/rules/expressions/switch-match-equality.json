@@ -1,0 +1,19 @@
+{
+  "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
+  "status": "shipped",
+  "because": [
+    "0090",
+    "0035"
+  ],
+  "divergesFromPhp": "`switch` no longer compares loosely while `match` compares identically — there is one comparison, and both use it",
+  "seeAlso": [
+    "expressions/one-equality-operator",
+    "expressions/disjoint-comparison-refused",
+    "expressions/equality-semantics"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-switch-compares-in-order-and-falls-through.nvst",
+    "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
+    "tests/differential/lang/a-switch-and-a-match-agree-with-php.nvst"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "A hosted service's console is the platform log, and `--log-file` is gone",
+  "status": "accepted",
+  "scope": "where a service's stdout and stderr go on Windows, what the installer no longer asks\nfor, and how an event-log record is rendered. The reload, the drain and the identity of the service\nstay [0093](0093.md)'s.",
+  "dependsOn": [
+    "0093",
+    "0196"
+  ],
+  "validatedBy": "`tools/service-live.ps1` against the real service control manager, and\n`crates/nvs-cli/tests/windows_resource.rs`'s message-table case."
+}

@@ -1,0 +1,19 @@
+{
+  "title": "An `[[app]]` block may widen a limit or grant a capability up to the global ceiling, and may only lower its own ceiling",
+  "status": "shipped",
+  "because": [
+    "0104",
+    "0005"
+  ],
+  "divergesFromPhp": "a per-directory `php.ini` can only move what `PHP_INI_PERDIR` allows; an `[[app]]` block sets any `[app.limits]` value up to `[limits.hard]` and grants a capability the global block withholds, so the root file denies and each application states what it needs",
+  "seeAlso": [
+    "config/every-matching-app-block-applies-least-specific-first",
+    "config/ini-set-is-core-config-set",
+    "config/any-file-in-the-tree-may-set-any-directive",
+    "config/ceilings-are-their-own-directives"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/app.rs",
+    "crates/nvs-config/tests/snapshot.rs"
+  ]
+}

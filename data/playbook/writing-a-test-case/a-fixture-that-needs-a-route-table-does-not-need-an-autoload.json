@@ -1,0 +1,12 @@
+{
+  "lead": "A fixture that needs a route table does not need an `autoload` root.",
+  "body": "The table is collected over every declaration the program checks, so a class declared in the entry file lands in it — `crates/nvs-cli/tests/fixtures/api/base.nvs` is one file with a class and an `echo`, and `nvs build --openapi` emits both its operations. `examples/routes.nvs` splits across a root to demonstrate `rule:packaging/autoload-probes-fold-into-the-cache-key`'s scan, not because an emitter fixture has to.",
+  "files": [
+    "crates/nvs-cli/tests/fixtures/api/base.nvs",
+    "examples/routes.nvs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

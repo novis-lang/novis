@@ -1,0 +1,19 @@
+{
+  "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "PHP's case-insensitive keywords are not normalized; `IF` is a legal class name and fixing an identifier's case is a rename, not a layout",
+  "seeAlso": [
+    "types/duration-literal",
+    "classes/reserved-spellings-are-lower-case",
+    "core-api/casing-checks-the-leading-character",
+    "tooling/fmt-is-never-a-diagnostic",
+    "tooling/convert-one-table-two-modes",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/token_rules.rs"
+  ]
+}

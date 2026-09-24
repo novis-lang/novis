@@ -1,0 +1,20 @@
+{
+  "title": "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses",
+  "status": "shipped",
+  "because": [
+    "0059",
+    "0033",
+    "0181"
+  ],
+  "divergesFromPhp": "APCu's serialize-on-store is a wire format with its own type losses; this is the language's own copy, and it refuses what may not cross rather than mangling it",
+  "seeAlso": [
+    "classes/two-copy-depths",
+    "security/isolate-values-cross-by-copy",
+    "security/secret-crosses-no-boundary",
+    "iteration/generator-stays-in-one-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst",
+    "tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst"
+  ]
+}

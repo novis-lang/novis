@@ -1,0 +1,21 @@
+{
+  "title": "A session is a record its store issued: a backend answers `issue`, `load`, `save` and `destroy`, and `load` answering absent is the whole of the strict-id rule",
+  "status": "shipped",
+  "because": [
+    "0139",
+    "0124",
+    "0059"
+  ],
+  "divergesFromPhp": "there is no `SessionHandlerInterface` and no `validateId`; an id the store never issued, one that expired and one an attacker minted are all the same absent answer, and `start` issues a fresh record for each",
+  "seeAlso": [
+    "core-api/session-roster",
+    "core-classes/session-is-started-explicitly",
+    "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
+    "http-server/session-expiry-belongs-to-the-store",
+    "concurrency/a-cached-value-is-copied-across-the-boundary"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-start-takes-the-presented-identifier-or-none-at-all.nvst",
+    "crates/nvs-stdlib/src/session.rs"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Every binding declares its type, and no binding's type ever changes",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0022",
+    "0037",
+    "0008",
+    "0011"
+  ],
+  "divergesFromPhp": "a local, a `foreach` binding, a `for` counter and a destructuring target all carry a written type, and PHP source with none does not compile",
+  "seeAlso": [
+    "types/var-inference",
+    "types/conversion",
+    "types/grammar",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-locals-type-is-fixed-at-its-declaration.nvst",
+    "tests/conformance/lang/a-declaration-without-an-initializer-fixes-the-type.nvst",
+    "tests/conformance/reject/a-compound-assignment-cannot-retype-its-target.nvst",
+    "crates/nvs-types/tests/locals.rs"
+  ]
+}

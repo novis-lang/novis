@@ -1,0 +1,22 @@
+{
+  "title": "Ten series exist the moment an exporter is configured, with no application code written",
+  "status": "designed",
+  "because": [
+    "0076",
+    "0041",
+    "0148"
+  ],
+  "divergesFromPhp": "request rate, latency, query time, GC pause and spawn overhead are on the scrape endpoint before the application emits anything, where PHP needs an APM agent or a hand-written StatsD client for the first three and cannot reach the last two at all",
+  "seeAlso": [
+    "observability/the-runtime-exports-what-it-already-measures",
+    "observability/route-label-is-the-declared-name",
+    "observability/past-max-series-a-new-series-is-refused",
+    "concurrency/deferred-is-bounded-by-two-directives",
+    "config/scheduled-work-is-a-config-block",
+    "programs/memory-priority",
+    "observability/trace-events-carry-a-kind"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

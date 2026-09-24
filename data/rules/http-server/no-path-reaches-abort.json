@@ -1,0 +1,18 @@
+{
+  "title": "No path reaches `abort()`: nothing on a teardown path panics, teardown is iterative, and an allocation sized by request data is fallible",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0002"
+  ],
+  "seeAlso": [
+    "http-server/containment-does-not-end-at-the-helper",
+    "http-server/engine-depth-is-bounded-per-decoder",
+    "security/isolate-teardown-is-a-drain-then-a-sweep",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/invariants.rs",
+    "crates/nvs-runtime/src/release.rs"
+  ]
+}

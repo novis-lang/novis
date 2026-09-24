@@ -1,0 +1,20 @@
+{
+  "title": "A copy is either `clone`'s one level or the graph copy, and no class customizes either",
+  "status": "shipped",
+  "because": [
+    "0023",
+    "0014",
+    "0006"
+  ],
+  "divergesFromPhp": "`__clone`, `__serialize`, `__unserialize`, `__sleep` and `__wakeup` do not exist, so a copy always means what the language says it means",
+  "seeAlso": [
+    "classes/clone-is-shallow",
+    "classes/graph-copy",
+    "classes/serialize-is-a-closed-format",
+    "classes/no-magic-methods"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst",
+    "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst"
+  ]
+}

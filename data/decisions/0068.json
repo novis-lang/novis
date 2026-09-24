@@ -1,0 +1,11 @@
+{
+  "title": "Dependencies stay current; a dependency break is absorbed, never forwarded",
+  "status": "accepted",
+  "scope": "everything Novis takes from outside the repository — the Rust toolchain and edition, every\n`[workspace.dependencies]` crate, the wasm and JIT engines, CI actions, the WSL/fuzz/valgrind tooling, the\nPHP differential oracle, the OS SDKs used for linking, and the external *data* Novis will embed (Unicode,\nCLDR, IANA time zones, the public-suffix list) — plus the rule that decides what a break in one of them\ncosts a released version. Not in scope: which licences may enter the tree, which is\n[0065](0065.md) and [deny.toml](../../deny.toml); whether a C\ndependency is admissible at all, which is [0051](0051.md) § 4; the *current* pinned\nversions, which live in [the plan](../implementation-plan.md)'s status block § *Toolchain* and in\n[Cargo.toml](../../Cargo.toml); and package management for Novis *user* code (`nvs pkg`, M10).",
+  "dependsOn": [],
+  "summary": {
+    "group": "internal",
+    "headline": "Dependencies stay current, and a break they force is absorbed, not passed on",
+    "body": "Being behind on a dependency is a defect with a date on it, because the alternative is one\nenormous forced migration under a security deadline. Before the first numbered release, anything\nis updated at any time. From then on a version contract applies: a change that only breaks\nNovis's insides is adapted around and shipped in a patch, while one that would change something\na program author can see goes through a ladder of ways to absorb it first. The update sweep is\nstarted by a person, never by an agent."
+  }
+}

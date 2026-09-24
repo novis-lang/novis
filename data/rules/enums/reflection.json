@@ -1,0 +1,20 @@
+{
+  "title": "Reflection describes an enum's shape and grants it nothing a class has",
+  "status": "shipped",
+  "because": [
+    "0019",
+    "0010"
+  ],
+  "divergesFromPhp": "there are no case instances for a description to hand back — it carries the type's name and its case list, and nothing that acts",
+  "seeAlso": [
+    "enums/no-class-machinery",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/enum-info-describes-a-declared-enum.nvst",
+    "tests/conformance/core/enum-info-of-answers-null-for-what-declares-no-enum.nvst",
+    "tests/conformance/core/enum-info-reports-both-backings-and-refuses-an-unknown-case.nvst",
+    "tests/conformance/core/enum-info-cases-agree-with-value-of-over-every-case.nvst",
+    "tests/conformance/core/enum-info-round-trips-its-name-and-keeps-each-enums-own-backing.nvst"
+  ]
+}

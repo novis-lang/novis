@@ -1,0 +1,23 @@
+{
+  "title": "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0036",
+    "0027",
+    "0022",
+    "0033"
+  ],
+  "divergesFromPhp": "there is no `ReflectionAttribute` and no lookup by attribute class name; two unrelated libraries can ask for the same shape without agreeing on a name",
+  "seeAlso": [
+    "attributes/retrieval-folds-while-checking",
+    "attributes/call-site-type-argument",
+    "attributes/repeatable"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+    "tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst",
+    "crates/nvs-types/tests/attributes.rs",
+    "crates/nvs-types/src/retrieval.rs"
+  ]
+}

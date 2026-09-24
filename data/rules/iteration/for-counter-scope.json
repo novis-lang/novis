@@ -1,0 +1,17 @@
+{
+  "title": "A header-declared counter is function-scoped, and a second header declaring it again is refused",
+  "status": "shipped",
+  "because": [
+    "0109",
+    "0007"
+  ],
+  "seeAlso": [
+    "iteration/for-init-clause",
+    "iteration/for-init-refusals"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-for-header-declares-its-own-counter.nvst",
+    "tests/conformance/reject/a-second-for-header-redeclaring-its-counter-is-refused.nvst",
+    "crates/nvs-types/src/locals.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "a connection future is driven by the coroutine that owns it, and a waker is one wake",
+  "status": "accepted",
+  "scope": "how a `Future` is driven inside a runtime that is not `async` — the poll loop, what a `Waker`\nis allowed to do, which core re-polls, and what a cancellation ends. It does **not** decide what is\ndriven: the listener, the mount table and the response policy are\n[0097](0097.md)'s, and the parking contract underneath every wait\nhere is [0115](0115.md) § 2's.",
+  "dependsOn": [
+    "0115"
+  ],
+  "dependsOnText": "[0115](0115.md), whose\nreactor issues the one permission this seam carries across a thread boundary.",
+  "validatedBy": "`crates/nvs-host/src/block_on.rs`",
+  "summary": {
+    "group": "internal",
+    "headline": "A connection is one future, polled by the coroutine that accepted it",
+    "body": "Inside the server each connection is a single future, and the coroutine that accepted it drives\nit in a loop: clear the flag, poll, park. A waker is not a scheduler; it is permission for one\nmore poll, delivered to the parked task on its own core and issued again only after it fires.\nNothing is spawned, nothing is queued, and a wake from another core wakes the task without\nmoving it, so this is not a second scheduler. A cancellation ends the loop, and off a core\ndriving a future blocks the thread."
+  }
+}

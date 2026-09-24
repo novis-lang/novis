@@ -1,0 +1,11 @@
+{
+  "title": "`<?php` and `die` are rejected; `<?nvs` and `exit` are the only spellings kept",
+  "status": "accepted",
+  "scope": "the `<?php` code-mode open tag (`TokenKind::OpenTagPhp`) and the `die` keyword\n(`Keyword::Die`); the corresponding diagnostics. `<?nvs`, `<?=`, and `exit` are untouched.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "A file opens with <?nvs and stops with exit; <?php and die are rejected",
+    "body": "`<?nvs` is the only tag that opens code mode, and `exit` is the only keyword that ends the\nprocess. Writing `<?php` or `die` is a build error naming the form to use. Both were exact\nduplicates of the spelling kept, with no difference in behaviour at all, unlike other PHP pairs,\nwhich at least differed in precedence or scope. Since PHP source already goes through a\nconversion pass to become Novis, a second spelling of an identical construct buys nothing and\ncosts a reader one more thing to know. `<?=` is unchanged."
+  }
+}

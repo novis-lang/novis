@@ -1,0 +1,17 @@
+{
+  "title": "`exit` is the only process-termination keyword; `die` is refused",
+  "status": "shipped",
+  "because": [
+    "0049",
+    "0015"
+  ],
+  "divergesFromPhp": "`die` and `die('bye')` do not compile; `exit` is the exact replacement",
+  "seeAlso": [
+    "statements/nvs-is-the-only-open-tag"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/die-is-refused-in-favour-of-exit.nvst",
+    "tests/conformance/lang/exit-stops-the-program-where-it-stands.nvst",
+    "tests/conformance/lang/exit-takes-a-status-or-a-message.nvst"
+  ]
+}

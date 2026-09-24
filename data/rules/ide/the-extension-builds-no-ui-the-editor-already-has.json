@@ -1,0 +1,17 @@
+{
+  "title": "Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them",
+  "status": "designed",
+  "because": [
+    "0040"
+  ],
+  "divergesFromPhp": "Xdebug's profiler writes cachegrind for KCachegrind or PhpStorm's own viewer; a Novis profile is speedscope JSON and opens in speedscope.app or an embedded view of it",
+  "seeAlso": [
+    "ide/the-debug-adapter-does-not-wait-for-an-editor",
+    "testing/debug-probes",
+    "testing/report-formats",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "observability/trace-events-carry-a-kind",
+    "ide/the-debugger-ui-is-as-deep-as-the-adapter"
+  ],
+  "guardedBy": []
+}

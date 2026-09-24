@@ -1,0 +1,13 @@
+{
+  "title": "A deadline bounds when cancellation is asked for, not when the call returns",
+  "status": "designed",
+  "because": [
+    "0072"
+  ],
+  "seeAlso": [
+    "concurrency/nothing-is-still-running-when-a-call-returns",
+    "core-classes/db-one-api",
+    "core-classes/db-connection-busy-state"
+  ],
+  "guardedBy": []
+}

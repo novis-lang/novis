@@ -1,0 +1,16 @@
+{
+  "title": "The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands",
+  "status": "designed",
+  "because": [
+    "0101",
+    "0099",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/redaction-covers-bytes-only",
+    "ide/the-request-set-is-closed",
+    "ide/phpstorm-bridges-to-the-same-server"
+  ],
+  "guardedBy": []
+}

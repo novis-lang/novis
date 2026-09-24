@@ -1,0 +1,18 @@
+{
+  "title": "A failure escalates through four tiers, and no tier is retried",
+  "status": "shipped",
+  "because": [
+    "0020"
+  ],
+  "divergesFromPhp": "every failure category ends in a log line, and no handler is ever given a second attempt at the same failure",
+  "seeAlso": [
+    "errors/on-limit",
+    "errors/on-uncaught-throw",
+    "errors/handler-script",
+    "errors/engine-floor"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst",
+    "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst"
+  ]
+}

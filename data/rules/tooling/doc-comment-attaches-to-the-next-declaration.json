@@ -1,0 +1,12 @@
+{
+  "title": "A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic",
+  "status": "designed",
+  "because": [
+    "0137"
+  ],
+  "seeAlso": [
+    "tooling/doc-comment-is-three-slashes",
+    "tooling/strict-docs"
+  ],
+  "guardedBy": []
+}

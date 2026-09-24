@@ -1,0 +1,26 @@
+{
+  "title": "Migrating from PHP",
+  "order": 220,
+  "rules": [
+    "php-migration/every-divergence-is-deliberate-and-listed",
+    "php-migration/a-declared-type-answers-before-the-program-runs",
+    "php-migration/absent-storage-is-never-a-zero-value",
+    "php-migration/an-element-write-needs-storage-to-write-back-into",
+    "php-migration/a-body-never-falls-off-its-end",
+    "php-migration/no-return-leaves-a-finally",
+    "php-migration/a-constructor-return-carries-no-value",
+    "php-migration/a-readonly-property-declares-no-default",
+    "php-migration/no-partial-application",
+    "php-migration/let-and-is-are-reserved",
+    "php-migration/one-type-test",
+    "php-migration/a-deprecation-is-a-refusal",
+    "php-migration/a-trait-converts-to-an-interface-or-a-delegate",
+    "php-migration/a-shell-call-converts-to-process-under-review",
+    "php-migration/a-session-id-the-store-did-not-issue-is-rejected",
+    "php-migration/the-php-name-layer-is-joined-at-build-time",
+    "php-migration/every-php-builtin-is-a-completion-candidate",
+    "php-migration/an-item-inserts-only-a-registered-member",
+    "php-migration/a-php-name-sorts-below-every-novis-symbol",
+    "php-migration/completion-php-names-setting"
+  ]
+}

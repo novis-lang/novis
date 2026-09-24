@@ -1,0 +1,18 @@
+{
+  "title": "A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines",
+  "status": "designed",
+  "because": [
+    "0146",
+    "0060",
+    "0058",
+    "0097"
+  ],
+  "seeAlso": [
+    "core-api/a-lifetime-is-written",
+    "core-api/one-refusal-except-expiry",
+    "core-api/each-door-takes-a-different-thing"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/uri.rs"
+  ]
+}

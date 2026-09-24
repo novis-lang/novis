@@ -1,0 +1,21 @@
+{
+  "title": "There is no temp file: a part lands on disk only where the application names a path under `fs.write`, and disk is the resource it must bound",
+  "status": "shipped",
+  "because": [
+    "0105",
+    "0097",
+    "0024"
+  ],
+  "divergesFromPhp": "there is no `tmp_name`, no `upload_tmp_dir`, no `move_uploaded_file` and no `is_uploaded_file`; an upload nobody saves is never on disk, and one that is saved is there because the program wrote it",
+  "seeAlso": [
+    "http-server/a-part-is-consumed-in-one-of-three-ways",
+    "http-server/request-body-and-upload-total-are-two-caps",
+    "core-classes/io-write-stream",
+    "security/capability-check-at-the-door",
+    "http-server/the-body-is-read-on-demand-under-two-caps"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-file-parts-save-to-takes-write-streams-own-bag-and-nothing-else.nvst",
+    "crates/nvs-stdlib/src/request.rs"
+  ]
+}

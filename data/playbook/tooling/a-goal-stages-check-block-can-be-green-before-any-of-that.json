@@ -1,0 +1,9 @@
+{
+  "lead": "A goal stage's `[[check]]` block can be green before any of that stage's work exists, because it names gates that already pass.",
+  "body": "Goal `test-request`'s stage 4 checks five `nvs-stdlib` roster gates that hold on every tree, so the driver's acceptance can report the goal green while that stage's deliverable — a rule fragment and a spec row — is unwritten. Where a stage's deliverable is documentation, read the stage's own prose in `loop-goal.md` before believing its checks: they are a floor, not the specification.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-08"
+  }
+}

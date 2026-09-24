@@ -1,0 +1,19 @@
+{
+  "title": "The VS Code extension is a `vscode-languageclient` shell: it registers `.nvs`, colours from a TextMate grammar until the server answers, and routes everything else to `nvs lsp` and `nvs fmt`",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040",
+    "0099"
+  ],
+  "seeAlso": [
+    "ide/one-server-two-thin-clients",
+    "ide/nvs-is-its-own-file-type",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/tainted-has-no-default-decoration",
+    "ide/highlighting-is-two-layers",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": []
+}

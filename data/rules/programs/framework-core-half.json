@@ -1,0 +1,21 @@
+{
+  "title": "The privileged half of the framework is `Core`, compiled into the binary",
+  "status": "shipped",
+  "because": [
+    "0082",
+    "0051",
+    "0024"
+  ],
+  "seeAlso": [
+    "programs/first-party-framework",
+    "programs/framework-web-package",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst",
+    "tests/conformance/core/mail-refuses-an-endpoint-the-deployment-did-not-name.nvst",
+    "tests/conformance/core/storage-reaches-only-a-disk-the-deployment-named.nvst",
+    "tests/conformance/core/cldr-plural-category-refuses-a-language-it-carries-no-rules-for.nvst",
+    "tests/conformance/core/password-hash-verify-and-needs-rehash-take-no-algorithm-argument.nvst"
+  ]
+}

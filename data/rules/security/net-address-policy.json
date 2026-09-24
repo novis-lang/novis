@@ -1,0 +1,25 @@
+{
+  "title": "`net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address",
+  "status": "shipped",
+  "because": [
+    "0058",
+    "0118",
+    "0142",
+    "0067",
+    "0162",
+    "0182"
+  ],
+  "seeAlso": [
+    "security/outbound-url-is-a-sink",
+    "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+    "security/the-policy-lives-in-the-capability",
+    "security/capability-question-is-grant-and-scope",
+    "security/net-listen-is-a-separate-grant-from-net-connect",
+    "core-classes/db-capabilities"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-granted-host-is-still-refused-at-a-denied-address.nvst",
+    "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst"
+  ]
+}

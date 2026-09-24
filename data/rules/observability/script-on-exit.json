@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Script::onExit` registers a request-local hook that runs FIFO as the last user code, and each hook receives one readonly `ExitReport`",
+  "status": "shipped",
+  "because": [
+    "0127",
+    "0063",
+    "0148"
+  ],
+  "divergesFromPhp": "`register_shutdown_function` is gone; the hook takes a typed `Script\\ExitReport` with the reason, the status and the live `Throwable`, where PHP reads `error_get_last()`",
+  "seeAlso": [
+    "observability/three-endings-fire-the-exit-queue",
+    "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
+    "core-api/shape-rules",
+    "core-api/removals"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst",
+    "tests/conformance/core/script-exit-report-members-agree-and-one-queue-sees-one-report.nvst"
+  ]
+}

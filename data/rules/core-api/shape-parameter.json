@@ -1,0 +1,22 @@
+{
+  "title": "A fixed-key shape parameter is one type carrying its arms, and it is only ever a whole parameter",
+  "status": "shipped",
+  "because": [
+    "0135",
+    "0063",
+    "0047",
+    "0067"
+  ],
+  "seeAlso": [
+    "core-api/shape-arms-are-disjoint",
+    "core-api/shape-flattens-at-the-abi",
+    "core-api/one-checked-shape-type",
+    "core-api/options-bag",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "crates/nvs-types/src/ty.rs",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

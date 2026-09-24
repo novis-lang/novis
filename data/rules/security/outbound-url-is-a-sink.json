@@ -1,0 +1,19 @@
+{
+  "title": "An outbound URL or address is a sink, and a tainted one is refused where it is written",
+  "status": "shipped",
+  "because": [
+    "0058",
+    "0024",
+    "0088"
+  ],
+  "seeAlso": [
+    "security/net-address-policy",
+    "security/the-policy-lives-in-the-capability",
+    "security/sink-predicate",
+    "expressions/intrinsic-literals"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",
+    "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws",
+  "status": "shipped",
+  "because": [
+    "0131",
+    "0127",
+    "0072",
+    "0106",
+    "0078",
+    "0059",
+    "0004"
+  ],
+  "divergesFromPhp": "there is no `tmpfile`, no `sys_get_temp_dir` writing and no `tempnam` — the runtime hands out a directory it owns and reclaims it",
+  "seeAlso": [
+    "core-classes/temporary-dir-orphan-sweep",
+    "core-classes/io-write-stream",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/io-a-temporary-directory-is-made-not-named.nvst",
+    "tests/conformance/core/io-a-temporary-directory-is-a-granted-path-like-any-other.nvst",
+    "tests/conformance/core/io-temporary-dir-is-refused-outright-with-nothing-granted.nvst"
+  ]
+}

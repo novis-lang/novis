@@ -1,0 +1,19 @@
+{
+  "title": "A literal argument to an intrinsic `Core` call is validated while checking and prepared into the artifact",
+  "status": "shipped",
+  "because": [
+    "0057",
+    "0046",
+    "0042"
+  ],
+  "divergesFromPhp": "a malformed pattern, URI, duration or format string is a compile error at the offset inside the literal, rather than a throw on the first request that reaches the call",
+  "seeAlso": [
+    "expressions/intrinsic-list-is-closed",
+    "expressions/preparation-preserves-behaviour"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst",
+    "tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst",
+    "crates/nvs-types/tests/intrinsics.rs"
+  ]
+}

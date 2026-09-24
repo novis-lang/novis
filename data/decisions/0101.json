@@ -1,0 +1,11 @@
+{
+  "title": "A `secret` value is concealed in the editor by default, the range comes from the server, and `tainted` gets no default decoration at all",
+  "status": "accepted",
+  "scope": "what the VS Code extension does with `rule:security/tainted-qualifier`'s\n`tainted` and `rule:security/secret-qualifier`'s `secret` beyond colour — the\n`nvs/redactions` request that carries the ranges, which spans are concealed and which are deliberately\nnot, how a reveal works and how long it lasts, the extension's own surfaces that must inherit the\nredaction, and the leak surfaces VS Code gives no way to close. It does **not** decide colour or token\nnames ([0099](0099.md) § 4 owns both, unchanged), the qualifier\nsemantics ([0024](0024.md),\n[0033](0033.md)), the diagnostic record's own redaction\n([0092](0092.md) § 1), or anything for PhpStorm\n([0016](0016.md) § 3).",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "In the editor a secret is blurred by default; a tainted value is not marked",
+    "body": "A literal or interpolated value whose type carries `secret` is blurred in place in the editor,\nso a screen share does not see it. The language server computes the ranges; the editor only\ndraws them. Only the value is concealed, never the variable name that binds it. Revealing is\nexplicit, per range, and does not survive closing the editor. Tainted values get no decoration\nby default: a tainted value on a screen is not a security event, a credential on a stream is.\nThe bytes still stay in the file."
+  }
+}

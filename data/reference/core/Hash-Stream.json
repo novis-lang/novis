@@ -1,0 +1,12 @@
+{
+  "summary": "an incremental digest — fed piece by piece with `update`, closed once with `finish`",
+  "keywords": [
+    "hash_init",
+    "hash_update",
+    "hash_final",
+    "HashContext",
+    "incremental hash",
+    "streaming digest",
+    "chunked input"
+  ]
+}

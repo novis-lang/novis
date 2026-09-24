@@ -1,0 +1,20 @@
+{
+  "title": "`#[TestWith]` is matched against the parameters by name and by type, and each row is its own case",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0046",
+    "0071"
+  ],
+  "divergesFromPhp": "a data provider is a checked attribute payload rather than an `array<array<mixed>>` a method returns, so a row that does not fit the signature is refused where it is written",
+  "seeAlso": [
+    "testing/fixtures",
+    "testing/test-attribute",
+    "testing/report-formats"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst",
+    "tests/conformance/reject/a-data-row-is-matched-against-the-parameters-by-name-and-by-type.nvst",
+    "crates/nvs-types/tests/testing.rs"
+  ]
+}

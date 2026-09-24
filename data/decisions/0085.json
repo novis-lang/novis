@@ -1,0 +1,15 @@
+{
+  "title": "The API document is generated while compiling, so it cannot drift from the code",
+  "status": "accepted",
+  "scope": "generating an OpenAPI 3.1 document from [0077](0077.md)'s route table,\n[0071](0071.md)'s derived codecs and declared types; the `#[Api]` attribute for what the\ntypes cannot say; which mismatches are compile errors; and `nvs api diff`, the breaking-change gate. Not\nin scope: generating *clients*, which existing generators consume this document to do\n([0051](0051.md)'s domain-logic rule), and serving the document, which is\n`Web\\Api`'s ([0082](0082.md) § 3).",
+  "dependsOn": [
+    "0077",
+    "0071"
+  ],
+  "dependsOnText": "[0077](0077.md) and [0071](0071.md) — with neither,\nthere is nothing to generate from.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The API document is generated while building and cannot drift from the code",
+    "body": "The compiler already knows every route and already derives a serialization codec from each\nclass's declared properties. An OpenAPI 3.1 document is those two facts written out, produced by\n`nvs build --openapi` and never maintained by hand, so it cannot disagree with the code. What\nthe types cannot say — a summary, an error response, a security scheme — comes from an `#[Api]`\nattribute and the doc comment, and an `#[Api]` that contradicts the code stops the build. `nvs\napi diff` fails the build on a breaking change."
+  }
+}

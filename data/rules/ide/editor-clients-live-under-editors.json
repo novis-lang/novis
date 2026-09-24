@@ -1,0 +1,14 @@
+{
+  "title": "An editor client lives under `editors/<editor>`, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040"
+  ],
+  "seeAlso": [
+    "ide/one-crate-and-one-extension-grow-in-place",
+    "ide/vscode-is-the-reference-client",
+    "ide/phpstorm-bridges-to-the-same-server"
+  ],
+  "guardedBy": []
+}

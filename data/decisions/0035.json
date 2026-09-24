@@ -1,0 +1,11 @@
+{
+  "title": "A condition is judged by PHP's full truthy table; every other `bool` position stays checked",
+  "status": "accepted",
+  "scope": "the exact set of syntax positions that test a value's truthiness rather than requiring it\nalready be `bool` — `if`/`elseif`'s condition, `while`/`do…while`'s condition, `for`'s middle clause, the\nternary/elvis operator's condition, and `&&`/`||`/`!`'s operand(s); the runtime rule those positions use to\nturn an arbitrary value into a branch decision.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "`if ($rows)` works: a condition uses PHP’s truthy table, nothing else does",
+    "body": "In an `if`, `while` or `for`, a ternary, or an operand of `&&`, `||` and `!`, any value may\nstand alone and is judged as PHP judges it: `null`, `false`, `0`, `0.0`, `\"\"` and `\"0\"` are\nfalse, an empty array is false, and everything else — every object, closure and enum case, every\nnon-empty array — is true. A `bytes` value is false only when empty. Those positions are the\nwhole list: a `bool` parameter, property or return, and `==` or `match`, still need an explicit\n`as bool` or a comparison."
+  }
+}

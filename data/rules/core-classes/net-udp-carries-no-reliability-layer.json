@@ -1,0 +1,12 @@
+{
+  "title": "A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them",
+  "status": "designed",
+  "because": [
+    "0162"
+  ],
+  "seeAlso": [
+    "core-classes/net-one-api-three-transports",
+    "core-api/tier-placement"
+  ],
+  "guardedBy": []
+}

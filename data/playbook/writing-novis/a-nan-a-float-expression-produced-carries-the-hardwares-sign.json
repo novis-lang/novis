@@ -1,0 +1,9 @@
+{
+  "lead": "A `NaN` a `float` expression produced carries the hardware's sign bit, and that bit is not the same on every leg of the matrix.",
+  "body": "`sqrt(-1.0)` is negative where the SSE default `NaN` is and positive on aarch64, so anything reading it — `f64::total_cmp` above all — answers one way on linux-x86_64 and the other on macos-aarch64 while each looks right on its own. Fold every `NaN` to one before ordering, as `nvs_stdlib::ordering::ordered` does, and never assert on a `NaN`'s sign.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-07"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "title": "One workspace index with five readers, eight more requests in the closed set, and inlay hints for the two idioms that stopped moving",
+  "status": "accepted",
+  "scope": "what M10's editor layer adds to `nvs-lsp` on top of M4B's slice — the symbol\nindex's shape and its one construction site, the requests admitted beyond the nine, the\ncompletion arms that answer a namespace separator and a bare name, and the reversal of\n[0099](0099.md) § 3's inlay-hint deferral. It decides nothing about `nvs fmt`, `nvs dap`, the\nprofiler, the inline-HTML `nvs/regions` request or `nvs ext`: each is still staged behind a\npiece that does not exist, per `rule:ide/every-feature-is-staged-behind-its-dependency`.",
+  "dependsOn": [
+    "0099",
+    "0108",
+    "0111",
+    "0040"
+  ],
+  "dependsOnText": "[0099](0099.md) (the M4B request set and the test a tenth request has to pass),\n[0108](0108.md) (five features are one reference index; `nvs.check.scope`), [0111](0111.md) (the\nPHP-name completion layer), [0040](0040.md) (the staged editor catalog).",
+  "validatedBy": "`crates/nvs-lsp/tests/index.rs`'s\n`the_crate_has_exactly_one_symbol_index_construction_site` and `all_five_readers_query_the_one_index`,\n`crates/nvs-lsp/tests/coverage.rs`'s `every_request_answers_every_construct`,\n`crates/nvs-lsp/tests/completion.rs`'s `every_completion_source_names_a_compiler_table`, and\n`crates/nvs-lsp/tests/navigation.rs`'s `declaration_is_not_answered_because_it_would_answer_identically`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The language server keeps one workspace index, and hints appear in two idioms",
+    "body": "One index of every symbol in the workspace, keyed by the name the type checker resolved, answers\nworkspace symbol search, references, rename, implementations and the call hierarchy. Eight more\nstandard editor requests are supported on the same basis; go-to-declaration is refused because\nNovis has no declaration that is not the definition. Completion also offers names after a\nnamespace separator and bare names in scope. Inlay hints are shown for exactly two idioms and\nnowhere else."
+  }
+}

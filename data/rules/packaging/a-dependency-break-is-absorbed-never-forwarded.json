@@ -1,0 +1,22 @@
+{
+  "title": "A dependency break that a program author could see goes down a seven-step ladder, and shipping it is the last step",
+  "status": "designed",
+  "because": [
+    "0068",
+    "0004",
+    "0065"
+  ],
+  "divergesFromPhp": "PHP's own minors have broken running applications, and a Composer library forwards its dependencies' breaks as its own; here a dependency-forced break reaches a program author only after adapting, wrapping, compensating, holding, vendoring and replacing have all been tried",
+  "seeAlso": [
+    "packaging/who-can-see-it-decides-the-release-slot",
+    "packaging/a-forced-break-is-announced-before-it-lands",
+    "packaging/a-breaking-release-is-a-new-name",
+    "packaging/the-sweep-is-fired-by-a-human",
+    "security/no-ffi",
+    "packaging/a-c-dependency-answers-two-questions",
+    "packaging/the-third-party-notice-is-generated-never-written-by-hand"
+  ],
+  "guardedBy": [
+    "deny.toml"
+  ]
+}

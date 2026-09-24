@@ -1,0 +1,17 @@
+{
+  "title": "Past `max_series` a new series is refused and an existing one is never evicted",
+  "status": "shipped",
+  "because": [
+    "0076"
+  ],
+  "divergesFromPhp": "past the cap the newest label set is dropped with a warning, not the oldest evicted; a counter never appears to reset",
+  "seeAlso": [
+    "observability/a-registry-is-per-core-and-nothing-reads-it",
+    "observability/default-series",
+    "concurrency/cache-memory-is-charged-to-the-core",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "title": "`{limit, deadline}` is the whole of what bounds a group, and there is no `timeout` member and no `race`",
+  "status": "shipped",
+  "because": [
+    "0072"
+  ],
+  "divergesFromPhp": "a wait is bounded by an option on the call rather than by `set_time_limit`, `default_socket_timeout` or an ini setting read from somewhere else",
+  "seeAlso": [
+    "core-api/options-bag",
+    "types/duration-literal",
+    "core-classes/db-one-api"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-task-call-is-bounded-by-limit-and-deadline-and-by-no-other-spelling.nvst",
+    "tests/conformance/core/a-task-map-takes-the-same-limit-and-deadline-shape-as-all.nvst",
+    "tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst"
+  ]
+}

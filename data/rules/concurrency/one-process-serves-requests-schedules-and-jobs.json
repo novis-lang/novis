@@ -1,0 +1,16 @@
+{
+  "title": "`nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three",
+  "status": "designed",
+  "because": [
+    "0154"
+  ],
+  "divergesFromPhp": "one process is the whole deployment — there is no process manager, no worker daemon and no cron entry beside it",
+  "seeAlso": [
+    "concurrency/who-runs-a-job-is-configuration",
+    "concurrency/queued-work-is-not-scheduled-work",
+    "concurrency/claiming-is-one-statement",
+    "concurrency/no-broker-and-no-driver-interface",
+    "config/reloadability-is-its-own-field"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/lib.rs",
+  "title": "The memory-limit `FATAL` names a reading that is not the breach.",
+  "text": "[`ctx::Ctx::over_memory_limit`] is true as soon as [`budget::refused`] is set, and the message [`ctx::Ctx::memory_breach`] builds then prints `memory_used()` — the live reading at the poll, taken after the refused allocation is gone. A program holding a 134,217,728-character text is refused its next doubling and reports `18825 bytes held against a ceiling of 268435456`, which is the one sentence an operator reads to decide whether to raise `[limits] memory` or to fix the program. Why the surviving reading is that small is not checked. Closing it means the budget recording what it refused and how much was held when it did, so the sentence can name the allocation instead of the aftermath.",
+  "milestone": "M10"
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was",
+  "status": "shipped",
+  "because": [
+    "0127",
+    "0020",
+    "0072",
+    "0131"
+  ],
+  "seeAlso": [
+    "observability/three-endings-fire-the-exit-queue",
+    "errors/on-uncaught-throw",
+    "concurrency/after-response-outlives-the-connection",
+    "core-classes/temporary-dir-sweep"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/script-on-exit-carries-the-live-throwable-of-an-uncaught-throw.nvst",
+    "tests/conformance/core/script-on-exit-sees-the-exit-no-finally-can-see.nvst",
+    "crates/nvs-cli/src/main.rs"
+  ]
+}

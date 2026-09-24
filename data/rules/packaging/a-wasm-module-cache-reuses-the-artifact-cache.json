@@ -1,0 +1,12 @@
+{
+  "title": "A compiled extension module is cached in the same store, under the same key, header and verify shape",
+  "status": "designed",
+  "because": [
+    "0042"
+  ],
+  "seeAlso": [
+    "packaging/an-artifact-is-one-immutable-content-addressed-file",
+    "packaging/an-extension-is-a-sandboxed-wasm-component"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "lead": "`is` takes a *type* where PHP's operator took a bare class name, so respelling a test against a generic interface turns `E0442` on.",
+  "body": "The right of `is` goes through `rule:types/grammar`'s production, and `rule:iteration/two-interfaces` makes `Iterator<T>`'s argument mandatory everywhere that production is used, so `$it is Iterator` is refused where the PHP spelling compiled. Write the argument — `$it is Iterator<int>` — and say in the case that the walk compares descriptors and erases it, which is why no answer moves.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-18"
+  }
+}

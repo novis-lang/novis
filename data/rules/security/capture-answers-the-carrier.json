@@ -1,0 +1,18 @@
+{
+  "title": "Capturing a sink yields that sink's carrier, never a plain `string`",
+  "status": "shipped",
+  "because": [
+    "0088",
+    "0006",
+    "0133"
+  ],
+  "seeAlso": [
+    "security/isolate-output-is-captured",
+    "security/launderer-answers-a-carrier",
+    "security/response-body-is-one-typed-member"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst",
+    "tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.nvst"
+  ]
+}

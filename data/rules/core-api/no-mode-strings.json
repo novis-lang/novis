@@ -1,0 +1,18 @@
+{
+  "title": "A mode is an enum, never a string or an integer constant, and only four grammars are exempt",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "divergesFromPhp": "`fopen($p, \"r+b\")`, `hash(\"sha256\", …)` and `MB_CASE_TITLE` have no spelling; a closed enum, or a subset of one, takes their place",
+  "seeAlso": [
+    "core-api/units-are-types",
+    "enums/closed-integer-type",
+    "types/literal-types",
+    "expressions/intrinsic-literals"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/core/regex-split-honours-its-options.nvst"
+  ]
+}

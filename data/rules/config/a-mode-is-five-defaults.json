@@ -1,0 +1,24 @@
+{
+  "title": "A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else",
+  "status": "shipped",
+  "because": [
+    "0091",
+    "0092",
+    "0020",
+    "0097",
+    "0005"
+  ],
+  "divergesFromPhp": "\"what does development mode change?\" has a closed, printable answer, which no `APP_ENV` or `NODE_ENV` convention can give",
+  "seeAlso": [
+    "config/two-modes-and-the-default-is-production",
+    "config/a-startup-default-is-never-flipped",
+    "config/a-program-may-read-and-flip-its-mode",
+    "errors/log-level",
+    "config/check-and-dump-audit-the-tree-offline",
+    "config/a-mount-routes-and-an-app-block-sets-policy"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/request.rs",
+    "tests/conformance/core/config-a-mode-flip-re-derives-the-mode-table.nvst"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Case sensitivity is a compiler property, never an OS property",
+  "status": "accepted",
+  "scope": "every place a program's meaning could depend on the case something was typed in — name\nresolution (`QName`/`SymbolTable`), reserved lexical spellings (keywords, contextual keywords, the\n`<?nvs` open tag), and the on-disk paths `require` and `autoload` resolve. Does **not** cover string\ndata: `Core\\Str`'s case-folding operations, a case-insensitive comparison a program asks for explicitly,\nor the case a value happens to hold at runtime are all ordinary library behaviour, unaffected.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Case is decided by the compiler, never by the operating system",
+    "body": "Names of classes, functions, constants and variables are all case-sensitive, so Foo and foo are\ntwo different things everywhere. Keywords are lower case and nothing else. A path in a require\nor an autoload is compared against the directory entry exactly as written, so a program that\nbuilds on Windows or macOS builds on Linux, or fails on all three. PHP is case-insensitive for\nclasses and keywords, case-sensitive for variables, and takes the filesystem's word on file\nnames, which is why a program that works on a laptop can break when deployed."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Two objects are equal only when they are the same object, and no class may change that",
+  "status": "shipped",
+  "because": [
+    "0090",
+    "0013",
+    "0014",
+    "0028",
+    "0079"
+  ],
+  "divergesFromPhp": "PHP's `==` walked properties; here there is no property walk, no `__equals`, no `equals()` protocol and no `Equatable` interface",
+  "seeAlso": [
+    "expressions/equality-semantics",
+    "expressions/one-equality-operator",
+    "expressions/mixed-equality"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+    "tests/conformance/core/object-collections-hold-one-member-per-distinct-value.nvst"
+  ]
+}

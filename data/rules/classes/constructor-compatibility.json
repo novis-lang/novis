@@ -1,0 +1,19 @@
+{
+  "title": "A `new` through a class reference checks `T`'s constructor, and an implementor whose constructor diverges is refused there",
+  "status": "shipped",
+  "because": [
+    "0125",
+    "0022"
+  ],
+  "divergesFromPhp": "the mismatch is refused at the `new` rather than discovered when the wrong subclass arrives",
+  "seeAlso": [
+    "types/class-reference",
+    "types/class-reference-sites",
+    "classes/constructor-is-a-method-named-constructor",
+    "classes/definite-property-initialization"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
+    "crates/nvs-types/tests/classes.rs"
+  ]
+}

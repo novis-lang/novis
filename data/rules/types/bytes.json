@@ -1,0 +1,23 @@
+{
+  "title": "`bytes` is a primitive peer to `string` for data that carries no encoding",
+  "status": "shipped",
+  "because": [
+    "0009",
+    "0007",
+    "0006",
+    "0012"
+  ],
+  "divergesFromPhp": "PHP has one type for text and for a buffer and never says which a value is; a request body, a socket read, a file's contents and a digest all arrive as `bytes` and become text only by a conversion that can throw",
+  "seeAlso": [
+    "types/string-is-utf8",
+    "types/conversion",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/bytes-indexes-and-orders-by-byte-offset.nvst",
+    "tests/conformance/core/bytes-predicates-search-octets-where-core-str-searches-characters.nvst",
+    "tests/conformance/lang/string-and-bytes-convert-both-ways.nvst",
+    "tests/conformance/lang/a-bytes-in-a-condition-is-falsy-only-when-empty.nvst",
+    "tests/conformance/core/a-body-stream-chunk-is-tainted-and-a-plain-bytes-binding-refuses-it.nvst"
+  ]
+}

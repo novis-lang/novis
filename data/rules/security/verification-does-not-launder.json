@@ -1,0 +1,16 @@
+{
+  "title": "A verified signature proves origin, not safety: claims come back `tainted`",
+  "status": "shipped",
+  "because": [
+    "0060",
+    "0024"
+  ],
+  "seeAlso": [
+    "security/launderers-are-sink-named",
+    "security/tainted-sources",
+    "security/protocol-roster"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst"
+  ]
+}

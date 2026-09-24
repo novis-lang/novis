@@ -1,0 +1,11 @@
+{
+  "title": "a type name brings its `use` line: on paste, from the undeclared-name fix, and from a completion asked inside a call",
+  "status": "accepted",
+  "scope": "how a `use` line reaches a file somebody did not write it in — the paste of copied code,\nthe quick fix on an undeclared name, and the completion item accepted for a type — and the two\ncompletion positions that answered the wrong list. Which types a bare name reaches, and how an\naccepted one is spelled, stay [0193](0193.md)'s and [0194](0194.md)'s.",
+  "dependsOn": [
+    "0193",
+    "0099",
+    "0040"
+  ],
+  "validatedBy": "`crates/nvs-hir/src/imports.rs`'s unit tests, `crates/nvs-lsp/tests/imports.rs`,\n`tests/lsp/actions/an-undeclared-class-offers-its-import.lspt`,\n`tests/lsp/completion/an-argument-position-in-a-static-call-offers-the-position-list.lspt`,\n`tests/lsp/completion/the-end-of-an-unresolved-receiver-offers-the-types.lspt`, and the\n`nvs/imports` round trip in `editors/vscode/test/protocol/requests.test.ts`."
+}

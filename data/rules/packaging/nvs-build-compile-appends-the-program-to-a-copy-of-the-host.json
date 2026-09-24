@@ -1,0 +1,18 @@
+{
+  "title": "`nvs build --compile` appends a program to a copy of the `nvs` binary, and rebundling is running it again",
+  "status": "shipped",
+  "because": [
+    "0048",
+    "0093"
+  ],
+  "divergesFromPhp": "there is no `.phar` and no archive format: the shipped file is the runtime itself with the source appended, and it is remade by its author rather than updated in place",
+  "seeAlso": [
+    "programs/bundle-trust-domain",
+    "packaging/a-bundle-carries-source-not-artifacts",
+    "packaging/a-bundle-is-found-by-its-footer-before-argv-is-read",
+    "packaging/a-macos-bundle-is-ad-hoc-signed-at-build"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "title": "`Core\\Cli::arguments` is how a program reads the words it was started with, at every depth",
+  "status": "shipped",
+  "because": [
+    "0012",
+    "0086",
+    "0118"
+  ],
+  "divergesFromPhp": "`$argv` and `$argc` do not exist, the elements are `tainted`, and the answer is a process fact rather than a per-isolate one",
+  "seeAlso": [
+    "core-classes/script-args",
+    "core-classes/session-is-started-explicitly",
+    "statements/no-host-populated-variables"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-arguments-answers-the-words-the-program-was-started-with.nvst",
+    "tests/conformance/core/cli-arguments-is-empty-for-a-program-started-with-no-words.nvst",
+    "tests/conformance/core/cli-arguments-elements-are-tainted-and-a-sink-refuses-one.nvst",
+    "tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst"
+  ]
+}

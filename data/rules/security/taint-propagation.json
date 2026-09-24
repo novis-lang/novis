@@ -1,0 +1,19 @@
+{
+  "title": "A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0007",
+    "0066"
+  ],
+  "seeAlso": [
+    "security/tainted-qualifier",
+    "security/launderers-are-sink-named",
+    "types/conversion",
+    "expressions/conversion-keeps-qualifiers"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/tainted.rs",
+    "tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.nvst"
+  ]
+}

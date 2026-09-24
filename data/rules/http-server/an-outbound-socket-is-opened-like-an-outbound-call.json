@@ -1,0 +1,21 @@
+{
+  "title": "A WebSocket is opened by `Core\\Http\\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled",
+  "status": "shipped",
+  "because": [
+    "0183"
+  ],
+  "divergesFromPhp": "there is no outbound WebSocket in PHP's standard library at all — `ext-sockets` and a userland client are what a program reaches for, and neither passes an address policy",
+  "seeAlso": [
+    "http-server/allow-url-pins-the-address",
+    "security/outbound-url-is-a-sink",
+    "concurrency/a-connection-is-a-root-isolate",
+    "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/socket.rs",
+    "tests/conformance/core/http-socket-opens-a-wss-url-and-reports-its-protocol.nvst",
+    "tests/conformance/core/http-socket-refuses-an-http-url-and-a-request-row-refuses-wss.nvst",
+    "tests/conformance/core/an-outbound-socket-speaks-ws-and-every-other-row-refuses-it.nvst",
+    "tests/conformance/core/an-outbound-socket-carries-both-payload-kinds-in-both-directions.nvst"
+  ]
+}

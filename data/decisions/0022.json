@@ -1,0 +1,11 @@
+{
+  "title": "Properties are definitely initialized at compile time; no observable uninitialized state",
+  "status": "accepted",
+  "scope": "what a declared, non-nullable property holds before anything has assigned it — the\ncompile-time obligation on every constructor to definitely assign every property the class declares (own\nor inherited), the one residual case static analysis cannot cover (an object built through `Core\\Reflect`\nwithout running a constructor), and the explicit rejection of a new `undefined` value or type to model the\ngap.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Every property is assigned by the time a constructor returns",
+    "body": "Every property a class declares is assigned on every path out of every constructor, or the build\nstops at the constructor that forgot. An inline default or a promoted parameter counts, and a\nsubclass discharges what it inherits by calling the parent constructor. A class with no\nconstructor and a non-nullable property without a default is refused outright. There is no\n`undefined` value; a property that may hold nothing is spelled `?T`. Only an object built\nthrough reflection, which skips every constructor, can be read unassigned, and that read throws."
+  }
+}

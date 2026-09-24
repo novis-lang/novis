@@ -1,0 +1,11 @@
+{
+  "title": "`lateinit` defers a non-nullable object property's first assignment past the constructor",
+  "status": "accepted",
+  "scope": "one new property modifier, `lateinit`, usable only on a non-nullable, class/interface-typed\nproperty. Nothing else changes: scalar-typed properties, `?T` properties, locals, and every other rule\n`rule:classes/definite-property-initialization` states keep working exactly as before.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "`lateinit` lets a container assign a property after construction",
+    "body": "A property marked `lateinit` is excused from the constructor-must-assign rule, for containers\nand ORMs that fill an object after `new` returns. The property stays as non-nullable as any\nother, and reading it before its first write throws a catchable error. It is allowed only on a\nnon-nullable class or interface type — a scalar has a free default like `= 0`, and `?T` already\nmeans \"may be empty\" — and never with `readonly`, whose write-once promise is the opposite. The\nprice is a second way a read can fail at run time."
+  }
+}

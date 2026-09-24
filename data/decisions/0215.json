@@ -1,0 +1,11 @@
+{
+  "title": "an `autoload` prefix may take one segment from a directory name, every segment is checked, and an autoloaded file declares the name the map finds it by",
+  "status": "accepted",
+  "scope": "the prefix of an explicit `autoload` declaration — a `{..}` segment read off the disk,\nand the shape every segment must have — the namespace an autoloaded file must declare, and the\n`missing` section of `nvs check --autoload-map`. It does not change `autoload discover`, how a\nroot is probed, or that a root which does not exist is allowed.",
+  "dependsOn": [
+    "0061",
+    "0062"
+  ],
+  "dependsOnText": "[0061](0061.md) for the map and the one-declaration rule, [0062](0062.md) for the\nexact on-disk spelling.",
+  "validatedBy": "`tests/conformance/lang/a-directory-segment-names-the-prefix-after-a-directory.nvst`,\n`tests/conformance/lang/an-autoload-prefix-that-can-never-match-does-not-compile.nvst`,\n`tests/conformance/lang/an-autoloaded-file-declaring-another-namespace-does-not-compile.nvst`, and\n`crates/nvs-hir/src/requires.rs`'s `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`."
+}

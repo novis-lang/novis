@@ -1,0 +1,17 @@
+{
+  "title": "`nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content",
+  "status": "designed",
+  "because": [
+    "0137",
+    "0117",
+    "0167"
+  ],
+  "divergesFromPhp": "phpDocumentor re-derives documentation from source at every run; here nothing does, and the renderers share one JSON",
+  "seeAlso": [
+    "tooling/meta-json",
+    "tooling/meta-json-takes-a-program",
+    "tooling/nvs-doc-renders-and-decides-nothing",
+    "core-api/reference-card"
+  ],
+  "guardedBy": []
+}

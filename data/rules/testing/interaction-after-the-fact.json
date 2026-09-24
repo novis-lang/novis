@@ -1,0 +1,19 @@
+{
+  "title": "A call to a double is asserted after the exercise, never expected before it",
+  "status": "shipped",
+  "because": [
+    "0079"
+  ],
+  "divergesFromPhp": "there is no `expects()`; the method being asserted on is a compile-checked reference, so renaming it breaks the test rather than leaving it passing",
+  "seeAlso": [
+    "testing/doubles",
+    "testing/assertions-are-typed"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/assert-called-reads-the-record-by-count-and-arguments.nvst",
+    "tests/conformance/core/assert-never-called-fails-naming-the-call-it-found.nvst",
+    "tests/conformance/core/the-call-record-belongs-to-the-double-and-not-to-its-class.nvst",
+    "tests/conformance/core/an-interaction-assertion-refuses-an-object-that-is-no-double.nvst",
+    "tests/conformance/reject/a-method-reference-names-a-method-the-interface-lacks.nvst"
+  ]
+}

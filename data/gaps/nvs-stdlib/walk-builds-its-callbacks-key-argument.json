@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/arr.rs",
+  "title": "A walk builds its callback's key argument whether the callback takes one or not, and over a list that is an allocation per entry.",
+  "text": "[`find_slot`] and its siblings pass `&[value, key]` to [`nvs_runtime::call_closure`] unconditionally, so a predicate declaring only `($value)` still pays for the key beside it. Over a string-keyed array the key is the stored [`NvsStr`] and cloning it is a refcount pair; over a list it is the position rendered to text, which allocates. `benches/members/core/Arr/find.nvs` counts 10 allocations per operation over its four-entry list, and the same program over a four-entry string-keyed array counts 4. The fix is reading the closure's declared arity off `CLOSURE_ARITY_SLOT` before the call, which is a decision about what every callback member passes rather than about one member.",
+  "milestone": "M12"
+}

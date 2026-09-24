@@ -1,0 +1,14 @@
+{
+  "title": "a saved configuration is applied by the server itself, every reloadable key really reloads, and only `listen`, `socket_mode` and `workers` need a restart",
+  "status": "accepted",
+  "scope": "how a running server gets a configuration change into effect: what a published snapshot\nrebuilds, how the server notices a saved file, what it reports about a key it cannot apply, and\nwhich keys still need a restart. It does not decide how a *source* change reaches a request, which\n[0218](0218.md) owns.",
+  "dependsOn": [
+    "0078",
+    "0218",
+    "0097",
+    "0106",
+    "0103"
+  ],
+  "dependsOnText": "[0078](0078.md) for the snapshot, the reload, the `Reload`/`Boot` field and the\ncontrol socket; [0218](0218.md) for the background check and the mount table that follows the disk;\n[0097](0097.md) for the `[server]` block; [0106](0106.md) for the admission ceiling; [0103](0103.md)\nfor what `nvs ctl config` reports.",
+  "validatedBy": "`crates/nvs-cli/tests/live_config.rs`, which starts the built `nvs serve`, changes\nits configuration and checks the next request; the census\n`every_directive_has_a_live_apply_proof_or_a_restart_proof` in `crates/nvs-config/tests/directives.rs`;\nand `only_listen_socket_mode_and_workers_need_a_restart` in `crates/nvs-config/tests/snapshot.rs`."
+}

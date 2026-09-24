@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Task`: concurrency is a call that returns with nothing still running",
+  "status": "accepted",
+  "scope": "the `Core\\Task` roster — `all`, `map`, `afterResponse` — the `{limit, deadline}` options they\nshare, what a cancellation does and does not run, and the `[deferred]` directives that bound work\noutliving a response. It also names what M5's loose verb list (`all`, `race`, `timeout`, `parallel_map`)\nbecomes under `rule:core-api/shape-rules`'s rules. Not in scope: `spawn`/`await`'s grammar\nand `Core\\Task\\Channel`'s surface, both of which stay M5's own design; and the scheduler itself.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Running things at once is one call that returns when nothing is still running",
+    "body": "Task::all takes a literal of closures and returns their results as a literal in which each field\nkeeps its own type; Task::map runs one closure over a collection. Both take an optional limit\nand deadline. Control never leaves either call with work still running: the first failure\ncancels its siblings and is rethrown, the deadline cancels everything and throws a timeout, and\nthe call waits for the cancellation to finish. Cancellation runs no user code, not even a\nfinally block. Task::afterResponse runs work after the response is sent; it is not a durable\nqueue."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "title": "An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form",
+  "status": "accepted",
+  "scope": "the expression form `expr catch (Class $e) => expr`, its grammar, precedence, result type,\nthe rule for what an arm may hold, the two diagnostics that keep it honest, and what it lowers to. Not\nin scope: the block form `try { … } catch (…) { … } finally { … }`, which is unchanged in every\nparticular and stays the only home of `finally` ([docs/reference/lang/40-statements.md](../reference/lang/40-statements.md)\n§ *try, catch, finally*); the exception hierarchy and what a `catch` may name, which\n[0020](0020.md) § 0 owns; and the non-throwing conversion `as ?T`, which\n[0066](0066.md) owns and this form does not replace.",
+  "dependsOn": [
+    "0002",
+    "0020"
+  ],
+  "dependsOnText": "[0002](0002.md) — the landing pad and the checked-return ABI this\nform reuses without adding to; [0020](0020.md) — a limit report is not a\n`Throwable`, so it is no more catchable here than in the block form.",
+  "summary": {
+    "group": "syntax",
+    "headline": "`catch` can guard a single expression and supply its value",
+    "body": "`var $cfg = Core\\Json::parse($raw) catch (ParseError) => [];` guards one expression and gives a\nfallback where it threw. Each arm names an error class, may bind it to a variable, and arms\nchain in order like the clauses of a try block. The arm's body is an expression, which is the\nwhole rule: `throw` is one, so wrapping and rethrowing fits on one line, while `return`, `break`\nand `continue` are refused by name. The result type is the union of the guarded expression and\nevery arm, as in `match`. There is no `finally`."
+  }
+}

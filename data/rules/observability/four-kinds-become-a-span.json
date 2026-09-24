@@ -1,0 +1,23 @@
+{
+  "title": "Exactly four things become a span, and a `call` event never does",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0041",
+    "0067"
+  ],
+  "divergesFromPhp": "a distributed trace is not Xdebug's per-call function trace; a span is a request, a query, an outbound call or a spawn, and nothing finer",
+  "seeAlso": [
+    "observability/a-query-is-a-trace-event",
+    "observability/a-trace-id-exists-for-every-request",
+    "observability/sampling-is-head-based",
+    "testing/debug-probes",
+    "observability/trace-events-carry-a-kind",
+    "observability/gc-pause-is-its-own-event",
+    "observability/spawn-is-its-own-event"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-server/src/otlp.rs"
+  ]
+}

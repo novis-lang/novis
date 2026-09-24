@@ -1,0 +1,14 @@
+{
+  "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
+  "status": "designed",
+  "because": [
+    "0003"
+  ],
+  "seeAlso": [
+    "packaging/the-boundary-is-the-cost",
+    "core-api/a-lifetime-is-an-object"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/wasm_sandbox.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "`compareTo` fixes the other operand to `self`, so two different classes are never ordered against each other",
+  "status": "shipped",
+  "because": [
+    "0013"
+  ],
+  "divergesFromPhp": "two objects of different classes are a compile error rather than a comparison PHP answers by falling through its own coercion rules",
+  "seeAlso": [
+    "classes/comparable",
+    "classes/ordering-lowers-to-compare-to"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

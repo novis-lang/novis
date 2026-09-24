@@ -1,0 +1,18 @@
+{
+  "title": "The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads",
+  "status": "designed",
+  "because": [
+    "0123",
+    "0120",
+    "0121",
+    "0051",
+    "0055"
+  ],
+  "divergesFromPhp": "an external workbook reference, a linked image and a remote data connection come back as data, and VBA is enumerable payload that never runs",
+  "seeAlso": [
+    "core-classes/spreadsheet-formula-is-a-value",
+    "core-classes/spreadsheet-bulk-boundary",
+    "core-classes/pdf-render-has-no-io"
+  ],
+  "guardedBy": []
+}

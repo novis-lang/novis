@@ -1,0 +1,18 @@
+{
+  "title": "An interface declares no property: one written there is `E0254`, and the value comes from a method or a constant",
+  "status": "shipped",
+  "because": [
+    "0210"
+  ],
+  "divergesFromPhp": "8.4 admits a hooked property in an interface; Novis admits no property there at all",
+  "seeAlso": [
+    "classes/no-traits",
+    "classes/interface-default-methods",
+    "classes/delegation-by-field",
+    "statements/static-is-a-member-modifier"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-interface-declares-no-property.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

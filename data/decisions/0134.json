@@ -1,0 +1,13 @@
+{
+  "title": "Every shipped feature owes four proofs, and the roster of features is derived rather than kept",
+  "status": "accepted",
+  "scope": "what a feature owes before it counts as finished — a test from both sides, three\nreal-world examples, one measured performance figure, one attack — where each lives, and how a\nloop is generated that produces them. It does **not** decide what any individual test asserts\n([docs/agent/conventions.md](../agent/conventions.md) owns the shape of a case), how the loop is\ndriven ([docs/agent/coordinator.md](../agent/coordinator.md)), how Novis is measured *against\nother engines* ([benches/userland/README.md](../../benches/userland/README.md)), how the\ncompiler's own historical performance is tracked ([0026](0026.md)),\nor what the website renders ([website/README.md](../../website/README.md)).",
+  "dependsOn": [],
+  "dependsOnText": "0079, 0117",
+  "validatedBy": "`tools/dossier.py`, `tests/hostile/README.md`, `benches/members/README.md`,\n`docs/examples/README.md`",
+  "summary": {
+    "group": "internal",
+    "headline": "A feature is finished when it has tests, examples, a cost and a hostile case",
+    "body": "A shipped feature owes four things: tests in Novis and in Rust that pin its behaviour; three\nshort examples showing what it is for; one benchmark giving it a measured cost against Novis's\nown history, never PHP; and one program written to break it, which passes when the runtime is\nstill standing. The list of features is derived from the binary's own metadata, never kept by\nhand, so a new feature owes its proofs on the next sweep and a deleted one stops owing them. A\nfailing proof is fixed or recorded, never weakened."
+  }
+}

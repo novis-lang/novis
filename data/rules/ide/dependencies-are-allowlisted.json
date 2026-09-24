@@ -1,0 +1,16 @@
+{
+  "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/contributions-are-frozen-and-only-ever-added",
+    "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": []
+}

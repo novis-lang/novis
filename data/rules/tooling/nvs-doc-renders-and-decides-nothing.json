@@ -1,0 +1,15 @@
+{
+  "title": "`nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own",
+  "status": "shipped",
+  "because": [
+    "0137"
+  ],
+  "divergesFromPhp": "the renderer ships inside the binary rather than as a phpDocumentor-style tool a project installs",
+  "seeAlso": [
+    "tooling/one-json-several-renderers",
+    "tooling/meta-json-takes-a-program"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/doc.rs"
+  ]
+}

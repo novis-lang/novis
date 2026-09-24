@@ -1,0 +1,11 @@
+{
+  "title": "Against Python, Novis claims the tool that gets handed over, not the script that gets thrown away",
+  "status": "accepted",
+  "scope": "what Novis claims against Python, what it is forbidden to claim, and the three things that\nfollow — a file whose first two bytes are `#!` starts in code mode, there is no REPL, and the userland\nbenchmark suite grows Python as a third engine. Not in scope: any `Core` member, which\n[docs/spec/01-core-library.md](../spec/01-core-library.md) owns; the terminal surface and `#[Command]`\nargument parsing, which [0086](0086.md) owns; the single-file executable,\nwhich [0048](0048.md) owns; and the *primary* audience, which\n[0080](0080.md) owns and which this ADR does not reorder.",
+  "dependsOn": [],
+  "summary": {
+    "group": "foundations",
+    "headline": "Against Python, Novis claims the tool you hand over, not the throwaway script",
+    "body": "Python owns the quick script through its REPL, its tolerance for code that is wrong yet still\nruns, and its packages. Novis takes none of the three. Its claim is the one Python is worst at:\nthe tool handed to somebody else — one file with nothing to install, argument parsing and\n`--help` already in the binary, a shell string or a logged secret stopping the build. \"Faster\nthan Python\" is a phrasing Novis does not use; Python is measured instead. A file beginning with\n`#!` starts in code mode. There is no REPL."
+  }
+}

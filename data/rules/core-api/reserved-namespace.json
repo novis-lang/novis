@@ -1,0 +1,23 @@
+{
+  "title": "The `Core` namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling",
+  "status": "shipped",
+  "because": [
+    "0011",
+    "0015",
+    "0051"
+  ],
+  "divergesFromPhp": "a misspelled built-in is a compile error naming the member rather than a run-time undefined-function fatal",
+  "seeAlso": [
+    "core-api/core-means-always-present",
+    "core-api/a-domain-class-is-a-singular-noun",
+    "classes/no-free-functions-or-constants",
+    "classes/no-class-alias",
+    "statements/nothing-gets-a-second-name"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-unknown-core-member-is-a-compile-error.nvst",
+    "tests/conformance/reject/an-unknown-core-constant-is-a-compile-error.nvst",
+    "tests/conformance/reject/an-unregistered-core-member-is-unknown.nvst",
+    "crates/nvs-syntax/src/parser/decl.rs"
+  ]
+}

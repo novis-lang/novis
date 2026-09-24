@@ -1,0 +1,18 @@
+{
+  "title": "Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101",
+    "0214"
+  ],
+  "divergesFromPhp": "no PHP tool shows a value's taint at its use sites; here `tainted` and `secret` travel as token modifiers to every use, not only the declaration",
+  "seeAlso": [
+    "ide/highlighting-is-two-layers",
+    "ide/novis-ships-names-not-colours",
+    "security/tainted-qualifier",
+    "security/secret-qualifier",
+    "ide/tainted-has-no-default-decoration"
+  ],
+  "guardedBy": []
+}

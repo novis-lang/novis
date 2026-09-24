@@ -1,0 +1,18 @@
+{
+  "title": "One Python table decides what a diff runs, and the platform matrix is never one of the gates",
+  "status": "shipped",
+  "because": [
+    "0143",
+    "0026",
+    "0068"
+  ],
+  "seeAlso": [
+    "testing/ci-lanes",
+    "testing/unknown-base-runs-everything",
+    "testing/perf-two-mechanisms"
+  ],
+  "guardedBy": [
+    "tools/ci-changes.py",
+    ".github/workflows/ci.yml"
+  ]
+}

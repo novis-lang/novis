@@ -1,0 +1,17 @@
+{
+  "title": "`lateinit` is admitted only on a non-nullable class- or interface-typed property that is neither promoted nor `readonly`",
+  "status": "shipped",
+  "because": [
+    "0038",
+    "0022"
+  ],
+  "seeAlso": [
+    "classes/lateinit",
+    "classes/no-undefined-value",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/lateinit-is-refused-on-a-scalar-property.nvst",
+    "crates/nvs-types/src/lateinit.rs"
+  ]
+}

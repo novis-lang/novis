@@ -1,0 +1,23 @@
+{
+  "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged at boot and by every reload",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0097",
+    "0004",
+    "0219"
+  ],
+  "divergesFromPhp": "`pm.max_children` is a free number and the out-of-memory killer enforces its product with memory; here the ceiling is derived from the budget, the configured number is clamped rather than trusted, and the overflow is a `503`",
+  "seeAlso": [
+    "http-server/upload-total-is-enforced-on-the-wire",
+    "http-server/a-wedged-core-is-shed-never-killed",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "security/isolate-budget-is-the-trees",
+    "programs/memory-priority",
+    "http-server/the-server-block-is-boot-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/admit.rs",
+    "crates/nvs-config/src/server.rs"
+  ]
+}

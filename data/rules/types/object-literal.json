@@ -1,0 +1,22 @@
+{
+  "title": "`{name: value}` builds an anonymous, methodless object and nothing more",
+  "status": "shipped",
+  "because": [
+    "0036",
+    "0022",
+    "0023",
+    "0029",
+    "0030"
+  ],
+  "divergesFromPhp": "there is no shorthand `{x, y}` and no computed key, so no path leads back to PHP's dynamic properties",
+  "seeAlso": [
+    "types/shape-type",
+    "types/object-top",
+    "types/implicit-capture"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-anonymous-object-literal-constructs-and-reads-its-fields.nvst",
+    "tests/conformance/lang/an-object-literal-refuses-a-repeated-field-name.nvst",
+    "tests/conformance/lang/a-shape-literal-is-parenthesized-in-a-statement-and-an-arrow-body.nvst"
+  ]
+}

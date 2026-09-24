@@ -1,0 +1,14 @@
+{
+  "title": "`nvs.exe` carries the logo as its icon and the manifest's facts as its version information, and a debug build carries its own icon",
+  "status": "shipped",
+  "because": [
+    "0196"
+  ],
+  "seeAlso": [
+    "packaging/a-build-records-no-timestamp",
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/windows_resource.rs"
+  ]
+}

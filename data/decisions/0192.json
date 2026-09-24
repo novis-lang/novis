@@ -1,0 +1,14 @@
+{
+  "title": "`is` is the one type test, `instanceof` is a refused spelling, and neither keyword is compared with PHP again",
+  "status": "accepted",
+  "scope": "which spelling asks whether a value holds a type, what the right-hand side of `is` may be,\nwhat happens to `instanceof`, and how far PHP's Pattern Matching RFC constrains any of it. It does\nnot design pattern syntax of any kind, does not build the converter that rewrites a PHP source file\n(M11's), does not take false-edge narrowing, and changes nothing about `as`.",
+  "dependsOn": [
+    "0150",
+    "0124",
+    "0125",
+    "0126",
+    "0007"
+  ],
+  "dependsOnText": "[0150](0150.md) (`is` as the general type test, and the rule this one deletes),\n[0124](0124.md) (`let` and `is` reserved as identifiers), [0125](0125.md) and [0126](0126.md) (the\nthree sites a `class<T>` is accepted at, and `E0496` as their one refusal), [0007](0007.md) (a\ndeclared type answers before the program runs).",
+  "validatedBy": "`tests/conformance/reject/instanceof-is-spelled-is.nvst`,\n`tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst`, and the\nabsence gate `git grep -i -w instanceof` over `crates/`, `tests/`, `docs/reference/`, `docs/spec/`,\n`docs/rules/` and `docs/agent/playbook.md`."
+}

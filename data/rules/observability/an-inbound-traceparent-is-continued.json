@@ -1,0 +1,16 @@
+{
+  "title": "An inbound `traceparent` is continued, and one the process cannot read starts a new trace rather than failing the request",
+  "status": "shipped",
+  "because": [
+    "0076"
+  ],
+  "seeAlso": [
+    "observability/a-trace-id-exists-for-every-request",
+    "observability/an-outbound-call-propagates-traceparent",
+    "observability/sampling-is-head-based"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-runtime/src/trace_context.rs"
+  ]
+}

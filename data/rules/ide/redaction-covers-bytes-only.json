@@ -1,0 +1,14 @@
+{
+  "title": "Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation",
+  "status": "designed",
+  "because": [
+    "0101",
+    "0040",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "security/secret-qualifier"
+  ],
+  "guardedBy": []
+}

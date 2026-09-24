@@ -1,0 +1,18 @@
+{
+  "title": "An explicit `<T>` at a call site is written for compiler-owned members only",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0071",
+    "0007"
+  ],
+  "divergesFromPhp": "`Foo::BAR < X > ($y)` reads as a call carrying a type argument where PHP reads two comparisons",
+  "seeAlso": [
+    "attributes/structural-retrieval",
+    "programs/implementing"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+    "crates/nvs-syntax/src/parser/expr.rs"
+  ]
+}

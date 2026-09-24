@@ -1,0 +1,18 @@
+{
+  "title": "A declaration is reachable under exactly the name it was declared with",
+  "status": "shipped",
+  "because": [
+    "0015",
+    "0011",
+    "0113",
+    "0043"
+  ],
+  "divergesFromPhp": "`use Foo\\Bar as Baz;` is a diagnostic, and no function anywhere registers a second name for a class",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute",
+    "statements/no-fallback-to-the-root-namespace"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

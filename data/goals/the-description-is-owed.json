@@ -1,0 +1,93 @@
+{
+  "title": "the description is owed",
+  "milestone": null,
+  "files": [],
+  "context": {
+    "modules": [
+      "docs/examples/README.md",
+      "tools/data/dossier-policy.toml",
+      "tools/dossier.py"
+    ],
+    "rules": [
+      "testing/feature-proofs",
+      "testing/a-failing-proof-is-fixed-or-recorded",
+      "0134",
+      "0026",
+      "0117",
+      "0004",
+      "0088"
+    ],
+    "adrs": [
+      "0134",
+      "0079 §15"
+    ],
+    "shapes": [
+      "A `.nvst` test case",
+      "Feature proofs — an example, an attack, a bench, a `covers:` marker",
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Writing a test case > a rule*",
+      "Writing a test case > a -p*",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ]
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the description is owed"
+    }
+  ],
+  "checks": [
+    {
+      "id": "dossier-the-description-is-owed-and-the-whole-roster-owes",
+      "kind": "command",
+      "stage": 2,
+      "name": "dossier: the description is owed and the whole roster owes nothing",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster",
+        "hostile, about"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "lead": "A TextMate `begin`/`end` rule whose only pattern is an include the registry cannot resolve is dropped whole, and the drop takes the rule that included it with it.",
+  "body": "`--ORACLE--` lost its header colour and its whole body that way, because it includes `source.php`, which no registry outside a real editor holds. Stub the missing scope in `editors/vscode/test/grammar/tokenize.ts` as `text.html.basic` already is, rather than hunting a regex that looks wrong.",
+  "files": [
+    "editors/vscode/test/grammar/tokenize.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "editors/vscode/test/grammar/tokenize.ts:PHP_STUB"
+  }
+}

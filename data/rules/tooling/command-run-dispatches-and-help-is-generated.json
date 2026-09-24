@@ -1,0 +1,22 @@
+{
+  "title": "`Core\\Command::run` dispatches to the handler the first word names, and help and completions are generated from the table",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0102"
+  ],
+  "divergesFromPhp": "nobody writes a usage block or a completion script; `--help` and `bash`/`zsh`/`fish`/`pwsh` completions are read off the compiled table",
+  "seeAlso": [
+    "tooling/commands-are-compiled",
+    "tooling/a-parameter-is-an-argument-unless-it-is-an-option",
+    "routing/matching-is-not-dispatching",
+    "routing/the-servers-match-dispatches-nothing",
+    "statements/exit-is-the-only-termination-keyword"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/command-run-dispatches-to-the-handler-the-first-word-names.nvst",
+    "tests/conformance/core/command-help-is-generated-from-the-compiled-table.nvst",
+    "tests/conformance/core/command-completions-writes-a-bash-function-behind-complete-f.nvst",
+    "tests/conformance/core/command-completions-writes-one-fish-line-per-command-and-spelling.nvst"
+  ]
+}

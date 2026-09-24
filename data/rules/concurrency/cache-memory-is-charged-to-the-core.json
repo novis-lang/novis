@@ -1,0 +1,18 @@
+{
+  "title": "The local tier's memory is charged to the core, capped in `nvs.toml`, and the cap evicts rather than failing a write",
+  "status": "shipped",
+  "because": [
+    "0059",
+    "0004",
+    "0005"
+  ],
+  "divergesFromPhp": "`apc.shm_size` exhaustion makes a store fail; here the cap forgets an older entry and the write succeeds",
+  "seeAlso": [
+    "programs/memory-priority",
+    "concurrency/cross-request-state-is-explicit"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst",
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

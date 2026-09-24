@@ -1,0 +1,18 @@
+{
+  "title": "A debug dump shows a class's real declared properties and their real values, and no class can change that",
+  "status": "shipped",
+  "because": [
+    "0028",
+    "0092",
+    "0019"
+  ],
+  "divergesFromPhp": "`__debugInfo` does not exist, so a dump cannot be filtered, renamed or synthesized by the class being dumped",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "errors/debug-dump",
+    "errors/no-render-hook"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "title": "`{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0077",
+    "0095",
+    "0097"
+  ],
+  "divergesFromPhp": "an optional segment is declared by the parameter's default, not by a second route or an optional regex group, and `/posts/` does not match `/posts/{page?}`",
+  "seeAlso": [
+    "routing/a-refused-verb-is-not-a-missing-path",
+    "errors/ambiguous-input-refused",
+    "routing/path-grammar",
+    "routing/repeated-routes-share-a-name-when-they-share-a-path"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+    "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst",
+    "tests/conformance/core/both-forms-of-an-optional-capture-claim-the-same-verbs.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

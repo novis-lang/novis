@@ -1,0 +1,15 @@
+{
+  "title": "A refused `for` header is one diagnostic, never a cascade",
+  "status": "shipped",
+  "because": [
+    "0109"
+  ],
+  "seeAlso": [
+    "iteration/for-init-clause",
+    "iteration/for-counter-scope"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-for-init-clause-is-a-declaration-or-expressions-not-both.nvst",
+    "tests/conformance/reject/a-for-init-clause-declares-at-most-one-binding.nvst"
+  ]
+}

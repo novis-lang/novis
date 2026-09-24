@@ -1,0 +1,11 @@
+{
+  "lead": "`cargo test --lib -p nvs-cli <name>` cannot run one of that crate's cases: it has no library target.",
+  "body": "The cases live in the `nvs` binary, so the answer is `no library targets found in package` and not a missing test. Run `cargo test --bin nvs <name>` — no `-p`, which is what `AGENTS.md` asks for anyway, and the bin name is unique across the workspace.",
+  "files": [
+    "AGENTS.md"
+  ],
+  "until": {
+    "kind": "exists",
+    "arg": "crates/nvs-cli/src/lib.rs"
+  }
+}

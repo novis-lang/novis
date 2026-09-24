@@ -1,0 +1,18 @@
+{
+  "title": "`class<T>` widens wherever `T` widens, and never narrows without an `as`",
+  "status": "shipped",
+  "because": [
+    "0125",
+    "0007",
+    "0188"
+  ],
+  "seeAlso": [
+    "types/class-reference",
+    "types/property-key-variance",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/subtyping.rs",
+    "crates/nvs-ir/tests/class_reference.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "A job runs as a root isolate, and there is no second execution path",
+  "status": "shipped",
+  "because": [
+    "0084",
+    "0006",
+    "0017"
+  ],
+  "divergesFromPhp": "a job shares nothing with the request that enqueued it — no statics, no session, no superglobals — because it is a fresh isolate rather than the same process continuing",
+  "seeAlso": [
+    "concurrency/a-job-names-a-file",
+    "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue"
+  ],
+  "guardedBy": []
+}

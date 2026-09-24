@@ -1,0 +1,22 @@
+{
+  "title": "`resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot",
+  "status": "shipped",
+  "because": [
+    "0182"
+  ],
+  "divergesFromPhp": "curl hands the proxy the destination's host name in every case, having no approved address to hand it; here that is one of two written answers, the other tunnels to the address the check approved, and the one that gives up the pin is announced at every boot",
+  "seeAlso": [
+    "http-server/an-outbound-proxy-is-operator-configured",
+    "http-server/allow-url-pins-the-address",
+    "http-server/an-outbound-call-tries-every-approved-address",
+    "security/net-address-policy",
+    "config/scope-has-no-default",
+    "config/check-and-dump-audit-the-tree-offline"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-stdlib/src/http.rs",
+    "tests/conformance/config/resolve-at-the-proxy-is-dumped-beside-the-rule-it-narrows.nvst"
+  ]
+}

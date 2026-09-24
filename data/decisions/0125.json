@@ -1,0 +1,14 @@
+{
+  "title": "A class reference is a type, and `as` is its only source",
+  "status": "accepted",
+  "scope": "the `class<T>` type — its grammar, its one source, its widening, the three sites that accept\nit, the constructor rule a dynamic `new` is checked against, and what a qualifier does across the\nconversion. It does **not** reopen `rule:types/conversion`'s rejected list, which\nkeeps `eval`, `$$var` and `settype()` refused; it does not touch `E0235`, the dynamic *member* name,\nwhose reasoning lives on `E_DYNAMIC_MEMBER_NAME` in\n[`crates/nvs-diagnostics/src/lib.rs`](../../crates/nvs-diagnostics/src/lib.rs); and it says nothing\nabout which *members* a class has, which is `rule:classes/no-dynamic-properties`'s exhaustive\ndeclared list.",
+  "dependsOn": [
+    "0007"
+  ],
+  "validatedBy": "[crates/nvs-syntax/src/parser/tests/ty.rs](../../crates/nvs-syntax/src/parser/tests/ty.rs)",
+  "summary": {
+    "group": "types",
+    "headline": "A class reference is a typed value, and `as` is the only way to get one",
+    "body": "`class<Animal>` is a type whose value is a real class: `Animal` or something that extends it.\nThe only way to make one is a checked conversion — `$name as class<Animal>` throws unless the\ntext names such a class, and `Dog::class as class<Animal>` is settled while building.\n`Foo::class` alone is still just a string. The three places that refuse a bare string, `new\n$cls(...)`, `$cls::f()` and `instanceof $cls`, accept this value and nothing else, so no code is\never reached from an unchecked string. A `new` through `class<Animal>` is checked against\n`Animal`'s constructor."
+  }
+}

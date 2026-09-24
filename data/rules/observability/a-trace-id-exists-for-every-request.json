@@ -1,0 +1,19 @@
+{
+  "title": "A trace id exists for every request whatever the sampling decision, and it is the only request identifier",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0097"
+  ],
+  "divergesFromPhp": "there is no `X-Request-ID` read or minted; the W3C trace id is the request identifier a log line, an error rendering and a proxy all share",
+  "seeAlso": [
+    "observability/an-inbound-traceparent-is-continued",
+    "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
+    "observability/sampling-is-head-based",
+    "security/metric-label-refuses-tainted"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/trace_context.rs",
+    "crates/nvs-server/src/trace.rs"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "title": "A span is rejected when it ends with a directional scope still open, decided by two counters",
+  "status": "shipped",
+  "because": [
+    "0087",
+    "0029"
+  ],
+  "divergesFromPhp": "a Trojan Source payload does not survive the lexer, and there is no attribute that switches the check off",
+  "seeAlso": [
+    "security/bidi-boundaries",
+    "security/bidi-scope-is-the-whole-target",
+    "errors/record-transformations"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-a-string-literal.nvst",
+    "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-a-comment.nvst",
+    "tests/conformance/lang/a-balanced-bidi-string-compiles-and-round-trips.nvst"
+  ]
+}

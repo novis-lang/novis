@@ -1,0 +1,16 @@
+{
+  "title": "A member name is a full word; only a class name may abbreviate, and only from a closed list",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0011"
+  ],
+  "divergesFromPhp": "`strlen` is `Core\\Str::length`, not `Core\\Str::len`",
+  "seeAlso": [
+    "core-api/identifier-casing",
+    "core-api/a-domain-class-is-a-singular-noun"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

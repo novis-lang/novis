@@ -1,0 +1,20 @@
+{
+  "title": "Three combining members treat every key alike, and `array + array` does not compile",
+  "status": "shipped",
+  "because": [
+    "0069",
+    "0007",
+    "0063"
+  ],
+  "divergesFromPhp": "there is no `merge` under any spelling and no array `+` operator; `array_merge`'s rule chosen by a key's type does not survive a language where every key is a `string`",
+  "seeAlso": [
+    "types/arrays",
+    "types/preserve-keys"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-combination-members-treat-every-key-alike.nvst",
+    "tests/conformance/core/arr-combination-members-share-one-key-order-rule.nvst",
+    "tests/conformance/core/arr-diff-and-intersect-are-twelve-php-functions.nvst",
+    "tests/conformance/core/arr-flip-collapses-duplicates-last-wins.nvst"
+  ]
+}

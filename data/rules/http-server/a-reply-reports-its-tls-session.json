@@ -1,0 +1,22 @@
+{
+  "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
+  "status": "shipped",
+  "because": [
+    "0180",
+    "0217"
+  ],
+  "divergesFromPhp": "`curl_getinfo` answers a flat array of thirty-odd keys mixing timings, sizes and TLS facts; here the session is an object read through members and the timings are the trace's",
+  "seeAlso": [
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "http-server/the-client-trust-roots-are-the-operators",
+    "security/tainted-qualifier",
+    "core-api/a-lifetime-is-an-object"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http.rs",
+    "tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst",
+    "tests/conformance/core/http-response-tls-reports-the-session-a-test-described.nvst",
+    "tests/conformance/reject/http-tls-info-is-read-only-behind-the-null-check.nvst",
+    "tests/conformance/reject/http-tls-info-names-are-tainted-and-what-the-handshake-settled-is-not.nvst"
+  ]
+}

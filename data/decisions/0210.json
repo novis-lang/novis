@@ -1,0 +1,10 @@
+{
+  "title": "A property inside an `interface` body is refused where it is written",
+  "status": "accepted",
+  "scope": "what a property declaration inside an `interface` body does. Interface methods,\nconstants and delegation are unchanged and are other records' ([0043](0043.md)).",
+  "dependsOn": [
+    "0043",
+    "0126"
+  ],
+  "validatedBy": "`tests/conformance/reject/an-interface-declares-no-property.nvst` and\n`crates/nvs-syntax/src/parser/tests/decl.rs`'s\n`an_interface_property_is_refused_and_the_rest_of_the_body_parses`."
+}

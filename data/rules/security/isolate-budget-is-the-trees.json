@@ -1,0 +1,19 @@
+{
+  "title": "A request and everything it spawns share one budget, accounted at the tree's root",
+  "status": "shipped",
+  "because": [
+    "0006",
+    "0116",
+    "0005",
+    "0004"
+  ],
+  "divergesFromPhp": "a spawned unit of work receives no budget of its own; it spends the one the inbound request already holds",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "security/arena-is-an-ownership-root",
+    "errors/on-limit"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/tests/configured_limits.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\\Test` is typed",
+  "status": "accepted",
+  "scope": "the testing capability Novis programs use — how a test is declared, discovered, isolated,\nparameterized, doubled, timed and reported, and what `nvs test` does with a program's own tests. It does\n**not** decide: the `.nvst` conformance format or how Novis's own suite is written\n([crates/nvs-test](../../crates/nvs-test/src/lib.rs)'s module doc, unchanged and § 23 below); how\ncoverage is collected or exported ([0018](0018.md));\nhow Novis's *own implementation* is measured over time\n([0026](0026.md)); the VS Code Test Explorer\n([0040](0040.md)).",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Testing is built into the language, and every test runs in its own sandbox",
+    "body": "A test is an ordinary method carrying `#[Test]`, collected while compiling, so a duplicate test\nstops the build. Each test runs in its own sandbox, so nothing leaks between tests and they run\nin parallel by default. Assertions are typed: `assertEquals($count, \"3\")` does not compile. A\ndouble is a set of closures checked against an interface, with no generated class and no mocking\nlanguage. Benchmarks count the language's own work, so numbers match on every machine, and `nvs\ntest --mutate` asks whether any test would notice the code being wrong."
+  }
+}

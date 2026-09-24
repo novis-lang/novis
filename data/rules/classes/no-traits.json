@@ -1,0 +1,19 @@
+{
+  "title": "There is no `trait`: shared behaviour is an interface method with a body, shared state is `by` delegation",
+  "status": "shipped",
+  "because": [
+    "0043",
+    "0015"
+  ],
+  "divergesFromPhp": "`trait`, a class-body `use Trait;` and `insteadof` are not in the grammar at all",
+  "seeAlso": [
+    "classes/interface-default-methods",
+    "classes/interface-private-methods",
+    "classes/delegation-by-field",
+    "classes/member-conflict-is-an-error",
+    "types/no-legacy-cast"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-trait-does-not-exist.nvst"
+  ]
+}

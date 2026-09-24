@@ -1,0 +1,15 @@
+{
+  "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
+  "status": "designed",
+  "because": [
+    "0044",
+    "0033",
+    "0005"
+  ],
+  "divergesFromPhp": "a supplied environment replaces the parent's rather than merging with it",
+  "seeAlso": [
+    "core-classes/process-run",
+    "core-classes/secret-reveal"
+  ],
+  "guardedBy": []
+}

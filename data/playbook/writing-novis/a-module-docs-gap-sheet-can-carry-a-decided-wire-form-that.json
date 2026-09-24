@@ -1,0 +1,9 @@
+{
+  "lead": "A module doc's gap sheet can carry a `Decided:` wire form that the landed encoder contradicts, and two green conformance cases can be pinning the landed one.",
+  "body": "`nvs_stdlib::json`'s gap 1 decided a `decimal` crosses as the JSON string `\"12.50\"` while `Encodable` wrote it as a bare number, so closing the decode half without the encode half would have shipped a codec pair that is not a round trip. Read the gap's own first paragraph before assuming the code wins: where it says the question *was open* when the code was written, the sheet's answer is the later decision and the cases pinning the older spelling are part of the slice.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-15"
+  }
+}

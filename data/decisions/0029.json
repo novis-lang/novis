@@ -1,0 +1,11 @@
+{
+  "title": "Identifier casing is a hard compiler error: `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants",
+  "status": "accepted",
+  "scope": "the casing every user-written identifier must use — class/interface/enum names, enum cases,\nnamespace segments, method names, property names (any visibility, static or instance), parameter names,\nlocal variable names, and class constant names. Does **not** cover whitespace, indentation or brace\nplacement — that is `rule:tooling/fmt-is-one-canonical-style`'s. Built-in type keywords (`int`,\n`uint`, `bytes`, …) and language keywords (`isset`, `require`, …) are reserved words the grammar already\nlowercases; this ADR does not add a rule for them.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Identifier casing is a build error, with no way to suppress it",
+    "body": "Types — classes, interfaces, enums and their cases, namespace segments — are `PascalCase`.\nMethods, properties, parameters and locals are `camelCase`. Class constants are\n`SCREAMING_SNAKE_CASE`. A mismatch stops the build; not a lint, with no switch to turn it off.\nOnly the first character is judged, so `HTTPClient` and `HttpClient` are both fine and no\nacronym dictionary is needed. No name in any category begins with `_`. The cost is real:\n`snake_case` PHP does not compile until renamed, and one spelling per category was fixed early,\nsince renaming later breaks every caller."
+  }
+}

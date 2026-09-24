@@ -1,0 +1,15 @@
+{
+  "title": "`nvs api diff` classifies every change as breaking, additive or cosmetic, and exits non-zero on a breaking one",
+  "status": "shipped",
+  "because": [
+    "0085"
+  ],
+  "divergesFromPhp": "a broken client contract is a failed build rather than a reviewer's judgement, and there is no suppression to wave one through",
+  "seeAlso": [
+    "routing/api-document-is-a-deterministic-build-artifact",
+    "routing/api-document-is-generated-from-the-route-table"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/openapi.rs"
+  ]
+}

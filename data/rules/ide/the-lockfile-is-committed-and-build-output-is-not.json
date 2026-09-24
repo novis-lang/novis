@@ -1,0 +1,15 @@
+{
+  "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
+  "status": "shipped",
+  "because": [
+    "0099"
+  ],
+  "seeAlso": [
+    "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+    "ide/the-extension-runs-where-the-binary-is"
+  ],
+  "guardedBy": [
+    "editors/vscode/package-lock.json",
+    ".github/workflows/ci.yml"
+  ]
+}

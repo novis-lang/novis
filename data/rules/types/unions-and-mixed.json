@@ -1,0 +1,25 @@
+{
+  "title": "A union permits only what every member permits, and `mixed` is the one position checked nowhere",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0012",
+    "0066",
+    "0047",
+    "0150"
+  ],
+  "divergesFromPhp": "there is no `is_int()`-style free function to narrow with — the question is the `is` operator (`rule:types/type-test`) — and `mixed` never absorbs implicitly: `int $n = $m;` is a diagnostic rather than a runtime check",
+  "seeAlso": [
+    "types/narrowing",
+    "types/conversion",
+    "types/grammar",
+    "types/mixed-subscript",
+    "types/type-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst",
+    "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst",
+    "tests/conformance/lang/a-union-operand-renders-by-its-runtime-tag.nvst",
+    "crates/nvs-types/tests/narrowing.rs"
+  ]
+}

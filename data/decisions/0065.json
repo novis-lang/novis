@@ -1,0 +1,11 @@
+{
+  "title": "Attribution is generated, committed and embedded; `nvs info` is the one call",
+  "status": "accepted",
+  "scope": "which third-party licenses Novis may ship under, how the notice satisfying them is produced\nand kept current, where it is distributed, and the `nvs info` command that prints it alongside the\nbuild and host facts. Not in scope: Novis's own license, which is MIT and stated in\n[LICENSE](../../LICENSE); and not what a `.nvsx` extension's own dependencies oblige *its* author to,\nwhich `rule:packaging/an-extension-is-a-sandboxed-wasm-component` leaves to the extension.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Third-party licence notices are generated, committed and built into the binary",
+    "body": "Novis is MIT-licensed and links around eighty permissive components, every one of which asks\nthat its notice travel with the binary. The notice file is generated from the resolved\ndependency graph, never written by hand, committed to the repository, and compiled into the nvs\nexecutable, so a copy handed to someone without the source still carries it. Continuous\nintegration regenerates the file and fails the build if it differs, so a dependency added\nwithout its notice never ships. nvs info prints the build and component summary; nvs info\n--licenses prints every licence text in full."
+  }
+}

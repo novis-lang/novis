@@ -1,0 +1,16 @@
+{
+  "title": "`package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name",
+  "status": "designed",
+  "because": [
+    "0081",
+    "0042"
+  ],
+  "divergesFromPhp": "composer.lock pins a version and a `dist` URL; here the lock pins bytes, and a vendored tree is re-checked against it on every build rather than trusted once",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "packaging/the-registry-keeps-an-append-only-log",
+    "packaging/resolution-takes-the-highest-minimum",
+    "packaging/an-artifact-is-one-immutable-content-addressed-file"
+  ],
+  "guardedBy": []
+}

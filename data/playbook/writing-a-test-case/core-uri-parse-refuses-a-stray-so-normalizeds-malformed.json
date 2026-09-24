@@ -1,0 +1,9 @@
+{
+  "lead": "`Core\\Uri::parse` refuses a stray `%`, so `normalized`'s malformed-escape branch is owed no case.",
+  "body": "The module doc's \"two references that both wrote the same stray `%` are still the same reference\" reads as behaviour a `compareTo` case can pin, but `parse` throws on `http://h/50%`, so no program can build such a `Uri` and the branch is defensive against one built some other way. Check what `parse` admits before writing a row about what a normalizer keeps.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

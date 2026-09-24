@@ -1,0 +1,15 @@
+{
+  "title": "A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites",
+  "status": "designed",
+  "because": [
+    "0076"
+  ],
+  "divergesFromPhp": "recording one name as a counter here and a gauge there is a throw at the second call, not a series the backend quietly reports twice",
+  "seeAlso": [
+    "observability/metrics-three-members",
+    "observability/past-max-series-a-new-series-is-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

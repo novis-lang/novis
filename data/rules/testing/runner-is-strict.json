@@ -1,0 +1,20 @@
+{
+  "title": "A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0020"
+  ],
+  "divergesFromPhp": "a test with no assertion is a failure rather than a risky-marked pass, and a case that only passed on a retry never counts as green",
+  "seeAlso": [
+    "testing/failure-ledger",
+    "testing/report-formats",
+    "testing/task-tree-and-virtual-clock",
+    "testing/db-transaction"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst",
+    "tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst",
+    "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst"
+  ]
+}

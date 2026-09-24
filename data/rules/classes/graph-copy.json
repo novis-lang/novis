@@ -1,0 +1,22 @@
+{
+  "title": "The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side",
+  "status": "shipped",
+  "because": [
+    "0023",
+    "0006",
+    "0024"
+  ],
+  "seeAlso": [
+    "classes/two-copy-depths",
+    "classes/serialize-is-a-closed-format",
+    "classes/clone-is-shallow",
+    "types/callable-is-a-closure",
+    "statements/inout-is-the-by-reference-spelling"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst",
+    "tests/conformance/core/serialize-round-trips-every-shape-the-walk-reaches.nvst",
+    "tests/conformance/core/serialize-refuses-a-closure-and-foreign-bytes-by-name.nvst",
+    "crates/nvs-runtime/src/graph.rs"
+  ]
+}

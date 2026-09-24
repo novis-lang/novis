@@ -1,0 +1,18 @@
+{
+  "title": "The boot path and `Core\\Config::set` parse a value through one implementation",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0057"
+  ],
+  "seeAlso": [
+    "config/ini-set-is-core-config-set",
+    "config/a-size-or-duration-is-a-quoted-string-with-its-suffix",
+    "expressions/preparation-preserves-behaviour"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/value.rs",
+    "crates/nvs-config/tests/request.rs",
+    "crates/nvs-runtime/tests/configured_limits.rs"
+  ]
+}

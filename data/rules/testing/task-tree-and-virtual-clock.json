@@ -1,0 +1,19 @@
+{
+  "title": "A task still running when a test returns fails that test",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0072"
+  ],
+  "seeAlso": [
+    "testing/determinism-declared-on-the-test",
+    "testing/runner-is-strict",
+    "testing/isolate-per-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/assert-completes-refuses-without-a-fixed-clock.nvst",
+    "tests/conformance/core/assert-completes-refuses-the-same-way-for-every-budget.nvst",
+    "tests/conformance/core/assert-completes-asks-for-the-clock-before-it-runs-the-body.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

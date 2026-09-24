@@ -1,0 +1,19 @@
+{
+  "title": "`Core\\IO::writeStream` is where every stream reaches disk, and a failed write removes its partial file",
+  "status": "shipped",
+  "because": [
+    "0105",
+    "0063",
+    "0024"
+  ],
+  "divergesFromPhp": "there is no `move_uploaded_file` and no temp file to move — a part is streamed to a path the program chose, and `overwrite` defaults to false",
+  "seeAlso": [
+    "core-classes/temporary-dir-sweep",
+    "core-classes/process-run"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/io-write-stream-lands-its-chunks-in-order-and-refuses-to-replace.nvst",
+    "tests/conformance/core/io-write-stream-asks-the-door-before-it-draws-a-chunk.nvst",
+    "tests/conformance/core/io-write-stream-holds-its-max-on-both-sides.nvst"
+  ]
+}

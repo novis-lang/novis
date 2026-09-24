@@ -1,0 +1,16 @@
+{
+  "title": "Concurrency is the `Core\\Task` roster over the runtime's own single scheduler",
+  "status": "shipped",
+  "because": [
+    "0072",
+    "0006"
+  ],
+  "divergesFromPhp": "a PHP request has no concurrency to express at all, and the nearest equivalents — `curl_multi_*`, `pcntl_fork`, an extension's own event loop — have no counterpart here",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "core-api/tier-roster"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/tests/manifest_policy.rs"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "A prompt never blocks: no terminal or no answer in five minutes takes the `default` or throws `Cli\\NotInteractive`",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0074",
+    "0079"
+  ],
+  "divergesFromPhp": "`readline()` in CI hangs until the pipeline kills it; here it throws, and no `timeout` option lengthens the wait",
+  "seeAlso": [
+    "tooling/a-prompt-is-a-core-member",
+    "programs/memory-priority",
+    "testing/test-attribute"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-prompts-are-not-interactive-without-a-terminal.nvst",
+    "tests/conformance/core/cli-a-prompt-with-no-default-throws-rather-than-waiting.nvst",
+    "tests/conformance/core/test-script-answers-drain-into-every-prompt.nvst"
+  ]
+}

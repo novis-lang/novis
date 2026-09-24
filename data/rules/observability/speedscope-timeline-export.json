@@ -1,0 +1,15 @@
+{
+  "title": "The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON",
+  "status": "designed",
+  "because": [
+    "0041",
+    "0040",
+    "0018"
+  ],
+  "divergesFromPhp": "there is no Xdebug cachegrind file to open in a bespoke viewer; the timeline is speedscope's open evented format, the same file the sampling profiler writes",
+  "seeAlso": [
+    "observability/trace-events-carry-a-kind",
+    "testing/debug-surface"
+  ],
+  "guardedBy": []
+}

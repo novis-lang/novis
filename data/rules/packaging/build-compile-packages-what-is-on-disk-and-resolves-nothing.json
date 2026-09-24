@@ -1,0 +1,14 @@
+{
+  "title": "`nvs build --compile` packages what is already resolved on disk and fetches no dependency",
+  "status": "shipped",
+  "because": [
+    "0048"
+  ],
+  "divergesFromPhp": "there is no `composer install` step inside the bundler: resolving dependencies and packaging them are two commands that compose, not one",
+  "seeAlso": [
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

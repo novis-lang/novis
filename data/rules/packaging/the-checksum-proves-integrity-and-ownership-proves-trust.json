@@ -1,0 +1,16 @@
+{
+  "title": "The checksum answers corruption; a cache directory another account can write is refused at startup",
+  "status": "shipped",
+  "because": [
+    "0042"
+  ],
+  "divergesFromPhp": "opcache.file_cache_dir is taken as written; a directory that is world-writable or not owned by the runtime's own account refuses the process rather than the entry",
+  "seeAlso": [
+    "config/ownership-is-the-trust-boundary",
+    "config/opcache-file-cache-directives-are-system",
+    "packaging/an-artifact-is-verified-whole-before-a-page-is-executable"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

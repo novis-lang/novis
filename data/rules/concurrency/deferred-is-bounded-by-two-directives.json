@@ -1,0 +1,18 @@
+{
+  "title": "`[deferred]` carries two bounds: a `System` `max_concurrent` and a `Runtime` `deadline`",
+  "status": "shipped",
+  "because": [
+    "0072",
+    "0005",
+    "0064"
+  ],
+  "seeAlso": [
+    "concurrency/after-response-outlives-the-connection",
+    "programs/memory-priority",
+    "testing/debug-mode-directive"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

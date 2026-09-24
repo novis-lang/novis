@@ -1,0 +1,21 @@
+{
+  "title": "`require` is the only file-inclusion construct, and it runs every time it is reached",
+  "status": "shipped",
+  "because": [
+    "0021",
+    "0049",
+    "0011",
+    "0017"
+  ],
+  "divergesFromPhp": "`include`, `include_once` and `require_once` are parse-time refusals — there is no warn-and-continue and no repeat guard",
+  "seeAlso": [
+    "statements/a-required-file-shares-declarations-not-locals",
+    "statements/a-require-expression-is-mixed",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/include-is-refused-in-favour-of-require.nvst",
+    "tests/conformance/reject/require-once-is-refused.nvst",
+    "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst"
+  ]
+}

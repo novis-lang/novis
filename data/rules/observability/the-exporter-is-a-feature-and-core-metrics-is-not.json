@@ -1,0 +1,20 @@
+{
+  "title": "The exporter is a feature-gated Native subsystem, and `Core\\Metrics` is Tier 0 in every build",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0051",
+    "0048"
+  ],
+  "seeAlso": [
+    "core-api/five-placements",
+    "core-api/core-means-always-present",
+    "core-api/tier-placement",
+    "observability/metrics-three-members",
+    "observability/the-exporters-are-crates"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/metrics.rs",
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

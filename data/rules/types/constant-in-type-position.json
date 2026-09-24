@@ -1,0 +1,16 @@
+{
+  "title": "A scalar class constant used as a type folds to its own literal type",
+  "status": "shipped",
+  "because": [
+    "0047",
+    "0046"
+  ],
+  "seeAlso": [
+    "types/literal-types",
+    "types/enum-case-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/literal_types.rs",
+    "crates/nvs-syntax/src/parser/tests/ty.rs"
+  ]
+}

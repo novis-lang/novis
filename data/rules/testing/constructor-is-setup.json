@@ -1,0 +1,17 @@
+{
+  "title": "The constructor is the test's setup, and there is no second before-hook",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0022"
+  ],
+  "divergesFromPhp": "there is no `setUp`, `setUpBeforeClass` or `tearDownAfterClass`; the constructor is the only one, and every property is assigned before any test body runs",
+  "seeAlso": [
+    "testing/after-hook",
+    "testing/fixtures",
+    "testing/isolate-per-test"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/dispatch.rs"
+  ]
+}

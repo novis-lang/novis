@@ -1,0 +1,17 @@
+{
+  "title": "a shape field's key may be optional, `tainted` qualifies a whole shape, and an absent optional field is the throw an absent array key already is",
+  "status": "accepted",
+  "scope": "the two things a shape type could not say — `{name?: T}`, and `tainted {…}` over a shape whose\ntext-carrying fields all arrived from outside — and what a read of an optional field answers. The\nconverter that hydrates a shape from `array<mixed>` and the two request members that wrap it are their\nown slices; this record is the type surface they are written against.",
+  "dependsOn": [
+    "0036",
+    "0024",
+    "0071"
+  ],
+  "dependsOnText": "[0036](0036.md) — the shape type and the erased-member access it shares its throw with;\n[0024](0024.md) § 1 — the qualifier's grammar and its \"structured input stays `array<mixed>`\" boundary;\n[0071](0071.md) — required, optional and nullable as three separate questions.",
+  "validatedBy": "`crates/nvs-types/tests/objects_and_shapes.rs`, `crates/nvs-types/tests/tainted.rs`.",
+  "summary": {
+    "group": "types",
+    "headline": "A shape field can be optional, and that is a different thing from nullable",
+    "body": "`{name?: string}` says the key may be absent; `{name: ?string}` says it is present and may hold\nnull. They accept different values and stay different types. Reading an optional field answers\nthe declared type, and if the key is absent the read throws, which is exactly what reading a\nmissing array key already does; `??` and `isset` are the ways to ask without throwing. A whole\nshape can be marked `tainted`, which marks every text-carrying field inside it, including nested\nones. `tainted mixed` is not a type, because nothing could be checked through it."
+  }
+}

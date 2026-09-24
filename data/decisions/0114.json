@@ -1,0 +1,14 @@
+{
+  "title": "An array literal's own type is synthesized for one code action, and no compile path asks for it",
+  "status": "accepted",
+  "scope": "the *narrow this annotation to the literal's type* code action — what it reads, what it\nwrites, when it declines to answer, where its one new function lives, and why it never runs on save.\nIt does **not** decide the object-shape rewrite a record-shaped literal really wants\n([0036](0036.md) owns shapes, and this action never changes a value's kind), it\nadds **no diagnostic and no hint** — nothing here makes the checker say anything it does not already\nsay — and it does not cover narrowing from writes made *after* the declaration, which *Revisiting*\nholds. M4B's frozen set is untouched: [0099](0099.md) draws\nthat boundary and this decision sits on the far side of it.",
+  "dependsOn": [
+    "0007"
+  ],
+  "dependsOnText": "[0007](0007.md) — § 5 is the container this decides how to spell.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The editor can narrow `array<mixed>` to the type a literal actually holds",
+    "body": "Writing `array<array<array<float>>>` by hand is tedious, so a nested literal often gets\nannotated `array<mixed>` and loses type checking for good. The editor offers a fix: on an array\nliteral right there in the source, it works out the narrowest type covering every element and\nproposes the spelling you could have typed. It answers only from the literal itself, declines\nwhen the value comes from input or would still be `mixed`, and always presents a diff to\napprove, never a silent change on save. The compiler never uses this; the language is unchanged."
+  }
+}

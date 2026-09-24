@@ -1,0 +1,17 @@
+{
+  "title": "A version number describes the enumerated surface, and the Rust crate APIs, the artifact cache, diagnostic prose and MSRV carry no promise",
+  "status": "designed",
+  "because": [
+    "0068",
+    "0042",
+    "0048"
+  ],
+  "seeAlso": [
+    "packaging/who-can-see-it-decides-the-release-slot",
+    "packaging/the-version-contract-starts-at-0-1-0",
+    "programs/bundle-trust-domain",
+    "packaging/an-artifact-is-one-immutable-content-addressed-file",
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+  ],
+  "guardedBy": []
+}

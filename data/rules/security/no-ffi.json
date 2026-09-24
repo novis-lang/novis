@@ -1,0 +1,17 @@
+{
+  "title": "No userland mechanism loads native code into the process",
+  "status": "shipped",
+  "because": [
+    "0052",
+    "0003",
+    "0051"
+  ],
+  "divergesFromPhp": "there is no `FFI`, no `dl()` and no `com_dotnet`; wrapping a native library is a wasm component instead",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/extension-manifest-only-tightens"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

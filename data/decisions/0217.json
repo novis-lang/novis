@@ -1,0 +1,10 @@
+{
+  "title": "a test describes a TLS session with `Core\\Test::tlsSession`, and an answer the table serves may report it",
+  "status": "accepted",
+  "scope": "how a Novis program holds a non-null `Core\\Http\\TlsInfo` without a network: a new\nmember `Core\\Test::tlsSession`, and a `tls` option on `Core\\Test::answerHttp`. It does not change\nwhat a real handshake reports, what `verified()` means, or the answer table's all-or-nothing switch.",
+  "dependsOn": [
+    "0180"
+  ],
+  "dependsOnText": "[0180](0180.md) for `Core\\Http\\TlsInfo` and the answer table.",
+  "validatedBy": "`tests/conformance/core/http-response-tls-reports-the-session-a-test-described.nvst`,\nand `crates/nvs-host/src/tls.rs`'s `a_described_session_reads_back_what_was_written`,\n`every_default_suite_is_one_this_build_negotiates` and\n`a_description_the_session_cannot_hold_is_refused`."
+}

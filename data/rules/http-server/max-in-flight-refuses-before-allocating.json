@@ -1,0 +1,18 @@
+{
+  "title": "`max_in_flight` is a process-wide valve that answers a fixed `503` with `Retry-After` before an isolate exists",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0106",
+    "0219"
+  ],
+  "divergesFromPhp": "php-fpm's `pm.max_children` queues on the socket and the proxy reports a 504; here the origin answers `503` with `Retry-After: 1` itself, and no custom error page runs",
+  "seeAlso": [
+    "http-server/the-server-block-is-boot-class",
+    "errors/on-limit",
+    "http-server/admission-is-arithmetic-not-a-number"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/admit.rs"
+  ]
+}

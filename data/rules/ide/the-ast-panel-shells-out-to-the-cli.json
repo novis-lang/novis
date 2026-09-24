@@ -1,0 +1,15 @@
+{
+  "title": "The AST panel renders `nvs ast --json` for the active file, on the resilient tree by default, and never runs `Core\\Ast`",
+  "status": "designed",
+  "because": [
+    "0040",
+    "0099"
+  ],
+  "seeAlso": [
+    "core-classes/ast-is-inert",
+    "ide/one-grammar-one-tree",
+    "ide/the-tree-survives-a-syntax-error",
+    "ide/ast-json-schema-is-frozen"
+  ],
+  "guardedBy": []
+}

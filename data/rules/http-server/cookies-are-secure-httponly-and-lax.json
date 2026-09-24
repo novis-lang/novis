@@ -1,0 +1,18 @@
+{
+  "title": "Every cookie `Core\\Response::addCookie` writes is `Secure; HttpOnly; SameSite=Lax; Path=/` unless the call site says otherwise",
+  "status": "shipped",
+  "because": [
+    "0074"
+  ],
+  "divergesFromPhp": "`setcookie` defaults to no `Secure`, no `HttpOnly` and no `SameSite`; here every cookie starts with all three, `SameSite` is an enum rather than a string, and a script-readable cookie is one written field at the call",
+  "seeAlso": [
+    "http-server/a-wildcard-origin-with-credentials-is-refused",
+    "errors/cookie-name-bytes",
+    "enums/closed-integer-type",
+    "core-api/shape-rules"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-response-add-cookie-takes-every-unwritten-option-from-the-configured-block.nvst",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

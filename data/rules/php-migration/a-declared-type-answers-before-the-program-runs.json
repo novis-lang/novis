@@ -1,0 +1,19 @@
+{
+  "title": "`->` on a receiver that can hold no object is refused where it is written",
+  "status": "shipped",
+  "because": [
+    "0007",
+    "0150",
+    "0192"
+  ],
+  "divergesFromPhp": "`$i->name` on an `int` is a compile error (`E0495`) rather than a warning yielding `null`; only `mixed` keeps PHP's run-time answer, through a name-keyed fetch that throws",
+  "seeAlso": [
+    "types/erased-member-access",
+    "types/unions-and-mixed",
+    "types/type-test",
+    "expressions/disjoint-comparison-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst"
+  ]
+}

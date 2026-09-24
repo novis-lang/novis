@@ -1,0 +1,11 @@
+{
+  "title": "One diagnostic record, three renderings, and the sink in force picks",
+  "status": "accepted",
+  "scope": "the one closed record model every developer-facing output is built from; the three renderings\nof it — plaintext, JSON, HTML — and which sink selects which; `Core\\Log`'s level enum and write path;\n`Core\\Debug::dump` and where it lands in each context; and the four transformations (redaction, control\nbytes, bidi, elision) that the model decides once for all three renderings. Not in scope: the *content*\nof what a call site records, which stays the call site's; the compile-time log field schema, which is its\nown decision and § 8 states what this ADR does to keep it possible; scoped context fields (`Log::with`),\nsame; the escalation ladder's tiers, which stay [0020](0020.md) §§ 1–5; what the\nHTML and terminal sinks *do* once reached, which stay\n[0024](0024.md) § 5 and\n[0086](0086.md) § 1; and the per-mode defaults of `[log] format`/`level` and\n`[debug] inline`, which are [0091](0091.md) § 3's.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Logs, dumps and exceptions share one record, drawn to fit the output in force",
+    "body": "Where PHP has `var_dump`, `print_r`, `var_export` and `json_encode`, Novis has one record model\nand three renderings — plain text, JSON and HTML — and the output in force picks the rendering,\nnever the call. Logs, dumps, exceptions, test results and compiler diagnostics all produce the\nsame record, so redacting secrets, neutralizing control bytes and trimming depth are each\ndecided once. A web request's dump goes to the log, and appears in the page only under\ndevelopment mode, so a forgotten dump cannot reach a production response."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Two objects order only when their class implements `Comparable`, and there is no property-walk fallback",
+  "status": "shipped",
+  "because": [
+    "0013",
+    "0011"
+  ],
+  "divergesFromPhp": "PHP's recursive property-by-property comparison of two same-class objects does not exist; ordering an unorderable pair is a compile error rather than an ambient walk",
+  "seeAlso": [
+    "classes/ordering-lowers-to-compare-to",
+    "classes/comparable-is-same-class-only",
+    "expressions/one-equality-operator",
+    "expressions/object-identity-equality",
+    "types/ordering"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/comparable-orders-two-objects.nvst",
+    "tests/conformance/class/ordering-two-objects-without-comparable-is-refused.nvst",
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

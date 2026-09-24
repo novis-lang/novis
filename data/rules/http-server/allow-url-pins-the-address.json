@@ -1,0 +1,23 @@
+{
+  "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and every approved address, and the connection is made to one of them",
+  "status": "shipped",
+  "because": [
+    "0058",
+    "0074",
+    "0180",
+    "0183"
+  ],
+  "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
+  "seeAlso": [
+    "security/outbound-url-is-a-sink",
+    "security/net-address-policy",
+    "security/the-policy-lives-in-the-capability",
+    "security/launderers-are-sink-named",
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst",
+    "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",
+    "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst"
+  ]
+}

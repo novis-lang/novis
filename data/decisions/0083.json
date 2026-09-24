@@ -1,0 +1,11 @@
+{
+  "title": "A persistent connection is an isolate, and it is opened the way a script is spawned",
+  "status": "accepted",
+  "scope": "WebSocket and Server-Sent Events — what a connection *is* in the execution model, how one is\nopened, how code inside it is written, how many connections talk to each other (`Core\\Topic`), what\nbounds them, and what crosses the boundary. Not in scope: the wire protocols themselves (RFC 6455 framing\nand the SSE format are implementation, carried by the same `hyper` stack M7 already builds), and\ncross-*machine* fan-out, which § 4 places outside the runtime deliberately. The upgrade is **HTTP/1.1\nonly**, where it is native — [0097](0097.md) § 1 removes h2c, so\nRFC 8441 extended `CONNECT` is neither reachable nor needed.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A WebSocket connection is its own sandbox, written as an ordinary loop",
+    "body": "A connection that outlives its request runs as its own sandbox with its own memory, CPU and time\nbudget, sharing only compiled code. You open one the way you run another script — by naming a\nfile or a static method, never a closure. Inside, the code is a plain loop, `while (var $msg =\n$conn->receive()) { ... }`, with no callbacks, because any function may wait. Connections meet\nonly through `Core\\Topic`, a publish/subscribe bus reaching every core; a subscriber that falls\nbehind is closed so it cannot stall the publisher."
+  }
+}

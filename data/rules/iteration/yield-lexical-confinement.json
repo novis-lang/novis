@@ -1,0 +1,16 @@
+{
+  "title": "`yield` appears only in the generator's own body",
+  "status": "shipped",
+  "because": [
+    "0053"
+  ],
+  "divergesFromPhp": "a helper called from a generator cannot yield into it; delegation is written as a `foreach` that re-yields",
+  "seeAlso": [
+    "iteration/generators",
+    "iteration/one-way-only"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/generators.rs",
+    "crates/nvs-types/tests/closures.rs"
+  ]
+}

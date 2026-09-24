@@ -1,0 +1,18 @@
+{
+  "title": "The pixel cap is read off the header before a buffer is allocated, and a call may only lower it",
+  "status": "designed",
+  "because": [
+    "0120",
+    "0005",
+    "0055",
+    "0020",
+    "0095"
+  ],
+  "divergesFromPhp": "a decompression bomb is refused from its declared dimensions rather than discovered by exhausting memory",
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/pdf-page-is-an-image-source",
+    "core-classes/spreadsheet-bulk-boundary"
+  ],
+  "guardedBy": []
+}

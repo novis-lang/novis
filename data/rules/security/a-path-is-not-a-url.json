@@ -1,0 +1,17 @@
+{
+  "title": "A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one",
+  "status": "shipped",
+  "because": [
+    "0052",
+    "0023"
+  ],
+  "divergesFromPhp": "`phar://`, `php://filter`, `data://` and `http://` are file names that do not exist, not protocols",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/sink-predicate",
+    "security/path-scope-canonicalise-then-prefix"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

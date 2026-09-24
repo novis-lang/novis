@@ -1,0 +1,17 @@
+{
+  "title": "Every name is compared exactly, so `Foo` and `foo` are two names and never one",
+  "status": "shipped",
+  "because": [
+    "0062",
+    "0029"
+  ],
+  "divergesFromPhp": "class, interface and method names no longer fold case, so a mis-cased reference is a diagnostic instead of a silent match",
+  "seeAlso": [
+    "classes/reserved-spellings-are-lower-case",
+    "programs/path-case",
+    "programs/autoload"
+  ],
+  "guardedBy": [
+    "crates/nvs-hir/src/qname.rs"
+  ]
+}

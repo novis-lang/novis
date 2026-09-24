@@ -1,0 +1,11 @@
+{
+  "title": "One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter",
+  "status": "accepted",
+  "scope": "the **M10** half of the VS Code catalog only — six additions that a review of an existing,\nmature PHP extension found missing from it, plus the boundary rule that decides which of that product's\nfeatures Novis builds and which it structurally does not need. Covers: (1) the reference index and the five\nfeatures that are projections of it; (2) what editor completion may draw on, which is the whole\n\"framework awareness\" question; (3) HTML/CSS/JavaScript services inside an inline-HTML region, and why\nthey stop short of formatting; (4) code actions that *generate* rather than fix; (5) the DAP capability\nlist the debugger UI is only as deep as; (6) `nvs check --json`, and the identifiers all of the above\nadd. It does **not** touch M4B's frozen request set or contributions\n([0099](0099.md) §§ 1–6), `nvs fmt`'s style\n([0039](0039.md)), the PhpStorm plugin ([0016](0016.md) § 3),\nor anything in the runtime.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "The editor completes only what the compiler already knows",
+    "body": "Find references, highlight occurrences, code lenses above a declaration, the type hierarchy and\nthe dimming of unused private members are all queries against one reference index the language\nserver builds. Completion of values the program itself defines — a route name, a configuration\ndirective — is offered only where the compiler already derives that value for its own reasons,\nnever from scanning a directory layout or a naming convention; that keeps framework guesswork\nout of the server. The HTML half of a file gets the editor's own HTML and CSS services but no\nsecond formatter."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Extension manifests carry `tainted` and `secret` qualifiers; an extension can only tighten",
+  "status": "accepted",
+  "scope": "how `rule:security/tainted-qualifier`'s and\n`rule:security/secret-qualifier`'s compile-time qualifiers behave at a Tier 1\nextension call site, and what the `nvs.manifest`/WIT world must be able to express. Not in scope: the\nrest of the WIT world's shape, which M8 authors.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "An extension can declare its inputs and outputs more restricted, never safer",
+    "body": "Untrusted input keeps its marking through every extension call without the extension declaring\nanything: a result computed from a tainted argument is tainted. A manifest may declare only two\ndepartures, and both tighten: a parameter can refuse tainted values, and a return can be\ndeclared always tainted. No manifest can declare that an extension cleans a value; only a `Core`\nfunction whose contract names one specific destination may do that. Secrets do not cross an\nextension boundary at all. A hostile manifest can make an extension harder to call but never\nopens a hole."
+  }
+}

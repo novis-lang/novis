@@ -1,0 +1,19 @@
+{
+  "title": "Six syntax positions test truthiness; every other `bool` position stays checked",
+  "status": "shipped",
+  "because": [
+    "0035",
+    "0007"
+  ],
+  "divergesFromPhp": "the implicit conversion to `bool` is confined to six positions, where PHP applies it wherever a `bool` is wanted",
+  "seeAlso": [
+    "expressions/truthy-table",
+    "expressions/nullable-condition-lint",
+    "expressions/no-keyword-logical-operators",
+    "iteration/for-init-clause"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-condition-uses-phps-truthy-table.nvst",
+    "tests/conformance/lang/logical-connectives-short-circuit.nvst"
+  ]
+}

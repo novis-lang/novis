@@ -1,0 +1,11 @@
+{
+  "title": "A name that resolves to something other than what it spells is refused, never repaired",
+  "status": "accepted",
+  "scope": "decides how Novis reads text whose *spelling* and whose *meaning* can come apart — an HTTP\nmessage's framing and headers, inbound and outbound alike; a cookie name and its `__Host-`/`__Secure-`\nprefix; a multipart body's part accounting; and a path component handed to `Core\\IO::within`. Does **not**\ndecide which security headers a response carries or what an outbound call's deadline is\n([0074](0074.md)); does **not** decide request-size caps, per-IP limits or\nslow-loris timeouts, which stay a proxy's ([0074](0074.md) *Alternatives*,\nas corrected below); does **not** touch `Core\\Path`, which stays pure string algebra with no policy\n([docs/spec/01-core-library.md](../spec/01-core-library.md) § 8); does **not** cover directional controls,\nwhich [0087](0087.md) already refuses at every boundary.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "Input whose spelling and meaning could come apart is refused, not cleaned up",
+    "body": "Where a name could be read two ways — an ambiguously framed HTTP message, a cookie name that\nonly matches after case folding, a path component Windows would treat as a device — Novis\nrefuses the input rather than normalising or truncating it into one interpretation. The list of\nwhat counts as ambiguous is closed and written down, so \"strict\" cannot grow every time someone\nrereads a specification; anything not on it is merely unusual and accepted as written. HTTP is\nchecked in both directions, since a remote server is an attacker too."
+  }
+}

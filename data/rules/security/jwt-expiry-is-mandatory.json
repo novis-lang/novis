@@ -1,0 +1,17 @@
+{
+  "title": "A JWT without an expiry, or past one, fails verification, and no flag disables the check",
+  "status": "shipped",
+  "because": [
+    "0060",
+    "0146"
+  ],
+  "seeAlso": [
+    "security/algorithm-comes-from-the-key",
+    "security/protocol-roster",
+    "security/verification-throws-and-compares-in-constant-time"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/jwt-signs-with-an-expiry-the-caller-cannot-set-and-verify-answers-every-claim.nvst",
+    "tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst"
+  ]
+}

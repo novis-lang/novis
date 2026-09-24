@@ -1,0 +1,11 @@
+{
+  "title": "Scheduled work is `nvs.toml` firing a `spawn script`, with a mandatory `scope`",
+  "status": "accepted",
+  "scope": "the `[[schedule]]` array-of-tables in `nvs.toml`, its keys and their changeability class, the\ncron dialect accepted, what a scheduled run's budget and capabilities are, overlap handling, and the\nfleet-versus-host distinction. Not in scope: the shared store's own configuration, and `Core\\Cache`'s\nmember roster, both of which are `rule:concurrency/cross-request-state-is-explicit`'s and M8's.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Scheduled jobs are declared in nvs.toml and run as ordinary scripts",
+    "body": "A schedule entry in the server's configuration names a five-field cron expression and a script,\nwhich runs in a fresh sandbox when the time comes. There is no scheduling API and nothing a\nprogram can register at run time. One key is mandatory with no default: scope, either \"fleet\",\nonce across the deployment with the shared store as the lock, or \"host\", once on every machine.\nFleet scope without a shared store refuses to boot. A missed fire is not caught up, and fleet\nscope means at most once, not exactly once."
+  }
+}

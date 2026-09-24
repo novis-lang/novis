@@ -1,0 +1,25 @@
+{
+  "title": "A double is a shape of closures, structurally checked against an interface",
+  "status": "shipped",
+  "because": [
+    "0079",
+    "0036",
+    "0031",
+    "0052",
+    "0043"
+  ],
+  "divergesFromPhp": "no class is generated and no source is evaluated; a double is a value the checker compares against the interface, and a loose or nice double is not expressible",
+  "seeAlso": [
+    "testing/interaction-after-the-fact",
+    "testing/assertions-are-typed"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
+    "tests/conformance/core/a-double-answers-with-its-closures.nvst",
+    "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
+    "tests/conformance/reject/a-double-missing-a-method-is-refused.nvst",
+    "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",
+    "tests/conformance/reject/a-double-answering-a-method-with-the-wrong-signature-is-refused.nvst",
+    "crates/nvs-types/tests/testing.rs"
+  ]
+}

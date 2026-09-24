@@ -1,0 +1,19 @@
+{
+  "title": "A cancelled task runs no `catch`, no cleanup and no handler, and cancellation is not a `Throwable`",
+  "status": "shipped",
+  "because": [
+    "0072",
+    "0106"
+  ],
+  "divergesFromPhp": "the `finally`-shaped cleanup a PHP developer would reach for does not run, and there is nothing to catch",
+  "seeAlso": [
+    "errors/throwable-hierarchy",
+    "errors/escalation-ladder",
+    "security/isolate-teardown-is-a-drain-then-a-sweep"
+  ],
+  "guardedBy": [
+    "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
+    "tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst",
+    "crates/nvs-stdlib/tests/deadline_poll.rs"
+  ]
+}

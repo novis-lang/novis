@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-render/src/lib.rs",
+  "title": "A compiler diagnostic is not a producer",
+  "text": "which `docs/decisions/0092.md:439` schedules rather than defers.",
+  "milestone": "M10"
+}

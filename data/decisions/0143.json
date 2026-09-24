@@ -1,0 +1,11 @@
+{
+  "title": "A push runs the lane its diff needs; the nightly and the release run all of it",
+  "status": "accepted",
+  "scope": "which jobs in [ci.yml](../../.github/workflows/ci.yml) run on a push to `main` and on a\npull request, which are deferred to the nightly run and the release gate, and what escalates a\ndeferred one back onto a push. It does **not** decide what any job *contains* — the suite is\nunchanged and every job still exists — nor what a release does once the suite is green\n([docs/release.md](../release.md)), nor what `tools/verify.py` runs before a commit\n([docs/agent/commands.md](../agent/commands.md)).",
+  "dependsOn": [],
+  "summary": {
+    "group": "internal",
+    "headline": "A push runs the checks its diff can break; the nightly runs everything",
+    "body": "Continuous integration has three lanes in one workflow. Every push runs the document checks,\nwhich cost seconds. Build, test, conformance and lint run on all three platforms whenever any\ncode changes; the memory checker, dependency licensing and the reference check run only when a\ndiff can affect them. Every night and at every release all of it runs, plus Miri, the fuzzers\nand the unsafe audit. No lane is ever narrowed by platform. The trade: a bug only Miri or a\nfuzzer sees is found within a day, not ten minutes."
+  }
+}

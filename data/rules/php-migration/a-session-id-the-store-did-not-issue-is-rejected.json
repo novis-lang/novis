@@ -1,0 +1,16 @@
+{
+  "title": "A session id the store did not issue is rejected, always, with no toggle",
+  "status": "designed",
+  "because": [
+    "0124",
+    "0139",
+    "0012"
+  ],
+  "divergesFromPhp": "`session.use_strict_mode` has no off position: an unknown, expired or attacker-minted id is discarded and a fresh one issued",
+  "seeAlso": [
+    "core-classes/session-is-started-explicitly",
+    "core-api/session-roster",
+    "php-migration/a-deprecation-is-a-refusal"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,25 @@
+{
+  "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
+  "status": "shipped",
+  "because": [
+    "0122",
+    "0095",
+    "0063",
+    "0121"
+  ],
+  "divergesFromPhp": "there is no `LIBXML_*` flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes",
+  "seeAlso": [
+    "core-classes/html-sanitize",
+    "core-classes/pdf-one-engine",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/html-parse-never-fails-and-supplies-what-a-document-left-out.nvst",
+    "tests/conformance/core/html-places-misnested-and-stray-content-where-the-algorithm-says.nvst",
+    "tests/conformance/core/html-and-xml-are-two-front-doors-onto-one-node-family.nvst",
+    "tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst",
+    "tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst",
+    "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
+    "crates/nvs-stdlib/src/html.rs"
+  ]
+}

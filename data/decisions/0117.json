@@ -1,0 +1,14 @@
+{
+  "title": "An implemented Core member documents itself in the registry",
+  "status": "accepted",
+  "scope": "where an *implemented* `Core` member's reference documentation lives, what `nvs meta --json`\nemits, and how a consumer resolves a field both sources speak about. It does not decide named-argument\ncall syntax at a `Core` member — [0063](0063.md) R2 does, and the registry's\nparameter names are that rule's home as much as this one's — nor the website's rendering, which\n[website/README.md](../../website/README.md) owns, nor the spec's role as the member list, which\n[0011](0011.md) § 2 deferred and\n[0051](0051.md) § 3 placed, nor the API shape rules, which are\n[0063](0063.md), nor where a *Novis* declaration's own documentation lives, which\nis its `///` doc comment and is\n[0137](0137.md) — a `Core` member is Rust and therefore\nnever carries one, which is why the two decisions do not overlap.",
+  "dependsOn": [
+    "0011",
+    "0051"
+  ],
+  "summary": {
+    "group": "core",
+    "headline": "Every built-in carries its own reference card, next to its code",
+    "body": "Each implemented member of the standard library declares its short description, its parameters,\nits return value and the errors it throws in the same registry the runtime dispatches from, so\nthe documentation provably matches what ships. An enum carries one line per case, a constant one\nsentence, and a member without a card fails the tests. `nvs meta --json` prints the whole\nregistry, and the reference pages are built from that alone. For a member not yet implemented\nthe design document is all there is; where both speak, the registry wins field by field."
+  }
+}

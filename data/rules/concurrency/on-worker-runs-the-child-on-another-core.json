@@ -1,0 +1,26 @@
+{
+  "title": "A child spawned `on: \"worker\"` is started on another core, copies at every node in both directions, and is still its parent's child",
+  "status": "shipped",
+  "because": [
+    "0184"
+  ],
+  "divergesFromPhp": "PHP places nothing — a request is one core's worth of work, and its nearest equivalent is another process, which shares not even the compiled code",
+  "seeAlso": [
+    "concurrency/a-wake-never-moves-a-task",
+    "security/isolate-shares-nothing",
+    "security/isolate-values-cross-by-copy",
+    "security/isolate-budget-is-the-trees",
+    "concurrency/nothing-is-still-running-when-a-call-returns"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst",
+    "tests/conformance/isolate/a-path-entry-placed-on-a-worker-core-answers-as-one-here-does.nvst",
+    "tests/conformance/isolate/a-worker-placed-child-is-held-to-the-limits-it-was-given.nvst",
+    "crates/nvs-host/src/worker.rs",
+    "crates/nvs-host/src/placed.rs",
+    "crates/nvs-runtime/src/script.rs",
+    "crates/nvs-runtime/tests/tree_budget.rs",
+    "crates/nvs-types/tests/isolates.rs",
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

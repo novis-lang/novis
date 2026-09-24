@@ -1,0 +1,21 @@
+{
+  "title": "Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040"
+  ],
+  "divergesFromPhp": "type annotations sit where PHP has none — parameters, returns, properties, `foreach` bindings, typed locals, inline shapes — so a borrowed PHP grammar mis-colours the largest part of a Novis file",
+  "seeAlso": [
+    "ide/rejected-syntax-gets-no-colour",
+    "ide/semantic-tokens-carry-the-qualifiers",
+    "ide/novis-ships-names-not-colours",
+    "ide/case-files-have-their-own-grammar",
+    "types/object-top",
+    "types/duration-literal",
+    "types/decimal",
+    "tooling/doc-comment-is-three-slashes",
+    "ide/the-first-server-answers-a-closed-list"
+  ],
+  "guardedBy": []
+}

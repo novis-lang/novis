@@ -1,0 +1,17 @@
+{
+  "title": "There is no suppression mechanism for a casing error, in any category",
+  "status": "shipped",
+  "because": [
+    "0029",
+    "0030"
+  ],
+  "divergesFromPhp": "unlike Rust's `#[allow(non_snake_case)]` there is no attribute, pragma or per-file opt-out; a name mirroring an external format is renamed or does not compile",
+  "seeAlso": [
+    "core-api/identifier-casing",
+    "core-api/written-visibility"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "crates/nvs-syntax/src/lexer.rs"
+  ]
+}

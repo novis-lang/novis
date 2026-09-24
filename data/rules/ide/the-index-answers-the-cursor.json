@@ -1,0 +1,13 @@
+{
+  "title": "`SyntaxIndex.at(offset)` answers the innermost node and its ancestors, and is rebuilt per analysis",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040"
+  ],
+  "seeAlso": [
+    "ide/one-grammar-one-tree",
+    "ide/the-request-set-is-closed"
+  ],
+  "guardedBy": []
+}

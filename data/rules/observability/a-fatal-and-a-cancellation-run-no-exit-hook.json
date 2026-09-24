@@ -1,0 +1,19 @@
+{
+  "title": "A `FATAL` and a cancellation run no exit hook — `Core\\Fatal::onLimit` is the one observer of a limit breach",
+  "status": "shipped",
+  "because": [
+    "0127",
+    "0020",
+    "0072"
+  ],
+  "divergesFromPhp": "PHP's shutdown functions fire on most fatals; here a resource-limit `FATAL` reaches only `Core\\Fatal::onLimit`, and a migrator moves that one use there",
+  "seeAlso": [
+    "observability/three-endings-fire-the-exit-queue",
+    "errors/on-limit",
+    "errors/escalation-ladder",
+    "concurrency/cancellation-runs-no-user-code"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/script.rs"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "`static::NAME` reads the called class's constant at run time",
+  "status": "accepted",
+  "scope": "what a `static::` class-constant read answers, and the four refusals that make the\nrun-time read sound. `self::`, `parent::` and named-class constant reads stay inlined and are\nunchanged; `static::` on a method, on `::class` and in `new static()` are [0144](0144.md)'s.",
+  "dependsOn": [
+    "0008",
+    "0144"
+  ],
+  "validatedBy": "`tests/conformance/class/a-static-constant-read-answers-the-called-class.nvst`,\n`tests/differential/class/a-static-constant-read-matches-php.nvst` and the four reject cases\nnamed in the rule's `guardedBy`."
+}

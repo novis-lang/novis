@@ -1,0 +1,22 @@
+{
+  "title": "`tainted` is a compile-time qualifier on `string`, `bytes` and a shape of them, spellable in any declaration and erased before codegen",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0007",
+    "0009",
+    "0033",
+    "0157"
+  ],
+  "divergesFromPhp": "untrusted input has a type PHP has no way to spell, and a program that mixes it into a sink does not compile",
+  "seeAlso": [
+    "security/tainted-sources",
+    "security/taint-propagation",
+    "security/sink-predicate",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/tainted.rs",
+    "tests/conformance/lang/a-tainted-value-answers-what-its-unqualified-twin-does.nvst"
+  ]
+}

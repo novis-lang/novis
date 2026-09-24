@@ -1,0 +1,9 @@
+{
+  "lead": "A moved module takes its `insta` snapshots with it",
+  "body": "— they resolve relative to the module's own file.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

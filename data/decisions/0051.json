@@ -1,0 +1,11 @@
+{
+  "title": "The standard library's tiers: what is `Core`, what ships native, what is an extension",
+  "status": "accepted",
+  "scope": "which of PHP's bundled extensions Novis implements, and at which of\n`rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s tiers; the decision procedure applied to any future stdlib\ncandidate. Not in scope: the API of any individual `Core` class, which each stdlib milestone designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Six tests place each library candidate in Core, a native part or an extension",
+    "body": "Novis does not inherit PHP's division into extensions, which reflects how the C sources were\nbuilt in the 1990s rather than anything about the functions; it is why `ctype` is an extension\nand `str_pad` is not. Every candidate goes through six tests and lands in one of five places:\n`Core`, present in every runtime; a native component, capability-gated and removable; a\nsandboxed extension; dropped; or already answered by how Novis works. What decides the placement\nis the size of the public surface and the set of unsandboxed native dependencies, never binary\nsize."
+  }
+}

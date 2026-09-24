@@ -1,0 +1,9 @@
+{
+  "lead": "A case cannot index into an `array<mixed>`'s elements, and `Core\\Json::encode` is the way round it.",
+  "body": "`$q[\"b\"] as array<string>` panics `nvs-ir` outright (*\"got `Tagged as Array`\"*) — `rule:types/conversion`'s `array<T> as array<U>` row is the one still missing — so a member answering a nested shape has no spelling that reaches past the first level. `Core\\Json::encode($q)` renders the whole structure in one line, byte-identical to PHP's `json_encode`; `$q[\"a\"] as string` on a top-level scalar does lower.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

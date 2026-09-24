@@ -1,0 +1,15 @@
+{
+  "title": "A forward proxy is the operator's alone, and one mandatory word says whether the pin survives it",
+  "status": "accepted",
+  "scope": "how a deployment whose egress leaves through a forward proxy runs `Core\\Http\\Client`, what\nconfigures it, and what the address policy can still see once it does. Covers the `[http.client.proxy]`\nblock, the `CONNECT` tunnel, the bypass list, proxy authentication and the pool key. Not in scope: a TLS\nconnection *to* the proxy, SOCKS, PAC files, NTLM or Kerberos proxy authentication, a per-program or\nper-call proxy, and reading `HTTP_PROXY`, `HTTPS_PROXY` or `NO_PROXY` from the environment.",
+  "dependsOn": [
+    "0058",
+    "0180",
+    "0073",
+    "0005",
+    "0064",
+    "0103"
+  ],
+  "dependsOnText": "[0058](0058.md) for the launderer, the address policy and the pin this either keeps or\nnarrows; [0180](0180.md) for the client, its per-core pool and the `System`-class block its TLS trust\nalready lives in; [0073](0073.md) for a mandatory word with no default, whose reasoning this reuses\nwholesale; [0005](0005.md) and [0064](0064.md) for the changeability class every directive carries;\n[0103](0103.md) for the `_file` sibling the proxy password gets.",
+  "validatedBy": "`crates/nvs-config/tests/resolve.rs` for the block's refusals and\n`crates/nvs-stdlib/src/http/transport.rs` for the tunnel and the pool key."
+}

@@ -1,0 +1,16 @@
+{
+  "title": "The third-party notice is committed, and a check fails when the lockfile moved without it",
+  "status": "shipped",
+  "because": [
+    "0065",
+    "0143"
+  ],
+  "seeAlso": [
+    "testing/lane-table",
+    "testing/ci-lanes"
+  ],
+  "guardedBy": [
+    "tools/gen-attribution.py",
+    ".github/workflows/ci.yml"
+  ]
+}

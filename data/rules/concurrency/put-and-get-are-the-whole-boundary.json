@@ -1,0 +1,17 @@
+{
+  "title": "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write",
+  "status": "shipped",
+  "because": [
+    "0059",
+    "0181"
+  ],
+  "divergesFromPhp": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all",
+  "seeAlso": [
+    "concurrency/a-cached-value-is-copied-across-the-boundary",
+    "core-classes/ratelimit-two-members",
+    "core-api/two-cache-tiers"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst"
+  ]
+}

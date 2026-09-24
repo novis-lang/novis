@@ -1,0 +1,9 @@
+{
+  "title": "markup is written as a literal, not composed with an operator",
+  "milestone": "M8",
+  "files": [],
+  "context": {},
+  "stages": [],
+  "checks": [],
+  "env": {}
+}

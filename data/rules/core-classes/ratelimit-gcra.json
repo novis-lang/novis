@@ -1,0 +1,22 @@
+{
+  "title": "Both tiers run GCRA over one stored timestamp per key, and the `Decision` computes `retryAfter`",
+  "status": "shipped",
+  "because": [
+    "0075",
+    "0063",
+    "0024",
+    "0033"
+  ],
+  "seeAlso": [
+    "core-classes/ratelimit-two-members",
+    "core-classes/ratelimit-unreachable-store-throws",
+    "core-classes/secret-reveal",
+    "types/duration-literal"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/ratelimit-decision-readers-agree-with-the-sweep.nvst",
+    "tests/conformance/core/ratelimit-shed-weighs-a-call-and-bounds-a-burst.nvst",
+    "tests/conformance/core/ratelimit-shed-bounds-its-window-on-both-sides.nvst",
+    "tests/conformance/core/ratelimit-refuses-a-limit-that-admits-nothing.nvst"
+  ]
+}

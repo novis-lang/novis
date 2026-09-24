@@ -1,0 +1,19 @@
+{
+  "title": "An enum case used as a type is a narrowed subtype of its enum, never its backing integer",
+  "status": "shipped",
+  "because": [
+    "0047",
+    "0010",
+    "0007"
+  ],
+  "seeAlso": [
+    "types/literal-types",
+    "types/conversion",
+    "types/narrowing"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.nvst",
+    "tests/conformance/lang/an-enum-case-comparison-narrows-its-subject.nvst",
+    "crates/nvs-types/tests/literal_types.rs"
+  ]
+}

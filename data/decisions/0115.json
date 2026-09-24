@@ -1,0 +1,14 @@
+{
+  "title": "The reactor reports readiness, and a stream that would block parks its own task",
+  "status": "accepted",
+  "scope": "the readiness mechanism each platform uses, the contract between a parking task and the\nreactor, what a `WouldBlock` costs and in which order a stream pays it, and how a task's stack is\naccounted against the request that owns it. It does **not** decide: what a worker admits, which is\n`rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s arithmetic; what the\nblocking pool is for or how large it is, which is that ADR's § 6; the `Core\\Task` surface, which is\n`rule:concurrency/one-scheduler`; the HTTP client that will sit on top of a\nstream, which is `docs/agent/goals/` goal `core-part-ii`'s; or the configurable spelling of any number below,\nwhich is goal `governance`'s `[limits]`.",
+  "dependsOn": [
+    "0106"
+  ],
+  "dependsOnText": "[0106](0106.md), whose § 6 says\na core is never blocked on a syscall and leaves the mechanism to this one.",
+  "summary": {
+    "group": "internal",
+    "headline": "The runtime waits for readiness, and a task that would block parks itself",
+    "body": "On every platform the operating system tells the runtime when a socket is ready, and the runtime\ndoes the read or write itself. A task tries the operation first and parks only when it would\nblock; when woken it tries again, treating the wake as a hint rather than a promise, so a warm\nsocket pays nothing extra. A task's stack reserves a megabyte of address space but only the\npages it touches cost real memory; stacks are pooled per worker and charged to the request, so\nmemory tracks work in flight, not traffic served."
+  }
+}

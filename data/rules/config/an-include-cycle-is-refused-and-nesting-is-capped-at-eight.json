@@ -1,0 +1,14 @@
+{
+  "title": "An include cycle is refused with the chain named, and nesting past eight is refused as depth",
+  "status": "shipped",
+  "because": [
+    "0103"
+  ],
+  "seeAlso": [
+    "config/include-takes-a-path-or-a-dir",
+    "config/app-keys-are-canonicalized-before-matching"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

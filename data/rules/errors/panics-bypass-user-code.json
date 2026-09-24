@@ -1,0 +1,13 @@
+{
+  "title": "An internal panic never runs the failing request's own code",
+  "status": "shipped",
+  "because": [
+    "0020"
+  ],
+  "seeAlso": [
+    "errors/on-limit",
+    "errors/helper-abi",
+    "errors/handler-script"
+  ],
+  "guardedBy": []
+}

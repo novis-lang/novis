@@ -1,0 +1,15 @@
+{
+  "title": "A schema is a value: `Core\\Db\\Schema` converges a closed vocabulary, and neither versions nor parses SQL",
+  "status": "accepted",
+  "scope": "what a database schema *is* in Novis — the closed vocabulary of tables, columns and indexes,\nits three interchangeable spellings, and the canonical form that makes them one thing; the diff against a\nlive server and the normalization it needs; the three grades a difference carries and the rule for an\nunknown one; the plan as a pasteable document; the gate between planning and applying; and which crate\nowns each half. Not in scope: the member signatures, which are\n[spec § 18](../spec/01-core-library.md)'s and are designed against\n[0063](0063.md) like every other `Core` row; migration *semantics* — ordering,\nreversibility, dependency and fleet locking — which stay\n[0082](0082.md) § 7's deliberately blocked gap and are not opened here; the\nread direction of the SQL↔Novis type map, which is [0067](0067.md) § 9's and is only re-used;\nand how a driver puts bytes on a wire, which is\n[0132](0132.md)'s.",
+  "dependsOn": [
+    "0067",
+    "0132"
+  ],
+  "dependsOnText": "[0067](0067.md) — this has no storage engine, no connection, no statement and no\nidentifier judgement of its own, and inherits all four.\n[0132](0132.md) — its sans-io seam is what decides\nthat the vocabulary, the emitters, the introspectors and the diff are `nvs-db` and not `nvs-stdlib`.",
+  "summary": {
+    "group": "core",
+    "headline": "A database schema is a value, and Novis converges the server to it",
+    "body": "A schema is a value, not a folder of migration scripts. Typed builders, an array form and a live\nserver's catalog are three spellings of the same thing. A plan is the difference between that\nvalue and what a connection holds: no version numbers, no history table, no up and down. The\nvocabulary is closed to what all five databases share, with no raw SQL escape hatch. Every step\nis graded `Safe`, `Locking` or `Destructive`. A table the value lacks is reported, never\ndropped. Planning is a read; applying needs the `db.schema` grant."
+  }
+}

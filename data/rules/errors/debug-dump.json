@@ -1,0 +1,19 @@
+{
+  "title": "A dump goes to the log, and reaches a response body only in development",
+  "status": "shipped",
+  "because": [
+    "0092",
+    "0091",
+    "0085"
+  ],
+  "divergesFromPhp": "a forgotten dump writes a log line; the spelling that puts it in a production response does not exist",
+  "seeAlso": [
+    "errors/renderings",
+    "errors/record-transformations",
+    "errors/no-render-hook"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-dump-writes-one-record-per-argument-and-none-at-all-for-none.nvst",
+    "tests/conformance/core/a-dump-is-its-arguments-rendered-and-a-capture-never-swallows-one.nvst"
+  ]
+}

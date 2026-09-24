@@ -1,0 +1,10 @@
+{
+  "title": "A file a program autoloads is analysed through that program's `autoload` map",
+  "status": "accepted",
+  "scope": "which `autoload` declarations the language server resolves an open document's names\nthrough, how it finds them, and what an edit to a declaring file re-analyses. The map's own rules are\n[0061](0061.md)'s and unchanged, and so is everything `nvs check` does.",
+  "dependsOn": [
+    "0099",
+    "0061"
+  ],
+  "validatedBy": "`crates/nvs-lsp/tests/autoload.rs`,\n`a_borrowed_declaration_yields_to_the_programs_own_and_is_silent` in `crates/nvs-hir/src/requires.rs`,\nand the run under *Verification*."
+}

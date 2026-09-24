@@ -1,0 +1,19 @@
+{
+  "title": "`{preserveKeys: false}` discards every key, whatever shape the key has",
+  "status": "shipped",
+  "because": [
+    "0069",
+    "0007"
+  ],
+  "divergesFromPhp": "PHP renumbers integer keys and silently keeps string ones; `false` means the result is a list, and nothing else",
+  "seeAlso": [
+    "types/array-combination",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-reverse-discards-every-key-by-default.nvst",
+    "tests/conformance/core/arr-sort-preserves-keys-on-request.nvst",
+    "tests/conformance/core/arr-slice-and-chunk-window-by-position.nvst",
+    "tests/conformance/core/arr-is-list-is-one-question-asked-twice.nvst"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic",
+  "status": "designed",
+  "because": [
+    "0137"
+  ],
+  "divergesFromPhp": "there is no `@param`, `@return`, `@throws`, `@var` or `@deprecated`; what PHPDoc tags carried is the signature, an attribute or a declared capability",
+  "seeAlso": [
+    "tooling/doc-comment-is-three-slashes",
+    "tooling/meta-json-takes-a-program",
+    "attributes/inert-metadata",
+    "security/capability-check-at-the-door",
+    "types/callable-signature",
+    "core-api/reference-card"
+  ],
+  "guardedBy": []
+}

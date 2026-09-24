@@ -1,0 +1,21 @@
+{
+  "title": "`trusted_proxies` defaults to empty, empty means the forwarded headers are never read, and a trusted walk takes the rightmost untrusted `X-Forwarded-For` entry",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0080",
+    "0095"
+  ],
+  "divergesFromPhp": "`$_SERVER['REMOTE_ADDR']` and `HTTP_X_FORWARDED_FOR` are replaced by one `clientIp(): ?tainted string`, which is the socket peer until an operator names the proxies",
+  "seeAlso": [
+    "http-server/x-forwarded-for-is-the-only-address-header",
+    "http-server/a-forwarded-token-is-read-withheld-or-refused",
+    "http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only",
+    "http-server/a-unix-socket-listener",
+    "security/tainted-sources"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/forwarded.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

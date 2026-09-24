@@ -1,0 +1,17 @@
+{
+  "title": "A denied capability is a catchable `RuntimeError` naming the capability, never a fatal",
+  "status": "shipped",
+  "because": [
+    "0118",
+    "0020"
+  ],
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "errors/escalation-ladder",
+    "errors/throwable-hierarchy"
+  ],
+  "guardedBy": [
+    "tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst",
+    "tests/conformance/core/io-is-writable-is-refused-by-the-capability-rather-than-answered-false.nvst"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "`<`, `>`, `<=`, `>=` and `<=>` on two objects lower to one `compareTo` call",
+  "status": "shipped",
+  "because": [
+    "0013"
+  ],
+  "seeAlso": [
+    "classes/comparable",
+    "types/arithmetic",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/comparable-answers-every-relational-operator.nvst",
+    "tests/conformance/class/comparable-orders-a-subclass-through-its-override.nvst"
+  ]
+}

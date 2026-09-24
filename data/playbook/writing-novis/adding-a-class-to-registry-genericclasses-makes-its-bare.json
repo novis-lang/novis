@@ -1,0 +1,14 @@
+{
+  "lead": "Adding a class to `registry::GENERIC_CLASSES` makes its bare spelling a compile error everywhere, reported as `E0442` at the `.nvst` line.",
+  "body": "`nvs_types::lower`'s `generic_params` consults that roster at every written occurrence, so landed cases that spelled `Core\\Db\\Rows` without a type argument fail with \"takes 1 type argument(s), not 0\". Before adding a row, grep the bare spelling across `tests/`, `examples/` and `docs/spec/` and budget an edit per hit; `Core` has no defaulted type parameter.",
+  "files": [
+    "tests/",
+    "examples/",
+    "docs/spec/",
+    "crates/nvs-stdlib/src/registry.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/registry.rs:GENERIC_CLASSES"
+  }
+}

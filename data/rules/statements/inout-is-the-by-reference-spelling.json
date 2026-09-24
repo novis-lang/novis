@@ -1,0 +1,20 @@
+{
+  "title": "A by-reference binding is written `inout`, in the modifier slot before the type",
+  "status": "shipped",
+  "because": [
+    "0107",
+    "0031",
+    "0053"
+  ],
+  "divergesFromPhp": "`&$x` is not a by-reference marker; the word is `inout` and it goes before the type",
+  "seeAlso": [
+    "statements/inout-is-written-at-the-call",
+    "statements/ampersand-is-not-a-by-reference-marker",
+    "statements/an-inout-argument-is-a-local"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
+    "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.nvst",
+    "tests/conformance/lang/compound-assignment-writes-through-a-by-reference-parameter.nvst"
+  ]
+}

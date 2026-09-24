@@ -1,0 +1,18 @@
+{
+  "title": "One write path, and the engine floor is its other caller",
+  "status": "shipped",
+  "because": [
+    "0020",
+    "0092"
+  ],
+  "seeAlso": [
+    "errors/log-level",
+    "errors/log-fields",
+    "errors/engine-floor",
+    "errors/diagnostic-record"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-write-renders-one-json-line-per-record.nvst",
+    "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst"
+  ]
+}

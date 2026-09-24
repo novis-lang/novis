@@ -1,0 +1,22 @@
+{
+  "title": "A worker task's root is wrapped in `catch_unwind`: a panic beneath a request fails that request, and one outside any request retires the worker",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0002",
+    "0020"
+  ],
+  "seeAlso": [
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "http-server/no-path-reaches-abort",
+    "errors/propagation",
+    "errors/helper-abi",
+    "errors/panics-bypass-user-code",
+    "security/arena-is-an-ownership-root"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/invariants.rs",
+    "crates/nvs-runtime/src/abi.rs",
+    "crates/nvs-host/src/scheduler.rs"
+  ]
+}

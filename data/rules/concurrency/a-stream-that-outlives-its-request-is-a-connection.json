@@ -1,0 +1,18 @@
+{
+  "title": "A stream that ends with its response is a streaming response; one that outlives it is a connection isolate",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0176",
+    "0177"
+  ],
+  "divergesFromPhp": "the choice is made by lifetime rather than by protocol, and there is no `flush`-in-a-loop shape that keeps a request alive",
+  "seeAlso": [
+    "concurrency/two-doors-one-isolate",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/stream.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

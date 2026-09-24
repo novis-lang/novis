@@ -1,0 +1,11 @@
+{
+  "title": "IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native",
+  "status": "accepted",
+  "scope": "the editor-facing half of M10 — the VS Code extension, the PhpStorm plugin, how each drives\n`nvs-lsp`/`nvs-fmt`, what \"tight IDE integration\" includes and excludes for v1, and where the two client\npackages live in the repository layout",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "One language server, with thin VS Code and PhpStorm clients around it",
+    "body": "Completion, hover, diagnostics, rename, go-to-definition and formatting are each implemented\nonce, in the language server and formatter that ship with the toolchain. An editor client only\nstarts them, forwards its editor's events and shows what comes back; it decides nothing about\nthe language. VS Code is the reference client. The PhpStorm plugin bridges to the same server\nrather than rebuilding the smarts in JetBrains' own framework, so PhpStorm's native formatter\nsettings and debugger window do not apply to Novis files; a full native plugin is a later\ndecision if usage earns it."
+  }
+}

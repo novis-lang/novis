@@ -1,0 +1,21 @@
+{
+  "title": "`ini_set` is `Core\\Config::set`, and the whole family crosses as strings",
+  "status": "shipped",
+  "because": [
+    "0064",
+    "0005",
+    "0011"
+  ],
+  "divergesFromPhp": "`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are static members of `Core\\Config`, a refused set answers `false` and moves nothing, and an accepted one is request-local",
+  "seeAlso": [
+    "config/one-parser-for-the-boot-path-and-config-set",
+    "classes/no-free-functions-or-constants",
+    "config/three-changeability-classes",
+    "config/ceilings-are-their-own-directives"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
+    "tests/conformance/core/config-a-bare-limit-name-and-its-dotted-spelling-are-one-key.nvst",
+    "crates/nvs-config/tests/request.rs"
+  ]
+}

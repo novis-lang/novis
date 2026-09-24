@@ -1,0 +1,20 @@
+{
+  "title": "`as ?T` is refused where the conversion cannot fail, where none exists, and at every class target",
+  "status": "shipped",
+  "because": [
+    "0066",
+    "0007",
+    "0047"
+  ],
+  "divergesFromPhp": "there is no operator downcast: `$s as ?Core\\Uri` is a compile error rather than a cast, and text reaches a class only through that class's own reader",
+  "seeAlso": [
+    "expressions/nullable-conversion",
+    "expressions/try-parse",
+    "expressions/disjoint-comparison-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
+    "tests/conformance/reject/a-written-class-name-outside-the-hierarchy-is-refused-under-the-nullable-conversion-too.nvst",
+    "crates/nvs-types/tests/literal_types.rs"
+  ]
+}

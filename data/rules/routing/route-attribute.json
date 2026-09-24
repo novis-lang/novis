@@ -1,0 +1,25 @@
+{
+  "title": "`#[Route]` is `{path, method, name?}` on a method, recognized by name and never by shape",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0110",
+    "0102"
+  ],
+  "divergesFromPhp": "the attribute is read while compiling rather than by a reflection scan at boot, a route's name is never derived from the class and method, and there is no class-level prefix attribute",
+  "seeAlso": [
+    "core-classes/derive-attribute",
+    "attributes/inert-metadata",
+    "attributes/repeatable",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/access-is-a-required-sibling",
+    "routing/routes-are-compiled-not-registered",
+    "routing/repeated-routes-share-a-name-when-they-share-a-path",
+    "routing/no-wildcard-verb"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/routes.rs",
+    "tests/conformance/core/http-method-is-eight-verbs-whose-unsafe-four-are-the-tail.nvst",
+    "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "There is no `trait`; interface default/private methods plus explicit `by` delegation replace it",
+  "status": "accepted",
+  "scope": "PHP's `trait` declaration, `use Trait, ...;` inside a class body, and `insteadof` — all three are\nremoved from the grammar entirely. In their place: an `interface` method may carry a body (a **default**\nmethod, or a **private** helper visible only to that interface's own method bodies), and each entry in a\nclass's `implements` list may carry an optional `by $field;` suffix that delegates every method that\ninterface requires to a named property. Also settles the one conflict rule both new mechanisms share, and\nthe `nvs convert` (M11) migration path from every PHP trait shape.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "There are no traits; interfaces carry default methods and a class can delegate",
+    "body": "`trait`, `use Trait;` inside a class and `insteadof` do not parse. Shared behaviour goes on an\ninterface: a public interface method may carry a body, inherited by every implementing class and\noverridable, and a private interface method is a helper visible only to that interface's own\nbodies. Shared state is delegation: `class Post implements Timestamped by $timestamps` forwards\nevery method the interface requires to that property. If a method name reaches a class from more\nthan one default or delegated source and the class does not define it, the build stops."
+  }
+}

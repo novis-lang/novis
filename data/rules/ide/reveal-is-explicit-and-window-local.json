@@ -1,0 +1,15 @@
+{
+  "title": "A reveal is per range, window-local, and does not survive the editor closing",
+  "status": "shipped",
+  "because": [
+    "0101",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/redaction-does-not-reach"
+  ],
+  "guardedBy": [
+    "editors/vscode/test/client/concealment.test.ts"
+  ]
+}

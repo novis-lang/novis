@@ -1,0 +1,18 @@
+{
+  "title": "Every task is a child of the task that started it, shares that request's accounting, and dies with it",
+  "status": "shipped",
+  "because": [
+    "0072",
+    "0006"
+  ],
+  "divergesFromPhp": "PHP has no task, so it has no orphan either; here an unparented task is impossible rather than discouraged",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "security/isolate-budget-is-the-trees",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+    "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them",
+  "status": "shipped",
+  "because": [
+    "0174"
+  ],
+  "seeAlso": [
+    "concurrency/cache-memory-is-charged-to-the-core",
+    "concurrency/cross-request-state-is-explicit",
+    "errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/tests/detached_accounting.rs"
+  ]
+}

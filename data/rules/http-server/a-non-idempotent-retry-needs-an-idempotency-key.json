@@ -1,0 +1,18 @@
+{
+  "title": "A `POST` or `PATCH` is not retried without `retryIdempotencyKey`, and at an ordinary call site the missing key is a compile-time diagnostic",
+  "status": "shipped",
+  "because": [
+    "0074",
+    "0180"
+  ],
+  "divergesFromPhp": "a retried `POST` in PHP does whatever the loop the developer wrote does, including charging a card twice; here the missing key is a red squiggle before the program runs",
+  "seeAlso": [
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "core-api/shape-rules",
+    "core-api/options-bag"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-post-retried-without-an-idempotency-key-is-refused-while-compiling.nvst",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "`Core\\Socket` and `Core\\Sse` are two hand-overs onto one isolate, and each reports the one it is missing",
+  "status": "shipped",
+  "because": [
+    "0083"
+  ],
+  "seeAlso": [
+    "concurrency/a-stream-that-outlives-its-request-is-a-connection",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/the-two-connection-doors-each-report-their-own-hand-over.nvst",
+    "tests/conformance/core/an-event-stream-reports-the-request-no-server-is-answering.nvst",
+    "crates/nvs-runtime/src/ctx/inbound.rs"
+  ]
+}

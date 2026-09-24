@@ -1,0 +1,11 @@
+{
+  "lead": "An infallible allocation on a caller-supplied count aborts the process — exit 127, nothing on stderr, nothing catchable, every in-flight request with it.",
+  "body": "`nvs_runtime::affordable` refuses only a size past `isize::MAX`, so a count below it the machine cannot serve reaches `vec![…; n]`, `String::with_capacity` or `NvsStr::build` and dies. Draw through `NvsStr::try_build`, `NvsArray::try_reserve` or the `*_fallibly` helpers in `str.rs`/`bytes.rs`/`arr.rs`, and add the member to `tests/conformance/core/count-shaped-producers-refuse-alike.nvst`.",
+  "files": [
+    "tests/conformance/core/count-shaped-producers-refuse-alike.nvst"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

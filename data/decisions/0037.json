@@ -1,0 +1,11 @@
+{
+  "title": "`var` infers a local's type from its initializer",
+  "status": "accepted",
+  "scope": "a second spelling for a local variable declaration, alongside `rule:types/declaration`'s typed one.\nNothing else — parameters, properties, constants, `foreach`/destructuring bindings, closures and\nreturns all still require a written type.",
+  "dependsOn": [],
+  "summary": {
+    "group": "types",
+    "headline": "`var $n = expr;` declares a local with the type of its initializer",
+    "body": "`var $count = 0;` gives `$count` the type `int`, fixed for its whole life exactly as if `int`\nhad been written. The type is whatever the initializer already has — honest, not clever: `var\n$id = Core\\Request::query('id');` is `mixed`, because that is what the call returns. An\ninitializer is required. A bare array literal is the one refused shape: `var $x = [1, 2];` stops\nthe build and names `array<T> $x = [1, 2];` as the fix, because an array literal takes its type\nfrom where it lands rather than supplying one."
+  }
+}

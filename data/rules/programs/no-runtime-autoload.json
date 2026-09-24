@@ -1,0 +1,18 @@
+{
+  "title": "A name reaches its file while compiling; there is no runtime loader of any kind",
+  "status": "shipped",
+  "because": [
+    "0061",
+    "0028",
+    "0052"
+  ],
+  "divergesFromPhp": "there is no `spl_autoload_register`, no `__autoload` and no `new $name` — a name held in a string can never reach a file",
+  "seeAlso": [
+    "programs/autoload",
+    "programs/implementing",
+    "programs/one-declaration-per-autoloaded-file"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst"
+  ]
+}

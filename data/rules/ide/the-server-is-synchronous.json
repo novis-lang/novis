@@ -1,0 +1,15 @@
+{
+  "title": "`nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040"
+  ],
+  "seeAlso": [
+    "concurrency/one-scheduler",
+    "ide/an-open-document-is-its-own-entry-point",
+    "ide/stdout-belongs-to-the-protocol",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": []
+}

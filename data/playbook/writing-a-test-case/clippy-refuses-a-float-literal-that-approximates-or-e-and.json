@@ -1,0 +1,9 @@
+{
+  "lead": "Clippy refuses a float literal that approximates π or e, and refuses `assert!` over two constants.",
+  "body": "A compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

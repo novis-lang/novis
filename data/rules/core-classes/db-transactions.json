@@ -1,0 +1,23 @@
+{
+  "title": "A transaction is a closure, and `Transaction` is a `Queryable` rather than a second query surface",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0028",
+    "0043",
+    "0002"
+  ],
+  "divergesFromPhp": "there is no `beginTransaction`/`commit`/`rollBack` on the connection and no `inTransaction`; nesting is a savepoint, and a rollback signal survives an intervening `catch (Throwable)`",
+  "seeAlso": [
+    "core-classes/db-error",
+    "core-classes/db-statement-members",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-transaction-answers-what-its-closure-answers.nvst",
+    "tests/conformance/core/db-transaction-hands-its-closure-a-transaction-and-not-a-connection.nvst",
+    "tests/conformance/core/db-a-sqlite-transaction-nests-as-a-savepoint.nvst",
+    "tests/conformance/core/db-a-roll-back-survives-a-catch-of-throwable.nvst",
+    "tests/conformance/core/db-roll-back-belongs-to-the-transaction-and-not-the-connection.nvst"
+  ]
+}

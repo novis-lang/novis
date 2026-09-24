@@ -1,0 +1,13 @@
+{
+  "title": "An `ESC` in a source literal is a compile error that names `Core\\Cli\\Text`",
+  "status": "designed",
+  "because": [
+    "0086"
+  ],
+  "divergesFromPhp": "a hand-rolled `\"\\e[1m\"` literal fails the build instead of styling the output",
+  "seeAlso": [
+    "tooling/terminal-output-is-a-sink",
+    "tooling/text-is-the-one-raw-path"
+  ],
+  "guardedBy": []
+}

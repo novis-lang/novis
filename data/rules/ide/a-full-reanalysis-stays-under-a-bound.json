@@ -1,0 +1,14 @@
+{
+  "title": "A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040"
+  ],
+  "seeAlso": [
+    "ide/one-grammar-one-tree",
+    "ide/an-open-document-is-its-own-entry-point",
+    "testing/perf-two-mechanisms"
+  ],
+  "guardedBy": []
+}

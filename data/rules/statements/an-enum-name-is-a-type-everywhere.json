@@ -1,0 +1,16 @@
+{
+  "title": "An enum's name is an ordinary type, usable at every binding site a class name is",
+  "status": "shipped",
+  "because": [
+    "0010",
+    "0007"
+  ],
+  "seeAlso": [
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
+    "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
+    "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "The framework has no ORM, no runtime container, and no second way to do anything",
+  "status": "designed",
+  "because": [
+    "0082"
+  ],
+  "divergesFromPhp": "the ORM, the service container, the facade, the route cache and the autoload dump have no equivalent, and each is absent by construction rather than by omission",
+  "seeAlso": [
+    "programs/first-party-framework",
+    "programs/implementing"
+  ],
+  "guardedBy": []
+}

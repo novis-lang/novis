@@ -1,0 +1,10 @@
+{
+  "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class",
+  "status": "accepted",
+  "scope": "one compiler-owned member joining `rule:programs/implementing`'s enumeration with\n`rule:attributes/structural-retrieval`'s retrieval. What a retrieval target may be, and what the\nenumeration answers, are unchanged and stay with their own records.",
+  "dependsOn": [
+    "0061",
+    "0046"
+  ],
+  "validatedBy": "the four cases and the checker test the rule's `guardedBy` names."
+}

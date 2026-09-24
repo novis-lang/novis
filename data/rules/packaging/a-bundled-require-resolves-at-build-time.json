@@ -1,0 +1,17 @@
+{
+  "title": "Inside a closed-world target every `require` resolves at build time, and one that cannot fails the build",
+  "status": "shipped",
+  "because": [
+    "0048",
+    "0021",
+    "0025"
+  ],
+  "divergesFromPhp": "an `include` whose path is computed at run time has no filesystem to fall back on inside a bundle, so the build refuses it instead of the run failing on the user's machine",
+  "seeAlso": [
+    "statements/require-is-the-only-inclusion-construct",
+    "packaging/a-bundle-carries-source-not-artifacts"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

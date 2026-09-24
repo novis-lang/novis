@@ -1,0 +1,21 @@
+{
+  "title": "The capability check lives inside the function that performs the effect, and that door is the only way out of the process",
+  "status": "shipped",
+  "because": [
+    "0118",
+    "0005",
+    "0112"
+  ],
+  "divergesFromPhp": "there is no `open_basedir`, no `disable_functions` and no safe mode; the runtime cannot reach the OS except through a checked door",
+  "seeAlso": [
+    "security/capability-question-is-grant-and-scope",
+    "security/capability-declaration-is-one-table",
+    "security/denial-is-a-runtime-error",
+    "testing/capability-closure-test"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs",
+    "tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst",
+    "tests/conformance/core/file-asks-for-the-capability-before-it-touches-the-path.nvst"
+  ]
+}

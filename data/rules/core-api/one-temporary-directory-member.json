@@ -1,0 +1,17 @@
+{
+  "title": "The whole temporary-file surface is one member handing out an owned directory",
+  "status": "shipped",
+  "because": [
+    "0131",
+    "0063"
+  ],
+  "divergesFromPhp": "`tmpfile`, `tempnam` and `sys_get_temp_dir` collapse into one member, and there is no `temporaryFile`",
+  "seeAlso": [
+    "core-api/one-name-one-signature",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/io-a-temporary-directory-is-made-not-named.nvst",
+    "crates/nvs-stdlib/src/io.rs"
+  ]
+}

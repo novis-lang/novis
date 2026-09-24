@@ -1,0 +1,11 @@
+{
+  "title": "`nvs.toml` states defaults, not ceilings",
+  "status": "accepted",
+  "scope": "the directive registry, `Core\\Config::set`/`::get`, per-request limit enforcement",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "The config file sets what a request starts with, not what it may never exceed",
+    "body": "Every setting in the configuration file is one of three kinds. Some can be set only in the file,\nbecause changing them from inside a request would affect other requests. Most are defaults: a\nrequest may set any value for itself, higher or lower, up to a hard ceiling the operator writes\ndown separately — so raising the memory limit for one large import works, as in PHP. A few may\nonly be tightened, such as the permissions a script holds. A refused change returns false and\nleaves the value untouched; nothing is quietly clamped."
+  }
+}

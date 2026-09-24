@@ -1,0 +1,11 @@
+{
+  "lead": "A go-to-definition case answers only for an expression at file scope, and only for an `is` test the checker did not settle.",
+  "body": "`crates/nvs-lsp/src/definition.rs`'s `jump` helper answered `none` for `$b->area()` and `new Square()` written inside a `function` body while the same expressions at file scope answered, and `$s is Shape` over a `Square`-typed subject folds to a constant that leaves no node to navigate from. Write the subject as a `mixed` local at file scope, and keep the tested class one the declaration cannot settle.",
+  "files": [
+    "crates/nvs-lsp/src/definition.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-18"
+  }
+}

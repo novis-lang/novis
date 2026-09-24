@@ -1,0 +1,9 @@
+{
+  "lead": "A `.nvst` case's second `foreach` cannot re-declare the first one's loop-local, and the error points at the first declaration rather than at the line you just wrote.",
+  "body": "A case is top-level statements in one `ScriptFrame` (`rule:statements/storage-that-outlives-a-call`), and a block is not a storage scope, so two loops each opening with `var $form = …` is `second declaration` reported against a line ten above the cursor. Rename the second loop's locals; the tell is a caret on a line the edit did not touch.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

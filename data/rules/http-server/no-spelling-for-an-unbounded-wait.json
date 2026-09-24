@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Http\\Client` has no spelling for \"wait forever\": every bound is a `Duration`, an omitted one inherits `[http.client]`, and expiry throws `TimeoutError`",
+  "status": "shipped",
+  "because": [
+    "0074"
+  ],
+  "divergesFromPhp": "curl defaults to no timeout and `file_get_contents` to `default_socket_timeout`'s sixty seconds; here there is no `null`, no `0` and no option that means unbounded, so a long call names its own `deadline`",
+  "seeAlso": [
+    "http-server/one-deadline-covers-the-whole-call",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "types/duration-literal",
+    "core-api/failure-throws",
+    "core-classes/process-is-argv-only"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst",
+    "crates/nvs-types/tests/core_members.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

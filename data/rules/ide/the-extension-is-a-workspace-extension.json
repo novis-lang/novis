@@ -1,0 +1,12 @@
+{
+  "title": "The extension declares itself a workspace extension, because `nvs lsp` must be the binary next to the code",
+  "status": "designed",
+  "because": [
+    "0108"
+  ],
+  "seeAlso": [
+    "ide/check-scope-defaults-to-the-workspace",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,18 @@
+{
+  "title": "a capture typed at a class built from text converts where the match crosses into the program, and a segment that class refuses is a `400`",
+  "status": "accepted",
+  "scope": "where a route capture declared at a class implementing `Parses` runs that class's `parse`,\nand what a segment it refuses becomes. Not the `#[Query]` half of\n`rule:routing/a-bad-query-value-is-a-400`, which still binds nothing; not the command-argument half,\nwhich `nvs_runtime::commands::ArgConv::Parses` already settled.",
+  "dependsOn": [
+    "0077",
+    "0102",
+    "0024",
+    "0066"
+  ],
+  "dependsOnText": "[0077](0077.md) and [0102](0102.md) for the capture's type list and the `404`,\n[0024](0024.md) for what a converted capture carries, [0066](0066.md) for the `parse`/`tryParse` pair\nthe interface encodes.",
+  "validatedBy": "`tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst`\nand `crates/nvs-stdlib/src/router.rs`'s `capture_value`.",
+  "summary": {
+    "group": "core",
+    "headline": "A route capture typed at your own class converts in the handler, or is a 400",
+    "body": "The router narrows a path segment on the types it reads natively: `int`, `uint`, `decimal`,\n`Core\\Uuid` and a few more. A segment one of those refuses is not a match, and the walk\ncontinues toward a 404. A capture declared at any other class that parses from text matches on\nshape only; the class's own `parse` runs where the handler reads the value, so no user code runs\non URLs that matched nothing. A segment the class then refuses throws over a route that did\nmatch, which is a 400, like a bad query value."
+  }
+}

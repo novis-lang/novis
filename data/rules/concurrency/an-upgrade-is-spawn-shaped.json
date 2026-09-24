@@ -1,0 +1,26 @@
+{
+  "title": "An upgrade names compiled code — a file or a static method — and never a closure",
+  "status": "shipped",
+  "because": [
+    "0083",
+    "0006",
+    "0023",
+    "0031",
+    "0033",
+    "0024",
+    "0077"
+  ],
+  "divergesFromPhp": "there is no handler object and no closure to hand a socket to; the entry is named at the call site the way a spawned script names one, and its arguments are copied rather than shared",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "classes/graph-copy",
+    "concurrency/an-upgrades-options-are-spawn-scripts",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-upgrades-entry-may-be-a-static-method-and-reaches-the-same-body.nvst",
+    "tests/conformance/core/an-upgrade-refuses-an-entry-it-cannot-see-the-function-behind.nvst",
+    "tests/conformance/core/a-socket-upgrades-entry-is-a-sink-and-refuses-a-tainted-path.nvst",
+    "crates/nvs-ir/tests/callable_names.rs"
+  ]
+}

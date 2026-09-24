@@ -1,0 +1,24 @@
+{
+  "title": "A part is consumed by `readAll`, by walking `content()`, or by `saveTo`, and each way is bounded",
+  "status": "shipped",
+  "because": [
+    "0105",
+    "0024",
+    "0063",
+    "0156"
+  ],
+  "divergesFromPhp": "`move_uploaded_file` is `saveTo`, `file_get_contents($tmp)` is `readAll` under `request_body`, and a second pass over an upload has to say where the first one put it",
+  "seeAlso": [
+    "http-server/an-upload-is-received-only-through-files",
+    "http-server/request-body-and-upload-total-are-two-caps",
+    "core-classes/io-write-stream",
+    "security/launderers-are-sink-named"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-file-parts-content-is-a-walk-and-its-read-all-is-not.nvst",
+    "tests/conformance/core/a-file-parts-read-all-bound-is-a-count-of-bytes-in-a-closed-bag.nvst",
+    "tests/conformance/core/a-file-parts-two-consumers-both-answer-tainted-bytes.nvst",
+    "tests/conformance/core/a-file-parts-save-to-refuses-the-name-the-client-claimed.nvst",
+    "tests/conformance/core/a-file-parts-save-to-takes-a-laundered-path-under-every-spelling-of-its-bag.nvst"
+  ]
+}

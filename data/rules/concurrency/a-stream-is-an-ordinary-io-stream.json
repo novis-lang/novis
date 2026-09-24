@@ -1,0 +1,16 @@
+{
+  "title": "A parking stream is a plain `Read` and `Write`, so nothing up the call chain is coloured",
+  "status": "shipped",
+  "because": [
+    "0115",
+    "0132"
+  ],
+  "divergesFromPhp": "there is no `await` and no second spelling of any member that touches I/O — a helper reads a socket with the call it would use on a blocking one",
+  "seeAlso": [
+    "concurrency/try-the-syscall-then-park",
+    "concurrency/a-task-stack-is-reserved-wide-and-pooled"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/net.rs"
+  ]
+}

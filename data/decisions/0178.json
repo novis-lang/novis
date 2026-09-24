@@ -1,0 +1,9 @@
+{
+  "title": "a finished response is a fourth ending beside `exit`, and every `finally` runs on the way out of it",
+  "status": "accepted",
+  "scope": "the fourth ending — what it means for a response to be *finished* rather than\nterminated, which class carries the member that says so, and why the unwind that carries it runs\nevery `finally` between the frame that asked and the request root. It re-opens neither `exit`'s\nsemantics nor the escalation ladder [0020](0020.md) owns, and decides nothing about what a response\nbody holds, which [0176](0176.md) owns.",
+  "dependsOn": [
+    "0127",
+    "0072"
+  ]
+}

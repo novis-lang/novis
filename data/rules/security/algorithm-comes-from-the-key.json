@@ -1,0 +1,17 @@
+{
+  "title": "The algorithm comes from the key and never from the token",
+  "status": "shipped",
+  "because": [
+    "0060"
+  ],
+  "divergesFromPhp": "`alg: none` and the RS256-to-HS256 confusion have no code path, because no attacker-supplied string selects a verifier",
+  "seeAlso": [
+    "security/jwt-expiry-is-mandatory",
+    "security/verification-throws-and-compares-in-constant-time",
+    "security/protocol-roster"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/jwt-refuses-every-unverifiable-token-with-one-sentence.nvst",
+    "tests/conformance/core/csrf-a-wrong-key-is-a-verdict-and-a-non-key-is-a-bug.nvst"
+  ]
+}

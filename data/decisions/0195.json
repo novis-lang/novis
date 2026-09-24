@@ -1,0 +1,10 @@
+{
+  "title": "Every process the extension starts runs from a verified copy of the binary, and a new build takes over the server without a gap",
+  "status": "accepted",
+  "scope": "which file the VS Code extension spawns — for the server, the Tasks, the formatter, the AST\npanel and the test controller — how that file is kept the same program as the binary the user named,\nhow the server moves to a new build, and what is run when no copy can be. Which binary that is, is\n`nvs.path` and then `PATH`, unchanged; the version comparison is [0158](0158.md)'s and unchanged.",
+  "dependsOn": [
+    "0099",
+    "0155"
+  ],
+  "validatedBy": "`editors/vscode/test/client/shadow.test.ts`, and the measurement under *Verification*."
+}

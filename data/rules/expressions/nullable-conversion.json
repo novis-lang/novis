@@ -1,0 +1,22 @@
+{
+  "title": "`expr as ?T` yields the converted value or `null`, and never throws",
+  "status": "shipped",
+  "because": [
+    "0066",
+    "0007",
+    "0047"
+  ],
+  "divergesFromPhp": "a failed conversion is a `null` the caller tests, where `(int)$x` — which does not parse at all — answered `0` and said nothing",
+  "seeAlso": [
+    "expressions/nullable-conversion-availability",
+    "expressions/conversion-keeps-qualifiers",
+    "expressions/nullable-condition-lint",
+    "expressions/try-parse"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-nullable-conversion-yields-null-rather-than-throwing.nvst",
+    "tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst",
+    "tests/conformance/lang/a-nullable-conversion-into-a-closed-set-answers-null-where-the-checked-one-throws.nvst",
+    "tests/conformance/lang/an-array-converts-element-by-element-and-its-nullable-twin-agrees.nvst"
+  ]
+}

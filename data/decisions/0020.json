@@ -1,0 +1,11 @@
+{
+  "title": "Fatal errors reach user code through a reserved-budget ladder, never through `catch`",
+  "status": "accepted",
+  "scope": "what happens after a `FATAL` status (`rule:errors/propagation`) or an uncaught\n`THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to\ncompile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how\nmany of the handlers in between also fail",
+  "dependsOn": [],
+  "summary": {
+    "group": "foundations",
+    "headline": "A fatal error climbs a four-step ladder of handlers, and is never caught",
+    "body": "A resource limit is not an exception: `catch` never sees it, and a handler that tries is refused\nwhile building. The failure climbs a ladder instead: a limit handler the request registered,\nthen its handler for uncaught throws, then a script the operator configures — an ordinary\nsandboxed script on a small budget the engine keeps back, so a request that has spent its own is\nstill reported — and last a hardcoded line the engine writes itself. No step is retried, and\nevery step writes the same log record."
+  }
+}

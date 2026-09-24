@@ -1,0 +1,21 @@
+{
+  "title": "A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0093"
+  ],
+  "divergesFromPhp": "the same `listen = /run/nvs.sock` shape as php-fpm, but a Windows host has no named-pipe equivalent and listens on TCP loopback",
+  "seeAlso": [
+    "http-server/the-server-block-is-boot-class",
+    "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
+    "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/server.rs",
+    "crates/nvs-cli/src/serve.rs",
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-server/src/forwarded.rs",
+    "crates/nvs-host/src/net.rs"
+  ]
+}

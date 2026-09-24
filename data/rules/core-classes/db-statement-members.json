@@ -1,0 +1,23 @@
+{
+  "title": "Five members run a statement, results are buffered by default, and only one of them streams",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0004",
+    "0063"
+  ],
+  "divergesFromPhp": "there is no unbuffered-query flag and no per-driver difference in what a second statement on a busy connection does",
+  "seeAlso": [
+    "core-classes/db-streaming",
+    "core-classes/db-column-types",
+    "core-classes/db-connection-busy-state"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-query-answers-a-rows-and-not-an-array.nvst",
+    "tests/conformance/core/db-execute-answers-a-write-and-not-a-count.nvst",
+    "tests/conformance/core/db-execute-many-answers-a-count-and-not-a-write.nvst",
+    "tests/conformance/core/db-execute-many-takes-a-set-per-execution.nvst",
+    "tests/conformance/core/db-query-as-answers-rows-at-the-class-it-was-written-with.nvst",
+    "tests/conformance/core/db-write-tells-an-absent-count-from-a-zero-one.nvst"
+  ]
+}

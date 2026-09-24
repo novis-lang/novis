@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/openapi.rs",
+  "title": "`info.version`.",
+  "text": "The document has to carry one (3.1 requires it) and nothing in the program declares one, so it is a fixed `0.0.0`. A version is what a program is *published* as, so it arrives with the manifest that publishes one — M15's `package.toml` (`docs/plan/m15.md`) — rather than from a deployment key this module would be quoting back at whoever wrote it.",
+  "milestone": "M15"
+}

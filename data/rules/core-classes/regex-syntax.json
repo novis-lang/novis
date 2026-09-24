@@ -1,0 +1,18 @@
+{
+  "title": "Regex syntax is PCRE's with no `u` modifier, and a construct neither engine supports is diagnosed by name",
+  "status": "shipped",
+  "because": [
+    "0056",
+    "0009"
+  ],
+  "divergesFromPhp": "Unicode mode is not a flag because `string` is always UTF-8, and `/e` and its relatives are not reintroduced",
+  "seeAlso": [
+    "core-classes/regex-two-tiers",
+    "types/string-is-utf8",
+    "types/bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/regex-compile-carries-the-four-flags.nvst",
+    "tests/conformance/core/regex-match-offset-is-a-grapheme-index-from-zero-to-the-subject-length.nvst"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "There is no network-reachable control surface, in either direction of configuration",
+  "status": "shipped",
+  "because": [
+    "0078"
+  ],
+  "seeAlso": [
+    "config/one-local-control-socket"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/control.rs"
+  ]
+}

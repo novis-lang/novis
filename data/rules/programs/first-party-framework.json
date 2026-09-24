@@ -1,0 +1,15 @@
+{
+  "title": "Novis ships the framework, split by the standard-library placement tests",
+  "status": "designed",
+  "because": [
+    "0082",
+    "0051"
+  ],
+  "seeAlso": [
+    "programs/framework-core-half",
+    "programs/framework-web-package",
+    "programs/framework-refusals",
+    "programs/nvs-new"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,15 @@
+{
+  "title": "A member whose output scales with its input either allocates through the guarded value allocator or bounds the input",
+  "status": "shipped",
+  "because": [
+    "0174"
+  ],
+  "seeAlso": [
+    "core-classes/decompression-bound",
+    "core-classes/regex-two-tiers",
+    "errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/allocation_policy.rs"
+  ]
+}

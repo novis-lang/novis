@@ -1,0 +1,11 @@
+{
+  "title": "Novis ships the batteries: a first-party framework, split by `rule:core-api/tier-placement`'s existing tests",
+  "status": "accepted",
+  "scope": "that Novis ships a batteries-included web framework at all; the rule that decides which half of it\nis compiled into the binary and which half is a package; the roster of each half; `nvs new`; and what the\nframework deliberately refuses to be. Not in scope: the signature of any member, which the milestone that\nbuilds it designs against [0063](0063.md); the package mechanism itself\n([0081](0081.md)); and schema migration *semantics*, which\n§ 7 records as a deliberate open gap.",
+  "dependsOn": [],
+  "summary": {
+    "group": "foundations",
+    "headline": "A web framework ships in the box, half in the runtime and half as a package",
+    "body": "Novis ships a working web framework. Anything needing runtime privilege, cleaning untrusted data\nor waiting on the outside world — sessions, validation, the job queue, password hashing, mail\ntransport — is built into the binary. Everything above that — controllers, middleware, auth\nflows, scaffolding — is `nvs/web`, a first-party package. No ORM and no service container: data\naccess is prepared statements plus codecs derived from your classes, and wiring is constructor\ninjection resolved while building. `nvs new` produces an application that serves a route, talks\nto a database and passes a test."
+  }
+}

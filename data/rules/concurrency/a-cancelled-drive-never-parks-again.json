@@ -1,0 +1,15 @@
+{
+  "title": "A cancellation ends the drive: torn down where it parked, or told once and answered",
+  "status": "shipped",
+  "because": [
+    "0138",
+    "0072"
+  ],
+  "seeAlso": [
+    "concurrency/one-future-per-connection",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs"
+  ]
+}

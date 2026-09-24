@@ -1,0 +1,17 @@
+{
+  "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
+  "status": "shipped",
+  "because": [
+    "0063",
+    "0003"
+  ],
+  "divergesFromPhp": "there is no `resource`, no integer handle and no `$link`-first convention anywhere in `Core`",
+  "seeAlso": [
+    "core-api/one-paradigm-per-operation",
+    "classes/no-destructors",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

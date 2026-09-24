@@ -1,0 +1,17 @@
+{
+  "title": "A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "divergesFromPhp": "`ARRAY_FILTER_USE_KEY` and `ARRAY_FILTER_USE_BOTH` have nothing to select, and there is no `map`/`mapWithKey` pair",
+  "seeAlso": [
+    "core-api/no-mode-strings",
+    "types/callable-arity",
+    "types/callable-is-a-closure"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-map-and-filter.nvst",
+    "tests/conformance/core/arr-map-keys-rekeys-and-group-by-partitions.nvst"
+  ]
+}

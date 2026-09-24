@@ -1,0 +1,13 @@
+{
+  "lead": "The two `Core` coverage gates run in opposite directions, and a class with no members owes neither anything.",
+  "body": "`conformance_coverage.rs` walks `registry::CLASSES` and asks for a `.nvst` per member; `spec_registry_coverage.rs` walks `docs/spec/01-core-library.md`'s `| Member | Signature |` rows and asks the registry for each — so a memberless class like `Core\\Script\\Handle` turns both green with no spec edit and no case. Adding a spec row for such a class is the trap: it would demand a member the class exists in order not to have; its prose home is `docs/spec/00-overview.md` § 2 instead.",
+  "files": [
+    "docs/spec/01-core-library.md",
+    "docs/spec/00-overview.md",
+    "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
+  }
+}

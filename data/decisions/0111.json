@@ -1,0 +1,14 @@
+{
+  "title": "A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds",
+  "status": "accepted",
+  "scope": "the PHP-name completion layer in `nvs-lsp` — which names a keystroke may match, where an\nitem's text comes from, the rule deciding whether an item inserts anything at all, how the layer is\nbuilt, and the one setting that turns it off. Not in scope: which `Core` member a given PHP name\nbecomes, which is [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s one row per name; what\n`nvs convert` does with those same rows, which is\n[0089](0089.md); the reference index and the other completion\nsources, which are [0108](0108.md)\n§§ 1–2; `Core` member completion itself, which is ordinary language completion and was M4B's; and M4B's\nfrozen contribution set, which is [0099](0099.md) §§ 1–6.",
+  "dependsOn": [
+    "0108"
+  ],
+  "dependsOnText": "[0108](0108.md)\n— its § 2 states the terms on which anything is admitted to a completion list at all.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Typing a PHP function name in the editor offers its Novis replacement",
+    "body": "Someone arriving from PHP types the name they already know, and the editor answers with the\nNovis one. The candidates come from the complete inventory of PHP built-ins, so every PHP name\nappears from the first day: a missing name would read as \"Novis cannot do this\", while one\nmarked not yet classified reads as an audited gap with an answer owed. An item inserts only a\nlibrary member that exists in the current build, so a promised but unbuilt destination is shown\nand inert."
+  }
+}

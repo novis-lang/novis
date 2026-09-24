@@ -1,0 +1,14 @@
+{
+  "title": "Nothing a request can send terminates or wedges a worker",
+  "status": "accepted",
+  "scope": "decides what happens on the failure paths that reach a worker *around* the mechanisms already\nin place — a process `abort()`, a `SIGSEGV` raised by the engine's own recursion, a `SIGBUS` from a file\nthat moved under a mapping, an accept loop that spins, a core that is alive but never returns. Decides the\nadmission arithmetic that makes a memory cap mean something, and names the one fault class that survives\nall of it. Does **not** re-decide how a `FATAL` is reported once it reaches a boundary\n([0020](0020.md)), which text a parser refuses\n([0095](0095.md)), what a proxy owns\n([0074](0074.md)), or the regex engine's own bound\n([0056](0056.md)).",
+  "dependsOn": [
+    "0002"
+  ],
+  "dependsOnText": "[0002](0002.md) — this ADR extends its containment rule outward and has\nnothing to decide without it.",
+  "summary": {
+    "group": "security",
+    "headline": "Nothing a request can send kills or wedges a worker",
+    "body": "Catching a panic contains a panic, but not a process abort, not a signal, and not a worker that\nstays alive without making progress — so containment covers the whole worker task, and every\ndepth and duration a request can drive is bounded inside the engine. A worker never blocks on a\nsystem call; one that stops progressing is shed by its deadline, not killed; and admission is\narithmetic against the memory budget. One fault class remains — a memory bug in unsafe code or a\nmiscompile — and it is named, not hidden."
+  }
+}

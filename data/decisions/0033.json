@@ -1,0 +1,11 @@
+{
+  "title": "`secret`: a second compile-time qualifier for confidential values, composable with `tainted`",
+  "status": "accepted",
+  "scope": "a `secret` compile-time qualifier on `string`/`bytes`, independent of and composable with\n`rule:security/tainted-qualifier`'s `tainted`; how it enters, propagates, and is\nremoved; the sinks that refuse a `secret` value (HTML/response output, terminal output, `Core\\Log`,\ndebug-dump output, `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per\n`rule:attributes/inert-metadata` — an attribute payload position); the redaction\n`Core\\Debug::dump` owes a `secret`-qualified property.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "A `secret` value cannot be printed, logged or dumped",
+    "body": "`secret string` and `secret bytes` mark confidential values; a submitted password is `secret\ntainted string`. Nothing becomes secret on its own, only where a declaration says so, and\ncombining a secret with anything makes the result secret. HTML and terminal output, log fields,\nserialization, exception messages and attribute payloads refuse it; a debug dump shows a\nplaceholder. Database parameters, process arguments and outbound requests accept it, because\nthat is where a credential legitimately goes. `Core\\Secret::reveal` is the deliberate way out; a\nchecked conversion like `as uint` also clears it, an accepted gap."
+  }
+}

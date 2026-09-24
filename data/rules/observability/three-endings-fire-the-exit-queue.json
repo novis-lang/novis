@@ -1,0 +1,18 @@
+{
+  "title": "The exit queue drains once — at a normal end, at `exit` and at an uncaught throw — and the report says which ending it was",
+  "status": "shipped",
+  "because": [
+    "0127"
+  ],
+  "seeAlso": [
+    "observability/script-on-exit",
+    "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
+    "observability/exit-hooks-run-after-the-ladder-before-teardown"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst",
+    "tests/conformance/core/script-on-exit-sees-the-exit-no-finally-can-see.nvst",
+    "tests/conformance/core/script-on-exit-carries-the-live-throwable-of-an-uncaught-throw.nvst",
+    "tests/conformance/core/script-exit-report-carries-the-status-the-exit-named-with-no-error-beside-it.nvst"
+  ]
+}

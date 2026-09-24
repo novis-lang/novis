@@ -1,0 +1,9 @@
+{
+  "lead": "The acceptance failure the orientation pack quotes is a line the ledger wrote at the time, so one written before `first_err_line` learned to skip warnings still names a warning rather than the failure.",
+  "body": "That property now picks the failed test, then the panic, then the first `error` line, but nothing rewrites a line already in `.loop/log.md` — a `warning: use of deprecated method fetch_update` reached a session as the whole verdict on a leg whose real failure was a flaky test eleven lines above it. Grep `.loop/logs/<run>-console.log` for the check's name and read its whole block before believing the one line, because that log holds both streams and the ledger holds one sentence.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-14"
+  }
+}

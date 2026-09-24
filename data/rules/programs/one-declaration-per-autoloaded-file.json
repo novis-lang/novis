@@ -1,0 +1,17 @@
+{
+  "title": "A file reached by autoload declares exactly one thing, under the name the map finds it by",
+  "status": "shipped",
+  "because": [
+    "0061",
+    "0215"
+  ],
+  "divergesFromPhp": "PSR-4 imposes this by convention; here it is a diagnostic",
+  "seeAlso": [
+    "programs/autoload",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst",
+    "tests/conformance/lang/an-autoloaded-file-declaring-another-namespace-does-not-compile.nvst"
+  ]
+}

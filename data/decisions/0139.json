@@ -1,0 +1,15 @@
+{
+  "title": "A session is a record its store issued, and its backend is never the local tier",
+  "status": "accepted",
+  "scope": "the mechanics [0012](0012.md) § 4 deferred — the member roster\n`Core\\Session` carries, the four operations a backend answers, which backends `[session] backend`\nadmits and how the excluded one is refused, when a record is read and written, and when it expires.\nNot the *shape* of the class, which 0012 § 4 already fixed (a class, an explicit start, no ambient\narray); not the seal on the cookie that carries the id, which is\n[0060](0060.md) § 1's ring; not the strict-id rule, which is\n[0124](0124.md) § 6; and not the ban on the local\ntier itself, which is [0059](0059.md) § 4's and is only *enforced*\nhere.",
+  "dependsOn": [
+    "0059"
+  ],
+  "dependsOnText": "[0059](0059.md), which decides what may not hold a\nsession and therefore what is left to choose between.",
+  "validatedBy": "`crates/nvs-stdlib/src/session.rs`'s\n`a_session_is_never_backed_by_the_local_cache_tier` and\n`a_session_survives_a_request_landing_on_another_core`.",
+  "summary": {
+    "group": "core",
+    "headline": "A session is a record its store issued, never kept on the local machine",
+    "body": "A session is one record in a store that can answer whether it issued a given id, and an id the\nstore never issued is rejected. The store is the shared cache tier or the database. The local\ntier is not allowed, and configuring it refuses at boot, because a session on one machine's disk\nstops being a session once a second machine serves the site. The record is loaded once when the\nsession starts, written back whole when it changes, and expired by the store itself. No lock is\nheld across a request."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "`nvs agent index` carries one derived line per configuration key, command, flag and diagnostic code, and `find` reaches each by the name a user types",
+  "status": "designed",
+  "because": [
+    "0216"
+  ],
+  "seeAlso": [
+    "tooling/the-index-is-one-line-per-member",
+    "tooling/a-diagnostic-code-carries-its-card",
+    "testing/feature-proofs"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,25 @@
+{
+  "title": "`#[Command]` builds the command table while compiling, and a duplicate name or an unbindable option fails the build",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0077",
+    "0061",
+    "0071"
+  ],
+  "divergesFromPhp": "`getopt()` and hand-parsed `$argv` become a table built while compiling; a duplicate command, two options sharing a spelling, or an `#[Option]` on a type no text converts into is a compile error rather than a run-time surprise",
+  "seeAlso": [
+    "tooling/a-parameter-is-an-argument-unless-it-is-an-option",
+    "tooling/command-run-dispatches-and-help-is-generated",
+    "routing/routes-are-compiled-not-registered",
+    "routing/matching-is-not-dispatching",
+    "programs/implementing",
+    "core-classes/cli-arguments",
+    "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/commands.rs",
+    "tests/conformance/reject/a-command-is-static-and-returns-void-or-uint.nvst",
+    "tests/conformance/core/command-help-is-generated-from-the-compiled-table.nvst"
+  ]
+}

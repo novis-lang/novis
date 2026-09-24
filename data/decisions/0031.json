@@ -1,0 +1,11 @@
+{
+  "title": "`callable` is the only closure type; `fn` is the only closure literal",
+  "status": "accepted",
+  "scope": "the anonymous-function/closure literal grammar (PHP's `function(...) use (...) {...}` vs\n`fn(...) => ...`); explicit capture (`use`, by value and by reference); whether `Closure` and `callable`\nare two type names or one; `Closure::fromCallable`, `call_user_func`, `call_user_func_array`;\nself-referencing recursion for an otherwise-anonymous closure",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "`fn` is the only closure, capture is implicit, and `Closure` is not a type",
+    "body": "`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }` are the two shapes; `function (...) use\n(...) {}` does not parse. There is no `use` clause: a closure captures the outer variables its\nbody reads, by value, when it is created. Two closures share state through an ordinary object,\nsince a captured object is still the same object. A closure that calls itself carries a\nself-name: `fn factorial($n) => ...`. The type is `callable`; `Closure`,\n`Closure::fromCallable`, `call_user_func` and `call_user_func_array` are gone, because\n`$fn(...$args)` already does their job."
+  }
+}

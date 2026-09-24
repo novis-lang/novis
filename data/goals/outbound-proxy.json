@@ -1,0 +1,9 @@
+{
+  "title": "an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see",
+  "milestone": "M8",
+  "files": [],
+  "context": {},
+  "stages": [],
+  "checks": [],
+  "env": {}
+}

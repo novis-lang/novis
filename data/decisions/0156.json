@@ -1,0 +1,17 @@
+{
+  "title": "a body reader is buffering or streaming, and only a streaming one consumes the body",
+  "status": "accepted",
+  "scope": "which readers of `Core\\Request`'s body may follow which, and why that is a property of the\nmember rather than a list of pairs. It does not decide `json()`'s signature or its error behaviour,\nwhich are [0097](0097.md) § 8's roster and this goal's own standing decisions.",
+  "dependsOn": [
+    "0097",
+    "0105",
+    "0095"
+  ],
+  "dependsOnText": "[0097](0097.md) § 8 (the body, the two caps and the streaming reader),\n[0105](0105.md) § 2 (a multipart form's non-file parts are buffered into `post()`),\n[0095](0095.md) (ambiguous input is refused whole).",
+  "validatedBy": "the refusal `crates/nvs-stdlib/src/request.rs`'s `claim_body` states to a program,\nand the conformance cases that pin a second buffering read answering the same octets.",
+  "summary": {
+    "group": "core",
+    "headline": "A request body is read either into a buffer or as a stream, never both",
+    "body": "`body`, `post`, `json` and `jsonAs` buffer the request body under the configured size limit and\nanswer from that buffer, so any of them may follow any other in any order. `bodyStream` and\n`files` hand the bytes to the program as they arrive and keep nothing, so each of those may only\nbe the first thing to read the body. Reading `post()` after walking `files()` still works: the\nwalk buffers the ordinary fields it passes, and `post()` reads that buffer like any other\nbuffering reader."
+  }
+}

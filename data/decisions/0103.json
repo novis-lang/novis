@@ -1,0 +1,12 @@
+{
+  "title": "Configuration is a tree of files, and file ownership is the trust anchor",
+  "status": "accepted",
+  "scope": "how the running configuration is assembled — where the root file is found, `[[include]]`,\nthe order in which files are merged, what a relative path means, the ownership check every config\ninput must pass, how a secret reaches a directive, which CLI flags may override one, and the\n`nvs config` verbs that make the result auditable. It does **not** decide the file's *syntax*, which\nstays [0064](0064.md)'s, nor the directive registry, changeability classes\nor the per-request overlay, which stay [0005](0005.md)'s, nor what an\napplication *is*, which is [0104](0104.md)'s.",
+  "dependsOn": [],
+  "validatedBy": "[crates/nvs-config/tests/resolve.rs](../../crates/nvs-config/tests/resolve.rs) —\n§§ 1-5 as a tree over an in-memory reader, and where § 6's check falls;\n[crates/nvs-config/tests/trust.rs](../../crates/nvs-config/tests/trust.rs) — § 6 itself, against a\nreal filesystem.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Configuration is a tree of TOML files, and file ownership decides trust",
+    "body": "Configuration is a tree of TOML files. A root is named on the command line or found as\n`nvs.toml`, and it pulls in more files with `[[include]]`, by path or by directory. Resolution\nis one ordered stream — each file's own keys, then its includes, depth first — and later wins,\nso an included file overrides the one that included it. Every file is trusted as far as its\nownership: a file writable by any account but its owner refuses to boot. A secret arrives as a\nfile whose whole content is the value."
+  }
+}

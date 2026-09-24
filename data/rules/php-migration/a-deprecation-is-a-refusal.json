@@ -1,0 +1,21 @@
+{
+  "title": "What PHP deprecates for removal is refused at compile time, never phased in behind a warning",
+  "status": "designed",
+  "because": [
+    "0124"
+  ],
+  "divergesFromPhp": "a PHP 8.6 deprecation is a compile error at the line it is written, with no deprecation channel and no warning",
+  "seeAlso": [
+    "types/no-legacy-cast",
+    "expressions/no-keyword-logical-operators",
+    "expressions/bracket-destructuring",
+    "php-migration/no-return-leaves-a-finally",
+    "php-migration/a-constructor-return-carries-no-value",
+    "php-migration/let-and-is-are-reserved",
+    "php-migration/a-readonly-property-declares-no-default",
+    "php-migration/no-partial-application",
+    "php-migration/a-session-id-the-store-did-not-issue-is-rejected",
+    "types/duration-literal"
+  ],
+  "guardedBy": []
+}

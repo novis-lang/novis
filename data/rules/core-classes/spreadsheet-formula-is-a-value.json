@@ -1,0 +1,14 @@
+{
+  "title": "Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert",
+  "status": "designed",
+  "because": [
+    "0123",
+    "0024"
+  ],
+  "divergesFromPhp": "a string beginning `=`, `+`, `-` or `@` writes as text, so formula injection is closed by type rather than by a remembered quote prefix",
+  "seeAlso": [
+    "core-classes/spreadsheet-has-no-io",
+    "core-classes/spreadsheet-evaluation-and-roster"
+  ],
+  "guardedBy": []
+}

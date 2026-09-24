@@ -1,0 +1,19 @@
+{
+  "title": "A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that",
+  "status": "shipped",
+  "because": [
+    "0102",
+    "0077",
+    "0007",
+    "0199"
+  ],
+  "divergesFromPhp": "there is no `$route->getCallable()`; the handler is reached by a `switch` the framework generates or the application writes",
+  "seeAlso": [
+    "routing/the-servers-match-dispatches-nothing",
+    "types/grammar",
+    "programs/framework-web-package",
+    "core-classes/derive-attribute",
+    "routing/matching-is-not-dispatching"
+  ],
+  "guardedBy": []
+}

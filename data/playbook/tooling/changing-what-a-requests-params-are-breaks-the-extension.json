@@ -1,0 +1,12 @@
+{
+  "lead": "Changing what a request's params are breaks the extension silently.",
+  "body": "`regions()` in `editors/vscode/src/regions.ts` wraps its `sendRequest` in a `try`/`catch` returning `[]`, so params the server refuses read as \"this file has no markup\" and the HTML services stop forwarding, with neither `cargo test` nor `npm run compile` seeing it. Grep `editors/vscode/src` for the `METHOD` constant of any request whose dispatch arm in `crates/nvs-lsp/src/server.rs` you retype, and land both sides together.",
+  "files": [
+    "crates/nvs-lsp/src/server.rs",
+    "editors/vscode/src/regions.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "editors/vscode/src/regions.ts:} catch {"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "title": "An attribute may be attached to one declaration any number of times, and attach time never counts them",
+  "status": "shipped",
+  "because": [
+    "0046"
+  ],
+  "divergesFromPhp": "repeatability is the default and needs no `Attribute::IS_REPEATABLE` marker",
+  "seeAlso": [
+    "attributes/structural-retrieval",
+    "attributes/retrieval-folds-while-checking",
+    "attributes/access-payload"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+    "crates/nvs-types/tests/attributes.rs"
+  ]
+}

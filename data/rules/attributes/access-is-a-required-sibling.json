@@ -1,0 +1,18 @@
+{
+  "title": "A method carrying `#[Route]` carries `#[Access]`, and an omission does not compile",
+  "status": "shipped",
+  "because": [
+    "0096",
+    "0094",
+    "0077"
+  ],
+  "divergesFromPhp": "no PHP framework can refuse to build a route whose author wrote no access decision",
+  "seeAlso": [
+    "attributes/access-payload",
+    "attributes/api-adds-and-cannot-contradict"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

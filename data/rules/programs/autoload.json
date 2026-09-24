@@ -1,0 +1,27 @@
+{
+  "title": "`autoload` maps a prefix to roots, resolved relative to the file that declares it",
+  "status": "shipped",
+  "because": [
+    "0061",
+    "0021",
+    "0029",
+    "0215"
+  ],
+  "divergesFromPhp": "the map is a declaration in source rather than a registered loader or a `psr-4` manifest, and it travels with the code instead of with the deployment",
+  "seeAlso": [
+    "programs/no-runtime-autoload",
+    "programs/one-declaration-per-autoloaded-file",
+    "programs/path-case"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-autoload-in-the-entry-point-resolves-a-class.nvst",
+    "tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst",
+    "tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst",
+    "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst",
+    "tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst",
+    "tests/conformance/lang/an-autoload-inside-an-autoloaded-file-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-directory-segment-names-the-prefix-after-a-directory.nvst",
+    "tests/conformance/lang/an-autoload-prefix-that-can-never-match-does-not-compile.nvst",
+    "crates/nvs-hir/src/autoload.rs"
+  ]
+}

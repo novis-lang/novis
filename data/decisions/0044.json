@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Process` is the one argv-only way to run another program; no shell, ever",
+  "status": "accepted",
+  "scope": "the full `Core\\Process` API that replaces PHP's `exec`/`system`/`passthru`/`shell_exec`/backticks/\n`popen`/`proc_open` family (M8, stdlib) — the blocking `run()`/non-blocking `spawn()` split, the shape of a\nspawned process's result and handle, why there is no shell-string form of any kind, the Windows batch-file/\nscript-interpreter refusal, the `process.exec` capability, and the `nvs convert` mapping from every PHP\nprocess-execution shape.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Running another program takes a path and an argument list, never a shell line",
+    "body": "There is one way to start a program: `Core\\Process::run()`, which waits and captures output, and\n`Core\\Process::spawn()`, which streams. Both take an executable path and an array of arguments,\nand no flag hands a string to a shell. On Windows a `.bat`, `.cmd` or `.ps1` target is refused,\nbecause the system can only run those through a second command-line parser that no quoting fully\ntames, the bug that has bitten both Node and Rust. Waiting on a child suspends only the calling\ncoroutine, so one slow process does not stall other requests."
+  }
+}

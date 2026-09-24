@@ -1,0 +1,18 @@
+{
+  "title": "Any file in the tree may set any directive, `System` class included",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0005"
+  ],
+  "divergesFromPhp": "there is no `PHP_INI_SYSTEM` versus `PHP_INI_PERDIR` split between files: an included file clears the same ownership bar as the root file and may grant a capability, set `[limits.hard]` or add an `[[extension]]`",
+  "seeAlso": [
+    "config/ownership-is-the-trust-boundary",
+    "config/later-wins-and-every-override-is-recorded",
+    "config/system-means-a-request-may-not-set-it"
+  ],
+  "guardedBy": [
+    "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

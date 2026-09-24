@@ -1,0 +1,16 @@
+{
+  "title": "The subject is parameter 1 of every `Core` member, with no exceptions",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "divergesFromPhp": "`array_map(f, a)` beside `array_filter(a, f)`, and `in_array`, `str_replace` and `preg_match` disagreeing about haystack-before-needle, all become one order",
+  "seeAlso": [
+    "core-api/shape-rules",
+    "core-api/one-name-one-signature"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-map-and-filter.nvst",
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

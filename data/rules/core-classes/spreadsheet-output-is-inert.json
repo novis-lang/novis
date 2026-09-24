@@ -1,0 +1,14 @@
+{
+  "title": "The writer embeds no executable content and no entropy, so equal input gives byte-equal output",
+  "status": "designed",
+  "because": [
+    "0123",
+    "0121",
+    "0079"
+  ],
+  "seeAlso": [
+    "core-classes/pdf-output-is-inert",
+    "core-classes/spreadsheet-evaluation-and-roster"
+  ],
+  "guardedBy": []
+}

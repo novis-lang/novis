@@ -1,0 +1,27 @@
+{
+  "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
+  "status": "shipped",
+  "because": [
+    "0097",
+    "0102",
+    "0104",
+    "0017",
+    "0197",
+    "0200",
+    "0218",
+    "0219"
+  ],
+  "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
+  "seeAlso": [
+    "http-server/a-path-is-never-derived-from-a-url",
+    "http-server/a-mount-carries-no-policy",
+    "routing/a-request-reads-its-mount",
+    "routing/link-carries-the-mount-prefix",
+    "routing/an-origin-is-per-mount-and-checked-at-boot",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/mount.rs",
+    "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
+  ]
+}

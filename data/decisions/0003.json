@@ -1,0 +1,12 @@
+{
+  "title": "Extensions are sandboxed WebAssembly components, not native shared libraries",
+  "status": "accepted",
+  "scope": "how third-party code is added to a running Novis without rebuilding it — the three tiers,\nthe `.nvsx` component format and its manifest, the WIT world, how a value crosses the guest\nboundary, and the isolation, limits and loading rules a guest runs under. Not in scope: which\nsubsystem belongs at which tier, which is [0051](0051.md); how a package is\nnamed, resolved and granted, which is [0081](0081.md).",
+  "dependsOn": [],
+  "validatedBy": "[`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the\n`wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,\n`x86_64-pc-windows-msvc`.",
+  "summary": {
+    "group": "security",
+    "headline": "Extensions run in a WebAssembly sandbox, never as native libraries",
+    "body": "An add-on is a WebAssembly component in a single file; there is no way to load a native shared\nlibrary or call into C. The extension never sees the server's memory: values stay on the host\nside and it reads them through checked handles, so a buggy or hostile extension spoils one\nrequest and nothing else. Each request gets a fresh copy, under that request's own limits and\npermissions. Every call across the boundary has a fixed price, so pieces that need raw speed,\nsuch as database drivers, are built into the binary instead."
+  }
+}

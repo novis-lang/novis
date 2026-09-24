@@ -1,0 +1,11 @@
+{
+  "title": "Functions and constants are class members; `Core` is the reserved namespace for built-ins",
+  "status": "accepted",
+  "scope": "where a `function` or a `const` may be declared; the reserved `Core` namespace and its\ndomain-class shape; how PHP's global functions and global constants are organised as built-ins",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Every function and constant is a class member; built-ins live under `Core`",
+    "body": "A `function` or `const` declared outside a class does not compile. PHP's global functions and\nconstants are instead static members of classes in a reserved `Core` namespace, grouped by\ndomain: `strlen($s)` becomes `Core\\Str::length($s)`, and `PHP_EOL` becomes `Core\\Env::EOL`.\nNothing under `Core` is imported for you; you write `use Core\\Str;` as for any other namespace.\nAnonymous and arrow functions are values, not declarations, and are unaffected. The cost falls\non converted PHP code, where every built-in call is renamed; the gain is that no bare name is\never resolved by a fallback."
+  }
+}

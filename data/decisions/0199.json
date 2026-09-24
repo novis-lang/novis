@@ -1,0 +1,10 @@
+{
+  "title": "A match answers its route's access decision and its verb, and its captures stay one union",
+  "status": "accepted",
+  "scope": "what `Core\\Router\\Match` lets a program read. Who dispatches, what the server enforces and\nwhat a match may never carry are [0102](0102.md)'s and [0077](0077.md)'s and unchanged.",
+  "dependsOn": [
+    "0102",
+    "0077"
+  ],
+  "validatedBy": "`tests/conformance/core/one-access-check-above-the-dispatch-switch-covers-every-route.nvst`,\n`tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst`,\n`tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst`, and\n`a_match_crosses_its_verb_and_its_access_decision_and_a_missing_one_is_null` in\n`crates/nvs-stdlib/src/router.rs`."
+}

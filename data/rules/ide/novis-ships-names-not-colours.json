@@ -1,0 +1,14 @@
+{
+  "title": "Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0101"
+  ],
+  "seeAlso": [
+    "ide/highlighting-is-two-layers",
+    "ide/semantic-tokens-carry-the-qualifiers",
+    "ide/tainted-has-no-default-decoration"
+  ],
+  "guardedBy": []
+}

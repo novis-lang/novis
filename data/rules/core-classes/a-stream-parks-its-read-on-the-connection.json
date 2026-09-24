@@ -1,0 +1,17 @@
+{
+  "title": "A stream's read state is parked on the connection on every driver, and a buffer is never the answer",
+  "status": "shipped",
+  "because": [
+    "0187"
+  ],
+  "seeAlso": [
+    "core-classes/db-streaming",
+    "core-classes/db-connection-busy-state",
+    "core-classes/db-drivers-are-an-enum"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/db_stream.rs",
+    "tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst",
+    "tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst"
+  ]
+}

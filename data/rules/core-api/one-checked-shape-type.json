@@ -1,0 +1,17 @@
+{
+  "title": "The options bag and the shape parameter are two registry spellings of one checked type",
+  "status": "shipped",
+  "because": [
+    "0135",
+    "0063"
+  ],
+  "seeAlso": [
+    "core-api/shape-parameter",
+    "core-api/options-bag",
+    "core-api/reference-card"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/ty.rs",
+    "crates/nvs-types/src/core_lib.rs"
+  ]
+}

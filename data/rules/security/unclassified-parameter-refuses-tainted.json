@@ -1,0 +1,18 @@
+{
+  "title": "A `Core` parameter nobody classified refuses a tainted argument, and refuses to ship at all",
+  "status": "shipped",
+  "because": [
+    "0088",
+    "0024"
+  ],
+  "seeAlso": [
+    "security/sink-predicate",
+    "security/tainted-qualifier",
+    "testing/capability-closure-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-contagious-parameter-taints-the-answer-and-a-neutral-one-does-not.nvst",
+    "tests/conformance/reject/a-tainted-argument-is-refused-where-the-answer-cannot-carry-it.nvst",
+    "tests/conformance/reject/a-union-carrying-tainted-still-refuses-where-the-atom-does.nvst"
+  ]
+}

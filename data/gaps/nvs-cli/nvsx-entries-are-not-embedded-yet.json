@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/bundle.rs",
+  "title": "§ 6's `.nvsx` entries are not embedded yet — Tier 1 extensions do not load at all today, so there is nothing for the flat list to carry.",
+  "text": "",
+  "milestone": "M9"
+}

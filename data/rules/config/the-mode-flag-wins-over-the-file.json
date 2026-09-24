@@ -1,0 +1,16 @@
+{
+  "title": "The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word",
+  "status": "designed",
+  "because": [
+    "0091",
+    "0103"
+  ],
+  "seeAlso": [
+    "config/two-modes-and-the-default-is-production",
+    "config/no-environment-variable-selects-the-mode",
+    "config/a-directive-flag-is-a-closed-list-at-the-global-layer",
+    "config/an-application-is-its-entry-file-path",
+    "config/a-mount-routes-and-an-app-block-sets-policy"
+  ],
+  "guardedBy": []
+}

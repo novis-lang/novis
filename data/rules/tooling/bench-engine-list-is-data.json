@@ -1,0 +1,19 @@
+{
+  "title": "The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red",
+  "status": "shipped",
+  "because": [
+    "0100",
+    "0026",
+    "0065"
+  ],
+  "seeAlso": [
+    "testing/userland-benchmarks",
+    "testing/perf-secondary-figures",
+    "tooling/python-claims",
+    "programs/three-claims"
+  ],
+  "guardedBy": [
+    "tools/bench.py",
+    "benches/userland/README.md"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "One method's repeated routes share a name when they share a path",
+  "status": "accepted",
+  "scope": "decides that repeated `#[Route]` attributes on one method may carry the same `name` when they\nalso carry the same `path`, that every other duplicate `name` stays a compile error, what\n`Core\\Router::url` and `Core\\Router\\Match::name` do with a shared one, and how\n[0085](0085.md)'s `operationId` stays unique. Not in scope: the\nduplicate-*route* rule over `(path, method)` pairs, which\n[0077](0077.md) § 3 keeps unchanged; dispatch, which that ADR's § 4 still refuses;\nand deriving a `path` or a `name` from the declaring class, which *Alternatives rejected* declines and\n§ 4 replaces with a quick fix that writes one.",
+  "dependsOn": [
+    "0077"
+  ],
+  "dependsOnText": "[0077](0077.md) — without its route table and its duplicate-`name`\nrule there is nothing here to relax.",
+  "summary": {
+    "group": "core",
+    "headline": "One method serving several verbs on one path shares a single route name",
+    "body": "A route attribute is repeatable, which is how one method answers several HTTP verbs. Those\nrepeated attributes may share a `name` as long as they share a `path`; one path per name keeps\nlink building a plain function. Every other duplicate name — across two methods, or on one\nmethod whose paths differ — still stops the build. Link building, the metrics label and the\ngenerated API document all see one endpoint. There is no wildcard verb, because the `Allow:`\nheader and the CSRF rule both need the exact set."
+  }
+}

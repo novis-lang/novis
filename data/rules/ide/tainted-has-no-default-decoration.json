@@ -1,0 +1,16 @@
+{
+  "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
+  "status": "designed",
+  "because": [
+    "0101",
+    "0099",
+    "0088",
+    "0158"
+  ],
+  "seeAlso": [
+    "ide/redaction-ranges-come-from-the-server",
+    "security/sink-predicate",
+    "security/tainted-qualifier"
+  ],
+  "guardedBy": []
+}

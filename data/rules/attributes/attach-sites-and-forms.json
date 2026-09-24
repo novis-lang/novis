@@ -1,0 +1,22 @@
+{
+  "title": "An attribute attaches at four declaration sites, and a named one's name is a shape-typed `type` alias",
+  "status": "shipped",
+  "because": [
+    "0046",
+    "0036",
+    "0015",
+    "0071"
+  ],
+  "divergesFromPhp": "a named attribute resolves to a `type` alias rather than to a class, so there is no per-attribute-kind declaration and no second namespace of attribute names",
+  "seeAlso": [
+    "attributes/inert-metadata",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/repeatable",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "crates/nvs-types/src/attributes.rs"
+  ]
+}

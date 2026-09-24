@@ -1,0 +1,9 @@
+{
+  "lead": "A registry row's arity and its helper's `args: [N]` are two numbers that must agree",
+  "body": ", and an options bag flattens to one argument per option — so `round(float, {precision, mode})` is `args: [3]`. A variadic tail is one argument, whatever the call writes, and an instance member's receiver is argument slot 0 and is not in `params`, so `plus(Duration)` is `args: [2]`. A mismatch is an index-out-of-bounds panic at the first call.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

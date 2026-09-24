@@ -1,0 +1,22 @@
+{
+  "title": "A program may read the mode and may flip it for its own request, bounded by a `System` ceiling",
+  "status": "shipped",
+  "because": [
+    "0091",
+    "0005"
+  ],
+  "divergesFromPhp": "a script can turn development defaults on for itself only where the operator opened a ceiling, and the flip never reaches another request",
+  "seeAlso": [
+    "config/a-mode-is-five-defaults",
+    "config/a-runtime-set-is-request-local",
+    "config/a-refused-set-returns-false",
+    "config/ceilings-are-their-own-directives",
+    "config/a-mount-routes-and-an-app-block-sets-policy"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/env-a-mode-flip-moves-the-member-and-a-refused-one-moves-nothing.nvst",
+    "tests/conformance/core/mode-default-is-read-and-set.nvst",
+    "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
+    "crates/nvs-config/tests/request.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "`static` marks a class member; there are no function statics and no `global`",
+  "status": "accepted",
+  "scope": "every meaning PHP gives the `static` keyword; the `global` keyword; the complete list of\nplaces a program may hold state that outlives a call",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "`static` marks a class member; function statics and `global` are gone",
+    "body": "Static methods, static properties, `static::` and `new static()` work as they do in PHP, late\nbinding included. Two other PHP uses of the word do not compile: a `static` variable inside a\nfunction body, and `static fn`. `global` is refused as well. Each error names the replacement: a\nstatic property for state that must outlive a call, a parameter for state that must cross a\nfunction, and nothing for `static fn`, because a closure captures `$this` only when its body\nuses it. No variable exists that the script did not declare itself."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "lead": "Guessing what a backend emits costs a design; a throwaway `#[test]` that prints it costs one build.",
+  "body": "The plausible answer for `nvs_codegen::compile_object`'s relocations — ELF-style `PltRelative` to helpers, needing a stub past 2 GB — is not what this host does: a COFF object routes every external reference through a `.rdata$.refptr` cell, so the only kinds are `Relative`/32 and `Absolute`/64, with implicit addends that must be added to `Relocation::addend()`. Delete the probe once it has answered and put what it found in the module doc.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

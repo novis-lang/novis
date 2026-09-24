@@ -1,0 +1,19 @@
+{
+  "title": "A metrics registry is per core, merged at scrape, and no program reads a metric",
+  "status": "shipped",
+  "because": [
+    "0076",
+    "0059"
+  ],
+  "divergesFromPhp": "there is no APCu-style shared counter store; every core keeps its own approximate aggregate and the merge is arithmetic at scrape time",
+  "seeAlso": [
+    "concurrency/cross-request-state-is-explicit",
+    "concurrency/cache-memory-is-charged-to-the-core",
+    "core-classes/ratelimit-two-members",
+    "observability/past-max-series-a-new-series-is-refused",
+    "security/metric-label-refuses-tainted"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/metrics.rs"
+  ]
+}

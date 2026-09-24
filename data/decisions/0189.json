@@ -1,0 +1,12 @@
+{
+  "title": "What the checker prepares reaches the member as a leading constant of the call, and it is a fact rather than an object",
+  "status": "accepted",
+  "scope": "the channel from `nvs-types`' intrinsic pass to the running member — where a prepared\nanswer is filed, how it is addressed, what it may be, and which members take one. It does not decide\nwhat any grammar prepares; a row's own answer is [ADR 0057](0057.md)'s.",
+  "dependsOn": [
+    "0057",
+    "0063",
+    "0018"
+  ],
+  "dependsOnText": "[0057](0057.md) (the intrinsic roster and preparation), [0063](0063.md) (a call's\narguments are addressed by parameter), [0018](0018.md) (the artifact's identity).",
+  "validatedBy": "`crates/nvs-ir/tests/prepared_patterns.rs`."
+}

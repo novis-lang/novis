@@ -1,0 +1,17 @@
+{
+  "title": "`<?nvs` is the only code-mode open tag; `<?php` is refused",
+  "status": "shipped",
+  "because": [
+    "0049",
+    "0100",
+    "0015"
+  ],
+  "divergesFromPhp": "a file opening with `<?php` reports a diagnostic, though the code after the tag still parses",
+  "seeAlso": [
+    "statements/exit-is-the-only-termination-keyword"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/the-php-open-tag-is-refused.nvst",
+    "tests/conformance/core/a-shebang-line-opens-code.nvst"
+  ]
+}

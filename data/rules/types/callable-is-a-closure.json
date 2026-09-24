@@ -1,0 +1,22 @@
+{
+  "title": "`callable` is satisfied by a closure and by nothing else, and no object is callable",
+  "status": "shipped",
+  "because": [
+    "0027",
+    "0031",
+    "0007",
+    "0014",
+    "0136"
+  ],
+  "divergesFromPhp": "PHP's bare-name string, `\"Class::method\"` string and `[$obj, 'method']` array are all refused, and `__invoke` has no meaning — `$obj(...)` is a diagnostic whatever the class declares",
+  "seeAlso": [
+    "types/closure-literal",
+    "types/callable-absorbs-closure",
+    "types/callable-signature"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-first-class-callable-names-a-member-not-a-class.nvst",
+    "tests/conformance/reject/a-first-class-callable-forwards-every-argument.nvst",
+    "crates/nvs-types/tests/callable.rs"
+  ]
+}

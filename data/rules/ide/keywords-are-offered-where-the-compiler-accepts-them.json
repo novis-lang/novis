@@ -1,0 +1,16 @@
+{
+  "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
+  "status": "shipped",
+  "because": [
+    "0193",
+    "0194"
+  ],
+  "seeAlso": [
+    "ide/the-index-answers-the-cursor",
+    "ide/the-request-set-is-closed"
+  ],
+  "guardedBy": [
+    "tests/lsp/completion/an-expression-position-offers-no-word-that-opens-a-statement.lspt",
+    "tests/lsp/completion/a-loop-body-offers-break-and-a-method-body-does-not.lspt"
+  ]
+}

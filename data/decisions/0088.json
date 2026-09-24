@@ -1,0 +1,11 @@
+{
+  "title": "A sink is a parameter that becomes an instruction, and an unclassified one refuses",
+  "status": "accepted",
+  "scope": "the predicate that decides whether a `Core` parameter is an `rule:security/tainted-qualifier`\nsink; the fail-closed default for a `string`/`bytes` parameter nobody classified, and where that\nclassification is declared; which sink `echo` writes to in every execution context Novis has; the typed\n`Core\\Response` body members that replace `write`; and the carrier type a captured sink yields. Not in\nscope: what the HTML and terminal sinks *do* once reached, which stay\n[0024](0024.md) § 5 and [0086](0086.md)\n§ 1; the `secret` axis's own roster, which is [0033](0033.md)\n§ 4 and is unchanged here; and the extension-manifest declaration syntax, which is\n[0055](0055.md) and is confirmed rather than amended (§ 6).",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "A sink is any parameter that becomes an instruction; unclassified ones refuse",
+    "body": "A built-in parameter is a sink when its content becomes an instruction something executes — a\nquery, a template, a command line — rather than data something returns. There is no list to fall\nbehind: a built-in text or bytes parameter nobody has classified refuses untrusted input, so a\n`printf` template cannot quietly accept what a query cannot. Every context has an output sink\nand the default is the terminal, so `echo` in a scheduled script or a job worker neutralizes\ncontrol bytes; only an HTTP request attaches the HTML sink."
+  }
+}

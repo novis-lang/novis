@@ -1,0 +1,16 @@
+{
+  "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
+  "status": "shipped",
+  "because": [
+    "0134"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/a-failing-proof-is-fixed-or-recorded",
+    "testing/capability-closure-test"
+  ],
+  "guardedBy": [
+    "tests/hostile/README.md",
+    "tools/dossier.py"
+  ]
+}

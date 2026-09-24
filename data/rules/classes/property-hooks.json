@@ -1,0 +1,17 @@
+{
+  "title": "A property's own `get`/`set` hook is PHP 8.4's, unchanged, and every read or write of that property is a call to it",
+  "status": "shipped",
+  "because": [
+    "0014"
+  ],
+  "seeAlso": [
+    "classes/property-observer-pipeline",
+    "classes/definite-property-initialization",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-hook-transforms-both-directions.nvst",
+    "tests/conformance/class/a-get-hook-runs-once-per-read-including-an-interpolation.nvst",
+    "crates/nvs-codegen/tests/property_hooks.rs"
+  ]
+}

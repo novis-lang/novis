@@ -1,0 +1,15 @@
+{
+  "title": "Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job",
+  "status": "designed",
+  "because": [
+    "0120",
+    "0079",
+    "0095"
+  ],
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/image-pixel-cap",
+    "testing/assertions-are-typed"
+  ],
+  "guardedBy": []
+}

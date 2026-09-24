@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\RateLimit`: limit what only the application knows, and name the weak tier differently",
+  "status": "accepted",
+  "scope": "the `Core\\RateLimit` class — two members, one algorithm, the `Decision` they return, what a\nkey may carry, and what happens when the store is unreachable. Not in scope: the shared store's own\nconfiguration (`rule:concurrency/cross-request-state-is-explicit` and M8), and edge/flood limiting,\nwhich is § 4's deliberate omission.",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "Rate limiting covers what only the application knows; the weak tier is named",
+    "body": "A proxy in front of the server already limits per address and per path, so Novis does not. What\nno proxy can do is limit on something only the application knows: five failed logins per\naccount, ten exports per user per hour. Two members do two jobs. consume goes to the shared\nstore, agrees across cores and machines, and enforces a policy. shed counts on one core, is\napproximate, and protects the host. Both return a decision carrying the exact Retry-After a 429\nneeds. An unreachable store throws rather than quietly allowing."
+  }
+}

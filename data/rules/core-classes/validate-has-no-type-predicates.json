@@ -1,0 +1,17 @@
+{
+  "title": "`Core\\Validate` carries no predicate that names a type, because `as ?T` already is one",
+  "status": "shipped",
+  "because": [
+    "0066",
+    "0063"
+  ],
+  "divergesFromPhp": "`is_numeric`, `ctype_digit`, `filter_var(FILTER_VALIDATE_INT)` and their kind have no replacement — the conversion is the test",
+  "seeAlso": [
+    "expressions/nullable-conversion",
+    "expressions/try-parse",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/validate-members.nvst"
+  ]
+}

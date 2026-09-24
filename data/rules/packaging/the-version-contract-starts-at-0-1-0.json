@@ -1,0 +1,17 @@
+{
+  "title": "Until 0.1.0 ships any dependency updates at any time, and the version contract starts with the commit that tags 0.1.0",
+  "status": "shipped",
+  "because": [
+    "0068"
+  ],
+  "seeAlso": [
+    "packaging/below-1-0-the-breaking-slot-moves-left",
+    "packaging/the-versioned-surface-is-enumerated",
+    "packaging/the-sweep-is-fired-by-a-human",
+    "programs/no-compatibility-promise"
+  ],
+  "guardedBy": [
+    "tools/release.py",
+    ".github/workflows/release.yml"
+  ]
+}

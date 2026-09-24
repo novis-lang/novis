@@ -1,0 +1,19 @@
+{
+  "title": "Every engine-side recursive descent over request data carries a depth counter and refuses past it, with a limit per decoder and `512` for JSON",
+  "status": "shipped",
+  "because": [
+    "0106",
+    "0020",
+    "0064"
+  ],
+  "seeAlso": [
+    "http-server/no-path-reaches-abort",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "errors/stack-depth",
+    "errors/on-limit"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-isvalid-is-decode-at-the-default-depth-and-nowhere-else.nvst",
+    "crates/nvs-syntax/src/parser/mod.rs"
+  ]
+}

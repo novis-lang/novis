@@ -1,0 +1,12 @@
+{
+  "title": "Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards",
+  "status": "accepted",
+  "scope": "how Novis's *own implementation* is measured and compared over time and across contributor\nmachines/OSes — a historical performance dashboard, distinct from the existing per-PR regression guards in\n`benches/abi-probe/tests/perf_guards.rs` (unchanged by this ADR) and from\n`rule:testing/debug-probes`'s in-language profiler\nexposed to *Novis programs* (also unchanged; that ADR is about profiling code written in Novis, this one is\nabout profiling the compiler/runtime itself). **Benchmarking an Novis program's own code** is likewise not\nthis ADR's: it is `rule:testing/bench-counters`, which reports `rule:testing/debug-probes`'s\ndeterministic counters rather than callgrind, because callgrind has no native Windows build and cannot\nresolve symbols inside JIT frames. The two remain distinct measurements of distinct things — a counter\nfalls between Novis releases as the optimiser improves, which is the very trend this ADR exists to track.",
+  "dependsOn": [],
+  "validatedBy": "`benches/abi-probe/examples/callgrind_spike.rs`, run under `valgrind --tool=callgrind`\n3.22.0 in WSL (Ubuntu on the Windows host also used for `x86_64-pc-windows-msvc` CI), against a\nCranelift 0.128.4 JIT-compiled 8-frame call chain (the same trampoline machinery\n`perf_guards.rs` already exercises), 10,000 iterations. Three separate runs produced the\nbit-identical instruction count `5,417,505 Ir` — see *Investigation*.",
+  "summary": {
+    "group": "internal",
+    "headline": "Performance history is an instruction count, not a stopwatch",
+    "body": "Two measurements exist, never mixed. Per-change guards compare one run against itself on\nwhatever machine built it — a deep call chain against a shallow one, a throw against a return —\nand ask only whether a commit regressed. The history is separate: on every merge, one dedicated\nLinux machine runs a fixed workload under callgrind and appends the total instructions retired\nto a file in the repository. That number reproduces bit-for-bit across CPUs and years; a timer\nnever does. Wall-clock time and the ratio against PHP sit beside it as context only."
+  }
+}

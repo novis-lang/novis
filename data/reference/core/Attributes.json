@@ -1,0 +1,13 @@
+{
+  "summary": "reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time",
+  "keywords": [
+    "ReflectionAttribute",
+    "getAttributes",
+    "newInstance",
+    "attribute",
+    "metadata",
+    "annotation",
+    "#[...]",
+    "shape literal"
+  ]
+}

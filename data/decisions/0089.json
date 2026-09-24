@@ -1,0 +1,11 @@
+{
+  "title": "`nvs convert` is one rule table with two modes, and every emitted line is classified",
+  "status": "accepted",
+  "scope": "what `nvs convert` promises and what it refuses — the two modes and the per-rule tier that\nproduces them, what \"equivalent\" means and who proves it, the determinism contract, the\nnothing-is-dropped rule, the annotation and report format, where the three translation tables live, and\nthe PHP front end with its 7.4–8.6 dialect range. Not in scope: which `Core` member a given PHP name\nbecomes, which is [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s one row per name; the\nmigration path for a construct Novis dropped, which belongs to the ADR that dropped it; M11's schedule and\nits verification targets, which are [the plan](../implementation-plan.md)'s; and database schema\nmigration, which is an unrelated topic owned by [0082](0082.md) § 7.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "PHP conversion is one rule table with two modes, and every line is graded",
+    "body": "`nvs convert` translates PHP with one table of graded rules: proven to behave identically,\nmechanically translatable but possibly different, or no mechanical translation at all. The\ndefault mode emits only proven rules and comments out everything else with the idiomatic Novis\nreplacement beside it — a worklist that will not run. The runnable mode also emits the\npossibly-different rules, each marked with a `TODO` naming how it may differ. A rule is \"proven\"\nonly when a test against real PHP backs it, so the correctness number is measured, never\nasserted."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "title": "Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap",
+  "status": "shipped",
+  "because": [
+    "0164"
+  ],
+  "divergesFromPhp": "`json_encode` reports a recursive reference by returning `false` and setting `JSON_ERROR_RECURSION`, and names no path; here the encoder throws and the message carries the property chain that closed the cycle",
+  "seeAlso": [
+    "classes/graph-copy",
+    "classes/serialize-is-a-closed-format",
+    "errors/record-transformations"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-encode-ends-a-cycle-at-the-first-repeat-and-names-its-path.nvst",
+    "crates/nvs-stdlib/src/json.rs"
+  ]
+}

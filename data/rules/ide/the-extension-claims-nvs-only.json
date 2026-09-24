@@ -1,0 +1,13 @@
+{
+  "title": "The extension activates on `.nvs` and never claims `.php`",
+  "status": "designed",
+  "because": [
+    "0099"
+  ],
+  "divergesFromPhp": "opening a `.php` file gets the PHP extension already installed, not Novis, even though `nvs-syntax` could parse it",
+  "seeAlso": [
+    "ide/contributions-are-frozen-and-only-ever-added",
+    "ide/the-extension-runs-where-the-binary-is"
+  ],
+  "guardedBy": []
+}

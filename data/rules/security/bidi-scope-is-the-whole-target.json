@@ -1,0 +1,15 @@
+{
+  "title": "Zero-width characters, homoglyphs and the full bidirectional algorithm are deliberately outside the check",
+  "status": "shipped",
+  "because": [
+    "0087",
+    "0029"
+  ],
+  "seeAlso": [
+    "security/bidi-predicate",
+    "security/bidi-boundaries"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-balanced-bidi-string-compiles-and-round-trips.nvst"
+  ]
+}

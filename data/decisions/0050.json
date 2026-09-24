@@ -1,0 +1,11 @@
+{
+  "title": "`list(...)` is rejected; `[...]` is the only destructuring spelling",
+  "status": "accepted",
+  "scope": "the `list(...)` destructuring-target spelling (`Keyword::List`,\n`Parser::parse_destructure_from_list`) and its diagnostic. The `[...]` spelling, the element grammar both\nshared, and `list`'s status as a reserved word are all untouched.",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Destructuring is written [$a, $b] = $pair, and list(...) is rejected",
+    "body": "`[$a, $b] = $pair;` and `['id' => $id, 'name' => $name] = $row;` are the only way to take an\narray apart in an assignment or a `foreach`. `list($a, $b) = $pair;` does not parse, and the\nerror names the bracket form. The two spellings were identical in every detail: keys, nesting,\nskipped slots, reference markers. Keeping both would have been a second spelling of something\nthe language already fully covers, the same trade Novis refuses for `and`, `die`, `<?php` and\n`include`."
+  }
+}

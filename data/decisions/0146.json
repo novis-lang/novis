@@ -1,0 +1,11 @@
+{
+  "title": "A signature is over a payload, and a URL is a payload `Core\\Uri` already canonicalizes",
+  "status": "accepted",
+  "scope": "how a Novis program signs something and checks the signature later — the general member,\nthe two on `Core\\Uri`, the two on `Core\\Router`, what the lifetime field may say, and which failure is\ndistinguishable from which. Not in scope: the AEAD construction and the key ring, which\n[0060](0060.md) § 1 and `Core\\Crypto` own; whether a URL may be\n*fetched*, which is `Core\\Http::allowUrl` ([0058](0058.md)); and what a route\n*is*, which is [0077](0077.md).",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "A URL signs itself over the form it already compares by",
+    "body": "`Core\\Signature::sign` and `verify` sign a map of values, and two doors sit on top where people\nlook for them: `$uri->sign` and `$uri->verifySignature`, plus `Core\\Router`'s pair for a mount\nprefix. Most signed-URL bugs come from inventing a special form of the URL just for the\nsignature; Novis invents none. A URL is signed over the normalization `compareTo` already\ndefines, so signing and verifying cannot drift apart. A lifetime is always written, and `{until:\nnull}` is the spelling for forever, because a permanent signed link is a permanent credential\nand should be typed on purpose."
+  }
+}

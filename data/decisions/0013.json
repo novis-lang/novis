@@ -1,0 +1,11 @@
+{
+  "title": "Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected",
+  "status": "accepted",
+  "scope": "the `<`, `>`, `<=`, `>=` and `<=>` operators when both operands are objects; the new global\n`Comparable` interface and its single method; what happens when a class does not implement it",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Objects can be ordered only when their class says how",
+    "body": "Writing `$a < $b` on two objects requires their class to implement the `Comparable` interface,\nwhose one method `compareTo` returns negative, zero or positive, as `strcmp` does. All five\nordering operators call that method. A class that does not implement it cannot be ordered, and\nthe attempt stops the build — PHP's habit of silently walking the two objects' properties and\ncomparing them one by one is gone. Both operands must be the same class; two different classes\nare never ordered against each other. Equality is a separate question and is unaffected."
+  }
+}

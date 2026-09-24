@@ -1,0 +1,16 @@
+{
+  "title": "An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads",
+  "status": "designed",
+  "because": [
+    "0130"
+  ],
+  "divergesFromPhp": "there is no daemon, no timer and no background process; a server under load makes zero outbound telemetry connections",
+  "seeAlso": [
+    "tooling/telemetry-is-two-opt-ins",
+    "tooling/a-failed-upload-never-fails-the-command",
+    "tooling/update-check-states-the-whole-picture",
+    "config/telemetry-and-update-endpoints-are-configuration",
+    "http-server/two-deployments-and-nothing-a-proxy-owns"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,20 @@
+{
+  "title": "A dependency move never fixes a guard test by editing its threshold, and it regenerates the attribution file in the same commit",
+  "status": "shipped",
+  "because": [
+    "0068",
+    "0065",
+    "0143"
+  ],
+  "seeAlso": [
+    "testing/attribution-is-diffed-in-ci",
+    "testing/ci-lanes",
+    "packaging/one-bump-one-commit",
+    "packaging/the-sweep-is-fired-by-a-human",
+    "packaging/the-third-party-notice-is-generated-never-written-by-hand"
+  ],
+  "guardedBy": [
+    ".github/workflows/ci.yml",
+    "tools/gen-attribution.py"
+  ]
+}

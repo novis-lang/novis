@@ -1,0 +1,9 @@
+{
+  "lead": "A running task cannot wake a peer, and `Scheduler::wake` is not the route.",
+  "body": "It takes `&mut Scheduler`, the frame currently resuming the task, so anything that unblocks another task goes through `nvs_host::Wake`: a handle taken while the waiting task is running, which queues a `TaskId` on the task tree and is drained into the run queue by `Scheduler::run`. Two things are load-bearing — it holds the tree rather than reading the `TREE` thread-local (a `TaskId` is unique only within its tree, and two schedulers on one thread is a shape most tests take), and the drain runs at the top of `run` as well as after every resume, or a wake issued between turns leaves the parked task asleep with no error anywhere.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

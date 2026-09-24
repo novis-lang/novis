@@ -1,0 +1,11 @@
+{
+  "title": "The compiled-unit cache revalidates lazily and swaps one pointer, never a watcher or a restart",
+  "status": "accepted",
+  "scope": "`nvs-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source\nfile with no restart and no dropped request",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "An edited file reaches the next request without a restart or a watcher",
+    "body": "Compiled code is cached by its content, not its path. When a request resolves a file, the\nruntime cheaply checks whether it changed, at a rate you cap, and if so compiles the new content\noff the request-serving cores and swaps one pointer. Requests already running keep their code;\nlater ones get the new version. There is no file watcher, no pause of the whole server, and\nnothing a client can do to force a compile. If the edited file no longer compiles, requests that\nresolve it fail loudly rather than running the old version."
+  }
+}

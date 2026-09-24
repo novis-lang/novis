@@ -1,0 +1,9 @@
+{
+  "lead": "A `uint` in an example does not survive `/`, and a `Core\\Str` offset is an `int`.",
+  "body": "`$room * 40 / 100` types as `uint|float`, and an `as uint` on it then throws at run time the moment the quotient has a fraction, while `Core\\Str::slice`'s `offset` and `length` are `int` and `int|null`, so a width or a length held as `uint` is refused at the call. Write an example's arithmetic with `-` and `%` only, and cast at the call site with `as int` rather than declaring the local `uint`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-21"
+  }
+}

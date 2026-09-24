@@ -1,0 +1,19 @@
+{
+  "title": "The prepared path and the runtime path are one implementation, so preparation is only earlier and never different",
+  "status": "shipped",
+  "because": [
+    "0057",
+    "0042",
+    "0018",
+    "0189"
+  ],
+  "seeAlso": [
+    "expressions/intrinsic-literals",
+    "expressions/intrinsic-list-is-closed"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst",
+    "crates/nvs-ir/tests/prepared_patterns.rs",
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

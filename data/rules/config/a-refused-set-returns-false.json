@@ -1,0 +1,19 @@
+{
+  "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
+  "status": "shipped",
+  "because": [
+    "0005",
+    "0064"
+  ],
+  "divergesFromPhp": "`false` is what PHP returns too, but a value above the ceiling is refused whole rather than run at some other number",
+  "seeAlso": [
+    "config/three-changeability-classes",
+    "config/ceilings-are-their-own-directives",
+    "config/ini-set-is-core-config-set"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
+    "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst",
+    "crates/nvs-config/tests/request.rs"
+  ]
+}

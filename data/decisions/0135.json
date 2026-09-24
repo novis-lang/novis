@@ -1,0 +1,16 @@
+{
+  "title": "A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does",
+  "status": "accepted",
+  "scope": "how a `Core` member declares a **required, positional, fixed-key shape parameter** —\n`Core\\Db::open(Db\\Settings $settings, …)` is the first — and how a *discriminated union* of such shapes is\nspelled, checked and passed across the ABI. Does not touch [0036](0036.md) § 3's\nwidth-subtyped shape *type*, which stays exactly as that ADR wrote it; does not touch\n[0063](0063.md) R2's trailing options bag, which keeps its own registry spelling; does\nnot decide **named arguments**, which is `nvs_stdlib::registry`'s own known gap and is a surface question\nabout *calls*, not about types. `Db\\Settings`'s field list is\n[docs/spec/01-core-library.md](../spec/01-core-library.md) § 18's and is not restated here.",
+  "dependsOn": [
+    "0063",
+    "0047"
+  ],
+  "dependsOnText": "[0063](0063.md), whose R2 bag is the mechanism this generalises, and\n[0047](0047.md), whose enum-case types are what separate one arm from another.",
+  "validatedBy": "[crates/nvs-types/tests/core_members.rs](../../crates/nvs-types/tests/core_members.rs) —\n`a_host_on_a_sqlite_settings_literal_is_a_compile_error` and\n`a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error` hold § 2's selection over `Db\\Settings`'s\ntwo arms, by a key one arm lacks and by a value the other arm's `driver` refuses.",
+  "summary": {
+    "group": "core",
+    "headline": "A built-in member can take a fixed set of keys, with variants checked early",
+    "body": "Some `Core` members take a literal with a fixed set of keys, database settings for instance, and\nwhich keys are allowed can depend on one of them. The variants are declared so that no two\naccept the same literal, so the one you meant follows from what you wrote: a `driver` of SQLite\nis a different variant from PostgreSQL, and a `host` key on the SQLite one stops the build. A\nfield is required unless it declares a default. Under the hood the literal is passed exactly as\nan options bag is."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "title": "`nvs --help` opens with the README's own title and the version, commit and commit date of the build answering",
+  "status": "shipped",
+  "because": [
+    "0151"
+  ],
+  "seeAlso": [
+    "packaging/a-build-records-no-timestamp",
+    "packaging/the-cli-surface-is-novis-own"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/main.rs"
+  ]
+}

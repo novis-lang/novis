@@ -1,0 +1,18 @@
+{
+  "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
+  "status": "shipped",
+  "because": [
+    "0147",
+    "0063"
+  ],
+  "divergesFromPhp": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member",
+  "seeAlso": [
+    "core-api/omission-is-not-a-written-null",
+    "core-api/a-lifetime-is-written",
+    "core-api/no-mode-strings"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/uri.rs",
+    "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"
+  ]
+}

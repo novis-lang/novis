@@ -1,0 +1,22 @@
+{
+  "title": "The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing",
+  "status": "shipped",
+  "because": [
+    "0077",
+    "0102"
+  ],
+  "divergesFromPhp": "there is no route cache to warm or to go stale — the scan is compile-time work keyed and invalidated with the compiled unit",
+  "seeAlso": [
+    "programs/implementing",
+    "programs/no-runtime-autoload",
+    "routing/routes-are-compiled-not-registered",
+    "routing/matching-is-not-dispatching",
+    "routing/api-document-is-generated-from-the-route-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst",
+    "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
+    "crates/nvs-types/tests/routes.rs",
+    "crates/nvs-hir/src/requires.rs"
+  ]
+}

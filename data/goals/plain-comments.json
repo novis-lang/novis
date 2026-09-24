@@ -1,0 +1,107 @@
+{
+  "title": "every landed comment reads plainly",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "docs/examples/README.md",
+      "tests/hostile/README.md",
+      "benches/members/README.md",
+      "tools/data/dossier-policy.toml",
+      "tools/dossier.py"
+    ],
+    "rules": [
+      "testing/feature-proofs",
+      "testing/a-failing-proof-is-fixed-or-recorded"
+    ],
+    "adrs": [],
+    "shapes": [
+      "Feature proofs — an example, an attack, a bench, a `covers:` marker",
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the sweep"
+    },
+    {
+      "number": 3,
+      "title": "the gate"
+    }
+  ],
+  "checks": [
+    {
+      "id": "dossier-every-example-attack-and-bench-carries-comments",
+      "kind": "command",
+      "stage": 2,
+      "name": "dossier: every example, attack and bench carries comments inside the plain-comment bounds",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--comments",
+        "docs/examples",
+        "tests/hostile",
+        "benches/members"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    },
+    {
+      "id": "dossier-plain-comments-are-owed-and-the-whole-roster-owes",
+      "kind": "command",
+      "stage": 3,
+      "name": "dossier: plain comments are owed and the whole roster owes nothing",
+      "argv": [
+        "python",
+        "tools/dossier.py",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster",
+        "plain comments"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

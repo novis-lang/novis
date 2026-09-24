@@ -1,0 +1,9 @@
+{
+  "title": "a configured store is authorized by its configuring, and may be a Unix socket",
+  "milestone": "M8",
+  "files": [],
+  "context": {},
+  "stages": [],
+  "checks": [],
+  "env": {}
+}

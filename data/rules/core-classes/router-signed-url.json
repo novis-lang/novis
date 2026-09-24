@@ -1,0 +1,13 @@
+{
+  "title": "`Core\\Router` signs a route name and its parameters, so a signature survives a remount",
+  "status": "designed",
+  "because": [
+    "0146",
+    "0097",
+    "0102"
+  ],
+  "seeAlso": [
+    "core-classes/signature"
+  ],
+  "guardedBy": []
+}

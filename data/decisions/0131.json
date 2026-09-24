@@ -1,0 +1,11 @@
+{
+  "title": "A temporary directory dies with its script, and the runtime's sweep never throws",
+  "status": "accepted",
+  "scope": "`Core\\IO::temporaryDir` — the owned root it creates under, who deletes what it creates and\nwhen, the two sweeps and their predicates, `nvs tmp clean`, and the `[io] temp_root` and\n`[debug] keep_temporary` keys. Not in scope: the member's capability check (unchanged, stated in its\nregistry card per [0117](0117.md)), the\nordering of end-of-script user code ([0127](0127.md) owns the hook\nqueue, [0072](0072.md) § 6 owns `afterResponse`), and uploaded files,\nwhich never have a temp path at all ([0105](0105.md)).",
+  "dependsOn": [],
+  "summary": {
+    "group": "core",
+    "headline": "A temporary directory is deleted when its script ends, without you asking",
+    "body": "`Core\\IO::temporaryDir` hands out a directory under a root Novis owns, and the runtime deletes\nit when the script ends. That sweep never throws: a directory the program already removed is\nfine, and one the operating system refuses to delete becomes a log line retried next time. At\nserver start and under `nvs tmp clean`, leftovers of dead processes are removed too, judged by\nwhether the owner is alive and never by age. A debug setting keeps everything and logs each kept\npath. There is no temporary file: something that must outlive its script is storage."
+  }
+}

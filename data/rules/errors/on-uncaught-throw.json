@@ -1,0 +1,18 @@
+{
+  "title": "Tier 2 — an uncaught throw reaches the request root as itself",
+  "status": "shipped",
+  "because": [
+    "0020",
+    "0127"
+  ],
+  "divergesFromPhp": "the handler is request-local and fires exactly once; there is no global `set_exception_handler`",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/handler-script"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/fatal-on-uncaught-throw-fires-once-and-a-handler-that-throws-is-abandoned.nvst",
+    "tests/conformance/core/fatal-on-uncaught-throw-hands-the-handler-the-object-the-program-threw.nvst",
+    "tests/conformance/error/an-uncaught-throw-prints-a-backtrace.nvst"
+  ]
+}

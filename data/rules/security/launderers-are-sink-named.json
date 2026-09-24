@@ -1,0 +1,20 @@
+{
+  "title": "The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0133",
+    "0055"
+  ],
+  "divergesFromPhp": "there is no `sanitize()`, no `clean()` and no `filter_var` catch-all; a value safe for HTML is not safe for a path",
+  "seeAlso": [
+    "security/assert-trusted",
+    "security/launderer-answers-a-carrier",
+    "security/taint-propagation",
+    "core-classes/html-auto-escape"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst",
+    "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst"
+  ]
+}

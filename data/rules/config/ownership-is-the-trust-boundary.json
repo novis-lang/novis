@@ -1,0 +1,21 @@
+{
+  "title": "Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else",
+  "status": "shipped",
+  "because": [
+    "0103",
+    "0042",
+    "0078"
+  ],
+  "divergesFromPhp": "PHP reads `php.ini` and `.user.ini` whatever their owner and mode; a config file or its directory that any other account can write refuses the boot, on Unix by mode and on Windows by effective DACL rights",
+  "seeAlso": [
+    "config/optional-covers-absence-and-moves-the-check-to-the-directory",
+    "config/any-file-in-the-tree-may-set-any-directive",
+    "config/the-ownership-check-runs-where-it-can-be-answered",
+    "config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure",
+    "config/one-local-control-socket"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/trust.rs",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

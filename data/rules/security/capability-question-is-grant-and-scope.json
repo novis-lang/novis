@@ -1,0 +1,18 @@
+{
+  "title": "A capability question is a grant and a scope, asked of the request's own configuration snapshot",
+  "status": "shipped",
+  "because": [
+    "0118",
+    "0078",
+    "0005"
+  ],
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "security/path-scope-canonicalise-then-prefix",
+    "security/no-runtime-grant"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs",
+    "tests/conformance/core/a-held-capability-is-not-a-promise-about-one-path.nvst"
+  ]
+}

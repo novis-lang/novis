@@ -1,0 +1,15 @@
+{
+  "title": "The writer emits nothing a reader would execute, and equal input gives byte-equal output",
+  "status": "designed",
+  "because": [
+    "0121",
+    "0024",
+    "0079"
+  ],
+  "seeAlso": [
+    "core-classes/pdf-render-has-no-io",
+    "core-classes/spreadsheet-output-is-inert",
+    "core-classes/pdf-page-is-an-image-source"
+  ],
+  "guardedBy": []
+}

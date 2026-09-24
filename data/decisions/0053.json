@@ -1,0 +1,11 @@
+{
+  "title": "`Iterable`/`Iterator` are the only iteration interfaces; generators lower to state machines",
+  "status": "accepted",
+  "scope": "which of SPL's \"operator interfaces\" exist in Novis; what `foreach` accepts; whether `yield`\nexists and how it is compiled. Not in scope: the `Core\\Arr` API, and array iteration itself, which does\nnot go through an interface at all.",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "Iteration has two interfaces plus generators, and foreach accepts nothing else",
+    "body": "`Iterator<T>` is a cursor, `advance()` then `current()`, and `Iterable<T>` is anything that can\nhand out a fresh one. `foreach` walks an array, an `Iterable` or an `Iterator`, and nothing\nelse; there is no `ArrayAccess` and no `Countable`. A function containing `yield` is a generator\nreturning `Iterator<T>`, and its body is rewritten into an ordinary object that resumes where it\nleft off, so a generator needs no stack. The price: `yield` may appear only in the generator's\nown body, never in a helper it calls, and a generator is one-way."
+  }
+}

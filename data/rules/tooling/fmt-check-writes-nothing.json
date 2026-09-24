@@ -1,0 +1,15 @@
+{
+  "title": "`nvs fmt` rewrites in place; `--check` writes nothing and exits non-zero naming every file that would change; `--diff` prints the diff instead",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "`php-cs-fixer fix --dry-run` is the habit; the flag is `--check` and its exit status is the whole contract",
+  "seeAlso": [
+    "tooling/fmt-is-never-a-diagnostic",
+    "tooling/fmt-is-idempotent"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/fmt.rs"
+  ]
+}

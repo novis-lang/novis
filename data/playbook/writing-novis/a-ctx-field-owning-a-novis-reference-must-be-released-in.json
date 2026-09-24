@@ -1,0 +1,9 @@
+{
+  "lead": "A `Ctx` field owning a Novis reference must be released in `Drop::drop`, not left to its field drop; the failure is a refcount underflow.",
+  "body": "Rust runs `Drop::drop` before dropping fields, so a field still holding a reference when the sweep at the end of that body runs is released twice, and the panic names `refcount.get() - 1` and no field. Join the `set_*(Value::null())` lines already in `Ctx::drop` for any new owning field.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

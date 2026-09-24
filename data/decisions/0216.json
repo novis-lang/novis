@@ -1,0 +1,11 @@
+{
+  "title": "a feature is finished when the binary's own help reaches it and says everything its user needs",
+  "status": "accepted",
+  "scope": "a sixth feature proof, *Help*; what `nvs agent find` must reach beyond `Core` names and\nchapter headings; and a plain card for every diagnostic code. It does not change the four `nvs\nagent` commands, the reference chapters' content, or `--help`'s wording rule\n(`rule:packaging/help-text-speaks-to-its-reader`).",
+  "dependsOn": [
+    "0167",
+    "0134",
+    "0203"
+  ],
+  "dependsOnText": "[0167](0167.md) for `nvs agent` and its index, [0134](0134.md) for the feature\nproofs, [0203](0203.md) for the class card and the \"still owing\" list this repeats."
+}

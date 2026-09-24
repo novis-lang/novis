@@ -1,0 +1,11 @@
+{
+  "title": "A route without a declared access decision does not compile",
+  "status": "accepted",
+  "scope": "decides that every `#[Route]` method carries a sibling `#[Access]` attribute, what that\nattribute's payload is (§ 1a), that an omission is a compile error, and that CSRF enforcement is on by\ndefault for unsafe methods. Does **not** decide\nwhat an access name *means*, who evaluates it, or how a session is established — those are the M7 server's\nand `nvs/web`'s ([0082](0082.md)'s `Web\\Auth`). Does **not** add a field to\n`#[Route]`, and does **not** introduce middleware, filters, groups or a dispatch opinion of any kind\n([0077](0077.md) § 4 stands, unamended). Does **not** address object-level\nauthorisation — see *Consequences*.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "A route without a written access decision does not build",
+    "body": "Every method that declares a route must also declare who may reach it, with a second attribute\nbeside the first. Leaving it off stops the build; there is no implicit \"public\" and no setting\nthat supplies one, because a route that is open on purpose must be distinguishable from one that\nis open because its author forgot. The compiler checks only that the decision was written and\nthat the name it refers to exists — never whether it was a good decision. Protection against\ncross-site request forgery is on by default for unsafe verbs."
+  }
+}

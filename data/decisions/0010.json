@@ -1,0 +1,11 @@
+{
+  "title": "Enums are a closed, named integer type, not PHP's class-like construct",
+  "status": "accepted",
+  "scope": "the `enum` declaration; a case's underlying value and type; conversion between an enum and its\nunderlying integer type; what an enum type may and may not carry (methods, interfaces, constants, case\nsingletons)",
+  "dependsOn": [],
+  "summary": {
+    "group": "language",
+    "headline": "An enum is a named set of numbers, not a set of objects",
+    "body": "Novis follows C# here rather than PHP. An enum declares a new type whose values are named\nconstants, so a case costs nothing while the program runs and carries no methods, no interfaces\nand no lookup functions. Cases count up from zero unless you give them values. PHP's split\nbetween plain and backed enums is gone, and so is backing a case with text rather than a number."
+  }
+}

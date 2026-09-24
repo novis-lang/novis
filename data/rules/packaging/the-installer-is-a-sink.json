@@ -1,0 +1,21 @@
+{
+  "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no password on a command line",
+  "status": "shipped",
+  "because": [
+    "0093",
+    "0088",
+    "0103",
+    "0048",
+    "0204"
+  ],
+  "divergesFromPhp": "`sc create` and a hand-written unit store whatever they are given; the installer refuses each of these by name with an `E063x` diagnostic and installs nothing",
+  "seeAlso": [
+    "security/sink-predicate",
+    "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+    "security/secret-qualifier",
+    "packaging/a-bundle-may-not-install-itself"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/service.rs"
+  ]
+}

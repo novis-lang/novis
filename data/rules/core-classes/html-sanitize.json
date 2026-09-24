@@ -1,0 +1,23 @@
+{
+  "title": "`Core\\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it",
+  "status": "shipped",
+  "because": [
+    "0133",
+    "0024",
+    "0051",
+    "0122"
+  ],
+  "seeAlso": [
+    "core-classes/html-escape-answers-markup",
+    "core-classes/html-parsing",
+    "core-classes/html-auto-escape"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/html-sanitize-rebuilds-a-document-and-writes-no-tag-for-what-the-allowlist-lacks.nvst",
+    "tests/conformance/core/html-sanitize-reaches-a-fixed-point-over-a-document-that-mutates.nvst",
+    "tests/conformance/core/html-escape-and-html-sanitize-are-two-launderers-for-one-sink.nvst",
+    "tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst",
+    "tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst",
+    "crates/nvs-stdlib/src/html.rs"
+  ]
+}

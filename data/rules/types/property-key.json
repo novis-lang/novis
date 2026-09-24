@@ -1,0 +1,24 @@
+{
+  "title": "`property<T>` is a type whose values are `T`'s public property names, and `as` is its only source",
+  "status": "shipped",
+  "because": [
+    "0126",
+    "0007",
+    "0090",
+    "0019",
+    "0066",
+    "0024",
+    "0033"
+  ],
+  "seeAlso": [
+    "types/property-key-variance",
+    "types/property-key-access",
+    "types/class-reference",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst",
+    "tests/conformance/class/a-name-outside-the-public-set-throws-at-the-conversion.nvst",
+    "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst"
+  ]
+}

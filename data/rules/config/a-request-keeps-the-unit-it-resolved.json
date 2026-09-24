@@ -1,0 +1,16 @@
+{
+  "title": "A file is resolved once per isolate, so an edit is invisible to a request already running",
+  "status": "shipped",
+  "because": [
+    "0017",
+    "0006"
+  ],
+  "seeAlso": [
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "security/isolate-shares-nothing",
+    "concurrency/a-connection-keeps-its-compiled-unit"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/script.rs"
+  ]
+}

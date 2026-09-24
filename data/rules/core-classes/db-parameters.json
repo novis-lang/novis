@@ -1,0 +1,20 @@
+{
+  "title": "One placeholder is one value, and expanding a list into `IN` is written with `Core\\Db::inList`",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0007",
+    "0024"
+  ],
+  "divergesFromPhp": "an array bound to a placeholder is one value rather than a silently expanded list, and an empty `inList` throws instead of guessing",
+  "seeAlso": [
+    "core-classes/db-one-api",
+    "core-classes/db-statement-members"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-in-list-marks-a-run-of-bound-values.nvst",
+    "tests/conformance/core/db-in-list-refuses-an-empty-list.nvst",
+    "tests/conformance/core/db-in-list-carries-every-element-type.nvst",
+    "tests/conformance/core/db-a-prepared-statement-binds-by-name-and-by-position.nvst"
+  ]
+}

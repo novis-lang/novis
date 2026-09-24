@@ -1,0 +1,16 @@
+{
+  "title": "The PHP-shaped syntax is an on-ramp, and no document may promise compatibility",
+  "status": "shipped",
+  "because": [
+    "0080",
+    "0089",
+    "0152"
+  ],
+  "divergesFromPhp": "existing PHP packages, frameworks and code do not run, and no document may imply otherwise",
+  "seeAlso": [
+    "programs/audience",
+    "programs/three-claims",
+    "packaging/help-text-speaks-to-its-reader"
+  ],
+  "guardedBy": []
+}

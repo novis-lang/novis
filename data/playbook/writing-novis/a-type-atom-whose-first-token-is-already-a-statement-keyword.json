@@ -1,0 +1,11 @@
+{
+  "lead": "A type atom whose first token is already a statement keyword needs the *statement* arm guarded too, not just `can_start_type`.",
+  "body": "`parse_statement`'s dispatch matches `TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class)` (`crates/nvs-syntax/src/parser/stmt.rs`) above the `_ if self.can_start_type()` arm, so `class<Animal> $cls = …;` parsed as a class declaration and produced a run of E0101s about a missing class name even with `Parser::at_class_reference` in `can_start_type`. Every keyword arm earlier in that match is a second door the new atom has to be let through; the conversion slot (`$x as class<Animal>`) passes with no such edit, so a test that only exercises `as` reports green on half a feature.",
+  "files": [
+    "crates/nvs-syntax/src/parser/stmt.rs"
+  ],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

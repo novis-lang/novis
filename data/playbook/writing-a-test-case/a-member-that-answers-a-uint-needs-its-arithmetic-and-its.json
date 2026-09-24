@@ -1,0 +1,9 @@
+{
+  "lead": "A member that answers a `uint` needs its arithmetic and its `??` fallback written as `uint` too, and both misses read as the member being wrong.",
+  "body": "`$rows->count() / $perPage` is `uint|float` because `/` widens, and `$row->uint(\"n\") ?? 0` is `uint|int` because the literal `0` is an `int`, so each is an `E0401` against a declared `uint` that names the member's call rather than the operator. Write the fallback as `(0 as uint)`, and divide with `Core\\Math::intDiv` over values converted once with `as int`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-21"
+  }
+}

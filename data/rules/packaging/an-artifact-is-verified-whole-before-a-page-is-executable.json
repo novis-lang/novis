@@ -1,0 +1,15 @@
+{
+  "title": "An artifact is hashed in full where it lies, then placed, relocated and only then made executable",
+  "status": "shipped",
+  "because": [
+    "0042"
+  ],
+  "seeAlso": [
+    "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
+    "packaging/a-bad-cache-entry-is-a-miss-never-an-error",
+    "packaging/the-checksum-proves-integrity-and-ownership-proves-trust"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/cache.rs"
+  ]
+}

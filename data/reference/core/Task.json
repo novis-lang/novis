@@ -1,0 +1,17 @@
+{
+  "summary": "structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns",
+  "keywords": [
+    "curl_multi_*",
+    "structured concurrency",
+    "parallel",
+    "concurrent",
+    "child task",
+    "fan-out",
+    "limit",
+    "deadline",
+    "TimeoutError",
+    "cancellation",
+    "all",
+    "map"
+  ]
+}

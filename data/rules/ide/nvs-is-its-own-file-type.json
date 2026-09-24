@@ -1,0 +1,15 @@
+{
+  "title": "`.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040"
+  ],
+  "divergesFromPhp": "a `.nvs` file is not a PHP file to the editor, so Intelephense and PhpStorm's bundled PHP support never open it and none of their settings reach it",
+  "seeAlso": [
+    "ide/vscode-is-the-reference-client",
+    "ide/phpstorm-bridges-to-the-same-server",
+    "statements/nvs-is-the-only-open-tag"
+  ],
+  "guardedBy": []
+}

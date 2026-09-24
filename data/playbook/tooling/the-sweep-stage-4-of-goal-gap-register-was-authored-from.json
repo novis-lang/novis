@@ -1,0 +1,11 @@
+{
+  "lead": "The sweep stage 4 of goal `gap-register` was authored from both over- and under-reports, so the list it prints is not the work.",
+  "body": "`python tools/peek.py \"crates/**/*.rs:re://! #+ .*(not yet|owe|still missing|not armed)\"` matches `owe` inside `lowers` and `borrowed`, so headings about lowering and borrowing come back, while `# Not here yet` and `# What is not a region yet` match nothing and stay hidden — the tree holds three times as many as the goal's list names. Run `python tools/owners.py` instead and read its `OWED` section: the pattern is word-bounded and lets up to three words sit between `not` and `yet`.",
+  "files": [
+    "tools/owners.py"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/owners.py:OWED"
+  }
+}

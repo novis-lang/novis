@@ -1,0 +1,12 @@
+{
+  "title": "A compile target changes the host context, never the language",
+  "status": "designed",
+  "because": [
+    "0025"
+  ],
+  "seeAlso": [
+    "programs/bundle-trust-domain",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": []
+}

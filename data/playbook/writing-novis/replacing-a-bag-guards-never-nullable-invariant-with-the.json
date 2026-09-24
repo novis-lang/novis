@@ -1,0 +1,9 @@
+{
+  "lead": "Replacing a bag guard's \"never nullable\" invariant with the omitted-versus-null pairing turns every `CoreTy::Mixed` option red, not just the one you set out to make nullable.",
+  "body": "`mixed` admits `null` without spelling it, so `Core\\Queue::push`'s `args` had to take `Const::NeverWritten` the moment `Core\\Uri::with` did — a class away from the slice, and the assertion names the member rather than the rule. Before landing such a pairing, `grep -n 'CoreTy::Mixed' crates/nvs-stdlib/src/` for the rows it will reach, and widen each helper's \"not given\" branch from `Tag::Null` to `Tag::Null | Tag::Unset` in the same edit.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-10"
+  }
+}

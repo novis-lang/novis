@@ -1,0 +1,20 @@
+{
+  "title": "One `DbError` carries a normalised kind across every driver, and never a bound parameter",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0033",
+    "0063",
+    "0002"
+  ],
+  "divergesFromPhp": "an application branches on `ErrorKind::UniqueViolation` rather than on `1062`, `23505` or the text `\"Duplicate entry\"`",
+  "seeAlso": [
+    "core-classes/db-transactions",
+    "errors/throwable-hierarchy",
+    "errors/diagnostic-record"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-connect-refuses-a-block-it-cannot-read-by-the-field.nvst",
+    "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst"
+  ]
+}

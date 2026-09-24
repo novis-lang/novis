@@ -1,0 +1,25 @@
+{
+  "title": "`echo` in an HTTP request escapes everything it is given, and `Core\\Html\\Markup` is the only raw-write bypass",
+  "status": "shipped",
+  "because": [
+    "0024",
+    "0133",
+    "0087",
+    "0088",
+    "0086",
+    "0169"
+  ],
+  "divergesFromPhp": "output is escaped by the sink rather than by a call the developer remembers, and a runtime-computed string can never become `Markup` through `as`",
+  "seeAlso": [
+    "core-classes/html-literal",
+    "core-classes/html-escape-answers-markup",
+    "core-classes/html-to-source",
+    "core-classes/html-sanitize",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/markup-lifts-a-literal-and-writes-what-escape-would-not.nvst",
+    "tests/conformance/core/markup-composes-with-plus-and-stays-markup.nvst",
+    "tests/conformance/core/markup-refuses-a-computed-operand-and-a-half-markup-sum.nvst"
+  ]
+}

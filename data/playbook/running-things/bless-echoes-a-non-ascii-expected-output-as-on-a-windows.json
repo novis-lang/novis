@@ -1,0 +1,9 @@
+{
+  "lead": "`--bless` echoes a non-ASCII expected output as `?` on a Windows console, under a line telling you to read what it wrote.",
+  "body": "Blessing an example that prints `ü` showed `?` while writing the correct `303 274` to the `.out`, so the echo disagrees with the file and the tool's own \"a blessed output is a claim, not a formality\" points at the wrong one of the two. Check the bytes with `od -c <file>.out` before believing the echo, and never \"fix\" an example because the bless line looked wrong.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-18"
+  }
+}

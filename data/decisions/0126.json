@@ -1,0 +1,16 @@
+{
+  "title": "A property key is a checked name, and `as` is its only source",
+  "status": "accepted",
+  "scope": "the `property<T>` type — its grammar, the set its values range over, its one source, which way\nit widens, the one site that accepts it, how a read and a write through it are typed, and what a\nqualifier does across the conversion. It does **not** reopen\n`rule:classes/no-dynamic-properties`'s rule that every property is a declared name, which is what\nmakes the set finite in the first place; it does not give `$obj->$m()` a spelling, which § 6 there\nrejects as a concept; and it adds nothing to `ClassDesc`, because the access it admits is the erased one\n`rule:types/erased-member-access` already lowers.",
+  "dependsOn": [
+    "0014",
+    "0007",
+    "0036"
+  ],
+  "validatedBy": "[crates/nvs-syntax/src/parser/tests/ty.rs](../../crates/nvs-syntax/src/parser/tests/ty.rs)",
+  "summary": {
+    "group": "types",
+    "headline": "A property name is a typed value, and `as` is the only way to get one",
+    "body": "`property<User>` is a type whose values are the names of `User`'s public declared properties.\nThe only source is a checked conversion: `$name as property<User>` throws for any other name,\nand `\"email\" as property<User>` is settled while building. With one in hand, `$obj->$key` is\nallowed where a computed name is otherwise refused. Reading through a key gives the union of the\nproperties' declared types; writing is checked against each of them and refused outright if any\nis `readonly`, because the key might name it. The set is exactly the one reflection lists."
+  }
+}

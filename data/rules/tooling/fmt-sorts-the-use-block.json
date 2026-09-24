@@ -1,0 +1,16 @@
+{
+  "title": "Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "there is no grouped `use A\\{B, C};` form to order, because Novis's `use` names exactly one path",
+  "seeAlso": [
+    "tooling/fmt-base-style-is-per",
+    "tooling/fmt-never-reorders-members",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/use_block.rs"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
+  "status": "shipped",
+  "because": [
+    "0067",
+    "0132",
+    "0187"
+  ],
+  "seeAlso": [
+    "core-classes/db-statement-members",
+    "core-classes/db-connection-busy-state",
+    "core-classes/a-stream-parks-its-read-on-the-connection"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/db_stream.rs",
+    "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
+    "tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst"
+  ]
+}

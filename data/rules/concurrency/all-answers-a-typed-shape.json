@@ -1,0 +1,17 @@
+{
+  "title": "`Core\\Task::all` answers a shape with the argument's own field names, each field keeping its own type",
+  "status": "shipped",
+  "because": [
+    "0072",
+    "0136"
+  ],
+  "divergesFromPhp": "there is no PHP construct that runs several calls at once and hands back their results already typed",
+  "seeAlso": [
+    "types/object-top",
+    "core-api/shape-rules"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-task-all-answers-a-shape-each-field-keeping-its-own-type.nvst",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

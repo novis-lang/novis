@@ -1,0 +1,23 @@
+{
+  "title": "`nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given",
+  "status": "shipped",
+  "because": [
+    "0039"
+  ],
+  "divergesFromPhp": "there is no `.php-cs-fixer.php`, no ruleset and no style flag; every knob php-cs-fixer and PHP_CodeSniffer expose is one fixed answer here",
+  "seeAlso": [
+    "tooling/fmt-base-style-is-per",
+    "tooling/fmt-never-reflows",
+    "tooling/fmt-is-idempotent",
+    "tooling/fmt-is-never-a-diagnostic",
+    "core-api/identifier-casing",
+    "core-api/casing-has-no-suppression",
+    "ide/one-server-two-thin-clients",
+    "ide/the-tree-survives-a-syntax-error",
+    "ide/one-grammar-one-tree"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/fixtures.rs",
+    "crates/nvs-cli/tests/fmt.rs"
+  ]
+}

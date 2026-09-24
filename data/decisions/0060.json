@@ -1,0 +1,11 @@
+{
+  "title": "A closed roster of application-layer security protocols lives in `Core`",
+  "status": "accepted",
+  "scope": "which protocols built *on* cryptographic primitives ship in `Core`, the test that admits one,\nand the design constraints every entry must satisfy. Not in scope: `Core\\Crypto`'s primitive roster, and\nnot the method signatures, which M8 designs.",
+  "dependsOn": [],
+  "summary": {
+    "group": "security",
+    "headline": "Five security protocols are built in, and the list is closed",
+    "body": "Signed and encrypted cookies, CSRF tokens, time-based one-time passwords, JWT signing and\nverification, and a detached signature over a payload ship in the standard library. The line is\nsharp: a stateless operation over a key is in; a multi-step flow with network traffic and stored\nstate, such as OAuth, OpenID Connect or WebAuthn, belongs in a library. Each protocol is safe by\nconstruction: a JWT's algorithm comes from the key you hold, never from the token, so \"alg:\nnone\" cannot be expressed. A verified signature does not make its payload trusted."
+  }
+}

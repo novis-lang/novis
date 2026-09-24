@@ -1,0 +1,14 @@
+{
+  "summary": "a map keyed by object identity — the typed replacement for `SplObjectStorage` used as a map and for every `spl_object_id` side table",
+  "keywords": [
+    "SplObjectStorage",
+    "spl_object_id",
+    "WeakMap",
+    "identity",
+    "object key",
+    "side table",
+    "map",
+    "dictionary",
+    "lookup"
+  ]
+}

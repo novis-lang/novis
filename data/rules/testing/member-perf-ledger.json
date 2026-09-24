@@ -1,0 +1,18 @@
+{
+  "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves",
+  "status": "shipped",
+  "because": [
+    "0134",
+    "0026",
+    "0191"
+  ],
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/perf-two-mechanisms",
+    "testing/userland-benchmarks"
+  ],
+  "guardedBy": [
+    "docs/perf/members.ndjson",
+    "tools/dossier.py"
+  ]
+}

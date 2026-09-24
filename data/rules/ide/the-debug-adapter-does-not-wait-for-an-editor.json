@@ -1,0 +1,16 @@
+{
+  "title": "`nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred",
+  "status": "designed",
+  "because": [
+    "0016",
+    "0040"
+  ],
+  "divergesFromPhp": "there is no Xdebug-style listener to configure in the editor; the editor points its own debugger UI at `nvs dap` and renders what the adapter reports",
+  "seeAlso": [
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/phpstorm-bridges-to-the-same-server",
+    "testing/debug-probes",
+    "ide/the-debugger-ui-is-as-deep-as-the-adapter"
+  ],
+  "guardedBy": []
+}

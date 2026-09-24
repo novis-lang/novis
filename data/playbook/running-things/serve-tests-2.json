@@ -1,0 +1,11 @@
+{
+  "lead": "`serve::tests::sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping` fails under load with one `STOPPING=1` too many, and passes alone.",
+  "body": "It asserts the exact list a `Type=notify` unit is owed (`crates/nvs-cli/src/serve.rs:3913`), so a fifth message from a binary running beside it reads as a broken shutdown in whatever the session just touched. Re-run that one test on its own before treating a red `test` step as a regression, and re-run `python tools/verify.py`, which re-runs only the step that failed.",
+  "files": [
+    "crates/nvs-cli/src/serve.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/serve.rs:sd_notify_messages"
+  }
+}

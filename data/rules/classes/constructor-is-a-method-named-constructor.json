@@ -1,0 +1,19 @@
+{
+  "title": "A constructor is an ordinary method named `constructor`, and `__construct` does not compile",
+  "status": "shipped",
+  "because": [
+    "0030",
+    "0022",
+    "0029"
+  ],
+  "divergesFromPhp": "the constructor is spelled `constructor`; `__construct` is refused where it is written, with a diagnostic naming the rename",
+  "seeAlso": [
+    "classes/no-leading-underscore-identifiers",
+    "classes/definite-property-initialization",
+    "classes/no-magic-methods"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/the-constructor-is-not-spelled-underscore-construct.nvst",
+    "tests/conformance/class/constructor-and-instance-method.nvst"
+  ]
+}

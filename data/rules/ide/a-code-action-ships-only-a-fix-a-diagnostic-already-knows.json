@@ -1,0 +1,18 @@
+{
+  "title": "A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other",
+  "status": "designed",
+  "because": [
+    "0099",
+    "0040",
+    "0201"
+  ],
+  "seeAlso": [
+    "core-api/identifier-casing",
+    "types/no-legacy-cast",
+    "ide/the-request-set-is-closed",
+    "tooling/fmt-is-never-a-diagnostic",
+    "ide/narrow-an-annotation-to-its-literal",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": []
+}

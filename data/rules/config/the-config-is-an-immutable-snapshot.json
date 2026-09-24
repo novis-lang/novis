@@ -1,0 +1,24 @@
+{
+  "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
+  "status": "shipped",
+  "because": [
+    "0078",
+    "0005",
+    "0103",
+    "0219"
+  ],
+  "divergesFromPhp": "nothing is re-read on the request path — no `.user.ini` scan, no per-directory override — and a reload that fails leaves the old configuration serving rather than half of each",
+  "seeAlso": [
+    "config/a-runtime-set-is-request-local",
+    "config/reloadability-is-its-own-field",
+    "config/one-local-control-socket",
+    "config/a-reload-names-what-it-could-not-apply",
+    "config/later-wins-and-every-override-is-recorded",
+    "config/ownership-is-the-trust-boundary"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/snapshot.rs",
+    "crates/nvs-cli/tests/live_config.rs",
+    "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "A literal pattern is validated and tiered while checking, and a malformed one is a compile error",
+  "status": "shipped",
+  "because": [
+    "0056",
+    "0057",
+    "0005"
+  ],
+  "seeAlso": [
+    "core-classes/regex-two-tiers",
+    "expressions/intrinsic-literals",
+    "expressions/intrinsic-list-is-closed"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/intrinsics.rs"
+  ]
+}

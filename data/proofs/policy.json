@@ -1,0 +1,48 @@
+{
+  "report": {
+    "outlierFactor": 5,
+    "ceiling": {
+      "constant": 100
+    }
+  },
+  "skip": {
+    "Core\\Cache::shared": {
+      "perf": "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
+    },
+    "Core\\Db\\Row::instant": {
+      "examples": "Every example program runs on SQLite, which has no zone-carrying column type, so a program here would print the member's refusal instead of its answer.",
+      "perf": "Every bench runs on SQLite, which has no zone-carrying column type, so a loop here would measure the refusal rather than the read.",
+      "hostile": "Every attack runs on SQLite, which has no zone-carrying column type, so the member refuses every column the attack could put in front of it."
+    },
+    "lang:attributes/core-api-and-the-openapi-document": {
+      "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
+    },
+    "lang:attributes/the-names-the-compiler-acts-on": {
+      "perf": "A name is recognized while the program compiles and reaches nothing at run time; a loop here would re-measure the codec, route or command row the recognized attribute built, each of which carries its own figure."
+    },
+    "lang:classes/what-a-class-cannot-declare": {
+      "perf": "Every declaration here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+    },
+    "lang:concurrency/what-does-not-exist": {
+      "perf": "Every name here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+    },
+    "lang:errors/an-uncaught-throw": {
+      "perf": "A program ends once at an uncaught throw, so there is nothing to iterate; `lang:errors/throw` carries the throw's own figure."
+    },
+    "lang:errors/fatal-errors-limits-no-catch-sees": {
+      "perf": "A `FATAL` stops the program where it stands, so there is nothing to iterate; the allocation accounting that reaches the ceiling is measured by every allocating member's own figure."
+    },
+    "lang:expressions/operators-php-has-that-do-not-parse": {
+      "perf": "Every operator here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+    },
+    "lang:expressions/refused-in-expression-position": {
+      "perf": "Every construct here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+    },
+    "lang:iteration/what-does-not-exist": {
+      "perf": "Every name here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+    },
+    "lang:programs/ending-a-program": {
+      "perf": "A program ends once, so nothing can be iterated: a bench here would measure startup, not `exit`."
+    }
+  }
+}

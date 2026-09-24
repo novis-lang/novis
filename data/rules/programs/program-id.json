@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Program::id()` is 64 hex characters naming this program's code and environment",
+  "status": "shipped",
+  "because": [
+    "0061",
+    "0042"
+  ],
+  "seeAlso": [
+    "programs/memory-priority",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-program-id-is-64-lowercase-hex-characters.nvst",
+    "tests/conformance/core/a-program-id-is-the-programs-and-not-the-asking-files.nvst",
+    "tests/conformance/core/two-reads-of-the-program-id-in-one-run-agree.nvst",
+    "crates/nvs-config/src/cache.rs"
+  ]
+}

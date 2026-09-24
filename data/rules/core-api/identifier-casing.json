@@ -1,0 +1,25 @@
+{
+  "title": "An identifier's casing is fixed by its category and a mismatch is a hard compile error",
+  "status": "shipped",
+  "because": [
+    "0029",
+    "0030",
+    "0011"
+  ],
+  "divergesFromPhp": "PHP checks legal characters and never case, so `snake_case` identifiers do not compile here",
+  "seeAlso": [
+    "core-api/casing-checks-the-leading-character",
+    "core-api/casing-has-no-suppression",
+    "core-api/members-are-full-words",
+    "classes/no-leading-underscore-identifiers",
+    "classes/names-resolve-case-sensitively",
+    "statements/nothing-gets-a-second-name"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "tests/conformance/reject/a-class-name-must-be-pascalcase.nvst",
+    "tests/conformance/reject/a-method-name-must-be-camelcase.nvst",
+    "tests/conformance/reject/a-class-constant-must-be-screaming-snake-case.nvst",
+    "tests/conformance/reject/an-enum-case-must-be-pascalcase.nvst"
+  ]
+}

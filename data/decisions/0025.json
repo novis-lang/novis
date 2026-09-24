@@ -1,0 +1,7 @@
+{
+  "title": "The browser is a second compile target, not a second language",
+  "status": "retired",
+  "scope": "a `wasm32` compile target for interactive client-side scripts running in a browser tab; its\ncodegen backend and how it shares the CFG/SSA IR boundary from M2; the per-target capability matrix that\nexcludes `spawn worker`/`spawn script`, coroutine-based suspension, and `.nvsx` wasm-component extensions\nfor this target only; the new `Core` host-context domain for DOM/window interaction; `require`'s\nbuild-time-only resolution when there is no filesystem to fall back on.",
+  "dependsOn": [],
+  "validatedBy": "nothing, and nothing will — the backend was never built.\n`benches/abi-probe/tests/wasm_sandbox.rs` remains and is unaffected: it holds\n[0003](0003.md)'s extension-sandbox properties, which are wasm as a *host*, the\nopposite direction from this ADR's target."
+}

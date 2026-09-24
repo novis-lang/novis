@@ -1,0 +1,15 @@
+{
+  "title": "A scalar and an `array<T>` never gain methods",
+  "status": "shipped",
+  "because": [
+    "0063"
+  ],
+  "divergesFromPhp": "there is no `$s->length()` and no `$a->map()` — `Core\\Str` and `Core\\Arr` are the one spelling",
+  "seeAlso": [
+    "core-api/one-paradigm-per-operation",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/expr/calls.rs"
+  ]
+}

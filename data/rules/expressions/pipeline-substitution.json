@@ -1,0 +1,17 @@
+{
+  "title": "`|>` substitutes one hole at parse time, and has no run-time representation",
+  "status": "designed",
+  "because": [
+    "0098",
+    "0011",
+    "0027",
+    "0063"
+  ],
+  "divergesFromPhp": "PHP 8.5's `|>` applies a callable resolved at run time; this one substitutes `$_` in the parser, so the emitted tree is the nested spelling's and no closure is allocated",
+  "seeAlso": [
+    "expressions/pipeline-hole-once",
+    "expressions/pipeline-precedence",
+    "expressions/first-class-callable-syntax"
+  ],
+  "guardedBy": []
+}

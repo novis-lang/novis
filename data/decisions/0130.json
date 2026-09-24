@@ -1,0 +1,11 @@
+{
+  "title": "Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads",
+  "status": "accepted",
+  "scope": "how the project measures that Novis is actually used — the two consents, the counter\nschema, when a payload may leave the machine and from which process shapes, `nvs update-check`'s\noutput contract, the endpoint's configurability, and when this is implemented. Not in scope: package\nupdating — `nvs update` is [0081](0081.md)'s resolver\nand this ADR's version check is deliberately spelled `update-check` so the two never collide; the\nserver's response headers and proxy contract ([0097](0097.md));\na Novis *application's* metrics and tracing ([0076](0076.md)); user code's\noutbound-request policy ([0058](0058.md)), which governs the language, not\nthe tool.",
+  "dependsOn": [],
+  "summary": {
+    "group": "tooling",
+    "headline": "Telemetry is off by default, and a process serving traffic never uploads",
+    "body": "Two switches, both off until the operator turns them on: usage telemetry and the update check.\nEach `nvs` command then adds one to a local counter for the subcommand that ran, never its\narguments and never anything about the requests a server handled. At most once a week the\nprevious week's totals ride along with a short command, commonly the update check. A serving\nprocess only counts; it never uploads. An upload cannot fail the command carrying it, and `nvs\ntelemetry show` prints what would be sent."
+  }
+}

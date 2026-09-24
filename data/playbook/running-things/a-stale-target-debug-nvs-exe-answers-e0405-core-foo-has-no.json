@@ -1,0 +1,9 @@
+{
+  "lead": "A stale `target/debug/nvs.exe` answers `E0405: Core\\Foo has no member named bar` for a member you just registered, which reads as a registration bug rather than as a stale binary.",
+  "body": "The class name resolves without the registry (`QName::is_reserved_global_class`), so the sentence is the one a missing `address()` arm or `CLASSES` row would produce. The binary's package is `nvs-cli`, not `nvs`: `cargo build -p nvs` fails with \"package ID specification `nvs` did not match any packages\" and leaves the old executable in place, so refresh with `cargo build --bin nvs` or plain `cargo build`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

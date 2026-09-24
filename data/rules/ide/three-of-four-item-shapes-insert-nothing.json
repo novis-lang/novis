@@ -1,0 +1,18 @@
+{
+  "title": "A PHP-name completion item takes one of four shapes, and three of them insert nothing",
+  "status": "designed",
+  "because": [
+    "0111",
+    "0108"
+  ],
+  "divergesFromPhp": "typing a PHP built-in's name offers an item that may say dropped, waiting on a milestone or undecided and type nothing, rather than inserting the PHP call",
+  "seeAlso": [
+    "ide/completion-offers-only-what-the-compiler-derived",
+    "statements/nothing-gets-a-second-name",
+    "tooling/convert-one-table-two-modes",
+    "php-migration/every-php-builtin-is-a-completion-candidate",
+    "php-migration/an-item-inserts-only-a-registered-member",
+    "php-migration/completion-php-names-setting"
+  ],
+  "guardedBy": []
+}

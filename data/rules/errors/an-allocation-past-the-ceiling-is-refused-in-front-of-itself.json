@@ -1,0 +1,18 @@
+{
+  "title": "An allocation past the memory ceiling is refused before it is made, and the refusal is a complete no-op",
+  "status": "shipped",
+  "because": [
+    "0174"
+  ],
+  "seeAlso": [
+    "errors/on-limit",
+    "errors/escalation-ladder",
+    "concurrency/a-cross-request-stores-bytes-are-its-own-balance"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
+    "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
+    "crates/nvs-runtime/tests/refusal.rs",
+    "crates/nvs-runtime/tests/allocator_ceiling.rs"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Styling is a value type — `Cli\\Style` and `Cli\\Color` — and never a fifth grammar",
+  "status": "shipped",
+  "because": [
+    "0086",
+    "0063"
+  ],
+  "divergesFromPhp": "there is no escape string and no `<red>…</red>` markup; a style is `Cli\\Style::of({...})` over `Cli\\Color` values",
+  "seeAlso": [
+    "tooling/text-is-the-one-raw-path",
+    "tooling/the-terminal-profile-resolves-once",
+    "security/every-grammar-is-a-sink",
+    "core-api/shape-rules",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-styling-is-a-value-type-and-not-a-grammar.nvst",
+    "tests/conformance/core/cli-the-sixteen-named-colours-are-class-constants.nvst",
+    "tests/conformance/core/cli-a-styles-seven-slots-are-independent.nvst"
+  ]
+}

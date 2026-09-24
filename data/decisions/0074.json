@@ -1,0 +1,12 @@
+{
+  "title": "HTTP defaults are safe inbound and finite outbound, by construction",
+  "status": "accepted",
+  "scope": "the response-policy blocks `[http.headers]`, `[http.cors]` and `[http.cookies]` enforced by the\nM7 server, their directives and their changeability class; and `[http.client]` plus `Core\\Http\\Client`'s\noptions shape, in which there is no spelling for *wait forever* and retry is opt-in, jittered and\ndeadline-covered. Not in scope: `Core\\Request`'s full surface and the server itself, both\n[0097](0097.md)'s (which also removes the inbound TLS listener this\nADR left out of scope),\nand `rule:http-server/allow-url-pins-the-address`'s address policy, which is unchanged and enforced under\neverything here.",
+  "dependsOn": [],
+  "validatedBy": "[crates/nvs-config/tests/resolve.rs](../../crates/nvs-config/tests/resolve.rs) —\n`cors_star_origins_with_credentials_true_is_refused` and `same_site_none_without_secure_is_refused`;\n[crates/nvs-config/tests/request.rs](../../crates/nvs-config/tests/request.rs) —\n`the_same_two_refusals_come_from_config_set_as_from_the_boot`.",
+  "summary": {
+    "group": "security",
+    "headline": "With nothing configured, HTTP is safe inbound and never waits forever outbound",
+    "body": "A server with no HTTP configuration written at all already sends nosniff, a referrer policy and\nHSTS on https, and every cookie is Secure, HttpOnly and SameSite=Lax. Cross-origin requests stay\nclosed until origins are named, and allowing every origin with credentials is refused. Outbound,\nthe HTTP client has no way to spell \"wait forever\": a call that names no deadline inherits a\nfinite one. Retry is opt-in and jittered, its deadline covers all attempts, and a POST or PATCH\nis not retried without a key that makes repeating it safe."
+  }
+}

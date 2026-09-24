@@ -1,0 +1,13 @@
+{
+  "title": "A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP",
+  "status": "designed",
+  "because": [
+    "0142",
+    "0139"
+  ],
+  "seeAlso": [
+    "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",
+    "core-api/session-roster"
+  ],
+  "guardedBy": []
+}

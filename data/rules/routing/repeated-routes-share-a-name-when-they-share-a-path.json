@@ -1,0 +1,20 @@
+{
+  "title": "One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error",
+  "status": "shipped",
+  "because": [
+    "0110",
+    "0077",
+    "0046"
+  ],
+  "divergesFromPhp": "a framework's `methods: ['POST', 'PUT']` on one named route becomes one `#[Route]` line per verb, each carrying the same `name` and the same `path`",
+  "seeAlso": [
+    "routing/a-shared-name-is-one-endpoint-everywhere",
+    "routing/no-wildcard-verb",
+    "attributes/repeatable",
+    "routing/route-attribute",
+    "routing/routes-are-compiled-not-registered"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

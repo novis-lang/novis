@@ -1,0 +1,2414 @@
+{
+  "tables": [
+    {
+      "section": [
+        "Novis Specification — 01: The `Core` library",
+        "How to read an entry"
+      ],
+      "columns": [
+        "Mark",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "*(blank)*",
+          "**contagious** — a `tainted`/`secret` argument yields a `tainted`/`secret` result. The overwhelming majority"
+        ],
+        [
+          "**sink**",
+          "refuses a qualified argument in the named position"
+        ],
+        [
+          "**launder**",
+          "removes a qualifier; its contract names the sink it launders for"
+        ],
+        [
+          "**neutral**",
+          "the result never carries a qualifier from the argument (a `bool`, a count, a hash of a secret)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Novis Specification — 01: The `Core` library",
+        "What is a member and what is an operator"
+      ],
+      "columns": [
+        "Operation",
+        "Spelling",
+        "Note"
+      ],
+      "rows": [
+        [
+          "read an element",
+          "`$a[$k]`",
+          "throws on a missing key (`rule:core-api/shape-rules` R4)"
+        ],
+        [
+          "read a possibly-absent element",
+          "`$a[$k] ?? $default`",
+          "the absence-tolerant spelling; there is **no** `Arr::get`"
+        ],
+        [
+          "write an element",
+          "`$a[$k] = $v`",
+          ""
+        ],
+        [
+          "remove an element",
+          "`unset($a[$k])`",
+          "an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused (`rule:classes/unset-is-refused-on-a-property`)"
+        ],
+        [
+          "ask whether a key exists",
+          "`Arr::hasKey($a, $k)`",
+          "`isset()`/`array_key_exists` both collapse here"
+        ],
+        [
+          "combine two arrays",
+          "`Arr::overlay` / `underlay` / `appendAll`",
+          "`$a + $b` does **not** compile (`rule:types/array-combination`)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "1. `Core\\Str`",
+        "Inspection"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`length`",
+          "`length(string $s): uint`",
+          "`strlen`, `mb_strlen`",
+          "neutral"
+        ],
+        [
+          "`isEmpty`",
+          "`isEmpty(string $s): bool`",
+          "`$s == \"\"`",
+          "neutral"
+        ],
+        [
+          "`at`",
+          "`at(string $s, int $index): string`",
+          "`$s[$i]`, `mb_substr($s,$i,1)`",
+          ""
+        ],
+        [
+          "`contains`",
+          "`contains(string $haystack, string $needle): bool`",
+          "`str_contains`, `strstr` as a predicate",
+          "neutral"
+        ],
+        [
+          "`startsWith`",
+          "`startsWith(string $s, string $prefix): bool`",
+          "`str_starts_with`",
+          "neutral"
+        ],
+        [
+          "`endsWith`",
+          "`endsWith(string $s, string $suffix): bool`",
+          "`str_ends_with`",
+          "neutral"
+        ],
+        [
+          "`indexOf`",
+          "`indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`",
+          "`strpos`, `stripos`, `mb_strpos`, `mb_stripos`",
+          "neutral"
+        ],
+        [
+          "`lastIndexOf`",
+          "`lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint`",
+          "`strrpos`, `strripos`, `mb_strrpos`",
+          "neutral"
+        ],
+        [
+          "`countOf`",
+          "`countOf(string $haystack, string $needle): uint`",
+          "`substr_count`",
+          "neutral"
+        ],
+        [
+          "`compare`",
+          "`compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`",
+          "`strcmp`, `strcasecmp`, `strnatcmp`, `strnatcasecmp`, and the comparator behind `natsort`/`natcasesort`",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "1. `Core\\Str`",
+        "Extraction"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`slice`",
+          "`slice(string $s, int $offset, ?int $length = null): string`",
+          "`substr`, `mb_substr`",
+          ""
+        ],
+        [
+          "`before`",
+          "`before(string $s, string $needle, {last?: bool}): ?string`",
+          "`strstr($h,$n,true)`, `strrchr` as a prefix",
+          ""
+        ],
+        [
+          "`after`",
+          "`after(string $s, string $needle, {last?: bool}): ?string`",
+          "`strstr`, `stristr`, `strrchr`",
+          ""
+        ],
+        [
+          "`split`",
+          "`split(string $s, string $separator, {limit?: int}): array<string>`",
+          "`explode`",
+          ""
+        ],
+        [
+          "`chunk`",
+          "`chunk(string $s, uint $size): array<string>`",
+          "`str_split`, `mb_str_split`, `chunk_split`",
+          ""
+        ],
+        [
+          "`lines`",
+          "`lines(string $s): array<string>`",
+          "`explode(PHP_EOL, …)`, `file()`'s split half",
+          ""
+        ],
+        [
+          "`graphemes`",
+          "`graphemes(string $s): array<string>`",
+          "`grapheme_*` (intl, for the split case)",
+          ""
+        ],
+        [
+          "`codePoints`",
+          "`codePoints(string $s): array<uint>`",
+          "`mb_str_split` + `mb_ord`, `unpack(\"N*\", …)`",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "1. `Core\\Str`",
+        "Transformation"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`join`",
+          "`join(array<string> $parts, string $separator = \"\"): string`",
+          "`implode`, `join`",
+          ""
+        ],
+        [
+          "`replace`",
+          "`replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`",
+          "`str_replace`, `str_ireplace`",
+          ""
+        ],
+        [
+          "`replaceAll`",
+          "`replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string`",
+          "`str_replace` with array arguments, `strtr`",
+          ""
+        ],
+        [
+          "`replaceRange`",
+          "`replaceRange(string $s, int $offset, ?int $length, string $replacement): string`",
+          "`substr_replace`",
+          ""
+        ],
+        [
+          "`trim`",
+          "`trim(string $s, {characters?: string}): string`",
+          "`trim`",
+          ""
+        ],
+        [
+          "`trimStart`",
+          "`trimStart(string $s, {characters?: string}): string`",
+          "`ltrim`",
+          ""
+        ],
+        [
+          "`trimEnd`",
+          "`trimEnd(string $s, {characters?: string}): string`",
+          "`rtrim`, `chop`",
+          ""
+        ],
+        [
+          "`padStart`",
+          "`padStart(string $s, uint $length, string $padding = \" \"): string`",
+          "`str_pad` + `STR_PAD_LEFT`",
+          ""
+        ],
+        [
+          "`padEnd`",
+          "`padEnd(string $s, uint $length, string $padding = \" \"): string`",
+          "`str_pad` + `STR_PAD_RIGHT`",
+          ""
+        ],
+        [
+          "`repeat`",
+          "`repeat(string $s, uint $times): string`",
+          "`str_repeat`",
+          ""
+        ],
+        [
+          "`reverse`",
+          "`reverse(string $s): string`",
+          "`strrev` (grapheme-aware here, unlike PHP's byte reversal)",
+          ""
+        ],
+        [
+          "`wrap`",
+          "`wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string`",
+          "`wordwrap`",
+          ""
+        ],
+        [
+          "`lower`",
+          "`lower(string $s): string`",
+          "`strtolower`, `mb_strtolower`",
+          ""
+        ],
+        [
+          "`upper`",
+          "`upper(string $s): string`",
+          "`strtoupper`, `mb_strtoupper`",
+          ""
+        ],
+        [
+          "`upperFirst`",
+          "`upperFirst(string $s): string`",
+          "`ucfirst`",
+          ""
+        ],
+        [
+          "`lowerFirst`",
+          "`lowerFirst(string $s): string`",
+          "`lcfirst`",
+          ""
+        ],
+        [
+          "`fold`",
+          "`fold(string $s): string`",
+          "`mb_convert_case(…, MB_CASE_FOLD)` — for caseless comparison",
+          ""
+        ],
+        [
+          "`normalize`",
+          "`normalize(string $s, NormalForm $form): string`",
+          "`Normalizer::normalize`",
+          ""
+        ],
+        [
+          "`fromCodePoint`",
+          "`fromCodePoint(uint $codePoint): string`",
+          "`chr`, `mb_chr`",
+          "neutral"
+        ],
+        [
+          "`fromCodePoints`",
+          "`fromCodePoints(array<uint> $codePoints): string`",
+          "`implode(array_map(\"mb_chr\", …))`",
+          "neutral"
+        ],
+        [
+          "`format`",
+          "`format(string $template, mixed ...$arguments): string`",
+          "`sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf`",
+          "**sink** (template)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "2. `Core\\Arr`",
+        "Inspection"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`count`",
+          "`count(array<T> $a): uint`",
+          "`count`, `sizeof`",
+          "neutral"
+        ],
+        [
+          "`isEmpty`",
+          "`isEmpty(array<T> $a): bool`",
+          "`empty($a)`, `count($a) == 0`",
+          "neutral"
+        ],
+        [
+          "`isList`",
+          "`isList(array<T> $a): bool`",
+          "`array_is_list`",
+          "neutral"
+        ],
+        [
+          "`hasKey`",
+          "`hasKey(array<T> $a, int\\|string $key): bool`",
+          "`array_key_exists`, `isset`",
+          "neutral"
+        ],
+        [
+          "`contains`",
+          "`contains(array<T> $haystack, T $needle): bool`",
+          "`in_array` (always strict)",
+          "neutral"
+        ],
+        [
+          "`keyOf`",
+          "`keyOf(array<T> $haystack, T $needle): ?string`",
+          "`array_search`",
+          "neutral"
+        ],
+        [
+          "`keys`",
+          "`keys(array<T> $a): array<string>`",
+          "`array_keys`",
+          ""
+        ],
+        [
+          "`values`",
+          "`values(array<T> $a): array<T>`",
+          "`array_values`",
+          ""
+        ],
+        [
+          "`first`",
+          "`first(array<T> $a): ?T`",
+          "`reset`, `current`, `$a[array_key_first($a)]`",
+          ""
+        ],
+        [
+          "`last`",
+          "`last(array<T> $a): ?T`",
+          "`end`, `$a[array_key_last($a)]`",
+          ""
+        ],
+        [
+          "`firstKey`",
+          "`firstKey(array<T> $a): ?string`",
+          "`array_key_first`, `key`",
+          "neutral"
+        ],
+        [
+          "`lastKey`",
+          "`lastKey(array<T> $a): ?string`",
+          "`array_key_last`",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "2. `Core\\Arr`",
+        "Structure"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`slice`",
+          "`slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>`",
+          "`array_slice`",
+          ""
+        ],
+        [
+          "`replaceRange`",
+          "`replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>`",
+          "`array_splice` (returning, not by-reference)",
+          ""
+        ],
+        [
+          "`chunk`",
+          "`chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>`",
+          "`array_chunk`",
+          ""
+        ],
+        [
+          "`append`",
+          "`append(array<T> $a, T ...$values): array<T>`",
+          "`array_push`, `$a[] = $v` in expression position",
+          ""
+        ],
+        [
+          "`prepend`",
+          "`prepend(array<T> $a, T ...$values): array<T>`",
+          "`array_unshift`",
+          ""
+        ],
+        [
+          "`withoutFirst`",
+          "`withoutFirst(array<T> $a): array<T>`",
+          "`array_shift`'s remainder (`first` gets the element)",
+          ""
+        ],
+        [
+          "`withoutLast`",
+          "`withoutLast(array<T> $a): array<T>`",
+          "`array_pop`'s remainder (`last` gets the element)",
+          ""
+        ],
+        [
+          "`padStart`",
+          "`padStart(array<T> $a, uint $size, T $value): array<T>`",
+          "`array_pad` with a negative size",
+          ""
+        ],
+        [
+          "`padEnd`",
+          "`padEnd(array<T> $a, uint $size, T $value): array<T>`",
+          "`array_pad`",
+          ""
+        ],
+        [
+          "`reverse`",
+          "`reverse(array<T> $a, {preserveKeys?: bool}): array<T>`",
+          "`array_reverse`",
+          ""
+        ],
+        [
+          "`flip`",
+          "`flip(array<int\\|string> $a): array<string>`",
+          "`array_flip`",
+          ""
+        ],
+        [
+          "`flatten`",
+          "`flatten(array<array<T>> $a): array<T>`",
+          "one level of a hand-written recursive walk",
+          ""
+        ],
+        [
+          "`flattenDeep`",
+          "`flattenDeep(array<mixed> $a): array<mixed>`",
+          "`iterator_to_array` on a recursive iterator, a hand-written recursive walk",
+          ""
+        ],
+        [
+          "`fill`",
+          "`fill(uint $count, T $value): array<T>`",
+          "`array_fill`",
+          ""
+        ],
+        [
+          "`fillKeys`",
+          "`fillKeys(array<int\\|string> $keys, T $value): array<T>`",
+          "`array_fill_keys`",
+          ""
+        ],
+        [
+          "`range`",
+          "`range(int $start, int $end, {step?: int}): array<int>`",
+          "`range`",
+          "neutral"
+        ],
+        [
+          "`fromKeysAndValues`",
+          "`fromKeysAndValues(array<int\\|string> $keys, array<T> $values): array<T>`",
+          "`array_combine`",
+          ""
+        ],
+        [
+          "`from`",
+          "`from(Iterable<T>\\|Iterator<T>\\|array<T> $items, {limit?: uint}): array<T>`",
+          "`iterator_to_array`, `iterator_count`'s materialising half",
+          ""
+        ],
+        [
+          "`column`",
+          "`column(array<array<T>> $a, int\\|string $column, {indexBy?: int\\|string}): array<T>`",
+          "`array_column`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "2. `Core\\Arr`",
+        "Combining and set operations"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`overlay`",
+          "`overlay(array<T> $base, array<U> ...$layers): array<T\\|U>`",
+          "`array_replace`, `array_merge` over maps",
+          ""
+        ],
+        [
+          "`overlayDeep`",
+          "`overlayDeep(array<T> $base, array<U> ...$layers): array<T\\|U>`",
+          "`array_replace_recursive`",
+          ""
+        ],
+        [
+          "`underlay`",
+          "`underlay(array<T> $base, array<U> ...$layers): array<T\\|U>`",
+          "the `+` operator",
+          ""
+        ],
+        [
+          "`appendAll`",
+          "`appendAll(array<T> $a, array<U> ...$others): array<T\\|U>`",
+          "`array_merge` over lists, `array_merge(...$arrays)`",
+          ""
+        ],
+        [
+          "`diff`",
+          "`diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`",
+          "`array_diff`, `array_udiff`, `array_diff_key`, `array_diff_assoc`, `array_diff_ukey`, `array_udiff_assoc`",
+          ""
+        ],
+        [
+          "`intersect`",
+          "`intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`",
+          "`array_intersect` and its five variants",
+          ""
+        ],
+        [
+          "`unique`",
+          "`unique(array<T> $a, {by?: callable}): array<T>`",
+          "`array_unique`",
+          ""
+        ],
+        [
+          "`countBy`",
+          "`countBy(array<T> $a, {by?: callable}): array<uint>`",
+          "`array_count_values`, the userland group-and-count",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "2. `Core\\Arr`",
+        "Iteration and aggregation"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`map`",
+          "`map(array<T> $a, callable(T, string): U $fn): array<U>`",
+          "`array_map`",
+          ""
+        ],
+        [
+          "`mapKeys`",
+          "`mapKeys(array<T> $a, callable(T, string): int\\|string $fn): array<T>`",
+          "`array_combine(array_map(...), …)`, the `keyBy` idiom",
+          ""
+        ],
+        [
+          "`filter`",
+          "`filter(array<T> $a, callable(T, string): bool $predicate): array<T>`",
+          "`array_filter` and its two flags",
+          ""
+        ],
+        [
+          "`reduce`",
+          "`reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U`",
+          "`array_reduce`",
+          ""
+        ],
+        [
+          "`find`",
+          "`find(array<T> $a, callable(T, string): bool $predicate): ?T`",
+          "`array_find`",
+          ""
+        ],
+        [
+          "`findKey`",
+          "`findKey(array<T> $a, callable(T, string): bool $predicate): ?string`",
+          "`array_find_key`",
+          "neutral"
+        ],
+        [
+          "`any`",
+          "`any(array<T> $a, callable(T, string): bool $predicate): bool`",
+          "`array_any`",
+          "neutral"
+        ],
+        [
+          "`all`",
+          "`all(array<T> $a, callable(T, string): bool $predicate): bool`",
+          "`array_all`",
+          "neutral"
+        ],
+        [
+          "`groupBy`",
+          "`groupBy(array<T> $a, callable(T, string): int\\|string $key): array<array<T>>`",
+          "nothing — the most-written PHP userland helper",
+          ""
+        ],
+        [
+          "`sum`",
+          "`sum(array<int\\|float\\|decimal> $a): int\\|float\\|decimal`",
+          "`array_sum`",
+          "neutral"
+        ],
+        [
+          "`product`",
+          "`product(array<int\\|float\\|decimal> $a): int\\|float\\|decimal`",
+          "`array_product`",
+          "neutral"
+        ],
+        [
+          "`average`",
+          "`average(array<int\\|float\\|decimal> $a): ?(float\\|decimal)`",
+          "`array_sum($a)/count($a)`, with the empty case answered",
+          "neutral"
+        ],
+        [
+          "`min`",
+          "`min(array<T> $a): ?T`",
+          "`min` with an array argument",
+          ""
+        ],
+        [
+          "`max`",
+          "`max(array<T> $a): ?T`",
+          "`max` with an array argument",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "2. `Core\\Arr`",
+        "Ordering"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`sort`",
+          "`sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>`",
+          "`sort`, `rsort`, `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort`, `array_multisort`",
+          ""
+        ],
+        [
+          "`sortByKey`",
+          "`sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>`",
+          "`ksort`, `krsort`, `uksort`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "3. `Core\\Math`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`abs`",
+          "`abs(int\\|float\\|decimal $n): int\\|float\\|decimal`",
+          "`abs`",
+          "neutral"
+        ],
+        [
+          "`sign`",
+          "`sign(int\\|float\\|decimal $n): int`",
+          "`$n <=> 0`",
+          "neutral"
+        ],
+        [
+          "`min`",
+          "`min(T $a, T $b): T`",
+          "`min` with scalar arguments",
+          "neutral"
+        ],
+        [
+          "`max`",
+          "`max(T $a, T $b): T`",
+          "`max` with scalar arguments",
+          "neutral"
+        ],
+        [
+          "`clamp`",
+          "`clamp(T $n, T $low, T $high): T`",
+          "`min(max(…))`",
+          "neutral"
+        ],
+        [
+          "`ceil`",
+          "`ceil(float\\|decimal $n): float\\|decimal`",
+          "`ceil`",
+          "neutral"
+        ],
+        [
+          "`floor`",
+          "`floor(float\\|decimal $n): float\\|decimal`",
+          "`floor`",
+          "neutral"
+        ],
+        [
+          "`truncate`",
+          "`truncate(float\\|decimal $n): float\\|decimal`",
+          "`(int)` truncation",
+          "neutral"
+        ],
+        [
+          "`round`",
+          "`round(float\\|decimal $n, {precision?: int, mode?: RoundMode}): float\\|decimal`",
+          "`round` and its four `PHP_ROUND_*` constants",
+          "neutral"
+        ],
+        [
+          "`intDiv`",
+          "`intDiv(int $a, int $b): int`",
+          "`intdiv`",
+          "neutral"
+        ],
+        [
+          "`mod`",
+          "`mod(float $a, float $b): float`",
+          "`fmod` (integer `%` is the operator)",
+          "neutral"
+        ],
+        [
+          "`fdiv`",
+          "`fdiv(float $a, float $b): float`",
+          "`fdiv`",
+          "neutral"
+        ],
+        [
+          "`gcd`",
+          "`gcd(int $a, int $b): int`",
+          "`gmp_gcd`",
+          "neutral"
+        ],
+        [
+          "`lcm`",
+          "`lcm(int $a, int $b): int`",
+          "`gmp_lcm`",
+          "neutral"
+        ],
+        [
+          "`sqrt`",
+          "`sqrt(float $n): float`",
+          "`sqrt`",
+          "neutral"
+        ],
+        [
+          "`cbrt`",
+          "`cbrt(float $n): float`",
+          "`pow($n, 1/3)`",
+          "neutral"
+        ],
+        [
+          "`hypot`",
+          "`hypot(float $a, float $b): float`",
+          "`hypot`",
+          "neutral"
+        ],
+        [
+          "`exp`",
+          "`exp(float $n): float`",
+          "`exp`",
+          "neutral"
+        ],
+        [
+          "`log`",
+          "`log(float $n, {base?: float}): float`",
+          "`log`, `log10`, `log2`",
+          "neutral"
+        ],
+        [
+          "`sin` `cos` `tan`",
+          "`sin(float $radians): float` (and the rest)",
+          "`sin`, `cos`, `tan`",
+          "neutral"
+        ],
+        [
+          "`asin` `acos` `atan`",
+          "`asin(float $n): float` (and the rest)",
+          "`asin`, `acos`, `atan`",
+          "neutral"
+        ],
+        [
+          "`atan2`",
+          "`atan2(float $y, float $x): float`",
+          "`atan2`",
+          "neutral"
+        ],
+        [
+          "`sinh` `cosh` `tanh`",
+          "hyperbolic, same shape",
+          "`sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`",
+          "neutral"
+        ],
+        [
+          "`toRadians`",
+          "`toRadians(float $degrees): float`",
+          "`deg2rad`",
+          "neutral"
+        ],
+        [
+          "`toDegrees`",
+          "`toDegrees(float $radians): float`",
+          "`rad2deg`",
+          "neutral"
+        ],
+        [
+          "`isNan`",
+          "`isNan(float $n): bool`",
+          "`is_nan`",
+          "neutral"
+        ],
+        [
+          "`isFinite`",
+          "`isFinite(float $n): bool`",
+          "`is_finite`, `is_infinite`",
+          "neutral"
+        ],
+        [
+          "`toBase`",
+          "`toBase(int $n, uint $base): string`",
+          "`decbin`, `dechex`, `decoct`, `base_convert`",
+          "neutral"
+        ],
+        [
+          "`fromBase`",
+          "`fromBase(string $s, uint $base): int`",
+          "`bindec`, `hexdec`, `octdec`, `base_convert`",
+          "neutral"
+        ],
+        [
+          "`format`",
+          "`format(int\\|float\\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string`",
+          "`number_format`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "4. `Core\\Time`",
+        "Entry points on `Core\\Time`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`now`",
+          "`now(): Instant`",
+          "`time`, `microtime`, `date_create`",
+          "neutral"
+        ],
+        [
+          "`monotonic`",
+          "`monotonic(): Duration`",
+          "`hrtime` — for measuring, never for wall-clock",
+          "neutral"
+        ],
+        [
+          "`sleep`",
+          "`sleep(Duration $d): void`",
+          "`sleep`, `usleep`, `time_nanosleep`, `time_sleep_until`",
+          "neutral"
+        ],
+        [
+          "`fromEpoch`",
+          "`fromEpoch(int $seconds, {nanos?: uint}): Instant`",
+          "`DateTime::setTimestamp`",
+          "neutral"
+        ],
+        [
+          "`fromIso`",
+          "`fromIso(string $text): Instant`",
+          "`strtotime` on an ISO-8601 string, `DateTime::__construct`",
+          ""
+        ],
+        [
+          "`parse`",
+          "`parse(string $text, string $format, Zone $zone): DateTime`",
+          "`DateTime::createFromFormat`, `strptime`",
+          ""
+        ],
+        [
+          "`at`",
+          "`at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime`",
+          "`mktime`, `gmmktime`, `DateTime::setDate`",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "4. `Core\\Time`",
+        "Entry points on `Core\\Time`"
+      ],
+      "columns": [
+        "PHP",
+        "Novis"
+      ],
+      "rows": [
+        [
+          "`strtotime(\"now\")`",
+          "`Time::now()->in($z)`"
+        ],
+        [
+          "`strtotime(\"+3 days\")`",
+          "`Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset"
+        ],
+        [
+          "`strtotime(\"today\")`",
+          "`Time::now()->in($z)->startOf(Unit::Day)`"
+        ],
+        [
+          "`strtotime(\"next monday\")`",
+          "`Time::now()->in($z)->next(Weekday::Monday)`"
+        ],
+        [
+          "`strtotime(\"first day of next month\")`",
+          "`Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)`"
+        ],
+        [
+          "`strtotime(\"last day of this month\")`",
+          "`Time::now()->in($z)->endOf(Unit::Month)`"
+        ],
+        [
+          "`strtotime(\"2024-03-01\")`",
+          "`Time::parse($t, \"yyyy-MM-dd\", $z)`"
+        ],
+        [
+          "`strtotime($userSuppliedRelativeString)`",
+          "`Duration::parse($s)`, for the exact-duration subset only"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "4. `Core\\Time`",
+        "`Core\\Time\\Instant` — an absolute point on the timeline"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Notes"
+      ],
+      "rows": [
+        [
+          "`in`",
+          "`$i->in(Zone $zone): DateTime`",
+          "the only instant→calendar conversion; a zone is never implicit"
+        ],
+        [
+          "`toEpochSeconds`",
+          "`$i->toEpochSeconds(): int`",
+          "replaces `getTimestamp`, `date(\"U\")`"
+        ],
+        [
+          "`toEpochMillis`",
+          "`$i->toEpochMillis(): int`",
+          "plus `toEpochMicros`, replacing `microtime(true)`'s two halves"
+        ],
+        [
+          "`plus` / `minus`",
+          "`$i->plus(Duration $d): Instant`",
+          "replaces `date_add`, `date_sub`, `modify`"
+        ],
+        [
+          "`since`",
+          "`$i->since(Instant $earlier): Duration`",
+          "replaces `date_diff`, `DateInterval` arithmetic"
+        ],
+        [
+          "`compareTo`",
+          "`$i->compareTo(Instant $other): int`",
+          "`Instant` implements `Comparable` (`rule:classes/comparable`), so `<`/`>` work directly"
+        ],
+        [
+          "`toIso`",
+          "`$i->toIso(): string`",
+          "replaces `date(DATE_ATOM)`"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "4. `Core\\Time`",
+        "`Core\\Time\\DateTime` — a civil date and time in a zone"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Notes"
+      ],
+      "rows": [
+        [
+          "`format`",
+          "`$d->format(string $pattern): string`",
+          "`rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`"
+        ],
+        [
+          "`plus` / `minus`",
+          "`$d->plus(int $count, Unit $unit): DateTime`",
+          "calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half"
+        ],
+        [
+          "`next` / `previous`",
+          "`$d->next(Weekday $w): DateTime`",
+          "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime(\"next monday\")`"
+        ],
+        [
+          "`with`",
+          "`$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime`",
+          "replaces `setDate`, `setTime`, `setISODate`"
+        ],
+        [
+          "`withTime`",
+          "`$d->withTime(TimeOfDay $t): DateTime`",
+          "the common half of `with`, spelled as the operation it is"
+        ],
+        [
+          "`startOf` / `endOf`",
+          "`$d->startOf(Unit $u): DateTime`",
+          "distinct operations at a DST boundary, which is why both exist"
+        ],
+        [
+          "`difference`",
+          "`$d->difference(DateTime $other, Unit $unit): int`",
+          "whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields"
+        ],
+        [
+          "`toInstant`",
+          "`$d->toInstant(): Instant`",
+          ""
+        ],
+        [
+          "`date` / `timeOfDay` / `zone`",
+          "`$d->date(): Date`",
+          "component views"
+        ],
+        [
+          "`weekday`",
+          "`$d->weekday(): Weekday`",
+          "replaces `date(\"N\")`"
+        ],
+        [
+          "`dayOfYear`",
+          "`$d->dayOfYear(): uint`",
+          "replaces `date(\"z\")`"
+        ],
+        [
+          "`isLeapYear`",
+          "`$d->isLeapYear(): bool`",
+          "replaces `date(\"L\")`, `checkdate`'s year half"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "4. `Core\\Time`",
+        "`Core\\Time\\Duration` and `Core\\Time\\Zone`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Notes"
+      ],
+      "rows": [
+        [
+          "`Duration::seconds`",
+          "`seconds(int $n): Duration`",
+          "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s`"
+        ],
+        [
+          "`Duration::parse`",
+          "`parse(string $text): Duration`",
+          "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value"
+        ],
+        [
+          "`$d->toSeconds`",
+          "`$d->toSeconds(): int`",
+          "plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds`"
+        ],
+        [
+          "`$d->plus` / `minus` / `multipliedBy` / `negated`",
+          "`$d->plus(Duration $d): Duration` / `$d->minus(Duration $d): Duration` / `$d->multipliedBy(int $factor): Duration` / `$d->negated(): Duration`",
+          "`Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse`"
+        ],
+        [
+          "`Zone::of`",
+          "`of(string $id): Zone`",
+          "IANA identifier; throws on an unknown one. Replaces `DateTimeZone`"
+        ],
+        [
+          "`Zone::fixed`",
+          "`fixed(Duration $offset): Zone`",
+          "a fixed offset from UTC, for a timestamp that carries one instead of a region"
+        ],
+        [
+          "`Zone::system`",
+          "`system(): Zone`",
+          "the host's configured zone, read once at boot. Replaces `date_default_timezone_get`"
+        ],
+        [
+          "`Zone::UTC`",
+          "constant",
+          "the only zone that is ever a default, and only where written explicitly"
+        ],
+        [
+          "`$z->offsetAt`",
+          "`$z->offsetAt(Instant $i): Duration`",
+          "replaces `getOffset`"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "5. `Core\\Regex`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`compile`",
+          "`compile(string $pattern, {caseInsensitive?, multiline?, dotAll?, ungreedy?}): Pattern`",
+          "the `/…/imsx` delimiter-and-modifier syntax",
+          "**sink** (pattern)"
+        ],
+        [
+          "`matches`",
+          "`matches(string $subject, Pattern\\|string $pattern): bool`",
+          "`preg_match` as a predicate",
+          "neutral"
+        ],
+        [
+          "`match`",
+          "`match(string $subject, Pattern\\|string $pattern, {from?: int}): ?Match`",
+          "`preg_match` + `$matches` + `PREG_OFFSET_CAPTURE`",
+          "**sink** (pattern)"
+        ],
+        [
+          "`matchAll`",
+          "`matchAll(string $subject, Pattern\\|string $pattern): array<Match>`",
+          "`preg_match_all` + `PREG_PATTERN_ORDER`/`PREG_SET_ORDER`",
+          "**sink** (pattern)"
+        ],
+        [
+          "`replace`",
+          "`replace(string $subject, Pattern\\|string $pattern, string $replacement, {limit?: uint}): string`",
+          "`preg_replace`",
+          "**sink** (pattern)"
+        ],
+        [
+          "`replaceWith`",
+          "`replaceWith(string $subject, Pattern\\|string $pattern, callable(Match): string $fn, {limit?: uint}): string`",
+          "`preg_replace_callback`, `preg_replace_callback_array`",
+          "**sink** (pattern)"
+        ],
+        [
+          "`split`",
+          "`split(string $subject, Pattern\\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>`",
+          "`preg_split` and its four flags",
+          "**sink** (pattern)"
+        ],
+        [
+          "`quote`",
+          "`quote(string $literal): string`",
+          "`preg_quote`",
+          "**launder** (for the pattern sink)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "5. `Core\\Regex`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Answers"
+      ],
+      "rows": [
+        [
+          "`group`",
+          "`$match->group(int\\|string $group): ?string`",
+          "one group's text; `null` where the pattern declares it and this match did not reach it, and a **throw** for a group the pattern does not declare"
+        ],
+        [
+          "`groups`",
+          "`$match->groups(): array<?string>`",
+          "every group at once, in `preg_match`'s own order: a named group under its name, then under its number"
+        ],
+        [
+          "`offset`",
+          "`$match->offset(): int`",
+          "where the whole match starts, in `rule:types/string-is-utf8`'s unit — not `PREG_OFFSET_CAPTURE`'s bytes"
+        ],
+        [
+          "`text`",
+          "`$match->text(): string`",
+          "the whole match, which is group `0`"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "6. `Core\\Json`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`encode`",
+          "`encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`",
+          "`json_encode` and its 15 `JSON_*` flags",
+          ""
+        ],
+        [
+          "`decode`",
+          "`decode(string $json, {maxDepth?: uint}): mixed`",
+          "`json_decode`, `json_last_error`, `json_last_error_msg`, `$depth`",
+          ""
+        ],
+        [
+          "`decodeAs`",
+          "`decodeAs<T>(string $json, {maxDepth?: uint}): T`",
+          "hand-written hydration",
+          ""
+        ],
+        [
+          "`isValid`",
+          "`isValid(string $json): bool`",
+          "`json_validate`",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "6. `Core\\Json`"
+      ],
+      "columns": [
+        "Name",
+        "Definition",
+        "Attaches to"
+      ],
+      "rows": [
+        [
+          "`Core\\Json\\Derive`",
+          "`{}`",
+          "a class; generates whichever `Codec` half the class does not declare itself"
+        ],
+        [
+          "`Core\\Json\\Field`",
+          "`{name?: string, skip?: bool}`",
+          "a property; renames or removes one field"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "7. `Core\\Encoding` and `Core\\Bytes`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`decodeText`",
+          "`decodeText(bytes $b, Charset $charset): string`",
+          "`iconv`, `mb_convert_encoding`, `utf8_decode`",
+          ""
+        ],
+        [
+          "`encodeText`",
+          "`encodeText(string $s, Charset $charset): bytes`",
+          "`iconv`, `mb_convert_encoding`, `utf8_encode`",
+          ""
+        ],
+        [
+          "`isValidText`",
+          "`isValidText(bytes $b, Charset $charset): bool`",
+          "`mb_check_encoding`",
+          "neutral"
+        ],
+        [
+          "`toBase64` / `fromBase64`",
+          "`toBase64(bytes $b): string` / `fromBase64(string $s): bytes`",
+          "`base64_encode`, `base64_decode`",
+          ""
+        ],
+        [
+          "`toBase64Url` / `fromBase64Url`",
+          "`toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes`",
+          "`strtr(base64_encode(…))` idiom",
+          ""
+        ],
+        [
+          "`toHex` / `fromHex`",
+          "`toHex(bytes $b): string` / `fromHex(string $s): bytes`",
+          "`bin2hex`, `hex2bin`, `unpack(\"H*\")`",
+          ""
+        ],
+        [
+          "`toBase32` / `fromBase32`",
+          "`toBase32(bytes $b): string` / `fromBase32(string $s): bytes`",
+          "nothing — needed by TOTP (`rule:security/protocol-roster`)",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "8. `Core\\Path`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`basename`",
+          "`basename(string $path, {withoutExtension?: bool}): string`",
+          "`basename`, `pathinfo(…, PATHINFO_BASENAME)`",
+          ""
+        ],
+        [
+          "`dirname`",
+          "`dirname(string $path, {levels?: uint}): string`",
+          "`dirname`",
+          ""
+        ],
+        [
+          "`extension`",
+          "`extension(string $path): ?string`",
+          "`pathinfo(…, PATHINFO_EXTENSION)`",
+          ""
+        ],
+        [
+          "`withExtension`",
+          "`withExtension(string $path, ?string $extension): string`",
+          "manual string surgery",
+          ""
+        ],
+        [
+          "`join`",
+          "`join(string $base, string ...$segments): string`",
+          "`$a . \"/\" . $b`",
+          ""
+        ],
+        [
+          "`split`",
+          "`split(string $path): array<string>`",
+          "`explode(DIRECTORY_SEPARATOR, …)`",
+          ""
+        ],
+        [
+          "`normalize`",
+          "`normalize(string $path): string`",
+          "the lexical half of `realpath` — resolves `.`/`..` **without** touching the disk",
+          ""
+        ],
+        [
+          "`isAbsolute`",
+          "`isAbsolute(string $path): bool`",
+          "manual checks",
+          "neutral"
+        ],
+        [
+          "`relativeTo`",
+          "`relativeTo(string $path, string $base): ?string`",
+          "nothing",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "9. Collections: `Core\\ObjectMap`, `Core\\ObjectSet`, `Core\\Heap`"
+      ],
+      "columns": [
+        "Type",
+        "Members",
+        "Replaces"
+      ],
+      "rows": [
+        [
+          "`ObjectMap<K, V>`",
+          "`set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable`",
+          "`SplObjectStorage` used as a map, `spl_object_id` side tables"
+        ],
+        [
+          "`ObjectSet<T>`",
+          "`add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable`",
+          "`SplObjectStorage` used as a set"
+        ],
+        [
+          "`Heap<T>`",
+          "`push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable`",
+          "`SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap`"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`Random::int`",
+          "`int(int $min, int $max): int`",
+          "`rand`, `mt_rand`, `random_int`",
+          "neutral"
+        ],
+        [
+          "`Random::float`",
+          "`float(): float`",
+          "`lcg_value`, `mt_rand()/mt_getrandmax()` — uniform in `[0, 1)`",
+          "neutral"
+        ],
+        [
+          "`Random::bytes`",
+          "`bytes(uint $count): bytes`",
+          "`random_bytes`, `openssl_random_pseudo_bytes`",
+          "neutral"
+        ],
+        [
+          "`Random::token`",
+          "`token(uint $bytes = 32): string`",
+          "`bin2hex(random_bytes(…))` idiom",
+          "neutral"
+        ],
+        [
+          "`Random::pick`",
+          "`pick(array<T> $a): ?T`",
+          "`array_rand`",
+          ""
+        ],
+        [
+          "`Random::sample`",
+          "`sample(array<T> $a, uint $count): array<T>`",
+          "`array_rand` with a count",
+          ""
+        ],
+        [
+          "`Random::shuffle`",
+          "`shuffle(array<T> $a): array<T>`",
+          "`shuffle`, `str_shuffle`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`Uuid::v4`",
+          "`v4(): Uuid`",
+          "`uniqid`, `com_create_guid`, userland UUID libraries",
+          "neutral"
+        ],
+        [
+          "`Uuid::v7`",
+          "`v7(): Uuid`",
+          "nothing — time-ordered, for database keys",
+          "neutral"
+        ],
+        [
+          "`Uuid::parse`",
+          "`parse(string $s): Uuid`",
+          "manual validation",
+          ""
+        ],
+        [
+          "`Uuid::tryParse`",
+          "`tryParse(string $s): ?Uuid`",
+          "`uuid_is_valid`, userland `isValid` helpers",
+          ""
+        ],
+        [
+          "`Uuid::fromBytes`",
+          "`fromBytes(bytes $b): Uuid`",
+          "userland `fromBytes`, the `hex2bin` round trip",
+          ""
+        ],
+        [
+          "`$uuid->toString`",
+          "`$uuid->toString(): string`",
+          "`(string)` on a userland UUID object",
+          "neutral"
+        ],
+        [
+          "`$uuid->toBytes`",
+          "`$uuid->toBytes(): bytes`",
+          "userland `getBytes`, `hex2bin(str_replace(\"-\", \"\", …))`",
+          "neutral"
+        ],
+        [
+          "`Hash::of`",
+          "`of(bytes\\|string $data, Digest $digest): bytes`",
+          "`hash`, `md5`, `sha1`, `crc32`, `openssl_digest`",
+          "neutral"
+        ],
+        [
+          "`Hash::hmac`",
+          "`hmac(bytes\\|string $data, secret bytes $key, StrongDigest $digest): bytes`",
+          "`hash_hmac`",
+          "neutral"
+        ],
+        [
+          "`Hash::equals`",
+          "`equals(bytes $a, bytes $b): bool`",
+          "`hash_equals` — constant-time",
+          "neutral"
+        ],
+        [
+          "`Hash::stream`",
+          "`stream(Digest $digest): Hash\\Stream`",
+          "`hash_init`, `HashContext`",
+          ""
+        ],
+        [
+          "`$stream->update`",
+          "`$stream->update(bytes\\|string $data): void`",
+          "`hash_update`",
+          ""
+        ],
+        [
+          "`$stream->finish`",
+          "`$stream->finish(): bytes`",
+          "`hash_final`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
+      ],
+      "columns": [
+        "Case",
+        "Octets",
+        "S",
+        "Notes"
+      ],
+      "rows": [
+        [
+          "`Digest::Crc32`",
+          "4",
+          "",
+          "CRC-32/ISO-HDLC, PHP's `crc32b`. A checksum: accidental corruption only"
+        ],
+        [
+          "`Digest::Crc32c`",
+          "4",
+          "",
+          "CRC-32C/Castagnoli — the checksum S3 and GCS stamp objects with"
+        ],
+        [
+          "`Digest::Md5`",
+          "16",
+          "",
+          "Collision-broken since 2004. Interop only"
+        ],
+        [
+          "`Digest::Sha1`",
+          "20",
+          "",
+          "Collision-broken since 2017. Interop only"
+        ],
+        [
+          "`Digest::Sha224`",
+          "28",
+          "✓",
+          ""
+        ],
+        [
+          "`Digest::Sha256`",
+          "32",
+          "✓",
+          "The default to reach for"
+        ],
+        [
+          "`Digest::Sha384`",
+          "48",
+          "✓",
+          ""
+        ],
+        [
+          "`Digest::Sha512`",
+          "64",
+          "✓",
+          "Faster than SHA-256 on 64-bit hardware"
+        ],
+        [
+          "`Digest::Sha512_224`",
+          "28",
+          "✓",
+          "SHA-512 truncated, own IV (FIPS 180-4 § 5.3.6)"
+        ],
+        [
+          "`Digest::Sha512_256`",
+          "32",
+          "✓",
+          "SHA-512's speed at SHA-256's width, and length-extension-proof"
+        ],
+        [
+          "`Digest::Sha3_224`",
+          "28",
+          "✓",
+          "FIPS 202's Keccak sponge — an independent construction, not a wider SHA-2"
+        ],
+        [
+          "`Digest::Sha3_256`",
+          "32",
+          "✓",
+          ""
+        ],
+        [
+          "`Digest::Sha3_384`",
+          "48",
+          "✓",
+          ""
+        ],
+        [
+          "`Digest::Sha3_512`",
+          "64",
+          "✓",
+          ""
+        ],
+        [
+          "`Digest::Blake3`",
+          "32",
+          "",
+          "The fastest here, and the one algorithm PHP cannot compute"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`Uri::parse`",
+          "`parse(string $uri): Uri`",
+          "`parse_url`",
+          ""
+        ],
+        [
+          "`Uri::tryParse`",
+          "`tryParse(string $uri): ?Uri`",
+          "`filter_var(…, FILTER_VALIDATE_URL)`",
+          ""
+        ],
+        [
+          "`Uri::encodeComponent` / `decodeComponent`",
+          "`encodeComponent(string $s): string`, `decodeComponent(string $s): bytes`",
+          "`rawurlencode`, `rawurldecode`",
+          ""
+        ],
+        [
+          "`Uri::encodeFormValue` / `decodeFormValue`",
+          "`encodeFormValue(string $s): string`, `decodeFormValue(string $s): bytes`",
+          "`urlencode`, `urldecode` (the `+`-for-space variant)",
+          ""
+        ],
+        [
+          "`Uri::parseQuery`",
+          "`parseQuery(string $query): array<mixed>`",
+          "`parse_str` — returns, never populates variables",
+          ""
+        ],
+        [
+          "`Uri::buildQuery`",
+          "`buildQuery(array<mixed> $parameters): string`",
+          "`http_build_query`",
+          ""
+        ],
+        [
+          "`$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port`",
+          "`$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int`",
+          "`parse_url`'s array keys",
+          "neutral"
+        ],
+        [
+          "`$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString`",
+          "`$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string`",
+          "`parse_url`'s array keys, and reassembly by hand",
+          "neutral"
+        ],
+        [
+          "`$uri->with`",
+          "`$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri`",
+          "manual reassembly",
+          ""
+        ],
+        [
+          "`$uri->queryParameter`",
+          "`$uri->queryParameter(string $name): mixed`",
+          "`parse_str` over `parse_url`'s `query` key, then an array read",
+          "neutral"
+        ],
+        [
+          "`$uri->withQueryParameter`",
+          "`$uri->withQueryParameter(string $name, mixed $value): Uri`",
+          "`parse_str`, an array edit and `http_build_query` written out at every call site",
+          ""
+        ],
+        [
+          "`$uri->resolve`",
+          "`$uri->resolve(string $reference): Uri`",
+          "nothing",
+          ""
+        ],
+        [
+          "`$uri->compareTo`",
+          "`$uri->compareTo(Uri $other): int`",
+          "nothing — PHP compares `parse_url` arrays by hand",
+          ""
+        ],
+        [
+          "`$uri->sign`",
+          "`$uri->sign({keys: array<secret bytes>, until: ?Time\\Instant} $settings): Uri`",
+          "nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner`",
+          ""
+        ],
+        [
+          "`$uri->verifySignature`",
+          "`$uri->verifySignature(array<secret bytes> $keys): void`",
+          "nothing",
+          "neutral"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`Csv::parse`",
+          "`parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>`",
+          "`str_getcsv`, the parsing half of `fgetcsv`",
+          ""
+        ],
+        [
+          "`Csv::format`",
+          "`format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string`",
+          "`fputcsv`'s formatting half",
+          ""
+        ],
+        [
+          "`Csv::rows`",
+          "`rows(Core\\IO\\File $file, {separator?, quote?, escape?, header?: bool}): Core\\Csv\\Rows`",
+          "the `while (fgetcsv($handle))` loop",
+          ""
+        ],
+        [
+          "`Out::capture`",
+          "`capture(callable(): mixed $fn, {through?: callable}): Sink`",
+          "`ob_start`/`ob_get_clean`, `ob_start($callback)`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part I — the pure core (M4S)",
+        "13. Compiler-facing surfaces"
+      ],
+      "columns": [
+        "Class",
+        "Owns",
+        "ADR"
+      ],
+      "rows": [
+        [
+          "`Core\\Reflect`",
+          "`forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id`",
+          "[0019](../decisions/0019.md)"
+        ],
+        [
+          "`Core\\Ast`",
+          "`parse(string): Node` returning inert typed data",
+          "[0019](../decisions/0019.md)"
+        ],
+        [
+          "`Core\\Attributes`",
+          "`get<T>`, `all<T>` — structural, not a `Reflect` walk",
+          "[0046](../decisions/0046.md)"
+        ],
+        [
+          "`Core\\Program`",
+          "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null",
+          "[0061](../decisions/0061.md), [0212](../decisions/0212.md)"
+        ],
+        [
+          "`Core\\Router`",
+          "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — [0146](../decisions/0146.md)), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
+          "[0077](../decisions/0077.md), [0102](../decisions/0102.md)"
+        ],
+        [
+          "`Core\\Command`",
+          "`run(): uint`, `help(?string): Cli\\Text` and `completions(Cli\\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
+          "[0086](../decisions/0086.md)"
+        ],
+        [
+          "`Core\\Decimal`, `Core\\BigInt`",
+          "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
+          "[0054](../decisions/0054.md)"
+        ],
+        [
+          "`Core\\Serialize`",
+          "`encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize`",
+          "[0023](../decisions/0023.md)"
+        ],
+        [
+          "`Core\\Test`",
+          "the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `scriptAnswers`, `assertCompletes`, `assertMatchesInline` and `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string\\|bytes, mount?: string} $options): Core\\Test\\Response` — one in-process request against the program's own `#[Route]` table. Every one is subject-first and generic where it compares",
+          "[0079](../decisions/0079.md)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "16. Network, data and crypto"
+      ],
+      "columns": [
+        "Class",
+        "Surface",
+        "ADR"
+      ],
+      "rows": [
+        [
+          "`Core\\Http\\Client`",
+          "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string \\| Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
+          "[0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md)"
+        ],
+        [
+          "`Core\\RateLimit`",
+          "`consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws",
+          "[0075](../decisions/0075.md)"
+        ],
+        [
+          "`Core\\Metrics`",
+          "`increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name",
+          "[0076](../decisions/0076.md)"
+        ],
+        [
+          "`Core\\Task`",
+          "§ 19 below — `all`, `map`, `afterResponse`",
+          "[0072](../decisions/0072.md)"
+        ],
+        [
+          "`Core\\Net`",
+          "TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job",
+          "[0051](../decisions/0051.md)"
+        ],
+        [
+          "`Core\\Sse`, `Core\\Sse\\Message`",
+          "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
+          "[0083](../decisions/0083.md), [0177](../decisions/0177.md)"
+        ],
+        [
+          "`Core\\Db`",
+          "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
+          "[0067](../decisions/0067.md)"
+        ],
+        [
+          "`Core\\Crypto`, `Core\\Crypto\\PublicKey`, `Core\\Crypto\\KeyPair`",
+          "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto\\Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\KeyFormat` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+          "[0051](../decisions/0051.md), [0179](../decisions/0179.md)"
+        ],
+        [
+          "`Core\\Password`",
+          "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt`",
+          "[0063](../decisions/0063.md), [0129](../decisions/0129.md)"
+        ],
+        [
+          "`Core\\Jwt`, `Core\\Jwe`, `Core\\Csrf`, `Core\\Totp`, `Core\\SignedCookie`, `Core\\Signature`",
+          "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes\\|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
+          "[0060](../decisions/0060.md)"
+        ],
+        [
+          "`Core\\Process`",
+          "`run`, `spawn` — argv only, never a shell string",
+          "[0044](../decisions/0044.md)"
+        ],
+        [
+          "`Core\\Mail`",
+          "an SMTP client with structured headers. Replaces `mail()`",
+          "[0051](../decisions/0051.md)"
+        ],
+        [
+          "`Core\\Cache`",
+          "`local(): Cache\\Store`, `process(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process. Replaces `apcu_*`, `memcached` for the local case",
+          "[0059](../decisions/0059.md), [0181](../decisions/0181.md)"
+        ],
+        [
+          "`Core\\Log`, `Core\\Fatal`",
+          "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
+          "[0020](../decisions/0020.md), [0092](../decisions/0092.md)"
+        ],
+        [
+          "`Core\\Debug`",
+          "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
+          "`dump`/`render`: [0092](../decisions/0092.md); the probes: [0018](../decisions/0018.md)"
+        ],
+        [
+          "`Core\\Signal`",
+          "graceful shutdown only. What remains of `pcntl_*` after `fork` is refused",
+          "[0051](../decisions/0051.md)"
+        ],
+        [
+          "`Core\\Script`",
+          "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
+          "[0127](../decisions/0127.md), [0178](../decisions/0178.md)"
+        ],
+        [
+          "`Core\\Os`",
+          "host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `getrusage`, `sys_getloadavg`. A **request's** memory is `Core\\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\\Os` is entitled to answer",
+          "[0051](../decisions/0051.md), [0148](../decisions/0148.md)"
+        ],
+        [
+          "`Core\\Budget`",
+          "`memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. Three members and no `$real_usage` boolean; an uncapped request answers `0` from `memoryLimit`. Replaces `memory_get_usage` and `memory_get_peak_usage`",
+          "[0148](../decisions/0148.md), [0005](../decisions/0005.md)"
+        ],
+        [
+          "`Core\\Config`",
+          "`set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses",
+          "[0005](../decisions/0005.md), [0064](../decisions/0064.md)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "17. Documents and formats"
+      ],
+      "columns": [
+        "Class",
+        "Surface",
+        "Note"
+      ],
+      "rows": [
+        [
+          "`Core\\Html`",
+          "`escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\\Xml`'s tree: one node family, two front doors",
+          "`rule:security/tainted-qualifier` owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing`"
+        ],
+        [
+          "`Core\\Xml`",
+          "one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both",
+          "the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it"
+        ],
+        [
+          "`Core\\Compress`",
+          "`compress(bytes\\|string $data, Codec $codec): bytes` and `decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters. `Core\\Codec` is five cases, not four: `Gzip`, `Zlib` and `Deflate` are one stream under three headers, which is what PHP spelled as three function names, plus `Brotli` and `Zstd`. The incremental half is `compressor(Codec $codec): Compress\\Compressor` and `decompressor(Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Compress\\Decompressor`, each an object with `add` and `finish`, replacing `deflate_init`/`deflate_add` and `inflate_init`/`inflate_add` — two classes because a `Compress\\Decompressor`'s `finish` answers `tainted bytes` and a `Compress\\Compressor`'s answers `bytes`",
+          "the bound is `rule:core-classes/decompression-bound`, [0166](../decisions/0166.md), and a decompressing stream carries it once for the whole stream rather than once per chunk; `crates/nvs-stdlib/src/compress.rs` owns why the streams hold their chunks and what that spends"
+        ],
+        [
+          "`Core\\Zip`",
+          "`entries(bytes $archive): array<tainted string>`, `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` and `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` — replacing `zip_*`, `ZipArchive` and the checking every caller of `extractTo` was supposed to remember. Core rather than an extension because `../` entries, absolute-path entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional. **The refusals are the reader's**, so a program that walks the entries itself has nothing left it could have checked; the bomb half is `Core\\Compress`'s bound applied per entry and across the archive, not a second rule",
+          "[ADR 0051 § 3](../decisions/0051.md), [0166](../decisions/0166.md); the names are tainted for `rule:security/tainted-sources`' reason, and what is on disk is `crates/nvs-stdlib/src/zip.rs`'s known gaps"
+        ],
+        [
+          "`Core\\Mime`",
+          "`detect(bytes $data): Mime\\Type` and `mediaType(Mime\\Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\\Mime\\Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess",
+          "detection launders nothing (`rule:security/launderers-are-sink-named`): bytes that detect as `image/png` are still `tainted`. The table's shape, and what deliberately has no case, are `crates/nvs-stdlib/src/mime.rs`'s module doc"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "18. `Core\\Db`",
+        "Entry points on `Core\\Db`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`connect`",
+          "`connect(string $name, {shared?: bool, timeout?: Duration}): Db\\Connection`",
+          "`new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3`",
+          "**sink** (name)"
+        ],
+        [
+          "`open`",
+          "`open(Db\\Settings $settings, {shared?: bool}): Db\\Connection`",
+          "a runtime-built DSN",
+          "**sink** (host)"
+        ],
+        [
+          "`inList`",
+          "`inList(array<mixed> $values): Db\\InList`",
+          "`implode(\",\", array_fill(0, n, \"?\"))`",
+          ""
+        ],
+        [
+          "`quoteIdentifier`",
+          "`quoteIdentifier(tainted string $name): string`",
+          "`mysqli_real_escape_string` on a table/column name",
+          "**launder** (identifier)"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "18. `Core\\Db`",
+        "`Core\\Db\\Queryable` — the interface both a connection and a transaction satisfy"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`query`",
+          "`$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\\Rows<Row>`",
+          "`PDO::query`/`prepare`+`execute`, `mysqli_query`",
+          "**sink** (sql)"
+        ],
+        [
+          "`queryAs`",
+          "`$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\\Rows<T>`",
+          "`PDO::FETCH_CLASS`, hand-written hydration",
+          "**sink** (sql)"
+        ],
+        [
+          "`execute`",
+          "`$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\\Write`",
+          "`PDO::exec`, `PDOStatement::execute`, `lastInsertId`",
+          "**sink** (sql)"
+        ],
+        [
+          "`executeMany`",
+          "`$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint`",
+          "a loop around `PDOStatement::execute`",
+          "**sink** (sql)"
+        ],
+        [
+          "`stream`",
+          "`$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\\Row>`",
+          "`MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row`",
+          "**sink** (sql)"
+        ],
+        [
+          "`streamAs`",
+          "`$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>`",
+          "—",
+          "**sink** (sql)"
+        ],
+        [
+          "`transaction`",
+          "`$q->transaction(callable(Transaction): T $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T`",
+          "`beginTransaction`/`commit`/`rollBack`, `SAVEPOINT`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "18. `Core\\Db`",
+        "`Core\\Db\\Queryable` — the interface both a connection and a transaction satisfy"
+      ],
+      "columns": [
+        "Type",
+        "Members beyond `Queryable`"
+      ],
+      "rows": [
+        [
+          "`Connection`",
+          "`$c->close(): void`; `->driver(): Driver`, `->serverVersion(): string`, `->isOpen(): bool`"
+        ],
+        [
+          "`Transaction`",
+          "`$t->rollBack(string $reason): void` — sets the rollback-only flag and throws `Db\\RolledBack`"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "18. `Core\\Db`",
+        "Results"
+      ],
+      "columns": [
+        "Type",
+        "Members",
+        "Replaces"
+      ],
+      "rows": [
+        [
+          "`Rows<T>`",
+          "`->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>`",
+          "`fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta`, `FETCH_CLASS`, `fetchObject`"
+        ],
+        [
+          "`Row`",
+          "`->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below",
+          "`FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ`"
+        ],
+        [
+          "`Write`",
+          "`->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint`",
+          "`rowCount` on a write, `lastInsertId`, `mysqli_info`"
+        ],
+        [
+          "`Column`",
+          "`->name(): string`, `->type(): ColumnType`, `->nullable(): bool`",
+          "`getColumnMeta`, `mysqli_fetch_field`"
+        ],
+        [
+          "`InList`",
+          "opaque; produced by `Db::inList`, accepted only as a bound parameter",
+          "—"
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "19. `Core\\Task`"
+      ],
+      "columns": [
+        "Member",
+        "Signature",
+        "Replaces",
+        "Q"
+      ],
+      "rows": [
+        [
+          "`all`",
+          "`all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}`",
+          "—",
+          ""
+        ],
+        [
+          "`map`",
+          "`map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>`",
+          "`curl_multi_*`",
+          ""
+        ],
+        [
+          "`afterResponse`",
+          "`afterResponse(callable(): mixed $fn, {deadline?: Duration}): void`",
+          "`fastcgi_finish_request`",
+          ""
+        ]
+      ]
+    },
+    {
+      "section": [
+        "Part II — the capability-bearing half (M8)",
+        "Counting the result"
+      ],
+      "columns": [
+        "",
+        "PHP",
+        "Novis"
+      ],
+      "rows": [
+        [
+          "Global functions / `Core` members",
+          "~1,900",
+          "~450"
+        ],
+        [
+          "Sort functions",
+          "11 + `array_multisort`",
+          "2"
+        ],
+        [
+          "`array_diff`/`array_intersect` variants",
+          "12",
+          "2"
+        ],
+        [
+          "Array-combining rules",
+          "5, chosen by a key's type",
+          "4, chosen by the member's name"
+        ],
+        [
+          "`strpos` variants",
+          "12",
+          "4"
+        ],
+        [
+          "`printf` variants",
+          "9",
+          "2"
+        ],
+        [
+          "Date APIs",
+          "~40 procedural + 2 mutable/immutable class trees",
+          "1 immutable object tree"
+        ],
+        [
+          "XML APIs",
+          "6",
+          "1"
+        ],
+        [
+          "Socket APIs",
+          "3",
+          "1"
+        ],
+        [
+          "Ways to run a program",
+          "7",
+          "1"
+        ],
+        [
+          "Ways to hash",
+          "3",
+          "1"
+        ],
+        [
+          "Database APIs",
+          "4 (`PDO`, `mysqli` ×2, `pgsql`, `sqlite3`)",
+          "1"
+        ],
+        [
+          "Exception classes in the stdlib",
+          "13 SPL + 8 `Error`",
+          "9"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "lead": "A `match` over `nvs_syntax::ast` written outside that crate cannot be exhaustive, and the compiler will not say so.",
+  "body": "`ExprKind`, `StmtKind`, `ClassMemberKind`, `NewTarget` and `DestructureElement` are `#[non_exhaustive]`, so a walk in another crate needs a wildcard arm and silently treats every later production as a leaf. Put any per-variant table over the AST in `nvs-syntax` itself, as `crates/nvs-syntax/src/walk.rs` does, where a new variant is a build error.",
+  "files": [
+    "crates/nvs-syntax/src/walk.rs",
+    "crates/nvs-syntax/src/ast.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-syntax/src/ast.rs:#[non_exhaustive"
+  }
+}

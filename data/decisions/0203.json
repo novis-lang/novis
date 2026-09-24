@@ -1,0 +1,17 @@
+{
+  "title": "a completion row reads as a declaration, and its card is read on resolve",
+  "status": "accepted",
+  "scope": "what a completion item carries on the wire — the label details an editor draws on the\nrow, the `detail` it draws in the panel, the key its documentation is resolved by — what accepting a\nmethod writes, and the card a `Core` class carries of its own. It does not change which items are\noffered where, which is [0193](0193.md)'s, or what accepting a type writes, which is [0194](0194.md)'s.",
+  "dependsOn": [
+    "0193",
+    "0194",
+    "0117"
+  ],
+  "dependsOnText": "[0193](0193.md) for the list, [0194](0194.md) for the follow text, [0117](0117.md)\nfor the reference card in the registry.",
+  "validatedBy": "`crates/nvs-lsp/tests/completion_edits.rs`, the `tests/lsp/completion/` cases,\n`crates/nvs-stdlib/src/registry.rs`'s `every_registry_row_carries_a_reference_card`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "A completion row reads like the declaration; a description is fetched per row",
+    "body": "A row in the completion list shows a method as `name(params)` with its return type at the right,\na constant as `NAME = value`, and a class with its namespace in brackets after the name. The\nlist no longer carries a description for every row: each row carries a small key, and the editor\nasks for the description of the one row it is showing, the same text hovering the name shows.\nAccepting a method writes its parentheses. Every `Core` class now carries a one-sentence card."
+  }
+}

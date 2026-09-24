@@ -1,0 +1,9 @@
+{
+  "lead": "A new `Core\\Request` member that answers `mixed` fails a test in `nvs-types`, and the message names a count rather than the member.",
+  "body": "`core_lib.rs`'s `every_request_member_returning_outside_data_returns_it_tainted` asserts the *exact set* of rows under the `Core\\Request` prefix that answer an unqualified type — it is the gate that catches a member handing a peer's bytes back unmarked — so a row answering `mixed` lands in it and the assertion reads \"closed at eight\". Add the row to the set and rewrite the count and the sentence naming `query` and `post` as the known hole.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-08"
+  }
+}

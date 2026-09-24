@@ -1,0 +1,27 @@
+{
+  "state": "**Goal 174 — every Core class carries its card — has just started; nothing of it has landed yet.** Goal `limit-handler-reach`'s whole list is this goal's Stage 1 floor.\n\nADR 0203 already holds the design and nothing about it is a session's to re-decide: `CoreClass::doc`\nis an `Option<&'static ClassDoc>` with one `short`, `nvs_lsp::card` shows it on\n`completionItem/resolve`, `nvs meta` prints it under the class's `doc` key, and\n`every_registry_row_carries_a_reference_card` in `crates/nvs-stdlib/src/registry.rs` lets exactly the\nclasses in `CLASSES_STILL_OWING_A_CARD` ship without one. `python tools/class-cards.py` prints that\nlist. The work is the list: a card per class, in the class's own module, and the name deleted from\nthe list in the same commit. The voice is AGENTS.md § *Text an end user reads*, and the goal's\nstanding decisions say what a card is and is not.",
+  "next": {
+    "stage": 2,
+    "title": "the cards",
+    "files": [],
+    "note": "one file set per session: `crates/nvs-stdlib/src/registry.rs` and the modules whose classes the session cards, taken in the list's order.",
+    "items": [
+      {
+        "done": false,
+        "text": "**Read the list** — `python tools/class-cards.py`; the first module in it is where the session starts, and every class that module declares is carded before the next module is opened."
+      },
+      {
+        "done": false,
+        "text": "**Card a class** — a `/// `Core\\X`'s own card — `rule:core-api/reference-card`.` const of `ClassDoc { short: \"…\" }` directly above the module's `CLASS` row, `doc: Some(&…)` on the row, and the name deleted from `CLASSES_STILL_OWING_A_CARD`; `crates/nvs-stdlib/src/json.rs` is the shape of a module whose members are carded."
+      },
+      {
+        "done": false,
+        "text": "**Hold the pair together** — `cargo test --lib every_registry_row_carries_a_reference_card` names a class carded and still listed, or listed and not carded."
+      }
+    ]
+  },
+  "backlog": [
+    "Stages 3 to 5 follow the class cards: the index entries, the diagnostic-code cards and the *Help* proof ADR 0216 added. The goal's `.md` is what each stage builds, and stage 2 goes first.",
+    "When this goal's last check goes green the driver takes goal `tools-install`."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "An asymmetric property writes both halves, so a bare `private(set)` does not compile",
+  "status": "shipped",
+  "because": [
+    "0094"
+  ],
+  "divergesFromPhp": "PHP 8.4 infers a `public` read side for a bare `private(set)`; that is the same implicit `public` in a different spelling and is refused",
+  "seeAlso": [
+    "core-api/written-visibility"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "crates/nvs-types/src/signatures.rs"
+  ]
+}

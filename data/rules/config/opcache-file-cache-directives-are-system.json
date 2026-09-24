@@ -1,0 +1,19 @@
+{
+  "title": "The five `opcache.file_cache*` directives are `System`-class, because where compiled code is read from is a code-injection primitive",
+  "status": "shipped",
+  "because": [
+    "0042",
+    "0005",
+    "0017",
+    "0175"
+  ],
+  "divergesFromPhp": "`opcache.file_cache` and `opcache.file_cache_dir` cannot be moved by `ini_set` or `.user.ini`; only the root-owned file sets them",
+  "seeAlso": [
+    "config/every-schedule-key-is-system",
+    "config/three-changeability-classes",
+    "config/opcache-revalidation-is-system-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

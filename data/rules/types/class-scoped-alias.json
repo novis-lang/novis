@@ -1,0 +1,21 @@
+{
+  "title": "A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner",
+  "status": "shipped",
+  "because": [
+    "0190"
+  ],
+  "seeAlso": [
+    "types/type-alias",
+    "types/alias-is-never-a-bare-class",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst",
+    "tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst",
+    "tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst",
+    "tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst",
+    "tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst",
+    "tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst",
+    "tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "lead": "Only the *outermost* annotation has a recorded checked type, so `lower_decl_type` over a nested `Type` node answers from the AST.",
+  "body": "`nvs_types::lower::lower_type` calls `record_type` once at its entry and recurses through `lower_type_at_depth` without recording, so a lowering reaching *inside* an annotation (`?T`'s target, a union member, an `array<T>` element) gets the `match &ty.kind` fallback, where every name-shaped atom is `Ty::Object`. Read the whole annotation's `declared_ty` and take the piece off the checked type — `?T` interns as `T|null`, so its target is that union minus `CheckedTy::Null`.",
+  "files": [],
+  "until": {
+    "kind": "reviewed",
+    "arg": "2026-09-06"
+  }
+}

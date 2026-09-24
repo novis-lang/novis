@@ -1,0 +1,18 @@
+{
+  "title": "`and`, `or` and `xor` do not parse, and `&&`/`||` are the whole set",
+  "status": "shipped",
+  "because": [
+    "0045",
+    "0035",
+    "0021"
+  ],
+  "divergesFromPhp": "the low-precedence keyword connectives are gone entirely, and `xor` has no operator replacement at all",
+  "seeAlso": [
+    "expressions/truthy-positions",
+    "expressions/one-equality-operator"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/keyword-logical-operators-do-not-parse.nvst",
+    "tests/conformance/reject/xor-does-not-parse.nvst"
+  ]
+}

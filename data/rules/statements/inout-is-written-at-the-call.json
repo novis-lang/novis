@@ -1,0 +1,17 @@
+{
+  "title": "An argument that binds an `inout` parameter says so at the call",
+  "status": "shipped",
+  "because": [
+    "0107",
+    "0080"
+  ],
+  "divergesFromPhp": "PHP removed call-time by-reference in 5.4 and left the caller no marker at all; here the marker is mandatory in both directions",
+  "seeAlso": [
+    "statements/inout-is-the-by-reference-spelling",
+    "statements/an-inout-argument-is-a-local"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
+    "tests/conformance/lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst"
+  ]
+}

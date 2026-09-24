@@ -1,0 +1,15 @@
+{
+  "title": "The image component is a pipeline that crosses the boundary once, and gd is not inherited",
+  "status": "accepted",
+  "scope": "the shape of the first-party image component [0051](0051.md) § 3\nplaces at Tier 1 — its package, its namespace, the split between a Novis builder and the wasm\ncomponent; the builder's surface and the component's closed set of entry points; the format roster and\nwhat implements each format; the pixel cap; the orientation, colour and metadata defaults; comparison,\nhashing and placeholders; text, QR codes and SVG; and which of `gd`'s behaviours are not inherited,\nwith the replacement for each. Not in scope: the sandbox contract, its limits and how a `.nvsx` is\nloaded ([0003](0003.md)); the tier placement and the two-component first-party\nroster ([0051](0051.md) § 3, which this ADR details and does not reopen); what\na manifest may say about qualifiers ([0055](0055.md)); how a package\nis named, fetched, pinned and granted ([0081](0081.md));\nhow an upload reaches the builder ([0105](0105.md));\nand the authoring of the `nvs:ext@1.0.0` world, which is M9's first slice ([docs/plan/m9.md](../plan/m9.md)).",
+  "dependsOn": [
+    "0003",
+    "0051"
+  ],
+  "dependsOnText": "[0003](0003.md) — the boundary whose cost model decides the shape;\n[0051](0051.md) — the placement this ADR fills in.",
+  "summary": {
+    "group": "core",
+    "headline": "Images are processed by a chained plan that crosses into the sandbox once",
+    "body": "`Novis\\Image::open($bytes)->resize({fit: Fit::Cover, width: 800, height: 600})->encode()` is the\nwhole shape. Opening reads only the header; each operation is added to a plan; encoding hands\ninput and plan to the sandboxed component in one call and gets bytes back. There is one pixel\nmodel, one member per job, and none of gd's palette modes, flags or drawing primitives. Decoding\napplies orientation and converts colour profiles; encoding strips metadata unless asked not to,\nso GPS in a re-encoded upload is not your bug. A pixel cap, read from the header, refuses a bomb\nbefore any buffer exists."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "A `type` alias is a member of a class, interface or enum body, reached as `Owner::Name` from anywhere and as a bare `Name` inside its owner",
+  "status": "accepted",
+  "scope": "the second place a `type` alias may be declared — a class, interface or enum body — its\nkey, the two spellings that reach it, how far it reaches, and the refusals that bound it. It does\nnot reopen what an alias *is*: transparency, erasure and the bare-class exclusion are\n[ADR 0015](0015.md) § 5's and stay exactly as written.",
+  "dependsOn": [
+    "0015",
+    "0011",
+    "0036",
+    "0007"
+  ],
+  "dependsOnText": "[0015](0015.md) § 5 (the alias itself, and its file scope), [0011](0011.md) (every\ncallable is a method and every constant a class constant), [0036](0036.md) (the shape type an\nowner-scoped alias most often names), [0007](0007.md) (types are declared and checked).",
+  "validatedBy": "`tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst`\nand the four `tests/conformance/reject/a-class-scoped-type-alias-*.nvst` cases."
+}

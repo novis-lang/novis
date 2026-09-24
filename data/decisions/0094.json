@@ -1,0 +1,11 @@
+{
+  "title": "Visibility is written at every member declaration; there is no implicit `public`",
+  "status": "accepted",
+  "scope": "whether a class-body member may omit `public`/`protected`/`private`, and what an omission\nmeans. Covers every member declaration slot — property, class constant and method, in a `class`,\n`interface` or anonymous-class body — plus PHP 8.4's asymmetric `(set)` form. An `enum` body has no\nmember slot at all (`rule:enums/no-class-machinery`, `E0220`), so nothing here reaches\none. Does **not** cover\nwhat each level *means* at an access site (who may read a `private` property), which is\n`rule:types/declaration`'s checker debt owned by `nvs-types`; nor modifier *order*\n(`rule:tooling/fmt-base-style-is-per`); nor casing (`rule:core-api/identifier-casing`);\nnor property-hook semantics (`rule:classes/property-observer`).",
+  "dependsOn": [],
+  "summary": {
+    "group": "syntax",
+    "headline": "Every class member says whether it is public, protected or private",
+    "body": "Every property, constant and method in a class, interface or anonymous class is written with\nexactly one of `public`, `protected` or `private`. Leaving the word off is not a shorthand for\n`public`; it stops the build, with a fix that offers `public` so ported code keeps its\nbehaviour. An inferred `public` is how an internal helper becomes public API because someone\nforgot a word. A constructor parameter with no visibility stays a plain parameter — writing one\nis what turns it into a property. The asymmetric form is written in full: `public private(set)\nstring $name;`."
+  }
+}
