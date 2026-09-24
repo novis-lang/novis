@@ -13762,7 +13762,7 @@ want = ["audit: no goal file carries a number", "audit: no copy of a goal's file
 [[check]]
 kind = "command"
 stage = "9 the cutover"
-name = "no check runs Python, and no check, directive or tool says dossier"
+name = "no check runs Python, and no check, directive or tool says the old proofs name"
 argv = ["bun", "nv", "audit", "checks"]
 want = ["audit: no check runs python", "audit: nothing says dossier"]
 

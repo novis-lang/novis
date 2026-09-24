@@ -17090,7 +17090,7 @@
       "id": "no-check-runs-python-and-no-check-directive-or-tool-says",
       "kind": "command",
       "stage": 9,
-      "name": "no check runs Python, and no check, directive or tool says dossier",
+      "name": "no check runs Python, and no check, directive or tool says the old proofs name",
       "argv": [
         "bun",
         "nv",
