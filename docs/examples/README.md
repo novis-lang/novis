@@ -141,8 +141,8 @@ goals state for fixtures. An example that has stopped printing what it used to h
 regression or needs rewriting, and re-blessing decides which without looking.
 
 Where the disagreement is the binary's fault and the fix is larger than the slice, record it rather
-than re-blessing: a `# Known gaps` entry in the owning crate's module doc, and a marker on the
-example naming it — `// dossier: known-gap crates/…/foo.rs -- what is wrong`. The sweep counts it as
+than re-blessing: a gap record under `data/gaps/`, and a marker on the example naming it —
+`// proof: gap nvs-stdlib/a-slug-naming-what-is-wrong`. The sweep counts it as
 `known-gap` instead of a failure, and a marked example that passes fails the sweep, so the marker
 comes off with the fix.
 
@@ -154,14 +154,14 @@ at once. An example that shows reading input puts that input beside it, under it
 the file to the program's standard input, byte for byte, and the website shows it beside the
 example. `tests/hostile/` and `benches/members/` read a `.in` file the same way.
 
-## `// dossier: exit 1`
+## `// proof: exit 1`
 
 An example runs to its last line and exits `0`, and that is the default because an example is a
 program a reader copies. A feature whose whole subject is the **ending** — an uncaught throw, a
 limit stopping the program, `exit($n)` — has no such program to write, so it declares the status it
 ends with:
 
-    // dossier: exit 1
+    // proof: exit 1
 
 and the runner then requires exactly that status, the way `tests/hostile/`'s `ends-early` marker
 already does for an attack. The status is exact rather than merely non-zero, so an example that

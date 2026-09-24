@@ -111,11 +111,10 @@ answers — in this order:
 1. **Fix it.** This is the default and it is in scope: the fix, a `.nvst` case pinning the
    corrected behaviour, and the proof that found it, in the same slice. Most will be small.
 2. **Record it**, when the fix is genuinely larger than a slice — a representation change, a
-   design question, a refusal that needs an ADR. Add the entry to the owning crate's module
-   doc `# Known gaps` (this repository's existing home for exactly this fact), and mark the
-   proof with the file that carries it:
+   design question, a refusal that needs an ADR. Write a gap record under `data/gaps/<crate>/`
+   naming its owner, and mark the proof with the record's id:
 
-       // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+       // proof: gap nvs-stdlib/a-slug-naming-what-breaks
 
    The sweep then counts it as `known-gap` rather than a failure, so the run continues and
    the bug stays visible in `python tools/dossier.py --gaps`. A marked proof that *passes*

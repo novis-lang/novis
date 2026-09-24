@@ -141,15 +141,14 @@ rewritten -- `--id` says which of the two found each one. Nothing else is inferr
 ## When a proof fails
 
 It has found something, and there are two honest answers: **fix it**, or **record it**. Recording is
-a `# Known gaps` entry in the owning crate's module doc -- this repository's existing home for
-exactly this fact -- plus a marker on the proof that found it:
+a gap record under `data/gaps/<crate>/`, naming its owner, plus a marker on the proof that found it:
 
-    // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+    // proof: gap nvs-stdlib/a-slug-naming-what-breaks
 
 The sweep then counts that file as `known-gap` rather than a failure, so an unattended run continues
 past a bug too large for the slice that found it, and `--gaps` keeps the list in front of anyone who
-asks. Two things stop this from becoming a way to make anything green: the marker must name a file
-that really carries a `# Known gaps` section, and **a marked proof that passes fails the sweep** --
+asks. Two things stop this from becoming a way to make anything green: the marker must name a gap
+record that exists, and **a marked proof that passes fails the sweep** --
 so removing the marker is part of whatever fix eventually lands. `--run … --strict` fails on them
 outright, which is what a person runs to see the real debt.
 
@@ -388,15 +387,14 @@ REFUSAL_EXPECTED_RE = re.compile(r"(?://|#)\s*hostile:\s*expect-refusal")
 #: `// hostile: ends-early` -- this attack's last step is the one that ends the program, so a
 #: non-zero exit status is what it is written to produce rather than a sign that steps went unrun.
 ENDS_EARLY_RE = re.compile(r"(?://|#)\s*hostile:\s*ends-early")
-#: `// dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence`. A proof that found a real
-#: bug too large for the slice that found it. The path names the module doc whose `# Known gaps`
-#: section carries the entry, which is where this repository already keeps exactly this fact.
-KNOWN_GAP_RE = re.compile(r"(?://|#)\s*dossier:\s*known-gap\s+(\S+)\s*(.*)")
-#: `// dossier: exit 1` in an example. A feature whose whole subject is the program *ending* --
+#: `// proof: gap nvs-stdlib/a-slug`. A proof that found a real bug too large for the slice that
+#: found it. The id names the gap record, `data/gaps/<id>.json`, that says what breaks and who owns it.
+KNOWN_GAP_RE = re.compile(r"(?://|#)\s*proof:\s*gap\s+(\S+)")
+#: `// proof: exit 1` in an example. A feature whose whole subject is the program *ending* --
 #: an uncaught throw, a limit, `exit($n)` -- cannot be shown by a program that runs to the last
 #: line, so the example declares the status it ends with and the runner requires exactly that.
 #: Everything else about it is unchanged: its `.out` is still frozen stdout, byte for byte.
-EXAMPLE_EXIT_RE = re.compile(r"(?://|#)\s*dossier:\s*exit\s+([0-9]+)")
+EXAMPLE_EXIT_RE = re.compile(r"(?://|#)\s*proof:\s*exit\s+([0-9]+)")
 #: A Novis compile diagnostic. A runtime failure does not look like this -- an uncaught throw is a
 #: structured log line -- so this distinguishes "the attack was refused before it ran" from "the
 #: attack ran and the runtime handled it", which are opposite verdicts.
@@ -1285,7 +1283,7 @@ def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
     want = declared_exit(source)
     if out.returncode != want:
         first = (out.stderr.strip().splitlines() or [""])[0]
-        return "fail", (f"exit {out.returncode} where it declares `dossier: exit {want}`"
+        return "fail", (f"exit {out.returncode} where it declares `proof: exit {want}`"
                         if want else f"exit {out.returncode}: {first}")
     expected_file = path.with_suffix(".out")
     if not expected_file.exists():
@@ -1386,40 +1384,42 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     return "ok", ""
 
 
+def gap_title(gap_id: str) -> str | None:
+    """The title of the gap record `gap_id`, or None when `data/gaps/` has no such record."""
+    path = ROOT / "data" / "gaps" / f"{gap_id}.json"
+    return json.loads(read(path))["title"] if path.exists() else None
+
+
 def known_gap(source: str) -> tuple[str, str] | None:
-    """The `known-gap` marker in a proof file, as (module doc path, reason), or None."""
+    """The `proof: gap` marker in a proof file, as (gap id, the record's title), or None."""
     m = KNOWN_GAP_RE.search(source)
-    return (m.group(1), m.group(2).strip(" -\t")) if m else None
+    return (m.group(1), gap_title(m.group(1)) or "") if m else None
 
 
 def judge_gap(path: Path, verdict: str, why: str) -> tuple[str, str]:
-    """Re-judge one result against the file's `known-gap` marker, if it carries one.
+    """Re-judge one result against the file's `proof: gap` marker, if it carries one.
 
     **A proof that fails has found something, and the only two honest answers are to fix it or to
     record it.** Weakening the proof is neither, and it is the cheapest thing an unattended session
     could do, so this makes the third path a real one: mark the file, and the failure becomes a
     counted, printed `known-gap` rather than a red check the run cannot get past.
 
-    Two things keep that from becoming a way to make anything green. The marker must name a module
-    doc that actually carries a `# Known gaps` section -- this repository's existing home for
-    exactly this fact -- so recording a bug means writing it where the crate's own readers will
-    find it. And a marked file that *passes* fails: the gap it names is fixed, and the marker has
-    to go with it.
+    Two things keep that from becoming a way to make anything green. The marker must name a gap
+    record under `data/gaps/`, which carries the owner the owner gate holds a goal to. And a marked
+    file that *passes* fails: the gap it names is fixed, and the marker has to go with it.
     """
-    marker = known_gap(read(path))
-    if not marker:
+    m = KNOWN_GAP_RE.search(read(path))
+    if not m:
         return verdict, why
-    doc, reason = marker
-    target = ROOT / doc
-    if not target.exists():
-        return "fail", f"`known-gap` names {doc}, which does not exist"
-    if "# Known gaps" not in read(target):
-        return "fail", f"`known-gap` names {doc}, which has no `# Known gaps` section to hold it"
+    gap_id = m.group(1)
+    title = gap_title(gap_id)
+    if title is None:
+        return "fail", f"`proof: gap` names {gap_id}, which is not a record under data/gaps/"
     if verdict == "ok":
-        return "fail", f"passes, but is still marked `known-gap` against {doc} -- remove the marker"
+        return "fail", f"passes, but is still marked `proof: gap {gap_id}` -- remove the marker"
     if verdict == "skip":
         return verdict, why
-    return "known", f"{reason or why} (recorded in {doc})"
+    return "known", f"{title} (gap {gap_id})"
 
 
 def binary_key(nvs: Path) -> str:
@@ -1733,7 +1733,7 @@ def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: d
         if findings and not gap:
             failed += 1
             print(f"  FAIL  {e.id}: " + "; ".join(findings))
-            print("        fix it, or mark the bench `// dossier: known-gap <module> -- why`; "
+            print("        fix it, or mark the bench `// proof: gap <gap id>`; "
                   "the figure is not recorded until one of those lands.")
             continue
         rec = {
@@ -1985,8 +1985,8 @@ def print_status(rows: list[dict], columns: tuple[str, ...]) -> None:
           f"({done / total * 100:.1f}%)" if total else "  nothing on the roster")
     gaps = sum(r["gaps"] for r in rows)
     if gaps:
-        print(f"  {gaps} proof(s) carry a `known-gap` marker: a bug the proof found and nobody has")
-        print("  fixed yet, recorded in the owning crate's `# Known gaps`. `--run … --strict` fails")
+        print(f"  {gaps} proof(s) carry a `proof: gap` marker: a bug the proof found and nobody has")
+        print("  fixed yet, recorded as a gap under `data/gaps/`. `--run … --strict` fails")
         print("  on them; `--owed --gaps` lists them. This number going up is the point of the")
         print("  hostile tree, and it going down is the point of the rest of the repository.")
 
@@ -2436,8 +2436,8 @@ def print_findings(clear: bool) -> int:
     print(f"== WHAT THE WORKERS FOUND  ({len(files)} finding(s))")
     print("-- fix these as ONE batch: they cluster in the implementing files a goal's batch shares,")
     print("-- which is the reason no worker was allowed to touch them. Fixing, and then the")
-    print("-- proof that found it, land in the same commit -- or the bug goes in that crate's")
-    print("-- `# Known gaps` with a `// dossier: known-gap <file> -- <what breaks>` on the proof.")
+    print("-- proof that found it, land in the same commit -- or the bug becomes a gap record")
+    print("-- under `data/gaps/` with a `// proof: gap <gap id>` on the proof.")
     print()
     for path in files:
         print(f"-- {rel(path)}")
@@ -3038,11 +3038,10 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "1. **Fix it.** This is the default and it is in scope: the fix, a `.nvst` case pinning the",
         "   corrected behaviour, and the proof that found it, in the same slice. Most will be small.",
         "2. **Record it**, when the fix is genuinely larger than a slice — a representation change, a",
-        "   design question, a refusal that needs an ADR. Add the entry to the owning crate's module",
-        "   doc `# Known gaps` (this repository's existing home for exactly this fact), and mark the",
-        "   proof with the file that carries it:",
+        "   design question, a refusal that needs an ADR. Write a gap record under `data/gaps/<crate>/`",
+        "   naming its owner, and mark the proof with the record's id:",
         "",
-        "       // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks",
+        "       // proof: gap nvs-stdlib/a-slug-naming-what-breaks",
         "",
         "   The sweep then counts it as `known-gap` rather than a failure, so the run continues and",
         "   the bug stays visible in `python tools/dossier.py --gaps`. A marked proof that *passes*",
@@ -3553,7 +3552,7 @@ def main() -> int:
         rows = [(e, f) for e in scope for f in proofs[e.id].gaps]
         print(f"== BUGS THE PROOFS FOUND  ({len(rows)} marked proof(s))")
         print("-- each is a real failure a session could not fix in the slice that found it, and is")
-        print("-- recorded in the named crate's `# Known gaps`. Removing the marker is part of the")
+        print("-- recorded as a gap under `data/gaps/`. Removing the marker is part of the")
         print("-- fix: a marked proof that passes fails the sweep.")
         print()
         for e, f in rows:

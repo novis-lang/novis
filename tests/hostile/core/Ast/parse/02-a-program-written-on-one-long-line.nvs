@@ -3,7 +3,7 @@
 // long line. The line holds 200,000 short statements. The program should
 // finish inside its time limit, and a long line should not cost much more than
 // the same code spread over many lines.
-// dossier: known-gap crates/nvs-stdlib/src/ast.rs -- a node's column is counted from the start of its line, so all of the work on one line costs time in the square of that line's length
+// proof: gap nvs-stdlib/nodes-column-is-counted-from-the
 
 string $oneLine = '<?nvs ' . Core\Str::repeat('echo 1;', 200000);
 Core\Ast::parse($oneLine);

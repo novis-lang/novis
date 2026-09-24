@@ -4,7 +4,7 @@
 //     bun nv proofs --group 'Core\Str'     one line per feature of that group
 //     bun nv proofs --id 'Core\Str::length'  one feature: every proof it has, and what it still owes
 //     bun nv proofs --owed [--limit N]     one line per feature still owing a proof: the worklist
-//     bun nv proofs --gaps                 every proof carrying a known-gap marker
+//     bun nv proofs --gaps                 every proof carrying a `proof: gap` marker
 //     bun nv proofs --gate                 exit 0 when nothing in scope is owed; name what is otherwise
 //     bun nv proofs --json                 the audit as JSON
 //     bun nv proofs --run                  run every example and attack in scope, and report what failed
@@ -33,7 +33,7 @@ import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { collect, commentProblems, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { bless, namedBinary, proofBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 
@@ -129,8 +129,8 @@ function printStatus(out: string[], rows: Row[], columns: Proof[]): void {
   out.push(total ? `  ${done}/${total} features complete (${fixed((done / total) * 100, 1)}%)` : "  nothing on the roster");
   const gaps = rows.reduce((n, r) => n + r.gaps, 0);
   if (gaps) {
-    out.push(`  ${gaps} proof(s) carry a \`known-gap\` marker: a bug the proof found and nobody has`);
-    out.push("  fixed yet, recorded in the owning crate's `# Known gaps`. `--run … --strict` fails");
+    out.push(`  ${gaps} proof(s) carry a \`proof: gap\` marker: a bug the proof found and nobody has`);
+    out.push("  fixed yet, recorded as a gap under `data/gaps/`. `--run … --strict` fails");
     out.push("  on them; `--owed --gaps` lists them. This number going up is the point of the");
     out.push("  hostile tree, and it going down is the point of the rest of the repository.");
   }
@@ -194,10 +194,7 @@ function printEntry(out: string[], fid: string, entries: Entry[], proofs: Map<st
   for (const f of p.hostile) out.push(`     ${f}`);
   if (p.gaps.length) {
     out.push(`   known-gap ${p.gaps.length} proof(s) found a bug nobody has fixed:`);
-    for (const f of p.gaps) {
-      const gap = knownGap(read(f));
-      out.push(`     ${f} -> ${gap ? gap[0] : "?"}: ${gap ? gap[1] : ""}`);
-    }
+    for (const f of p.gaps) out.push(`     ${f} -> ${gapLine(f)}`);
   }
   out.push("");
   if (Object.keys(missing).length) {
@@ -207,6 +204,12 @@ function printEntry(out: string[], fid: string, entries: Entry[], proofs: Map<st
     out.push("   complete.");
   }
   return 0;
+}
+
+/** `<gap id>: <its title>` for the proof at `path`, as `--id` and `--gaps` print it. */
+function gapLine(path: string): string {
+  const id = knownGap(read(path));
+  return id ? `${id}: ${gapTitle(id) ?? ""}` : "?: ";
 }
 
 function printOwed(out: string[], scope: Entry[], proofs: Map<string, Proofs>, policy: Policy, skips: Skips, limit: number): void {
@@ -482,13 +485,12 @@ export async function run(args: string[]): Promise<number> {
     const rows = scope.flatMap((e) => proofs.get(e.id)!.gaps.map((f) => [e, f] as const));
     out.push(`== BUGS THE PROOFS FOUND  (${rows.length} marked proof(s))`);
     out.push("-- each is a real failure a session could not fix in the slice that found it, and is");
-    out.push("-- recorded in the named crate's `# Known gaps`. Removing the marker is part of the");
+    out.push("-- recorded as a gap under `data/gaps/`. Removing the marker is part of the");
     out.push("-- fix: a marked proof that passes fails the sweep.");
     out.push("");
     for (const [e, f] of rows) {
-      const gap = knownGap(read(f));
       out.push(`  ${ljust(e.id, 44)} ${f}`);
-      out.push(`  ${ljust("", 44)}   -> ${gap ? gap[0] : "?"}: ${gap ? gap[1] : ""}`);
+      out.push(`  ${ljust("", 44)}   -> ${gapLine(f)}`);
     }
     return flush(0);
   }

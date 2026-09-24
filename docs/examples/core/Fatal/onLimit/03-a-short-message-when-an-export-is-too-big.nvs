@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to give the user a clear message when an export is too big
 // to build in memory.
-// dossier: exit 1
+// proof: exit 1
 
 final class Export
 {

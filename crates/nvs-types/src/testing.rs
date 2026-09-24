@@ -137,6 +137,20 @@
 //! the same [`ConstArg`] a parameter default is folded to, through the very
 //! function that folds one, so a `#[Test]` option is never a second literal
 //! grammar.
+//!
+//! # Known gaps
+//!
+//! 1. **An `abstract` `#[Test]` method is accepted.** [`check_method_shape`]
+//!    refuses four declaration shapes and a method with no body is none of
+//!    them, so an `abstract` `#[Test]` compiles. The runner then finds nothing
+//!    to call, and `nvs_runtime`'s dispatch raises its `internal error` fault
+//!    in place of the test: a program with no unsafe construct in it reaching
+//!    a branch written as unreachable. `rule:testing/test-attribute`
+//!    enumerates the refusals, so adding a fifth is a decision of its own
+//!    rather than a fix to that function's wording.
+//!    `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs`
+//!    is the proof that carries it.
+//!    — owner: M10
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
@@ -973,19 +987,8 @@ fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
 ///
 /// A method the signature table has no row for is left alone: it is either
 /// a name `nvs_syntax` is already refusing or a duplicate of one, and there is
-/// nothing here that a second diagnostic about its shape would add.
-///
-/// # Known gaps
-///
-/// 1. An `abstract` `#[Test]` is accepted. The method has no body, so the
-///    runner finds nothing to call and `nvs_runtime`'s dispatch raises its
-///    `internal error` fault in place of the test — a program with no unsafe
-///    construct in it reaching a branch written as unreachable.
-///    `rule:testing/test-attribute` enumerates four declaration-shape
-///    refusals and a body-less method is none of them, so adding a fifth is a
-///    decision of its own rather than a fix to this function's wording.
-///    `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs`
-///    is the case, marked `known-gap` until the refusal lands.
+/// nothing here that a second diagnostic about its shape would add. A body-less
+/// method is none of the shapes it refuses; this module's `# Known gaps` has it.
 fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut Env<'_>) {
     let signatures = env.signatures;
     let Some(sig) = signatures

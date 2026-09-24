@@ -1,7 +1,7 @@
 <?nvs
 // Attack: one tag with two hundred thousand attributes is parsed. The program
 // should finish quickly, and must not crash the runtime.
-// dossier: known-gap crates/nvs-stdlib/src/html.rs -- an element with many attributes costs time in the square of their count, so two hundred thousand take far longer than the time limit
+// proof: gap nvs-stdlib/element-with-many-attributes-costs-time
 
 // 1. Builds the attributes `a0=0 a1=1 a2=2` and so on.
 string $attributes = '';

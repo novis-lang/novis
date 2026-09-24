@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to print the message of an error that nothing caught.
-// dossier: exit 1
+// proof: exit 1
 
 // This function gets the error object. `$e->message` is the text the error was created with.
 Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {

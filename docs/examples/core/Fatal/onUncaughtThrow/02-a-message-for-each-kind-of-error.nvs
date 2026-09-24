@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to give each kind of error its own message.
-// dossier: exit 1
+// proof: exit 1
 
 class NotFound extends RuntimeError {}
 

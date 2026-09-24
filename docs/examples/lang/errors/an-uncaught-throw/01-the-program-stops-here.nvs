@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when no `catch` handles a throw. The program ends at
 // the line that threw, with exit status 1.
-// dossier: exit 1
+// proof: exit 1
 
 class Repo {
     public static function get(int $id): string {

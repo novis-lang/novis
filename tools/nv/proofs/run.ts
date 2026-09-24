@@ -24,7 +24,7 @@ import { digest } from "../keys/scan.ts";
 import { Tree } from "../keys/tree.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { knownGap } from "./collect.ts";
+import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
 
 export type What = "examples" | "hostile";
@@ -50,8 +50,8 @@ const TIMEOUT_RE = /(?:\/\/|#)\s*hostile:\s*timeout-ms\s+([0-9]+)/;
 const REFUSAL_EXPECTED_RE = /(?:\/\/|#)\s*hostile:\s*expect-refusal/;
 /** `// hostile: ends-early`: this attack's last step ends the program, so a non-zero status is expected. */
 const ENDS_EARLY_RE = /(?:\/\/|#)\s*hostile:\s*ends-early/;
-/** `// dossier: exit 1` in an example: the exact status it ends with. */
-const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*dossier:\s*exit\s+([0-9]+)/;
+/** `// proof: exit 1` in an example: the exact status it ends with. */
+const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
 /** A compile diagnostic. An uncaught throw is a log line and does not look like this. */
 const REFUSED_RE = /^error\[E[0-9]+\]/m;
 /** What an attack's output must never carry: the runtime under the program came apart. */
@@ -147,7 +147,7 @@ async function runExample(nvs: string, path: string): Promise<[Verdict, string]>
   const want = declaredExit(source);
   if (out.code !== want) {
     const first = out.stderr.trim().split(/\r?\n/)[0] ?? "";
-    return ["fail", want ? `exit ${out.code} where it declares \`dossier: exit ${want}\`` : `exit ${out.code}: ${first}`];
+    return ["fail", want ? `exit ${out.code} where it declares \`proof: exit ${want}\`` : `exit ${out.code}: ${first}`];
   }
   const expected = sibling(path, ".out");
   if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`];
@@ -243,17 +243,17 @@ async function runHostile(nvs: string, path: string, valgrind: boolean): Promise
   return ["ok", ""];
 }
 
-/** One verdict re-judged against the file's known-gap marker. A marked proof that fails is counted as a
- * known gap. A marked proof that passes fails, because the marker has to go with the bug it names. */
+/** One verdict re-judged against the file's `proof: gap` marker. The marker must name a gap record. A
+ * marked proof that fails is counted as a known gap. A marked proof that passes fails, because the marker
+ * has to go with the bug it names. */
 function judgeGap(path: string, verdict: Verdict, why: string): [Verdict, string] {
-  const marker = knownGap(read(path));
-  if (!marker) return [verdict, why];
-  const [doc, reason] = marker;
-  if (!existsSync(abs(doc))) return ["fail", `\`known-gap\` names ${doc}, which does not exist`];
-  if (!read(doc).includes("# Known gaps")) return ["fail", `\`known-gap\` names ${doc}, which has no \`# Known gaps\` section to hold it`];
-  if (verdict === "ok") return ["fail", `passes, but is still marked \`known-gap\` against ${doc} -- remove the marker`];
+  const id = knownGap(read(path));
+  if (!id) return [verdict, why];
+  const title = gapTitle(id);
+  if (title === null) return ["fail", `\`proof: gap\` names ${id}, which is not a record under data/gaps/`];
+  if (verdict === "ok") return ["fail", `passes, but is still marked \`proof: gap ${id}\` -- remove the marker`];
   if (verdict === "skip") return [verdict, why];
-  return ["known", `${reason || why} (recorded in ${doc})`];
+  return ["known", `${title} (gap ${id})`];
 }
 
 /** What a green verdict on `proof` is remembered against: its bytes, and its `.out` and `.in` when present. */

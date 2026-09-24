@@ -80,7 +80,7 @@ A bench with no history still has a yardstick: what its author knew before measu
 these is optional, checked by `--record-perf` on every run including the first, and a bench that
 misses one is a failing proof — no record is written, and
 [`rule:testing/a-failing-proof-is-fixed-or-recorded`](../../docs/rules/testing.md#testing-a-failing-proof-is-fixed-or-recorded)
-names the two answers, the second being a `// dossier: known-gap` marker on the bench.
+names the two answers, the second being a `// proof: gap` marker on the bench.
 
 - **`// bench: allocations 0`**, and likewise `calls`, `statements`, `bytes` — what one operation
   should count, in the four counts below. Met to within a hundredth per operation, so the one

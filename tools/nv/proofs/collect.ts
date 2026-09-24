@@ -162,13 +162,19 @@ export function commentProblems(path: string): string[] {
   return problems;
 }
 
-/** `// dossier: known-gap <module doc> -- why` in a proof: a bug it found that nobody has fixed yet. */
-const KNOWN_GAP_RE = /(?:\/\/|#)\s*dossier:\s*known-gap\s+(\S+)\s*(.*)/;
+/** `// proof: gap <gap id>` in a proof: a bug it found that nobody has fixed yet, recorded as
+ * `data/gaps/<gap id>.json`. */
+const GAP_RE = /(?:\/\/|#)\s*proof:\s*gap\s+(\S+)/;
 
-/** The known-gap marker in a proof's text, as `[module doc, reason]`, or null. */
-export function knownGap(source: string): [string, string] | null {
-  const m = KNOWN_GAP_RE.exec(source);
-  return m ? [m[1]!, m[2]!.replace(/^[ \-\t]+|[ \-\t]+$/g, "")] : null;
+/** The gap id a proof's text is marked with, or null. */
+export function knownGap(source: string): string | null {
+  return GAP_RE.exec(source)?.[1] ?? null;
+}
+
+/** The title of the gap record `id`, or null when `data/gaps/` has no such record. */
+export function gapTitle(id: string): string | null {
+  const path = `data/gaps/${id}.json`;
+  return existsSync(abs(path)) ? (JSON.parse(read(path)) as { title: string }).title : null;
 }
 
 /** What one feature has on disk, and how each proof was attributed. */

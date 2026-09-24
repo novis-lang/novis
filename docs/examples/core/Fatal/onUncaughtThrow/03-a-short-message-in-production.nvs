@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a command line tool can show a short message to its users
 // and the full details only to a developer.
-// dossier: exit 1
+// proof: exit 1
 
 Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
     if (Core\Env::mode() == Core\Env\Mode::Development) {

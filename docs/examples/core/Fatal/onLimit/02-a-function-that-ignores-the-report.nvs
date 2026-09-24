@@ -1,7 +1,7 @@
 <?nvs
 // Shows a limit function with no parameter. You can leave the parameter out
 // when you do not need to know which limit it was.
-// dossier: exit 1
+// proof: exit 1
 
 Core\Config::set('limits.memory', '16M');
 

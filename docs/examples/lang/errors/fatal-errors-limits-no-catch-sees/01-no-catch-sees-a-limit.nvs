@@ -2,7 +2,7 @@
 // Shows what a memory limit does to a program. `nvs.toml` gives this program
 // 16 megabytes. Holding more than that stops it where it stands. No `catch`
 // and no `finally` runs, and the program ends with status 1.
-// dossier: exit 1
+// proof: exit 1
 
 echo "before the limit\n";
 

@@ -93,9 +93,9 @@ refcount, shard, variance — does not go into the comment.
 ## When a case actually breaks something
 
 That is the point of the tree, and there are two honest answers: **fix it**, or **record it**. Record
-it with an entry in the owning crate's module doc `# Known gaps` and a marker on the case:
+it with a gap record under `data/gaps/<crate>/`, naming its owner, and a marker on the case:
 
-    // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+    // proof: gap nvs-stdlib/a-slug-naming-what-breaks
 
 The sweep then counts the case as `known-gap` instead of a failure, so a long unattended run is not
 stopped by a bug too big for the session that found it, and `python tools/dossier.py --gaps` keeps
@@ -110,7 +110,7 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // hostile: timeout-ms 4000     how long it may run before it counts as unbounded (default 10s)
     // hostile: expect-refusal      the compiler saying no is this case's assertion
     // hostile: ends-early          the last step ends the program, and that ending is the attack
-    // dossier: known-gap <file>    it breaks something; the fix is recorded there, not here
+    // proof: gap <gap id>          it breaks something; the gap record says what, not this file
     // requires: unimplemented      skip: the feature does not run yet
 
 A case runs with nothing on its standard input. A sibling `<name>.in` is sent to it instead, byte

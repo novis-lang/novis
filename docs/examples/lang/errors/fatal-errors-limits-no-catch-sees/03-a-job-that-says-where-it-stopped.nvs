@@ -2,7 +2,7 @@
 // Shows how to leave a note when a limit stops a job. The handler prints the
 // order the job was on, so the person reading the log can start again from
 // there.
-// dossier: exit 1
+// proof: exit 1
 
 final class Job
 {

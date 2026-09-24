@@ -6,7 +6,7 @@
 // bench: iterations 200000
 // bench: allocations 0
 // bench: calls 4
-// dossier: known-gap crates/nvs-runtime/src/lib.rs -- a call through a `callable` builds its argument slots in a heap vector and reaches the callee without passing a call probe, so this round allocates once where a call allocates nothing and is counted as three calls of the four it makes
+// proof: gap nvs-runtime/call-through-a-callable-builds-its
 
 class Step {
     public static function widen(int $n): int {

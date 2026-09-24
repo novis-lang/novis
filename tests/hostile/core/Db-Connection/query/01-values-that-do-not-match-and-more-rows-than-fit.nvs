@@ -5,7 +5,7 @@
 // Nothing here may crash.
 // hostile: timeout-ms 60000
 // hostile: ends-early
-// dossier: known-gap crates/nvs-stdlib/src/db/mod.rs -- a buffered read is not held to the request's memory ceiling, so step 6 reads far past it instead of stopping the program
+// proof: gap nvs-stdlib/buffered-read-is-not-held-to
 
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);

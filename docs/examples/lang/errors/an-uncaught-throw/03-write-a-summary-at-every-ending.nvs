@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to write a summary line even when an error ends the program.
-// dossier: exit 1
+// proof: exit 1
 
 final class Counter {
     public static int $written = 0;

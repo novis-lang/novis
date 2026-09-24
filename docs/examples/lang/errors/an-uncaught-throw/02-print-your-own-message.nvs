@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to print your own message when an error ends the program.
-// dossier: exit 1
+// proof: exit 1
 
 // This closure runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.

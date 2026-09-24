@@ -1,7 +1,7 @@
 <?nvs
 // Shows a check outside a test. Nothing catches the failure, so the program
 // ends with exit status 1.
-// dossier: exit 1
+// proof: exit 1
 
 array<string> $config = ["host" => "localhost", "port" => "5432"];
 

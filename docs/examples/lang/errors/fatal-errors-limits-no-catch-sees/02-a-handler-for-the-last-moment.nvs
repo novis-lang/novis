@@ -2,7 +2,7 @@
 // Shows the one hook a limit runs. `Core\Fatal::onLimit` registers a function
 // that runs when a limit stops the program. The function receives the name of
 // the limit that fired. The program still ends after it.
-// dossier: exit 1
+// proof: exit 1
 
 Core\Fatal::onLimit(fn (array<string> $report): void => {
     echo "stopped by the ", $report["limit"], " limit\n";

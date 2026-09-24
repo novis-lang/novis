@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to print which limit stopped the program.
-// dossier: exit 1
+// proof: exit 1
 
 // The program asks for a memory limit of 16 MB for itself.
 Core\Config::set('limits.memory', '16M');

@@ -2,7 +2,7 @@
 // Attack: a method marked `#[Test]` is `abstract`, so it has no body and the
 // test runner has nothing to call. The program should not compile.
 // hostile: expect-refusal
-// dossier: known-gap crates/nvs-types/src/testing.rs -- an `abstract` `#[Test]` method compiles, and `nvs test` then reports an internal error in place of the test
+// proof: gap nvs-types/abstract-test-method-is-accepted
 
 use Core\Test;
 

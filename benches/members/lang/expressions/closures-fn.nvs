@@ -5,7 +5,7 @@
 // written as a block.
 // bench: iterations 200000
 // bench: allocations 0
-// dossier: known-gap crates/nvs-runtime/src/lib.rs -- a call through a `callable` builds its argument slots in a heap vector, so each of these three calls allocates where a call allocates nothing
+// proof: gap nvs-runtime/call-through-a-callable-builds-its
 
 class Bench {
     public static function run(int $rounds): int {
