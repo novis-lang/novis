@@ -2,23 +2,16 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stage 2 (the Rust and Cargo cuts) is landed whole; Stage 3 starts
-next.** The goal replaces the Python tools with one TypeScript program on Bun, `bun nv`, over
-typed JSON records under `data/` (loop-goal.md § *The data model*). `main` is frozen until it is
-walked, and the tag `pre-overhaul` is the rollback point. Bun 1.3.5 is on this machine's PATH;
-`package.json`, `tsconfig.json` and `tools/nv/` do not exist yet, which is why the driver's
-`bun nv selftest` check reads `Script not found "nv"`. That is an item still open. It is not a
-regression.
-
-On disk from Stage 2: 200-edit bounded-units test, `doctest = false`, `[profile.proof]` (Stage 7
-wires it in), weighted `RUST_TEST_THREADS` in `tools/verify.py` (my call against the goal's
-"flat" wording; the reasoning is in `verify.py` § *Why `test` runs its binaries side by side*). The
-four load-flaky tests now wait on a condition. The watchdog's "no report" half is judged against
-the lateness the worker measured itself, and its wedged worker stays wedged until the report
-arrives. The retry test checks that the call came back before its own deadline. The socket ping
-test's peer stays quiet until it has answered a set number of pings (`Say::Answering`). The LSP
-latency guards keep sampling until the minimum is under the ceiling, up to `MAX_RUNS`. The goal
-named the socket test as `socket.rs:1241`; it is `crates/nvs-stdlib/src/http/socket.rs`.
+**Goal `tooling-overhaul`: Stage 3 (the foundation) is landed whole, and Stage 4 (the importer) is
+next.** `bun nv` exists: root `package.json` (Bun pinned at `1.3.5` in `engines`), `bun.lock`,
+strict `tsconfig.json`, and `tools/nv/` with `lib/{schema,store,index,prose,render,git,paths,proc}`,
+the commands `check`, `query`, `render` and `selftest`, and 28 `bun test` cases under `tools/nv/test/`.
+`bun nv selftest` prints both lines the driver's Stage 3 check wants. `verify.py` has an `nv` step
+beside `build`, keyed on `tools/nv/` and the three package files (`verify_keys.py`). `docs/setup.md`
+now lists Bun as required. The registries `tools/nv/schema/index.ts` (`RECORDS`) and
+`tools/nv/renderers/index.ts` (`RENDERERS`) are empty on purpose. A record type lands with the
+importer that first writes its records. `main` is still frozen, and the tag `pre-overhaul` is the
+rollback point.
 
 Three habits hold for every session of this goal: a mechanical change goes through a script under
 `.agent-tmp/`; never prove a cut with a sweep; a Python tool is deleted only after its
@@ -26,19 +19,24 @@ replacement's parity is green.
 
 ## Next group
 
-**Stage 3: the foundation** — one file set: `package.json`, `bun.lock`, `tsconfig.json`,
-`tools/nv/**`, `.gitignore`, `tools/verify.py` (one step). loop-goal.md § *Stage 3* is the spec.
+**Stage 4: the importer** — one file set: `tools/nv/import/**`, `tools/nv/schema/**`. loop-goal.md
+§ *Stage 4* is the spec, and § *The data model*'s entity table is what each record holds.
 
-- [ ] **The package**: root `package.json` with the one `nv` script and Bun pinned in `engines`,
-      dev deps `typescript` + `@types/bun`, runtime dep `smol-toml` only, strict `tsconfig.json`,
-      `node_modules/` in `.gitignore` (`docs/agent/loop-goal.md:262`).
-- [ ] **`tools/nv/lib/`**: `schema`, `store`, `index` (SQLite with foreign keys), `prose`, `git`,
-      `paths`, `proc`, `render`, each with its `bun test` (`docs/agent/loop-goal.md:269`).
-- [ ] **Commands `check`, `query`, `render`, `selftest`**. `selftest` prints the two lines the
-      acceptance check wants: `nv selftest: the types check` and `nv selftest: every test passes`
-      (`docs/agent/loop-goal.md:276`).
-- [ ] **`verify.py` gains an `nv selftest` step** beside the cargo steps (`tools/verify.py:1023`).
+- [ ] **Record types**: one `defineRecord` file per entity in the table, listed in
+      `tools/nv/schema/index.ts:10`, with ids, `s.ref` foreign keys and child lists as the table gives
+      them (`docs/agent/loop-goal.md:174`).
+- [ ] **`bun nv import --check`**: reads every legacy home into records in memory, prints each file
+      it could not read with the reason, then renders and compares (`docs/agent/loop-goal.md:289`).
+- [ ] **Declared differences and gap slugs**: `tools/nv/import/known.json`, a slug per gap from its
+      bold title, and the list of positional gap citations for Stage 9 (`docs/agent/loop-goal.md:293`).
+- [ ] **`data/chain.json` and `--write`**: goal numbers become the slug list, the dossier goals join
+      as ordinary goals in order, and `--write` writes `data/` (`docs/agent/loop-goal.md:298`).
 
 ## Backlog
 
-- Stage 4, the importer, follows Stage 3 (loop-goal.md § *Stage 4*).
+- `data/schema/` publishes each type's `jsonSchema()`. Nothing writes it yet. It lands with the first
+  record type (loop-goal.md § *The data model*).
+- `.gitattributes` `linguist-generated` for rendered files lands with the first renderer
+  (`tools/nv/lib/render.ts` holds `MARKER`).
+- The installed TypeScript is 7.0.2, the native `tsc`. `tsconfig.json` uses `module: Preserve` and
+  `moduleResolution: bundler`, which it accepts.
