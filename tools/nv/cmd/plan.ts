@@ -1,18 +1,27 @@
 // `bun nv plan`: the read-only modes over the implementation plan. `--show M8` prints a milestone's
 // scope file whole, `--show M8:lead` its first paragraph and `--show M8:verify` its `**Verify:**`
 // paragraph, its acceptance test. `--get <Field>` prints one field of the status block, unwrapped.
+// `--past` prints one line per milestone the program is behind, and whether it is complete. `--stale`
+// lists the sentences that defer work to a goal the chain has already walked.
 //
 // The roster and the status block are read from the `milestone` and `plan_status` records under
 // `data/plan/`. A milestone's scope is prose, `docs/plan/<id>.md`, and its H1 is where the body starts.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { chainGoals, liveGoal, walkedGoals } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load, pathOf } from "../lib/store.ts";
 import { milestone as milestoneType } from "../schema/milestone.ts";
 import { planStatus } from "../schema/plan-status.ts";
+import { collect, FIRST_FUTURE_MILESTONE, registers } from "./owners.ts";
 
-export const summary = "the plan, read-only: nv plan --show M8[:lead|:verify], nv plan --get <Field>";
+export const summary = "the plan, read-only: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale";
+
+const PLAN = "docs/implementation-plan.md";
+
+/** A milestone id; its number is its place in the program, and the suffix does not move it. */
+const MILESTONE = /^M(\d+)[A-Z]?$/;
 
 /** A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`. */
 const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
@@ -125,12 +134,189 @@ function get(name: string): number {
   return 0;
 }
 
+/** Python's `textwrap.fill` with `break_long_words` and `break_on_hyphens` off. */
+function wrap(text: string, width: number, first: string, rest: string): string {
+  const chunks = text.match(/\s+|\S+/g) ?? [];
+  const lines: string[] = [];
+  let i = 0;
+  while (i < chunks.length) {
+    const indent = lines.length > 0 ? rest : first;
+    const room = width - indent.length;
+    if (lines.length > 0 && !chunks[i]!.trim()) i++;
+    const line: string[] = [];
+    let len = 0;
+    while (i < chunks.length && len + chunks[i]!.length <= room) {
+      len += chunks[i]!.length;
+      line.push(chunks[i++]!);
+    }
+    if (i < chunks.length && chunks[i]!.length > room && line.length === 0) line.push(chunks[i++]!);
+    if (line.length > 0 && !line[line.length - 1]!.trim()) line.pop();
+    if (line.length > 0) lines.push(indent + line.join(""));
+  }
+  return lines.join("\n");
+}
+
+type GoalState = "walked" | "live" | "ahead";
+
+/**
+ * Every milestone before the first future one, and whether it is complete: every goal carrying it has
+ * walked, and no register still tags an item to it. A milestone at or past that line is left out,
+ * since ahead of the program is not a state this answers.
+ */
+function pastState(): { id: string; complete: boolean; tagged: number; carried: [string, GoalState][] }[] {
+  const goals = chainGoals();
+  const live = liveGoal(goals);
+  const walked = walkedGoals(goals, live);
+  const tagged = new Map<string, number>();
+  for (const reg of registers(collect())) {
+    for (const owner of reg.owners) tagged.set(owner, (tagged.get(owner) ?? 0) + 1);
+  }
+  const out = [];
+  for (const m of milestones()) {
+    const num = MILESTONE.exec(m.id);
+    if (!num || Number(num[1]) >= FIRST_FUTURE_MILESTONE) continue;
+    const slugs = goals.filter((g) => g.milestone === m.id).map((g) => g.slug);
+    const n = tagged.get(m.id) ?? 0;
+    out.push({
+      id: m.id,
+      complete: n === 0 && slugs.every((s) => walked.has(s)),
+      tagged: n,
+      carried: slugs.map((s): [string, GoalState] => [s, walked.has(s) ? "walked" : live?.slug === s ? "live" : "ahead"]),
+    });
+  }
+  return out;
+}
+
+function past(): number {
+  const rows = pastState();
+  const live = liveGoal();
+  console.log(`nv plan --past: the ${rows.length} milestone(s) the index holds before M${FIRST_FUTURE_MILESTONE}, ` +
+    "against the chain and every register nv owners reads");
+  console.log("  complete = every goal carrying it has walked, and nothing is still tagged to it" +
+    (live ? `; live at goal \`${live.slug}\`` : ""));
+  for (const row of rows) {
+    const carried = row.carried.map(([slug, state]) => `\`${slug}\` ${state}`).join(", ");
+    console.log(wrap(`${row.id.padEnd(4)} ${(row.complete ? "complete" : "open").padEnd(8)} ` +
+      `carried by ${carried || "no goal on the chain"}, ${row.tagged} item(s) still tagged to it`, 98, "  ", " ".repeat(16)));
+  }
+  console.log("\nA count above zero names work no closure goal has taken yet: `bun nv owners --check` lists the " +
+    "items behind it, each to be closed or re-owned.");
+  console.log(`${rows.filter((r) => r.complete).length} of ${rows.length} past milestone(s) complete`);
+  return 0;
+}
+
+/** A goal citation in the house spelling: ``goal `surface``` or ``goals `a`, `b` and `c```. */
+const GOAL_CITE = /\bgoals?\s+((?:`[a-z0-9][a-z0-9-]*`(?:\s*(?:,\s*and|,|and)\s*)?)+)/gi;
+const SLUG = /`([a-z0-9][a-z0-9-]*)`/g;
+
+/** The tense that turns a citation into a deferral: a walked goal that *will* do something. */
+const FUTURE = /\b(?:will|waits|until|arrives|scheduled)\b|still owed|not yet|the one that|finishes it/i;
+
+/** A sentence boundary: terminal punctuation, whitespace, then something a sentence can open with. */
+const SENTENCE = /(?<=[.!?])\s+(?=[A-Z`*\[("])/;
+
+type Block = [number, string][];
+
+/** The text as blank-line-separated blocks of `[line number, text]`, fenced code blanked. */
+function proseBlocks(text: string): Block[] {
+  const blocks: Block[] = [];
+  let block: Block = [];
+  let fenced = false;
+  text.split("\n").forEach((line, i) => {
+    let raw = line;
+    if (raw.trimStart().startsWith("```")) {
+      fenced = !fenced;
+      raw = "";
+    } else if (fenced) raw = "";
+    if (raw.trim()) block.push([i + 1, raw.trim()]);
+    else if (block.length > 0) {
+      blocks.push(block);
+      block = [];
+    }
+  });
+  if (block.length > 0) blocks.push(block);
+  return blocks;
+}
+
+/** A block's sentences, each joined onto one line and charged to the line its first character is on. */
+function blockSentences(block: Block): [number, string][] {
+  const offsets: [number, number][] = [];
+  let at = 0;
+  for (const [lineno, raw] of block) {
+    offsets.push([at, lineno]);
+    at += raw.length + 1;
+  }
+  const text = block.map(([, raw]) => raw).join(" ");
+  const out: [number, string][] = [];
+  let pos = 0;
+  for (const part of text.split(SENTENCE)) {
+    let start = text.indexOf(part, pos);
+    if (start < 0) start = pos;
+    pos = start + part.length;
+    let lineno = offsets[0]![1];
+    for (const [off, n] of offsets) if (off <= start) lineno = n;
+    out.push([lineno, part.trim()]);
+  }
+  return out;
+}
+
+/**
+ * Every sentence in the plan that defers work to a goal the chain has already walked: a goal cited by
+ * slug, in the future tense. It reads `docs/plan/m*.md` and the status block, whose fields are charged
+ * to the line their `> **Field:**` opens on in the rendered plan. It is a lint and always exits 0; the
+ * count on the last line is the finding.
+ */
+function stale(): number {
+  const goals = chainGoals();
+  const live = liveGoal(goals);
+  const walked = walkedGoals(goals, live);
+  console.log(`nv plan --stale: docs/plan/m*.md and ${PLAN}'s status block, against the ${walked.size} goal(s) the chain has walked`);
+  console.log(live ? `  live: \`${live.slug}\`, ${live.num} of ${goals.length}`
+    : "  no live goal on disk -- only the retired entries count as walked");
+
+  const sources: [string, Block[]][] = readdirSync(join(ROOT, "docs/plan"))
+    .filter((name) => /^m.*\.md$/.test(name))
+    .sort()
+    .map((name) => [`docs/plan/${name}`, proseBlocks(readFileSync(join(ROOT, "docs/plan", name), "utf8").replace(/\r\n/g, "\n"))]);
+  const planLines = readFileSync(join(ROOT, PLAN), "utf8").replace(/\r\n/g, "\n").split("\n");
+  const status = load(planStatus)[0]!.value as Record<string, string>;
+  sources.push([PLAN, FIELDS.map(([field, key]): Block => {
+    const at = planLines.findIndex((l) => l.startsWith(`> **${field}:**`));
+    return [[at + 1, status[key]!]];
+  })]);
+
+  let found = 0;
+  for (const [rel, blocks] of sources) {
+    for (const block of blocks) {
+      for (const [lineno, sentence] of blockSentences(block)) {
+        const cited = [...sentence.matchAll(GOAL_CITE)]
+          .flatMap((m) => [...m[1]!.matchAll(SLUG)].map((s) => s[1]!))
+          .filter((s) => walked.has(s));
+        const marker = FUTURE.exec(sentence);
+        if (cited.length === 0 || !marker) continue;
+        found++;
+        const names = [...new Set(cited)].map((s) => `\`${s}\``).join(", ");
+        const chars = Array.from(sentence);
+        console.log(`\n${rel}:${lineno}  ${names}  -- "${marker[0].toLowerCase()}"`);
+        console.log(`    ${chars.length <= 160 ? sentence : chars.slice(0, 159).join("") + "…"}`);
+      }
+    }
+  }
+  console.log("\nEach is a sentence to re-read against the tree rather than one to delete: the goal has run, so " +
+    "either the work landed and the sentence is rewritten to what is true, or it is still owed and the " +
+    "sentence names the goal that owns it now.");
+  console.log(`sentences deferring to a walked goal: ${found}`);
+  return 0;
+}
+
 export async function run(args: string[]): Promise<number> {
   const [flag, value, ...rest] = args;
   if ((flag === "--show" || flag === "--get") && value !== undefined && rest.length === 0) {
     return flag === "--show" ? show(value) : get(value);
   }
-  console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field>\n" +
+  if (flag === "--past" && value === undefined) return past();
+  if (flag === "--stale" && value === undefined) return stale();
+  console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale\n" +
     "  the plan's other modes are still `python tools/plan.py`'s");
   return 2;
 }

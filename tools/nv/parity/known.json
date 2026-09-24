@@ -88,9 +88,21 @@
   "plan": [
     {
       "side": "python",
-      "pattern": "^plan\\.py:",
-      "replace": "nv plan:",
+      "pattern": "^plan\\.py((?: --[a-z]+)?):",
+      "replace": "nv plan$1:",
       "why": "A message names the program that printed it."
+    },
+    {
+      "side": "python",
+      "pattern": "every register tools/owners\\.py reads",
+      "replace": "every register nv owners reads",
+      "why": "`--past` names the program it counts the registers with."
+    },
+    {
+      "side": "python",
+      "pattern": "bun nv owners --check --past-is-an-error",
+      "replace": "bun nv owners --check",
+      "why": "`nv owners --check` refuses a gap tagged to a past milestone on its own, and takes the flag only so a carried floor check still passes it."
     },
     {
       "side": "nv",

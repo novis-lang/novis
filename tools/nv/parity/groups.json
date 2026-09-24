@@ -69,7 +69,9 @@
       ["--show", "M99"],
       ["--get", "Open now"],
       ["--get", "blocking"],
-      ["--get", "No such field"]
+      ["--get", "No such field"],
+      ["--past"],
+      ["--stale"]
     ]
   },
   "records": {
