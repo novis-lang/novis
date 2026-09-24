@@ -237,7 +237,7 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -423,7 +423,7 @@ const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
 /// signed under a shared key.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "sign",
@@ -503,6 +503,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Jwt`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Signs and checks JSON Web Tokens (JWT). `sign` and `signObject` write a token that \
+            always expires. `verify` checks a token your own program signed, and `verifyIssued` \
+            checks a token from another service. Both throw an error when the token is not valid.",
 };
 
 /// `Core\Jwt::sign`'s reference card — `rule:core-api/reference-card`.
@@ -778,7 +785,7 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
 /// The set a token is verified against, as one row.
 pub(crate) const KEY_SET: CoreClass = CoreClass {
     name: KEY_SET_NAME,
-    doc: None,
+    doc: Some(&KEY_SET_CARD),
     methods: &[CoreMethod {
         name: "read",
         names: &["jwks"],
@@ -796,6 +803,13 @@ pub(crate) const KEY_SET: CoreClass = CoreClass {
     instance: &[],
     slots: &["keys"],
     constants: &[],
+};
+
+/// `Core\Jwt\KeySet`'s class card — `rule:core-api/reference-card`.
+const KEY_SET_CARD: ClassDoc = ClassDoc {
+    short: "The public keys another service uses to sign its tokens. `read` reads them from the \
+            JWKS document that service publishes. `Core\\Jwt::verifyIssued` then checks a token \
+            with the one key its `kid` names.",
 };
 
 /// `Core\Jwt\KeySet::read`'s reference card — `rule:core-api/reference-card`.
@@ -3046,6 +3060,113 @@ mod tests {
         assert!(
             checked > 0,
             "the set carries a signing case a randomized algorithm signed"
+        );
+    }
+
+    /// One call of `sign` as compiled code makes it, under a shared key and no
+    /// options, answering the token or the refusal.
+    fn signed(
+        ctx: &mut nvs_runtime::Ctx,
+        claims: &[(&str, &str)],
+        lifetime_nanos: i64,
+        key: &[u8],
+    ) -> Result<String, i32> {
+        let mut bag = NvsArray::new();
+        for (name, value) in claims {
+            bag.set(
+                NvsStr::new(name.as_bytes()),
+                Value::str(NvsStr::new(value.as_bytes())),
+            );
+        }
+        let args = [
+            Value::array(bag),
+            crate::time::duration_of(lifetime_nanos),
+            Value::bytes(NvsStr::new(key)),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        let answer = nvs_runtime::call(nvs_core_jwt_sign, ctx, &args);
+        let token = answer.map(|token| {
+            let text = String::from_utf8(
+                token
+                    .as_str_bytes()
+                    .expect("sign answers a string")
+                    .to_vec(),
+            )
+            .expect("a compact token is ASCII");
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                token.release();
+            }
+            text
+        });
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "the callee borrows its args, so this frame owns them"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        token
+    }
+
+    /// The member as a program calls it: the clock the context reads is the
+    /// `iat` it writes and `lifetime` later is the `exp`, both after the
+    /// caller's claims; the header names the shared key's one algorithm; and
+    /// `verify` under the same key reads the token back. A claim the member
+    /// owns and a lifetime under one whole second are each refused.
+    // covers: Core\Jwt::sign
+    #[test]
+    fn sign_writes_the_clock_and_the_lifetime_after_the_claims_and_verifies_under_its_key() {
+        const NOW: i64 = 1_700_000_000;
+        let key = [7_u8; 32];
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(NOW) * 1_000_000_000);
+
+        let token = signed(
+            &mut ctx,
+            &[("sub", "ada"), ("role", "admin")],
+            15 * 60 * 1_000_000_000,
+            &key,
+        )
+        .expect("a text bag, a positive lifetime and a 32-byte key sign");
+        let parts: Vec<&str> = token.split('.').collect();
+        assert_eq!(parts.len(), 3, "{token}");
+        let header = URL_SAFE_NO_PAD.decode(parts[0]).expect("url-safe base64");
+        assert_eq!(header, br#"{"alg":"HS256","typ":"JWT"}"#);
+        let payload = URL_SAFE_NO_PAD.decode(parts[1]).expect("url-safe base64");
+        assert_eq!(
+            String::from_utf8(payload).expect("the payload is UTF-8"),
+            format!(
+                r#"{{"sub":"ada","role":"admin","iat":{NOW},"exp":{}}}"#,
+                NOW + 15 * 60
+            )
+        );
+
+        let args = [
+            Value::str(NvsStr::new(token.as_bytes())),
+            Value::bytes(NvsStr::new(&key)),
+        ];
+        let claims = nvs_runtime::call(nvs_core_jwt_verify, &mut ctx, &args)
+            .expect("the key that signed the token verifies it before `exp`");
+        #[expect(unsafe_code, reason = "this frame holds every one of these references")]
+        unsafe {
+            claims.release();
+            for arg in args {
+                arg.release();
+            }
+        }
+
+        assert!(
+            signed(&mut ctx, &[("exp", "0")], 60 * 1_000_000_000, &key).is_err(),
+            "`exp` is the member's own claim"
+        );
+        assert!(
+            signed(&mut ctx, &[("sub", "ada")], 999_999_999, &key).is_err(),
+            "a lifetime under one second signs a token already past its `exp`"
         );
     }
 }
