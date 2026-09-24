@@ -180,5 +180,25 @@
       ["--stats"],
       ["--orphans"]
     ]
+  },
+  "rules": {
+    "python": ["python", "tools/rules.py"],
+    "nv": ["bun", "tools/nv/main.ts", "rules"],
+    "cases": [
+      [],
+      ["--check"],
+      ["--render", "--check"],
+      ["--list"],
+      ["--show", "testing/feature-proofs"],
+      ["--sh", "core-api/reference-card"],
+      ["--show", "types/no-such-rule"],
+      ["--locate", "types/conversion"],
+      ["--locate=nope/nope"],
+      ["--citations"],
+      ["--stats"],
+      ["--show"],
+      ["--c"],
+      ["--bogus", "extra"]
+    ]
   }
 }

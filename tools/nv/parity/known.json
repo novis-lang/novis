@@ -109,6 +109,14 @@
       "why": "A gap object is a record in nv (slug, module, title, text) and a parsed doc item in Python (file, line, block, item). The counts per owner under `registers` are what callers read, and they are compared."
     }
   ],
+  "rules": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)rules\\.py(:? )",
+      "replace": "$1nv rules$2",
+      "why": "A message names the program that printed it."
+    }
+  ],
   "records": [
     {
       "side": "python",

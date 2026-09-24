@@ -24,6 +24,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
+import { splitlines } from "../lib/py.ts";
 
 export const summary = "CONTRIBUTING.md's layout block against the tree: nv layout [--check | --rows]";
 
@@ -33,13 +34,6 @@ const END = "<!-- layout:end";
 const MARKER = "[audited unsafe]";
 /** A crate opts out of the workspace's `unsafe_code = "forbid"` with this line in its own manifest. */
 const OPT_OUT = /^\s*unsafe_code\s*=\s*"deny"/m;
-
-/** Python's `str.splitlines`: every line boundary it knows, and no empty line after the last one. */
-function splitlines(text: string): string[] {
-  const lines = text.split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/);
-  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  return lines;
-}
 
 function read(path: string): string {
   return readFileSync(join(ROOT, path), "utf8");

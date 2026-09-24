@@ -17,6 +17,7 @@ import * as plan from "./cmd/plan.ts";
 import * as query from "./cmd/query.ts";
 import * as records from "./cmd/records.ts";
 import * as render from "./cmd/render.ts";
+import * as rules from "./cmd/rules.ts";
 import * as selftest from "./cmd/selftest.ts";
 
 interface Command {
@@ -24,7 +25,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, check, disk, gaps, holes, import: importCmd, layout, links, migration, owners, parity, peek, plan, query, records, render, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, disk, gaps, holes, import: importCmd, layout, links, migration, owners, parity, peek, plan, query, records, render, rules, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

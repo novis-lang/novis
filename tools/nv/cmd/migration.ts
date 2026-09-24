@@ -24,6 +24,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { pyRepr, splitlines } from "../lib/py.ts";
 
 export const summary = "02-php-migration.md against the PHP inventory: nv migration [--report | --min N | --seed]";
 
@@ -58,20 +59,6 @@ const BACKTICKED = /`([^`]+)`/g;
 const PHP_NAME = /[a-z_][a-z0-9_]*/g;
 const MEMBER_REF = /(Core\\[A-Za-z\\]+)::([A-Za-z][A-Za-z0-9]*)/g;
 const ROW = /^\|\s*`([^`]+)`\s*\|\s*([a-z]+)\s*\|(.*)\|\s*$/;
-
-/** Python's `str.splitlines`: every line boundary it knows, and no empty line after the last one. */
-function splitlines(text: string): string[] {
-  const lines = text.split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\p{Zl}\p{Zp}]/u);
-  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  return lines;
-}
-
-/** `repr` of a string the way Python writes it, since a message quotes a cell that way. */
-function pyRepr(s: string): string {
-  const q = s.includes("'") && !s.includes('"') ? '"' : "'";
-  const body = s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
-  return q + (q === "'" ? body.replace(/'/g, "\\'") : body) + q;
-}
 
 /** Python's `round` to a whole number: a tie goes to the even neighbour. */
 function roundHalfEven(x: number): number {
