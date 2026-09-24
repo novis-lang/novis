@@ -47,6 +47,20 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "verify": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)verify\\.py(:? )",
+      "replace": "$1nv verify$2",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "nv",
+      "pattern": "python tools/([a-z_-]+)\\.py",
+      "replace": "bun nv $1",
+      "why": "Both programs run the same Python checks as steps, and `--list` prints the command each step runs. The `*` entry rewrites that command on Python's side only, so it is rewritten here too."
+    }
+  ],
   "disk": [
     {
       "side": "python",

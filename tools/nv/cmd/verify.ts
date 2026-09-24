@@ -69,6 +69,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { basename, dirname, join, relative } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
+import { ArgError, parseArgs } from "../lib/py.ts";
 import { type Unit, loadRecords, units } from "../keys/checks.ts";
 import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
@@ -1103,33 +1104,35 @@ async function verify(opts: Opts): Promise<number> {
   return 1;
 }
 
-const USAGE = "usage: bun nv verify [-p <crate>] [--fast] [--doc] [--full] [--no-cache] [--start | --wait] [--list]";
-
-function parse(args: string[]): Opts | string {
-  const opts: Opts = { fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false };
-  const flags: Record<string, keyof Opts> = { "--fast": "fast", "--doc": "doc", "--full": "full", "--no-cache": "noCache", "--start": "start", "--wait": "wait", "--list": "list" };
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (a === "-p" || a === "--package") {
-      if (args[i + 1] === undefined || args[i + 1]!.startsWith("-")) return `${a} needs a package name`;
-      opts.package = args[++i]!;
-    } else if (a.startsWith("--package=")) opts.package = a.slice("--package=".length);
-    else if (a in flags) (opts[flags[a]!] as boolean) = true;
-    else return `unknown argument ${a}`;
-  }
-  return opts;
-}
+const USAGE = [
+  "usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]",
+  "                 [--start] [--wait] [--list]",
+].join("\n");
 
 export async function run(args: string[]): Promise<number> {
-  if (args.includes("--help") || args.includes("-h")) {
-    console.log(`${USAGE}\n\n${summary}\n\nThe module doc of tools/nv/cmd/verify.ts says what each step is and why.`);
-    return 0;
-  }
-  const opts = parse(args);
-  if (typeof opts === "string") {
-    console.error(`verify: ${opts}\n${USAGE}`);
+  let parsed;
+  try {
+    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list"], valued: ["--package"], short: { "-p": "--package" } });
+  } catch (e) {
+    if (!(e instanceof ArgError)) throw e;
+    console.error(`${USAGE}\nnv verify: error: ${e.message}`);
     return 2;
   }
+  const { flags, values } = parsed;
+  if (flags.has("--help")) {
+    console.log(`${USAGE}\n\nnv verify: ${summary}\n\nThe module doc of tools/nv/cmd/verify.ts says what each step is and why.`);
+    return 0;
+  }
+  const opts: Opts = {
+    ...(values.has("--package") ? { package: values.get("--package")! } : {}),
+    fast: flags.has("--fast"),
+    doc: flags.has("--doc"),
+    full: flags.has("--full"),
+    noCache: flags.has("--no-cache"),
+    start: flags.has("--start"),
+    wait: flags.has("--wait"),
+    list: flags.has("--list"),
+  };
   if (opts.start && opts.wait) {
     console.log("verify: --start and --wait are two calls, not one flag pair.");
     return 2;

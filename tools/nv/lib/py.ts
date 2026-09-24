@@ -192,7 +192,10 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
     if (eq >= 0) out.values.set(option, word.slice(eq + 1));
     else if (i + 1 < args.length && looksLikeValue(args[i + 1]!)) out.values.set(option, args[++i]!);
     else if (option in optional) out.values.set(option, optional[option]!);
-    else throw new ArgError(`argument ${option}: expected one argument`);
+    else {
+      const spellings = [...Object.keys(short).filter((s) => short[s] === option), option];
+      throw new ArgError(`argument ${spellings.join("/")}: expected one argument`);
+    }
   }
   if (unknown.length > 0) throw new ArgError(`unrecognized arguments: ${unknown.join(" ")}`);
   return out;
