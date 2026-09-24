@@ -36,10 +36,10 @@ export function h1Of(text: string): string {
 }
 
 /** slug -> its prose file, named `<slug>.md` or `N-<slug>.md`, in the goals directory or its `dossier/`. */
-function proseFiles(): Map<string, string> {
+function proseFiles(root: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const sub of [`${GOALS}/dossier`, GOALS]) {
-    const dir = join(ROOT, sub);
+    const dir = join(root, sub);
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir)) {
       const m = /^(?:\d+-)?([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
@@ -50,10 +50,10 @@ function proseFiles(): Map<string, string> {
 }
 
 /** Every goal on the chain, in chain order. */
-export function chainGoals(): ChainGoal[] {
-  const order = load(chainType)[0]?.value ?? [];
-  const records = new Map(load(goalType).map((g) => [g.id, g.value]));
-  const prose = proseFiles();
+export function chainGoals(root: string = ROOT): ChainGoal[] {
+  const order = load(chainType, root)[0]?.value ?? [];
+  const records = new Map(load(goalType, root).map((g) => [g.id, g.value]));
+  const prose = proseFiles(root);
   return order.map((slug, i) => {
     const g = records.get(slug);
     return {
@@ -67,15 +67,16 @@ export function chainGoals(): ChainGoal[] {
 }
 
 /** The goal the driver's pointer names, else the one `docs/agent/loop-goal.md` is a copy of, else null. */
-export function liveGoal(goals: ChainGoal[] = chainGoals()): ChainGoal | null {
-  const slug = pointerSlug();
+export function liveGoal(goals?: ChainGoal[], root: string = ROOT): ChainGoal | null {
+  goals ??= chainGoals(root);
+  const slug = pointerSlug(root);
   const pointed = slug === null ? undefined : goals.find((g) => g.slug === slug);
   if (pointed) return pointed;
-  if (!existsSync(join(ROOT, LIVE_GOAL))) return null;
-  const head = h1Of(readFileSync(join(ROOT, LIVE_GOAL), "utf8"));
+  if (!existsSync(join(root, LIVE_GOAL))) return null;
+  const head = h1Of(readFileSync(join(root, LIVE_GOAL), "utf8"));
   if (!head) return null;
   for (const g of goals) {
-    if (g.md && existsSync(join(ROOT, g.md)) && h1Of(readFileSync(join(ROOT, g.md), "utf8")) === head) return g;
+    if (g.md && existsSync(join(root, g.md)) && h1Of(readFileSync(join(root, g.md), "utf8")) === head) return g;
   }
   return null;
 }

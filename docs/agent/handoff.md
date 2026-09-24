@@ -2,29 +2,29 @@
 
 ## State
 
-**Goal `tooling-overhaul`: Stages 3 to 7 have landed, Stage 4's records are valid, and Stage 8's
-checks are green. Stage 8's prose still owes `nv goal context --add` and the three changes that wait
-for the cutover.** `bun nv check` prints `nv check: 0 findings`, and `bun nv render --check` is current.
-The driver's red check is Stage 9's `bun nv audit goals`, which is the cutover and is not started.
+**Goal `tooling-overhaul`: Stages 3 to 8 have landed, and Stage 4's records are valid.** Stage 8's last
+open item, `bun nv goal context --add <path>` (`tools/nv/cmd/goal.ts`), is on disk with its test. What
+Stage 8 still owes is three changes that wait for the cutover. `bun nv check` prints `nv check: 0
+findings`, and `bun nv render --check` is current. The driver's red check is Stage 9's `bun nv audit
+goals`, which is the cutover, and no `nv audit` command exists yet.
 
-`liveGoal` reads the driver's pointer by slug (`tools/nv/lib/state.ts`). The pointer is
-`.loop/state.sqlite`'s `pointer` row when that file exists. Until the cutover it is the Python driver's
-`.loop/chain.json`, whose number resolves through the goal file named `N-<slug>.md`. The H1 match
-against `docs/agent/loop-goal.md` is the fallback for a tree with no pointer. `writePointer` exists
-for the new driver, and nothing calls it yet. Cutover step 5 ("`.loop/chain.json` becomes the state
-database's pointer") is `writePointer(legacyPointer())`.
+`liveGoal` reads the driver's pointer by slug (`tools/nv/lib/state.ts`). `chainGoals` and `liveGoal`
+take a `root`, so a test runs them over a scratch tree. The pointer is `.loop/state.sqlite`'s `pointer`
+row when that file exists. Until the cutover it is the Python driver's `.loop/chain.json`, whose number
+resolves through the goal file named `N-<slug>.md`. Cutover step 5 ("`.loop/chain.json` becomes the
+state database's pointer") is `writePointer(legacyPointer())`.
 
-Two items of the last group wait for the cutover, because the running Python driver still reads what
-they would drop. `manifestCopies` (`tools/nv/cmd/session.ts:387`) gates `docs/agent/loop-goal.toml`
-beside the record, and that toml is the driver's acceptance list. `recordPack`
-(`tools/nv/cmd/session.ts:1512`) measures `python tools/orient.py`, the pack the driver pipes. Each
-switches in the cutover commit.
+Three changes wait for the cutover, because the running Python driver still reads what they would drop.
+`manifestCopies` (`tools/nv/cmd/session.ts:387`) gates `docs/agent/loop-goal.toml` beside the record,
+and that toml is the driver's acceptance list. `recordPack` (`tools/nv/cmd/session.ts:1512`) measures
+`python tools/orient.py`, the pack the driver pipes. `nv goal context --add` edits
+`docs/agent/loop-goal.toml` while it exists, and does nothing to it once the cutover deletes it. Each of
+the first two switches in the cutover commit.
 
-`bun nv session --wrap` validates and applies a wrap by itself. Every playbook record has the same
-`lead`, `body` and `until` as its fragment file. Eight differ in `files` alone, where the record is
-right; `nv import --write` still rewrites those eight, and the bullet
-`docs/agent/playbook/tooling/bun-nv-import-write-rewrites-a-data-playbook-bullet-back-to.md` says
-what to do.
+`bun nv session --wrap` validates and applies a wrap by itself. Eight playbook records differ from their
+fragment in `files` alone, where the record is right; `nv import --write` still rewrites those eight, and
+the bullet `docs/agent/playbook/tooling/bun-nv-import-write-rewrites-a-data-playbook-bullet-back-to.md`
+says what to do.
 
 `tools/orient.py`, `chain.py`, `session.py`, `playbook.py` and `tools/verify_keys.py` stay until the
 Stage 9 cutover. `main` is frozen. Tag `pre-overhaul` is the rollback. An edit to a bullet goes into
@@ -41,24 +41,22 @@ writes `data/goals/tooling-overhaul.handoff.json`.
 
 ## Next group
 
-**Stage 8: a session widens its own manifest** — one file set: a new `tools/nv/cmd/goal.ts`,
-`tools/nv/schema/goal.ts`, `tools/nv/lib/chain.ts`. loop-goal.md § *Stage 8* specifies it: "A session
-adds a module to `[context]` with `nv goal context --add <path>`."
+**Stage 9: the cutover** — one file set: a new `tools/nv/cmd/audit.ts`, `tools/nv/main.ts`,
+`tools/nv/cmd/session.ts`, `tools/nv/lib/state.ts`. loop-goal.md § *Stage 9* is the specification, and
+Stage 9's three checks in `docs/agent/loop-goal.toml` are its acceptance.
 
-- [ ] **`nv goal context --add <path>`.** It adds the path to the live goal's record `context.modules`
-      (`tools/nv/schema/goal.ts:11`), the goal `liveGoal` names (`tools/nv/lib/chain.ts:70`). While
-      `docs/agent/loop-goal.toml` exists the Python driver reads its `[context]`, so the command also
-      adds the path to that file's `modules` array as a text edit, never a re-serialisation of the whole
-      file. It refuses a path that is not on disk, and a path already listed is a no-op.
-- [ ] **A test and the process docs.** `tools/nv/test/goal.test.ts` over a scratch root, and the session
-      prompt's "edit the `[context]` field" line names the command instead
-      (`docs/agent/session-prompt.md:22`).
+- [ ] **`nv audit goals | checks | eol`.** A new command registered in `tools/nv/main.ts:44`. `goals`
+      prints `audit: no goal file carries a number` and `audit: no copy of a goal's files is tracked`
+      when both hold; `checks` prints `audit: no check runs python` and `audit: nothing says dossier`;
+      `eol` prints `audit: every tracked text file is LF`. Each names every offender and exits nonzero
+      otherwise. It is red today, and that is right until the cutover lands.
+- [ ] **The cutover switches.** `manifestCopies` (`tools/nv/cmd/session.ts:387`) stops gating
+      `docs/agent/loop-goal.toml`, `recordPack` (`tools/nv/cmd/session.ts:1512`) measures `bun nv
+      orient`, and step 5 is `writePointer(legacyPointer())` (`tools/nv/lib/state.ts:49`).
+- [ ] **The cutover commit**, `docs/agent/loop-goal.md:553` steps 1 to 7, in one slice, with `bun nv loop
+      --goal-only` green under the new driver before it commits.
 
 ## Backlog
 
-- `bun nv playbook` answers `--show` and `--retire` only. `--check`, `--match`, `--manifest` and
-  `--dupes` are still `tools/playbook.py`'s (loop-goal.md § *Stage 8*).
-- At the cutover: `manifestCopies` gates the record alone and `pruneManifests` drops `GOAL_TOML`
-  (`tools/nv/cmd/playbook.ts:37`); `recordPack` measures `bun tools/nv/main.ts orient`; the pointer
-  moves into `.loop/state.sqlite` (loop-goal.md § *Stage 9*).
-- The floor as the view "every check of every walked goal" has no query yet (loop-goal.md § *Stage 8*).
+- The `[context]` selectors a session widens by hand in `docs/agent/loop-goal.toml` (rules, shapes,
+  playbook) have no `nv goal context` flag; only `--add` for a module exists, which is all Stage 8 asks.
