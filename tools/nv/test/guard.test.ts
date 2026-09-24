@@ -7,8 +7,9 @@ import { run } from "../lib/proc.ts";
 /** A tracked file over `nv peek`'s line limit, and a tracked one under it. */
 const LONG = "tools/nv/cmd/peek.ts";
 const SMALL = "package.json";
-/** `loop-goal-grep` matches this path by name and never opens it, so the file need not exist. */
-const GOAL = "docs/agent/loop-goal.toml";
+/** `goal-grep` matches these paths by name and never opens them, so neither file need exist. */
+const RECORD = "data/goals/tooling-overhaul.json";
+const LEGACY = "docs/agent/loop-goal.toml";
 
 const event = (tool: Tool, input: Record<string, unknown>) => ({ tool_name: tool, tool_input: input, cwd: ROOT });
 const bash = (command: string) => decide(event("Bash", { command }));
@@ -38,14 +39,15 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     ],
     allow: [["Bash", { command: "target/debug/nvs.exe run docs/examples/str/one.nvs" }]],
   },
-  "loop-goal-grep": {
+  "goal-grep": {
     deny: [
-      ["Bash", { command: `grep -n 'stage = "8' ${GOAL}` }],
-      ["PowerShell", { command: `Select-String -Path ${GOAL} -Pattern guard` }],
+      ["Bash", { command: `rg -n '"stage": 8' ${RECORD}` }],
+      ["PowerShell", { command: `Select-String -Path ${RECORD.replace(/\//g, "\\")} -Pattern guard` }],
+      ["Bash", { command: `grep -n 'stage = "8' ${LEGACY}` }],
     ],
     allow: [
-      ["Bash", { command: "grep -n guard docs/agent/loop-goal.md" }],
-      ["Bash", { command: `python tools/peek.py ${GOAL}:re:guard` }],
+      ["Bash", { command: "grep -n guard data/goals/tooling-overhaul.handoff.json" }],
+      ["Bash", { command: `python tools/peek.py ${RECORD}:re:guard` }],
     ],
   },
   "sleep-poll": {

@@ -313,6 +313,8 @@ function wholeReads(words: string[], ps: boolean): string[] | null {
 const PROOF_DIRS = ["docs/examples/", "tests/hostile/", "benches/members/"];
 const LOOP_WORD = /^(?:for|while|until|foreach|foreach-object|xargs)(?![\w-])|^%$/i;
 const SEARCHERS = new Set(["grep", "egrep", "rg", "sed", "awk", "select-string", "sls", "findstr"]);
+/** A file that holds a goal's checks: its record, and the Python driver's copy of the live goal's checks. */
+const GOAL_CHECKS = [/(?:^|\/)data\/goals\/[a-z0-9]+(?:-[a-z0-9]+)*\.json$/, /(?:^|\/)docs\/agent\/loop-goal\.toml$/];
 const WRITERS = new Set(["set-content", "out-file", "add-content"]);
 const WRITER_PATH = /^-(path|filepath|literalpath)$/i;
 const WRITER_VALUE = /^-(value|encoding|inputobject|width)$/i;
@@ -364,7 +366,7 @@ export const RULES: Rule[] = [
     },
   },
   {
-    name: "loop-goal-grep",
+    name: "goal-grep",
     tools: ["Bash", "PowerShell"],
     commands: ["loop"],
     deny(_call, parsed) {
@@ -372,9 +374,10 @@ export const RULES: Rule[] = [
         const words = plain(seg);
         const cmd = base(words[0]);
         if (!SEARCHERS.has(cmd)) continue;
-        if (!words.slice(1).some((w) => w.replace(/\\/g, "/").endsWith("loop-goal.toml"))) continue;
+        const file = words.slice(1).map((w) => w.replace(/\\/g, "/")).find((w) => GOAL_CHECKS.some((re) => re.test(w)));
+        if (!file) continue;
         return (
-          `\`${cmd}\` over docs/agent/loop-goal.toml. \`bun nv loop --list\` prints the live goal's checks, and ` +
+          `\`${cmd}\` over ${file}. \`bun nv loop --list\` prints the live goal's checks, and ` +
           `\`--stage\`, \`--name\` and \`--feature\` narrow them.`
         );
       }
