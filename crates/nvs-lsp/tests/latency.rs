@@ -108,16 +108,31 @@ fn document(classes: usize) -> String {
     text
 }
 
-/// The fastest of `runs` analyses, in milliseconds.
+/// How many runs [`best_ms`] always takes, so the headroom it prints is a
+/// minimum over several whatever the first run measured.
+const RUNS: u32 = 5;
+
+/// How many runs [`best_ms`] may take while none has come in under the
+/// ceiling. A regression of the size this guard exists for misses in every one
+/// of them, and a machine busy with other work lands one sooner or later.
+const MAX_RUNS: u32 = 100;
+
+/// The fastest of the analyses run, in milliseconds.
 ///
 /// The **minimum** rather than the mean, for `perf_guards.rs`'s reason: this
 /// runs on shared machines, and a scheduler stealing the CPU mid-run moves the
 /// mean while leaving the minimum where it was. A regression moves the minimum
-/// too, so nothing is given up.
-fn best_ms(runs: u32, mut op: impl FnMut()) -> f64 {
+/// too, so nothing is given up. It takes [`RUNS`] runs, and then keeps going
+/// until the minimum is under `ceiling` or [`MAX_RUNS`] are spent, so a test
+/// binary sharing the machine with others waits for a quiet moment. It does not
+/// fail on a busy one.
+fn best_ms(ceiling: f64, mut op: impl FnMut()) -> f64 {
     op(); // Warm up: the first analysis pays for page faults nothing else does.
     let mut best = Duration::MAX;
-    for _ in 0..runs {
+    for run in 0..MAX_RUNS {
+        if run >= RUNS && best.as_secs_f64() * 1e3 < ceiling {
+            break;
+        }
         let start = Instant::now();
         op();
         best = best.min(start.elapsed());
@@ -153,7 +168,7 @@ fn a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound() {
         analysed.diags.len(),
     );
 
-    let ms = best_ms(5, || {
+    let ms = best_ms(CEILING_MS, || {
         let done = analyse_current(&documents, &uri, 1);
         assert!(done.is_some(), "the document stays open across the run");
     });
@@ -200,7 +215,7 @@ fn a_warm_index_answers_within_the_reanalysis_bound() {
          declares",
     );
 
-    let ms = best_ms(5, || {
+    let ms = best_ms(CEILING_MS, || {
         let dropped = index.refresh(&documents, &path);
         assert_eq!(dropped.len(), 1, "one file changed and nothing reads it");
     });
