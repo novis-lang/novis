@@ -399,7 +399,7 @@ export const RULES: Rule[] = [
   {
     name: "inline-write",
     tools: ["Bash", "PowerShell"],
-    commands: [],
+    commands: ["splice"],
     deny(call, parsed) {
       for (const seg of parsed!.segments) {
         const words = plain(seg);
@@ -437,7 +437,7 @@ export const RULES: Rule[] = [
           if (r === null) continue;
           return (
             `this writes ${r} from text inside the command, and the shell parses that text first (AGENTS.md rule 1). ` +
-            `Write it with the Write or Edit tool, with \`python tools/splice.py --patch <file>\`, or with a script ` +
+            `Write it with the Write or Edit tool, with \`bun nv splice --patch <file>\`, or with a script ` +
             `under \`.agent-tmp/\`.`
           );
         }
