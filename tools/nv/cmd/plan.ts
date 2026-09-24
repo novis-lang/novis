@@ -28,7 +28,7 @@ const MILESTONE = /^M(\d+)[A-Z]?$/;
 const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
 
 /** The status block's field names as the plan writes them, and each one's key in the record. */
-const FIELDS: [string, string][] = [
+export const FIELDS: [string, string][] = [
   ["Status", "status"],
   ["Done", "done"],
   ["On disk", "onDisk"],
@@ -314,6 +314,21 @@ function stale(): number {
 const FIELD_AIM_FALLBACK = 400;
 const FIELD_CEILING_X_FALLBACK = 5;
 
+/** The per-field byte aim and the ceiling a growing edit may not cross, both read out of the plan's leading comment. */
+export function fieldLimits(): { aim: number; ceiling: number } {
+  const planText = readFileSync(join(ROOT, PLAN), "utf8");
+  const aimHit = /Aim for ~(\d+) bytes a field/.exec(planText);
+  const aim = aimHit ? Number(aimHit[1]) : FIELD_AIM_FALLBACK;
+  const xHit = /over (\d+)x that/.exec(planText);
+  return { aim, ceiling: aim * (xHit ? Number(xHit[1]) : FIELD_CEILING_X_FALLBACK) };
+}
+
+/** The status block's fields in the plan's order, each with its text as one paragraph. */
+export function planFields(): [string, string][] {
+  const status = load(planStatus)[0]!.value as Record<string, string>;
+  return FIELDS.map(([name, key]) => [name, status[key]!.trim()]);
+}
+
 /** Python's `f"{x:.0f}"`, which rounds half to even. */
 function round0(x: number): string {
   const r = Math.round(x);
@@ -330,12 +345,7 @@ function round0(x: number): string {
  */
 function check(): number {
   const problems: string[] = [];
-  const planText = readFileSync(join(ROOT, PLAN), "utf8");
-  const aimHit = /Aim for ~(\d+) bytes a field/.exec(planText);
-  const aim = aimHit ? Number(aimHit[1]) : FIELD_AIM_FALLBACK;
-  const xHit = /over (\d+)x that/.exec(planText);
-  const ceiling = aim * (xHit ? Number(xHit[1]) : FIELD_CEILING_X_FALLBACK);
-
+  const { aim, ceiling } = fieldLimits();
   const status = load(planStatus)[0]!.value as Record<string, string>;
   const sizes = FIELDS.map(([name, key]): [string, number] => [name, Buffer.byteLength(status[key]!.trim(), "utf8")]);
   const total = sizes.reduce((sum, [, n]) => sum + n, 0);

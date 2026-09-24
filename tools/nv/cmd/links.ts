@@ -43,11 +43,11 @@ const LINK_RE = /\]\(([^)\s]+)\)/g;
 const SKIP_SCHEMES = ["http://", "https://", "mailto:", "ftp://", "data:", "#"];
 
 /** Rendered by a git host and by the website: links stay relative to the file. */
-const DOC_EXTS = [".md"];
+export const DOC_EXTS = [".md"];
 /** Rendered by nothing: links are absolute from the repository root. */
-const SOURCE_EXTS = [".rs", ".nvs", ".nvst"];
+export const SOURCE_EXTS = [".rs", ".nvs", ".nvst"];
 /** Read for bare path mentions only, never for link syntax. */
-const MENTION_EXTS = [".py"];
+export const MENTION_EXTS = [".py"];
 
 /** The top-level directories a mention is anchored to, so a bare `mod.rs` never counts as one. */
 const MENTION_TOPS = ["docs", "crates", "tools", "tests", "benches", "examples", "editors", "fuzz", "website"];
@@ -133,7 +133,7 @@ function unquote(s: string): string {
 }
 
 /** Each bare path mention in a tool's text that is not on disk. */
-function deadMentions(text: string): Finding[] {
+export function deadMentions(text: string): Finding[] {
   const out: Finding[] = [];
   text.split("\n").forEach((line, i) => {
     if (MENTION_SKIPS.some((m) => line.includes(m))) return;
@@ -195,7 +195,7 @@ export function findingsIn(text: string, source: boolean, base: string, resolveT
 const DECODER = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /** A file's text with its line endings made `\n`, or null when it cannot be read as UTF-8. */
-function readText(path: string): string | null {
+export function readText(path: string): string | null {
   try {
     return DECODER.decode(readFileSync(path)).replace(/\r\n?/g, "\n");
   } catch {
@@ -212,8 +212,19 @@ function walk(dir: string, out: string[]): void {
   }
 }
 
+/** A page a renderer wrote, which announces `GENERATED FILE` in its first lines. */
+export function isGenerated(text: string): boolean {
+  return text.split("\n", GENERATED_HEAD_LINES).some((l) => l.includes(GENERATED_MARKER));
+}
+
+/** The findings in one file, absolute, read by its extension; empty when it is not UTF-8. */
+export function fileFindings(path: string, text: string): Finding[] {
+  const ext = extname(path);
+  return MENTION_EXTS.includes(ext) ? deadMentions(text) : findingsIn(text, SOURCE_EXTS.includes(ext), dirname(path));
+}
+
 /** Every tracked file this gate reads, absolute, kept to those under one of `paths` when any is given. */
-async function trackedFiles(paths: string[]): Promise<string[]> {
+export async function trackedFiles(paths: string[]): Promise<string[]> {
   let files: string[];
   try {
     files = (await tracked()).map((p) => join(ROOT, p));
@@ -230,7 +241,7 @@ async function trackedFiles(paths: string[]): Promise<string[]> {
 }
 
 /** The order the files are reported in: a path's own order, which ignores case on Windows. */
-function sortKey(path: string): string {
+export function sortKey(path: string): string {
   return process.platform === "win32" ? path.split("/").join(sep).toLowerCase() : path;
 }
 
@@ -246,14 +257,12 @@ export async function run(args: string[]): Promise<number> {
   let generated = 0;
   for (const { f } of ordered) {
     const text = readText(f);
-    if (text !== null && text.split("\n", GENERATED_HEAD_LINES).some((l) => l.includes(GENERATED_MARKER))) {
+    if (text !== null && isGenerated(text)) {
       generated++;
       continue;
     }
     if (text === null) continue;
-    const ext = extname(f);
-    const found = MENTION_EXTS.includes(ext) ? deadMentions(text) : findingsIn(text, SOURCE_EXTS.includes(ext), dirname(f));
-    for (const finding of found) findings.push({ rel: rel(f), finding });
+    for (const finding of fileFindings(f, text)) findings.push({ rel: rel(f), finding });
   }
 
   const lines: string[] = [];

@@ -29,6 +29,7 @@ import * as orient from "./cmd/orient.ts";
 import * as render from "./cmd/render.ts";
 import * as rules from "./cmd/rules.ts";
 import * as selftest from "./cmd/selftest.ts";
+import * as session from "./cmd/session.ts";
 import * as splice from "./cmd/splice.ts";
 import * as verify from "./cmd/verify.ts";
 import * as why from "./cmd/why.ts";
@@ -38,7 +39,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, splice, verify, why };
+const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
