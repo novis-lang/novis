@@ -7,7 +7,9 @@ import { goals } from "./goals.ts";
 import type { Importer } from "./lib.ts";
 import { plan } from "./plan.ts";
 import { playbook } from "./playbook.ts";
+import { proofs } from "./proofs.ts";
 import { reference } from "./reference.ts";
 import { rules } from "./rules.ts";
+import { spec } from "./spec.ts";
 
-export const IMPORTERS: Importer[] = [rules, decisions, reference, playbook, goals, plan, gaps];
+export const IMPORTERS: Importer[] = [rules, decisions, reference, playbook, goals, plan, gaps, spec, proofs];

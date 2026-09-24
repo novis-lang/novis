@@ -4,8 +4,10 @@ import { citations, readGaps } from "../import/gaps.ts";
 import { goals } from "../import/goals.ts";
 import { plan } from "../import/plan.ts";
 import { playbook } from "../import/playbook.ts";
+import { proofs } from "../import/proofs.ts";
 import { reference } from "../import/reference.ts";
 import { rules } from "../import/rules.ts";
+import { spec } from "../import/spec.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -362,6 +364,90 @@ describe("import", () => {
       { path: "docs/a.md", line: 1, num: 4, module: "crates/nvs-x/src/lib.rs", gap: "nvs-x/walk-reads-the-subject-twice" },
       { path: "docs/a.md", line: 2, num: 2, module: "crates/nvs-x/src/one.rs", gap: null },
       { path: "docs/a.md", line: 2, num: 9, module: "crates/nvs-x/src/one.rs", gap: null },
+    ]);
+  });
+  test("a core table keeps its heading path and escaped cells, and a migration row is read only from its own table", () => {
+    tmp = scratch();
+    tmp.put(
+      "docs/spec/01-core-library.md",
+      [
+        "# Spec",
+        "",
+        "| Mark | Meaning |",
+        "|---|---|",
+        "| Q | quick |",
+        "",
+        "# Part I",
+        "## 1. `Core\\Str`",
+        "### Inspection",
+        "",
+        "| Member | Signature |",
+        "|---|---|",
+        "| `length` | `(string $s): int\\|null` |",
+        "| `at` | `(a)` | extra |",
+        "",
+        "```",
+        "| not | a table |",
+        "|---|---|",
+        "```",
+      ].join("\n"),
+    );
+    tmp.put(
+      "docs/spec/02-php-migration.md",
+      [
+        "## How to read a row",
+        "",
+        "| Outcome | Meaning |",
+        "|---|---|",
+        "| `member` | a member does it |",
+        "",
+        "## Strings",
+        "### Case",
+        "",
+        "| PHP | Outcome | Novis |",
+        "|---|---|---|",
+        "| `strlen` | member | `Core\\Str::length` |",
+        "| strtoupper | member | no backticks |",
+      ].join("\n"),
+    );
+    const got = spec.read(tmp.root);
+    expect(values(got)).toEqual({
+      spec_core_members: {
+        tables: [
+          { section: ["Spec"], columns: ["Mark", "Meaning"], rows: [["Q", "quick"]] },
+          {
+            section: ["Part I", "1. `Core\\Str`", "Inspection"],
+            columns: ["Member", "Signature"],
+            rows: [
+              ["`length`", "`(string $s): int\\|null`"],
+              ["`at`", "`(a)`", "extra"],
+            ],
+          },
+        ],
+      },
+      spec_php_migration: { rows: [{ section: "Case", php: "strlen", outcome: "member", novis: "`Core\\Str::length`" }] },
+    });
+    expect(got.unread.map((u) => `${u.path}: ${u.reason}`)).toEqual([
+      "docs/spec/01-core-library.md: line 14 has 3 cell(s) under 2 column(s)",
+      "docs/spec/02-php-migration.md: line 13 is no `| `name` | outcome | novis |` row",
+    ]);
+  });
+
+  test("the proof policy keeps its report and skips, fills a missing report key, and names what no record holds", () => {
+    tmp = scratch();
+    tmp.put(
+      "tools/data/dossier-policy.toml",
+      ['[member]', 'tests = 3', '', '[report]', 'outlier_factor = 4', '', '[skip."Core\\\\Str::length"]', 'perf = "It is one call."', 'rust = "none"'].join("\n"),
+    );
+    tmp.put("tools/data/help-backlog.toml", 'features = ["Core\\\\Arr::all", "lang:x/y"]\n');
+    const got = proofs.read(tmp.root);
+    expect(values(got)).toEqual({
+      proof_policy: { report: { outlierFactor: 4, ceiling: {} }, skip: { "Core\\Str::length": { perf: "It is one call." } } },
+      help_backlog: { features: ["Core\\Arr::all", "lang:x/y"] },
+    });
+    expect(got.unread.map((u) => `${u.path}: ${u.reason}`)).toEqual([
+      "tools/data/dossier-policy.toml: [member] overrides what a kind owes, which no record holds",
+      'tools/data/dossier-policy.toml: [skip."Core\\Str::length"] carries rust, which no record holds',
     ]);
   });
 });
