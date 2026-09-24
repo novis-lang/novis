@@ -4,9 +4,8 @@
 //
 // A test is attributed to a feature by a `covers:` marker, in a `.nvst` case or above a Rust `#[test]`.
 // A `Core` member is also credited by a case that calls it as `Class::member(`. An example, an attack and
-// a bench are attributed by path. A perf figure is current when its record's `impl_hash` is the hash of
-// the implementing file's text as it is now, with its trailing `mod tests` cut off
-// (`rule:testing/member-perf-ledger`). A record from any machine is current for what a feature owes, and
+// a bench are attributed by path. A perf figure is current when its record's `impl_hash` is `implHash`
+// of the implementing file as it is now (`rule:testing/member-perf-ledger`). A record from any machine is current for what a feature owes, and
 // the one taken on this machine is what `--id` prints beside it.
 
 import { createHash } from "node:crypto";
@@ -14,6 +13,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { cpus, machine as osMachine } from "node:os";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { analyse, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
@@ -296,8 +296,10 @@ export function ledgerRecords(): Map<string, Record<string, unknown>[]> {
 const sha12 = (text: string) => createHash("sha1").update(text, "utf8").digest("hex").slice(0, 12);
 
 /**
- * What a perf figure is current against: the implementing file's text with its trailing `mod tests` cut
- * off, hashed. Empty when there is no such file.
+ * What a perf figure is current against: the implementing file's `card` tier from `analyse`, which is
+ * its tokens without comments, layout, inline test modules or the initialisers of card constants. A file
+ * that is not Rust, such as a reference chapter, is its text with its line endings made `\n`. Empty when
+ * there is no such file.
  */
 export function implHash(path: string): string {
   try {
@@ -305,10 +307,8 @@ export function implHash(path: string): string {
   } catch {
     return "";
   }
-  let text = read(path);
-  const m = /#\[cfg\(test\)\]\s*mod tests\b/.exec(text);
-  if (m) text = text.slice(0, m.index);
-  return sha12(text);
+  const text = read(path);
+  return path.endsWith(".rs") ? analyse(text).card : digest(text);
 }
 
 /** Python's `json.dumps(..., sort_keys=True)` of a flat object, which the fingerprint's id hashes. */

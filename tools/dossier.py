@@ -71,8 +71,8 @@ picks up where it stopped rather than starting again.
 Once a feature is complete, keeping it complete is cheap — deliberately, because a check nobody can
 afford to run is a check nobody runs:
 
-* **The audit and the gate never execute anything.** One `nvs meta --json`, one walk of the four
-  trees, one `git log -1` per implementing file. Seconds, whatever the roster's size.
+* **The audit and the gate never execute a proof program.** One `nvs meta --json`, one
+  `nv proofs --impl-hash`, one walk of the four trees, one `git log -1` per implementing file. Seconds, whatever the roster's size.
 * **Perf is re-measured only where the implementation moved.** The `impl_hash` currency rule
   below is the whole mechanism: an untouched member is never re-timed, so a sweep after a change to
   one file measures that file's features. `--record-perf` measures only what has no current figure
@@ -188,17 +188,18 @@ The one wall-clock check that does travel is a **ratio within one run**: a bench
 is timed at both sizes seconds apart, and a constant-time member that costs K times more on K times
 the input is wrong on any machine.
 
-## Why a figure is current against the implementing file's text, not a commit
+## Why a figure is current against the implementing file's code, not a commit
 
 Measurement needs an idle machine and the acceptance test runs after every session, so a sweep that
 re-times 500 features per session would measure the driver's own build more than the language. Every
-record therefore carries `impl_hash` -- the implementing file's text with its trailing `mod tests`
-cut off, hashed -- and the gate passes while that value still matches. Change the implementation and
-its figure goes stale on the spot; add a test to the same file, or change anything else, and nothing
-is re-measured. The text and not the commit, because the fan-out splices a goal's Rust tests into
-the implementing file *before* the parent measures, and a figure keyed on the commit would go stale
-at the wrap that commits them, every session re-owing what it had just taken. `impl_commit` is still
-recorded, as where to look, and `binary` is the hash of the `nvs` that ran.
+record therefore carries `impl_hash`, and the gate passes while that value still matches. The hash
+is `bun nv proofs --impl-hash` of the implementing file: its tokens, without comments, layout,
+inline test modules or the initialisers of reference-card constants. Change the code and its figure
+goes stale on the spot. Add a test, reword a comment or a card, or reformat the file, and nothing is
+re-measured. The code and not the commit, because a session splices Rust tests into the implementing
+file *before* it measures, and a figure keyed on the commit would go stale at the wrap that commits
+them. `impl_commit` is still recorded, as where to look, and `binary` is the hash of the `nvs` that
+ran.
 """
 
 from __future__ import annotations
@@ -216,6 +217,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1138,6 +1140,7 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
     calls = scan_calls()
     perf = ledger_records()
     me = fingerprint()["id"]
+    impl_hashes(e.impl_file for e in entries if e.impl_file)
     out: dict[str, Proofs] = {}
     for e in entries:
         p = Proofs()
@@ -1590,18 +1593,30 @@ def scale_sibling(path: Path) -> Path:
     return path.with_name(path.stem + ".scale.nvs")
 
 
+_IMPL_HASHES: dict[str, str] = {}
+
+
+def impl_hashes(paths: Iterable[str]) -> None:
+    """Fill the `impl_hash` memo for every path in one `nv proofs --impl-hash` call. The hash is
+    `nv`'s alone, so this tool and `nv proofs` cannot disagree about which figure is current."""
+    todo = sorted({p for p in paths if p and p not in _IMPL_HASHES})
+    if not todo:
+        return
+    out = subprocess.run(["bun", "tools/nv/main.ts", "proofs", "--impl-hash", *todo], cwd=ROOT,
+                         timeout=300, **CAPTURE)
+    if out.returncode != 0:
+        raise RuntimeError(f"`nv proofs --impl-hash` exited {out.returncode}: {out.stderr.strip()}")
+    for line in out.stdout.splitlines():
+        digest, _, path = line.partition(" ")
+        _IMPL_HASHES[path] = "" if digest == "-" else digest
+
+
 def impl_hash(path: str) -> str:
-    """What a perf figure is current against: the implementing file's text with its trailing
-    `mod tests` cut off, hashed. The module doc § *Why a figure is current against the
-    implementing file's text* is why a text and not a commit. Empty when there is no such file."""
-    p = ROOT / path
-    if not p.is_file():
-        return ""
-    text = read(p)
-    m = re.search(r"#\[cfg\(test\)\]\s*mod tests\b", text)
-    if m:
-        text = text[:m.start()]
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    """What a perf figure is current against: `nv proofs --impl-hash` of the implementing file,
+    which ignores its comments, layout, test modules and cards. The module doc § *Why a figure is
+    current against the implementing file's code* is why. Empty when there is no such file."""
+    impl_hashes([path])
+    return _IMPL_HASHES.get(path, "")
 
 
 def binary_hash(nvs: Path) -> str:

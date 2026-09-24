@@ -24,12 +24,15 @@ to the clock on the machine that took it and to the scaling ratio. The ledger's 
 regressions and to hand a person with a profiler a shortlist — the report's *Candidates* — and never
 to certify that a member is as fast as it could be.
 
-**A figure is re-measured only when the implementing file's text, with its trailing `mod tests` cut
-off, changes.** That currency rule is what makes a roster of hundreds affordable, and the text rather
-than the commit is what lets a session measure before the wrap commits the tests it spliced into
-that same file. The granularity is the file rather than the member, which is conservative in the
-only safe direction: a comment edit stales its file's figures, and the cost of being wrong is one
-command rather than a wrong number.
+**A figure is re-measured only when the implementing file's code changes.** A record's `impl_hash` is
+`bun nv proofs --impl-hash` of that file: the tokens the compiler reads, without comments, layout,
+inline test modules or the initialisers of reference-card constants — the `card` tier every build key
+already uses. A reference chapter that implements a language feature is hashed as its text. That
+currency rule is what makes a roster of hundreds affordable, and the code rather than the commit is
+what lets a session measure before the wrap commits the tests it spliced into that same file. A
+comment, a card or a reformat cannot change what the binary does, so none of them stales a figure.
+The granularity is still the file rather than the member, which is conservative in the only safe
+direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
 so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A

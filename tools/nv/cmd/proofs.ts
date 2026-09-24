@@ -39,7 +39,7 @@ import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHash, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { bless, namedBinary, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
@@ -54,7 +54,7 @@ const USAGE = [
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
   "                 [--record-perf] [--reps REPS] [--force] [--note NOTE]",
-  "                 [--perf-report]",
+  "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
 /** What the binary is: the one named, or the newest profile built. */
@@ -348,6 +348,7 @@ export async function run(args: string[]): Promise<number> {
   let only: string[] | null;
   let comments: string[] | null;
   let blessed: string[] | null;
+  let hashed: string[] | null;
   let limit = 40;
   let reps = 5;
   try {
@@ -355,6 +356,7 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: only } = takeList(args, "--only"));
     ({ rest, list: comments } = takeList(rest, "--comments"));
     ({ rest, list: blessed } = takeList(rest, "--bless"));
+    ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
       flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report"],
       valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note"],
@@ -387,6 +389,12 @@ export async function run(args: string[]): Promise<number> {
   // Only what runs a proof program pays for a current binary. The audit reads a roster, and a person
   // asking `--owed` is not made to wait for a build.
   if (comments !== null) return flush(checkComments(out, comments));
+  // What a perf record's `impl_hash` is for each file, one `<hash> <path>` line each. `dossier.py` reads
+  // its currency from here, so the two tools cannot disagree about it.
+  if (hashed !== null) {
+    for (const path of hashed) out.push(`${implHash(path) || "-"} ${path}`);
+    return flush(0);
+  }
   const measures = flags.has("--record-perf");
   if (flags.has("--perf-report") && !measures) return flush(perfReport(out));
   const executes = blessed !== null || flags.has("--run") || flags.has("--verify");

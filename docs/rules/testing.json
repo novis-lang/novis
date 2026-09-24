@@ -545,11 +545,11 @@
     },
     {
       "id": "testing/member-perf-ledger",
-      "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves",
+      "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's code moves",
       "status": "shipped",
-      "because": ["0134", "0026", "0191"],
+      "because": ["0134", "0026", "0191", "0220"],
       "seeAlso": ["testing/feature-proofs", "testing/perf-two-mechanisms", "testing/userland-benchmarks"],
-      "guardedBy": ["docs/perf/members.ndjson", "tools/dossier.py"]
+      "guardedBy": ["docs/perf/members.ndjson", "tools/nv/proofs/collect.ts", "tools/dossier.py"]
     },
     {
       "id": "testing/userland-benchmarks",
