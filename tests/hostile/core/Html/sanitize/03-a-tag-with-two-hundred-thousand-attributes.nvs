@@ -1,0 +1,16 @@
+<?nvs
+// Attack: one link with two hundred thousand event handler attributes is cleaned.
+// The program should finish quickly, and must not crash the runtime.
+// dossier: known-gap crates/nvs-stdlib/src/html.rs -- an element with many attributes costs time in the square of their count, so two hundred thousand take far longer than the time limit
+
+// 1. Builds the attributes `on0=x on1=x on2=x` and so on.
+string $attributes = '';
+int $i = 0;
+while ($i < 200000) {
+    $attributes = $attributes . ' on' . $i . '=x';
+    $i = $i + 1;
+}
+
+// 2. Cleans one link that has all of them. `sanitize` removes every one, so this prints `17`.
+Core\Html\Markup $clean = Core\Html::sanitize('<a href="/"' . $attributes . '>x</a>');
+echo 'step 2: ', Core\Str::length(Core\Html::toSource($clean, 'the attack reads the result')), "\n";

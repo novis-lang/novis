@@ -150,11 +150,24 @@
 //!    that cap, and what a document past it becomes, is a decision about
 //!    `rule:core-classes/html-parsing`'s output rather than a change to this
 //!    module. `tests/hostile/core/Html/sanitize/02-markup-nested-a-hundred-thousand-deep.nvs`
-//!    is the attack that found it, and it is marked as this gap.
+//!    and `tests/hostile/core/Html/parse/02-markup-nested-a-hundred-thousand-deep.nvs`
+//!    are the attacks that show it, and both are marked as this gap.
+//!    — owner: M12
+//! 2. **An element with many attributes costs time in the square of their
+//!    count.** One tag with a hundred thousand attributes takes about twenty
+//!    seconds in [`parse`] on a release build. `html5ever`'s tokenizer compares
+//!    every new attribute name with every earlier one on the same tag, to drop
+//!    a duplicate, and [`Sink`] never sees the tag until that is done. Bounding
+//!    it here means capping the attributes a tag may carry, and choosing that
+//!    cap is the same kind of decision as item 1's.
+//!    `tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs`
+//!    and `tests/hostile/core/Html/sanitize/03-a-tag-with-two-hundred-thousand-attributes.nvs`
+//!    are marked as this gap.
 //!    — owner: M12
 
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};
+use std::panic::AssertUnwindSafe;
 
 use html5ever::tendril::{StrTendril, TendrilSink};
 use html5ever::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
@@ -873,7 +886,19 @@ impl Sink {
 
     /// `node`, added to the arena, as the handle the builder will refer to it
     /// by.
+    ///
+    /// **Every node asks the request's memory limit first**, because a tree
+    /// is not proportional to its source: reconstructing formatting elements
+    /// clones a whole list of them for every paragraph, so a short document
+    /// can build a tree many times its size, and the allocator's own compare
+    /// is noticed only when the member returns. A `false` from
+    /// [`nvs_runtime::budget::affords`] has already recorded the breach, and
+    /// [`OverLimit`] unwinds out of `html5ever` to [`bounded`], because
+    /// [`TreeSink`] has no way to stop a parse.
     fn push(&self, node: Node) -> usize {
+        if !nvs_runtime::budget::affords(std::mem::size_of::<Node>()) {
+            std::panic::resume_unwind(Box::new(OverLimit));
+        }
         let mut nodes = self.nodes.borrow_mut();
         nodes.push(node);
         nodes.len() - 1
@@ -1205,6 +1230,33 @@ fn parse(document: &str) -> Parsed {
     html5ever::parse_document(Sink::new(), html5ever::ParseOpts::default()).one(document)
 }
 
+/// The payload [`Sink::push`] unwinds with when the request cannot afford one
+/// more node. `resume_unwind` runs no panic hook, so nothing is printed.
+struct OverLimit;
+
+/// [`parse`], stopped at the request's memory limit.
+///
+/// The unwind is caught here and nowhere else. Every value it passes through
+/// is dropped on the way out — the builder, its stack and the half-built
+/// arena — so the request is left holding what it held before the call, and
+/// any other panic keeps unwinding to the request's own boundary.
+///
+/// # Errors
+///
+/// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
+/// [`nvs_runtime::run_helper`] reports the breach in its place.
+fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
+    std::panic::catch_unwind(AssertUnwindSafe(|| parse(document))).map_err(|payload| {
+        if payload.is::<OverLimit>() {
+            Fault::fatal(format!(
+                "{member}: the document's tree is larger than the request's memory limit allows"
+            ))
+        } else {
+            std::panic::resume_unwind(payload)
+        }
+    })
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Html::parse(string $document): Core\Xml\Node` — replacing
     /// `DOMDocument::loadHTML` and PHP 8.4's `Dom\HTMLDocument::createFromString`.
@@ -1225,7 +1277,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             )));
         };
-        Ok(crate::xml::instance_of(parse(document), &[]))
+        Ok(crate::xml::instance_of(bounded(document, r"Core\Html::parse")?, &[]))
     }
 }
 
@@ -1689,15 +1741,17 @@ nvs_runtime::nvs_helper! {
     /// time and a rebuilt document would arrive as its own source text.
     ///
     /// **What it spends:** the parse's tree, plus a second tree holding what
-    /// survived, plus the source it is written back to — all three proportional
-    /// to the document, all three attributed to the request, and the first two
-    /// dropped before this returns. `rule:programs/memory-priority` is what
+    /// survived, plus the source it is written back to — all three attributed
+    /// to the request, and the first two dropped before this returns. The
+    /// parse's tree is refused node by node at the memory limit ([`bounded`]);
+    /// the other two are no larger than it, and a crossing there is noticed
+    /// when this returns. `rule:programs/memory-priority` is what
     /// buys that: the rebuild is a tree operation because the alternative is a
     /// pass over text, and a pass over text is what every sanitizer that has
     /// been bypassed was.
     fn nvs_core_html_sanitize(_ctx, args: [1]) {
         let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
-        let out = source(&rebuilt(&parse(document)));
+        let out = source(&rebuilt(&bounded(document, r"Core\Html::sanitize")?));
         Ok(crate::instance::build(
             &MARKUP,
             [Value::str(NvsStr::new(out.as_bytes()))],
@@ -2682,6 +2736,43 @@ mod tests {
             CORPUS.len(),
             "the reparse of an answer holds nothing outside the allowlist: {escaping:?}"
         );
+    }
+
+    /// A tree past the request's memory limit stops the parse at the limit.
+    ///
+    /// A hundred thousand paragraphs are 400 KB of source and a tree of tens
+    /// of megabytes. Both members that parse are refused under a 1 MiB limit,
+    /// and the peak each leaves on its context stays near that limit. The peak
+    /// is what tells a parse stopped at the limit from one that built the
+    /// whole tree first and was noticed on return.
+    // covers: Core\Html::parse, Core\Html::sanitize
+    #[test]
+    fn a_tree_past_the_memory_limit_stops_the_parse_at_the_limit() {
+        let members: [(nvs_runtime::NvsFn, &str); 2] = [
+            (nvs_core_html_parse, r"Core\Html::parse"),
+            (nvs_core_html_sanitize, r"Core\Html::sanitize"),
+        ];
+        for (member, name) in members {
+            // Made before the context, so the source is not on its balance.
+            let document = Value::str(NvsStr::new("<p>x".repeat(100_000).as_bytes()));
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            ctx.set_memory_limit(1 << 20);
+            let answered = call(member, &mut ctx, &[document]);
+            let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+            assert!(answered.is_err(), "{name} refuses a tree past the limit");
+            let refusal = refusal.expect("a refusal leaves its message in the context");
+            assert!(refusal.contains("memory limit"), "{name}: {refusal}");
+            assert!(
+                ctx.memory_peak() < 2 << 20,
+                "{name} stopped at the limit rather than after the whole tree: peak {}",
+                ctx.memory_peak()
+            );
+            drop(ctx);
+            #[expect(unsafe_code, reason = "the case owns the document it made")]
+            unsafe {
+                document.release();
+            }
+        }
     }
 
     /// `rule:core-classes/html-sanitize`'s *rebuild, never filter* half, in the

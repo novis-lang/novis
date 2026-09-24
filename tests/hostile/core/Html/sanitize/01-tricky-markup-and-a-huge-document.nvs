@@ -41,15 +41,9 @@ foreach ($tricky as tainted string $piece) {
     }
 }
 
-// 2. One link with one hundred thousand attributes, and one hundred thousand links to `javascript:`.
-string $attributes = '';
-int $i = 0;
-while ($i < 100000) {
-    $attributes = $attributes . ' on' . $i . '=x';
-    $i = $i + 1;
-}
-Check::clean('step 2', Core\Html::sanitize('<a href="/"' . $attributes . '>x</a>'));
+// 2. One hundred thousand links to `javascript:`.
 Check::clean('step 2', Core\Html::sanitize(Core\Str::repeat('<a href="javascript:alert(1)">x</a>', 100000)));
 
-// 3. A document with ten million paragraphs. This step ends the program at its memory limit.
+// 3. A document with ten million paragraphs. The tree is larger than the memory limit,
+// so this step ends the program at the limit.
 Check::clean('step 3', Core\Html::sanitize(Core\Str::repeat('<p>x', 10000000)));

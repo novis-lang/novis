@@ -1,0 +1,39 @@
+<?nvs
+// Attack: broken tables, text that never ends and a huge document are parsed.
+// No step may crash the runtime. The last step stops the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+class Count
+{
+    // Counts every node in the tree. It uses a list of nodes to visit, so it does not call itself.
+    public static function nodes(Core\Xml\Node $root): uint
+    {
+        array<Core\Xml\Node> $todo = [$root];
+        int $next = 0;
+        while ($next < Core\Arr::count($todo)) {
+            Core\Xml\Node $node = $todo[$next];
+            $next = $next + 1;
+            foreach ($node->children() as Core\Xml\Node $child) {
+                $todo[] = $child;
+            }
+        }
+        return $next as uint;
+    }
+}
+
+// 1. Ten thousand tables, each cell opening the next table.
+var $tables = Core\Html::parse(Core\Str::repeat('<table><tr><td>', 10000));
+echo 'step 1: ', Count::nodes($tables), "\n";
+
+// 2. Comments, scripts and text that never end.
+var $open = Core\Html::parse('<!--' . Core\Str::repeat('<p>', 100000) . '<script>' . Core\Str::repeat('</', 100000));
+echo 'step 2: ', Count::nodes($open), "\n";
+
+// 3. A document with ten million paragraphs. The tree is larger than the memory limit,
+// so this step ends the program at the limit.
+var $huge = Core\Html::parse(Core\Str::repeat('<p>x', 10000000));
+echo 'step 3: ', Count::nodes($huge), "\n";
