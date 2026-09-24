@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { decisions } from "../import/decisions.ts";
+import { citations, readGaps } from "../import/gaps.ts";
 import { goals } from "../import/goals.ts";
 import { plan } from "../import/plan.ts";
 import { playbook } from "../import/playbook.ts";
@@ -297,6 +298,70 @@ describe("import", () => {
     });
     expect(got.unread).toEqual([
       { path: "docs/plan/m9.md", reason: "its H1 is not the table's `# M9 — Extensions (not yet sized)`" },
+    ]);
+  });
+
+  test("a gap's slug is its title's first words, its owner a milestone or a goal, and a position is cited", () => {
+    tmp = scratch();
+    tmp.put(
+      "crates/nvs-x/src/lib.rs",
+      [
+        "//! The crate.",
+        "//!",
+        "//! # Known gaps",
+        "//!",
+        "//! Each of these is open.",
+        "//!",
+        "//! 3. **A walk reads the subject it reshapes.** Every member",
+        "//!    borrows it.",
+        "//!    — owner: M10",
+        "//! 4. **A walk reads the subject twice**, and pays for it.",
+        "//!    — owner: arr-walks",
+        "//! 5. § 6's entries are not embedded yet. Nothing loads them.",
+        "//!    — owner: M9",
+        "//! 6. **Nobody owns this.**",
+        "//!",
+        "//! # Other",
+        "fn f() {}",
+      ].join("\n"),
+    );
+    tmp.put("crates/nvs-x/src/one.rs", "//! One.\n//!\n//! **Known gaps.** Two things are open. Both are slow.\n//! — owner: M12\n");
+    const got = readGaps(tmp.root);
+    expect(values(got)).toEqual({
+      "nvs-x/walk-reads-the-subject-it-reshapes": {
+        module: "crates/nvs-x/src/lib.rs",
+        title: "A walk reads the subject it reshapes.",
+        text: "Every member borrows it.",
+        milestone: "M10",
+      },
+      "nvs-x/walk-reads-the-subject-twice": {
+        module: "crates/nvs-x/src/lib.rs",
+        title: "A walk reads the subject twice",
+        text: "and pays for it.",
+        goal: "arr-walks",
+      },
+      "nvs-x/entries-are-not-embedded-yet": {
+        module: "crates/nvs-x/src/lib.rs",
+        title: "§ 6's entries are not embedded yet.",
+        text: "Nothing loads them.",
+        milestone: "M9",
+      },
+      "nvs-x/two-things-are-open": {
+        module: "crates/nvs-x/src/one.rs",
+        title: "Two things are open.",
+        text: "Both are slow.",
+        milestone: "M12",
+      },
+    });
+    expect(got.unread.map((u) => `${u.path}: ${u.reason}`)).toEqual([
+      "crates/nvs-x/src/lib.rs: line 5: the gap block at line 3 opens on prose no gap holds",
+      "crates/nvs-x/src/lib.rs: line 14: gap 6: no owner tag",
+    ]);
+    const cited = citations(tmp.root, "docs/a.md", "`nvs_x`'s known gap 4 and\n`crates/nvs-x/src/one.rs`'s `# Known gaps` item 2, and known gap 9.", got.positions);
+    expect(cited).toEqual([
+      { path: "docs/a.md", line: 1, num: 4, module: "crates/nvs-x/src/lib.rs", gap: "nvs-x/walk-reads-the-subject-twice" },
+      { path: "docs/a.md", line: 2, num: 2, module: "crates/nvs-x/src/one.rs", gap: null },
+      { path: "docs/a.md", line: 2, num: 9, module: "crates/nvs-x/src/one.rs", gap: null },
     ]);
   });
 });

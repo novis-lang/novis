@@ -3,23 +3,52 @@
 // invariant checks run over them, and the renderers render from them to compare with every rendered
 // file on disk. Each line it prints is led by the legacy file it is about. It exits 1 when there is
 // any, and while a record type has no importer, since the legacy homes are then not all read.
+//
+// `bun nv import --citations` lists every citation of a gap by its position in a tracked text file,
+// with the gap it names today, for the cutover to rewrite into a slug. It always exits 0.
 
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { tracked } from "../lib/git.ts";
 import { Index } from "../lib/index.ts";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { apply, type Output } from "../lib/render.ts";
 import { pathOf, write } from "../lib/store.ts";
+import { citations, readGaps } from "../import/gaps.ts";
 import { IMPORTERS } from "../import/index.ts";
 import type { Imported, Unread } from "../import/lib.ts";
 import { RENDERERS } from "../renderers/index.ts";
 import { RECORDS } from "../schema/index.ts";
 
-export const summary = "read the legacy homes into records: --check compares them, writing nothing";
+export const summary = "read the legacy homes into records: --check compares them, writing nothing; --citations lists gaps cited by position";
+
+async function listCitations(): Promise<number> {
+  const { positions } = readGaps(ROOT);
+  let count = 0;
+  let resolved = 0;
+  for (const path of await tracked()) {
+    let src: string;
+    try {
+      src = readFileSync(join(ROOT, path), "utf8");
+    } catch {
+      continue;
+    }
+    if (src.includes("\0") || !/known[- ]gap/i.test(src)) continue;
+    for (const c of citations(ROOT, path, src.replace(/\r\n?/g, "\n"), positions)) {
+      count++;
+      if (c.gap) resolved++;
+      const what = c.module === null ? "a module its wording does not name" : c.module;
+      console.log(`${c.path}:${c.line}: known gap ${c.num} of ${what}: ${c.gap ?? "no gap today"}`);
+    }
+  }
+  console.log(`nv import --citations: ${count} citation(s) of a gap by position, ${resolved} naming a gap today`);
+  return 0;
+}
 
 export async function run(args: string[]): Promise<number> {
+  if (args.length === 1 && args[0] === "--citations") return listCitations();
   if (args.length !== 1 || args[0] !== "--check") {
-    console.error(`nv import: takes --check${args.includes("--write") ? "; --write is not built yet" : ""}`);
+    console.error(`nv import: takes --check or --citations${args.includes("--write") ? "; --write is not built yet" : ""}`);
     return 2;
   }
   const records: Imported[] = [];
