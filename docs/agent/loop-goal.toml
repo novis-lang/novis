@@ -132,6 +132,14 @@ modules = [
   "tools/plan.py",
   # The bounded-units test.
   "crates/nvs-cli/src/script.rs",
+  # The watchdog: one thread for the process, noticing a core that has stopped turning at all.
+  "crates/nvs-host/src/watchdog.rs",
+  # `Core\Http\Socket` — ADR 0183's outbound WebSocket: a conversation the program opened through
+  # the door every outbound call passes, and holds until its own task ends.
+  "crates/nvs-stdlib/src/http/socket.rs",
+  # The outbound transport: one HTTP/1.1 exchange over `nvs_host`'s parking stream, under one
+  # deadline that covers every hop, every attempt and every backoff between them.
+  "crates/nvs-stdlib/src/http/transport.rs",
 ]
 
 # The rules the proof and key work is written inside. Stage 12 adds the rulebook edits it makes.
