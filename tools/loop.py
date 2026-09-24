@@ -115,6 +115,9 @@ LASTFAIL = RUNDIR / "last-fail.json"
 #: record per run under `READSDIR`, and `Goal.observed_inputs` is what reads them.
 CHECKREADS = RUNDIR / "check-reads.json"
 READSDIR = RUNDIR / "reads"
+#: Each proofs group's own paths, as `bun nv proofs` last recorded them (`PROOF_READS` in
+#: `tools/nv/keys/checks.ts`); `Goal.proof_inputs` keys a proofs check on it.
+PROOF_READS = RUNDIR / "proof-reads.json"
 #: What every check of every sweep cost, one NDJSON line each; `Goal.write_times` is the writer.
 CHECKTIMES = RUNDIR / "check-times.ndjson"
 #: Past this many bytes the older half of `CHECKTIMES` is dropped, so the file stays bounded.
@@ -2286,6 +2289,56 @@ def runs_release_cli(c):
     return c["kind"] == "command" and any("dossier.py" in a for a in c["argv"])
 
 
+#: What `bun nv proofs` reads for every group, as `proofParts` in `tools/nv/keys/checks.ts` names
+#: it: the partitions holding the roster's chapters, the registry, and every `covers:` marker and
+#: plain call, then its own code, the policy, the help backlog and the perf ledger.
+PROOF_PARTITIONS = ("crates", "crate-tests", "docs", "conformance", "differential")
+PROOF_INPUTS = ("tools/nv", "package.json", "bun.lock", "tools/data/dossier-policy.toml",
+                "tools/data/help-backlog.toml", "docs/perf/members.ndjson")
+
+
+def proof_groups(c):
+    """The groups a check verifies when it is `bun nv proofs --verify` and one or more
+    `--group G` and nothing else, or `None`. Only that shape joins `Goal.proofs_verify`'s one
+    run, because any other flag changes what the run answers for every group in it."""
+    argv = c.get("argv", [])
+    if c["kind"] != "command" or c.get("cwd", ".") != "." or argv[:4] != ["bun", "nv", "proofs", "--verify"]:
+        return None
+    rest = argv[4:]
+    if not rest or len(rest) % 2 or any(flag != "--group" for flag in rest[::2]):
+        return None
+    return rest[1::2]
+
+
+def split_proofs(r, groups):
+    """One `nv proofs --verify` run over `groups`, as each group's own `Result`. Several groups
+    print a `== <group>` section each, closed by `-- <group>: passed` or `failed`, and that line
+    is the group's exit status. A section's first failing line goes on its stderr, so the verdict
+    quotes the owed feature or the failed suite. A group with no closed section -- one run alone,
+    or a run that died before printing it -- is the whole run."""
+    if len(groups) == 1:
+        return {groups[0]: r}
+    sections, current = {}, None
+    for line in r.out.splitlines():
+        if line.startswith("== ") and line[3:] in groups:
+            current = line[3:]
+            sections[current] = [line]
+        elif current is not None:
+            sections[current].append(line)
+    got = {}
+    for g in groups:
+        lines = sections.get(g, [])
+        verdict = lines[-1] if lines else ""
+        if verdict not in (f"-- {g}: passed", f"-- {g}: failed"):
+            got[g] = r
+            continue
+        failed = verdict.endswith("failed")
+        why = next((l for l in lines if "still owe" in l or re.search(r"\b[1-9]\d* failed\b", l)),
+                   verdict) if failed else ""
+        got[g] = Result(1 if failed else 0, "\n".join(lines) + "\n", why)
+    return got
+
+
 class GoalError(ValueError):
     """`loop-goal.toml` parsed as TOML but is not an acceptance list this driver can run.
 
@@ -2529,6 +2582,8 @@ class Goal:
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._suite = {}  # (leg name, args tuple) -> Result, likewise
         self._commands = {}  # (argv tuple, cwd) -> Result, likewise
+        self._proofs = {}  # proofs group -> its Result out of `proofs_verify`'s run, likewise
+        self._proofs_lock = threading.Lock()
         self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
         self._verify_green = None  # `verify.py`'s per-binary green record, read once a sweep
@@ -2680,6 +2735,33 @@ class Goal:
         if key not in self._commands:
             self._commands[key] = self.run_command(argv, cwd)
         return self._commands[key]
+
+    def proofs_verify(self, c):
+        """A `proof_groups` check's result, out of ONE `bun nv proofs --verify` run over every group
+        the sweep owes: the first such check to arrive starts it, over its own groups and those of
+        every proofs check in the cargo tier the memo does not answer, and each check is then
+        handed its own groups' sections. The roster is read once and every program runs in one
+        pool, where a run per check read it once per group. A check whose groups are not all in
+        that run -- one the memo answered, asked anyway -- starts a run of its own."""
+        groups = proof_groups(c)
+        with self._proofs_lock:
+            if any(g not in self._proofs for g in groups):
+                owed = [g for g in groups if g not in self._proofs]
+                for other in self.swept(self.cargo_checks):
+                    theirs = proof_groups(other)
+                    if theirs is None or (self.remembered(other) and not self.audits(other)):
+                        continue
+                    owed += [g for g in theirs if g not in self._proofs and g not in owed]
+                argv = ["nv", "proofs", "--verify", *(a for g in owed for a in ("--group", g))]
+                self.trace(f"proofs: {len(owed)} group(s) in one run")
+                r = self.timed(f"proofs: {len(owed)} group(s) in one run",
+                               lambda: capture("bun", argv, timeout=7200, cwd=ROOT))
+                self._proofs.update(split_proofs(r, owed))
+            parts = [self._proofs[g] for g in groups]
+        if len(parts) == 1:
+            return parts[0]
+        return Result(max(p.code for p in parts), "\n".join(p.out for p in parts),
+                      "\n".join(p.err for p in parts if p.err))
 
     def run_command(self, argv, cwd):
         """One `command` check's process. A Python gate (`is_observed`) runs under
@@ -3192,7 +3274,7 @@ class Goal:
         `None` when the tree could not be hashed."""
         if self._parts is None:
             return None
-        narrow = self.binary_inputs(c) or self.observed_inputs(c)
+        narrow = self.binary_inputs(c) or self.observed_inputs(c) or self.proof_inputs(c)
         if narrow is not None:
             return narrow
         h = hashlib.blake2b(digest_size=16)
@@ -3299,6 +3381,50 @@ class Goal:
         if code:
             h.update(b"code\0" + self._parts[CODE].encode("utf-8"))
         return h.hexdigest()
+
+    def proof_inputs(self, c):
+        """A `proof_groups` check's inputs, one `proofs: <group>` unit per group as `nv why` prints
+        it: the proof binary's `crates` and the other `PROOF_PARTITIONS`, `PROOF_INPUTS`, and the
+        example, attack and bench paths `nv proofs` last recorded for each group in `PROOF_READS`.
+        A check on its own key rather than the run's is what lets an edit to one group's example
+        re-run that group alone. `None` for any other check, and for a group with no record yet,
+        and then `EVERYTHING` stands until it has run once."""
+        groups = proof_groups(c)
+        if groups is None or self._parts is None:
+            return None
+        try:
+            reads = json.loads(PROOF_READS.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if any(g not in reads for g in groups):
+            return None
+        h = hashlib.blake2b(digest_size=16)
+        h.update(b"proofs\0")
+        for name in PROOF_PARTITIONS:
+            h.update(name.encode("utf-8") + b"\0" + self._parts[name].encode("utf-8") + b"\0")
+        own = sorted(set(PROOF_INPUTS).union(*(reads[g] for g in groups)))
+        for rel in own:
+            h.update(rel.encode("utf-8") + b"\0" + self.path_digest(rel).encode("utf-8") + b"\0")
+        return h.hexdigest()
+
+    def path_digest(self, rel):
+        """A tree path's content hash: a file's bytes, or a directory's every file that is not
+        `is_ignored`, by path; `absent` for a path that is not there."""
+        top = ROOT / rel
+        if not top.is_dir():
+            return self.digest_of(rel)
+        if f"{rel}/" in self._digests:
+            return self._digests[f"{rel}/"]
+        h = hashlib.blake2b(digest_size=16)
+        for dirpath, dirnames, filenames in os.walk(top):
+            here = Path(dirpath).relative_to(ROOT).as_posix()
+            dirnames[:] = sorted(d for d in dirnames if not self.is_ignored(f"{here}/{d}"))
+            for name in sorted(filenames):
+                sub = f"{here}/{name}"
+                if not self.is_ignored(sub):
+                    h.update(sub.encode("utf-8") + b"\0" + self.digest_of(sub).encode("utf-8") + b"\0")
+        self._digests[f"{rel}/"] = h.hexdigest()
+        return self._digests[f"{rel}/"]
 
     def is_ignored(self, rel):
         """Is this tree path one the memo does not hash -- ignored by git, or under a directory
@@ -3418,7 +3544,8 @@ class Goal:
         graph."""
         if not self.floor_gate or self._parts is None:
             return False
-        if self.binary_inputs(c) is None and self.observed_inputs(c) is None:
+        if (self.binary_inputs(c) is None and self.observed_inputs(c) is None
+                and self.proof_inputs(c) is None):
             return False
         draw = hashlib.blake2b(f"{self.memo_key(c)}\0{self._tree}".encode("utf-8"), digest_size=8)
         return int.from_bytes(draw.digest(), "big") % AUDIT_EVERY == 0
@@ -3537,7 +3664,9 @@ class Goal:
             # reads that binary, and that loop is the one place the gate skips one.
             if measures_release_cli(c):
                 self.join_prebuild()
-            if runs_release_cli(c):
+            if proof_groups(c) is not None:
+                r = self.timed(label, lambda: self.proofs_verify(c))
+            elif runs_release_cli(c):
                 with RELEASE_CLI_LOCK:
                     r = self.timed(label, lambda: self.command(argv, c.get("cwd", ".")))
             else:
@@ -3853,6 +3982,7 @@ class Goal:
         self._cargo = {}
         self._suite = {}
         self._commands = {}
+        self._proofs = {}
         self._overlap = {}
         self._wsl_build = None
         self._exes = None

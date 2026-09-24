@@ -21,7 +21,8 @@
 // `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
 // `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
 // `--verify` and `--record-perf` take `--group` more than once: the roster is read once, every program
-// runs in one pool, and each group prints its own verdict lines under a `== <group>` line. `--no-perf`
+// runs in one pool, and each group prints its own verdict lines under a `== <group>` line and closes
+// on `-- <group>: passed` or `-- <group>: failed`, which the loop driver splits on. `--no-perf`
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
@@ -335,9 +336,13 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
   const programs = running.flatMap((s) => suites.flatMap((what) => programsOf(s, what).map((path) => ({ what, path }))));
   const pass = await runPrograms(bin, programs, opts);
   for (const scope of scopes) {
-    out.push(...heads.get(scope)!);
-    if (!running.includes(scope)) continue;
-    for (const what of suites) if (suiteLines(out, what, programsOf(scope, what), pass, opts)) rc = 1;
+    const lines = heads.get(scope)!;
+    let failed = !running.includes(scope);
+    if (!failed) for (const what of suites) if (suiteLines(lines, what, programsOf(scope, what), pass, opts)) failed = true;
+    // Several scopes close each section on its verdict, which is what the driver hands each check.
+    if (scopes.length > 1) lines.push(`-- ${scope.label ?? "the whole roster"}: ${failed ? "failed" : "passed"}`);
+    out.push(...lines);
+    if (failed) rc = 1;
   }
   return rc;
 }
