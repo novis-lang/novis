@@ -22,7 +22,8 @@
 // select once, through `driver/accept.ts`'s `Sweep`. It prints one line per check, `ok`, `FAIL` with the
 // line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
-// command at a time, rather than by starting a sweep.
+// command at a time, rather than by starting a sweep. It and every sweep below hold `driver/origin.ts`'s
+// listener up while their checks run, since `examples/http.nvs` talks to it.
 //
 // `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance`: every check in
 // the tiers' order, the memo `.loop/accept-green.json` answering each check still green over its inputs,
@@ -41,7 +42,8 @@
 // `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
 //
 // The session is `driver/launch.ts`'s: the session prompt with `nv orient`'s pack behind it, down
-// `claude -p`'s stdin as stream-json. Each event repaints `driver/status.ts`'s status row when stdout is a
+// `claude -p`'s stdin as stream-json, or down the stand-in `NOVIS_LOOP_CLAUDE` names, a command a
+// rehearsal uses to play a session on a scratch tree. Each event repaints `driver/status.ts`'s status row when stdout is a
 // terminal. A session that ends without wrapping has its own uncommitted paths swept into a wip commit,
 // and a session the usage wall refused or the CLI dropped is run again inside the same turn, after the
 // wall reopens or a backoff: `driver/sweep.ts` says how. The acceptance sweep behind it is the goal's own checks, with the carried floor and the release checks
@@ -75,6 +77,7 @@ import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, memoResults, Session, statusRow, title, type Results } from "../driver/status.ts";
 import { MAX_WALLS, type RateLimit, type Swept, Touched, backoff, hms, markInterrupted, readLimit, standingLimit, waitOutLimit, wallAfter } from "../driver/sweep.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
+import { holdOrigin } from "../driver/origin.ts";
 import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isFloor, isRelease, tiers } from "../driver/accept.ts";
 import { checkName, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
@@ -287,12 +290,18 @@ async function runChecks(filters: Filters): Promise<number> {
   const order = tiers(shown, labelOf).flatMap((t) => t.checks);
   const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
   let red = 0;
-  for (const c of order) {
-    const v = await sweep.check(c);
-    if (v.fail !== "") console.log(`  FAIL  ${v.fail}`);
-    else if (v.short !== "") console.log(`  SHORT ${v.short}`);
-    else console.log(`  ok    ${nameOf(c)} [${labelOf(c.stage)}]`);
-    if (v.fail !== "" || v.short !== "") red++;
+  const origin = await holdOrigin();
+  console.error(`  ${origin.line}`);
+  try {
+    for (const c of order) {
+      const v = await sweep.check(c);
+      if (v.fail !== "") console.log(`  FAIL  ${v.fail}`);
+      else if (v.short !== "") console.log(`  SHORT ${v.short}`);
+      else console.log(`  ok    ${nameOf(c)} [${labelOf(c.stage)}]`);
+      if (v.fail !== "" || v.short !== "") red++;
+    }
+  } finally {
+    origin.close();
   }
   console.log(`run: ${order.length - red} green, ${red} red, of ${order.length} ${order.length === 1 ? "check" : "checks"}`);
   return red === 0 ? 0 : 1;
@@ -344,6 +353,8 @@ async function sweepOver(
   const started = Date.now();
   const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
   let result: AcceptanceResult;
+  const origin = await holdOrigin();
+  console.error(`  ${origin.line}`);
   try {
     result = await acceptance(checks, {
       label: labelOf,
@@ -355,6 +366,7 @@ async function sweepOver(
       trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
     });
   } finally {
+    origin.close();
     memo.save(join(ROOT, GREEN), new Set((goal.checks as Check[]).map((c) => c.id)));
     keyed.tree.save();
   }
@@ -413,6 +425,8 @@ function parseTurn(args: string[]): TurnFlags | null {
 }
 
 const MARKER = `${RUNDIR}/running`;
+/** The environment variable that names a stand-in for the `claude` CLI; `standIn` reads it. */
+const STAND_IN_ENV = "NOVIS_LOOP_CLAUDE";
 
 /** The run `.loop/running` names, or "" when no run holds the tree. */
 function holder(): string {
@@ -436,6 +450,16 @@ function finish(state: RunState, reason: string): number {
   saveRun(state);
   console.log(`run done: ${state.served} session(s)`);
   return 0;
+}
+
+/**
+ * The command `STAND_IN_ENV` names in place of `claude`, split on whitespace, or null when it is unset. A
+ * rehearsal runs a turn against a script that plays a session this way, and the arguments a real session
+ * takes are appended to it all the same.
+ */
+function standIn(): string[] | null {
+  const words = (process.env[STAND_IN_ENV] ?? "").trim().split(/\s+/).filter(Boolean);
+  return words.length > 0 ? words : null;
 }
 
 /** Turns since the floor gate last opened; an unreadable file opens it, the safe direction. */
@@ -476,7 +500,7 @@ async function turn(f: TurnFlags): Promise<number> {
     const row = statusRow(plan, results, session, process.stdout.columns ?? 100);
     process.stdout.write(`\r\x1b[2K${row}${title(row)}`);
   };
-  const exe = Bun.which("claude") ?? "claude";
+  const exe = standIn() ?? [Bun.which("claude") ?? "claude"];
   const touched = new Touched();
   const sweptBy = (swept: Swept) =>
     swept.paths === 0
@@ -518,7 +542,7 @@ async function turn(f: TurnFlags): Promise<number> {
     touched.start();
     let latest: RateLimit | null = null;
     const launched = await launch(
-      [exe],
+      exe,
       f,
       openingLine(prompt, pack),
       log,
