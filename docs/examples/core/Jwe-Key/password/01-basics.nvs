@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to make a key from a password and use it to encrypt and decrypt a text.
+
+// `password` makes a key from any text.
+Core\Jwe\Key $key = Core\Jwe\Key::password("blue-river-42");
+string $token = Core\Jwe::encrypt("the wifi password is sunflower", $key);
+
+// A key made from the same password opens the token.
+// This prints `the wifi password is sunflower`.
+echo Core\Jwe::decrypt($token, [Core\Jwe\Key::password("blue-river-42")]), "\n";

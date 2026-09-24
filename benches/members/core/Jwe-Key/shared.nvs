@@ -1,0 +1,26 @@
+<?nvs
+// Makes a key from a secret key of 32 bytes, as a server does when it reads its key from the configuration.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $secrets = [
+            Core\Encoding::fromHex("0101010101010101010101010101010101010101010101010101010101010101"),
+            Core\Encoding::fromHex("0202020202020202020202020202020202020202020202020202020202020202"),
+            Core\Encoding::fromHex("0303030303030303030303030303030303030303030303030303030303030303"),
+        ];
+        Core\Jwe\Key $last = Core\Jwe\Key::shared($secrets[0]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The secret of each round is chosen by the round before, so no round can be left out.
+            Core\Jwe\Key $key = Core\Jwe\Key::shared($secrets[($total % 3) as int]);
+            $total = $total + ((($key == $last) ? 2 : 1) as uint);
+            $last = $key;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

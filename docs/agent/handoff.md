@@ -2,23 +2,25 @@
 
 ## State
 
-Goal `core-json-and-6-more` is under way. Every `Core\Json` member owes nothing. `Core\Jwe::encrypt`
-now has `about.md`, three examples, a hostile case, a bench and the Rust test
-`encrypt_seals_under_the_algorithm_its_key_names_and_draws_a_fresh_iv_per_call`, which calls the
-member itself under `dir`, PBES2 and `ECDH-ES`. `Core\Jwe` and `Core\Jwe\Key` both carry their class
-cards now, so no `Jwe` member owes help. The attack found no new bug. The decoder's debug-build stack
-overflow stays `# Known gaps` 1 in `crates/nvs-stdlib/src/json.rs`, owner M12. `encrypt`'s bench
-has its first recorded figure in `docs/perf/members.ndjson`.
+Goal `core-json-and-6-more` is under way. Every `Core\Json` and `Core\Jwe` member owes nothing, and
+`dossier.py --verify --group 'Core\Jwe'` is green. `Core\Jwe\Key::shared` and `::password` owe
+nothing either: `about.md`, three examples, an attack, a bench with a recorded figure, and the Rust
+tests `shared_builds_a_dir_key_of_exactly_the_key_length_and_never_quotes_a_wrong_one` and
+`password_builds_a_pbes2_key_from_any_text_and_only_that_text_opens_it`. `Core\Jwe::decrypt`'s Rust
+test is `decrypt_tries_the_ring_in_order_and_refuses_a_ring_of_the_wrong_shape_first`. No attack
+found a new bug. The decoder's debug-build stack overflow stays `# Known gaps` 1 in
+`crates/nvs-stdlib/src/json.rs`, owner M12.
 
 ## Next group
 
-**`Core\Jwe::decrypt` and the four `Core\Jwe\Key` statics** — one file set:
-`crates/nvs-stdlib/src/jwe.rs` and the `Core/Jwe` and `Core/Jwe-Key` proof trees.
+**Stage 2: `Core\Jwe\Key`'s agreement statics, then `Core\Jwt`** — one file set:
+`crates/nvs-stdlib/src/jwe.rs`'s test module and the `Core/Jwe-Key` proof trees first, then
+`crates/nvs-stdlib/src/jwt.rs` and the `Core/Jwt` proof trees.
 
-- [ ] **`Core\Jwe::decrypt`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test can reuse the `encrypted` helper in the test module and assert a ring's order and its three `LogicError`s through `nvs_runtime::call`. `crates/nvs-stdlib/src/jwe.rs:957`
-- [ ] **`Core\Jwe\Key::shared` and `::password`** — owe about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:808`
-- [ ] **`Core\Jwe\Key::recipient` and `::own`** — owe about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwe.rs:855`
+- [ ] **`Core\Jwe\Key::recipient` and `::own`** — owe about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The test module's `constructed` helper calls a one-argument constructor and returns its sentence; an Ed25519 key is the `LogicError` from `not_an_agreement_key`. `crates/nvs-stdlib/src/jwe.rs:855`
+- [ ] **`Core\Jwt`'s class card** — the `help` proof of all four `Core\Jwt` members: a `ClassDoc` above the class row, and the class deleted from the list (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/registry.rs:5189`
+- [ ] **`Core\Jwt::sign`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/jwt.rs:1395`
 
 ## Backlog
 
-- `Core\Jwt` members and `Core\Jwt\KeySet::read`, then `Core\Log::write` and `Core\Mail::send`, are the rest of this goal (`docs/agent/loop-goal.md`).
+- `Core\Jwt::signObject`, `::verify`, `::verifyIssued`, then `Core\Jwt\KeySet`, `Core\Log`, `Core\Mail` — the rest of this goal's stage 2, each `dossier.py --gate --group <class>`.

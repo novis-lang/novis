@@ -1,0 +1,16 @@
+<?nvs
+// Shows that only the exact password opens a token. Upper and lower case letters are different.
+
+string $token = Core\Jwe::encrypt("meeting at 10:00", Core\Jwe\Key::password("Blue-River-42"));
+
+// This loop tries three passwords. Only the first one is exact. The last one ends with a space.
+// This prints `Blue-River-42: meeting at 10:00`, then `wrong` two times.
+array<string> $guesses = ["Blue-River-42", "blue-river-42", "Blue-River-42 "];
+foreach ($guesses as string $guess) {
+    try {
+        tainted string $text = Core\Jwe::decrypt($token, [Core\Jwe\Key::password($guess)]);
+        echo $guess, ": ", $text, "\n";
+    } catch (RuntimeError $wrong) {
+        echo $guess, ": wrong", "\n";
+    }
+}
