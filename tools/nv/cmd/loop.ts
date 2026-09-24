@@ -32,14 +32,37 @@
 // passes ends on `GREEN` instead, since it has not asked the whole plan. A check's key is `nv why`'s,
 // taken over the tree as the sweep begins.
 //
-// The driver's turn, which runs a session and then the sweep, is not written yet.
+// `bun nv loop` with none of those modes is one turn of the driver: one session, its acceptance sweep and
+// its ledger lines in `.loop/log.md`, then exit 75, which asks `tools/respawn.py` for the next turn. It
+// takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions` and
+// `--max-stalls` (10). The run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its session
+// count from turn to turn in the shape `loop.py` writes, so a run the Python driver started goes on here
+// with its numbering. A turn refuses a tree whose `.loop/running` names another run. With no
+// `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
+//
+// The session is `driver/launch.ts`'s: the session prompt with `nv orient`'s pack behind it, down
+// `claude -p`'s stdin as stream-json. Each event repaints `driver/status.ts`'s status row when stdout is a
+// terminal. The sweep behind it is the goal's own checks, with the carried floor and the release checks
+// held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in `.loop/accept-floor.json`). A scoped sweep
+// that is green with checks held runs again over the whole plan, collecting every red, since a goal is
+// never reached on a held floor. The run ends on a reached goal, a `BLOCKED` status, `--max-stalls`
+// sessions in a row without a commit, `--max-sessions`, or a CLI that exits non-zero.
+//
+// Not here yet, and each is `loop.py`'s until it is: the chain switch after a reached goal, the usage
+// wall, overload and dropped-stream retries, sweeping an unwrapped session's paths into a wip commit,
+// the hold and the keys, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
+// the checkpoint's optimization pass, and the disk and context sweeps.
 //
 // `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` and
 // `--goal-only` exit 0 when every check they reached is green and 1 when one is not. Each exits 2 on a
-// bad argument or when there is no live goal to read.
+// bad argument or when there is no live goal to read. A turn exits 75 when the run goes on and 0 when it
+// ends.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { head } from "../lib/git.ts";
+import { run as runProc } from "../lib/proc.ts";
+import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, launch, ledger, loadRun, openingLine, runName, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { installedGoal } from "../import/goals.ts";
 import type { Unread } from "../import/lib.ts";
@@ -47,14 +70,14 @@ import { ROOT } from "../lib/paths.ts";
 import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
-import { goalTable, memoResults, Session } from "../driver/status.ts";
-import { type Check, GreenMemo, Sweep, acceptance, tiers } from "../driver/accept.ts";
+import { goalTable, memoResults, Session, statusRow, title, type Results } from "../driver/status.ts";
+import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isFloor, isRelease, tiers } from "../driver/accept.ts";
 import { checkName, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
 
-export const summary = "the live goal's acceptance plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The Python driver's acceptance list, the plan until the cutover deletes it. */
 const LEGACY = "docs/agent/loop-goal.toml";
@@ -66,7 +89,18 @@ const GREEN = ".loop/accept-green.json";
 
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
-const USAGE = "bun nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+const USAGE =
+  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] | --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+
+/** The session prompt every turn's session opens with. */
+const PROMPT = "docs/agent/session-prompt.md";
+/** Turns since the sweep last ran the carried floor and the release checks. */
+const FLOOR_GATE = ".loop/accept-floor.json";
+/**
+ * One sweep in this many runs the carried floor and the release checks. A regression there waits at most
+ * this many sessions to be named, and every sweep between costs the goal's own checks alone.
+ */
+const FLOOR_GATE_EVERY = 10;
 
 interface Filters {
   stage?: string;
@@ -289,6 +323,41 @@ async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string
   return { keys, tree };
 }
 
+/**
+ * One acceptance sweep over `checks`, with the memo read before it and written after it. `onDone` is
+ * called with each check the memo answers green once the sweep ends, which is how a caller learns the
+ * verdicts without a second run.
+ */
+async function sweepOver(
+  goal: Goal,
+  checks: Check[],
+  labelOf: (n: number) => string,
+  keyed: { keys: Map<string, string | null>; tree: Tree },
+  o: { full: boolean; collect: boolean; onDone?: (c: Check, green: boolean) => void },
+): Promise<{ result: AcceptanceResult; secs: number }> {
+  const memo = GreenMemo.load(join(ROOT, GREEN));
+  const key = (c: Check) => keyed.keys.get(c.id) ?? null;
+  const started = Date.now();
+  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  let result: AcceptanceResult;
+  try {
+    result = await acceptance(checks, {
+      label: labelOf,
+      sweep,
+      key,
+      memo,
+      full: o.full,
+      collect: o.collect,
+      trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
+    });
+  } finally {
+    memo.save(join(ROOT, GREEN), new Set((goal.checks as Check[]).map((c) => c.id)));
+    keyed.tree.save();
+  }
+  for (const c of checks) o.onDone?.(c, memo.answers(c, key(c)));
+  return { result, secs: Math.round((Date.now() - started) / 1000) };
+}
+
 /** The acceptance sweep over the checks the filters select, or over the whole plan. */
 async function goalOnly(filters: Filters): Promise<number> {
   const found = selected(filters);
@@ -300,26 +369,8 @@ async function goalOnly(filters: Filters): Promise<number> {
     console.error(`nv loop: ${keyed}`);
     return 2;
   }
-  const memo = GreenMemo.load(join(ROOT, GREEN));
   console.log(`running the acceptance sweep over ${shown.length} ${shown.length === 1 ? "check" : "checks"}${filters.full ? " (full: no memo)" : ""}${filters.collect ? " (collecting every red)" : ""}`);
-  const started = Date.now();
-  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
-  let result;
-  try {
-    result = await acceptance(shown, {
-      label: labelOf,
-      sweep,
-      key: (c) => keyed.keys.get(c.id) ?? null,
-      memo,
-      full: filters.full === true,
-      collect: filters.collect === true,
-      trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
-    });
-  } finally {
-    memo.save(join(ROOT, GREEN), new Set((goal.checks as Check[]).map((c) => c.id)));
-    keyed.tree.save();
-  }
-  const secs = Math.round((Date.now() - started) / 1000);
+  const { result, secs } = await sweepOver(goal, shown, labelOf, keyed, { full: filters.full === true, collect: filters.collect === true });
   console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${shown.length}`);
   if (result.fail !== "") {
     console.log(`NOT GREEN: ${result.fail}`);
@@ -330,9 +381,175 @@ async function goalOnly(filters: Filters): Promise<number> {
   return 0;
 }
 
+interface TurnFlags extends LaunchOptions {
+  maxSessions: number;
+  maxStalls: number;
+}
+
+function parseTurn(args: string[]): TurnFlags | null {
+  const out: TurnFlags = { model: "opus", permissionMode: "bypassPermissions", maxSessions: Infinity, maxStalls: 10 };
+  for (let i = 0; i < args.length; i += 2) {
+    const value = args[i + 1];
+    if (value === undefined) return null;
+    const count = Number(value);
+    if (args[i] === "--model") out.model = value;
+    else if (args[i] === "--effort") out.effort = value;
+    else if (args[i] === "--permission-mode") out.permissionMode = value;
+    else if (args[i] === "--max-sessions" && Number.isInteger(count) && count > 0) out.maxSessions = count;
+    else if (args[i] === "--max-stalls" && Number.isInteger(count) && count > 0) out.maxStalls = count;
+    else return null;
+  }
+  return out;
+}
+
+const MARKER = `${RUNDIR}/running`;
+
+/** The run `.loop/running` names, or "" when no run holds the tree. */
+function holder(): string {
+  try {
+    return /^run:\s*(\S+)/m.exec(readFileSync(join(ROOT, MARKER), "utf8"))?.[1] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Local time as the ledger writes it, `2026-09-24 22:45`. */
+function stamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** The run ends: said once in the ledger, the marker removed. Returns the exit code. */
+function finish(state: RunState, reason: string): number {
+  ledger(`## run ended ${stamp()} -- ${reason}`);
+  if (holder() === state.run) rmSync(join(ROOT, MARKER), { force: true });
+  saveRun(state);
+  console.log(`run done: ${state.served} session(s)`);
+  return 0;
+}
+
+/** Turns since the floor gate last opened; an unreadable file opens it, the safe direction. */
+function floorSince(): number {
+  const since = Number(jsonObject(FLOOR_GATE).since);
+  return Number.isInteger(since) && since >= 0 ? since : FLOOR_GATE_EVERY;
+}
+
+/** One turn of the run; the module doc says what it does and what it does not do yet. */
+async function turn(f: TurnFlags): Promise<number> {
+  const byRespawn = Boolean(process.env[RUN_ENV]);
+  const name = process.env[RUN_ENV] || runName();
+  const held = holder();
+  if (held !== "" && held !== name) {
+    console.error(`nv loop: run \`${held}\` holds this tree (${MARKER}); a second driver would edit it beside that one`);
+    return 2;
+  }
+  const { state, fresh } = loadRun(name);
+  if (fresh) {
+    writeFileSync(join(ROOT, MARKER), `pid:      ${process.pid}\nrun:      ${name}\nstarted:  ${stamp()}\nsessions: ${Number.isFinite(f.maxSessions) ? f.maxSessions : "uncapped"}, model ${f.model}\n`);
+    ledger("");
+    ledger(`## run started ${stamp()} (max ${Number.isFinite(f.maxSessions) ? `${f.maxSessions} sessions` : "uncapped"}${f.effort ? `, effort ${f.effort}` : ""}, logs ${state.run_id}-*)`);
+  }
+  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`);
+  const found = selected({});
+  if (found === null) return 2;
+  const { live, goal, labelOf } = found;
+  const checks = goal.checks as Check[];
+  const plan = { slug: live.slug, stages: goal.stages, checks };
+  const results: Results = new Map();
+  const green = jsonObject(GREEN).green;
+  if (typeof green === "object" && green !== null) for (const id of Object.keys(green)) results.set(id, true);
+
+  state.index++;
+  const index = state.index;
+  const number = String(index).padStart(4, "0");
+  const log = join(ROOT, LOGDIR, `${state.run_id}-${number}.log`);
+  rmSync(join(ROOT, RUNDIR, "status.txt"), { force: true });
+  const base = await head();
+  console.log(`== session ${index}  ${stamp()}`);
+  const oriented = await runProc([process.execPath, join(ROOT, "tools/nv/main.ts"), "orient"], { timeoutMs: 120_000 });
+  const pack = oriented.code === 0 ? oriented.stdout : "";
+  if (!pack) console.log("orientation pack: `nv orient` failed, so the session runs it itself");
+  const prompt = readFileSync(join(ROOT, PROMPT), "utf8");
+
+  const session = new Session(plan, results);
+  session.begin(index);
+  const tty = process.stdout.isTTY === true;
+  const paint = () => {
+    if (!tty) return;
+    const row = statusRow(plan, results, session, process.stdout.columns ?? 100);
+    process.stdout.write(`\r\x1b[2K${row}${title(row)}`);
+  };
+  const exe = Bun.which("claude") ?? "claude";
+  const launched = await launch([exe], f, openingLine(prompt, pack), log, { bytes: Buffer.byteLength(pack), goal: live.slug }, (e) => {
+    session.feed(e);
+    paint();
+  });
+  if (tty) process.stdout.write("\r\x1b[2K");
+  const where = log.slice(ROOT.length + 1).replace(/\\/g, "/");
+  if (launched.code !== 0) {
+    ledger(`- ${number} CLI exit ${launched.code} -- see ${where}`);
+    return finish(state, `claude exited ${launched.code}; retrying a failed session is still loop.py's`);
+  }
+  state.served++;
+  saveRun(state);
+
+  const statusPath = join(ROOT, RUNDIR, "status.txt");
+  const line = existsSync(statusPath) ? readFileSync(statusPath, "utf8").trim() : "";
+  const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
+  const commits = Number(counted.stdout.trim()) || 0;
+  const dirty = (await runProc(["git", "status", "--porcelain"])).stdout.split("\n").filter((l) => l.trim() !== "").length;
+  const left = dirty > 0 ? ` | ${dirty} path(s) left uncommitted` : "";
+  ledger(`- ${number} ${commits} commit(s)${left} | ${line || "(no status written)"}`);
+
+  // The sweep, over the goal's list as the session left it.
+  const again = selected({});
+  if (again === null) return finish(state, "the goal's plan did not read after the session");
+  const all = again.goal.checks as Check[];
+  const keyed = await checkKeys(again.goal, all);
+  if (typeof keyed === "string") return finish(state, keyed);
+  const since = floorSince() + 1;
+  let open = since >= FLOOR_GATE_EVERY;
+  const heldBack = open ? [] : all.filter((c) => isFloor(c, again.labelOf(c.stage)) || isRelease(c));
+  const scoped = all.filter((c) => !heldBack.includes(c));
+  session.phase(`acceptance sweep over ${scoped.length} checks`);
+  paint();
+  const onDone = (c: Check, ok: boolean) => results.set(c.id, ok);
+  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: false, onDone });
+  let cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
+  if (result.fail === "" && heldBack.length > 0) {
+    ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate)`);
+    open = true;
+    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, keyed, { full: false, collect: true, onDone }));
+    cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
+  }
+  writeFileSync(join(ROOT, FLOOR_GATE), `${JSON.stringify({ since: open ? 0 : since })}\n`);
+  if (tty) process.stdout.write("\r\x1b[2K");
+  ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
+  if (result.fail === "") {
+    ledger(`## goal reached: ${live.slug} -- every check in its acceptance list passes`);
+    return finish(state, `goal \`${live.slug}\` reached; switching to the next goal is still loop.py's`);
+  }
+  ledger(`       goal check: ${result.fail}`);
+  if (line.startsWith("BLOCKED")) return finish(state, `blocked on a user decision: ${line}`);
+  state.stalls = commits === 0 ? state.stalls + 1 : 0;
+  if (state.stalls >= f.maxStalls) return finish(state, `${state.stalls} sessions in a row produced no commit`);
+  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`);
+  if (!byRespawn) return finish(state, `one turn: ${RUN_ENV} is not set, so nothing starts a next one`);
+  saveRun(state);
+  return AGAIN;
+}
+
 export async function run(args: string[]): Promise<number> {
   if (args.length === 1 && args[0] === "--goal") return goalView();
   const mode = args[0];
+  if (mode === undefined || !["--list", "--run", "--goal-only"].includes(mode)) {
+    const flags = parseTurn(args);
+    if (flags === null) {
+      console.error(`usage: ${USAGE}`);
+      return 2;
+    }
+    return turn(flags);
+  }
   const filters = mode === "--list" || mode === "--run" || mode === "--goal-only" ? parse(args) : null;
   if (filters === null) {
     console.error(`usage: ${USAGE}`);
