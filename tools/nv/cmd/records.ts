@@ -88,7 +88,7 @@ const CROSS_CITE = /(?<![A-Za-z0-9])(0\d{3})\]?(?:'s)?[\s,]*$/;
 const CROSS_CITE_WINDOW = 40;
 
 /** One record's prose, parsed the way every check reads it. Line numbers are 1-based. */
-interface Prose {
+export interface Prose {
   num: string;
   /** Repo-relative. */
   file: string;
@@ -106,7 +106,7 @@ interface Prose {
   subsections: Set<string>;
 }
 
-function parse(num: string, file: string, text: string): Prose {
+export function parse(num: string, file: string, text: string): Prose {
   const lines = text.split("\n");
   let bodyAfter = 0;
   if (lines[0] === "---") {

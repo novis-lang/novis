@@ -12,6 +12,26 @@
       ["--where", "no-such-topic-anywhere"]
     ]
   },
+  "decisions": {
+    "python": ["python", "tools/decisions.py"],
+    "nv": ["bun", "tools/nv/main.ts", "decisions"],
+    "cases": [
+      [],
+      ["--check"],
+      ["--gate"],
+      ["--work"],
+      ["--work", "--limit", "0"],
+      ["--work", "--group", "internal", "--limit=3"],
+      ["--group", "nowhere"],
+      ["--json"],
+      ["--groups"],
+      ["--apply", "docs/decisions.toml", "--dry-run"],
+      ["--apply", "tools/nv/parity/fixtures/decisions-refused.toml", "--dry-run"],
+      ["--apply", "no/such.toml"],
+      ["--limit", "x"],
+      ["--work", "--bogus"]
+    ]
+  },
   "disk": {
     "python": ["python", "tools/disk.py"],
     "nv": ["bun", "tools/nv/main.ts", "disk"],

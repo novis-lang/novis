@@ -16,6 +16,87 @@ export function pyRepr(s: string): string {
   return q + (q === "'" ? body.replace(/'/g, "\\'") : body) + q;
 }
 
+/** Python's `int` over a command-line word, or null where it would raise. */
+export function pyInt(word: string): number | null {
+  const m = /^\s*([+-]?)(\d+(?:_\d+)*)\s*$/.exec(word);
+  return m ? Number(m[1]! + m[2]!.replaceAll("_", "")) : null;
+}
+
+/** Python's `str.split()` with no argument, joined by one space: every run of whitespace is one. */
+export function squash(s: string): string {
+  return s.split(/\s+/).filter(Boolean).join(" ");
+}
+
+// Python's `textwrap`, for the options the ported tools use. A chunk is a run of whitespace or a word,
+// and with `breakOnHyphens` a word also splits after a hyphen between two letters.
+const WS = "[\\t\\n\\x0b\\x0c\\r ]";
+const WORD_PUNCT = "[\\p{L}\\p{N}_!\"'&.,?]";
+const LETTER = "[\\p{L}\\p{Nl}\\p{No}_]";
+const WORDSEP = new RegExp(
+  `(${WS}+` +
+    `|(?<=${WORD_PUNCT})-{2,}(?=[\\p{L}\\p{N}_])` +
+    `|[^\\t\\n\\x0b\\x0c\\r ]+?(?:-(?:(?<=${LETTER}{2}-)|(?<=${LETTER}-${LETTER}-))(?=${LETTER}-?${LETTER})` +
+    `|(?=${WS}|$)|(?<=${WORD_PUNCT})(?=-{2,}[\\p{L}\\p{N}_])))`,
+  "u",
+);
+const WORDSEP_SIMPLE = new RegExp(`(${WS}+)`);
+
+export interface WrapOptions {
+  breakLongWords?: boolean;
+  breakOnHyphens?: boolean;
+}
+
+const pyLen = (s: string) => [...s].length;
+
+/** Python's `textwrap.wrap(text, width, ...)`: the lines, each at most `width` long where it can be. */
+export function wrap(text: string, width: number, opts: WrapOptions = {}): string[] {
+  const breakLong = opts.breakLongWords ?? true;
+  const onHyphens = opts.breakOnHyphens ?? true;
+  let munged = "";
+  for (const ch of text) {
+    if (ch === "\t") munged += " ".repeat(8 - (pyLen(munged.slice(munged.lastIndexOf("\n") + 1)) % 8));
+    else munged += ch;
+  }
+  munged = munged.replace(/[\t\n\x0b\x0c\r]/g, " ");
+  const chunks = munged.split(onHyphens ? WORDSEP : WORDSEP_SIMPLE).filter((c) => c);
+  chunks.reverse();
+  const lines: string[] = [];
+  while (chunks.length > 0) {
+    const cur: string[] = [];
+    let curLen = 0;
+    if (chunks[chunks.length - 1]!.trim() === "" && lines.length > 0) chunks.pop();
+    while (chunks.length > 0) {
+      const l = pyLen(chunks[chunks.length - 1]!);
+      if (curLen + l > width) break;
+      cur.push(chunks.pop()!);
+      curLen += l;
+    }
+    if (chunks.length > 0 && pyLen(chunks[chunks.length - 1]!) > width) {
+      const spaceLeft = width < 1 ? 1 : width - curLen;
+      if (breakLong) {
+        const chunk = [...chunks[chunks.length - 1]!];
+        let end = spaceLeft;
+        if (onHyphens && chunk.length > spaceLeft) {
+          const hyphen = chunk.slice(0, spaceLeft).lastIndexOf("-");
+          if (hyphen > 0 && chunk.slice(0, hyphen).some((c) => c !== "-")) end = hyphen + 1;
+        }
+        cur.push(chunk.slice(0, end).join(""));
+        chunks[chunks.length - 1] = chunk.slice(end).join("");
+      } else if (cur.length === 0) {
+        cur.push(chunks.pop()!);
+      }
+    }
+    if (cur.length > 0 && cur[cur.length - 1]!.trim() === "") cur.pop();
+    if (cur.length > 0) lines.push(cur.join(""));
+  }
+  return lines;
+}
+
+/** Python's `textwrap.fill`: `wrap`'s lines joined by newlines. */
+export function fill(text: string, width: number, opts: WrapOptions = {}): string {
+  return wrap(text, width, opts).join("\n");
+}
+
 /**
  * Python's `sorted()` over `pathlib` paths on Windows, for repo-relative forward-slash paths: a path
  * compares component by component, each one lower-cased.

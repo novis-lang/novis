@@ -34,6 +34,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
+import { pyInt } from "../lib/py.ts";
 
 export const summary = "what the tree costs on disk, and the sweep: nv disk [--clean [-n]] [--deep]";
 
@@ -514,12 +515,6 @@ class ArgError extends Error {}
 /** `'x'`, the way Python's `repr` prints a string with no quote in it. */
 function repr(s: string): string {
   return s.includes("'") && !s.includes('"') ? `"${s}"` : `'${s}'`;
-}
-
-/** Python's `int` over a command-line word, or null where it would raise. */
-function pyInt(word: string): number | null {
-  const m = /^\s*([+-]?)(\d+(?:_\d+)*)\s*$/.exec(word);
-  return m ? Number(m[1]! + m[2]!.replaceAll("_", "")) : null;
 }
 
 /** Python's `float` over a command-line word, or null where it would raise. */
