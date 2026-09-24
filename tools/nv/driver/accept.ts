@@ -15,11 +15,23 @@
 // package and writes a second copy of every workspace crate, which AGENTS.md rule 5 forbids. A check that
 // measures the release CLI gets `cargo build --release -p nvs-cli` first, since nothing else builds it.
 //
-// Not here yet, and each is the Python driver's until it is: the memo that answers a check green without
-// running it, reusing `nv verify`'s green test records, one batched `nv proofs --verify` over every proofs
-// check, the tiers and their order, the WSL leg and the valgrind sweep.
+// `acceptance` is the whole sweep: `tiers` puts every check in the order the sweep runs it, a check the
+// memo answers is not run, and the sweep stops at its first red unless it collects. The tiers, in order:
+// stage 0's catch-up, the `setup` commands, the floor's fixtures, the cargo and command checks by stage,
+// the goal's own fixtures, the `overlap` commands and the checks that build or measure the release
+// profile. A fixture tier runs to its end and reports its reds as one line, earliest stage first. An
+// `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
+//
+// `GreenMemo` remembers a green check under its id and the key `nv why` prints for it, which is every
+// input the check reads. The memo answers a check green only while that key is unchanged. A check with
+// `memoize = false` reads something outside the tree, so the memo never answers it. A suite below its
+// `minPassing` is not remembered, since the next sweep must report it again.
+//
+// Not here yet, and each is the Python driver's until it is: reusing `nv verify`'s green test records,
+// one batched `nv proofs --verify` over every proofs check, the floor gate, the WSL leg and the valgrind
+// sweep.
 
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
@@ -375,4 +387,174 @@ export class Sweep {
     }
     return judgeTests(c, r, label, (rel) => existsSync(join(ROOT, rel)));
   }
+}
+
+// ---- the whole sweep -------------------------------------------------------------------------------
+
+/** One tier of the sweep: its checks in run order, and whether they are fixtures, reported as one line. */
+export interface Tier {
+  name: string;
+  checks: Check[];
+  programs: boolean;
+}
+
+/** A check carried in as the floor: stage 0's catch-up, or a stage whose label says `floor`. */
+export function isFloor(c: Check, label: string): boolean {
+  return c.stage === 0 || label.toLowerCase().includes("floor");
+}
+
+/** Whether `c` builds or measures the release profile, which the sweep runs last whatever its stage. */
+export function isRelease(c: Check): boolean {
+  return (c.args ?? []).includes("--release") || measuresReleaseCli(c);
+}
+
+/** Every check in the tiers the sweep runs, each tier by stage and in the plan's order within one. */
+export function tiers(checks: Check[], label: (n: number) => string): Tier[] {
+  const byStage = (list: Check[]) => list.map((c, i) => ({ c, i })).sort((a, b) => a.c.stage - b.c.stage || a.i - b.i).map((x) => x.c);
+  const programs = byStage(checks.filter((c) => PROGRAM_KINDS.has(c.kind)));
+  const rest = checks.filter((c) => !PROGRAM_KINDS.has(c.kind));
+  const plain = rest.filter((c) => !c.setup && !c.overlap);
+  return [
+    { name: "catch-up", checks: plain.filter((c) => c.stage === 0 && !isRelease(c)), programs: false },
+    { name: "setup", checks: rest.filter((c) => c.setup), programs: false },
+    { name: "floor fixtures", checks: programs.filter((c) => isFloor(c, label(c.stage))), programs: true },
+    { name: "cargo and command checks", checks: byStage(plain.filter((c) => c.stage !== 0 && !isRelease(c))), programs: false },
+    { name: "goal fixtures", checks: programs.filter((c) => !isFloor(c, label(c.stage))), programs: true },
+    { name: "overlap", checks: rest.filter((c) => !c.setup && c.overlap), programs: false },
+    { name: "release", checks: plain.filter(isRelease), programs: false },
+  ];
+}
+
+/** A fixture tier's reds as one line: the earliest in full, then up to six more by name. */
+export function programFailLine(fails: { c: Check; fail: string }[], label: (n: number) => string): string {
+  const first = fails[0]!.fail;
+  if (fails.length === 1) return first;
+  const others: string[] = [];
+  for (const { c } of fails.slice(1)) {
+    const name = `${c.file ?? c.name ?? "?"} [${label(c.stage)}]`;
+    if (!others.includes(name)) others.push(name);
+  }
+  const more = others.length > 6 ? `, +${others.length - 6} more` : "";
+  return `${first}\n       (and ${fails.length - 1} later fixture(s) red, in stage order: ${others.slice(0, 6).join(", ")}${more})`;
+}
+
+/** A collecting sweep's verdict: its first red whole, then each other one's first line as `also red:`. */
+export function allReds(reds: string[]): string {
+  return [reds[0]!, ...reds.slice(1).map((r) => `       also red: ${r.split("\n")[0]!.trim()}`)].join("\n");
+}
+
+/** A build that fails stops every sweep, collecting or not, since nothing behind it can run. */
+const BUILD_FAILED = /^the (native|workspace test) build failed/;
+
+/** The sweep's memo: each green check's id, and the key of what it read when it was green. */
+export class GreenMemo {
+  private dirty = false;
+
+  constructor(private readonly green: Record<string, string> = {}) {}
+
+  /** The memo at `path`, or an empty one when the file is absent or unreadable. */
+  static load(path: string): GreenMemo {
+    try {
+      const got = JSON.parse(readFileSync(path, "utf8"))?.green;
+      if (got && typeof got === "object" && !Array.isArray(got)) {
+        return new GreenMemo(Object.fromEntries(Object.entries(got).filter((e): e is [string, string] => typeof e[1] === "string")));
+      }
+    } catch {
+      // No memo yet: every check runs.
+    }
+    return new GreenMemo();
+  }
+
+  /** Whether `c` was green over exactly the inputs `key` names. */
+  answers(c: Check, key: string | null): boolean {
+    return c.memoize !== false && key !== null && this.green[c.id] === key;
+  }
+
+  remember(c: Check, key: string | null): void {
+    if (c.memoize === false || key === null || this.green[c.id] === key) return;
+    this.green[c.id] = key;
+    this.dirty = true;
+  }
+
+  /** Writes the memo, keeping only the checks in `ids`: a check struck from the plan leaves nothing behind. */
+  save(path: string, ids: Set<string>): void {
+    const kept = Object.fromEntries(Object.entries(this.green).filter(([id]) => ids.has(id)));
+    if (!this.dirty && Object.keys(kept).length === Object.keys(this.green).length) return;
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify({ green: kept }, null, 1)}\n`);
+    this.dirty = false;
+  }
+}
+
+export interface AcceptanceOptions {
+  label: (n: number) => string;
+  /** What runs and judges one check: a `Sweep`, or a stand-in under test. */
+  sweep: { check(c: Check): Promise<Verdict> };
+  /** A check's key over the tree as the sweep began, or null when it has none. */
+  key: (c: Check) => string | null;
+  memo: GreenMemo;
+  /** Consult no memo, and run every check. */
+  full: boolean;
+  /** Run past a red check and report every red one. */
+  collect: boolean;
+  /** Called with each check before it runs, and with each the memo answers. */
+  trace?: (c: Check, answered: boolean) => void;
+}
+
+/** What a sweep found: `fail` is "" only when every check it reached is green and none is short. */
+export interface AcceptanceResult {
+  fail: string;
+  ran: number;
+  answered: number;
+}
+
+/** Runs `checks` as one sweep, in `tiers`' order. */
+export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise<AcceptanceResult> {
+  const reds: string[] = [];
+  const shorts: string[] = [];
+  let ran = 0;
+  let answered = 0;
+  const pending = new Map<string, Promise<Verdict>>();
+  const answer = (c: Check) => {
+    if (o.full || !o.memo.answers(c, o.key(c))) return false;
+    answered++;
+    o.trace?.(c, true);
+    return true;
+  };
+  const done = (fail: string): AcceptanceResult => ({ fail, ran, answered });
+
+  for (const tier of tiers(checks, o.label)) {
+    const fails: { c: Check; fail: string }[] = [];
+    for (const c of tier.checks) {
+      if (answer(c)) continue;
+      if (!pending.has(c.id)) o.trace?.(c, false);
+      const v = await (pending.get(c.id) ?? o.sweep.check(c));
+      ran++;
+      if (v.fail === "") {
+        if (v.short !== "") shorts.push(v.short);
+        else o.memo.remember(c, o.key(c));
+        continue;
+      }
+      if (BUILD_FAILED.test(v.fail)) return done(reds.length === 0 ? v.fail : allReds([...reds, v.fail]));
+      if (tier.programs) fails.push({ c, fail: v.fail });
+      else if (o.collect) reds.push(v.fail);
+      else return done(v.fail);
+    }
+    if (fails.length > 0) {
+      const line = programFailLine(fails, o.label);
+      if (!o.collect) return done(line);
+      reds.push(line);
+    }
+    // The overlap commands run beside every tier from here to their own.
+    if (tier.name === "setup") {
+      for (const c of checks.filter((c) => !PROGRAM_KINDS.has(c.kind) && !c.setup && c.overlap)) {
+        if (o.full || !o.memo.answers(c, o.key(c))) {
+          o.trace?.(c, false);
+          pending.set(c.id, o.sweep.check(c));
+        }
+      }
+    }
+  }
+  if (reds.length > 0) return done(allReds(reds));
+  return done(shorts[0] ?? "");
 }

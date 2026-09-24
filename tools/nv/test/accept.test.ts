@@ -1,5 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, firstErrLine, judgeCommand, judgeProgram, judgeTests, measuresReleaseCli, orderedIn, plainCrateTest, stdoutLines, testExecutables } from "../driver/accept.ts";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { ROOT } from "../lib/paths.ts";
+import {
+  type Check,
+  type Verdict,
+  GreenMemo,
+  acceptance,
+  allReds,
+  firstErrLine,
+  judgeCommand,
+  judgeProgram,
+  judgeTests,
+  measuresReleaseCli,
+  orderedIn,
+  plainCrateTest,
+  programFailLine,
+  stdoutLines,
+  testExecutables,
+  tiers,
+} from "../driver/accept.ts";
 
 const check = (over: Partial<Check>): Check => ({ id: "c", kind: "command", stage: 1, ...over });
 const ok = (out = "", err = "") => ({ code: 0, out, err });
@@ -98,6 +118,100 @@ describe("judgeTests", () => {
     const c = check({ kind: "cargo-named", tests: ["meta::cards", "meta::names"] });
     expect(judgeTests(c, ok("test meta::cards ... ok\ntest meta::names ... ok"), "L", disk).fail).toBe("");
     expect(judgeTests(c, ok("test meta::cards ... ok"), "L", disk).fail).toBe('L: test "meta::names" did not run');
+  });
+});
+
+describe("the whole sweep", () => {
+  const label = (n: number) => (n === 1 ? "1 floor" : `${n} stage`);
+  const plan: Check[] = [
+    check({ id: "rel", stage: 2, argv: ["bun", "nv", "bench", "--guard"] }),
+    check({ id: "goal-fix", kind: "exact", stage: 3, file: "g.nvs", want: [] }),
+    check({ id: "cmd3", stage: 3, argv: ["a"] }),
+    check({ id: "cmd2", stage: 2, argv: ["b"] }),
+    check({ id: "over", stage: 1, argv: ["c"], overlap: true }),
+    check({ id: "floor-fix", kind: "exact", stage: 1, file: "f.nvs", want: [] }),
+    check({ id: "setup", stage: 1, argv: ["d"], setup: true }),
+    check({ id: "catch", stage: 0, kind: "cargo-named", args: ["test"] }),
+  ];
+
+  test("tiers run catch-up, setup, floor fixtures, the rest by stage, goal fixtures, overlap, release", () => {
+    const got = tiers(plan, label).map((t) => [t.name, t.checks.map((c) => c.id)]);
+    expect(got).toEqual([
+      ["catch-up", ["catch"]],
+      ["setup", ["setup"]],
+      ["floor fixtures", ["floor-fix"]],
+      ["cargo and command checks", ["cmd2", "cmd3"]],
+      ["goal fixtures", ["goal-fix"]],
+      ["overlap", ["over"]],
+      ["release", ["rel"]],
+    ]);
+  });
+
+  test("a fixture tier's reds are one line, and a collecting sweep's are also-red lines", () => {
+    const fails = ["a", "b", "b"].map((f, i) => ({ c: check({ kind: "exact", stage: i + 1, file: `${f}.nvs` }), fail: `native ${f}.nvs: exit 1\nmore` }));
+    expect(programFailLine(fails.slice(0, 1), label)).toBe("native a.nvs: exit 1\nmore");
+    expect(programFailLine(fails, label)).toBe("native a.nvs: exit 1\nmore\n       (and 2 later fixture(s) red, in stage order: b.nvs [2 stage], b.nvs [3 stage])");
+    expect(allReds(["one\ntail", " two\ntail"])).toBe("one\ntail\n       also red: two");
+  });
+
+  /** A sweep that fails the ids in `red` and records the order it ran them in. */
+  const fake = (red: string[], short: string[] = []) => {
+    const ran: string[] = [];
+    return {
+      ran,
+      check: async (c: Check): Promise<Verdict> => {
+        ran.push(c.id);
+        return { fail: red.includes(c.id) ? `${c.id} red` : "", short: short.includes(c.id) ? `${c.id} short` : "" };
+      },
+    };
+  };
+  const opts = (sweep: ReturnType<typeof fake>, memo = new GreenMemo(), more: Partial<Parameters<typeof acceptance>[1]> = {}) => ({ label, sweep, key: (c: Check) => `k-${c.id}`, memo, full: false, collect: false, ...more });
+
+  test("it stops at the first red, after starting the overlap command behind the setup tier", async () => {
+    const s = fake(["cmd2"]);
+    const r = await acceptance(plan, opts(s));
+    expect(r.fail).toBe("cmd2 red");
+    expect(s.ran).toEqual(["catch", "setup", "over", "floor-fix", "cmd2"]);
+  });
+
+  test("a collecting sweep runs past each red and names every one", async () => {
+    const s = fake(["cmd2", "goal-fix", "rel"]);
+    const r = await acceptance(plan, opts(s, new GreenMemo(), { collect: true }));
+    expect(r.fail).toBe("cmd2 red\n       also red: goal-fix red\n       also red: rel red");
+    expect(r.ran).toBe(plan.length);
+  });
+
+  test("the memo answers a check green over the same key, and --full asks it nothing", async () => {
+    const memo = new GreenMemo();
+    expect((await acceptance(plan, opts(fake([]), memo))).fail).toBe("");
+    const again = fake([]);
+    expect(await acceptance(plan, opts(again, memo))).toEqual({ fail: "", ran: 0, answered: plan.length });
+    const moved = fake([]);
+    await acceptance(plan, opts(moved, memo, { key: (c: Check) => (c.id === "cmd3" ? "new" : `k-${c.id}`) }));
+    expect(moved.ran).toEqual(["cmd3"]);
+    const full = fake([]);
+    await acceptance(plan, opts(full, memo, { full: true }));
+    expect(full.ran.length).toBe(plan.length);
+  });
+
+  test("a short suite, a memoize = false check and a keyless one are never remembered", async () => {
+    const memo = new GreenMemo();
+    const odd = [check({ id: "short", kind: "nvs-suite" }), check({ id: "live", memoize: false }), check({ id: "keyless" })];
+    const r = await acceptance(odd, opts(fake([], ["short"]), memo, { key: (c: Check) => (c.id === "keyless" ? null : "k") }));
+    expect(r.fail).toBe("short short");
+    const again = fake([]);
+    await acceptance(odd, opts(again, memo, { key: (c: Check) => (c.id === "keyless" ? null : "k") }));
+    expect(again.ran).toEqual(["short", "live", "keyless"]);
+  });
+
+  test("the memo keeps only the checks still in the plan", () => {
+    const dir = mkdtempSync(join(ROOT, ".agent-tmp", "memo-"));
+    const memo = new GreenMemo({ gone: "k" });
+    memo.remember(check({ id: "kept" }), "k2");
+    memo.save(join(dir, "green.json"), new Set(["kept"]));
+    expect(JSON.parse(readFileSync(join(dir, "green.json"), "utf8"))).toEqual({ green: { kept: "k2" } });
+    expect(GreenMemo.load(join(dir, "green.json")).answers(check({ id: "kept" }), "k2")).toBe(true);
+    expect(GreenMemo.load(join(dir, "absent.json")).answers(check({ id: "kept" }), "k2")).toBe(false);
   });
 });
 

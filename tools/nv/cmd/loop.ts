@@ -24,11 +24,19 @@
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
 // command at a time, rather than by starting a sweep.
 //
+// `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance`: every check in
+// the tiers' order, the memo `.loop/accept-green.json` answering each check still green over its inputs,
+// and a stop at the first red. It ends on `NOT GREEN: <the red check's line>` or `GOAL REACHED`. `--full`
+// consults no memo, and `--collect` runs past every red and names each one after the first on an
+// `also red:` line. The three filters narrow it to the checks they select, and a narrowed sweep that
+// passes ends on `GREEN` instead, since it has not asked the whole plan. A check's key is `nv why`'s,
+// taken over the tree as the sweep begins.
+//
 // The driver's turn, which runs a session and then the sweep, is not written yet.
 //
-// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` exits 0
-// when every check it ran is green and 1 when one is not. Each exits 2 on a bad argument or when there
-// is no live goal to read.
+// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` and
+// `--goal-only` exit 0 when every check they reached is green and 1 when one is not. Each exits 2 on a
+// bad argument or when there is no live goal to read.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -40,30 +48,43 @@ import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, memoResults, Session } from "../driver/status.ts";
-import { type Check, PROGRAM_KINDS, Sweep } from "../driver/accept.ts";
+import { type Check, GreenMemo, Sweep, acceptance, tiers } from "../driver/accept.ts";
+import { checkName, loadRecords, units } from "../keys/checks.ts";
+import { metadata } from "../keys/graph.ts";
+import { keyOf } from "../keys/key.ts";
+import { Tree } from "../keys/tree.ts";
 
-export const summary = "the live goal's acceptance plan: nv loop --list|--run [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+export const summary = "the live goal's acceptance plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The Python driver's acceptance list, the plan until the cutover deletes it. */
 const LEGACY = "docs/agent/loop-goal.toml";
 /** The Python driver's memo of green verdicts, and what one of its turns leaves for the next. */
 const MEMO = ".loop/goal-green.json";
 const RUN = ".loop/run.json";
+/** This driver's memo of green verdicts, which `--goal-only` reads and writes. */
+const GREEN = ".loop/accept-green.json";
 
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
-const USAGE = "bun nv loop --list|--run [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+const USAGE = "bun nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 interface Filters {
   stage?: string;
   name?: string;
   feature?: string;
+  full?: boolean;
+  collect?: boolean;
 }
 
 function parse(args: string[]): Filters | null {
   const out: Filters = {};
   for (let i = 1; i < args.length; i += 2) {
     const flag = args[i]!;
+    if (args[0] === "--goal-only" && (flag === "--full" || flag === "--collect")) {
+      out[flag === "--full" ? "full" : "collect"] = true;
+      i--;
+      continue;
+    }
     const value = args[i + 1];
     if (value === undefined) return null;
     if (flag === "--stage") out.stage = value;
@@ -216,11 +237,7 @@ function list(filters: Filters): number {
   return 0;
 }
 
-/**
- * Runs the checks the filters select, once each, and prints one verdict a line. The order is the
- * sweep's tiers in outline: a `setup` command, then the fixtures, then everything else, each tier in
- * the plan's order.
- */
+/** Runs the checks the filters select, once each and in the sweep's tiers, and prints one verdict a line. */
 async function runChecks(filters: Filters): Promise<number> {
   if (filters.stage === undefined && filters.name === undefined && filters.feature === undefined) {
     console.error("nv loop: --run needs --stage, --name or --feature; the whole plan is the acceptance sweep's to run");
@@ -229,8 +246,7 @@ async function runChecks(filters: Filters): Promise<number> {
   const found = selected(filters);
   if (found === null) return 2;
   const { shown, labelOf } = found;
-  const tier = (c: Check) => (c.setup ? 0 : PROGRAM_KINDS.has(c.kind) ? 1 : 2);
-  const order = shown.map((c, i) => ({ c, i })).sort((a, b) => tier(a.c) - tier(b.c) || a.i - b.i).map((x) => x.c);
+  const order = tiers(shown, labelOf).flatMap((t) => t.checks);
   const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
   let red = 0;
   for (const c of order) {
@@ -244,13 +260,84 @@ async function runChecks(filters: Filters): Promise<number> {
   return red === 0 ? 0 : 1;
 }
 
+/**
+ * Each selected check's key over `tree`, by check id. The keys are `nv why`'s units, read from the same
+ * plan, so a unit is paired with the goal's check at the same position. A plan the two read differently
+ * keys nothing, and every check runs.
+ */
+async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string, string | null>; tree: Tree } | string> {
+  const graph = await metadata();
+  if (!graph) return "`cargo metadata` failed, and every key needs the graph";
+  const tree = await Tree.read();
+  const records = loadRecords(graph);
+  const all = goal.checks as Check[];
+  const keys = new Map<string, string | null>();
+  if (records.checks.length !== all.length || records.checks.some((raw, i) => checkName(raw) !== checkName(all[i]! as unknown as typeof raw))) {
+    console.error("nv loop: the keys read the plan differently from the goal record, so the memo answers nothing this sweep");
+    return { keys, tree };
+  }
+  const unitOf = new Map(units(records).flatMap((u) => (u.check === undefined ? [] : [[u.check, u] as const])));
+  const at = new Map(all.map((c, i) => [c.id, records.checks[i]!]));
+  for (const c of shown) {
+    const u = unitOf.get(at.get(c.id)!);
+    try {
+      keys.set(c.id, u === undefined ? null : keyOf(u.name, u.parts(tree)));
+    } catch {
+      keys.set(c.id, null);
+    }
+  }
+  return { keys, tree };
+}
+
+/** The acceptance sweep over the checks the filters select, or over the whole plan. */
+async function goalOnly(filters: Filters): Promise<number> {
+  const found = selected(filters);
+  if (found === null) return 2;
+  const { goal, shown, labelOf } = found;
+  const narrowed = filters.stage !== undefined || filters.name !== undefined || filters.feature !== undefined;
+  const keyed = await checkKeys(goal, shown);
+  if (typeof keyed === "string") {
+    console.error(`nv loop: ${keyed}`);
+    return 2;
+  }
+  const memo = GreenMemo.load(join(ROOT, GREEN));
+  console.log(`running the acceptance sweep over ${shown.length} ${shown.length === 1 ? "check" : "checks"}${filters.full ? " (full: no memo)" : ""}${filters.collect ? " (collecting every red)" : ""}`);
+  const started = Date.now();
+  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  let result;
+  try {
+    result = await acceptance(shown, {
+      label: labelOf,
+      sweep,
+      key: (c) => keyed.keys.get(c.id) ?? null,
+      memo,
+      full: filters.full === true,
+      collect: filters.collect === true,
+      trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
+    });
+  } finally {
+    memo.save(join(ROOT, GREEN), new Set((goal.checks as Check[]).map((c) => c.id)));
+    keyed.tree.save();
+  }
+  const secs = Math.round((Date.now() - started) / 1000);
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${shown.length}`);
+  if (result.fail !== "") {
+    console.log(`NOT GREEN: ${result.fail}`);
+    return 1;
+  }
+  if (narrowed) console.log("GREEN: every check the filters select passes");
+  else console.log("GOAL REACHED: every acceptance check passes; the wsl leg and the valgrind sweep are still the Python driver's to run");
+  return 0;
+}
+
 export async function run(args: string[]): Promise<number> {
   if (args.length === 1 && args[0] === "--goal") return goalView();
   const mode = args[0];
-  const filters = mode === "--list" || mode === "--run" ? parse(args) : null;
+  const filters = mode === "--list" || mode === "--run" || mode === "--goal-only" ? parse(args) : null;
   if (filters === null) {
     console.error(`usage: ${USAGE}`);
     return 2;
   }
+  if (mode === "--goal-only") return goalOnly(filters);
   return mode === "--run" ? runChecks(filters) : list(filters);
 }
