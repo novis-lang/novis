@@ -3169,4 +3169,245 @@ mod tests {
             "a lifetime under one second signs a token already past its `exp`"
         );
     }
+
+    /// One call of `signObject` as compiled code makes it, under `pair` and no
+    /// options, answering the token or the refusal. The caller keeps `pair`.
+    ///
+    /// Rust cannot build a shape or a deriving instance, so `claims` is a
+    /// text-keyed array in their place: the encoder writes one as the same JSON
+    /// object, and the member reads nothing of `$claims` but the encoder's text.
+    fn signed_object(
+        ctx: &mut nvs_runtime::Ctx,
+        claims: &[(&str, &str)],
+        lifetime_nanos: i64,
+        pair: Value,
+    ) -> Result<String, i32> {
+        let mut bag = NvsArray::new();
+        for (name, value) in claims {
+            bag.set(
+                NvsStr::new(name.as_bytes()),
+                Value::str(NvsStr::new(value.as_bytes())),
+            );
+        }
+        let owned = [Value::array(bag), crate::time::duration_of(lifetime_nanos)];
+        let args = [
+            owned[0],
+            owned[1],
+            pair,
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        let answer = nvs_runtime::call(nvs_core_jwt_sign_object, ctx, &args);
+        let token = answer.map(|token| {
+            let text = String::from_utf8(
+                token
+                    .as_str_bytes()
+                    .expect("signObject answers a string")
+                    .to_vec(),
+            )
+            .expect("a compact token is ASCII");
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                token.release();
+            }
+            text
+        });
+        for arg in owned {
+            #[expect(
+                unsafe_code,
+                reason = "the callee borrows its args, so this frame owns the two it built"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        token
+    }
+
+    /// The member as a program calls it: the payload is the encoder's object
+    /// with the clock's `iat` and `lifetime` later's `exp` after it, the header
+    /// names the pair's one algorithm, and the signature verifies under the
+    /// pair's public half. A claims object naming `iat` and an `X25519` pair,
+    /// which signs nothing, are each refused.
+    // covers: Core\Jwt::signObject
+    #[test]
+    fn sign_object_writes_the_encoders_object_then_the_clock_and_signs_under_the_pairs_algorithm() {
+        const NOW: i64 = 1_700_000_000;
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(NOW) * 1_000_000_000);
+        let pair = nvs_runtime::call(
+            crypto::nvs_core_crypto_generate_key_pair,
+            &mut ctx,
+            &[Value::int(KeyKind::Ed25519.tag())],
+        )
+        .expect("an Ed25519 pair is generated");
+
+        let token = signed_object(
+            &mut ctx,
+            &[("sub", "ada"), ("scope", "read")],
+            15 * 60 * 1_000_000_000,
+            pair,
+        )
+        .expect("a claims object, a positive lifetime and an Ed25519 pair sign");
+        let parts: Vec<&str> = token.split('.').collect();
+        assert_eq!(parts.len(), 3, "{token}");
+        let header = URL_SAFE_NO_PAD.decode(parts[0]).expect("url-safe base64");
+        assert_eq!(header, br#"{"alg":"EdDSA","typ":"JWT"}"#);
+        let payload = URL_SAFE_NO_PAD.decode(parts[1]).expect("url-safe base64");
+        assert_eq!(
+            String::from_utf8(payload).expect("the payload is UTF-8"),
+            format!(
+                r#"{{"sub":"ada","scope":"read","iat":{NOW},"exp":{}}}"#,
+                NOW + 15 * 60
+            )
+        );
+
+        let (private, alg) = pair_at(&[pair], 0, "signObject").expect("the pair reads back");
+        assert_eq!(alg, "EdDSA");
+        let public = private
+            .public()
+            .expect("an Ed25519 pair derives its public half");
+        let verifying = public
+            .verifying()
+            .expect("an Ed25519 public half checks a signature");
+        let input = &token[..parts[0].len() + 1 + parts[1].len()];
+        let signature = URL_SAFE_NO_PAD.decode(parts[2]).expect("url-safe base64");
+        assert!(
+            crypto::verify_signature(&verifying, input.as_bytes(), &signature).is_some(),
+            "the signature verifies under the pair that wrote it"
+        );
+
+        assert!(
+            signed_object(&mut ctx, &[("iat", "0")], 60 * 1_000_000_000, pair).is_err(),
+            "`iat` is the member's own claim"
+        );
+        let agrees_only = nvs_runtime::call(
+            crypto::nvs_core_crypto_generate_key_pair,
+            &mut ctx,
+            &[Value::int(KeyKind::X25519.tag())],
+        )
+        .expect("an X25519 pair is generated");
+        assert!(
+            signed_object(&mut ctx, &[("sub", "ada")], 60 * 1_000_000_000, agrees_only).is_err(),
+            "an X25519 pair signs nothing"
+        );
+        #[expect(unsafe_code, reason = "this frame holds both pairs' only references")]
+        unsafe {
+            pair.release();
+            agrees_only.release();
+        }
+    }
+
+    /// One call of `verify` as compiled code makes it, answering how many
+    /// claims came back and the text of each one `names` asks for, or the
+    /// sentence it threw.
+    fn verified(
+        ctx: &mut nvs_runtime::Ctx,
+        token: &str,
+        key: &[u8],
+        names: &[&str],
+    ) -> Result<(usize, Vec<Option<String>>), String> {
+        let args = [
+            Value::str(NvsStr::new(token.as_bytes())),
+            Value::bytes(NvsStr::new(key)),
+        ];
+        let answer = nvs_runtime::call(nvs_core_jwt_verify, ctx, &args);
+        let read = match answer {
+            Ok(claims) => {
+                let read = {
+                    let held =
+                        crate::arr::borrowed(claims.array_ptr().expect("verify answers an array"));
+                    let texts = names
+                        .iter()
+                        .map(|name| {
+                            held.get(name.as_bytes())
+                                .and_then(|value| value.as_text().map(str::to_owned))
+                        })
+                        .collect();
+                    (held.count(), texts)
+                };
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    claims.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(|said| said.into_owned())
+                .unwrap_or_default()),
+        };
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "the callee borrows its args, so this frame owns them"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        read
+    }
+
+    /// The member as a program calls it: a token its key signed comes back as
+    /// every claim in text, `iat` and `exp` included. A wrong key, an altered
+    /// payload and a header naming `none` all throw one sentence, so a forger
+    /// learns nothing about which part failed. Expiry has its own sentence,
+    /// and a key under 32 bytes is refused before the token is read.
+    // covers: Core\Jwt::verify
+    #[test]
+    fn verify_answers_every_claim_for_its_key_and_one_sentence_for_every_forgery() {
+        const NOW: i64 = 1_700_000_000;
+        let key = [7_u8; 32];
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(NOW) * 1_000_000_000);
+        let token = signed(&mut ctx, &[("sub", "ada")], 15 * 60 * 1_000_000_000, &key)
+            .expect("a text bag, a positive lifetime and a 32-byte key sign");
+
+        let (count, texts) = verified(&mut ctx, &token, &key, &["sub", "iat", "exp"])
+            .expect("the key that signed the token verifies it before `exp`");
+        assert_eq!(count, 3, "the caller's claim and the two the member wrote");
+        assert_eq!(
+            texts,
+            [
+                Some("ada".to_owned()),
+                Some(NOW.to_string()),
+                Some((NOW + 15 * 60).to_string())
+            ]
+        );
+
+        let wrong_key = verified(&mut ctx, &token, &[8_u8; 32], &[])
+            .expect_err("another key's token is refused");
+        assert!(wrong_key.contains("Core\\Jwt::verify"), "{wrong_key}");
+        let parts: Vec<&str> = token.split('.').collect();
+        let altered_payload = URL_SAFE_NO_PAD.encode(format!(
+            r#"{{"sub":"root","iat":{NOW},"exp":{}}}"#,
+            NOW + 15 * 60
+        ));
+        let altered = format!("{}.{altered_payload}.{}", parts[0], parts[2]);
+        let unsigned = format!(
+            "{}.{}.",
+            URL_SAFE_NO_PAD.encode(br#"{"alg":"none","typ":"JWT"}"#),
+            parts[1]
+        );
+        for forged in [&altered, &unsigned, &format!("{token}.")] {
+            assert_eq!(
+                verified(&mut ctx, forged, &key, &[]).expect_err("a forgery is refused"),
+                wrong_key,
+                "every forgery is the one sentence: {forged}"
+            );
+        }
+
+        ctx.set_fixed_clock(i128::from(NOW + 15 * 60) * 1_000_000_000);
+        let expired = verified(&mut ctx, &token, &key, &[])
+            .expect_err("a token is refused from the second its `exp` names");
+        assert!(expired.contains("expired"), "{expired}");
+        assert_ne!(expired, wrong_key, "expiry has a sentence of its own");
+
+        assert!(
+            verified(&mut ctx, &token, &[7_u8; 31], &[]).is_err(),
+            "a key under 32 bytes was never a signing key"
+        );
+    }
 }
