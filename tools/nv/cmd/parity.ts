@@ -18,6 +18,8 @@ export const summary = "compare a Python tool with its nv replacement: nv parity
 
 const GROUPS = "tools/nv/parity/groups.json";
 const KNOWN = "tools/nv/parity/known.json";
+/** Python writes to a pipe in the Windows code page unless told otherwise, and Bun writes UTF-8. */
+const PYTHON_ENV = { env: { PYTHONIOENCODING: "utf-8" } };
 
 interface Group {
   python: string[];
@@ -122,7 +124,7 @@ async function runGroup(name: string, group: Group, known: Known[]): Promise<boo
   let same = 0;
   console.log(`parity ${name}: ${group.cases.length} case(s), ${group.python.join(" ")} against ${group.nv.join(" ")}`);
   for (const args of group.cases) {
-    const [py, nv] = await Promise.all([runProc([...group.python, ...args]), runProc([...group.nv, ...args])]);
+    const [py, nv] = await Promise.all([runProc([...group.python, ...args], PYTHON_ENV), runProc([...group.nv, ...args])]);
     const diff = compare(py, nv, known, used, group.unordered);
     const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
     if (diff.length === 0) {
