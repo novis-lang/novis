@@ -25,6 +25,26 @@ export async function tracked(paths: string[] = [], cwd: string = ROOT): Promise
   return out.split("\0").filter((p) => p.length > 0);
 }
 
+/**
+ * The line ending of every tracked file under `paths` (all of them when empty), as the index holds it:
+ * git's own `lf`, `crlf`, `mixed`, `none` or `-text` for a file git reads as binary.
+ */
+export async function indexEol(paths: string[] = [], cwd: string = ROOT): Promise<{ path: string; eol: string }[]> {
+  return parseEol(await git(["ls-files", "--eol", "-z", "--", ...paths], cwd));
+}
+
+/** `git ls-files --eol -z`'s records, each `i/<eol> w/<eol> attr/<attr>\t<path>`. */
+export function parseEol(out: string): { path: string; eol: string }[] {
+  const rows: { path: string; eol: string }[] = [];
+  for (const rec of out.split("\0")) {
+    const tab = rec.indexOf("\t");
+    if (tab < 0) continue;
+    const eol = /^i\/(\S*)/.exec(rec)?.[1] ?? "";
+    rows.push({ path: rec.slice(tab + 1), eol });
+  }
+  return rows;
+}
+
 /** The paths with uncommitted changes, tracked or not, repo-relative. */
 export async function dirty(cwd: string = ROOT): Promise<string[]> {
   const out = await git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd);
