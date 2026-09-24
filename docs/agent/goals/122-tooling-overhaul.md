@@ -466,8 +466,31 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
       title is the same row.
     - A prompt typed after `[i]` ends the key row, so the terminal's cursor stands right after the
       last character typed.
-    - `bun test tools/nv/test/status.test.ts` builds the row from a recorded session stream and a
-      goal plan, and checks every field, the floor left out of `{x}`, the cut, and the prompt row.
+  - **`[g]` prints the goal as a table**, into the scrollback above the live block, and
+    `bun nv loop --goal` prints the same table without a run. It lets a person see what the goal
+    is doing without reading its files:
+
+    ```
+    goal tooling-overhaul · 122 of 179 · 64% · session 14
+     #  stage            state   checks  what it does
+     1  the floor        done     12/12  Every check of every walked goal still passes.
+     8  the driver       now       2/6   `nv loop` runs the sessions, with `nv verify`, `nv orient` and `nv guard`.
+     9  the cutover      ahead     0/3   The Python tools are deleted and nothing names them.
+    now: Run the guard tests · this session: 2 commits, the last `feat(loop): …`
+    ```
+
+    - One row per stage. `state` is `done` when every check of the stage is green, `now` for
+      `{stage}`, and `ahead` otherwise. `checks` counts green of all, from the same results as `{x}`.
+    - `what it does` is the stage's `summary`: one sentence, a field of the stage record. The
+      importer reads it from a `**Does:** <sentence>` line right under the stage's heading in the
+      goal's prose, so a goal author writes it where the stage is described. This goal's stages get
+      theirs in the slice that writes the table. A stage with no `summary` shows its title, and
+      `nv check` names it.
+    - The sentence wraps inside its column, so the table is never wider than the terminal. Lines are
+      box-drawing characters on a UTF-8 console and ASCII otherwise.
+  - `bun test tools/nv/test/status.test.ts` builds the row and the table from a recorded session
+    stream and a goal plan. It checks every field, the floor left out of `{x}`, the cut, the prompt
+    row, each stage's state, and the wrap.
 - **`nv bg <command…>`** starts any long command detached and prints a job id.
   - `nv bg --wait <id>` blocks until the job ends, prints the tail of its output and exits with
     its exit status. `nv bg --list` names the jobs still running.
