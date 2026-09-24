@@ -1,0 +1,20 @@
+<?nvs
+// Shows the kinds of values a log field can contain, and how each one is written.
+
+// Numbers, `true`, `false` and `null` are written as JSON values.
+// A nested array is written as a nested JSON object.
+array<mixed> $order = [
+    "id" => 1042,
+    "total" => 19.99,
+    "paid" => true,
+    "coupon" => null,
+    "customer" => ["id" => 7, "country" => "AT"],
+];
+Core\Log::write(Core\Log\Level::Info, "order placed", $order);
+
+// A list has no keys of its own. The positions `0`, `1` and `2` are used as the keys.
+array<mixed> $tags = ["new", "gift", "express"];
+Core\Log::write(Core\Log\Level::Debug, "order tags", $tags);
+
+// A line break in the message is written as `\n`. The record is still one line.
+Core\Log::write(Core\Log\Level::Warn, "the address has two lines:\nMain Street 1\nVienna");

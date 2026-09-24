@@ -1,0 +1,2 @@
+{"level":"info","msg":"the server started","source":{"file":"docs/examples/core/Log/write/01-a-record-with-and-without-fields.nvs","line":5}}
+{"level":"info","msg":"a user signed in","source":{"file":"docs/examples/core/Log/write/01-a-record-with-and-without-fields.nvs","line":9},"fields":{"user":42,"plan":"pro"}}

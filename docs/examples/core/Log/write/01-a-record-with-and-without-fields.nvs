@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write a log record, first with a message only and then with fields.
+
+// This prints one line of JSON. It has the level, the message and the place in this file.
+Core\Log::write(Core\Log\Level::Info, "the server started");
+
+// `fields` adds extra values next to the message.
+// This line also has `"fields":{"user":42,"plan":"pro"}`.
+Core\Log::write(Core\Log\Level::Info, "a user signed in", ["user" => 42, "plan" => "pro"]);

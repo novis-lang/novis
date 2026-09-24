@@ -78,7 +78,8 @@ use nvs_render::{Level, Node, Record, Rendered, Source};
 use nvs_runtime::{Ctx, Fault, LogChannel, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -138,7 +139,7 @@ const LEVEL_DOC: EnumDoc = EnumDoc {
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "write",
         names: &["level", "message", "fields"],
@@ -155,6 +156,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Log`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Writes log records. `write` writes one record as one line of JSON, with a level, a \
+            message and any extra fields. The server's `[log]` settings decide where records go \
+            and which levels are kept.",
 };
 
 /// `Core\Log::write`'s reference card — `rule:core-api/reference-card`.
@@ -402,6 +410,7 @@ mod tests {
     /// not would be the divergence this test exists to catch.
     /// [`a_cli_runs_record_is_still_level_and_msg_alone`] asks the same
     /// absence of the application half on its own.
+    // covers: Core\Log::write
     #[test]
     fn application_code_and_the_engine_floor_produce_schema_identical_records() {
         // `rule:errors/log-write`'s error, thrown the way a helper's failure is and

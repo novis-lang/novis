@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program logs text built to fake a second record, very deep fields and a flood
+// of records. Each record must stay one line, and the program must not crash.
+// hostile: timeout-ms 60000
+
+class Node
+{
+    public ?Node $next = null;
+}
+
+class Check
+{
+    // Returns how many lines `$text` has. It counts the line breaks.
+    public static function lines(string $text): uint
+    {
+        return (Core\Arr::count(Core\Str::split($text, "\n")) - 1) as uint;
+    }
+}
+
+// 1. A message with line breaks, quotes and terminal control characters tries to start a
+// second record. The output must be exactly one line.
+string $forged = "ok\"}\n{\"level\":\"critical\",\"msg\":\"forged\"}\r\u{0}\u{1b}[2J";
+var $one = Core\Out::capture(fn (): void => {
+    Core\Log::write(Core\Log\Level::Info, $forged, [$forged => $forged]);
+});
+if (Check::lines($one as string) != 1) {
+    throw new LogicError('a message wrote more than one line');
+}
+echo 'step 1: done', "\n";
+
+// 2. Fields nested one hundred thousand arrays deep. The writer must not run out of stack.
+array<mixed> $deep = [];
+uint $d = 0;
+while ($d < 100000) {
+    $deep = ['inner' => $deep];
+    $d = $d + 1;
+}
+var $nested = Core\Out::capture(fn (): void => {
+    Core\Log::write(Core\Log\Level::Info, 'deep', $deep);
+});
+echo 'step 2: done ', Check::lines($nested as string), "\n";
+
+// 3. An object that points to itself. The writer must stop at the second visit.
+Node $loop = new Node();
+$loop->next = $loop;
+var $cycle = Core\Out::capture(fn (): void => {
+    Core\Log::write(Core\Log\Level::Info, 'cycle', ['node' => $loop]);
+});
+echo 'step 3: done ', Check::lines($cycle as string), "\n";
+
+// 4. A message of ten million characters. It is written as one line.
+string $huge = Core\Str::repeat('A', 10000000);
+var $long = Core\Out::capture(fn (): void => {
+    Core\Log::write(Core\Log\Level::Info, $huge);
+});
+echo 'step 4: done ', Check::lines($long as string), "\n";
+
+// 5. One hundred thousand different records. Every one is written.
+var $many = Core\Out::capture(fn (): void => {
+    uint $i = 0;
+    while ($i < 100000) {
+        Core\Log::write(Core\Log\Level::Debug, 'row', ['row' => $i]);
+        $i = $i + 1;
+    }
+});
+if (Check::lines($many as string) != 100000) {
+    throw new LogicError('a different record was not written');
+}
+echo 'step 5: done', "\n";
+
+// 6. The same record one hundred thousand times. The log keeps only a few lines, and the
+// memory used must not grow with each record.
+var $same = Core\Out::capture(fn (): void => {
+    uint $i = 0;
+    while ($i < 100000) {
+        Core\Log::write(Core\Log\Level::Warn, 'the disk is almost full');
+        $i = $i + 1;
+    }
+});
+if (Check::lines($same as string) > 1000) {
+    throw new LogicError('a repeated record was written every time');
+}
+echo 'step 6: done', "\n";

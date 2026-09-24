@@ -1,0 +1,25 @@
+<?nvs
+// Shows how an import job logs each row it cannot read, and one summary at the end.
+
+// Each row is an order number and an amount. Two of these rows are broken.
+array<string> $rows = ["1042;19.99", "1043;abc", "1044;5.00", ";7.50"];
+
+uint $saved = 0;
+uint $skipped = 0;
+uint $number = 1;
+foreach ($rows as string $row) {
+    array<string> $parts = Core\Str::split($row, ";");
+    // `as ?float` converts the text to a number. For "abc" the result is `null`.
+    ?float $amount = $parts[1] as ?float;
+    if ($parts[0] == "" || $amount == null) {
+        // The row number and the text go in the fields, so you can find the row in the file.
+        Core\Log::write(Core\Log\Level::Warn, "a row was skipped", ["row" => $number, "text" => $row]);
+        $skipped = $skipped + 1;
+    } else {
+        $saved = $saved + 1;
+    }
+    $number = $number + 1;
+}
+
+// One record says how the whole import went. It has `"saved":2,"skipped":2`.
+Core\Log::write(Core\Log\Level::Info, "the import finished", ["saved" => $saved, "skipped" => $skipped]);

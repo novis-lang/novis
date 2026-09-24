@@ -1,0 +1,3 @@
+{"level":"info","msg":"order placed","source":{"file":"docs/examples/core/Log/write/02-what-a-field-can-contain.nvs","line":13},"fields":{"id":1042,"total":19.99,"paid":true,"coupon":null,"customer":{"id":7,"country":"AT"}}}
+{"level":"debug","msg":"order tags","source":{"file":"docs/examples/core/Log/write/02-what-a-field-can-contain.nvs","line":17},"fields":{"0":"new","1":"gift","2":"express"}}
+{"level":"warn","msg":"the address has two lines:\nMain Street 1\nVienna","source":{"file":"docs/examples/core/Log/write/02-what-a-field-can-contain.nvs","line":20}}
