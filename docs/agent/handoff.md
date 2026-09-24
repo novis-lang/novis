@@ -3,27 +3,18 @@
 ## State
 
 **Goal `tooling-overhaul`: Stages 3 to 7 have landed, and Stage 8 is in progress.** `bun nv chain`,
-`bun nv loop --list`, `bun nv loop --goal`, `bun nv bg`, `bun nv guard`, `bun nv splice` and now
+`bun nv loop --list`, `bun nv loop --goal`, `bun nv bg`, `bun nv guard`, `bun nv splice` and
 `bun nv verify` are written. `chain.py` stays until the Stage 9 cutover, because its `--show`,
 `--retire`, `--set` and `--retitle` have no successor yet. `main` is frozen. Tag `pre-overhaul` is the
 rollback.
 
-**`bun nv verify` runs `verify.py`'s steps in the same order, with the same flags.** It ran green over
-the whole tree (15 of 15), and a second run answered 14 steps from its cache. Its module doc is
-`tools/nv/cmd/verify.ts`. Each step's key is in `tools/nv/keys/steps.ts`, over `builtFrom`. Each test
-binary's key is its `checks.ts` unit. The wide-binary check `impact.py --check` ran inside `test`, and
-it is ported to `tools/nv/keys/escape.ts`. `--start` runs through `nv bg` and keeps the job id in
-`.agent-tmp/verify-background.json`. `tools/verify.py` still exists, and nothing calls the new command
-yet.
-
-These are the differences from `verify.py` that slice 2's parity group must list, each with its
-reason:
-- The green cache is shape 3, so the two programs never read each other's step entries.
-- `verify-test-green.json` holds the TS binary keys. `loop.py`'s `crate_tests` then misses verify's
-  record until the driver is ported, and runs the binary itself, which is the safe direction.
-- `impact-reads.json` entries have no `compiled` field. Python's `impact.Reach` then treats them as
-  unrecorded, and an `nvs_repo` reader goes wide there, which is also safe.
-- The case trees key at `card`, as `checks.ts` keys suites. `nv` also keys `data/`.
+**`bun nv parity verify` matches 12 of 12.** The cases are `--list` in four shapes, the flag conflicts
+and the argument errors. `nv verify` now parses through `parseArgs` in `tools/nv/lib/py.ts`, so its
+usage errors are argparse's. The run itself is not compared, because it prints timings and each
+program keeps its own cache. The commit that added the group lists the differences in the run, each
+with its reason: the green cache shape, the TS binary keys in `verify-test-green.json`, no `compiled`
+field in `impact-reads.json`, and the case trees keyed at `card`. `tools/verify.py` still exists, and
+nothing calls `bun nv verify` yet.
 
 The playbook still has two homes: `docs/agent/playbook/` (read by `playbook.py` and `orient.py`) and
 `data/playbook/` (what `nv import` made). An edit to a bullet goes into both until Stage 9.
@@ -39,20 +30,20 @@ its replacement's parity is green. `bun x tsc --noEmit -p .` typechecks the tool
 
 ## Next group
 
-**Stage 8: `nv verify` replaces `verify.py`** — one file set: `tools/nv/parity/groups.json`,
-`tools/nv/parity/known.json`, `tools/loop.py`, `tools/session.py`, `tools/orient.py`. The goal's
-Stage 8 bullet "`nv verify` takes over `verify.py`'s steps unchanged, over the Stage 6 keys" specifies
-it.
+**Stage 8: `nv verify` replaces `verify.py`** — one file set: `tools/loop.py`, `tools/session.py`,
+`tools/orient.py`. The goal's Stage 8 bullet "`nv verify` takes over `verify.py`'s steps unchanged,
+over the Stage 6 keys" specifies it. `tools/verify.py` is cited from 345 files, so this is three slices.
 
-- [ ] **Add a `verify` parity group** after `reference` at `tools/nv/parity/groups.json:279`. The run
-      itself cannot be compared, because it prints timings and each program keeps its own cache. So
-      the cases are the deterministic ones: `--list`, with `--fast`, `-p nvs-ir` and `--doc`, and the
-      flag conflicts `--start --wait`, `--doc --fast` and `--list --start`. `--list` already matched
-      byte for byte. List the State's differences in `tools/nv/parity/known.json` or in the commit.
-- [ ] **Point every caller at `bun nv verify`, and delete `tools/verify.py`.** The callers are the
-      driver's rustdoc gate at `tools/loop.py:1045` (`VerifyWatch`) and its `--doc` call, then
-      `tools/session.py` and `tools/orient.py`. The 344 citations are a script's job, as the `splice`
-      rewrite was. `tools/verify_keys.py` stays while `loop.py` and `impact.py` import it.
+- [ ] **Point the driver at `bun nv verify`.** `VerifyWatch` at `tools/loop.py:1045` reads
+      `verify.py`'s progress file, the rustdoc gate calls `verify.py --doc`, and `crate_tests` at
+      `tools/loop.py:3036` reads `verify-test-green.json`, whose keys are now the TS binary keys. Port
+      all three together, or the driver reruns every binary verify already ran.
+- [ ] **Point `tools/session.py` and `tools/orient.py` at `bun nv verify`.** Anchors:
+      `tools/session.py:463` and `tools/session.py:470` (the wrap's verify-ran check), and the pack's
+      "WHEN YOU ARE DONE" block in `tools/orient.py`.
+- [ ] **Rewrite the remaining citations with a script under `.agent-tmp/`, and delete
+      `tools/verify.py`.** `tools/verify_keys.py` stays while `tools/loop.py:70` and `tools/impact.py`
+      import it.
 
 ## Backlog
 
@@ -62,3 +53,5 @@ it.
   `generated_by` in `tools/loop.py`.
 - `chain.py`'s `--show`, `--retire`, `--set` and `--retitle` have no `nv chain` successor yet.
 - `docs/agent/playbook/` has no renderer from `data/playbook/`.
+- `lints.py` has no `nv` successor. `verify`'s parity group declares its step command on the `nv` side
+  until it has one (`tools/nv/parity/known.json`).
