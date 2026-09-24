@@ -2,7 +2,8 @@
 // scope file whole, `--show M8:lead` its first paragraph and `--show M8:verify` its `**Verify:**`
 // paragraph, its acceptance test. `--get <Field>` prints one field of the status block, unwrapped.
 // `--past` prints one line per milestone the program is behind, and whether it is complete. `--stale`
-// lists the sentences that defer work to a goal the chain has already walked.
+// lists the sentences that defer work to a goal the chain has already walked. `--check` reports the
+// status fields' sizes, and fails when a milestone record disagrees with its scope file or the chain.
 //
 // The roster and the status block are read from the `milestone` and `plan_status` records under
 // `data/plan/`. A milestone's scope is prose, `docs/plan/<id>.md`, and its H1 is where the body starts.
@@ -16,7 +17,7 @@ import { milestone as milestoneType } from "../schema/milestone.ts";
 import { planStatus } from "../schema/plan-status.ts";
 import { collect, FIRST_FUTURE_MILESTONE, registers } from "./owners.ts";
 
-export const summary = "the plan, read-only: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale";
+export const summary = "the plan, read-only: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale | --check";
 
 const PLAN = "docs/implementation-plan.md";
 
@@ -309,6 +310,135 @@ function stale(): number {
   return 0;
 }
 
+/** Guidance per status field in bytes, and the multiple of it a growing edit may not cross. */
+const FIELD_AIM_FALLBACK = 400;
+const FIELD_CEILING_X_FALLBACK = 5;
+
+/** Python's `f"{x:.0f}"`, which rounds half to even. */
+function round0(x: number): string {
+  const r = Math.round(x);
+  return String(Math.abs(x % 1) === 0.5 && r % 2 !== 0 ? r - 1 : r);
+}
+
+/**
+ * The sizes of the status fields, then the milestone records against the prose and the chain. A size is
+ * reported and never fails the check; a structural finding does. A record's `title`, with its `estimate`
+ * in brackets after it, must be its scope file's H1, and every `docs/plan/m*.md` must have a record. Its
+ * `state` must agree with the chain: `done`
+ * exactly when `pastState()` calls it complete, `open` with no `backlog` place while a chain goal carries
+ * it, and `done`, `ongoing` or a `backlog` place while none does.
+ */
+function check(): number {
+  const problems: string[] = [];
+  const planText = readFileSync(join(ROOT, PLAN), "utf8");
+  const aimHit = /Aim for ~(\d+) bytes a field/.exec(planText);
+  const aim = aimHit ? Number(aimHit[1]) : FIELD_AIM_FALLBACK;
+  const xHit = /over (\d+)x that/.exec(planText);
+  const ceiling = aim * (xHit ? Number(xHit[1]) : FIELD_CEILING_X_FALLBACK);
+
+  const status = load(planStatus)[0]!.value as Record<string, string>;
+  const sizes = FIELDS.map(([name, key]): [string, number] => [name, Buffer.byteLength(status[key]!.trim(), "utf8")]);
+  const total = sizes.reduce((sum, [, n]) => sum + n, 0);
+  console.log(`status block: ${total} bytes across ${sizes.length} fields, aim ~${aim} each (~${aim * sizes.length})`);
+  for (const [name, n] of sizes) {
+    if (n > ceiling) {
+      console.log(`  ${name.padEnd(20)} ${String(n).padStart(6)} bytes   OVER the ${ceiling} B ceiling -- an edit that grows it is refused until it is cut`);
+    } else if (n > aim * 1.5) {
+      console.log(`  ${name.padEnd(20)} ${String(n).padStart(6)} bytes   ${round0(n / aim)}x the aim, ${ceiling - n} B under the ${ceiling} B ceiling`);
+    }
+  }
+  console.log("  Every one of these is shipped into every session by orient.py and brief.py.");
+  console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: session.py --wrap`);
+  console.log("  refuses an edit that leaves a field both over it and bigger than it was. A shrink");
+  console.log("  is always taken, so there is never prose to shave -- a sentence is replaced instead.");
+
+  console.log("\nindex vs disk:");
+  const index = milestones();
+  const records = new Map(load(milestoneType).map((r) => [r.id, r.value]));
+  const seen = new Set<string>();
+  for (const m of index) {
+    seen.add(m.rel.toLowerCase());
+    if (!existsSync(join(ROOT, m.rel))) {
+      problems.push(`${m.id}: its record ${m.record} names ${m.rel}, which does not exist`);
+      continue;
+    }
+    const rec = records.get(m.id)!;
+    const title = rec.estimate === undefined ? rec.title : `${rec.title} (${rec.estimate})`;
+    const first = readFileSync(join(ROOT, m.rel), "utf8").replace(/\r\n/g, "\n").split("\n")[0]!;
+    const h1 = H1.exec(first);
+    if (!h1) {
+      problems.push(`${m.id}: ${m.rel} does not open with \`# ${m.id} — <title>\``);
+    } else {
+      if (h1[1] !== m.id) problems.push(`${m.id}: ${m.rel} calls itself ${h1[1]}`);
+      if (h1[2]!.trim() !== title) {
+        problems.push(`${m.id}: the record's title and the file's H1 have drifted apart\n` +
+          `      record: ${title}\n      file:   ${h1[2]!.trim()}`);
+      }
+    }
+    if (!verifyParagraph(m)) problems.push(`${m.id}: no \`**Verify:**\` paragraph -- it has no acceptance test`);
+  }
+  for (const name of readdirSync(join(ROOT, "docs/plan")).filter((n) => /^m.*\.md$/.test(n)).sort()) {
+    if (!seen.has(`docs/plan/${name}`.toLowerCase())) {
+      problems.push(`docs/plan/${name}: on disk, but no milestone record names it, so nothing links to it`);
+    }
+  }
+
+  // A goal's milestone is a foreign key, so a dangling one is `nv check`'s finding too. It is repeated
+  // here so this check says everything that is wrong with the plan in one place.
+  const goals = chainGoals();
+  if (goals.length > 0) {
+    const ids = new Set(index.map((m) => m.id));
+    for (const g of goals) {
+      if (g.milestone !== null && !ids.has(g.milestone)) {
+        problems.push(`goal \`${g.slug}\`: tagged ${g.milestone}, which is not a milestone record`);
+      }
+    }
+    const past = new Map(pastState().map((row) => [row.id, row]));
+    const carriedIds = new Set(goals.flatMap((g) => (g.milestone ? [g.milestone] : [])));
+    for (const m of index) {
+      const rec = records.get(m.id)!;
+      const slugs = goals.filter((g) => g.milestone === m.id).map((g) => g.slug);
+      const st = past.get(m.id);
+      const where = rec.backlog !== undefined ? `${rec.state}, backlog ${rec.backlog}` : rec.state;
+      if (st?.complete) {
+        if (rec.state !== "done") {
+          problems.push(`${m.id}: every goal carrying it has walked and no register still tags an item to it, ` +
+            `so its record's state is \`done\`\n      record: ${where}\n      \`bun nv plan --past\` is the report`);
+        }
+      } else if (st && rec.state === "done") {
+        const held = st.carried.filter(([, state]) => state !== "walked").map(([slug]) => `goal \`${slug}\` has not walked`);
+        if (st.tagged) held.push(`${st.tagged} item(s) in the registers still name it`);
+        problems.push(`${m.id}: its record says it is finished and \`bun nv plan --past\` does not -- ${held.join("; ")}`);
+      } else if (slugs.length > 0) {
+        if (rec.state !== "done" && (rec.state !== "open" || rec.backlog !== undefined)) {
+          problems.push(`${m.id}: goals ${slugs.map((s) => `\`${s}\``).join(", ")} carry it, so its record is ` +
+            `\`open\` with no backlog place, not ${repr(where)}`);
+        }
+      } else if (rec.state === "open" && rec.backlog === undefined) {
+        problems.push(`${m.id}: no chain goal carries it, so its record says where it stands on its own -- ` +
+          "`done`, `ongoing` or a `backlog` place, not 'open'");
+      }
+    }
+    const none = goals.filter((g) => g.milestone === null).map((g) => `\`${g.slug}\``);
+    const live = liveGoal(goals);
+    console.log(`  chain: ${goals.length} goals, ${carriedIds.size} milestone(s) carried` +
+      (none.length > 0 ? `, ${none.length} in none (goals ${none.join(", ")})` : "") +
+      (live ? `; live at goal \`${live.slug}\`` : "; nothing live"));
+  } else {
+    console.log("  chain: data/chain.json lists no goals, so no milestone's state is checked against it");
+  }
+
+  if (problems.length > 0) {
+    for (const p of problems) console.log(`  !! ${p}`);
+    console.log(`\n  ${problems.length} structural finding(s) -- these are what this exits non-zero on. ` +
+      "Each is an edit to a milestone record or to the scope file it names.");
+    return 1;
+  }
+  console.log(`  ${index.length} rows, ${index.length} files, titles matching, every one with a ` +
+    "`**Verify:**`, every cell agreeing with the chain");
+  return 0;
+}
+
 export async function run(args: string[]): Promise<number> {
   const [flag, value, ...rest] = args;
   if ((flag === "--show" || flag === "--get") && value !== undefined && rest.length === 0) {
@@ -316,7 +446,8 @@ export async function run(args: string[]): Promise<number> {
   }
   if (flag === "--past" && value === undefined) return past();
   if (flag === "--stale" && value === undefined) return stale();
-  console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale\n" +
+  if (flag === "--check" && value === undefined) return check();
+  console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale | --check\n" +
     "  the plan's other modes are still `python tools/plan.py`'s");
   return 2;
 }

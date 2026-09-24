@@ -105,6 +105,12 @@
       "why": "`nv owners --check` refuses a gap tagged to a past milestone on its own, and takes the flag only so a carried floor check still passes it."
     },
     {
+      "side": "python",
+      "pattern": "^(  chain: .* in none \\(goals .*), tagged [a-z/-]+\\)",
+      "replace": "$1)",
+      "why": "A goal tagged with a label such as `dossier` or `post-parity` has a null milestone in its record, so nv lists the goals in no milestone and has no label to name."
+    },
+    {
       "side": "nv",
       "pattern": "python tools/([a-z_-]+)\\.py",
       "replace": "bun nv $1",

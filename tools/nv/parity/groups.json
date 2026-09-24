@@ -71,7 +71,8 @@
       ["--get", "blocking"],
       ["--get", "No such field"],
       ["--past"],
-      ["--stale"]
+      ["--stale"],
+      ["--check"]
     ]
   },
   "records": {
