@@ -143,6 +143,17 @@
       ["--seed"]
     ]
   },
+  "orient": {
+    "python": ["python", "tools/orient.py"],
+    "nv": ["bun", "tools/nv/main.ts", "orient"],
+    "cases": [
+      [],
+      ["--item", "2"],
+      ["--stage", "4"],
+      ["--full"],
+      ["--audit"]
+    ]
+  },
   "owners": {
     "python": ["python", "tools/owners.py"],
     "nv": ["bun", "tools/nv/main.ts", "owners"],

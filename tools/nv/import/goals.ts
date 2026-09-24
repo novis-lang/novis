@@ -51,7 +51,7 @@ const CHECK_KEYS = [
 /** The longest a check id derived from a name grows, cut back to a whole word. */
 const ID_MAX = 60;
 
-interface GoalFiles {
+export interface GoalFiles {
   slug: string;
   md: string;
   /** Null for a retired goal. */
@@ -81,7 +81,7 @@ function checkId(c: Record<string, any>, taken: Set<string>): string {
 }
 
 /** The goal record the files `g` hold, or null with the reason in `unread`. */
-function goalValue(root: string, g: GoalFiles, unread: Unread[]): Record<string, unknown> | null {
+export function goalValue(root: string, g: GoalFiles, unread: Unread[]): Record<string, unknown> | null {
   const fm = frontMatter(text(root, g.md));
   if (!fm) {
     unread.push({ path: g.md, reason: "it opens on no front matter, so it names no milestone" });
@@ -238,7 +238,7 @@ function leadOf(lead: string): { stage: number | null; title?: string; files: st
  * carries no position, since `data/chain.json` is where one is computed from, so the header names
  * the goal by `slug` instead.
  */
-function handoffValue(root: string, path: string, slug: string, unread: Unread[]): Record<string, unknown> | null {
+export function handoffValue(root: string, path: string, slug: string, unread: Unread[]): Record<string, unknown> | null {
   const parts = text(root, path).split(/^## /m);
   const head = parts.shift()!.trim().replace(GENERATED, "# Handoff");
   if (head !== "# Handoff") unread.push({ path, reason: "it does not open on `# Handoff` alone" });

@@ -44,6 +44,10 @@ const WORDSEP_SIMPLE = new RegExp(`(${WS}+)`);
 export interface WrapOptions {
   breakLongWords?: boolean;
   breakOnHyphens?: boolean;
+  /** Put before the first line, and counted in its width. */
+  initialIndent?: string;
+  /** Put before every later line, and counted in its width. */
+  subsequentIndent?: string;
 }
 
 const pyLen = (s: string) => [...s].length;
@@ -64,15 +68,17 @@ export function wrap(text: string, width: number, opts: WrapOptions = {}): strin
   while (chunks.length > 0) {
     const cur: string[] = [];
     let curLen = 0;
+    const indent = (lines.length > 0 ? opts.subsequentIndent : opts.initialIndent) ?? "";
+    const lineWidth = width - pyLen(indent);
     if (chunks[chunks.length - 1]!.trim() === "" && lines.length > 0) chunks.pop();
     while (chunks.length > 0) {
       const l = pyLen(chunks[chunks.length - 1]!);
-      if (curLen + l > width) break;
+      if (curLen + l > lineWidth) break;
       cur.push(chunks.pop()!);
       curLen += l;
     }
-    if (chunks.length > 0 && pyLen(chunks[chunks.length - 1]!) > width) {
-      const spaceLeft = width < 1 ? 1 : width - curLen;
+    if (chunks.length > 0 && pyLen(chunks[chunks.length - 1]!) > lineWidth) {
+      const spaceLeft = lineWidth < 1 ? 1 : lineWidth - curLen;
       if (breakLong) {
         const chunk = [...chunks[chunks.length - 1]!];
         let end = spaceLeft;
@@ -87,7 +93,7 @@ export function wrap(text: string, width: number, opts: WrapOptions = {}): strin
       }
     }
     if (cur.length > 0 && cur[cur.length - 1]!.trim() === "") cur.pop();
-    if (cur.length > 0) lines.push(cur.join(""));
+    if (cur.length > 0) lines.push(indent + cur.join(""));
   }
   return lines;
 }

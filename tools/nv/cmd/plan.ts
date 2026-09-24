@@ -38,14 +38,14 @@ const FIELDS: [string, string][] = [
   ["Blocking", "blocking"],
 ];
 
-interface Entry {
+export interface Entry {
   id: string;
   rel: string;
   record: string;
 }
 
 /** Every milestone, in the table's order. */
-function milestones(): Entry[] {
+export function milestones(): Entry[] {
   return load(milestoneType)
     .sort((a, b) => a.value.order - b.value.order)
     .map((m) => ({ id: m.id, rel: `docs/plan/${m.id.toLowerCase()}.md`, record: pathOf(milestoneType, m.id) }));
@@ -57,7 +57,7 @@ function repr(s: string): string {
 }
 
 /** A milestone file's text below its H1, with the blank lines at either end cut off. */
-function bodyOf(entry: Entry): string {
+export function bodyOf(entry: Entry): string {
   const text = readFileSync(join(ROOT, entry.rel), "utf8").replace(/\r\n/g, "\n");
   const lines = text.split("\n");
   const at = lines.findIndex((l) => H1.test(l));
@@ -65,7 +65,7 @@ function bodyOf(entry: Entry): string {
 }
 
 /** The first paragraph: what the milestone is, before the detail. */
-function leadParagraph(entry: Entry): string {
+export function leadParagraph(entry: Entry): string {
   const buf: string[] = [];
   for (const raw of bodyOf(entry).split("\n")) {
     if (!raw.trim()) {
@@ -78,7 +78,7 @@ function leadParagraph(entry: Entry): string {
 }
 
 /** The `**Verify:**` or `**Verified:**` paragraph, or `""` when the milestone has none. */
-function verifyParagraph(entry: Entry): string {
+export function verifyParagraph(entry: Entry): string {
   const lines = bodyOf(entry).split("\n");
   const at = lines.findIndex((l) => l.startsWith("**Verify:**") || l.startsWith("**Verified:**"));
   if (at < 0) return "";
