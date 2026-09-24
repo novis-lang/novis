@@ -104,6 +104,10 @@ modules = [
   # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
   # against.
   "crates/nvs-stdlib/src/registry.rs",
+  # `nvs agent` — the surface a coding agent reads the language through.
+  "crates/nvs-cli/src/agent.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
