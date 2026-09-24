@@ -108,6 +108,10 @@ modules = [
   "crates/nvs-cli/src/agent.rs",
   # The `nvs` binary.
   "crates/nvs-cli/src/main.rs",
+  # `Core\Html` — `rule:security/launderers-are-sink-named`'s narrow, sink-named launderer over
+  # the sink § 5 makes out of HTML text, and `rule:core-classes/html-parsing`'s WHATWG parser onto
+  # `Core\Xml`'s tree.
+  "crates/nvs-stdlib/src/html.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
