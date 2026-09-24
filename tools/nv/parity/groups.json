@@ -318,7 +318,10 @@
       ["--template"],
       ["--counts"],
       ["--check"],
-      ["--wrap", "tools/nv/parity/fixtures/session-malformed-wrap.md", "--dry-run"]
+      ["--wrap", "tools/nv/parity/fixtures/session-malformed-wrap.md", "--dry-run"],
+      ["--wrap", "tools/nv/parity/fixtures/session-refused-wrap.md", "--dry-run"],
+      ["--wrap", "tools/nv/parity/fixtures/session-refused-sections.md", "--dry-run"],
+      ["--wrap", "no/such-wrap.md", "--dry-run"]
     ]
   }
 }

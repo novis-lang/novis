@@ -210,6 +210,24 @@
     },
     {
       "side": "python",
+      "pattern": "(?<=^nv session: no such file: \\S*)\\\\",
+      "replace": "/",
+      "why": "Python prints the wrap file's path with the platform's separator. nv prints the path as it was given."
+    },
+    {
+      "side": "python",
+      "pattern": "goal `dossier`, never `goal 71`",
+      "replace": "goal `parses`, never `goal 21`",
+      "why": "The goal-number refusal's example names a goal by slug, and the word dossier leaves the tree."
+    },
+    {
+      "side": "python",
+      "pattern": "`check-links\\.py` is CI's `docs` job",
+      "replace": "`nv links` is CI's `docs` job",
+      "why": "The link refusal names `check-links.py` by the nv subcommand that replaces it."
+    },
+    {
+      "side": "python",
       "pattern": "`plan\\.py --check`",
       "replace": "`nv plan --check`",
       "why": "`--check` names the tool the reader runs next as the nv subcommand that replaces it."

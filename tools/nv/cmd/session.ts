@@ -7,9 +7,9 @@
 //     bun nv session --wrap F [--dry-run]   apply a wrap file: the whole session tail
 //
 // A wrap file is markdown whose `## <kind>: <arg>` headings are instructions, and `parseWrap` is its
-// one reader. `--help` prints the format. `--wrap` refuses a malformed file and a live goal manifest
-// `manifestFindings` refuses, then runs `tools/session.py --wrap`, which validates the rest and applies
-// every section or none.
+// one reader. `--help` prints the format. `--wrap` runs `validate` over the whole file and refuses it
+// with every problem at once, then hands a valid file to `tools/session.py --wrap`, which applies every
+// section or none.
 //
 // `--check` judges no content. It prints the counts the plan's prose should agree with, each status
 // field's size against its ceiling, the handoff's shape, the dead links this session made, the
@@ -29,7 +29,10 @@ import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { playbookSection } from "../schema/playbook.ts";
 import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_EXTS, readText, type Resolver, SOURCE_EXTS, sortKey, trackedFiles } from "./links.ts";
 import { ANCHOR_RE, type GoalValue, manifestFindings } from "./orient.ts";
-import { fieldLimits, planFields } from "./plan.ts";
+import { type Entry, fieldLimits, milestones, planFields } from "./plan.ts";
+import { CITATION, Rulebook } from "./rules.ts";
+import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
+import { anchors } from "../import/playbook.ts";
 
 export const summary = "the session tail: nv session --template | --check | --counts | --scrub | --wrap F [--dry-run]";
 
@@ -539,6 +542,452 @@ async function touched(tree: string): Promise<boolean> {
   return done.code === 0 && done.stdout.trim() !== "";
 }
 
+// ------------------------------------------------------------------------------- validate
+
+const SUBJECT_MAX = 120;
+const STATUS_WORDS = ["CONTINUE", "DONE", "BLOCKED"];
+/** A bullet is the trap, why, and what to do instead: conventions.md § *A playbook bullet*. */
+const PLAYBOOK_BULLET_MAX = 700;
+/**
+ * A `## plan:` body over `RETYPE_BYTES` whose 8-word runs are at least `RETYPE_OVERLAP` already in the
+ * field, and which is not a cut below `RETYPE_SHRINK` of it, is the field typed out again: `## plan-edit:`
+ * sends only the sentence that moved.
+ */
+const RETYPE_BYTES = 1_500;
+const RETYPE_OVERLAP = 0.7;
+const RETYPE_SHRINK = 0.6;
+const EXPIRY = /\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*\]\s*$/;
+
+const LINK_WHY: Record<string, string> = {
+  missing: "nothing is there",
+  case: "the entry on disk is spelled with different case, which resolves on this machine and 404s on every Linux checkout",
+  absolute: "a markdown file's links are relative to itself, and `/docs/...` is the site root",
+  relative: "a source file's links are absolute from the repository root (`/docs/...`)",
+};
+
+/** The wrap's sections in the order they are applied, which is the order they are validated in. */
+function inOrder(sections: Section[]): Section[] {
+  return KNOWN.flatMap((kind) => sections.filter((s) => s.kind === kind));
+}
+
+function named(s: Section): string {
+  return s.arg ? `\`## ${s.kind}: ${s.arg}\`` : `\`## ${s.kind}\``;
+}
+
+/** The fraction of `next`'s 8-word runs that appear verbatim in `old`. */
+function verbatimOverlap(next: string, old: string): number {
+  const grams = (t: string) => {
+    const w = t.split(/\s+/).filter(Boolean);
+    const out = new Set<string>();
+    for (let i = 0; i + 8 <= w.length; i++) out.add(w.slice(i, i + 8).join("\0"));
+    return out;
+  };
+  const gn = grams(next);
+  if (gn.size === 0) return 0;
+  const go = grams(old);
+  return [...gn].filter((g) => go.has(g)).length / gn.size;
+}
+
+const thousands = (n: number) => n.toLocaleString("en-US");
+
+/** A refusal only when the edit leaves the field both over the ceiling and bigger than it was. */
+function growthRefusal(kind: string, field: string, before: string, after: string, ceiling: number): string | null {
+  const was = nbytes(before);
+  const now = nbytes(after);
+  if (now <= was || now <= ceiling) return null;
+  const cut = now - Math.max(ceiling, was);
+  const how = kind === "plan-edit" ? "a `--- old` quoting the stale sentence with an empty `--- new` drops it" : "send the replacement shorter";
+  return (
+    `\`## ${kind}: ${field}\` -- leaves the field at ${thousands(now)} B, +${now - was} B ` +
+    `and past its ${thousands(ceiling)} B ceiling. A field is status and is overwritten, not appended ` +
+    `to. Cut at least ${cut} B of it in this same section (${how}), or take the new text ` +
+    "where it belongs -- a per-file gap to that crate's module doc `# Known gaps`, a trap to " +
+    "`## playbook:`, what landed to the commit body. An edit that leaves the field no bigger " +
+    "than it is now is always taken."
+  );
+}
+
+function resolveMilestone(arg: string): Entry | null {
+  const want = arg.trim().toUpperCase();
+  return milestones().find((m) => m.id === want) ?? null;
+}
+
+/** The directory of the playbook section a `## playbook: <heading>` names, matched on its words. */
+function sectionDir(heading: string): string | null {
+  const norm = (t: string) => t.replace(/[`*_#]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const hit = load(playbookSection).find((s) => norm(s.value.title) === norm(heading));
+  return hit ? `${PLAYBOOK_DIR}/${hit.id}` : null;
+}
+
+/** Every `- ` bullet and `NNN. ` entry at column 0 of a playbook body, as `tools/playbook.py`'s `blocks` reads them. */
+function blocks(text: string): { body: string; lead: string }[] {
+  const lines = text.split("\n");
+  const spans: { first: string; start: number; end: number }[] = [];
+  let cur: { first: string; start: number; end: number } | null = null;
+  const starts = /^(- |\d+\. )/;
+  lines.forEach((line, i) => {
+    if (/^#{1,6}\s/.test(line)) {
+      if (cur) spans.push(cur);
+      cur = null;
+    } else if (starts.test(line)) {
+      if (cur) spans.push(cur);
+      cur = { first: line, start: i, end: i };
+    } else if (cur && !line.trim()) {
+      const nxt = lines[i + 1] ?? "";
+      if (nxt && !nxt.startsWith(" ") && !nxt.startsWith("\t") && !starts.test(nxt)) {
+        spans.push(cur);
+        cur = null;
+      }
+    } else if (cur) {
+      cur.end = i;
+    }
+  });
+  if (cur) spans.push(cur);
+  return spans.map((b) => ({
+    body: lines.slice(b.start, b.end + 1).join("\n").trimEnd(),
+    lead: head(b.first.replace(/^(- (?:\[.\] )?|\d+\. )/, ""), 70),
+  }));
+}
+
+/** The `[until: kind arg]` a bullet ends with, or null when it declares nothing or wraps its trailer over a line. */
+function declaration(body: string): { kind: string; arg: string } | null {
+  const m = EXPIRY.exec(body.trimEnd());
+  return m && !m[2]!.includes("\n") ? { kind: m[1]!, arg: m[2]!.trim() } : null;
+}
+
+/** Why a new bullet may not end with `[until: reviewed <date>]`: nothing retires that kind, so it is for a trap no mechanical kind fits. */
+function reviewedRefusals(which: string, body: string, until: { kind: string; arg: string }): string[] {
+  if (until.kind !== "reviewed") return [];
+  const out: string[] = [];
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(until.arg) ? new Date(`${until.arg}T00:00:00`) : null;
+  if (day === null || Number.isNaN(day.getTime())) {
+    out.push(`${which} -- \`${until.arg}\` is not a YYYY-MM-DD date.`);
+  } else {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (day > today) out.push(`${which} is dated ${until.arg}, which is after today. A \`reviewed\` date is the day the bullet was read: write today's date.`);
+  }
+  const files = anchors(ROOT, body, until);
+  if (files.length) {
+    out.push(
+      `${which} names \`${files[0]}\` and ends with \`[until: reviewed ...]\`. A trap about a path ` +
+        `ends when that path changes, so declare that instead: \`[until: gone ${files[0]}:<a ` +
+        "word the trap depends on>]`, `[until: exists <path>]` for a fix that is not there " +
+        "yet, or `[until: test <fn>]` for a hole a test will close.",
+    );
+  }
+  return out;
+}
+
+/** What a `## playbook:` section refuses, bullet by bullet. A lead-in that collides with another bullet's is `tools/session.py --wrap`'s to refuse, which the wrap still hands off to. */
+function validatePlaybook(s: Section): string[] {
+  const errors: string[] = [];
+  if (sectionDir(s.arg) === null) errors.push(`\`## playbook: ${s.arg}\` -- no such section. The playbook has: ${playbookHeadings().join(", ")}`);
+  if (!s.body.trimStart().startsWith("-")) {
+    errors.push(`\`## playbook: ${s.arg}\` -- a playbook entry is a \`- \` bullet`);
+    return errors;
+  }
+  const found = blocks(s.body);
+  if (found.length === 0) errors.push(`\`## playbook: ${s.arg}\` -- a bullet starts with \`- \` at column 0; this one is indented, and the file's own parsers skip it`);
+  for (const b of found) {
+    const which = `\`## playbook: ${s.arg}\` -- ${pyRepr(b.lead.trim())}`;
+    const m = EXPIRY.exec(b.body.trimEnd());
+    const until = declaration(b.body);
+    if (m && m[2]!.includes("\n")) {
+      errors.push(
+        `${which} ends with a trailer broken across two lines. Its argument would hold a newline no path, ` +
+          "needle, name or date can, so nothing ever retires the bullet. Keep the whole `[until: ...]` on one line.",
+      );
+    } else if (until === null) {
+      errors.push(`${which} declares nothing that retires it. End it with \`[until: <kind> <arg>]\`; the five kinds are in tools/playbook.py's module doc.`);
+    } else {
+      errors.push(...reviewedRefusals(which, b.body, until));
+    }
+    if (anchors(ROOT, b.body, until).length === 0) {
+      errors.push(
+        `${which} names no file in the tree. A trap is about a file: name it in backticks, as its path ` +
+          "from the repository root (`tools/session.py`, `crates/nvs-ir/src/lib.rs`, `Cargo.toml`). A rule " +
+          "every agent needs whatever it edits is not a trap: it belongs in docs/agent/commands.md or docs/agent/conventions.md.",
+      );
+    }
+    const weight = nbytes(b.body.trim());
+    if (weight > PLAYBOOK_BULLET_MAX) {
+      errors.push(
+        `${which} is ${weight} B, past the ${PLAYBOOK_BULLET_MAX} B a bullet may weigh. A bullet is the trap, ` +
+          "why, and what to do instead -- three sentences, docs/agent/conventions.md § *A playbook bullet*. " +
+          "The session's story (which stage, what was tried first) is git log's.",
+      );
+    }
+  }
+  return errors;
+}
+
+function validateCommit(s: Section): string[] {
+  const errors: string[] = [];
+  const subject = s.body.trim().split("\n")[0]!;
+  if (!/^(feat|fix|docs|test|perf|refactor|chore|build|ci)(\([a-z0-9-]+\))?: .+/.test(subject)) {
+    errors.push(`\`## commit:\` line ${s.line} -- subject is not \`type(scope): subject\`: ${pyRepr(head(subject, 60))}`);
+  }
+  const len = [...subject].length;
+  if (len > SUBJECT_MAX) {
+    errors.push(`\`## commit:\` line ${s.line} -- subject is ${len} chars, ${len - SUBJECT_MAX} over the ${SUBJECT_MAX} limit: ${pyRepr(subject)}`);
+  }
+  for (const path of s.arg.split(/\s+/).filter(Boolean)) {
+    if (!existsSync(join(ROOT, path)) && !path.includes("*")) errors.push(`\`## commit:\` line ${s.line} -- no such path: ${path}`);
+  }
+  return errors;
+}
+
+/** Where a section's body lands, which is where its links resolve from; null for a body that is not a file. */
+function bodyHome(s: Section): string | null {
+  if (s.kind === "handoff") return handoffPath(sideGoal());
+  if (s.kind === "plan" || s.kind === "plan-edit") return PLAN;
+  if (s.kind === "playbook") {
+    const first = load(playbookSection).sort((a, b) => a.value.order - b.value.order)[0];
+    return first ? `${PLAYBOOK_DIR}/${first.id}/bullet.md` : null;
+  }
+  if (s.kind === "milestone") return resolveMilestone(s.arg)?.rel ?? null;
+  return null;
+}
+
+/** The text a section puts into the tree: a `## plan-edit:` quotes the field in its `--- old` halves, so only the `--- new` halves count. */
+function writtenText(s: Section): string {
+  return s.kind === "plan-edit" ? parseEdits(s.body).pairs.map(([, next]) => next).join("\n") : s.body;
+}
+
+/** The tracked files this wrap's doc sections write. A playbook bullet is named by its section's directory. */
+function writtenPaths(sections: Section[]): string[] {
+  const out: string[] = [];
+  for (const s of inOrder(sections)) {
+    if (s.kind === "plan" || s.kind === "plan-edit") out.push(PLAN);
+    else if (s.kind === "milestone") {
+      const entry = resolveMilestone(s.arg);
+      if (entry) out.push(entry.rel);
+    } else if (s.kind === "playbook") {
+      const dir = sectionDir(s.arg);
+      if (dir) out.push(dir);
+    } else if (s.kind === "handoff") out.push(handoffPath(sideGoal()));
+  }
+  return [...new Set(out)];
+}
+
+/** Dead links in the bodies this wrap is about to write, which it commits in the same call. */
+function bodyLinks(sections: Section[]): string[] {
+  const out: string[] = [];
+  for (const s of sections) {
+    const home = bodyHome(s);
+    if (home === null) continue;
+    const base = posix.dirname(`${ROOT.split(sep).join("/")}/${home}`);
+    for (const f of findingsIn(writtenText(s), false, base)) {
+      out.push(
+        `${named(s)} cites ${pyRepr(f.target)}, and ${LINK_WHY[f.kind]}. A link in a wrap body resolves ` +
+          `from ${home}, which is where the body lands -- and this wrap writes and ` +
+          "commits in one call, so nothing reads it before CI's `docs` job does.",
+      );
+    }
+  }
+  return out;
+}
+
+/** `rule:` tokens in the bodies this wrap is about to write that name no rule. */
+function bodyCitations(sections: Section[]): string[] {
+  const book = new Rulebook();
+  if (book.byId.size === 0) return [];
+  const out: string[] = [];
+  for (const s of sections) {
+    if (!["handoff", "plan", "plan-edit", "playbook", "milestone"].includes(s.kind)) continue;
+    writtenText(s).split("\n").forEach((line, i) => {
+      for (const m of line.matchAll(CITATION)) {
+        if (book.byId.has(m[1]!)) continue;
+        out.push(
+          `${named(s)} line ${i + 1} cites \`rule:${m[1]}\`, and no rule has that id. \`bun nv rules --check\` ` +
+            "resolves every `rule:` token under `docs/`, the handoff and the playbook included, and the goal's " +
+            "`1 floor` runs it -- so a placeholder id written here turns that check red for every later session. " +
+            "Cite a real rule (`bun nv brief --where <keyword>` finds one), or describe the token in words.",
+        );
+      }
+    });
+  }
+  return out;
+}
+
+/** A goal named by its number in a body this wrap is about to write, a commit message included. */
+function bodyGoalNumbers(sections: Section[]): string[] {
+  const out: string[] = [];
+  for (const s of sections) {
+    if (!["handoff", "plan", "plan-edit", "playbook", "milestone", "commit"].includes(s.kind)) continue;
+    writtenText(s).split("\n").forEach((line, i) => {
+      if (OWN_HEADER.test(line)) return;
+      for (const m of line.matchAll(NUMBER_CITE)) {
+        out.push(
+          `${named(s)} line ${i + 1} writes \`${m[0]}\`, naming a goal by its number. Say ` +
+            "the slug -- goal `parses`, never `goal 21` -- because a number is a position " +
+            "and every insert in front of it moves the position without touching the " +
+            "sentence. `bun nv chain --check` refuses this over the whole tree and " +
+            "is on the goal's `1 floor`, so a number written here turns that check red for " +
+            "every later session. A position beside a total (`29 of 43`) is not this.",
+        );
+      }
+    });
+  }
+  return out;
+}
+
+/** Every test a `cargo-named` check of the live goal names that no `fn` in the tree carries; a DONE claim only. */
+async function namedTestFindings(): Promise<string[]> {
+  const done = await git("grep", "-h", "-o", "-E", "\\bfn [A-Za-z_][A-Za-z0-9_]*", "--", "*.rs");
+  const fns = [...new Set(done.stdout.split("\n").map((l) => l.trim().slice(3)).filter(Boolean))];
+  const missing: [string, string][] = [];
+  for (const c of manifestCopies()) {
+    for (const check of ((c.value as any).checks ?? []) as { kind: string; name?: string; tests?: string[] }[]) {
+      if (check.kind !== "cargo-named") continue;
+      const label = check.name ?? "?";
+      for (const name of check.tests ?? []) {
+        if (missing.some(([l, n]) => l === label && n === name)) continue;
+        if (!fns.some((fn) => fn.includes(name))) missing.push([label, name]);
+      }
+    }
+  }
+  return missing.map(
+    ([label, name]) =>
+      `\`## status\` DONE -- check ${pyRepr(label)} names test \`${name}\`, and no \`fn ${name}\` is in ` +
+      "the tree; the driver's sweep runs it, matches nothing and halts the claim. Rename the " +
+      "test to what the toml names, or write it",
+  );
+}
+
+/**
+ * Everything that could refuse the wrap, before a byte is written. The plan sections are checked against
+ * a simulated field, advanced in apply order, so a second `## plan-edit:` on one field quotes the text the
+ * first leaves behind, which is the text its author was looking at.
+ */
+export async function validate(sections: Section[]): Promise<string[]> {
+  const errors: string[] = [];
+  const fields = planFields();
+  const names = new Map(fields.map(([n]) => [n.toLowerCase(), n]));
+  const working = new Map(fields.map(([n, t]) => [n.toLowerCase(), t]));
+  const { ceiling } = fieldLimits();
+  const side = sideGoal();
+  const noField = (s: Section) => `\`## ${s.kind}: ${s.arg}\` -- no such field, and this tool does not add one. The block has: ${[...names.values()].join(", ")}`;
+
+  for (const s of inOrder(sections)) {
+    if (side && ["plan", "plan-edit", "milestone"].includes(s.kind)) {
+      // The plan's status block and the milestone files are the chain run's state, and a side
+      // branch that rewrote them would overwrite main's when it lands.
+      errors.push(`\`## ${s.kind}: ${s.arg}\` -- a side run does not write the plan; say what it changed in the handoff, and the landing commit carries it`);
+      continue;
+    }
+    const key = s.arg.toLowerCase();
+    if (s.kind === "plan") {
+      if (!names.has(key)) {
+        errors.push(noField(s));
+        continue;
+      }
+      const next = normalize(s.body);
+      const old = working.get(key)!;
+      const share = verbatimOverlap(next, old);
+      const len = [...next].length;
+      if (len > RETYPE_BYTES && share >= RETYPE_OVERLAP && len > [...old].length * RETYPE_SHRINK) {
+        errors.push(
+          `\`## plan: ${s.arg}\` -- ${thousands(len)} B, and ${Math.round(share * 100)}% of it is already ` +
+            "on disk word for word. That is a retype, not a rewrite: use " +
+            `\`## plan-edit: ${s.arg}\` with \`--- old\` / \`--- new\` fragments and send only ` +
+            `the sentence that moved. (A real rewrite overlaps less than ${Math.round(RETYPE_OVERLAP * 100)}% and is taken as it stands.)`,
+        );
+        continue;
+      }
+      const grown = growthRefusal("plan", s.arg, old, next, ceiling);
+      if (grown) {
+        errors.push(grown);
+        continue;
+      }
+      working.set(key, next);
+    } else if (s.kind === "plan-edit") {
+      if (!names.has(key)) {
+        errors.push(noField(s));
+        continue;
+      }
+      const { pairs, errors: bad } = parseEdits(s.body);
+      errors.push(...bad.map((b) => `\`## plan-edit: ${s.arg}\` -- ${b}`));
+      let text = working.get(key)!;
+      for (const [old, next] of pairs) {
+        if (!old) continue;
+        const hits = occurrences(text, old);
+        if (hits !== 1) {
+          const where = hits === 0 ? "is not in that field" : `appears ${hits} times in it`;
+          errors.push(
+            `\`## plan-edit: ${s.arg}\` -- the \`--- old\` fragment ${where}, so nothing ` +
+              "was changed. Quote a longer run, exactly as the field reads (it is one " +
+              `paragraph, single-spaced; \`bun nv plan --get ${pyRepr(s.arg)}\` prints ` +
+              `it): ${pyRepr(head(old, 70))}`,
+          );
+          continue;
+        }
+        text = text.replace(old, () => next);
+      }
+      const grown = growthRefusal("plan-edit", s.arg, working.get(key)!, text, ceiling);
+      if (grown) {
+        errors.push(grown);
+        continue;
+      }
+      working.set(key, text);
+    } else if (s.kind === "milestone") {
+      const entry = resolveMilestone(s.arg);
+      if (entry === null) {
+        errors.push(`\`## milestone: ${s.arg}\` -- the plan's table lists no such milestone, and this tool does not add one. It has: ${milestones().map((m) => m.id).join(", ")}`);
+      } else if (!existsSync(join(ROOT, entry.rel))) {
+        errors.push(`\`## milestone: ${s.arg}\` -- ${entry.rel} does not exist`);
+      }
+    } else if (s.kind === "playbook") {
+      errors.push(...validatePlaybook(s));
+    } else if (s.kind === "status") {
+      const lines = s.body.trim().split("\n");
+      const first = lines[0]!;
+      if (!STATUS_WORDS.some((w) => first.startsWith(w))) errors.push(`\`## status\` -- must start with one of ${STATUS_WORDS.join("/")}, got ${pyRepr(head(first, 40))}`);
+      if (lines.length > 1) errors.push("`## status` -- one line only");
+      if (first.startsWith("DONE")) errors.push(...(await namedTestFindings()));
+    } else if (s.kind === "commit") {
+      errors.push(...validateCommit(s));
+    } else if (s.kind === "handoff") {
+      errors.push(...validateHandoff(s.body));
+    }
+  }
+
+  // A wrap that writes the docs and commits nothing leaves step 5 owing the files it just changed, and
+  // inventing a subject for them would be this tool judging content, so it refuses and names them.
+  const writes = writtenPaths(sections);
+  if (writes.length && !sections.some((s) => s.kind === "commit")) {
+    errors.push(
+      `this wrap writes ${writes.join(", ")} and has no \`## commit:\` section, so step 5 ` +
+        `would end with ${writes.length > 1 ? "them" : "it"} dirty. Add ` +
+        `\`## commit: ${writes.join(" ")}\` -- every doc section is applied before any commit ` +
+        "is staged, so one wrap does both.",
+    );
+  }
+
+  errors.push(...bodyLinks(sections), ...bodyCitations(sections), ...bodyGoalNumbers(sections));
+  const { broke } = await linkFindings(await sessionBase());
+  if (broke.length) {
+    const more = broke.length > 8 ? `; and ${broke.length - 8} more -- \`bun nv links\` lists them all` : "";
+    errors.push(
+      `${broke.length} link(s) resolved at HEAD and do not resolve now, so they are this ` +
+        `session's: ${broke.slice(0, 8).join("; ")}${more}. Most often that is a file renamed under the citations of ` +
+        "it, which is how the four this gate was added for got there. Nothing else catches it " +
+        "before the push -- `nv links` is CI's `docs` job, and `bun nv verify` does not " +
+        "run it, so a green verify says nothing here. " +
+        "A link already dead at the commit this session opened on is not counted: that one is " +
+        "not yours. A slice you committed by hand earlier in this session is still yours.",
+    );
+  }
+  errors.push(
+    ...(await treeGate("docs/rules", RULEBOOK_GATES)),
+    ...(await treeGate("docs/decisions", RECORD_GATES)),
+    ...(await treeGate("docs/spec", MIGRATION_GATES)),
+    ...manifestProblems(manifestCopies()),
+  );
+  return errors;
+}
+
 // ---------------------------------------------------------------------------- the modes
 
 async function check(): Promise<number> {
@@ -748,7 +1197,16 @@ export async function run(args: string[]): Promise<number> {
   if (opts.flags.has("--check")) return await check();
   const wrap = opts.values.get("--wrap");
   if (wrap !== undefined) {
-    const errors = [...parseWrap(readFileSync(wrap, "utf8").replace(/\r\n/g, "\n")).errors, ...manifestProblems(manifestCopies())];
+    if (!existsSync(wrap)) {
+      console.log(`nv session: no such file: ${wrap}`);
+      return 2;
+    }
+    const parsed = parseWrap(readFileSync(wrap, "utf8").replace(/\r\n/g, "\n"));
+    if (!parsed.sections.length && !parsed.errors.length) {
+      console.log(`nv session: ${wrap} holds no \`## \` directive`);
+      return 2;
+    }
+    const errors = [...parsed.errors, ...(await validate(parsed.sections))];
     if (errors.length) {
       console.log(`nv session: ${errors.length} problem(s) -- NOTHING was written or committed:`);
       for (const e of errors) console.log(`  - ${e}`);

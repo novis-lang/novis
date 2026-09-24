@@ -43,7 +43,7 @@ const generatedHeader = (source: string, topic: string) =>
   `     Edit the prose fragment under docs/rules/${topic}/ or the structure in ${topic}.json. -->\n`;
 
 /** The citation token every file in the repository uses to name a rule. */
-const CITATION = /rule:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
+export const CITATION = /rule:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
 /**
  * The same citation, also consuming the backticks an author writes around it. Without them the
  * rendered chapter would wrap a link in a code span, because only the token inside the ticks was
@@ -120,7 +120,7 @@ function body(r: Rule): string {
 /** `s`'s length in code points, as Python's `len` counts it. */
 const codePoints = (s: string) => [...s].length;
 
-class Rulebook {
+export class Rulebook {
   topics: Topic[] = [];
   byId = new Map<string, Rule>();
   findings: Finding[] = [];

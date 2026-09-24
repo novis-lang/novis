@@ -41,10 +41,10 @@ const GOALS = "docs/agent/goals";
 const README = `${GOALS}/README.md`;
 
 /** A goal named by its number. Every one is a defect, because the number is a position. */
-const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
+export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
 /** A goal's own header, the one place a number still stands until the prose is renamed by slug. */
 const SHOWN_HEADER = /#\s*Loop goal \d+|#\s*Goal \d+ --|\*\*Goal \d+ —/g;
-const OWN_HEADER = /^#\s*Loop goal \d+|^#\s*Goal \d+ --|^\*\*Goal \d+ —/;
+export const OWN_HEADER = /^#\s*Loop goal \d+|^#\s*Goal \d+ --|^\*\*Goal \d+ —/;
 const BINARY = new Set([".png", ".jpg", ".jpeg", ".ico", ".svg", ".lock", ".woff", ".woff2"]);
 
 function read(path: string): string | null {
