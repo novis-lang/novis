@@ -15,6 +15,7 @@ import * as decisions from "./cmd/decisions.ts";
 import * as directives from "./cmd/directives.ts";
 import * as disk from "./cmd/disk.ts";
 import * as gaps from "./cmd/gaps.ts";
+import * as genAttribution from "./cmd/gen-attribution.ts";
 import * as goal from "./cmd/goal.ts";
 import * as guard from "./cmd/guard.ts";
 import * as holes from "./cmd/holes.ts";
@@ -39,6 +40,7 @@ import * as rules from "./cmd/rules.ts";
 import * as selftest from "./cmd/selftest.ts";
 import * as session from "./cmd/session.ts";
 import * as splice from "./cmd/splice.ts";
+import * as tryCmd from "./cmd/try.ts";
 import * as verify from "./cmd/verify.ts";
 import * as why from "./cmd/why.ts";
 
@@ -47,7 +49,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, goal, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, try: tryCmd, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

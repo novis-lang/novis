@@ -1,0 +1,11 @@
+--TEST--
+a twin that prints something else on its second line
+--FILE--
+<?nvs
+echo "same\n";
+echo "novis\n";
+--ORACLE--
+<?php
+echo "same\n";
+echo "php\n";
+echo "extra\n";

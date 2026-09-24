@@ -43,6 +43,28 @@
       "why": "nv adds `--lanes`, which prints the lane table a floor check reads, so no check has to read a tool's source text."
     }
   ],
+  "gen-attribution": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)gen-attribution\\.py(:? )",
+      "replace": "$1nv gen-attribution$2",
+      "why": "A message names the program that printed it."
+    }
+  ],
+  "try": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)try\\.py(:? )",
+      "replace": "$1nv try$2",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "both",
+      "pattern": "^(===== .*  -- cannot read: ).*$",
+      "replace": "$1<the error>",
+      "why": "The reason a file cannot be read is the runtime's own error text, and Python and Bun word the same error differently."
+    }
+  ],
   "db-matrix": [
     {
       "side": "python",
