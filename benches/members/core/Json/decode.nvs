@@ -1,0 +1,24 @@
+<?nvs
+// Decodes a small JSON object, as a server does with the body of each API request it receives.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $bodies = [
+            "{\"id\":7,\"name\":\"Ada\",\"tags\":[\"admin\",\"editor\"],\"active\":true}",
+            "{\"order\":1042,\"items\":[{\"sku\":\"T-1\",\"count\":2}],\"paid\":false,\"note\":null}",
+            "{\"query\":\"green tea\",\"page\":3,\"filters\":{\"inStock\":true},\"sort\":\"price\"}",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The body in each round depends on the round before, so no round can be left out.
+            var $decoded = Core\Json::decode($bodies[($total % 3) as int]) as array<mixed>;
+            $total = $total + Core\Arr::count($decoded);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

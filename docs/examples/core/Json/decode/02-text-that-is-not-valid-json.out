@@ -1,0 +1,3 @@
+Core\Json::decode(): key must be a string at line 1 column 2
+Core\Json::decode(): nesting is deeper than the `maxDepth` of 3 at line 1 column 3
+Core\Json::decode(): the integer 9223372036854775808 is too large for `int` at line 1 column 19

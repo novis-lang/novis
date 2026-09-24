@@ -1,0 +1,19 @@
+<?nvs
+// Shows a program that reads a shopping cart sent as JSON and adds up its total.
+
+// A browser sends this text in the body of a request.
+string $body = "{\"items\":[{\"name\":\"Tea\",\"cents\":450,\"count\":2},"
+    . "{\"name\":\"Cup\",\"cents\":1200,\"count\":1}]}";
+
+var $cart = Core\Json::decode($body) as array<mixed>;
+var $items = $cart["items"] as array<mixed>;
+
+// Each item is also an array with string keys, so it is converted with `as` too.
+int $total = 0;
+foreach ($items as mixed $entry) {
+    var $item = $entry as array<mixed>;
+    $total = $total + ($item["cents"] as int) * ($item["count"] as int);
+}
+
+// This prints `2 items, 2100 cents`.
+echo Core\Arr::count($items), " items, ", $total, " cents\n";

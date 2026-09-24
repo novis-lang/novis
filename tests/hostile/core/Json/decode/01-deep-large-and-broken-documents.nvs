@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a program decodes documents that are nested very deep, very large, broken, or at the edge
+// of what `int` can store. Each call must return a value or throw an error, and must not crash.
+
+// 1. Arrays and objects nested one hundred thousand levels deep. The limit is 512 levels by
+// default, so each call must throw a `ParseError`.
+array<string> $deep = [
+    Core\Str::repeat('[', 100000),
+    Core\Str::repeat("{\"a\":", 100000),
+];
+foreach ($deep as string $tooDeep) {
+    try {
+        Core\Json::decode($tooDeep);
+        throw new LogicError('a document deeper than the limit was decoded');
+    } catch (ParseError $refused) {
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. The deepest document the highest `maxDepth` allows. `decode` must read all 1024 levels.
+string $deepest = Core\Str::repeat('[', 1023) . '1' . Core\Str::repeat(']', 1023);
+if (Core\Json::encode(Core\Json::decode($deepest, { maxDepth: 1024 })) != $deepest) {
+    throw new LogicError('the deepest allowed document changed');
+}
+echo 'step 2: done', "\n";
+
+// 3. A `maxDepth` of 0 and one above 1024. Each call must throw a `LogicError`.
+array<uint> $depths = [0, 1025];
+foreach ($depths as uint $depth) {
+    try {
+        Core\Json::decode('1', { maxDepth: $depth });
+        throw new RuntimeError('a maxDepth outside 1 to 1024 was accepted');
+    } catch (LogicError $outside) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. The largest `int` must decode. One more must throw a `ParseError`.
+if ((Core\Json::decode('9223372036854775807') as int) != 9223372036854775807) {
+    throw new LogicError('the largest int changed');
+}
+try {
+    Core\Json::decode('9223372036854775808');
+    throw new LogicError('a number larger than int was decoded');
+} catch (ParseError $tooLarge) {
+}
+echo 'step 4: done', "\n";
+
+// 5. Six broken texts, from empty text to a control character inside a string. Each must throw
+// a `ParseError`.
+array<string> $broken = ['', "\"open", "\"\\ud800\"", '[1,]', '{} {}', "\"a\0b\""];
+foreach ($broken as string $text) {
+    try {
+        Core\Json::decode($text);
+        throw new LogicError('broken text was decoded');
+    } catch (ParseError $malformed) {
+    }
+}
+echo 'step 5: done', "\n";
+
+// 6. A list of two hundred thousand numbers, and one string of ten million characters.
+string $numbers = '[' . Core\Str::repeat('7,', 199999) . '7]';
+if (Core\Arr::count(Core\Json::decode($numbers) as array<mixed>) != 200000) {
+    throw new LogicError('the long list lost elements');
+}
+string $long = Core\Json::decode("\"" . Core\Str::repeat('x', 10000000) . "\"") as string;
+if (Core\Str::length($long) != 10000000) {
+    throw new LogicError('the long string was cut');
+}
+echo 'step 6: done', "\n";
+
+// 7. A document of ten thousand numbers is decoded a thousand times. Only the count is kept, so
+// the memory of each result must be freed.
+string $medium = '[' . Core\Str::repeat('1,', 9999) . '1]';
+uint $total = 0;
+uint $i = 0;
+while ($i < 1000) {
+    $total = $total + Core\Arr::count(Core\Json::decode($medium) as array<mixed>);
+    $i = $i + 1;
+}
+if ($total != 10000000) {
+    throw new LogicError('a decode returned the wrong count');
+}
+echo 'step 7: done', "\n";

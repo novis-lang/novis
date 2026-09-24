@@ -240,6 +240,20 @@
 //! The stack is the ancestor chain as well, so the cycle test and the path a
 //! message names a value with read off it rather than out of a second
 //! structure.
+//!
+//! # Known gaps
+//!
+//! 1. **The decoder still recurses on the native stack, and a debug build runs
+//!    out of it before [`DEPTH_CEILING`].** [`read`] is a `serde` visitor, one
+//!    Rust frame per nesting level, and nothing compares the stack it has left
+//!    with [`nvs_runtime::Ctx::stack_bounds`]. A release build decodes a
+//!    document at the ceiling even from a task already at its stack's soft
+//!    limit; a debug build overflows the task's `nvs_host::TASK_STACK_SIZE` at
+//!    about 800 levels and takes the process down. `a_document_at_the_ceiling_decodes`
+//!    does not see it, because a test thread's stack is twice a task's. The
+//!    encoder's heap stack is the shape a fix takes; a check against the armed
+//!    floor that throws is the smaller one.
+//!    — owner: M12
 
 use std::fmt;
 
@@ -251,7 +265,7 @@ use serde::ser::{Error as _, Serialize};
 use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -268,7 +282,7 @@ use crate::registry::{
 /// [`hydrate`] rather than through [`decode_as`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "encode",
@@ -316,6 +330,13 @@ pub const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Json`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Converts values to JSON text and back. `encode` writes a value as JSON, `decode` reads \
+            JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. A \
+            document that is not valid JSON throws a `ParseError`.",
 };
 
 /// `Core\Json::encode`'s `{pretty?: bool, escapeUnicode?: bool}` — the two
@@ -3550,6 +3571,52 @@ mod tests {
     fn an_integer_past_int_is_refused_rather_than_widened() {
         let why = decoded("9223372036854775808", 8).expect_err("2^63 is past `int`");
         assert!(why.contains("too large for `int`"), "{why}");
+    }
+
+    /// The member as a program calls it, option bag included: a document
+    /// comes back as the value it spells, the `maxDepth` it was handed is the
+    /// one applied, and a `maxDepth` outside `1..=DEPTH_CEILING` is refused
+    /// before the text is read at all.
+    // covers: Core\Json::decode
+    #[test]
+    fn decode_applies_the_depth_it_is_handed_and_refuses_one_outside_the_ceiling() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |text: &str, max: u64| {
+            let args = [Value::str(NvsStr::new(text.as_bytes())), Value::uint(max)];
+            let answer = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &args);
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            (answer, why)
+        };
+
+        let (answer, _) = ask(r#"{"id":7,"tags":["a","b"],"ok":true,"none":null}"#, 3);
+        let value = answer.expect("a document inside its depth decodes");
+        assert_eq!(
+            encoded(value).as_deref(),
+            Ok(r#"{"id":7,"tags":["a","b"],"ok":true,"none":null}"#)
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+
+        // The same document one level short of what it needs.
+        let (answer, _) = ask(r#"{"tags":["a"]}"#, 2);
+        assert!(answer.is_err(), "a list inside an object is depth 3");
+
+        for outside in [0, DEPTH_CEILING + 1] {
+            let (answer, why) = ask("1", outside);
+            assert!(answer.is_err(), "a `maxDepth` of {outside} was accepted");
+            assert!(why.contains("outside 1..=1024"), "{why}");
+        }
     }
 
     #[test]
