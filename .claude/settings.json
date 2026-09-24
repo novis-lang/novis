@@ -1,7 +1,7 @@
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Read", "hooks": [ { "type": "command", "command": "python tools/guard-read.py" } ] }
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] }
     ]
   },
   "permissions": {

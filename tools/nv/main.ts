@@ -9,6 +9,7 @@ import * as decisions from "./cmd/decisions.ts";
 import * as directives from "./cmd/directives.ts";
 import * as disk from "./cmd/disk.ts";
 import * as gaps from "./cmd/gaps.ts";
+import * as guard from "./cmd/guard.ts";
 import * as holes from "./cmd/holes.ts";
 import * as impact from "./cmd/impact.ts";
 import * as importCmd from "./cmd/import.ts";
@@ -34,7 +35,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, holes, impact, import: importCmd, layout, links, loop, migration, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, why };
+const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, guard, holes, impact, import: importCmd, layout, links, loop, migration, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

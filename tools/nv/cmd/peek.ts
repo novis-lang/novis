@@ -42,7 +42,7 @@ export const TARGET_FORMS = `Target forms, all of them \`path\` followed by \`:\
 const BYTES_PER_TOKEN = 2.5;
 const DEFAULT_WINDOW = 12;
 /** AGENTS.md rule 3's "whole file under ~400 lines". */
-const DEFAULT_MAX_LINES = 400;
+export const DEFAULT_MAX_LINES = 400;
 
 /**
  * What counts as *defining* a name, across the languages this repository holds, most specific first.

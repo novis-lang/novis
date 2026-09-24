@@ -188,15 +188,14 @@ calls a session across only 20.3 distinct files — and since the two hottest fi
 against the file's 276 KB. `peek.py` counts a session's fetches per file and names the flag once you have
 reached into the same one three times.
 
-**The 400-line floor is enforced on both sides now.** `peek.py` has always refused a bare `path` over
-`--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines" and the one home for that
-number. The harness's own `Read` tool had no such floor, and it is where the largest single tool result of
-a 72-session run came from: 35,040 bytes of `serve.rs` in one call, with 27 whole-file reads of the 177 KB
-`loop-goal.toml` behind it. `tools/guard-read.py` is a `PreToolUse` hook, wired in `.claude/settings.json`,
-that denies exactly one thing — a `Read` naming no `offset`/`limit` on a file over that same 400 lines —
-and answers with the two `peek.py` calls that would have landed. Claude Code is the only harness that
-reads `.claude/`; every other one gets the same floor from `peek.py`, which is why the hook imports the
-number rather than holding one.
+**The 400-line floor is enforced on both sides.** `peek.py` refuses a bare `path` over `--max-lines` —
+400, which is AGENTS.md rule 3's "whole file under ~400 lines", and `nv peek` holds the same number.
+The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
+`.claude/settings.json` for `Read`, `Bash` and `PowerShell`. It denies a raw command where a tool or a rule
+in this file covers it: a whole `Read`, `cat`, `Get-Content` or `sed -n` of a tracked file over that same
+400 lines, and the other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:`
+and names the call to make instead, and anything the guard cannot read is allowed. Claude Code is the only
+harness that reads `.claude/`; every other one gets the floor from `peek.py` alone.
 
 ## A debug cargo command never takes `-p`
 
