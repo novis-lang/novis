@@ -14,31 +14,38 @@
 //     bun nv proofs --bless FILE...        write each example's `.out` from what it prints, and show it
 //     bun nv proofs --comments PATH...     judge the comments of these programs, or of every `.nvs` under
 //                                          a directory, against the plain-comment bounds; runs nothing
+//     bun nv proofs --record-perf          measure every bench in scope with no current figure, and append
+//                                          a record per feature to the perf ledger
+//     bun nv proofs --perf-report          write docs/perf/members.md from the ledger
 //
-// `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run` and
-// `--verify`, and `--id` narrows `--run` and `--verify`. `--run` and `--verify` take `--group` more than
-// once: the roster is read once, every program runs in one pool, and each group prints its own verdict
-// lines under a `== <group>` line. `--no-perf` stops the perf proof from being owed. `--nvs` names the
-// binary to use as it is. Without it, the audit reads the roster from `target/release` and then
-// `target/debug`, and `--bless`, `--run` and `--verify` use the proof binary, built first when it is not
-// current.
+// `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
+// `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
+// `--verify` and `--record-perf` take `--group` more than once: the roster is read once, every program
+// runs in one pool, and each group prints its own verdict lines under a `== <group>` line. `--no-perf`
+// stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
+// `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
+// and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
+// the audit reads the roster from `target/release` and then `target/debug`, `--bless`, `--run` and
+// `--verify` use the proof binary, and `--record-perf` uses the release binary, each built first when it
+// is not current.
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
-// come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, and `tools/nv/proofs/run.ts`
-// is how a proof program is run and judged.
+// come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, `tools/nv/proofs/run.ts` is
+// how a proof program is run and judged, and `tools/nv/proofs/perf.ts` is how a figure is taken.
 //
-// This replaces `tools/dossier.py`'s audit, `--run`, `--verify`, `--bless` and `--comments`. The perf
-// ledger is still that tool's until it is ported here.
+// This replaces `tools/dossier.py`'s audit, `--run`, `--verify`, `--bless`, `--comments`, `--record-perf`
+// and `--perf-report`.
 
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
-import { ArgError, comparePaths, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
+import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
-import { bless, namedBinary, proofBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { bless, namedBinary, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
@@ -46,6 +53,8 @@ const USAGE = [
   "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
+  "                 [--record-perf] [--reps REPS] [--force] [--note NOTE]",
+  "                 [--perf-report]",
 ].join("\n");
 
 /** What the binary is: the one named, or the newest profile built. */
@@ -61,16 +70,6 @@ function binary(explicit: string | undefined): string | null {
 
 const ljust = (s: string, n: number) => s + " ".repeat(Math.max(0, n - [...s].length));
 const rjust = (s: string | number, n: number) => " ".repeat(Math.max(0, n - [...String(s)].length)) + String(s);
-
-/** Python's `format(x, ".Nf")`: a tie exactly halfway rounds to the even digit. */
-function fixed(x: number, digits: number): string {
-  const scaled = x * 10 ** digits;
-  if (Number.isInteger(scaled * 2) && !Number.isInteger(scaled)) {
-    const down = Math.floor(scaled);
-    return ((down % 2 === 0 ? down : down + 1) / 10 ** digits).toFixed(digits);
-  }
-  return x.toFixed(digits);
-}
 
 /** A float from the ledger as Python's `str()` prints it. */
 const pyFloat = (v: unknown) => (typeof v === "number" && Number.isInteger(v) ? `${v}.0` : String(v));
@@ -350,21 +349,26 @@ export async function run(args: string[]): Promise<number> {
   let comments: string[] | null;
   let blessed: string[] | null;
   let limit = 40;
+  let reps = 5;
   try {
     let rest: string[];
     ({ rest, list: only } = takeList(args, "--only"));
     ({ rest, list: comments } = takeList(rest, "--comments"));
     ({ rest, list: blessed } = takeList(rest, "--bless"));
     ({ flags, values } = parseArgs(rest, {
-      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show"],
-      valued: ["--group", "--id", "--limit", "--nvs"],
+      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report"],
+      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note"],
     }));
-    const raw = values.get("--limit");
-    if (raw !== undefined) {
+    const int = (flag: string) => {
+      const raw = values.get(flag);
+      if (raw === undefined) return undefined;
       const n = pyInt(raw);
-      if (n === null) throw new ArgError(`argument --limit: invalid int value: ${pyRepr(raw)}`);
-      limit = n;
-    }
+      if (n === null) throw new ArgError(`argument ${flag}: invalid int value: ${pyRepr(raw)}`);
+      return n;
+    };
+    limit = int("--limit") ?? limit;
+    reps = int("--reps") ?? reps;
+    if (reps < 1) throw new ArgError("argument --reps: must be at least 1");
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv proofs: error: ${e.message}`);
@@ -383,11 +387,13 @@ export async function run(args: string[]): Promise<number> {
   // Only what runs a proof program pays for a current binary. The audit reads a roster, and a person
   // asking `--owed` is not made to wait for a build.
   if (comments !== null) return flush(checkComments(out, comments));
+  const measures = flags.has("--record-perf");
+  if (flags.has("--perf-report") && !measures) return flush(perfReport(out));
   const executes = blessed !== null || flags.has("--run") || flags.has("--verify");
   let bin: Binary | null = null;
   const named = values.get("--nvs");
-  if (executes && named === undefined) {
-    const built = await proofBinary();
+  if ((executes || measures) && named === undefined) {
+    const built = await (measures ? releaseBinary() : proofBinary());
     if (typeof built === "string") {
       out.push(`nv proofs: ${built}`);
       return flush(1);
@@ -416,8 +422,8 @@ export async function run(args: string[]): Promise<number> {
     return 1;
   }
   const group = values.get("--group");
-  // The audit takes the last `--group`, as argparse does. `--run` and `--verify` take each one.
-  const groups = executes ? groupsIn(args) : group === undefined ? [] : [group];
+  // The audit takes the last `--group`, as argparse does. `--run`, `--verify` and `--record-perf` take each one.
+  const groups = executes || measures ? groupsIn(args) : group === undefined ? [] : [group];
   let scope = entries;
   if (groups.length > 0) {
     const missing = groups.find((g) => !entries.some((e) => e.group === g));
@@ -441,6 +447,18 @@ export async function run(args: string[]): Promise<number> {
   }
   const label = group ?? (only !== null ? `${only.length} named feature(s)` : null);
   const proofs = collect(entries);
+
+  if (measures) {
+    const fid = values.get("--id");
+    const match = fid === undefined ? undefined : entries.find((e) => e.id === fid);
+    if (fid !== undefined && !match) {
+      out.push(`nv proofs: no feature ${pyRepr(fid)}.`);
+      return flush(1);
+    }
+    const opts = { reps, note: values.get("--note") ?? "", force: flags.has("--force") };
+    const rc = await recordPerf(out, nvs, match ? [match] : scope, proofs, policy, skips, opts);
+    return flush(rc || (flags.has("--perf-report") ? perfReport(out) : 0));
+  }
 
   if (executes) {
     const fid = values.get("--id");

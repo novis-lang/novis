@@ -110,6 +110,22 @@ export function comparePaths(a: string, b: string): number {
   return pa.length - pb.length;
 }
 
+/**
+ * Python's `format(x, ".Nf")`. Both round the double's exact value, so the two differ only on an exact
+ * tie, which Python rounds to the even digit and `toFixed` away from zero. A tie is read off the exact
+ * decimal expansion: a double that is halfway at `digits` ends in one `5` right after them.
+ */
+export function fixed(x: number, digits: number): string {
+  const extra = Math.min(100, digits + 40) - digits;
+  const exact = x.toFixed(digits + extra);
+  if (!/^50*$/.test(exact.slice(-extra))) return x.toFixed(digits);
+  const kept = exact.slice(0, -extra).replace(/\.$/, "");
+  return Number(kept.at(-1)) % 2 === 0 ? kept : x.toFixed(digits);
+}
+
+/** Python's `format(x, "g")` for the plain figures a report prints: six significant digits, no trailing zeros. */
+export const general = (x: number) => String(Number(x.toPrecision(6)));
+
 /** A command line argparse refused. `message` is the text after `error: `. */
 export class ArgError extends Error {}
 

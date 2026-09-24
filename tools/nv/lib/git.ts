@@ -14,6 +14,11 @@ export async function head(cwd: string = ROOT): Promise<string> {
   return (await git(["rev-parse", "HEAD"], cwd)).trim();
 }
 
+/** The commit that last touched `path`, or "" when none has. */
+export async function lastCommit(path: string, cwd: string = ROOT): Promise<string> {
+  return (await git(["log", "-1", "--format=%H", "--", path], cwd)).trim();
+}
+
 /** Every tracked file under `paths` (all of them when empty), repo-relative. */
 export async function tracked(paths: string[] = [], cwd: string = ROOT): Promise<string[]> {
   const out = await git(["ls-files", "-z", "--", ...paths], cwd);

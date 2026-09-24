@@ -7,6 +7,7 @@
 // of what it is compiled from has moved since it was last built. The key is the one `builtFrom` computes
 // for every Rust build, at the `shipped` tier because the roster reads the binary's own cards. So a relink
 // that changed nothing runs nothing again, and an edit to a reference chapter the binary embeds rebuilds.
+// `releaseBinary` is the same rule for `target/release/`, which the perf ledger is measured on.
 //
 // A green verdict is remembered in `.loop/proofs-green.json`, keyed on the program's bytes (with its `.out`
 // and `.in`) and on the binary's key, so an unchanged program on an unchanged binary is not run again. Only
@@ -38,9 +39,15 @@ export interface Binary {
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 export const PROOF_BINARY = `target/proof/${EXE}`;
-/** The key the proof binary on disk was built at. */
-const PROOF_KEY = "target/proof/nvs.key";
+export const RELEASE_BINARY = `target/release/${EXE}`;
 const GREEN = ".loop/proofs-green.json";
+
+/** The two builds a proof runs on. The release build is the argv `loop.py` runs, so both share one set
+ * of artefacts under `target/release/`. Each writes the key it was built at to `key` beside it. */
+const BUILDS = {
+  proof: { name: "proof binary", path: PROOF_BINARY, key: "target/proof/nvs.key", argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] },
+  release: { name: "release binary", path: RELEASE_BINARY, key: "target/release/nvs.key", argv: ["cargo", "build", "--release", "-p", "nvs-cli"] },
+};
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
@@ -70,22 +77,29 @@ const EXAMPLE_TIMEOUT_MS = 60_000;
 export const HOSTILE_TIMEOUT_MS = 10_000;
 
 /** The proof binary of the tree as it stands, built first when its key has moved. A string is why not. */
-export async function proofBinary(): Promise<Binary | string> {
+export const proofBinary = () => builtBinary("proof");
+
+/** The release binary of the tree as it stands, which `--record-perf` measures on. */
+export const releaseBinary = () => builtBinary("release");
+
+async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | string> {
+  const build = BUILDS[profile];
   const graph = await metadata();
-  if (!graph) return "`cargo metadata` failed, and the proof binary's key needs the graph";
+  if (!graph) return `\`cargo metadata\` failed, and the ${build.name}'s key needs the graph`;
   const tree = await Tree.read();
-  const key = keyOf("proof binary", builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "shipped", depTier: "shipped", test: false }));
+  const key = keyOf(build.name, builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "shipped", depTier: "shipped", test: false }));
   tree.save();
-  const path = abs(PROOF_BINARY);
-  const stamp = existsSync(abs(PROOF_KEY)) ? readFileSync(abs(PROOF_KEY), "utf8").trim() : "";
+  const path = abs(build.path);
+  const stamp = existsSync(abs(build.key)) ? readFileSync(abs(build.key), "utf8").trim() : "";
   if (existsSync(path) && stamp === key) return { path, key };
-  console.error("nv proofs: building the proof binary (`cargo build --profile proof --bin nvs`)");
-  const built = await runProc(["cargo", "build", "--profile", "proof", "--bin", "nvs"], { timeoutMs: 60 * 60 * 1000 });
+  const command = build.argv.join(" ");
+  console.error(`nv proofs: building the ${build.name} (\`${command}\`)`);
+  const built = await runProc(build.argv, { timeoutMs: 60 * 60 * 1000 });
   if (built.code !== 0 || !existsSync(path)) {
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
-    return `\`cargo build --profile proof --bin nvs\` failed (exit ${built.code}):\n${tail}`;
+    return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
-  writeFileSync(abs(PROOF_KEY), `${key}\n`);
+  writeFileSync(abs(build.key), `${key}\n`);
   return { path, key };
 }
 

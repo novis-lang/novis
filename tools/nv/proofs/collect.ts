@@ -271,11 +271,12 @@ function scanCalls(): Map<string, string[]> {
   return out;
 }
 
-const LEDGER = "docs/perf/members.ndjson";
+export const LEDGER = "docs/perf/members.ndjson";
 
 /** Every perf record, grouped by feature, oldest first. */
-function ledgerRecords(): Map<string, Record<string, unknown>[]> {
+export function ledgerRecords(): Map<string, Record<string, unknown>[]> {
   const out = new Map<string, Record<string, unknown>[]>();
+  if (!existsSync(abs(LEDGER))) return out;
   for (const raw of read(LEDGER).split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
