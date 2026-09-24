@@ -1,0 +1,404 @@
+// Every unit a key answers for, and what each one reads: the test binaries `verify` runs, and each
+// `[[check]]` in the loop's goal file. A unit returns `Part[]` over a tree, so `nv why` prints it and
+// `nv impact --probe` compares it before and after an edit, and neither has a copy of the rule.
+//
+// A unit's `source` says where its verdict is kept and how narrow its key is:
+//
+// - `verify record`: a test check of any shape, and a `.nvst` suite over the conformance or
+//   differential tree. `verify` keeps one verdict per test binary and per case tree, and the unit's
+//   key is the union of theirs.
+// - `binary key`: a test binary. What it is compiled from, `builtFrom` with `testBuild`, and the
+//   paths it last recorded opening at run time. A binary `tools/data/impact-wide.txt` lists keys on
+//   everything.
+// - `package key`: a check that builds or runs a program. Its build is `builtFrom` at the tier the
+//   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
+//   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
+//   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
+// - `observed`: a Python gate, over what `tools/observe.py` last saw it open, list and start.
+// - `partitions`: a check whose reads are whole directories or files it names.
+// - `everything`: anything else, and every doubt.
+//
+// Fuzz builds the crates its target's source `use`s, over `fuzz/**`. TSan and the database matrix
+// build the workspace packages their script names, raw and with their test modules, over the script,
+// every `Cargo.toml`, `examples/`, and for the matrix `tests/db/`.
+
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
+import { ROOT, abs } from "../lib/paths.ts";
+import { type Graph, byCrate, testBinaries } from "./graph.ts";
+import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
+import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
+import { digest } from "./scan.ts";
+import { NOT_INPUTS, type Tree } from "./tree.ts";
+
+export type Source = "verify record" | "binary key" | "observed" | "package key" | "partitions" | "everything";
+
+/** One `[[check]]` table, as the goal file writes it. */
+export type Check = { kind: string } & Record<string, unknown>;
+
+export interface Unit {
+  /** A check's name, or a test binary's `<package> <kind> <target>`. */
+  name: string;
+  source: Source;
+  /** The `[[check]]` this unit is; none for a test binary or a leg. */
+  check?: Check;
+  parts(tree: Tree): Part[];
+}
+
+/** What `tools/observe.py` recorded for one Python gate. */
+export interface Observed {
+  files: string[];
+  dirs: string[];
+  spawns: string[][];
+}
+
+/** Everything a unit's key is read from besides the tree. */
+export interface Records {
+  graph: Graph;
+  checks: Check[];
+  /** Each test binary's run-time reads, repo-relative, as `verify` last recorded them. */
+  reads: Map<string, string[]>;
+  /** The test binaries keyed on everything. */
+  wide: Set<string>;
+  /** Each Python gate's reads, by `argv` and `cwd` joined with NULs. */
+  observed: Map<string, Observed>;
+}
+
+export const GOAL = "docs/agent/loop-goal.toml";
+const READS = ".agent-tmp/impact-reads.json";
+const WIDE = "tools/data/impact-wide.txt";
+const OBSERVED = ".loop/check-reads.json";
+
+/** The two memos that are a whole leg rather than a check, keyed like a program. */
+export const LEGS = ["wsl leg", "valgrind sweep"];
+const PROGRAM_KINDS = new Set(["exact", "ordered", "contains", "min-bytes"]);
+const TEST_TREES = ["tests", "conformance", "differential", "hostile", "lsp-cases"];
+/** What a program opens besides its build. */
+const PROGRAM_READS = ["docs", "examples", "tests"];
+/** What an `nvs` command opens besides its build. */
+const NVS_COMMAND_READS = ["docs", "examples", ...TEST_TREES];
+/** The case trees whose verdicts `verify` keeps. */
+const VERIFY_TREES = ["tests/conformance", "tests/differential"];
+/** Every partition, for a unit keyed on everything. */
+export const EVERYTHING = [...Object.keys(PARTITIONS), OTHER, STATE];
+
+const FUZZ = "cargo +nightly fuzz run";
+const TSAN = "tools/tsan.sh";
+const DB_MATRIX = "tools/db-matrix.py";
+
+function readJson(rel: string): unknown {
+  try {
+    return JSON.parse(readFileSync(abs(rel), "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The records on disk. A missing one reads as empty, which only ever widens a key. */
+export function loadRecords(graph: Graph, goal = GOAL): Records {
+  const doc = parseToml(readFileSync(join(ROOT, goal), "utf8")) as { check?: Check[] };
+  const reads = new Map<string, string[]>();
+  const got = readJson(READS);
+  if (got && typeof got === "object") {
+    for (const [name, v] of Object.entries(got as Record<string, { reads?: unknown }>)) {
+      if (Array.isArray(v?.reads)) reads.set(name, v.reads.filter((r): r is string => typeof r === "string"));
+    }
+  }
+  const wide = new Set<string>();
+  if (existsSync(abs(WIDE))) {
+    for (const line of readFileSync(abs(WIDE), "utf8").split(/\r?\n/)) {
+      if (!line.trim() || line.startsWith("#")) continue;
+      wide.add(line.split("  --")[0]!.trim());
+    }
+  }
+  const observed = new Map<string, Observed>();
+  const seen = readJson(OBSERVED);
+  if (seen && typeof seen === "object") {
+    for (const [key, v] of Object.entries(seen as Record<string, Observed>)) {
+      if (v && Array.isArray(v.files) && Array.isArray(v.dirs) && Array.isArray(v.spawns)) observed.set(key, v);
+    }
+  }
+  return { graph, checks: doc.check ?? [], reads, wide, observed };
+}
+
+/** A check's name, as the driver files its verdict: its `name`, else its `file`, else what it runs. */
+export function checkName(c: Check): string {
+  if (typeof c.name === "string") return c.name;
+  if (typeof c.file === "string") return c.file;
+  return [c.kind, ...strings(c.argv ?? c.args)].join(" ");
+}
+
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((a): a is string => typeof a === "string") : [];
+}
+
+// ---- parts, memoized per tree ----------------------------------------------------------------------
+
+const memo = new WeakMap<Tree, Map<string, Part[]>>();
+
+function cached(tree: Tree, key: string, make: () => Part[]): Part[] {
+  let m = memo.get(tree);
+  if (!m) memo.set(tree, (m = new Map()));
+  let got = m.get(key);
+  if (!got) m.set(key, (got = make()));
+  return got;
+}
+
+const byPartition = new WeakMap<Tree, Map<string, string[]>>();
+
+function partitionFiles(tree: Tree, name: string): string[] {
+  let m = byPartition.get(tree);
+  if (!m) {
+    m = new Map();
+    for (const rel of tree.files) {
+      const p = partitionOf(rel);
+      let list = m.get(p);
+      if (!list) m.set(p, (list = []));
+      list.push(rel);
+    }
+    byPartition.set(tree, m);
+  }
+  return m.get(name) ?? [];
+}
+
+/** One part for a whole partition: the bytes of every file in it. */
+function partition(tree: Tree, name: string): Part[] {
+  return cached(tree, `partition\0${name}`, () => {
+    const files = partitionFiles(tree, name);
+    return [{ label: `<${name}>`, partition: name, tier: "raw", digest: digest(name, ...files.map((f) => `${f}\x01${tree.raw(f)}`)) }];
+  });
+}
+
+/** One part for a file, or for every file under a directory; a path with none is `absent`. The
+ * root, `.`, is every file in the tree. */
+function path(tree: Tree, top: string): Part[] {
+  if (top === ".") top = "";
+  return cached(tree, `path\0${top}`, () => {
+    if (top === "") return [{ label: "./", partition: OTHER, tier: "raw", digest: digest("", ...tree.files.map((f) => `${f}\x01${tree.raw(f)}`)) }];
+    const files = tree.under(top);
+    const label = files.length === 1 && files[0] === top ? top : `${top}/`;
+    return [{ label, partition: partitionOf(top + (label.endsWith("/") ? "/" : "")), tier: "raw", digest: digest(top, ...(files.length ? files.map((f) => `${f}\x01${tree.raw(f)}`) : ["absent"])) }];
+  });
+}
+
+/** The names directly under `dir` (`.` is the root), which a listing reads. */
+function listing(tree: Tree, dir: string): Part[] {
+  return cached(tree, `listing\0${dir}`, () => {
+    const names = new Set<string>();
+    for (const f of dir === "." ? tree.files : tree.under(dir)) {
+      const rest = dir === "." ? f : f.slice(dir.length + 1);
+      if (rest) names.add(rest.split("/")[0]!);
+    }
+    return [{ label: `${dir}/ (listing)`, partition: partitionOf(dir === "." ? "" : `${dir}/`), tier: "raw", digest: digest(dir, ...[...names].sort()) }];
+  });
+}
+
+/** The set of paths in the tree, which a test for whether a path exists reads. */
+function pathSet(tree: Tree): Part[] {
+  return cached(tree, "paths", () => [{ label: "<paths>", partition: "paths", tier: "raw", digest: digest("paths", ...tree.files) }]);
+}
+
+/** Every `Cargo.toml` in the tree, workspace member or not. */
+function manifests(tree: Tree): Part[] {
+  return cached(tree, "manifests", () => {
+    const files = tree.files.filter((f) => f === "Cargo.toml" || f.endsWith("/Cargo.toml"));
+    return [{ label: "<every Cargo.toml>", partition: "crates", tier: "raw", digest: digest("manifests", ...files.map((f) => `${f}\x01${tree.raw(f)}`)) }];
+  });
+}
+
+function everything(tree: Tree): Part[] {
+  return cached(tree, "everything", () => EVERYTHING.flatMap((p) => partition(tree, p)));
+}
+
+function build(tree: Tree, graph: Graph, b: Build): Part[] {
+  return cached(tree, `build\0${JSON.stringify(b)}`, () => {
+    try {
+      return builtFrom(tree, graph, b);
+    } catch (e) {
+      if (e instanceof UnknownPackage) return everything(tree);
+      throw e;
+    }
+  });
+}
+
+/** The parts in `lists`, the first of each label kept, sorted by label. */
+function union(...lists: Part[][]): Part[] {
+  const out = new Map<string, Part>();
+  for (const list of lists) for (const p of list) if (!out.has(p.label)) out.set(p.label, p);
+  return [...out.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+}
+
+/** What `nvs` is built from, at the tier its caller reads. */
+function program(tier: "card" | "shipped"): Build {
+  return { own: ["nvs-cli"], ownTier: tier, depTier: tier, test: false };
+}
+
+// ---- the units -------------------------------------------------------------------------------------
+
+/** Every unit: the test binaries, the legs, then each check in the goal file's order. */
+export function units(r: Records): Unit[] {
+  const out: Unit[] = [];
+  const binaries = new Map<string, string>();
+  for (const pkg of [...r.graph.keys()].sort()) {
+    for (const b of testBinaries(r.graph, pkg)) {
+      binaries.set(b.name, pkg);
+      out.push({ name: b.name, source: r.wide.has(b.name) ? "everything" : "binary key", parts: (t) => binaryParts(t, r, pkg, b.name) });
+    }
+  }
+  for (const leg of LEGS) out.push({ name: leg, source: "package key", parts: (t) => programParts(t, r.graph, PROGRAM_READS) });
+  for (const c of r.checks) out.push(checkUnit(r, c));
+  return out;
+}
+
+function binaryParts(tree: Tree, r: Records, pkg: string, name: string): Part[] {
+  if (r.wide.has(name)) return union(build(tree, r.graph, testBuild(pkg)), everything(tree));
+  return union(build(tree, r.graph, testBuild(pkg)), ...(r.reads.get(name) ?? []).map((rel) => path(tree, rel)));
+}
+
+function programParts(tree: Tree, graph: Graph, reads: string[], tier: "card" | "shipped" = "card"): Part[] {
+  return union(build(tree, graph, program(tier)), ...reads.map((p) => partition(tree, p)));
+}
+
+/** The test binaries a `cargo test -p <pkg>` check runs: those its `--lib`, `--bin` or `--test`
+ * names, or all of the package's. */
+export function testTargets(graph: Graph, args: string[]): { pkg: string; names: string[] } | undefined {
+  const at = args.indexOf("-p");
+  if (args[0] !== "test" || at < 0 || !args[at + 1]) return undefined;
+  const pkg = args[at + 1]!;
+  let all = testBinaries(graph, pkg);
+  const flag = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
+  const bin = flag("--bin");
+  const test = flag("--test");
+  if (args.includes("--lib")) all = all.filter((b) => b.target.kind === "lib");
+  else if (bin !== undefined) all = all.filter((b) => b.target.kind === "bin" && b.target.name === bin);
+  else if (test !== undefined) all = all.filter((b) => b.target.kind === "test" && b.target.name === test);
+  return { pkg, names: all.map((b) => b.name) };
+}
+
+/** Does this command run what `needle` names? A `git grep` that only quotes it does not. */
+function runs(argv: string[], needle: string): boolean {
+  return argv.length > 0 && argv[0] !== "git" && argv.some((a) => a.includes(needle));
+}
+
+/** The workspace packages a file names as a whole word: what a script builds. */
+export function namedIn(tree: Tree, graph: Graph, rel: string): string[] {
+  if (!tree.has(rel)) return [];
+  const text = tree.text(rel);
+  return [...graph.keys()].filter((n) => new RegExp(`(?<![\\w-])${n.replace(/-/g, "\\-")}(?![\\w-])`).test(text)).sort();
+}
+
+/** The workspace packages a Rust source `use`s or names by path. */
+export function usedBy(tree: Tree, graph: Graph, rel: string): string[] {
+  const out = new Set<string>();
+  for (const m of tree.text(rel).matchAll(/(?<![\w:])(nvs_\w+)(?=::|\s*[;{])/g)) {
+    const pkg = byCrate(graph, m[1]!);
+    if (pkg) out.add(pkg);
+  }
+  return [...out].sort();
+}
+
+function checkUnit(r: Records, c: Check): Unit {
+  const name = checkName(c);
+  const unit = (source: Source, parts: (t: Tree) => Part[]): Unit => ({ name, source, check: c, parts });
+  const wide = unit("everything", everything);
+  const g = r.graph;
+
+  if (PROGRAM_KINDS.has(c.kind)) return unit("package key", (t) => programParts(t, g, PROGRAM_READS));
+
+  if (c.kind === "nvs-suite") {
+    const paths = strings(c.args).slice(1).filter((a) => !a.startsWith("-")).map((a) => a.replace(/\/+$/, ""));
+    if (paths.length > 0 && paths.every((p) => VERIFY_TREES.some((v) => p === v || p.startsWith(v + "/")))) {
+      return unit("verify record", (t) => union(build(t, g, program("card")), ...paths.map((p) => path(t, p))));
+    }
+    const trees = new Set<string>();
+    for (const p of paths) {
+      const part = partitionOf(p + "/");
+      for (const tr of part === "tests" ? TEST_TREES : [part]) trees.add(tr);
+    }
+    if (paths.length === 0) for (const tr of TEST_TREES) trees.add(tr);
+    return unit("package key", (t) => programParts(t, g, [...new Set([...PROGRAM_READS, ...trees])]));
+  }
+
+  if (c.kind === "cargo-named") {
+    const targets = testTargets(g, strings(c.args));
+    if (!targets || targets.names.length === 0) return wide;
+    return unit("verify record", (t) => union(...targets.names.map((n) => binaryParts(t, r, targets.pkg, n))));
+  }
+
+  if (c.kind !== "command") return wide;
+  const argv = strings(c.argv);
+  const cwd = typeof c.cwd === "string" ? c.cwd : ".";
+
+  if (argv[0] === "{nvs}") return unit("package key", (t) => programParts(t, g, NVS_COMMAND_READS, "shipped"));
+
+  if (argv[0] === "npm" && cwd.startsWith("editors/")) {
+    // The host run starts `nvs lsp`; packaging and the headless suite read the extension alone.
+    if (argv.includes("{nvs}")) return unit("package key", (t) => union(build(t, g, program("shipped")), path(t, "editors")));
+    return unit("partitions", (t) => path(t, "editors"));
+  }
+
+  if (runs(argv, FUZZ)) {
+    const target = argv.join(" ").match(/fuzz run (\S+)/)?.[1];
+    const src = `fuzz/fuzz_targets/${target}.rs`;
+    return unit("package key", (t) => {
+      const own = target && t.has(src) ? usedBy(t, g, src) : [];
+      if (own.length === 0) return everything(t);
+      return union(build(t, g, { own, ownTier: "card", depTier: "card", test: false }), path(t, "fuzz"));
+    });
+  }
+
+  // What these binaries open at run time was read off their source rather than taken from their
+  // recorded reads: `manifest_policy` walks the root, and what it opens there is every
+  // `Cargo.toml`, so the manifests stand in for the root its record names.
+  for (const [script, extra] of [[TSAN, ["examples"]], [DB_MATRIX, ["examples", "tests/db"]]] as const) {
+    if (!runs(argv, script)) continue;
+    return unit("package key", (t) => {
+      const own = namedIn(t, g, script);
+      if (own.length === 0) return everything(t);
+      return union(build(t, g, { own, ownTier: "raw", depTier: "card", test: true }), path(t, script), manifests(t), ...extra.map((p) => path(t, p)));
+    });
+  }
+
+  if (argv[0] === "python" && cwd === "." && argv[1]?.startsWith("tools/") && argv[1].endsWith(".py") && argv[1] !== "tools/observe.py") {
+    const seen = r.observed.get([...argv, cwd].join("\0"));
+    if (!seen || c.setup) return wide;
+    return unit("observed", (t) => observedParts(t, g, seen) ?? everything(t));
+  }
+
+  // A `git grep` over literal paths reads those paths and nothing else.
+  if (argv[0] === "git" && argv[1] === "grep" && argv.includes("--")) {
+    const specs = argv.slice(argv.indexOf("--") + 1);
+    if (specs.length > 0 && specs.every((s) => !/[*?[:]/.test(s))) {
+      return unit("partitions", (t) => union(...specs.map((s) => path(t, s.replace(/\/+$/, "")))));
+    }
+  }
+  return wide;
+}
+
+/** A Python gate's parts: the path set, every file it opened and every directory it listed, and
+ * `nvs` at `shipped` when it started one. `undefined` when it started anything else. */
+function observedParts(tree: Tree, graph: Graph, seen: Observed): Part[] | undefined {
+  const lists: Part[][] = [pathSet(tree)];
+  let code = false;
+  for (let argv of seen.spawns) {
+    if (argv.length === 1) argv = argv[0]!.split(/\s+/).filter(Boolean);
+    const program = (argv[0] ?? "").replace(/\\/g, "/").split("/").pop()!.toLowerCase();
+    if ((program === "git" || program === "git.exe") && argv[1] === "ls-files") continue;
+    if (program !== "nvs" && program !== "nvs.exe") return undefined;
+    code = true;
+    for (const a of argv.slice(1)) {
+      if (/^([A-Za-z]:)?[\\/]/.test(a)) continue;
+      const rel = a.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+      if (rel && tree.under(rel).length > 0) lists.push(path(tree, rel));
+    }
+  }
+  const ignored = (rel: string) => rel.split("/").some((p) => NOT_INPUTS.has(p));
+  for (const rel of seen.files) {
+    if (rel.split("/")[0] === "target") code = true;
+    else if (!ignored(rel)) lists.push(path(tree, rel));
+  }
+  for (const rel of seen.dirs) if (!ignored(rel)) lists.push(listing(tree, rel));
+  if (code) lists.push(build(tree, graph, program("shipped")));
+  return union(...lists);
+}
