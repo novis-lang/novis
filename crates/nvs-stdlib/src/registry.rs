@@ -5245,8 +5245,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Jwe",
-        r"Core\Jwe\Key",
         r"Core\Jwt",
         r"Core\Jwt\KeySet",
         r"Core\Log",

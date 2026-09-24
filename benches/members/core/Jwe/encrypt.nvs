@@ -1,0 +1,20 @@
+<?nvs
+// Encrypts a short session value with a shared key, as a server does before it puts it in a cookie.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The text in each round depends on the round before, so no round can be left out.
+            string $token = Core\Jwe::encrypt("user=" . $total, $key);
+            $total = $total + Core\Str::length($token);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

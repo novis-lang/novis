@@ -82,7 +82,9 @@ use rand::Rng as _;
 use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// `Core\Jwe`, as the spec's § 16 writes it.
 const NAME: &str = r"Core\Jwe";
@@ -170,7 +172,7 @@ const KEY_TY: CoreTy = CoreTy::Instance(KEY_NAME);
 /// `rule:security/jwe-compact-subset`'s two members.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "encrypt",
@@ -204,6 +206,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Jwe`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Encrypts a text into a JWE token that only the holder of the right key can read. \
+            `encrypt` writes the token and `decrypt` reads the text back. The key is a \
+            `Jwe\\Key`, and the method that made the key chooses the algorithm.",
 };
 
 /// `Core\Jwe::encrypt`'s reference card — `rule:core-api/reference-card`.
@@ -283,7 +292,7 @@ const DECRYPT_DOC: MethodDoc = MethodDoc {
 /// key-management algorithm, and nothing to read a key back out with.
 pub(crate) const KEY: CoreClass = CoreClass {
     name: KEY_NAME,
-    doc: None,
+    doc: Some(&KEY_CARD),
     methods: &[
         CoreMethod {
             name: "shared",
@@ -332,6 +341,13 @@ pub(crate) const KEY: CoreClass = CoreClass {
     instance: &[],
     slots: &["use", "material", "kind"],
     constants: &[],
+};
+
+/// `Core\Jwe\Key`'s class card — `rule:core-api/reference-card`.
+const KEY_CARD: ClassDoc = ClassDoc {
+    short: "The key for `Core\\Jwe`. Each static method makes one kind of key: `shared` from 32 \
+            secret bytes, `password` from a password, `recipient` from another party's public \
+            key, and `own` from your own key pair. You cannot read the key back out.",
 };
 
 /// `Core\Jwe\Key::shared`'s reference card — `rule:core-api/reference-card`.
@@ -1463,6 +1479,101 @@ mod tests {
             written > 0,
             "the set seals `ECDH-ES` tokens, and this is the loop that writes them again"
         );
+    }
+
+    /// One call of the member, as compiled code makes it, answering the token.
+    fn encrypted(ctx: &mut nvs_runtime::Ctx, payload: Value, key: Value) -> String {
+        let answer = nvs_runtime::call(nvs_core_jwe_encrypt, ctx, &[payload, key])
+            .expect("every key here agrees on something and every payload is affordable");
+        let token = String::from_utf8(
+            answer
+                .as_str_bytes()
+                .expect("encrypt answers a string")
+                .to_vec(),
+        )
+        .expect("a compact token is ASCII");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            answer.release();
+        }
+        token
+    }
+
+    /// The member as a program calls it, under each of the three algorithms a
+    /// key can name: the branch is the one the key's first slot picked, the
+    /// token opens under a ring holding that same key, and two seals of one
+    /// payload are two tokens because every call draws its own IV.
+    ///
+    /// The re-encryption tests above hold the seams to another implementation
+    /// from fixed randomness. This is the half they cannot reach: the member
+    /// drawing that randomness itself and choosing the seam from the key.
+    // covers: Core\Jwe::encrypt
+    #[test]
+    fn encrypt_seals_under_the_algorithm_its_key_names_and_draws_a_fresh_iv_per_call() {
+        let pair = webcrypto::vectors("jwe")
+            .iter()
+            .find(|vector| webcrypto::text(vector, "/key/kind") == "keyPair")
+            .expect("the set seals a token under a key pair");
+        let kind = curve(webcrypto::text(pair, "/key/curve"));
+        let cases = [
+            (USE_SHARED, vec![7_u8; crypto::KEY_LEN], None, DIR),
+            (USE_PASSWORD, b"correct horse".to_vec(), None, PBES2),
+            (
+                USE_OWN,
+                webcrypto::octets(pair, "/key/pkcs8"),
+                Some(kind),
+                ECDH_ES,
+            ),
+        ];
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let text = "id=42; role=admin";
+        let payload = Value::str(NvsStr::new(text.as_bytes()));
+        for (picked, material, kind, alg) in &cases {
+            let key = built(*picked, material, kind.map_or(NO_KIND, KeyKind::tag));
+            let first = encrypted(&mut ctx, payload, key);
+            let second = encrypted(&mut ctx, payload, key);
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                key.release();
+            }
+            assert_ne!(first, second, "{alg}: two seals drew one IV");
+
+            for token in [&first, &second] {
+                let parts = segments(token).expect("encrypt writes five segments");
+                assert!(
+                    protected_of(token).starts_with(&format!(r#"{{"alg":"{alg}","enc":"{ENC}""#)),
+                    "{alg}: {}",
+                    protected_of(token)
+                );
+                assert_eq!(
+                    parts[1].is_empty(),
+                    *picked != USE_PASSWORD,
+                    "{alg}: only PBES2 wraps a content key"
+                );
+                let opened = plaintext(&[(*picked, material.as_slice(), *kind)], token)
+                    .expect("the payload is affordable")
+                    .unwrap_or_else(|| panic!("{alg}: the key that sealed it does not open it"));
+                assert_eq!(opened, text.as_bytes(), "{alg}");
+            }
+        }
+
+        // A shared key one octet away opens nothing, so the round trip above is
+        // the key's doing and not a token every ring opens.
+        let key = built(USE_SHARED, &[7_u8; crypto::KEY_LEN], NO_KIND);
+        let token = encrypted(&mut ctx, payload, key);
+        let mut other = [7_u8; crypto::KEY_LEN];
+        other[0] = 8;
+        assert!(
+            plaintext(&[(USE_SHARED, other.as_slice(), None)], &token)
+                .expect("the payload is affordable")
+                .is_none()
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only references")]
+        unsafe {
+            key.release();
+            payload.release();
+        }
     }
 
     /// Every token the set refuses, refused here — the policy half and the

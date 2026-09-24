@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program encrypts with a public key that gives no secret, encrypts very large texts, and
+// encrypts many times in a loop. Each call must return a token or throw an error, and must not crash.
+// hostile: timeout-ms 30000
+
+secret bytes $secret = Core\Crypto::generateKey();
+Core\Jwe\Key $shared = Core\Jwe\Key::shared($secret);
+
+// 1. An X25519 public key made of 32 zero bytes gives no shared secret with any key.
+// `encrypt` must throw a `LogicError`.
+Core\Crypto\PublicKey $zero = Core\Crypto\PublicKey::read(
+    Core\Bytes::repeat(Core\Encoding::fromHex('00'), 32),
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw,
+);
+try {
+    Core\Jwe::encrypt('a card number', Core\Jwe\Key::recipient($zero));
+    throw new RuntimeError('a key with no shared secret encrypted a text');
+} catch (LogicError $noSecret) {
+}
+echo 'step 1: done', "\n";
+
+// 2. An empty text is encrypted. `decrypt` must return the empty text.
+string $empty = Core\Jwe::encrypt('', $shared);
+if (Core\Jwe::decrypt($empty, [$shared]) != '') {
+    throw new LogicError('the empty text did not come back empty');
+}
+echo 'step 2: done', "\n";
+
+// 3. A text of sixteen million characters is encrypted and read back. No character may be lost.
+string $long = Core\Str::repeat('é', 16000000);
+string $bigToken = Core\Jwe::encrypt($long, $shared);
+if (Core\Str::length(Core\Jwe::decrypt($bigToken, [$shared])) != 16000000) {
+    throw new LogicError('the long text was cut');
+}
+echo 'step 3: done', "\n";
+
+// 4. A password key is used a few times. Each call runs a slow key derivation.
+Core\Jwe\Key $password = Core\Jwe\Key::password(Core\Str::repeat('x', 100000));
+uint $p = 0;
+while ($p < 3) {
+    Core\Jwe::encrypt('a note', $password);
+    $p = $p + 1;
+}
+echo 'step 4: done', "\n";
+
+// 5. A short text is encrypted one hundred thousand times. Only the length is kept, so the
+// memory of each token must be freed. Every token for this text has the same length.
+uint $first = Core\Str::length(Core\Jwe::encrypt('id=7', $shared));
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Str::length(Core\Jwe::encrypt('id=7', $shared)) != $first) {
+        throw new LogicError('a token had a different length');
+    }
+    $i = $i + 1;
+}
+echo 'step 5: done', "\n";
