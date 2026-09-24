@@ -1,0 +1,193 @@
+# Goal 178 -- `var` is a `foreach` binding's type wherever a local allows it
+# The acceptance test, as data.
+#
+# `178-foreach-var.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No fixture of this goal's own: what it proves is asserted by conformance cases and named Rust
+  # tests, and the floor's own `exact` checks carry the fixtures. goal-switch.py unions the
+  # previous goal's list into this one, so the key is what has to be here.
+]
+
+[context]
+
+modules = [
+  # `parse_foreach_binding` -- where a binding's type is read, and where `var` is accepted.
+  "crates/nvs-syntax/src/parser/stmt.rs",
+  # `ForeachBinding`, whose `ty: None` means "omitted and reported" and needs a third state.
+  "crates/nvs-syntax/src/ast.rs",
+  # The `StmtKind::Foreach` arm that declares both bindings, and the `var` local arm beside it
+  # that is the behaviour to match.
+  "crates/nvs-types/src/locals.rs",
+  # `ForeachSource::value_ty`, `check_foreach_value`, `check_foreach_key`, `check_foreach_inout`.
+  "crates/nvs-types/src/expr/iteration.rs",
+  # `binding_ty`, which lowers the written type off the AST and panics without one.
+  "crates/nvs-ir/src/lower/mod.rs",
+  # `lower_foreach` and `lower_foreach_cursor`, the two callers of it.
+  "crates/nvs-ir/src/lower/control.rs",
+  # The inlay hint a `var` local carries, which a `var` binding gains.
+  "crates/nvs-lsp/src/hints.rs",
+]
+
+# The rule being widened, the rule whose subject supplies the type, and the rule that says no
+# binding's type ever changes.
+rules = ["types/var-inference", "iteration/foreach-subjects", "types/declaration"]
+
+adrs = []
+
+shapes = ["A commit message"]
+
+milestones = []
+
+playbook = [
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > another agent',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `178-foreach-var.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' own `stage = "..."` labels, which may group several prose stages under one
+# acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record whose scope line this goal overtakes, for the argument `var` was accepted on; the
+# array rule the literal refusal rests on; and the two shapes this stage writes.
+rules = ["types/arrays", "iteration/for-init-clause"]
+adrs = ["0037"]
+shapes = ["A decision record", "A rule fragment", "A `.nvst` test case", "A diagnostic"]
+playbook = ['Writing a test case > a rule*', 'Writing a test case > a -p*']
+
+[context.stage.3]
+rules = ["iteration/two-interfaces"]
+adrs = []
+
+[context.stage.4]
+rules = ["testing/feature-proofs"]
+adrs = []
+shapes = ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
+
+# The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
+# appended behind: a generated goal runs that goal's whole acceptance list as its
+# floor, so it needs the same containers and the same WSL target. Regenerated,
+# never hand-edited.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carried in from the goal ahead of this one drives a database and a cache, so the
+# daemon this table names is preflighted before this goal's first session. None of this goal's
+# own checks needs it.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. Goal prose stage 2.
+#
+# Neither case and none of the tests named here exists yet: writing one is how an item finishes.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the binding"
+name = "nvs-syntax (a `foreach` binding parses `var`, and an untyped one is still refused)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "foreach_binding_accepts_var_for_the_key_and_the_value",
+  "foreach_binding_accepts_var_after_inout",
+  "foreach_binding_with_no_type_and_no_var_is_still_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the binding"
+name = "nvs-types (a `var` binding takes the subject's element type, and what a `var` local refuses it refuses)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "foreach_var_value_takes_the_element_type_and_fixes_it",
+  "foreach_var_key_is_a_string",
+  "foreach_var_keeps_the_element_types_qualifiers",
+  "foreach_var_over_a_mixed_subject_is_mixed",
+  "foreach_var_over_a_bare_array_literal_is_refused",
+  "foreach_var_key_over_a_cursor_is_still_refused",
+  "foreach_inout_var_is_the_element_type_exactly",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the binding"
+name = "a `foreach` binding written `var` runs, and the bare-literal subject does not compile"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/iter/a-foreach-binding-written-var-takes-its-type-from-the-subject.nvst",
+  "tests/conformance/reject/a-foreach-var-binding-refuses-a-bare-array-literal-subject.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the loop lowers and the editor shows the type. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 lowering and the editor"
+name = "nvs-ir (a `var` binding lowers to the IR the written type lowers to)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "foreach_var_binding_lowers_as_the_written_type_does",
+  "foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 lowering and the editor"
+name = "nvs-lsp (a `var` foreach binding carries the inlay hint a `var` local carries)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_var_foreach_binding_is_hinted_with_its_inferred_type",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the feature proofs and the reference. Goal prose stage 4.
+#
+# The reference chapters run their own fenced programs, so a `var` header written there is
+# executed; the gate says the two features this goal grew still owe nothing; and the comments
+# check is the one goal `plain-comments` switched on, asked of the two directories this goal adds to.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the proofs"
+name = "dossier: the whole roster owes nothing with the `var` binding's proofs in it"
+argv = ["python", "tools/dossier.py", "--gate"]
+want = ["nothing owed in the whole roster"]
+
+[[check]]
+kind = "command"
+stage = "4 the proofs"
+name = "dossier: the programs this goal added carry comments inside the plain-comment bounds"
+argv = ["python", "tools/dossier.py", "--comments", "docs/examples/lang/statements/foreach", "tests/hostile/lang/iteration/what-foreach-walks"]
+want = ["each inside the bounds"]
