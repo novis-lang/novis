@@ -470,10 +470,12 @@ class StatusLine:
         Painted as one colour rather than per-word, so what a narrow terminal truncates is text
         and never half an escape sequence."""
         if CONTROL.typing is not None:
-            # The tail, not the head: what is being typed is at the end of it.
-            tail = f"{self.dash}Enter sends, Esc cancels"
-            room = max(18, self.width() - 3 - len("prompt> _") - len(tail))
-            return "  " + C.paint(f"prompt> {CONTROL.typing[-room:]}_{tail}", C.YELLOW)
+            # The typed text ends the row, because this row is the last one `draw` paints and the
+            # terminal's own cursor stands where painting stopped: right after the last character
+            # typed. Shown by its tail when it outgrows the row, since the tail is being typed.
+            head = f"Enter sends, Esc cancels{self.sep}prompt> "
+            room = max(18, self.width() - 3 - len(head))
+            return "  " + C.paint(head + CONTROL.typing[-room:], C.YELLOW)
         bits = []
         session = CONTROL.session
         if session and session.frozen_for:
