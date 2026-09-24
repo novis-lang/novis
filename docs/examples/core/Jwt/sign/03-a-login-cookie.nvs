@@ -1,0 +1,29 @@
+<?nvs
+// Shows a login token: the server signs it when a user logs in, and checks it on each request.
+
+// The server keeps one secret key. It is never sent to the browser.
+secret bytes $serverKey = Core\Crypto::generateKey();
+
+// After a login, the server signs the user's id and role. The token expires after 8 hours.
+// The server sends the token to the browser in a cookie.
+string $cookie = Core\Jwt::sign(["sub" => "1042", "role" => "editor"], 8h, $serverKey);
+
+// This method runs on each request. It checks if the user may edit a page.
+// A token that is not valid throws a `RuntimeError`, so the answer is `false`.
+class Login {
+    public static function canEdit(string $cookie, secret bytes $serverKey): bool {
+        try {
+            array<tainted string> $claims = Core\Jwt::verify($cookie, $serverKey);
+            return $claims["role"] == "editor";
+        } catch (RuntimeError $invalid) {
+            return false;
+        }
+    }
+}
+
+// The cookie the server signed. This prints `yes`.
+echo Login::canEdit($cookie, $serverKey) ? "yes" : "no", "\n";
+
+// A user changes one character of the cookie. The signature no longer matches.
+// This prints `no`.
+echo Login::canEdit($cookie . "x", $serverKey) ? "yes" : "no", "\n";

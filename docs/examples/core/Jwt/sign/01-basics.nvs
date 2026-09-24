@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to sign a few claims into a token and read them back.
+
+// `Core\Crypto::generateKey` returns 32 random secret bytes. They are the key.
+secret bytes $key = Core\Crypto::generateKey();
+
+// `sign` returns the token. It is valid for 15 minutes.
+// The token has three parts, separated by dots. This prints `3`.
+string $token = Core\Jwt::sign(["sub" => "42", "name" => "Ada"], 15m, $key);
+echo Core\Arr::count(Core\Str::split($token, ".")), "\n";
+
+// `Core\Jwt::verify` checks the token with the same key and returns the claims.
+// This prints `42` and `Ada`.
+array<tainted string> $claims = Core\Jwt::verify($token, $key);
+echo $claims["sub"], "\n";
+echo $claims["name"], "\n";
+
+// `sign` adds two claims: `iat` is the time of signing and `exp` is the expiry.
+// So the token has four claims. This prints `4`.
+echo Core\Arr::count($claims), "\n";

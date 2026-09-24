@@ -1,0 +1,90 @@
+<?nvs
+// Attack: a program signs very large claims, claims with difficult characters, and bad keys and
+// lifetimes. Each call must return a token or throw an error, and must not crash.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+
+// 1. One claim of sixteen million characters is signed and read back. No character may be lost.
+string $long = Core\Str::repeat('é', 16000000);
+array<tainted string> $back = Core\Jwt::verify(Core\Jwt::sign(['blob' => $long], 1h, $key), $key);
+if (Core\Str::length($back['blob'] as string) != 16000000) {
+    throw new LogicError('the long claim was cut');
+}
+echo 'step 1: done', "\n";
+
+// 2. One hundred thousand claims are signed. `verify` must return every one of them and the two
+// claims `sign` adds.
+array<string> $many = [];
+uint $n = 0;
+while ($n < 100000) {
+    $many['c' . $n] = 'v';
+    $n = $n + 1;
+}
+array<tainted string> $all = Core\Jwt::verify(Core\Jwt::sign($many, 1h, $key), $key);
+if (Core\Arr::count($all) != 100002) {
+    throw new LogicError('a claim was lost');
+}
+echo 'step 2: done', "\n";
+
+// 3. Names and values with quotes, backslashes and control characters must come back unchanged.
+string $odd = "\"}\\\u{0}\n\u{1F510}";
+array<tainted string> $escaped = Core\Jwt::verify(Core\Jwt::sign([$odd => $odd], 1h, $key), $key);
+if ($escaped[$odd] != $odd) {
+    throw new LogicError('a claim with special characters changed');
+}
+echo 'step 3: done', "\n";
+
+// 4. Each of these calls must throw a `LogicError`: a key one byte too short, a claim `sign`
+// writes itself, a lifetime of zero and a negative lifetime.
+uint $refused = 0;
+try {
+    Core\Jwt::sign(['sub' => '1'], 1h, Core\Random::bytes(31));
+} catch (LogicError $short) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Jwt::sign(['exp' => '9999999999'], 1h, $key);
+} catch (LogicError $exp) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Jwt::sign(['sub' => '1'], 0s, $key);
+} catch (LogicError $zero) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Jwt::sign(['sub' => '1'], Core\Time\Duration::seconds(1)->negated(), $key);
+} catch (LogicError $negative) {
+    $refused = $refused + 1;
+}
+if ($refused != 4) {
+    throw new LogicError('a bad key or lifetime signed a token');
+}
+// A lifetime of 100000 days is close to the longest a `Duration` can store. The expiry must
+// still be a valid time, so `verify` accepts the token.
+Core\Jwt::verify(Core\Jwt::sign(['sub' => '1'], 100000d, $key), $key);
+echo 'step 4: done', "\n";
+
+// 5. A key pair that cannot sign, and `embedKey` with a shared key, must throw a `LogicError`.
+try {
+    Core\Jwt::sign(['sub' => '1'], 1h, Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519));
+    throw new RuntimeError('an X25519 pair signed a token');
+} catch (LogicError $agreesOnly) {
+}
+try {
+    Core\Jwt::sign(['sub' => '1'], 1h, $key, { embedKey: true });
+    throw new RuntimeError('a shared key embedded a public key');
+} catch (LogicError $noPublicHalf) {
+}
+echo 'step 5: done', "\n";
+
+// 6. A short token is signed one hundred thousand times. Only the length is kept, so the memory
+// of each token must be freed.
+uint $first = Core\Str::length(Core\Jwt::sign(['sub' => '7'], 1h, $key));
+uint $i = 0;
+while ($i < 100000) {
+    Core\Jwt::sign(['sub' => '7'], 1h, $key);
+    $i = $i + 1;
+}
+echo 'step 6: done ', $first > 0 ? 'ok' : 'empty', "\n";
