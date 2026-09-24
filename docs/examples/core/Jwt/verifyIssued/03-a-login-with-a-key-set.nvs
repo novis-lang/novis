@@ -1,0 +1,56 @@
+<?nvs
+// Shows how an API finds the user of a request with the keys a login service publishes.
+
+// A login service publishes its public keys as a JSON key set (JWKS). Each key has
+// a name in `kid`. Here the service has an old key `2025` and a new key `2026`.
+Core\Crypto\KeyPair $old = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $new = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $oldJwk = Core\Encoding::decodeText($old->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $newJwk = Core\Encoding::decodeText($new->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $jwks = "{\"keys\":["
+    . Core\Str::replace($oldJwk, "{", "{\"kid\":\"2025\",") . ","
+    . Core\Str::replace($newJwk, "{", "{\"kid\":\"2026\",") . "]}";
+
+// Your program reads the key set once, when it starts.
+Core\Jwt\KeySet $keys = Core\Jwt\KeySet::read($jwks);
+
+// This method runs on each request. It returns the user's id, or `null` when the
+// token is not valid. The token's `kid` selects the key from the set.
+class Auth {
+    public static function userId(string $header, Core\Jwt\KeySet $keys): ?tainted string {
+        if (!Core\Str::startsWith($header, "Bearer ")) {
+            return null;
+        }
+        try {
+            var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+                Core\Str::slice($header, 7),
+                $keys,
+                "https://login.example.com",
+                "shop"
+            );
+            return $claims->sub;
+        } catch (RuntimeError $invalid) {
+            return null;
+        }
+    }
+}
+
+// The login service signs a token with its new key and names that key in `kid`.
+string $token = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+        "iss" => "https://login.example.com",
+        "aud" => "shop",
+        "sub" => "1042",
+    ]),
+    1h,
+    $new,
+    {kid: "2026"}
+);
+
+// A request with that token. This prints `user 1042`.
+?tainted string $user = Auth::userId("Bearer " . $token, $keys);
+echo $user == null ? "no user" : "user " . $user, "\n";
+
+// A request with a broken token. This prints `no user`.
+?tainted string $nobody = Auth::userId("Bearer abc.def.ghi", $keys);
+echo $nobody == null ? "no user" : "user " . $nobody, "\n";

@@ -1,0 +1,113 @@
+<?nvs
+// Attack: a client sends forged tokens, tokens with dangerous headers and very large
+// tokens. Each one must throw an error, and the program must not crash.
+// hostile: timeout-ms 30000
+
+Core\Crypto\KeyPair $service = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\PublicKey $public = $service->publicKey();
+string $token = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+        'iss' => 'https://login.example.com',
+        'aud' => 'shop',
+        'sub' => '42',
+    ]),
+    1h,
+    $service,
+);
+array<string> $parts = Core\Str::split($token, '.');
+
+class Check
+{
+    // Returns 1 when `verifyIssued` throws a `RuntimeError`. Any other result stops the program.
+    public static function refused(string $token, Core\Crypto\PublicKey $key): uint
+    {
+        try {
+            Core\Jwt::verifyIssued<tainted {sub: string}>($token, $key, 'https://login.example.com', 'shop');
+        } catch (RuntimeError $refused) {
+            return 1;
+        }
+        throw new LogicError('a forged token was accepted');
+    }
+
+    public static function part(string $json): string
+    {
+        return Core\Encoding::toBase64Url(Core\Encoding::encodeText($json, Core\Charset::Utf8));
+    }
+}
+
+// 1. Tokens with the wrong number of parts, or with empty parts.
+uint $n = 0;
+array<string> $shapes = ['', '.', '..', '...', 'a.b', 'a.b.c.d', $token . '.', '.' . $token];
+foreach ($shapes as string $broken) {
+    $n = $n + Check::refused($broken, $public);
+}
+echo 'step 1: done ', $n, "\n";
+
+// 2. Headers that name no algorithm, the algorithm `none`, or `HS256`, which would use
+// the public key as a shared secret. Headers that bring their own key or a URL to fetch one.
+$n = 0;
+array<string> $headers = [
+    '{}',
+    '{"alg":"none"}',
+    '{"alg":"HS256"}',
+    '{"alg":"eddsa"}',
+    '{"alg":"EdDSA","jwk":{"kty":"OKP"}}',
+    '{"alg":"EdDSA","jku":"https://attacker.example/keys"}',
+    '{"alg":"EdDSA","x5u":"https://attacker.example/cert"}',
+    '{"alg":"EdDSA","crit":["exp"]}',
+    '{"alg":"EdDSA","zip":"DEF"}',
+    'null',
+];
+foreach ($headers as string $header) {
+    $n = $n + Check::refused(Check::part($header) . '.' . $parts[1] . '.' . $parts[2], $public);
+}
+echo 'step 2: done ', $n, "\n";
+
+// 3. A header of one hundred thousand nested JSON lists, and a `kid` of one million characters.
+string $deep = Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000);
+$n = Check::refused(Check::part($deep) . '.' . $parts[1] . '.' . $parts[2], $public);
+string $longKid = '{"alg":"EdDSA","kid":"' . Core\Str::repeat('k', 1000000) . '"}';
+$n = $n + Check::refused(Check::part($longKid) . '.' . $parts[1] . '.' . $parts[2], $public);
+echo 'step 3: done ', $n, "\n";
+
+// 4. A token of thirty million characters. It is refused before it is read.
+string $huge = Core\Str::repeat('A', 10000000);
+$n = Check::refused($huge . '.' . $huge . '.' . $huge, $public);
+echo 'step 4: done ', $n, "\n";
+
+// 5. The claims are changed and the old signature is kept.
+$n = Check::refused($parts[0] . '.' . Check::part('{"iss":"https://login.example.com","aud":"shop","sub":"1","exp":9999999999}') . '.' . $parts[2], $public);
+echo 'step 5: done ', $n, "\n";
+
+// 6. A token signed by another key pair, with the same claims.
+Core\Crypto\KeyPair $attacker = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $foreign = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+        'iss' => 'https://login.example.com',
+        'aud' => 'shop',
+        'sub' => '1',
+    ]),
+    1h,
+    $attacker,
+);
+$n = Check::refused($foreign, $public);
+echo 'step 6: done ', $n, "\n";
+
+// 7. A valid token is checked fifty thousand times. Only the length of `sub` is kept,
+// so the memory of each result must be freed.
+uint $total = 0;
+uint $i = 0;
+while ($i < 50000) {
+    var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>($token, $public, 'https://login.example.com', 'shop');
+    $total = $total + Core\Str::length($claims->sub);
+    $i = $i + 1;
+}
+echo 'step 7: done ', $total, "\n";
+
+// 8. A leeway of 301 seconds is wider than the limit, so it throws a `LogicError`.
+try {
+    Core\Jwt::verifyIssued<tainted {sub: string}>($token, $public, 'https://login.example.com', 'shop', { leeway: 301s });
+    throw new RuntimeError('a leeway of 301 seconds was accepted');
+} catch (LogicError $wide) {
+}
+echo 'step 8: done', "\n";

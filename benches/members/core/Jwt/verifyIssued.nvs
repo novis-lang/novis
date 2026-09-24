@@ -1,0 +1,46 @@
+<?nvs
+// Checks a login token from another service with its public key, as an API does on each request.
+// bench: iterations 5000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Crypto\KeyPair $service = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        Core\Crypto\PublicKey $public = $service->publicKey();
+        array<string> $tokens = [
+            Core\Jwt::signObject(
+                Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+                    "iss" => "https://login.example.com",
+                    "aud" => "shop",
+                    "sub" => "1042",
+                ]),
+                1h,
+                $service
+            ),
+            Core\Jwt::signObject(
+                Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+                    "iss" => "https://login.example.com",
+                    "aud" => "shop",
+                    "sub" => "7",
+                ]),
+                1h,
+                $service
+            ),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round checks the token the round before chose, so no round can be left out.
+            var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+                $tokens[$total % 2],
+                $public,
+                "https://login.example.com",
+                "shop"
+            );
+            $total = $total + Core\Str::length($claims->sub);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Shows that a token for another application throws an error, and a changed token too.
+
+Core\Crypto\KeyPair $service = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// The login service signs a token for the application `blog`.
+string $token = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+        "iss" => "https://login.example.com",
+        "aud" => "blog",
+        "sub" => "ada",
+    ]),
+    15m,
+    $service
+);
+
+// This program is the application `shop`. The signature is valid, but the `aud`
+// claim is `blog`, so `verifyIssued` throws a `RuntimeError`. The message names the claim.
+try {
+    var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+        $token,
+        $service->publicKey(),
+        "https://login.example.com",
+        "shop"
+    );
+    echo "accepted: ", $claims->sub, "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// Somebody adds one character to the end of the token. The signature no longer
+// matches, so `verifyIssued` throws a `RuntimeError` again. This prints `refused`.
+string $changed = $token . "x";
+try {
+    Core\Jwt::verifyIssued<tainted {sub: string}>(
+        $changed,
+        $service->publicKey(),
+        "https://login.example.com",
+        "blog"
+    );
+    echo "accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo "refused", "\n";
+}

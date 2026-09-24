@@ -1,0 +1,2 @@
+Core\Jwt::verifyIssued(): the token is authentic and its `aud` does not name `shop` — or it names several audiences and its `azp` is not this one. A claim this member checks is one the issuer and this program had to agree on beforehand, so a mismatch is a token meant for somebody else rather than a forgery.
+refused
