@@ -1,0 +1,6 @@
+- **An `ends-early` attack passes when *any* step ends the program, so the steps after it can stop
+  running and nothing reports it.** `tools/dossier.py` accepts an ending anywhere in such a case, and
+  `Core\Html::parse`'s attack hit its memory limit at step 2 of six, because every `var` from step
+  1 stayed alive, so steps 3 to 6 never ran. Run an `ends-early` case with
+  `target/release/nvs.exe run <file>` once and check that the last `step N:` line printed is the
+  one the comment says ends it. [until: gone tools/dossier.py:ends-early]
