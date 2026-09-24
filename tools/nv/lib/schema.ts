@@ -299,6 +299,8 @@ export interface RecordType<T = unknown> {
   name: string;
   dir: string;
   single?: boolean;
+  /** How a file of this type's name ends after its id: `.json` unless set. Its `idOf` must agree. */
+  suffix?: string;
   schema: Schema<T>;
   /** The id of the file at `sub` (relative to `data/<dir>/`), or null when it is not this type's. */
   idOf?: (sub: string) => string | null;

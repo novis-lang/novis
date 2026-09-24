@@ -24,7 +24,7 @@ export function dataDir(root: string = ROOT): string {
 
 /** The repo-relative path of the record `id` of `type`. */
 export function pathOf(type: RecordType<any>, id: string): string {
-  return type.single ? `data/${type.dir}.json` : `data/${type.dir}/${id}.json`;
+  return type.single ? `data/${type.dir}.json` : `data/${type.dir}/${id}${type.suffix ?? ".json"}`;
 }
 
 /** The id of the record at repo-relative `path` if it is one of `type`'s, else null. */

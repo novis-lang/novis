@@ -20,7 +20,10 @@ export async function run(args: string[]): Promise<number> {
       RECORDS.length > 0 ? "SELECT count(*) AS records FROM records" : "SELECT 0 AS records",
     )[0] as { records: number };
     const { prose } = index.query("SELECT count(*) AS prose FROM files WHERE kind = 'prose'")[0] as { prose: number };
-    console.log(`nv check: ${records} record(s) of ${RECORDS.length} type(s), ${prose} prose file(s), ${findings.length} finding(s)`);
+    const n = findings.length;
+    console.log(
+      `nv check: ${n} finding${n === 1 ? "" : "s"}, in ${records} record(s) of ${RECORDS.length} type(s) and ${prose} prose file(s)`,
+    );
     return findings.length > 0 ? 1 : 0;
   } finally {
     index.close();
