@@ -39,6 +39,14 @@
       "why": "A message names the program that printed it."
     }
   ],
+  "reference": [
+    {
+      "side": "python",
+      "pattern": "^(usage: |)reference\\.py(:? )",
+      "replace": "$1nv reference$2",
+      "why": "A message names the program that printed it."
+    }
+  ],
   "disk": [
     {
       "side": "python",

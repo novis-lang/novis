@@ -3,7 +3,9 @@
 // are `tools/nv/parity/groups.json`. The comparison ignores only what `tools/nv/parity/known.json`
 // declares: a rewrite of one side's text, a regex and its replacement, each carrying its reason. The
 // `*` entries apply to every group. A group may also declare `unordered`: the entries whose order is not
-// part of the output, compared sorted, with the reason. A Python tool is deleted only after its group
+// part of the output, compared sorted, with the reason. The two programs of a case run at once unless
+// the group declares `sequential`, with the reason, for a pair that writes the same scratch files. A
+// Python tool is deleted only after its group
 // matches here.
 //
 // With no group, prints the groups. With `--all`, runs every group. Exits 0 when every case matches,
@@ -28,6 +30,8 @@ interface Group {
   cases: string[][];
   /** Lines whose order is not part of the output, declared with the reason. */
   unordered?: Unordered;
+  /** Why the two programs cannot run at once, when they cannot: each case then runs Python first. */
+  sequential?: string;
 }
 
 /**
@@ -124,7 +128,9 @@ async function runGroup(name: string, group: Group, known: Known[]): Promise<boo
   let same = 0;
   console.log(`parity ${name}: ${group.cases.length} case(s), ${group.python.join(" ")} against ${group.nv.join(" ")}`);
   for (const args of group.cases) {
-    const [py, nv] = await Promise.all([runProc([...group.python, ...args], PYTHON_ENV), runProc([...group.nv, ...args])]);
+    const runPy = () => runProc([...group.python, ...args], PYTHON_ENV);
+    const runNv = () => runProc([...group.nv, ...args]);
+    const [py, nv] = group.sequential ? [await runPy(), await runNv()] : await Promise.all([runPy(), runNv()]);
     const diff = compare(py, nv, known, used, group.unordered);
     const shown = args.length === 0 ? "(no arguments)" : args.join(" ");
     if (diff.length === 0) {
