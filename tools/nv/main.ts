@@ -4,6 +4,7 @@
 import * as brief from "./cmd/brief.ts";
 import * as check from "./cmd/check.ts";
 import * as decisions from "./cmd/decisions.ts";
+import * as directives from "./cmd/directives.ts";
 import * as disk from "./cmd/disk.ts";
 import * as gaps from "./cmd/gaps.ts";
 import * as holes from "./cmd/holes.ts";
@@ -26,7 +27,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, check, decisions, disk, gaps, holes, import: importCmd, layout, links, migration, owners, parity, peek, plan, query, records, render, rules, selftest };
+const COMMANDS: Record<string, Command> = { brief, check, decisions, directives, disk, gaps, holes, import: importCmd, layout, links, migration, owners, parity, peek, plan, query, records, render, rules, selftest };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

@@ -1,0 +1,25 @@
+# A default file broken in every way `--check-template` names, for the directives parity case.
+#limits = 1                      # default
+
+[limits]
+#memory = "64M"                  # default
+cpu_time = "5s"                  # default
+#cpu_time = "10s"                # default
+#no_such_key = 1                 # default
+#wall_time = "30s"
+#max_tasks = 8                   # example: eight
+
+#[limits.hard]
+#memory = "1G"                   # default
+
+[debug]
+#mode = ["coverage"]             # example
+
+#[db.main.pool]
+#max = 5                         # default: no cap
+
+[server]
+#header_timeout = "999s"         # default
+
+[app.limits]
+#memory = "64M"                  # default: no cap

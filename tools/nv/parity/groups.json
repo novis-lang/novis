@@ -32,6 +32,28 @@
       ["--work", "--bogus"]
     ]
   },
+  "directives": {
+    "python": ["python", "tools/directives.py"],
+    "nv": ["bun", "tools/nv/main.ts", "directives"],
+    "cases": [
+      [],
+      ["--check"],
+      ["--json"],
+      ["--explain", "storage.<name>.root"],
+      ["--explain", "storage.local.root"],
+      ["--explain", "limits.max_script_depth"],
+      ["--explain", "debug.mode"],
+      ["--explain", "limits.no_such_key"],
+      ["--explain", "nowhere.at.all"],
+      ["--check-template"],
+      ["--check-template", "crates/nvs-config/src/default.toml"],
+      ["--check-template", "tools/nv/parity/fixtures/directives-template.toml"],
+      ["--check-template", "no/such.toml"],
+      ["--check-template", "--check"],
+      ["--explain"],
+      ["--bogus"]
+    ]
+  },
   "disk": {
     "python": ["python", "tools/disk.py"],
     "nv": ["bun", "tools/nv/main.ts", "disk"],

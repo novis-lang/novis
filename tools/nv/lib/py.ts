@@ -120,6 +120,8 @@ export interface ArgSpec {
   valued: string[];
   /** A short spelling and the long option it means, as `{ "-n": "--dry-run" }`. `-h` is always one. */
   short?: Record<string, string>;
+  /** Options that take one value or none, argparse's `nargs="?"`, each with the value it has bare. */
+  optional?: Record<string, string>;
 }
 
 export interface Parsed {
@@ -142,7 +144,8 @@ function looksLikeValue(word: string): boolean {
  */
 export function parseArgs(args: string[], spec: ArgSpec): Parsed {
   const flags = ["--help", ...spec.flags];
-  const all = [...flags, ...spec.valued];
+  const optional = spec.optional ?? {};
+  const all = [...flags, ...spec.valued, ...Object.keys(optional)];
   const short: Record<string, string> = { "-h": "--help", ...spec.short };
   const resolve = (word: string): string | null => {
     if (all.includes(word)) return word;
@@ -172,6 +175,7 @@ export function parseArgs(args: string[], spec: ArgSpec): Parsed {
     const eq = word.indexOf("=");
     if (eq >= 0) out.values.set(option, word.slice(eq + 1));
     else if (i + 1 < args.length && looksLikeValue(args[i + 1]!)) out.values.set(option, args[++i]!);
+    else if (option in optional) out.values.set(option, optional[option]!);
     else throw new ArgError(`argument ${option}: expected one argument`);
   }
   if (unknown.length > 0) throw new ArgError(`unrecognized arguments: ${unknown.join(" ")}`);
