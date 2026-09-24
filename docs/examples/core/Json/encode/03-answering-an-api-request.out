@@ -1,0 +1,2 @@
+{"page":1,"products":[{"name":"Tea","price_cents":450},{"name":"Café au lait","price_cents":380}]}
+{"page":1,"products":[{"name":"Tea","price_cents":450},{"name":"Caf\u00e9 au lait","price_cents":380}]}

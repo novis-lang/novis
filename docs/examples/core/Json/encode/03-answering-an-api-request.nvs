@@ -1,0 +1,26 @@
+<?nvs
+// Shows a program that builds the JSON answer of an API request from its own classes.
+
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
+// `#[Core\Json\Field]` sets a different key name for one field.
+#[Core\Json\Derive]
+class Product {
+    public string $name;
+    #[Core\Json\Field(name: "price_cents")]
+    public int $cents;
+
+    public function constructor(string $name, int $cents) {
+        $this->name = $name;
+        $this->cents = $cents;
+    }
+}
+
+array<Product> $products = [new Product("Tea", 450), new Product("Café au lait", 380)];
+
+// An array of instances becomes a JSON array of objects.
+// This prints the list on one line, with "é" as it is.
+echo Core\Json::encode({page: 1, products: $products}), "\n";
+
+// `escapeUnicode: true` writes each character outside ASCII as a `\u` code.
+// This prints the same list with "é" written as `é`.
+echo Core\Json::encode({page: 1, products: $products}, {escapeUnicode: true}), "\n";

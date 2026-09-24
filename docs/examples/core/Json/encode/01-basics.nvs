@@ -1,3 +1,8 @@
 <?nvs
+// Shows how to write a list and an array with string keys as JSON text.
+
+// A list becomes a JSON array. This prints `[1,2,3]`.
 echo Core\Json::encode([1, 2, 3]), "\n";
+
+// An array with string keys becomes a JSON object. This prints `{"name":"Ada","age":36}`.
 echo Core\Json::encode(["name" => "Ada", "age" => 36]), "\n";

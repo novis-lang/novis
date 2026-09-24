@@ -1,0 +1,21 @@
+<?nvs
+// Encodes a small shape as JSON, as an API server does with the answer to each request.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["Ada", "Grace", "Linus"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The value in each round depends on the round before, so no round can be left out.
+            string $name = $names[($total % 3) as int];
+            string $text = Core\Json::encode({id: $total, name: $name, tags: ["admin", "editor"], active: true});
+            $total = $total + Core\Str::length($text);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

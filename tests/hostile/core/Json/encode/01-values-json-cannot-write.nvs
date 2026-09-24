@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a program encodes values that JSON cannot write, values nested very deep, and very large
+// values. Each call must return text or throw an error, and must not crash.
+
+#[Core\Json\Derive]
+class Node
+{
+    public string $name;
+    public ?Node $next;
+
+    public function constructor(string $name, ?Node $next)
+    {
+        $this->name = $name;
+        $this->next = $next;
+    }
+}
+
+// 1. NaN, infinity and minus infinity have no JSON form. `Core\Math::fdiv` divides by zero and
+// gives these three values. Each call must throw a `LogicError`.
+array<float> $floats = [
+    Core\Math::fdiv(0.0, 0.0),
+    Core\Math::fdiv(1.0, 0.0),
+    Core\Math::fdiv(-1.0, 0.0),
+];
+foreach ($floats as float $bad) {
+    try {
+        Core\Json::encode([1.5, $bad]);
+        throw new RuntimeError('a float with no JSON form was encoded');
+    } catch (LogicError $noForm) {
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. An object that points to itself, directly and through a second object. Writing it would never
+// end, so each call must throw a `LogicError`.
+Node $alone = new Node('a', null);
+$alone->next = $alone;
+Node $first = new Node('b', null);
+Node $second = new Node('c', $first);
+$first->next = $second;
+array<Node> $loops = [$alone, $first];
+foreach ($loops as Node $loop) {
+    try {
+        Core\Json::encode($loop);
+        throw new RuntimeError('an object that points to itself was encoded');
+    } catch (LogicError $cycle) {
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. A chain of one hundred thousand objects. The call must return the text or throw a
+// `LogicError`, and must not run out of stack.
+?Node $chain = null;
+uint $n = 0;
+while ($n < 100000) {
+    $chain = new Node('n', $chain);
+    $n = $n + 1;
+}
+try {
+    Core\Json::encode($chain);
+} catch (LogicError $tooDeep) {
+}
+echo 'step 3: done', "\n";
+
+// 4. A string of ten million characters, and a list of two hundred thousand numbers, with both
+// options on.
+string $long = Core\Str::repeat('é', 10000000);
+if (Core\Str::length(Core\Json::encode($long, { escapeUnicode: true })) != 60000002) {
+    throw new LogicError('the long string was cut');
+}
+array<int> $numbers = Core\Arr::fill(200000, 7);
+// Each number is on its own line, with two spaces in front: the text has 1000002 characters.
+if (Core\Str::length(Core\Json::encode($numbers, { pretty: true })) != 1000002) {
+    throw new LogicError('the long list was cut');
+}
+echo 'step 4: done', "\n";
+
+// 5. A small shape is encoded one million times. Only the length is kept, so the memory of each
+// result must be freed.
+uint $total = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $total = $total + Core\Str::length(Core\Json::encode({ id: $i % 10, ok: true }));
+    $i = $i + 1;
+}
+if ($total != 18000000) {
+    throw new LogicError('an encode returned the wrong length');
+}
+echo 'step 5: done', "\n";

@@ -3619,6 +3619,65 @@ mod tests {
         }
     }
 
+    /// The member as a program calls it, option bag included: `pretty` is
+    /// `serde_json`'s own two-space profile, `escapeUnicode` rewrites each
+    /// non-ASCII character as its `\u` escape and nothing else, and a
+    /// non-finite `float` is refused rather than written as text no JSON
+    /// reader accepts.
+    // covers: Core\Json::encode
+    #[test]
+    fn encode_applies_both_options_and_refuses_a_non_finite_float() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |value: Value, pretty: bool, escape: bool| {
+            let args = [value, Value::bool(pretty), Value::bool(escape)];
+            let answer = nvs_runtime::call(nvs_core_json_encode, &mut ctx, &args);
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            let text = answer.map(|written| {
+                let text = String::from_utf8(
+                    written
+                        .as_str_bytes()
+                        .expect("encode answers a string")
+                        .to_vec(),
+                )
+                .expect("a JSON document is UTF-8");
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    written.release();
+                }
+                text
+            });
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            (text, why)
+        };
+        let document = |text: &str| decoded(text, 8).expect("the fixture is valid JSON");
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), false, false);
+        assert_eq!(text.as_deref(), Ok("{\"a\":[1,\"\u{e9}\"]}"));
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), true, false);
+        assert_eq!(
+            text.as_deref(),
+            Ok("{\n  \"a\": [\n    1,\n    \"\u{e9}\"\n  ]\n}")
+        );
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), false, true);
+        assert_eq!(text.as_deref(), Ok("{\"a\":[1,\"\\u00e9\"]}"));
+
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let (text, why) = ask(Value::float(bad), false, false);
+            assert!(text.is_err(), "{bad} was written as {text:?}");
+            assert!(why.starts_with("Core\\Json::encode(): "), "{why}");
+        }
+    }
+
     #[test]
     fn trailing_content_is_refused() {
         assert!(decoded("{} {}", 8).is_err());
@@ -3922,6 +3981,7 @@ mod tests {
     /// a JSON number is an `f64` in every reader there is, so the wire form is
     /// a string — asserted at a width the `f64` spelling demonstrably cannot
     /// hold, decoded into a `decimal` field and written back byte for byte.
+    // covers: Core\Json::decodeAs
     #[test]
     fn decode_as_fills_a_decimal_field_from_the_numbers_own_digits() {
         const DIGITS: &str = "1234567890123456789.012345";

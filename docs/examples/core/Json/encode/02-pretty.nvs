@@ -1,2 +1,5 @@
 <?nvs
+// Shows how to write JSON that is easy for a person to read.
+
+// `pretty: true` puts each value on its own line and indents it by two spaces.
 echo Core\Json::encode(["tags" => ["fast", "safe"]], {pretty: true}), "\n";
