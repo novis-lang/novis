@@ -246,7 +246,7 @@ function headings(text: string): MdHeading[] {
 }
 
 /** `### 2. Both operands ...` -> `2 both operands ...`, so a section is named by number or by words. */
-function normalize(title: string): string {
+export function normalize(title: string): string {
   let t = title.replace(/[`*_]/g, "").trim().toLowerCase();
   t = t.replace(/^(\d+[a-z]?)\s*[.)]?\s*/, "$1 ");
   return t.replace(/\s+/g, " ").trim();
@@ -1086,19 +1086,19 @@ function runShapes(m: Manifest): void {
 
 // ------------------------------------------------------------------------- the traps
 
-interface Bullet {
+export interface Bullet {
   lead: string;
   /** The bullet as Markdown, `- **lead** body [until: kind arg]`. */
   text: string;
 }
 
-interface BookSection {
+export interface BookSection {
   title: string;
   bullets: Bullet[];
 }
 
 /** The playbook's sections in order, each with its bullets by id, read through the importer. */
-function playbookBook(): BookSection[] {
+export function playbookBook(): BookSection[] {
   const got = playbookImporter.read(ROOT);
   const sections = got.records
     .filter((r) => r.type === playbookSection)
@@ -1126,7 +1126,7 @@ function findSection(book: BookSection[], head: string): BookSection | undefined
  * `Tooling > a lead` the bullets in it whose lead-in opens with those words, and a bare lead the
  * same across every section. A trailing `*` claims a family and reads the same.
  */
-function sliceBullets(book: BookSection[], selector: string): [string[], string | null] {
+export function sliceBullets(book: BookSection[], selector: string): [string[], string | null] {
   const gt = selector.indexOf(">");
   let head = (gt < 0 ? selector : selector.slice(0, gt)).trim();
   let lead = gt < 0 ? "" : selector.slice(gt + 1).trim();

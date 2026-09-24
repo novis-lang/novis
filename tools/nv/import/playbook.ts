@@ -47,6 +47,23 @@ export function anchors(root: string, bullet: string, until: { kind: string; arg
 
 const unwrap = (s: string) => s.replace(/\s*\n\s*/g, " ").trim();
 
+/** One bullet file's text as its record's value, or why it cannot be one. */
+export function bulletValue(root: string, src: string): { value: { lead: string; body: string; files: string[]; until: { kind: string; arg: string } } } | { reason: string } {
+  const m = /^- \*\*([\s\S]+?)\*\*([\s\S]*)$/.exec(src);
+  if (!m) return { reason: "does not open on `- **`" };
+  const trailer = EXPIRY.exec(m[2]!);
+  if (!trailer) return { reason: "does not end on an `[until: <kind> <arg>]` trailer" };
+  const until = { kind: trailer[1]!, arg: trailer[2]! };
+  return {
+    value: {
+      lead: unwrap(m[1]!),
+      body: unwrap(m[2]!.slice(0, trailer.index)),
+      files: anchors(root, src, until),
+      until,
+    },
+  };
+}
+
 export const playbook: Importer = {
   name: "playbook",
   read(root) {
@@ -69,25 +86,13 @@ export const playbook: Importer = {
         if (!name.endsWith(".md")) continue;
         out.files++;
         const src = text(root, path).trim();
-        const m = /^- \*\*([\s\S]+?)\*\*([\s\S]*)$/.exec(src);
-        if (!m) {
-          out.unread.push({ path, reason: "does not open on `- **`" });
+        if (/^- \*\*/.test(src) && /\n- /.test(src)) out.unread.push({ path, reason: "holds more than one bullet" });
+        const got = bulletValue(root, src);
+        if ("reason" in got) {
+          out.unread.push({ path, reason: got.reason });
           continue;
         }
-        if (/\n- /.test(src)) out.unread.push({ path, reason: "holds more than one bullet" });
-        const trailer = EXPIRY.exec(m[2]!);
-        if (!trailer) {
-          out.unread.push({ path, reason: "does not end on an `[until: <kind> <arg>]` trailer" });
-          continue;
-        }
-        const until = { kind: trailer[1]!, arg: trailer[2]! };
-        const value = {
-          lead: unwrap(m[1]!),
-          body: unwrap(m[2]!.slice(0, trailer.index)),
-          files: anchors(root, src, until),
-          until,
-        };
-        out.records.push({ type: playbookBullet, id: `${dir}/${name.slice(0, -".md".length)}`, value, from: path });
+        out.records.push({ type: playbookBullet, id: `${dir}/${name.slice(0, -".md".length)}`, value: got.value, from: path });
       }
     }
     return out;

@@ -25,7 +25,7 @@ const PLAN = "docs/implementation-plan.md";
 const MILESTONE = /^M(\d+)[A-Z]?$/;
 
 /** A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`. */
-const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
+export const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
 
 /** The status block's field names as the plan writes them, and each one's key in the record. */
 export const FIELDS: [string, string][] = [

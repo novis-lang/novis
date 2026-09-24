@@ -8,8 +8,10 @@
 //
 // A wrap file is markdown whose `## <kind>: <arg>` headings are instructions, and `parseWrap` is its
 // one reader. `--help` prints the format. `--wrap` runs `validate` over the whole file and refuses it
-// with every problem at once, then hands a valid file to `tools/session.py --wrap`, which applies every
-// section or none.
+// with every problem at once, and only a file with none is applied, by `applyWrap`. A plan field is
+// written to the plan's Markdown and to `data/plan/status.json`, and a playbook bullet to its fragment
+// file under `docs/agent/playbook/` and to its record under `data/playbook/`, so both homes of each
+// agree after every wrap.
 //
 // `--check` judges no content. It prints the counts the plan's prose should agree with, each status
 // field's size against its ceiling, the handoff's shape, the dead links this session made, the
@@ -17,22 +19,23 @@
 // uncommitted. It fails on a stale count or a link this session broke. A link that was already dead
 // where the session opened is printed and refuses nothing: it is CI's to report.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, posix, relative, sep } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, posix, relative, sep } from "node:path";
 import { goalValue } from "../import/goals.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { passthrough, run as runProc } from "../lib/proc.ts";
+import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
-import { load } from "../lib/store.ts";
+import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
-import { playbookSection } from "../schema/playbook.ts";
+import { planStatus } from "../schema/plan-status.ts";
+import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_EXTS, readText, type Resolver, SOURCE_EXTS, sortKey, trackedFiles } from "./links.ts";
-import { ANCHOR_RE, type GoalValue, manifestFindings } from "./orient.ts";
-import { type Entry, fieldLimits, milestones, planFields } from "./plan.ts";
+import { ANCHOR_RE, type BookSection, type Bullet, type GoalValue, manifestFindings, normalize as leadNorm, playbookBook, sliceBullets } from "./orient.ts";
+import { bodyOf, type Entry, FIELDS, fieldLimits, H1, milestones, planFields, verifyParagraph } from "./plan.ts";
 import { CITATION, Rulebook } from "./rules.ts";
 import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
-import { anchors } from "../import/playbook.ts";
+import { anchors, bulletValue } from "../import/playbook.ts";
 
 export const summary = "the session tail: nv session --template | --check | --counts | --scrub | --wrap F [--dry-run]";
 
@@ -91,6 +94,10 @@ export interface Section {
   arg: string;
   body: string;
   line: number;
+  /** The paths the wrap added to a `## commit:` because it writes them and no section named them. */
+  added?: string[];
+  /** A `## playbook:` section's bullets, each with the fragment file it is written to; see `playbookTargets`. */
+  targets?: [string, string][];
 }
 
 const KNOWN = ["plan", "plan-edit", "milestone", "playbook", "handoff", "commit", "status"];
@@ -679,7 +686,7 @@ function reviewedRefusals(which: string, body: string, until: { kind: string; ar
   return out;
 }
 
-/** What a `## playbook:` section refuses, bullet by bullet. A lead-in that collides with another bullet's is `tools/session.py --wrap`'s to refuse, which the wrap still hands off to. */
+/** What a `## playbook:` section refuses, bullet by bullet, then the selectors its lead-ins would collide with. */
 function validatePlaybook(s: Section): string[] {
   const errors: string[] = [];
   if (sectionDir(s.arg) === null) errors.push(`\`## playbook: ${s.arg}\` -- no such section. The playbook has: ${playbookHeadings().join(", ")}`);
@@ -719,7 +726,61 @@ function validatePlaybook(s: Section): string[] {
       );
     }
   }
+  for (const sel of playbookCollisions(s.arg, s.body)) {
+    errors.push(
+      `\`## playbook: ${s.arg}\` -- appending this bullet leaves ${pyRepr(sel)} reachable by no selector, so ` +
+        "`orient.py` can no longer hand that trap to a goal that names it. Reword this bullet's lead-in: it " +
+        "is the first sentence in bold, and it has to differ from the one it collides with by more than its tail.",
+    );
+  }
   return errors;
+}
+
+/**
+ * Each bullet's selector, `<section> > <the fewest words of its lead-in no neighbour's lead-in contains>`,
+ * that `sliceBullets` resolves to anything but exactly one bullet. A key no neighbour contains is one no
+ * neighbour opens with either, so a selector left out here names its bullet alone.
+ */
+function unreachable(book: BookSection[]): Set<string> {
+  const out = new Set<string>();
+  for (const sec of book) {
+    for (const b of sec.bullets) {
+      const whole = leadNorm(b.lead);
+      const words = whole.split(" ").filter(Boolean);
+      let key = whole;
+      for (let n = 2; n <= words.length; n++) {
+        const k = words.slice(0, n).join(" ");
+        if (!sec.bullets.some((p) => p !== b && leadNorm(p.lead).includes(k))) {
+          key = k;
+          break;
+        }
+      }
+      const selector = `${sec.title} > ${key}`;
+      const [hits, complaint] = sliceBullets(book, selector);
+      if (complaint || hits.length !== 1) out.add(selector);
+    }
+  }
+  return out;
+}
+
+/**
+ * The selectors appending this section's bullets would make unreachable. A lead-in two bullets share
+ * makes both unfetchable, and a goal's manifest fetches a trap by exactly that string, so only what this
+ * append introduces is reported: a selector already unreachable is `playbook --check`'s finding, and
+ * refusing this wrap over it would charge one session for another's collision.
+ */
+function playbookCollisions(heading: string, body: string): string[] {
+  const norm = (t: string) => t.replace(/[`*_#]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const book = playbookBook();
+  const at = book.findIndex((sec) => norm(sec.title) === norm(heading));
+  if (at < 0) return [];
+  const added: Bullet[] = blocks(body).map((b) => {
+    const m = /^- \*\*([\s\S]+?)\*\*/.exec(b.body);
+    return { lead: m ? m[1]!.replace(/\s*\n\s*/g, " ").trim() : leadOf(b.body), text: b.body };
+  });
+  const after = book.map((sec, i) => (i === at ? { title: sec.title, bullets: [...sec.bullets, ...added] } : sec));
+  const before = unreachable(book);
+  return [...unreachable(after)].filter((sel) => !before.has(sel)).sort();
 }
 
 function validateCommit(s: Section): string[] {
@@ -755,17 +816,73 @@ function writtenText(s: Section): string {
   return s.kind === "plan-edit" ? parseEdits(s.body).pairs.map(([, next]) => next).join("\n") : s.body;
 }
 
-/** The tracked files this wrap's doc sections write. A playbook bullet is named by its section's directory. */
+/** A line with every code span blanked to same-length filler, since a `**` inside one is text. */
+function maskCode(line: string): string {
+  return line.replace(/`[^`]*`/g, (m) => " ".repeat(m.length));
+}
+
+/** A bullet's bold lead-in, or its opening characters when it has none: `tools/orient.py`'s `bullets`. */
+function leadOf(body: string): string {
+  const first = body.split("\n").find((l) => l.startsWith("- "));
+  if (first === undefined) return body;
+  const m =/^- \*\*(.+?)\*\*/.exec(maskCode(first));
+  return m ? first.slice(4, 4 + m[1]!.length) : first.slice(2, 80);
+}
+
+/** A bullet's file name without `.md`: the words of its lead-in, lower case, at most 60 characters. */
+function fragmentSlug(lead: string): string {
+  let out = "";
+  for (const w of lead.replace(/[`*_"'’“”]/g, "").toLowerCase().match(/[a-z0-9]+/g) ?? []) {
+    const next = out ? `${out}-${w}` : w;
+    if (next.length > 60) break;
+    out = next;
+  }
+  return out || "bullet";
+}
+
+/** The record a bullet's fragment file is imported as: `data/playbook/<section>/<slug>.json`. */
+function bulletRecord(fragment: string): { id: string; path: string } {
+  const id = fragment.slice(PLAYBOOK_DIR.length + 1, -".md".length);
+  return { id, path: pathOf(playbookBullet, id) };
+}
+
+/**
+ * Each bullet of a `## playbook:` section and the new fragment file it is written to: its lead-in's slug
+ * under its section's directory, with `-2`, `-3` and so on added while that name is on disk or already
+ * taken by an earlier bullet of this wrap. Worked out once for every playbook section, in apply order,
+ * and kept on the section, so the commit paths are named before anything is written and the files
+ * written are those.
+ */
+function playbookTargets(sections: Section[], s: Section): [string, string][] {
+  if (s.targets === undefined) {
+    const taken = new Set<string>();
+    for (const x of inOrder(sections)) {
+      if (x.kind !== "playbook") continue;
+      x.targets = [];
+      const dir = sectionDir(x.arg);
+      if (dir === null) continue;
+      for (const b of blocks(x.body)) {
+        const base = fragmentSlug(leadOf(b.body.trim()));
+        let path = `${dir}/${base}.md`;
+        for (let n = 2; existsSync(join(ROOT, path)) || taken.has(path); n++) path = `${dir}/${base}-${n}.md`;
+        taken.add(path);
+        x.targets.push([path, `${b.body.trimEnd()}\n`]);
+      }
+    }
+  }
+  return s.targets ?? [];
+}
+
+/** The tracked files this wrap's doc sections write, in apply order. A playbook bullet is its fragment file and its record. */
 function writtenPaths(sections: Section[]): string[] {
   const out: string[] = [];
   for (const s of inOrder(sections)) {
-    if (s.kind === "plan" || s.kind === "plan-edit") out.push(PLAN);
+    if (s.kind === "plan" || s.kind === "plan-edit") out.push(PLAN, pathOf(planStatus, planStatus.name));
     else if (s.kind === "milestone") {
       const entry = resolveMilestone(s.arg);
       if (entry) out.push(entry.rel);
     } else if (s.kind === "playbook") {
-      const dir = sectionDir(s.arg);
-      if (dir) out.push(dir);
+      for (const [path] of playbookTargets(sections, s)) out.push(path, bulletRecord(path).path);
     } else if (s.kind === "handoff") out.push(handoffPath(sideGoal()));
   }
   return [...new Set(out)];
@@ -1172,6 +1289,364 @@ export function stripTrailers(body: string): { text: string; removed: number } {
   return { text: `${cleaned.replace(/\n{3,}/g, "\n\n").trim()}\n`, removed };
 }
 
+// ---------------------------------------------------------------------------------- apply
+
+const TMP = ".agent-tmp";
+const RUNDIR = ".loop";
+const STATUS = ".loop/status.txt";
+const PACK_LOG = ".loop/pack-size.jsonl";
+/** How far one session may grow the pack inside one goal before the wrap names the growth. */
+const PACK_NOTE_AT = 1_500;
+/** The plan's line width, the `> ` prefix included. */
+const PLAN_WIDTH = 100;
+const FIELD_LINE = /^> \*\*([^*:]+):\*\*\s*(.*)$/;
+/**
+ * Files no session writes by hand and any session can leave dirty: `bun nv verify` regenerates them in
+ * place from what the session's own commits changed. Nothing in the wrap writes them, so `writtenPaths`
+ * cannot see them, and they join the last commit through `dirtyGenerated` instead.
+ */
+const GENERATED = ["docs/novis.md", "fuzz/Cargo.lock"];
+
+/** A command that must succeed; its failure stops the wrap with what the command printed. */
+async function checked(argv: string[]): Promise<string> {
+  const r = await runProc(argv);
+  if (r.code !== 0) throw new Error(`${argv.join(" ")} failed (${r.code}):\n${(r.stdout + r.stderr).trim()}`);
+  return r.stdout;
+}
+
+/** Runs another `bun nv` command in its own process, so what it prints can be measured. */
+function nv(...args: string[]): string[] {
+  return [process.execPath, join(ROOT, "tools", "nv", "main.ts"), ...args];
+}
+
+/** The status block's fields in the plan's Markdown: name, first line, one past the last line, and the joined text. */
+function findFields(lines: string[]): [string, number, number, string][] {
+  const fields: [string, number, number, string[]][] = [];
+  let started = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!;
+    if (raw.startsWith(">")) {
+      started = true;
+      const m = FIELD_LINE.exec(raw);
+      if (m) fields.push([m[1]!.trim(), i, i + 1, [m[2]!.trim()]]);
+      else if (fields.length) {
+        const body = raw.replace(/^> ?/, "").trim();
+        if (body) {
+          fields[fields.length - 1]![2] = i + 1;
+          fields[fields.length - 1]![3].push(body);
+        }
+      }
+    } else if (started) break;
+  }
+  return fields.map(([n, a, b, p]) => [n, a, b, p.join(" ").trim()]);
+}
+
+/** `**Name:** text` wrapped greedily at word boundaries to the block's width, a long word on a line of its own. */
+function renderField(name: string, text: string): string[] {
+  const out: string[] = [];
+  let line = "";
+  for (const word of `**${name}:** ${text}`.split(/\s+/).filter(Boolean)) {
+    if (line && [...line].length + 1 + [...word].length > PLAN_WIDTH - 2) {
+      out.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+/**
+ * Rewrites one status field to `next`, in the plan's Markdown and in its record, and returns the field's
+ * name and its text before. The field is matched by name, whatever its case.
+ */
+function writeField(arg: string, next: string | ((old: string) => string), dry: boolean): { name: string; old: string; now: string } {
+  const lines = readFileSync(join(ROOT, PLAN), "utf8").split("\n");
+  const [name, start, end, old] = findFields(lines).find(([n]) => n.toLowerCase() === arg.toLowerCase())!;
+  const now = typeof next === "string" ? next : next(old);
+  if (!dry) {
+    const rewritten = [...lines.slice(0, start), ...renderField(name, now).map((l) => `> ${l}`), ...lines.slice(end)];
+    writeFileSync(join(ROOT, PLAN), rewritten.join("\n"));
+    const key = FIELDS.find(([n]) => n === name)?.[1];
+    if (key) {
+      const status = { ...(load(planStatus)[0]!.value as Record<string, string>), [key]: now };
+      writeRecord(planStatus, planStatus.name, status as any);
+    }
+  }
+  return { name, old, now };
+}
+
+function applyPlan(s: Section, dry: boolean): string {
+  const { name, old, now } = writeField(s.arg, normalize(s.body), dry);
+  return `plan: ${name}  ${nbytes(old)} -> ${nbytes(now)} bytes`;
+}
+
+/** One field with the fragments the section names replaced; `validate` has proved each `--- old` matches once. */
+function applyPlanEdit(s: Section, dry: boolean): string {
+  const { pairs } = parseEdits(s.body);
+  const { name, old, now } = writeField(s.arg, (text) => pairs.reduce((t, [was, next]) => t.replace(was, () => next), text), dry);
+  const { ceiling } = fieldLimits();
+  const was = nbytes(old);
+  const is = nbytes(now);
+  let note = `plan-edit: ${name}  ${pairs.length} fragment(s), ${was} -> ${is} bytes`;
+  // Only when the field grew and the ceiling a growing edit may not cross is close: this says the next
+  // growing edit will be refused, which is the one thing worth knowing ahead of it.
+  const headroom = ceiling - is;
+  if (is > was && headroom < Math.floor(ceiling / 4)) {
+    note +=
+      `  (+${is - was} B; ${Math.max(headroom, 0)} B left under the ${ceiling} B` +
+      " ceiling -- past it a growing edit is refused, so the next one replaces a" +
+      " sentence rather than adding one)";
+  }
+  return note;
+}
+
+function applyMilestone(s: Section, dry: boolean): string {
+  const entry = resolveMilestone(s.arg)!;
+  const body = s.body.replace(/^\n+|\n+$/g, "");
+  let note = `milestone: ${entry.id} in ${entry.rel}, ${nbytes(bodyOf(entry))} -> ${nbytes(body)} bytes`;
+  if (dry) return note;
+  const lines = readFileSync(join(ROOT, entry.rel), "utf8").split("\n");
+  const at = lines.findIndex((l) => H1.test(l));
+  const top = at < 0 ? [`# ${entry.id}`] : lines.slice(0, at + 1);
+  writeFileSync(join(ROOT, entry.rel), `${top.join("\n")}\n\n${body}\n`);
+  if (!verifyParagraph(entry)) note += "  !! no `**Verify:**` paragraph -- nothing can call this milestone done";
+  return note;
+}
+
+/** Each bullet goes to its own fragment file and to its record, the playbook's two homes. */
+function applyPlaybook(sections: Section[], s: Section, dry: boolean): string {
+  const targets = playbookTargets(sections, s);
+  if (!dry) {
+    for (const [path, body] of targets) {
+      mkdirSync(dirname(join(ROOT, path)), { recursive: true });
+      writeFileSync(join(ROOT, path), body);
+      const got = bulletValue(ROOT, body.trim());
+      if ("value" in got) writeRecord(playbookBullet, bulletRecord(path).id, got.value as any);
+    }
+  }
+  return `playbook: + ${targets.length} bullet(s) under ${pyRepr(s.arg)}: ${targets.map(([p]) => p).join(", ")}`;
+}
+
+function applyHandoff(s: Section, dry: boolean): string {
+  let body = `${s.body.trimEnd()}\n`;
+  if (!body.trimStart().startsWith("# ")) body = `# Handoff\n\n${body.trimStart()}`;
+  const n = body.split("\n").length;
+  let note = `handoff: ${n} lines`;
+  if (n > HANDOFF_TARGET_LINES + 25) {
+    note += `  (over the ~${HANDOFF_TARGET_LINES}-line target by ${n - HANDOFF_TARGET_LINES}; a target for the author, not a check -- do not spend a turn trimming it)`;
+  }
+  if (!dry) writeFileSync(join(ROOT, handoffPath(sideGoal())), body);
+  return note;
+}
+
+/**
+ * Commits exactly the paths the section names. The commit is pathspec-limited, so an index left dirty by
+ * something outside this wrap cannot be swept into a message that does not describe it.
+ */
+async function applyCommit(s: Section, dry: boolean): Promise<string> {
+  const paths = s.arg.split(/\s+/).filter(Boolean);
+  const subject = s.body.trim().split("\n")[0]!;
+  const grew = s.added?.length ? `  [+${s.added.length} this wrap wrote: ${s.added.join(" ")}]` : "";
+  if (dry) return `commit: ${head(subject, 70)}  (${paths.length} path(s))${grew}`;
+  mkdirSync(join(ROOT, TMP), { recursive: true });
+  const msg = join(ROOT, TMP, "session-commit.txt");
+  const { text, removed } = stripTrailers(`${s.body.trimEnd()}\n`);
+  writeFileSync(msg, text);
+  await checked(["git", "add", "--", ...paths]);
+  const staged = (await checked(["git", "diff", "--cached", "--name-only", "--", ...paths])).split(/\s+/).filter(Boolean);
+  if (!staged.length) return `commit: SKIPPED, nothing staged for ${paths.join(" ")}`;
+  await checked(["git", "commit", "-F", msg, "--", ...paths]);
+  const top = (await checked(["git", "log", "-1", "--format=%h %s"])).trim();
+  return `commit: ${top}  (${staged.length} file(s))${removed ? `  [${removed} trailer(s) stripped]` : ""}${grew}`;
+}
+
+function applyStatus(s: Section, dry: boolean): string {
+  const line = s.body.trim();
+  if (!existsSync(join(ROOT, RUNDIR)) || !statSync(join(ROOT, RUNDIR)).isDirectory()) {
+    return "status: skipped -- no .loop directory (not a loop session)";
+  }
+  if (!dry) writeFileSync(join(ROOT, STATUS), line);
+  return `status: ${head(line, 80)}`;
+}
+
+/** Git's rule for whether a `## commit:` pathspec carries a file: the path itself, a directory above it, or a glob matching it. */
+function covers(pathspec: string, path: string): boolean {
+  const spec = pathspec.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (path === spec || path.startsWith(`${spec}/`)) return true;
+  const glob = spec.replace(/[.+^${}()|\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+  return new RegExp(`^${glob}$`).test(path);
+}
+
+/** Which of `GENERATED` the tree has changed, as git spells them. */
+async function dirtyGenerated(): Promise<string[]> {
+  const out = await checked(["git", "status", "--porcelain", "--", ...GENERATED]);
+  return out.split("\n").filter((l) => l.trim()).map((l) => l.slice(3).trim());
+}
+
+/**
+ * Regenerates `docs/novis.md` when the tree has left it stale, and returns a refusal when that cannot be
+ * told. A step-4 edit to a reference chapter leaves the reference stale and clean, which nothing else in
+ * the session sees. A tree with no debug binary cannot answer, and the wrap then writes nothing.
+ */
+async function refreshGenerated(dry: boolean): Promise<string> {
+  const done = await runProc(nv("reference", "--check"));
+  if (done.code === 0) return "";
+  const said = (done.stdout + done.stderr).trim().split("\n").pop() ?? "";
+  if (!said.includes("stale")) return `\`bun nv reference --check\` cannot run: ${said}`;
+  console.log(`nv session: docs/novis.md is stale -- ${dry ? "would regenerate" : "regenerating"} it from the binary`);
+  if (!dry) await runProc(nv("reference", "--no-examples"));
+  return "";
+}
+
+/**
+ * Deletes every bullet whose `[until:]` condition holds, and every goal manifest line that named only a
+ * bullet that went, and returns the files that changed. The conditions are evaluated by
+ * `tools/playbook.py`'s `expiry_report` and `retire`. A bullet deleted from its fragment file is deleted
+ * from its record too.
+ */
+async function retireExpired(dry: boolean): Promise<string[]> {
+  const script = [
+    "import json, sys",
+    "sys.path.insert(0, 'tools')",
+    "import playbook as p",
+    "dry = sys.argv[1] == '1'",
+    "expired, _owed, bad, _rows = p.expiry_report()",
+    "changed = []",
+    "if not bad and expired:",
+    "    files = sorted({e['file'] for e in expired})",
+    "    print(f\"nv session: {len(expired)} bullet(s) whose retirement condition holds -- {'would retire' if dry else 'retiring'} them from {', '.join(files)}\")",
+    "    changed = p.retire(expired, dry)",
+    "print('@@changed ' + json.dumps(changed))",
+  ].join("\n");
+  const done = await runProc(["python", "-c", script, dry ? "1" : "0"], { env: { PYTHONIOENCODING: "utf-8" } });
+  const lines = done.stdout.replace(/\r\n/g, "\n").trimEnd().split("\n");
+  const last = lines.pop() ?? "";
+  if (done.code !== 0 || !last.startsWith("@@changed ")) {
+    console.log(`nv session: the playbook's expiry could not be read, so no bullet is retired: ${(done.stdout + done.stderr).trim().split("\n").pop()}`);
+    return [];
+  }
+  for (const l of lines) console.log(l);
+  const changed = JSON.parse(last.slice("@@changed ".length)) as string[];
+  for (const path of [...changed]) {
+    if (!path.startsWith(`${PLAYBOOK_DIR}/`) || !path.endsWith(".md")) continue;
+    const { id, path: record } = bulletRecord(path);
+    if (!existsSync(join(ROOT, record))) continue;
+    if (!dry) removeRecord(playbookBullet, id);
+    changed.push(record);
+  }
+  return changed;
+}
+
+/** What this wrap writes, what `bun nv verify` wrote under it and what `retireExpired` changed, that no `## commit:` carries. */
+async function uncommittedWrites(sections: Section[], extra: string[]): Promise<string[]> {
+  const specs = sections.filter((s) => s.kind === "commit").flatMap((s) => s.arg.split(/\s+/).filter(Boolean));
+  const owed = [...writtenPaths(sections), ...(await dirtyGenerated()), ...extra];
+  return owed.filter((p) => !specs.some((spec) => covers(spec, p)));
+}
+
+/**
+ * Measures the orientation pack this wrap leaves behind, appends it to `.loop/pack-size.jsonl`, and names
+ * the growth when this session grew it past `PACK_NOTE_AT` inside one goal. The pack is the one the driver
+ * pipes in, `tools/orient.py`'s. It is a report and never a gate: a failure here is silent, because a wrap
+ * that already committed must not report failure over a measurement.
+ */
+async function recordPack(): Promise<void> {
+  let size: number;
+  try {
+    const done = await runProc(["python", "tools/orient.py"], { timeoutMs: 60_000, env: { PYTHONIOENCODING: "utf-8" } });
+    if (done.code !== 0 || !done.stdout) return;
+    size = Buffer.byteLength(done.stdout, "utf8");
+  } catch {
+    return;
+  }
+  let previous: number | null = null;
+  let previousGoal: string | null = null;
+  try {
+    if (existsSync(join(ROOT, PACK_LOG))) {
+      for (const line of readFileSync(join(ROOT, PACK_LOG), "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        const entry = JSON.parse(line);
+        previous = entry.bytes ?? null;
+        previousGoal = entry.goal ?? null;
+      }
+    }
+  } catch {
+    previous = null;
+  }
+  let goal = "";
+  try {
+    goal = liveGoal()?.slug ?? "";
+    mkdirSync(join(ROOT, RUNDIR), { recursive: true });
+    const top = (await checked(["git", "rev-parse", "--short", "HEAD"])).trim();
+    appendFileSync(join(ROOT, PACK_LOG), `${JSON.stringify({ bytes: size, head: top, goal })}\n`);
+  } catch {
+    // The measurement is lost, and nothing else is.
+  }
+  // A pack measured under another goal was built from another manifest, so the difference is the switch's.
+  if (previous === null || (previousGoal && goal && previousGoal !== goal)) return;
+  const grew = size - previous;
+  if (grew < PACK_NOTE_AT) return;
+  console.log();
+  console.log(`== PACK  ${thousands(previous)} -> ${thousands(size)} B  (+${thousands(grew)} this session)`);
+  console.log("  Every byte of that is re-billed on every turn of every session after this one.");
+  console.log("  It is not a problem to fix now and NOT something to shave prose against -- it is a");
+  console.log("  number for whoever writes the next goal: `python tools/orient.py --audit` says which");
+  console.log("  section carries it, and a `[context]` entry may name one bullet, not a whole section.");
+}
+
+/**
+ * Applies a validated wrap: plan fields, plan edits, milestones, playbook, handoff, commits in the order
+ * written, then the status. The docs are on disk before anything is staged, and a doc this wrap writes that
+ * no `## commit:` names joins the last one, which is the commit that closes the session.
+ */
+async function applyWrap(sections: Section[], dry: boolean): Promise<number> {
+  const ordered = inOrder(sections);
+  const commits = ordered.filter((s) => s.kind === "commit");
+  // Before `uncommittedWrites` asks what is dirty, so a reference regenerated here joins the last commit.
+  const stop = await refreshGenerated(dry);
+  if (stop) {
+    console.log("nv session: NOTHING was written or committed:");
+    console.log(`  - ${stop}`);
+    return 1;
+  }
+  const owed = await uncommittedWrites(sections, await retireExpired(dry));
+  const last = commits[commits.length - 1];
+  if (owed.length && last) {
+    last.arg = [...last.arg.split(/\s+/).filter(Boolean), ...owed].join(" ");
+    last.added = owed;
+  }
+  console.log(`nv session: ${dry ? "would apply" : "applied"} ${ordered.length} section(s)`);
+  for (const s of ordered) {
+    let note: string;
+    if (s.kind === "plan") note = applyPlan(s, dry);
+    else if (s.kind === "plan-edit") note = applyPlanEdit(s, dry);
+    else if (s.kind === "milestone") note = applyMilestone(s, dry);
+    else if (s.kind === "playbook") note = applyPlaybook(sections, s, dry);
+    else if (s.kind === "handoff") note = applyHandoff(s, dry);
+    else if (s.kind === "commit") note = await applyCommit(s, dry);
+    else note = applyStatus(s, dry);
+    console.log(`  ${note}`);
+  }
+  if (dry) return 0;
+  // What a session would otherwise go and look up after the wrap, printed here, so stopping is the cheaper move.
+  const left = (await checked(["git", "status", "--short"])).trimEnd();
+  if (left.trim()) {
+    const rows = left.split("\n");
+    console.log(`  uncommitted after the wrap (${rows.length} path(s)):`);
+    for (const row of rows.slice(0, 12)) console.log(`    ${row}`);
+  }
+  if (commits.length) {
+    console.log();
+    console.log(`== HEAD  (the ${commits.length} commit(s) this wrap made, newest first)`);
+    for (const l of (await checked(["git", "log", `-${commits.length}`, "--oneline"])).trim().split("\n")) console.log(`  ${l}`);
+    console.log();
+    console.log("That is step 5. The tree is committed and the handoff is written -- there is");
+    console.log("nothing a `git log`, a `git status` or a second `nv verify` can add. Stop here.");
+  }
+  await recordPack();
+  return 0;
+}
+
 export async function run(args: string[]): Promise<number> {
   let opts;
   try {
@@ -1212,7 +1687,7 @@ export async function run(args: string[]): Promise<number> {
       for (const e of errors) console.log(`  - ${e}`);
       return 1;
     }
-    return await passthrough(["python", "tools/session.py", "--wrap", wrap, ...(opts.flags.has("--dry-run") ? ["--dry-run"] : [])]);
+    return await applyWrap(parsed.sections, opts.flags.has("--dry-run"));
   }
   console.log(HELP);
   return 2;
