@@ -4,6 +4,7 @@
 //
 // Until the cutover, the Python driver's `.loop/chain.json` is the pointer instead. It names the goal
 // by the number in its file name, `N-<slug>.md`, and `legacyPointer` turns that number into the slug.
+// The cutover's `adoptLegacyPointer` writes that slug into `STATE`, and from then on `cutOver` is true.
 
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
@@ -70,4 +71,24 @@ export function legacyPointer(root: string = ROOT): string | null {
 /** The slug the driver has installed: `STATE`'s pointer, else `LEGACY_POINTER`'s, else null. */
 export function pointerSlug(root: string = ROOT): string | null {
   return readPointer(root) ?? legacyPointer(root);
+}
+
+/**
+ * Whether the run belongs to `bun nv loop`: `STATE` holds a pointer. Before the cutover only the Python
+ * driver runs, and nothing but `adoptLegacyPointer` writes the pointer, so its presence is the switch
+ * every tool that still serves the Python driver reads.
+ */
+export function cutOver(root: string = ROOT): boolean {
+  return readPointer(root) !== null;
+}
+
+/**
+ * The cutover's pointer step: `LEGACY_POINTER`'s goal becomes `STATE`'s pointer, and the slug is returned.
+ * It reads the numbered goal file names, so it runs before the cutover renames them. Null, with nothing
+ * written, when the legacy pointer names no goal on disk.
+ */
+export function adoptLegacyPointer(root: string = ROOT): string | null {
+  const slug = legacyPointer(root);
+  if (slug) writePointer(slug, root);
+  return slug;
 }

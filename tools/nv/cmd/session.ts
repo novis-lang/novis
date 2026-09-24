@@ -26,6 +26,7 @@ import type { Unread } from "../import/lib.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
+import { cutOver } from "../lib/state.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -380,9 +381,10 @@ export function manifestProblems(copies: ManifestCopy[]): string[] {
 }
 
 /**
- * The live goal's manifest copies: its stored record, and the `loop-goal.toml` the driver installs,
- * which a session edits in place so the two can disagree. A side goal's live copy is its own toml. A
- * retired goal, or none, has no manifest to gate.
+ * The live goal's manifest copies: its stored record and, while the Python driver runs, the
+ * `loop-goal.toml` it installs, which a session edits in place so the two can disagree. A side goal's
+ * installed copy is its own toml. Once `cutOver` holds, the record is the only copy. A retired goal, or
+ * none, has no manifest to gate.
  */
 function manifestCopies(): ManifestCopy[] {
   const side = sideGoal();
@@ -402,7 +404,7 @@ function manifestCopies(): ManifestCopy[] {
   }
   const copies: ManifestCopy[] = [];
   if (stored) copies.push({ value: stored.value as GoalValue, where: side ? `data/goals/side/${slug}.json` : `data/goals/${slug}.json`, prose: md });
-  if (existsSync(join(ROOT, toml))) {
+  if (!cutOver() && existsSync(join(ROOT, toml))) {
     const v = goalValue(ROOT, { slug, md, toml, handoff: null }, []);
     if (v) copies.push({ value: v as unknown as GoalValue, where: toml, prose: md });
   }
@@ -1506,13 +1508,15 @@ async function uncommittedWrites(sections: Section[], extra: string[]): Promise<
 /**
  * Measures the orientation pack this wrap leaves behind, appends it to `.loop/pack-size.jsonl`, and names
  * the growth when this session grew it past `PACK_NOTE_AT` inside one goal. The pack is the one the driver
- * pipes in, `tools/orient.py`'s. It is a report and never a gate: a failure here is silent, because a wrap
- * that already committed must not report failure over a measurement.
+ * pipes in: `bun nv orient`'s once `cutOver` holds, `tools/orient.py`'s before. It is a report and never a
+ * gate: a failure here is silent, because a wrap that already committed must not report failure over a
+ * measurement.
  */
 async function recordPack(): Promise<void> {
   let size: number;
   try {
-    const done = await runProc(["python", "tools/orient.py"], { timeoutMs: 60_000, env: { PYTHONIOENCODING: "utf-8" } });
+    const argv = cutOver() ? ["bun", "nv", "orient"] : ["python", "tools/orient.py"];
+    const done = await runProc(argv, { timeoutMs: 60_000, env: { PYTHONIOENCODING: "utf-8" } });
     if (done.code !== 0 || !done.stdout) return;
     size = Buffer.byteLength(done.stdout, "utf8");
   } catch {
@@ -1549,7 +1553,7 @@ async function recordPack(): Promise<void> {
   console.log(`== PACK  ${thousands(previous)} -> ${thousands(size)} B  (+${thousands(grew)} this session)`);
   console.log("  Every byte of that is re-billed on every turn of every session after this one.");
   console.log("  It is not a problem to fix now and NOT something to shave prose against -- it is a");
-  console.log("  number for whoever writes the next goal: `python tools/orient.py --audit` says which");
+  console.log(`  number for whoever writes the next goal: \`${cutOver() ? "bun nv orient" : "python tools/orient.py"} --audit\` says which`);
   console.log("  section carries it, and a `[context]` entry may name one bullet, not a whole section.");
 }
 
