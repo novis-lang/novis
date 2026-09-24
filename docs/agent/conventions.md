@@ -565,8 +565,8 @@ lowest hole.
 ## An edit the Edit tool cannot express, or a run of three or more edits
 
 ```
-python tools/splice.py --patch <patch-file>
-python tools/splice.py --patch <patch-file> --dry-run
+bun nv splice --patch <patch-file>
+bun nv splice --patch <patch-file> --dry-run
 ```
 
 The patch file names each file it edits with a `--- <path>` line and holds that file's blocks under it,
@@ -587,7 +587,7 @@ or none of it does**, across every file it names — a stale anchor in the last 
 one half-edited. A failed match reports the line where the anchor stopped matching and what the file has
 there instead.
 
-`splice.py <target> --patch <f>` is the older one-file form, whose blocks carry no `--- <path>` line;
+`nv splice <target> --patch <f>` is the older one-file form, whose blocks carry no `--- <path>` line;
 naming a target *and* using headers is refused rather than guessed at. Reach for a patch from three edits
 up — one or two are cheaper as plain `Edit` calls, and [commands.md](commands.md) § *One shell call runs
 one command* has the measurement. **A patch cannot carry a patch**: a block whose text contains the

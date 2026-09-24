@@ -3,5 +3,5 @@
   way in and `os.linesep` on the way out, so on Windows an LF file comes back CRLF and `git diff
   --numstat` reads the whole file as changed, burying the lines you meant. `git status` saying
   *"CRLF will be replaced by LF the next time Git touches it"* is the whole diagnosis;
-  `tools/splice.py` gets this right, and a one-off script beside it does not inherit that.
+  `bun nv splice` gets this right, and a one-off script beside it does not inherit that.
   [until: reviewed 2026-09-06]

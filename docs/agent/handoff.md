@@ -8,26 +8,25 @@ written, and the status row and goal table are pure functions in `tools/nv/drive
 `chain.py` stays until the Stage 9 cutover, because its `--show`, `--retire`, `--set` and `--retitle`
 have no successor yet. `main` is frozen. Tag `pre-overhaul` is the rollback.
 
-A goal's stage record carries `summary`, which the importer reads from a `**Does:**` line under the
-stage's `## Stage N — <title>` heading. This goal's thirteen stages have one, in both
-`docs/agent/goals/122-tooling-overhaul.md` and its copy `docs/agent/loop-goal.md`, which must stay
-byte-identical: the importer finds the installed goal by that match. `nv check` reports every stage
-with no `summary` ("a stage says what it does"), so the cutover's `bun nv check` fails until each
-open goal's stages have one (see Backlog).
+**`tools/splice.py` is deleted.** Every citation names `bun nv splice`, and the `splice` parity group
+is gone with it. `tools/loop-stats.py` counts a Bash call as an edit when it names `nv splice` or
+`splice.py` (`SPLICE_MARKERS`), because older logs carry the Python name. The one citation left is a
+measured figure in the goal's own prose, `docs/agent/goals/122-tooling-overhaul.md:528`, which is
+history and stays.
 
-`bun nv loop --goal` prints `goalTable`. Until the cutover, its results come from the Python driver's
-memo `.loop/goal-green.json` (`memoResults`), matched by check name. The memo's key digest is a
-blake2b of size 6, which Bun cannot compute, and the memo is not re-checked against the tree. So the
-floor shows only the verdicts that memo has filed, and a check that a later edit broke still shows as
-green.
+The playbook still has two homes: the pages under `docs/agent/playbook/` are what `playbook.py` and
+`orient.py` read, and `data/playbook/` is what `nv import` made from them. No renderer writes the
+pages yet, so `bun nv render` does not touch them, and an edit to a bullet goes into both by hand or by
+script until Stage 9.
 
-`nv parity` runs a tool that writes: a group with a `tree` lays it out twice under
-`.agent-tmp/parity/<group>/`, runs each side in its own copy, and compares the files each run changed
-as well as the output. **`bun nv parity splice` is green, 20 of 20**, and `known.json` declares its six
-differences with their reasons: the message prefix, the help's pointer to a docstring, the OS error
-wording, CRLF kept by nv and turned into LF by `splice.py`, and two help paragraphs nv rewrote.
-`cargo-p` still names no `nv` command. It gets `verify` in its `commands` when `nv verify` lands.
-`nv import --write` refuses while `impact_probes` has no importer.
+A goal's stage record carries `summary`, from a `**Does:**` line under the stage's `## Stage N` heading.
+`nv check`'s 80 findings are all "a stage says what it does": `data/goals/*.json` was imported before
+`summary` existed, and `nv import --write` refuses while `impact_probes` has no importer. So the
+acceptance check `every record is valid and every reference resolves` stays red until that importer
+lands or the records are rewritten (see Backlog).
+
+`bun nv loop --goal` reads its results from the Python driver's memo `.loop/goal-green.json`
+(`memoResults`), matched by check name, and the memo is not re-checked against the tree.
 
 One Stage 7 bullet waits for Stage 9's cutover: deleting `dossier.py`'s `--emit-goals`,
 `--check-goals` and fan-out flags, and `generated_by` in `tools/loop.py`.
@@ -40,26 +39,24 @@ test.
 
 ## Next group
 
-**Stage 8: retire `splice.py`** — one file set: `tools/splice.py` and every file that names it, which
-`git grep -l "splice\.py"` lists (about 180, most of them playbook records under `data/playbook/` and
-their rendered pages, and generated goals under `docs/agent/goals/dossier/`). The goal's § *Standing
-decisions* "Parity before deletion" and "A mechanical change … is made by a script" specify it.
+**Stage 8: `nv verify`** — one file set: `tools/verify.py`, `tools/verify_keys.py`,
+`tools/nv/cmd/bg.ts`, `tools/nv/cmd/guard.ts`. The goal's Stage 8 bullet "`nv verify` takes over
+`verify.py`'s steps unchanged, over the Stage 6 keys" specifies it.
 
-- [ ] **Delete `tools/splice.py`, and point every citation at `bun nv splice`** with one script under
-      `.agent-tmp/`. Edit a playbook record in `data/playbook/` and re-render with `bun nv render`,
-      never the page. Hand-read these, because they are code or prose rather than a citation:
-      AGENTS.md rules 1 and 2, `docs/agent/commands.md:38`, `tools/brief.py:468` together with
-      `tools/nv/cmd/brief.ts:21` (keep the `brief` parity group green), and `tools/loop-stats.py:326`,
-      which counts a session's edits by the text `splice.py` and must also count `nv splice`. Drop the
-      `splice` group from `tools/nv/parity/groups.json:190` and `tools/nv/parity/known.json:26` in the
-      same slice, since no Python side is left to run.
+- [ ] **Port `verify.py`'s steps to `tools/nv/cmd/verify.ts`**, run detached through `nv bg`, from
+      `tools/verify.py:1266` (`main`) and `tools/nv/cmd/bg.ts:161`. `--start`, `--wait`, `--fast`,
+      `-p` and `--doc` keep their meaning, and each step's key comes from the Stage 6 key function.
+- [ ] **Add a `verify` parity group** after `reference` at `tools/nv/parity/groups.json:279`, and delete `tools/verify.py`
+      only in a later slice after it is green (§ *Standing decisions* "Parity before deletion").
+- [ ] **Name `verify` in the `cargo-p` rule's `commands`** at `tools/nv/cmd/guard.ts:451`.
 
 ## Backlog
 
-- The cutover's `bun nv check` needs a `summary` on every open goal's stages: a script writes a
-  `**Does:**` line for each. 54 of the 78 stages in open goals have no `## Stage N` heading to put it
-  under (goal § *Stage 9*).
-- `nv verify` on `nv bg`, then `verify` in the `cargo-p` rule's `commands` (goal § *Stage 8*).
+- The acceptance check `bun nv check` needs a `summary` on every open goal's stages. Either the
+  `impact_probes` importer lands so `nv import --write` re-reads the `**Does:**` lines, or a script
+  writes `summary` into `data/goals/*.json`. 54 of the 78 open stages have no `## Stage N` heading to
+  put a line under (goal § *Stage 9*).
 - `nv orient` and `nv session --wrap` (goal § *Stage 8*).
 - The driver half of `nv loop`, which paints `tools/nv/driver/status.ts` and feeds `[g]` from its
   own results (goal § *Stage 8*).
+- A renderer for the playbook pages, so `data/playbook/` becomes their one home (goal § *Stage 9*).

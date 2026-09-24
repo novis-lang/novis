@@ -1,6 +1,6 @@
 - **An anchor copied out of `peek.py`'s output carries its line-number gutter, so its indentation is
   wrong.** The gutter is the number right-aligned in a fixed width and then two spaces, which reads
-  as part of the indent, and `splice.py` refused a block that wanted ten leading spaces where the file
+  as part of the indent, and `nv splice` refused a block that wanted ten leading spaces where the file
   has eight — reporting a divergence eighteen lines above the anchor, because the first candidate it
   found was a shallower line with the same opening brace. Take the depth from a line whose nesting you
   already know, or read the exact bytes with `sed -n 'A,Bp' <file> | cat -A`, before writing the OLD

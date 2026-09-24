@@ -159,7 +159,7 @@ and only one of them is work.
 
 | Carries over untouched | Because |
 |---|---|
-| `peek.py`, `session.py`, `verify.py`, `splice.py`, `plan.py`, `disk.py` | They are about how this repository is read and written, not about what any goal is doing. A new goal changes neither. |
+| `peek.py`, `session.py`, `verify.py`, `nv splice`, `plan.py`, `disk.py` | They are about how this repository is read and written, not about what any goal is doing. A new goal changes neither. |
 | The rules you will otherwise break, and the session workflow, in `AGENTS.md` | Same. |
 | The handoff contract, the playbook, `conventions.md` | Same. |
 | The calibration in `tools/data/calibration.json` | Bytes per token is a property of the model and the pack's prose, not of the goal. Re-run `--calibrate --write` when the *model* changes, not when the goal does. |

@@ -18,7 +18,7 @@ const HOMES: [string, string, string][] = [
   ["plan milestone schedule goal", "docs/plan/ + docs/implementation-plan.md",
     "the status block and the milestone table; one file per milestone; the chain is the schedule"],
   ["tools commands scripts", "docs/agent/commands.md",
-    "how the repo is driven: peek.py, verify.py, session.py, splice.py, plan.py, disk.py"],
+    "how the repo is driven: peek.py, verify.py, session.py, nv splice, plan.py, disk.py"],
   ["benches benchmark", "benches/ + docs/perf/",
     "the benchmark programs, and the figures with the methodology that took them"],
   ["perf performance latency throughput", "docs/perf/",

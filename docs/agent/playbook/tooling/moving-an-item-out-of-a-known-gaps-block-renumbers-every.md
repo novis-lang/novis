@@ -3,4 +3,4 @@
   citations went stale at once, in six siblings, `queue.rs`, the register and goal `gap-zero`'s two
   files, because a gap has no name — only a position. Grep `gap [0-9]`, `crate::<module>` and the
   module's own path across `crates/` and `docs/` *before* the edit, and put the doc and the whole
-  sweep in one `splice.py --patch`. [until: reviewed 2026-09-10]
+  sweep in one `nv splice --patch`. [until: reviewed 2026-09-10]

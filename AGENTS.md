@@ -31,7 +31,7 @@ Those three route to everything else. The five files behind them, none of which 
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `verify.py`,
-  `session.py`, `splice.py`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
+  `session.py`, `nv splice`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
@@ -79,12 +79,12 @@ which are whole where they stand.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
-   it runs anything. An edit those tools cannot express goes through `python tools/splice.py`.
+   it runs anything. An edit those tools cannot express goes through `bun nv splice`.
 2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status. Independent
    calls may go out together in one message, but measured sessions never do it, so use the two tools that
    batch for you instead. **Read with `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`** — as
    many targets as you have questions, one call, and `--locate <symbol> ...` for `file:line` anchors
-   alone. **Write a run of three or more edits with `python tools/splice.py --patch <file>`** — one patch,
+   alone. **Write a run of three or more edits with `bun nv splice --patch <file>`** — one patch,
    any number of files, all of it or none of it.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.

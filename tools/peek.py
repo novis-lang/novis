@@ -5,7 +5,7 @@ Measured over a full loop run: **0 of 3,647** tool-call messages carried more th
 against an AGENTS.md rule that asks for exactly that. Thirty-nine sessions read that rule and
 none applied it, including runs of 52 and 57 consecutive `grep`/`sed` calls. A later 33-session run
 measured the same 1.00 calls per message. That experiment is finished: a rule the model must
-remember and choose loses to a tool it can just call. `tools/splice.py` is the same move for the
+remember and choose loses to a tool it can just call. `bun nv splice` is the same move for the
 write side, where runs of consecutive `Edit` calls were costing 10.3 turns a session.
 
 So this is batching as a *tool*. One call, N targets, N answers -- and the batching happens

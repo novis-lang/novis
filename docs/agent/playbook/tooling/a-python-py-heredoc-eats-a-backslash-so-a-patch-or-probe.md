@@ -3,5 +3,5 @@
   supposed to pass bytes through, yet `\\x` still arrives as `\x` and `Core\Xml` as `CoreXml`: the
   script matches nothing (no error), dies with `SyntaxError: truncated \xXX escape`, or reports
   every class missing. Write the script or the text with Write to a file under `.agent-tmp/` and
-  have the shell only *name* it, or use Edit and `python tools/splice.py --patch`, which never cross
+  have the shell only *name* it, or use Edit and `bun nv splice --patch`, which never cross
   a shell. [until: reviewed 2026-09-06]

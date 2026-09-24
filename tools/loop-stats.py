@@ -64,8 +64,12 @@ SEPARATOR_RE = re.compile(r"(?<!\|)(?:;|&&)(?!\|)")
 #:     `&` guard -- they redirect a stream, not content -- and so is `/dev/null`.
 #:
 #: Counted because it was invisible: nothing reported it, and a session doing it read as one that
-#: made no edits at all, since none of `MUTATORS` fired. `splice.py --patch` is the tool that
+#: made no edits at all, since none of `MUTATORS` fired. `bun nv splice --patch` is the tool that
 #: replaces all three, and it is one call for any number of files.
+#: The text of a Bash call that applied a splice patch: the `nv` command, and the Python tool it
+#: replaced, which the logs of older runs name.
+SPLICE_MARKERS = ("nv splice", "splice.py")
+
 SHELL_WRITE_RE = re.compile(
     r"<<-?\s*['\"]?\w+"
     r"|\bsed\s+(?:[^|;&]*\s)?-i\b"
@@ -316,14 +320,15 @@ def read_session(path):
         return None
 
     texts = [call_text(c) for c in calls]
-    # `splice.py` and a shell write are edits too. Leaving them out put a session that patched
+    # `nv splice` and a shell write are edits too. Leaving them out put a session that patched
     # the tree entirely through heredocs -- 0053 of the 20260828-112939 run -- at 52 head calls
-    # and no work at all, which is not a slow orientation but a mis-read one.
+    # and no work at all, which is not a slow orientation but a mis-read one. `SPLICE_MARKERS`
+    # carries `splice.py` as well, because the logs of every run before `nv splice` name it.
     shell_writes = [i for i, (name, inp) in enumerate(calls) if shell_write(name, inp)]
     mutations = sorted(
         [i for i, (name, _) in enumerate(calls) if name in MUTATORS]
         + shell_writes
-        + [i for i, t in enumerate(texts) if "splice.py" in t]
+        + [i for i, t in enumerate(texts) if any(m in t for m in SPLICE_MARKERS)]
     )
     verifies = [i for i, t in enumerate(texts) if any(m in t for m in VERIFY_MARKERS)]
     # One VERIFICATION, not one call about one. `--start` and the `--wait` that collects it are
@@ -964,12 +969,12 @@ def main():
             f"call(s) across {len(writers)} of\n"
             f"   {len(sessions)} session(s) used a heredoc, a `>` redirect or a `sed -i` where "
             f"AGENTS.md rule 1\n"
-            f"   asks for Write/Edit or `python tools/splice.py --patch`. The shell parses "
+            f"   asks for Write/Edit or `bun nv splice --patch`. The shell parses "
             f"apostrophes\n"
             f"   and backticks before it runs anything, so this is the spelling that fails on a "
             f"doc\n"
             f"   comment rather than on anything the session did wrong."
-            + (f" ({spliced} session(s) used splice.py.)" if spliced else "")
+            + (f" ({spliced} session(s) used a splice.)" if spliced else "")
         )
 
     window = context_window(sessions)

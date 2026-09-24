@@ -69,7 +69,7 @@ the bag. The items add a name to slots that already exist, and a check that the 
     are the spec's signature column, and a `-p nvs-stdlib` test parses that column and holds every row to
     it (`crates/nvs-stdlib/src/registry.rs`; the rows are the `params: &[` tables in
     `crates/nvs-stdlib/src/*.rs`). Filling 341 rows by hand is the wrong spend: a scratch script that
-    reads the spec and emits one `splice.py --patch` is the shape, and the guard test is what reviews it.
+    reads the spec and emits one `nv splice --patch` is the shape, and the guard test is what reviews it.
     `ParamDoc::name` stays as the description's key, and the existing doc-consistency test asserts it
     equals the row's.
 29. **A `Core` member and the two synthesized signatures resolve a `name:`.**

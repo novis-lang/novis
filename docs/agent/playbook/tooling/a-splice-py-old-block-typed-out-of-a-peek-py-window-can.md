@@ -1,4 +1,4 @@
-- **A `splice.py` OLD block typed out of a `peek.py` window can carry the wrong
+- **A `nv splice` OLD block typed out of a `peek.py` window can carry the wrong
   indentation, and the miss reports as a stale anchor.** `peek.py` prints a line-number
   gutter ahead of the source, so leading spaces counted off the screen include however many
   the gutter took — a block eight spaces deep in the file arrives twelve deep in the patch

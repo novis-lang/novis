@@ -113,7 +113,7 @@ batch or has exactly one writer, and a second writer arriving in parallel fails 
 
 The two things a worker hands back rather than writing are the Rust `#[test]` half of the `tests`
 proof, which lands in the `mod tests` of an implementing file the goal's other features share,
-and any bug a proof found. The parent splices the first in one `tools/splice.py --patch`,
+and any bug a proof found. The parent splices the first in one `bun nv splice --patch`,
 collects the second with `--findings`, and fixes them as one batch. Then, and only after every
 worker has stopped, it runs `--run all`, `--record-perf` -- a figure measured while eight workers
 are running is not a measurement -- and `tools/verify.py`, and commits.
@@ -2407,7 +2407,7 @@ def partition(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips
     print()
     print("Then, in the parent and only after every worker has stopped, in this order:")
     print("  1. python tools/dossier.py --findings          # fix what they hit, as one batch")
-    print("  2. python tools/splice.py --patch <file>       # every handed-back #[test], one call")
+    print("  2. bun nv splice --patch <file>                # every handed-back #[test], one call")
     print(safe(f"  3. python tools/dossier.py --run all {flags}".rstrip()))
     # Only where a figure is actually owed: `types:enum` and every other kind `POLICY` excuses
     # would send a session to measure a scope with no bench in it, and a step that does nothing is
@@ -2995,7 +2995,7 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "1. `python tools/dossier.py --findings` — what they hit. Fix it as **one batch**, because",
         "   the fixes cluster in the implementing files this goal shares.",
         "2. Splice every Rust `#[test]` they handed back into its `mod tests`, in one",
-        "   `python tools/splice.py --patch`. No worker writes under `crates/` for exactly this",
+        "   `bun nv splice --patch`. No worker writes under `crates/` for exactly this",
         "   reason: this goal's features share their implementing files.",
         "3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run",
         "   prints both lines back with the scope already in them. A figure taken while eight",

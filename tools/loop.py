@@ -4821,12 +4821,12 @@ class SessionFiles:
     Two things do the watching, and between them they cover every write this repository permits:
 
     - **The event stream.** `note` reads the target off every write tool as the block goes past.
-    - **`written.py`.** `splice.py` and `reference.py` write files nothing on the stream names --
+    - **`written.py`.** `nv splice` and `reference.py` write files nothing on the stream names --
       a patch reaches any number of targets behind one `Bash`, and `docs/novis.md` is regenerated
       under `verify.py` with no tool call mentioning it at all. Both report what they wrote.
 
     A shell that carries content into the tree by itself is outside both, and is also the first
-    rule in `AGENTS.md`: an edit that Write and Edit cannot express goes through `splice.py`. So
+    rule in `AGENTS.md`: an edit that Write and Edit cannot express goes through `nv splice`. So
     the uncovered case is a broken rule, and the sweep leaving that file dirty is how it surfaces.
 
     Read tools are deliberately not recorded. Sessions grep the goals directory and read the plan

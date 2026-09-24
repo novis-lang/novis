@@ -54,7 +54,7 @@ Then, in this session and only after every worker has stopped, in this order:
 1. `python tools/dossier.py --findings` — what they hit. Fix it as **one batch**, because
    the fixes cluster in the implementing files this goal shares.
 2. Splice every Rust `#[test]` they handed back into its `mod tests`, in one
-   `python tools/splice.py --patch`. No worker writes under `crates/` for exactly this
+   `bun nv splice --patch`. No worker writes under `crates/` for exactly this
    reason: this goal's features share their implementing files.
 3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run
    prints both lines back with the scope already in them. A figure taken while eight

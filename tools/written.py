@@ -9,7 +9,7 @@ never opened those files.
 
 A session's own tool calls answer most of it: `Write` and `Edit` name their target, and the driver
 reads it off the event stream as it goes past. What they cannot answer is a write one of this
-repository's own tools performs on the session's behalf -- `splice.py` applies a patch across any
+repository's own tools performs on the session's behalf -- `nv splice` applies a patch across any
 number of files, and `reference.py` regenerates `docs/novis.md` in place. Both are the session's
 work, and neither reaches the stream as a path.
 

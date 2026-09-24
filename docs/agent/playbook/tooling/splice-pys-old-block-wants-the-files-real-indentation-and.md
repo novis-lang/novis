@@ -1,4 +1,4 @@
-- **`splice.py`'s `OLD` block wants the file's real indentation, and `peek.py`'s gutter is easy to
+- **`nv splice`'s `OLD` block wants the file's real indentation, and `peek.py`'s gutter is easy to
   mis-count.** `peek.py` prints `<line number><two spaces><the line>`, so a nested line reads one
   level deeper than it is, and the refusal ("the anchor matches for its first N character(s), up to
   target line M") can name a line far away, because a leading run of spaces matches elsewhere before

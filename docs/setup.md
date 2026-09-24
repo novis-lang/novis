@@ -2,7 +2,7 @@
 
 What a machine needs before `python tools/verify.py` or the acceptance run mean anything. One-time, per
 machine, and this file is the whole of it: the install list, then the few things a `git clone` does not
-carry. How the repo is *driven* once it is set up — `verify.py`, `splice.py`, WSL one-liners, valgrind,
+carry. How the repo is *driven* once it is set up — `verify.py`, `nv splice`, WSL one-liners, valgrind,
 fuzzing — is [docs/agent/commands.md](agent/commands.md).
 
 **On Windows, WSL is not optional and PHP is installed twice, at the same version.** That is the pair a new

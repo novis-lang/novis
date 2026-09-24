@@ -35,7 +35,7 @@ needs a multi-line argument, put the text in a file with the Write tool and pass
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
 **An Edit the tool cannot express — and any run of three or more edits — goes through `python
-tools/splice.py --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
+bun nv splice --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
 is not there) with the Write tool: a `--- <path>` line, then that file's blocks between `<<<<<<< OLD` /
 `=======` / `>>>>>>> NEW` markers, then the next `--- <path>`, for as many files as the edit spans. It
 refuses anything but exactly one match per block, and **the whole patch applies or none of it does**, so a
@@ -154,7 +154,7 @@ message is a saving taken whether or not either call was expensive.
 paragraph above, which every one of those sessions had in its context, and including runs of 52 and 57
 consecutive `grep`/`sed` calls. A later 33-session run measured the same 1.00 calls per message. A rule
 that loses 3,647 times is not a rule anyone is going to start following, so both sides of the work have a
-tool instead: `tools/splice.py` for a run of edits, and `tools/peek.py`, which takes as many targets as
+tool instead: `bun nv splice` for a run of edits, and `tools/peek.py`, which takes as many targets as
 you have questions and answers them in one call:
 
 ```sh
