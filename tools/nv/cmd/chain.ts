@@ -14,9 +14,12 @@
 //   - a retired goal, one whose record has no checks, stands at or behind the installed goal;
 //   - a goal pinned `position: last` has an unpinned goal behind it;
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
-//   - prose names a goal by its number, which is a position and moves.
+//   - prose names a goal by its number, which is a position and moves;
+//   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
+//     `manifestFindings`, over every goal not retired and every side goal with checks).
 // A note is something a reader misses: a goal not yet reached with no `## Why here` or no
-// `## Standing decisions`, a goal with no row in the goals README, and prose still carrying `TODO`.
+// `## Standing decisions`, a goal with no row in the goals README, prose still carrying `TODO`, and
+// a `context` entry `manifestFindings` only reports.
 //
 // Exits 0 when there is no problem, 1 when there is one, and 2 on a bad argument.
 
@@ -28,8 +31,9 @@ import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { load, write } from "../lib/store.ts";
 import { chain as chainType } from "../schema/chain.ts";
-import { goal as goalType } from "../schema/goal.ts";
+import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { RECORDS } from "../schema/index.ts";
+import { type GoalValue, manifestFindings } from "./orient.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";
 
@@ -114,6 +118,17 @@ async function check(): Promise<number> {
     index.close();
   }
 
+  // The other half of walkable: the driver can run the checks, and the session gets the pack. A manifest
+  // naming a heading that is not there costs nothing until the chain reaches the goal, and then costs
+  // one session the section it needed.
+  const audit = (value: unknown, record: string, prose: string | null) => {
+    const found = manifestFindings(value as GoalValue, record, prose);
+    problems.push(...found.problems);
+    notes.push(...found.notes);
+  };
+  const records = new Map(load<any>(goalType).map((r) => [r.id as string, r.value]));
+  const sideRecords = new Map(load<any>(sideGoalType).map((r) => [r.id as string, r.value]));
+
   const readme = read(README) ?? "";
   for (const g of goals) {
     if (g.md === null) {
@@ -131,6 +146,7 @@ async function check(): Promise<number> {
       continue;
     }
     if (!handoffs.has(g.slug)) problems.push(`${where(g)}: no data/goals/${g.slug}.handoff.json -- the first session has no group to take`);
+    if (records.has(g.slug)) audit(records.get(g.slug), `data/goals/${g.slug}.json`, g.md);
     if (ahead(g) && !text.includes("\n## Why here") && !g.md.startsWith(`${GOALS}/dossier/`)) {
       notes.push(`${g.md}: no \`## Why here\` section. The order is a dependency chain and that section is the only home of the reason this goal sits where it does`);
     }
@@ -161,6 +177,7 @@ async function check(): Promise<number> {
     }
     if (!h1Of(text).startsWith("# Side goal ")) problems.push(`${md}: its H1 is ${JSON.stringify(h1Of(text).slice(0, 60))}; a side goal's opens \`# Side goal — \``);
     if (!sideHandoffs.has(slug)) problems.push(`side goal \`${slug}\`: no data/goals/side/${slug}.handoff.json`);
+    if (sideRecords.has(slug)) audit(sideRecords.get(slug), `data/goals/side/${slug}.json`, md);
   }
 
   const stale = await numberCitations();

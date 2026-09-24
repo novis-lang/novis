@@ -126,7 +126,7 @@ interface Context {
   milestones?: string[];
 }
 
-interface GoalValue {
+export interface GoalValue {
   context: Context;
   stages: { number: number; title: string; summary?: string; context?: Context }[];
 }
@@ -1489,6 +1489,106 @@ function audit(): string[] {
     "  here exits non-zero over a size (docs/agent/doc-style.md says why).",
   );
   return lines;
+}
+
+// ------------------------------------------------------------------- the manifest audit
+
+/** A `rule:<topic>/<slug>` token as the prose writes it. */
+const RULE_TOKEN = /rule:([a-z0-9-]+\/[a-z0-9-]+)/g;
+
+/**
+ * `{ problems, notes }` for one goal's `context`, over the base and every stage's overlay at once,
+ * printing nothing. `where` names the goal in each line, and `prose` is the path of its prose.
+ *
+ * What gates and what only reports is whether the target can legitimately not exist yet. A `shapes`
+ * entry names a heading in a file that is already written, and a `playbook` selector names a bullet
+ * that is already there, so each of those that resolves to nothing is a problem. A `rules` or `adrs`
+ * entry may name something the goal is about to create, so those are notes, and so are the two
+ * shapes a manifest is written in when nobody has read loop-authoring.md § 2. `modules` is not
+ * audited: a goal whose first slice creates the crate is the ordinary case, and the pack's own
+ * warning is where a pattern that matches nothing shows. A `context` key no stage or goal has is the
+ * schema's finding, not this one's.
+ */
+export function manifestFindings(g: GoalValue, where: string, prose: string | null): { problems: string[]; notes: string[] } {
+  const problems: string[] = [];
+  const notes: string[] = [];
+  const m = manifest(g, null);
+  for (const s of [...g.stages].sort((a, b) => a.number - b.number)) {
+    for (const name of STAGE_FIELDS) {
+      for (const x of s.context?.[name] ?? []) if (!m[name].includes(x)) m[name].push(x);
+    }
+  }
+  if (!m.present) {
+    notes.push(`${where}: has no \`context\`, so a session opens on the unscoped pack`);
+    return { problems, notes };
+  }
+
+  const conventions = read(CONVENTIONS);
+  for (const name of m.shapes) {
+    if (sliceSection(conventions, name) === null) {
+      problems.push(`${where}: shapes names ${pyRepr(name)}, and conventions.md has no such heading -- the shape is silently not printed`);
+    }
+  }
+  for (const [shape, implied] of SHAPE_IMPLIES) {
+    if (m.shapes.includes(shape) && !m.shapes.includes(implied)) problems.push(`${where}: shapes names ${pyRepr(shape)} without ${pyRepr(implied)}`);
+  }
+
+  if (m.playbook.length > 0) {
+    const book = playbookBook();
+    for (const selector of m.playbook) {
+      const [hits, complaint] = sliceBullets(book, selector);
+      if (complaint) problems.push(`${where}: playbook selector ${pyRepr(selector)} -- ${complaint}`);
+      else if (hits.length > 1 && !selector.trimEnd().endsWith("*")) {
+        problems.push(`${where}: playbook selector ${pyRepr(selector)} opens ${hits.length} bullets' lead-ins -- name one, or end it in \`*\` to take every one of them`);
+      }
+    }
+  }
+
+  for (const entry of m.adrs) {
+    const parts = entry.replaceAll("§", " ").split(/\s+/).filter(Boolean);
+    if (parts.length === 0) continue;
+    const [number, ...rest] = parts as [string, ...string[]];
+    const wanted = rest.join(" ");
+    const path = `${DECISIONS}/${number}.md`;
+    if (!existsSync(join(ROOT, path))) notes.push(`${where}: adrs names ${number}, and docs/decisions/ has no ${number}.md`);
+    else if (wanted && sliceSection(stripFrontmatter(read(path)), wanted) === null) {
+      notes.push(`${where}: adrs entry ${pyRepr(entry)} matches no heading in ${number}.md -- one entry is ONE section, so \`§§1,4,5\` slices nothing`);
+    }
+  }
+
+  if (m.rules.length > 0) {
+    const book = rulebook();
+    for (const entry of m.rules) {
+      if (entry.includes("/")) {
+        if (!book.has(entry)) notes.push(`${where}: rules names rule:${entry}, and the rulebook has no rule with that id`);
+      } else if (![...book.values()].some((r) => r.because.includes(entry))) {
+        notes.push(`${where}: rules names ${entry}, and no rule's \`because\` names it`);
+      }
+    }
+    // Stated as "your prose is held to a rule your manifest cannot reach", so it clears the moment it
+    // is acted on and never fires on a goal that has no rule to name.
+    const text = prose === null ? "" : read(prose);
+    if (text) {
+      const records = new Set(m.rules.filter((e) => !e.includes("/")));
+      const covered = new Set(m.rules.filter((e) => e.includes("/")));
+      for (const r of book.values()) if (r.because.length > 0 && records.has(r.because[0]!)) covered.add(r.id);
+      const unreached = [...new Set([...text.matchAll(RULE_TOKEN)].map((x) => x[1]!))].filter((id) => book.has(id) && !covered.has(id)).sort();
+      if (unreached.length > 0) {
+        notes.push(
+          `${where}: the prose is held to ${unreached.length} rule(s) no \`rules\` entry reaches -- ${unreached.slice(0, 3).join(", ")}` +
+            `${unreached.length > 3 ? ", …" : ""}. Name the two or three each stage is written against as ids; loop-authoring.md § 2`,
+        );
+      }
+    }
+  }
+
+  // Only where there is something a stage could take: a process goal whose base is what every stage
+  // needs has nothing to narrow, and a note that cannot clear schedules a pass whether or not anything drifted.
+  const stages = g.stages.length;
+  if (stages >= 3 && m.staged.length === 0 && (m.adrs.length > 0 || m.rules.length >= 5)) {
+    notes.push(`${where}: runs ${stages} stages and narrows to none of them -- every session reads all ${stages} stages' rules and record sections (a stage's \`context\`, loop-authoring.md § 2)`);
+  }
+  return { problems, notes };
 }
 
 // ---------------------------------------------------------------------------- driver
