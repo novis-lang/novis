@@ -166,6 +166,14 @@ as many at a time as there are cores, the slowest of the last run first (`TEST_T
 test --doc` runs beside them for the doc-tests no binary holds. The passed, failed and ignored
 counts come out the same as cargo's.
 
+Each binary gets `RUST_TEST_THREADS` in proportion to its last time against the slowest one's. Left
+to itself libtest starts one thread per core in every binary, so a pool as wide as the machine ran
+a thread pool per core, and a test that waits on a deadline lost the race under that load. A flat
+cap of one thread each fails the other way: the slow binaries are the ones whose tests mostly wait
+on a compile or a watcher, their time falls almost in proportion to their threads, and the step's
+length is theirs. Weighting by time keeps their parallelism and gives the many short binaries one
+thread each.
+
 Two things differ, both on purpose. Every binary runs, where cargo stops at the first that fails,
 so a red step names every failing binary at once. And a binary that fails is run a second time,
 alone. One that passes alone failed because of what ran beside it -- a fixed port, a fixed path under
@@ -552,6 +560,13 @@ def run_tests(step, package=None):
     # Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
     jobs.sort(key=lambda j: -float(last.get(j["name"], float("inf"))))
     workers = os.cpu_count() or 4
+    # libtest's threads, per binary, in proportion to its last time against the slowest one's:
+    # *Why `test` runs its binaries side by side*. A binary with no recorded time gets them all.
+    slowest = max((float(last[j["name"]]) for j in jobs if j["name"] in last), default=0.0)
+    for j in jobs:
+        share = float(last[j["name"]]) / slowest if slowest > 0 and j["name"] in last else 1.0
+        threads = max(1, min(workers, round(workers * share)))
+        j["env"] = dict(j["env"], RUST_TEST_THREADS=str(threads))
     # The tail: every job started and at most half the cores still running one. `main` starts
     # the steps after this one then -- *Why steps overlap* -- unless a binary has already failed.
     left, red, lock = [len(jobs)], [False], threading.Lock()
