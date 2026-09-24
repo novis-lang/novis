@@ -7,6 +7,7 @@
 //
 // A problem is something that stops the run when the chain reaches it:
 //   - the chain is empty;
+//   - a goal record the chain does not name, which the driver never reaches;
 //   - a chain, goal or handoff record fails its schema, a foreign key or an invariant (`nv check`'s
 //     findings, narrowed to those files);
 //   - a goal has no prose under `docs/agent/goals/`;
@@ -21,7 +22,9 @@
 // `## Standing decisions`, a goal with no row in the goals README, prose still carrying `TODO`, and
 // a `context` entry `manifestFindings` only reports.
 //
-// Exits 0 when there is no problem, 1 when there is one, and 2 on a bad argument.
+// With no problem it prints two lines, one per invariant a floor check holds it to: every goal is
+// walkable and every manifest resolves, and the chain already names every goal record. Exits 0 when
+// there is no problem, 1 when there is one, and 2 on a bad argument.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -128,6 +131,10 @@ async function check(): Promise<number> {
   };
   const records = new Map(load<any>(goalType).map((r) => [r.id as string, r.value]));
   const sideRecords = new Map(load<any>(sideGoalType).map((r) => [r.id as string, r.value]));
+  const named = new Set(goals.map((g) => g.slug));
+  for (const slug of [...records.keys()].sort()) {
+    if (!named.has(slug)) problems.push(`data/goals/${slug}.json: a goal record data/chain.json does not name -- the driver never reaches it; \`nv chain --new\` places it`);
+  }
 
   const readme = read(README) ?? "";
   for (const g of goals) {
@@ -198,7 +205,8 @@ async function check(): Promise<number> {
     return 1;
   }
   const at = live === null ? "no goal is installed" : `the run stands on \`${live.slug}\`, ${live.num} of ${goals.length}`;
-  console.log(`chain: every goal is walkable -- ${goals.length} goals, ${at}` + (notes.length > 0 ? `, ${notes.length} note(s) above` : ""));
+  console.log(`chain: every goal is walkable and every manifest resolves -- ${goals.length} goals, ${at}` + (notes.length > 0 ? `, ${notes.length} note(s) above` : ""));
+  console.log(`chain: ${records.size} goal record(s) on disk, and data/chain.json already names every one of them -- nothing appended`);
   console.log("       `bun nv plan --check` is the other half: milestone tags and `Carried by` cells.");
   return 0;
 }

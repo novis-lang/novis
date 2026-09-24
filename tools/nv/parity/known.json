@@ -191,14 +191,20 @@
     {
       "side": "python",
       "pattern": "^chain: (\\d+) goals numbered 1\\.\\.\\d+, all walkable",
-      "replace": "chain: every goal is walkable -- $1 goals",
+      "replace": "chain: every goal is walkable and every manifest resolves -- $1 goals",
       "why": "A goal has a position in data/chain.json and no number in a file name, so there is no numbering to report."
     },
     {
       "side": "nv",
-      "pattern": "^(chain: every goal is walkable -- \\d+ goals), (?:the run stands on `[a-z0-9-]+`, \\d+ of \\d+|no goal is installed)",
+      "pattern": "^(chain: every goal is walkable and every manifest resolves -- \\d+ goals), (?:the run stands on `[a-z0-9-]+`, \\d+ of \\d+|no goal is installed)",
       "replace": "$1",
       "why": "nv names the installed goal and its position as `N of M`, which chain.py read as a bare number from .loop/chain.json."
+    },
+    {
+      "side": "nv",
+      "pattern": "^chain: \\d+ goal record\\(s\\) on disk, and data/chain\\.json already names every one of them -- nothing appended\\n",
+      "replace": "",
+      "why": "nv checks that the chain names every goal record, which is the invariant the deleted goal emitter's dry run held for the goals it generated. No goal is generated now, and chain.py read no records."
     }
   ],
   "writers": [
