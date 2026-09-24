@@ -1,6 +1,7 @@
 // `bun nv <command> [args]`: the one entry point of the repository's tools. Each command is a module
 // under `cmd/` exporting a `summary` line and `run(args)`, which returns the exit status.
 
+import * as bg from "./cmd/bg.ts";
 import * as brief from "./cmd/brief.ts";
 import * as chain from "./cmd/chain.ts";
 import * as check from "./cmd/check.ts";
@@ -13,6 +14,7 @@ import * as impact from "./cmd/impact.ts";
 import * as importCmd from "./cmd/import.ts";
 import * as layout from "./cmd/layout.ts";
 import * as links from "./cmd/links.ts";
+import * as loop from "./cmd/loop.ts";
 import * as migration from "./cmd/migration.ts";
 import * as owners from "./cmd/owners.ts";
 import * as parity from "./cmd/parity.ts";
@@ -32,7 +34,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { brief, chain, check, decisions, directives, disk, gaps, holes, impact, import: importCmd, layout, links, migration, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, why };
+const COMMANDS: Record<string, Command> = { bg, brief, chain, check, decisions, directives, disk, gaps, holes, impact, import: importCmd, layout, links, loop, migration, owners, parity, peek, plan, proofs, query, records, reference, render, rules, selftest, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
