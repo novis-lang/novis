@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a key made from a public key can encrypt, but it cannot decrypt.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Jwe\Key $key = Core\Jwe\Key::recipient($pair->publicKey());
+string $token = Core\Jwe::encrypt("hello", $key);
+
+// `Core\Jwe::decrypt` throws a `LogicError` for this key.
+// The message says that `Core\Jwe\Key::own` is the key that decrypts.
+try {
+    Core\Jwe::decrypt($token, [$key]);
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,1 @@
+Core\Jwe::decrypt(): $keys holds a key built by Core\Jwe\Key::recipient, which is the other party's public key and opens nothing. The half that opens a token is the pair, through Core\Jwe\Key::own.

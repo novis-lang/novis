@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program makes keys from public keys that cannot be used, encrypts a very long message,
+// and makes one million keys in a loop. Each step must return a result or throw an error, and must not crash.
+
+// 1. An `Ed25519` public key can only check signatures. `recipient` must throw a `LogicError`.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+try {
+    Core\Jwe\Key::recipient($signing->publicKey());
+    throw new RuntimeError('an Ed25519 public key gave a key');
+} catch (LogicError $wrongKind) {
+}
+echo 'step 1: done', "\n";
+
+// 2. An `X25519` public key of 32 zero bytes gives no shared secret.
+// `recipient` accepts it, and `Core\Jwe::encrypt` must throw a `LogicError`.
+Core\Crypto\PublicKey $zero = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex('0000000000000000000000000000000000000000000000000000000000000000'),
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw,
+);
+Core\Jwe\Key $nothing = Core\Jwe\Key::recipient($zero);
+try {
+    Core\Jwe::encrypt('id=1', $nothing);
+    throw new RuntimeError('a zero public key encrypted a message');
+} catch (LogicError $noSecret) {
+}
+echo 'step 2: done', "\n";
+
+// 3. A message of eight million characters is encrypted for a real key pair.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+string $token = Core\Jwe::encrypt(Core\Str::repeat('a', 8000000), Core\Jwe\Key::recipient($pair->publicKey()));
+if (Core\Str::length(Core\Jwe::decrypt($token, [Core\Jwe\Key::own($pair)])) != 8000000) {
+    throw new LogicError('the long message did not come back');
+}
+echo 'step 3: done', "\n";
+
+// 4. One million keys are made from one public key and thrown away. The memory of each key must be freed.
+Core\Crypto\PublicKey $public = $pair->publicKey();
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Jwe\Key::recipient($public);
+    $i = $i + 1;
+}
+echo 'step 4: done', "\n";

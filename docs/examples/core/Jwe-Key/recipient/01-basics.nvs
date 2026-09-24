@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to encrypt a message that only the owner of a key pair can read.
+
+// The receiver makes a key pair and gives its public key to the sender.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+Core\Crypto\PublicKey $public = $pair->publicKey();
+
+// The sender encrypts the message with the public key.
+string $token = Core\Jwe::encrypt("meet at noon", Core\Jwe\Key::recipient($public));
+
+// The receiver decrypts it with the key pair. This prints `meet at noon`.
+echo Core\Jwe::decrypt($token, [Core\Jwe\Key::own($pair)]), "\n";

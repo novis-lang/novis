@@ -1824,4 +1824,134 @@ mod tests {
             payload.release();
         }
     }
+
+    /// A fresh `Core\Crypto\KeyPair` object of `kind`, and the PKCS#8 it holds.
+    fn pair(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> (Value, Vec<u8>) {
+        let der = crypto::generated_pkcs8(ctx, kind, "test").expect("the kind generates");
+        let der = der.to_vec();
+        let object = crate::instance::build(
+            &crypto::KEY_PAIR,
+            [Value::bytes(NvsStr::new(&der)), Value::int(kind.tag())],
+        );
+        (object, der)
+    }
+
+    /// The public half of `pair`, as `$pair->publicKey()` answers it.
+    fn public_of(ctx: &mut nvs_runtime::Ctx, pair: Value) -> Value {
+        nvs_runtime::call(crypto::nvs_core_crypto_key_pair_public_key, ctx, &[pair])
+            .expect("every generated pair has a public half")
+    }
+
+    /// `recipient` takes the public half of a `P256` or `X25519` pair: the key
+    /// it builds seals an `ECDH-ES` token that this pair's PKCS#8 opens and
+    /// another pair of the same curve does not. An `Ed25519` public key throws
+    /// the `LogicError` naming `recipient`.
+    // covers: Core\Jwe\Key::recipient
+    #[test]
+    fn recipient_seals_to_one_public_key_and_refuses_a_key_that_only_signs() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let payload = Value::str(NvsStr::new(b"card=4111"));
+        for kind in [KeyKind::P256, KeyKind::X25519] {
+            let (mine, der) = pair(&mut ctx, kind);
+            let (theirs, other) = pair(&mut ctx, kind);
+            let public = public_of(&mut ctx, mine);
+            let key = constructed(&mut ctx, nvs_core_jwe_key_recipient, public)
+                .expect("an agreement key builds");
+            let token = encrypted(&mut ctx, payload, key);
+            #[expect(unsafe_code, reason = "this frame holds the only references")]
+            unsafe {
+                key.release();
+                mine.release();
+                theirs.release();
+            }
+            assert!(
+                protected_of(&token).starts_with(&format!(r#"{{"alg":"{ECDH_ES}""#)),
+                "{kind:?}"
+            );
+            assert_eq!(
+                plaintext(&[(USE_OWN, &der, Some(kind))], &token)
+                    .expect("the payload is affordable"),
+                Some(b"card=4111".to_vec()),
+                "{kind:?}"
+            );
+            assert!(
+                plaintext(&[(USE_OWN, &other, Some(kind))], &token)
+                    .expect("the payload is affordable")
+                    .is_none(),
+                "{kind:?}: another pair opened the token"
+            );
+        }
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            payload.release();
+        }
+
+        let (signing, _) = pair(&mut ctx, KeyKind::Ed25519);
+        let public = public_of(&mut ctx, signing);
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            signing.release();
+        }
+        let refused = constructed(&mut ctx, nvs_core_jwe_key_recipient, public)
+            .expect_err("an Ed25519 key agrees on nothing");
+        assert!(
+            refused
+                .starts_with("Core\\Jwe\\Key::recipient(): ECDH-ES agrees over P-256 and X25519"),
+            "{refused}"
+        );
+    }
+
+    /// `own` takes a `P256` or `X25519` pair: the key it builds holds that
+    /// pair's PKCS#8, so it opens a token sealed to the pair's public half and
+    /// seals one only this pair opens. An `Ed25519` pair throws the
+    /// `LogicError` naming `own`.
+    // covers: Core\Jwe\Key::own
+    #[test]
+    fn own_opens_what_was_sealed_to_its_pair_and_refuses_a_pair_that_only_signs() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let payload = Value::str(NvsStr::new(b"order=1042"));
+        for kind in [KeyKind::P256, KeyKind::X25519] {
+            let (mine, der) = pair(&mut ctx, kind);
+            let (theirs, other) = pair(&mut ctx, kind);
+            let public = public_of(&mut ctx, mine);
+            let sending = constructed(&mut ctx, nvs_core_jwe_key_recipient, public)
+                .expect("an agreement key builds");
+            let received = encrypted(&mut ctx, payload, sending);
+            let key = constructed(&mut ctx, nvs_core_jwe_key_own, mine)
+                .expect("an agreement pair builds");
+            let sealed = encrypted(&mut ctx, payload, key);
+            #[expect(unsafe_code, reason = "this frame holds the only references")]
+            unsafe {
+                sending.release();
+                key.release();
+                theirs.release();
+            }
+            for token in [&received, &sealed] {
+                assert_eq!(
+                    plaintext(&[(USE_OWN, &der, Some(kind))], token)
+                        .expect("the payload is affordable"),
+                    Some(b"order=1042".to_vec()),
+                    "{kind:?}"
+                );
+                assert!(
+                    plaintext(&[(USE_OWN, &other, Some(kind))], token)
+                        .expect("the payload is affordable")
+                        .is_none(),
+                    "{kind:?}: another pair opened the token"
+                );
+            }
+        }
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            payload.release();
+        }
+
+        let (signing, _) = pair(&mut ctx, KeyKind::Ed25519);
+        let refused = constructed(&mut ctx, nvs_core_jwe_key_own, signing)
+            .expect_err("an Ed25519 pair agrees on nothing");
+        assert!(
+            refused.starts_with("Core\\Jwe\\Key::own(): ECDH-ES agrees over P-256 and X25519"),
+            "{refused}"
+        );
+    }
 }

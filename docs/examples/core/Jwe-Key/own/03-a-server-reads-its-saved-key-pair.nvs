@@ -1,0 +1,23 @@
+<?nvs
+// Shows a server that saves its key pair once and reads it again for each request.
+
+class Server {
+    // Each request reads the saved key pair and decrypts the message in the request.
+    public static function handle(string $token, secret bytes $saved): tainted string {
+        Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read($saved, Core\Crypto\KeyKind::X25519);
+        return Core\Jwe::decrypt($token, [Core\Jwe\Key::own($pair)]);
+    }
+}
+
+// At setup, the server makes a key pair and saves its bytes, for example in a secret store.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+secret bytes $saved = $pair->write();
+
+// A client encrypts two messages for the server's public key.
+Core\Jwe\Key $server = Core\Jwe\Key::recipient($pair->publicKey());
+string $first = Core\Jwe::encrypt("add 2 x red mug", $server);
+string $second = Core\Jwe::encrypt("remove 1 x red mug", $server);
+
+// This prints `add 2 x red mug` and `remove 1 x red mug`.
+echo Server::handle($first, $saved), "\n";
+echo Server::handle($second, $saved), "\n";

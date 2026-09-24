@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program decrypts a message with key pairs that do not fit it, and with a long list of
+// wrong keys. It also makes one million keys in a loop. Each step must return a result or throw an
+// error, and must not crash.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+string $token = Core\Jwe::encrypt('id=7', Core\Jwe\Key::recipient($pair->publicKey()));
+
+// 1. An `Ed25519` key pair can only sign. `own` must throw a `LogicError`.
+try {
+    Core\Jwe\Key::own(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519));
+    throw new RuntimeError('an Ed25519 key pair gave a key');
+} catch (LogicError $wrongKind) {
+}
+echo 'step 1: done', "\n";
+
+// 2. A `P256` key pair tries to decrypt a message for an `X25519` key pair.
+// `Core\Jwe::decrypt` must throw a `RuntimeError`.
+try {
+    Core\Jwe::decrypt($token, [Core\Jwe\Key::own(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256))]);
+    throw new LogicError('a key pair of another curve opened the message');
+} catch (RuntimeError $otherCurve) {
+}
+echo 'step 2: done', "\n";
+
+// 3. A list of 200 wrong key pairs is tried. None may open the message.
+// With the right key pair at the end, the message opens.
+array<Core\Jwe\Key> $keys = [];
+uint $count = 0;
+while ($count < 200) {
+    $keys[] = Core\Jwe\Key::own(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519));
+    $count = $count + 1;
+}
+try {
+    Core\Jwe::decrypt($token, $keys);
+    throw new LogicError('a wrong key pair opened the message');
+} catch (RuntimeError $noneFits) {
+}
+$keys[] = Core\Jwe\Key::own($pair);
+if (Core\Jwe::decrypt($token, $keys) != 'id=7') {
+    throw new LogicError('the right key pair did not open the message');
+}
+echo 'step 3: done', "\n";
+
+// 4. Texts that are not tokens are decrypted. Each must throw a `RuntimeError`.
+Core\Jwe\Key $mine = Core\Jwe\Key::own($pair);
+array<string> $broken = ['', '....', 'a.b.c.d.e', Core\Str::repeat('A', 1000000) . '.x.y.z.w'];
+foreach ($broken as string $text) {
+    try {
+        Core\Jwe::decrypt($text, [$mine]);
+        throw new LogicError('a text that is not a token was decrypted');
+    } catch (RuntimeError $notAToken) {
+    }
+}
+echo 'step 4: done', "\n";
+
+// 5. One million keys are made from one key pair and thrown away. The memory of each key must be freed.
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Jwe\Key::own($pair);
+    $i = $i + 1;
+}
+echo 'step 5: done', "\n";

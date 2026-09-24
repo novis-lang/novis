@@ -1,0 +1,30 @@
+<?nvs
+// Shows how a shop sends a card number to a payment service. Only the payment service can read it.
+
+class Shop {
+    // The shop reads the published public key and encrypts the card number with it.
+    public static function pay(string $card, bytes $published): string {
+        Core\Crypto\PublicKey $service = Core\Crypto\PublicKey::read(
+            $published,
+            Core\Crypto\KeyKind::X25519,
+            Core\Crypto\KeyFormat::Jwk
+        );
+        return Core\Jwe::encrypt($card, Core\Jwe\Key::recipient($service));
+    }
+}
+
+class PaymentService {
+    // The payment service decrypts the card number with its own key pair.
+    public static function receive(string $token, Core\Crypto\KeyPair $pair): tainted string {
+        return Core\Jwe::decrypt($token, [Core\Jwe\Key::own($pair)]);
+    }
+}
+
+// The payment service makes its key pair once. It publishes the public key as JSON.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+bytes $published = $pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk);
+
+string $token = Shop::pay("4111 1111 1111 1111", $published);
+
+// This prints `4111 1111 1111 1111`.
+echo PaymentService::receive($token, $pair), "\n";

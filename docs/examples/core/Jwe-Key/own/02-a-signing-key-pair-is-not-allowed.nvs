@@ -1,0 +1,15 @@
+<?nvs
+// Shows the error for a key pair that can only sign.
+
+// An `Ed25519` key pair makes signatures. It cannot make a shared secret,
+// so `Core\Jwe\Key::own` throws a `LogicError`.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+try {
+    Core\Jwe\Key::own($signing);
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// An `X25519` key pair is allowed. This prints `ok`.
+Core\Jwe\Key::own(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519));
+echo "ok", "\n";
