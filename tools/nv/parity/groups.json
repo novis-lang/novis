@@ -55,5 +55,28 @@
       ["--deep", "--outline", "crates/nvs-host/src/watchdog.rs", "tools/nv/cmd/*.ts"],
       ["--outline", "no/such.rs"]
     ]
+  },
+  "plan": {
+    "python": ["python", "tools/plan.py"],
+    "nv": ["bun", "tools/nv/main.ts", "plan"],
+    "cases": [
+      ["--show", "M8"],
+      ["--show", "m4s"],
+      ["--show", "M9:lead"],
+      ["--show", "M8:verify"],
+      ["--show", "M0:verify"],
+      ["--show", "M8:nosuchpart"],
+      ["--show", "M99"],
+      ["--get", "Open now"],
+      ["--get", "blocking"],
+      ["--get", "No such field"]
+    ]
+  },
+  "records": {
+    "python": ["python", "tools/records.py"],
+    "nv": ["bun", "tools/nv/main.ts", "records"],
+    "cases": [
+      ["--stats"]
+    ]
   }
 }

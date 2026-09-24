@@ -84,5 +84,19 @@
       "replace": "  \"$1\": [...]",
       "why": "A gap object is a record in nv (slug, module, title, text) and a parsed doc item in Python (file, line, block, item). The counts per owner under `registers` are what callers read, and they are compared."
     }
+  ],
+  "plan": [
+    {
+      "side": "python",
+      "pattern": "^plan\\.py:",
+      "replace": "nv plan:",
+      "why": "A message names the program that printed it."
+    },
+    {
+      "side": "nv",
+      "pattern": "python tools/([a-z_-]+)\\.py",
+      "replace": "bun nv $1",
+      "why": "A milestone file and a status field are printed as written, so a command they name is the same text on both sides, and the rewrite every group applies to the Python side is applied to nv's too."
+    }
   ]
 }

@@ -5,10 +5,10 @@
 **Goal `tooling-overhaul`: Stages 3 and 4 are landed whole, and Stage 5 is under way.** `bun nv
 parity <group>` compares a Python tool with its `nv` replacement over the cases in
 `tools/nv/parity/groups.json`, ignoring only the rewrites `tools/nv/parity/known.json` declares and,
-per group, an `unordered` entry pattern. Three groups match on every case: `brief` (7 of 7),
-`owners` (12 of 12) and `peek` (16 of 16: ranges, `@name`, `re:` and `/re/` with context, headings,
-globs, `rule:` targets, the `--max-lines` refusal, `--locate` over the tree and `--in`, `--outline`
-and `--deep`). `nv peek` shares `peek.py`'s ledger, so its footer advice is the one declared difference.
+per group, an `unordered` entry pattern. Five groups match on every case: `brief` (7 of 7),
+`owners` (12 of 12), `peek` (16 of 16), `plan` (10 of 10: `--show` whole, `:lead`, `:verify`, a bad
+part, a bad id, and `--get`) and `records` (1 of 1: `--stats`). `nv plan` reads `data/plan/`, and
+`nv records` takes its set from `data/decisions/` and its sizes from the prose.
 **`data/` is a snapshot, not yet the authority.** The legacy homes still are. Re-run `bun nv import
 --write` before a stage reads `data/` as the truth, and at the cutover. `main` is still frozen, and
 the tag `pre-overhaul` is the rollback point. The driver's red Stage 6 check (`nv impact --probe`)
@@ -21,26 +21,21 @@ replacement's parity is green.
 ## Next group
 
 **Stage 5: the read-only tools, proven by parity** — one file set: `tools/nv/cmd/**`,
-`tools/nv/parity/**`, `tools/nv/main.ts`. loop-goal.md § *Stage 5* is the spec. Each new command
-adds its group to `tools/nv/parity/groups.json` with every mode the floor, a goal `.toml` or a
-process doc invokes, and is registered in `tools/nv/main.ts:18`'s `COMMANDS`. A record with no
-position (a gap, a bullet) lists in slug order, and the group's `unordered` pattern declares it.
+`tools/nv/parity/**`, `tools/nv/main.ts`. loop-goal.md § *Stage 5* is the spec: parity is owed for
+every mode the floor, a goal `.toml` or a process doc invokes. Each new command adds its group to
+`tools/nv/parity/groups.json` and is registered in `tools/nv/main.ts:20`'s `COMMANDS`.
 
-- [ ] **`bun nv plan --show` and `bun nv records --stats`** (`tools/plan.py:917`,
-      `tools/records.py:566`): read-only modes over the milestone and decision records.
-      `plan.py --past` reads `owners.py --json`'s `registers[*].owners`, which `nv owners --json`
-      prints in the same shape (`tools/nv/cmd/owners.ts:418`).
-- [ ] **`bun nv gaps` and `bun nv holes`** (`tools/gaps.py:1`, `tools/holes.py:1`): the next
-      read-only pair, each with its parity group.
+- [ ] **`bun nv plan --past` and `--stale`, the floor's other plan modes** (`tools/plan.py:391`,
+      `tools/plan.py:867`, into `tools/nv/cmd/plan.ts:1`): `--past` reads the chain, the live goal and
+      `nv owners --json`'s `registers[*].owners` (`tools/nv/cmd/owners.ts:418`); a goal record with no
+      checks is a retired one, as `tools/nv/cmd/owners.ts:144` reads it.
+- [ ] **`bun nv plan --check` and `bun nv records --check`** (`tools/plan.py:645`,
+      `tools/records.py:478`): the floor runs both; each becomes a query in `nv check` with the old
+      flag kept as an alias that prints the same verdict lines.
+- [ ] **`bun nv gaps` and `bun nv holes`** (`tools/gaps.py:1`, `tools/holes.py:1`): the next two
+      read-only tools of the stage.
 
 ## Backlog
 
-- `nv links`, `nv layout`, `nv disk`, `nv directives` — loop-goal.md § *Stage 5*.
-- `nv migration` and `nv reference` (`tools/check-migration.py:230`); `reference.py` runs the
-  binary and every example, so it is the largest of them — loop-goal.md § *Stage 5*.
-- The rest of `nv brief` (status, milestones, map) — `tools/brief.py`.
-- Each replaced check becomes a query in `nv check`, its old flag an alias; `owners --check` is the
-  first with a parity-proven replacement — loop-goal.md § *Stage 5*.
-- `owners.py` and `peek.py` are deleted only in slices of their own, after their callers (for
-  `owners.py`: `verify.py`, `loop.py` `owner_gate`, `plan.py`, the floor argvs; for `peek.py`: the
-  process docs and the orientation pack) move to `nv` — loop-goal.md § *Stage 5*.
+- `nv links`, `nv layout`, `nv disk`, `nv directives`, `nv migration`, `nv reference` — loop-goal.md § *Stage 5*.
+- Stage 6's `nv impact --probe`, the driver's red check — loop-goal.md § *Stage 6*.
