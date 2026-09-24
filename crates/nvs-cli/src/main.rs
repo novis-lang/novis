@@ -180,10 +180,22 @@ fn header() -> String {
     )
 }
 
+/// What `nvs --version` prints after the name: the release, then the commit and
+/// its date as [`header`] prints them, because a bug report and an upgrade check
+/// both need the commit and `--version` is where people look for it.
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (commit ",
+    env!("NVS_COMMIT"),
+    ", ",
+    env!("NVS_COMMIT_DATE"),
+    ")"
+);
+
 #[derive(ClapParser)]
 #[command(
     name = "nvs",
-    version,
+    version = VERSION,
     about = header(),
     arg_required_else_help = true
 )]

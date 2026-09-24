@@ -13,7 +13,7 @@ usually one file:
     nvs run hello.nvs
     nvs check src/app.nvs
     nvs test tests/
-    nvs --version          # prints `nvs 0.0.1`
+    nvs --version          # prints `nvs 0.0.1 (commit 16a26500b, 2026-09-24)`
 
 | Command | What it does |
 |---|---|
