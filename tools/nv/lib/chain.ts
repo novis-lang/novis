@@ -1,14 +1,15 @@
 // Where the chain stands: its order, the goal the driver has installed, and the goals it has walked.
 //
-// The order is `data/chain.json`. The installed goal is the one whose prose has the H1 that
-// `docs/agent/loop-goal.md` has, since the switch copies that file verbatim and a record carries no
-// flag for it. A goal has walked when it sits in front of the installed one, or when its record has no
+// The order is `data/chain.json`. The installed goal is the slug the driver's pointer names
+// (`lib/state.ts`). A tree the driver has never run in has no pointer, and there the installed goal is
+// the one whose prose has the H1 that `docs/agent/loop-goal.md` has. A goal has walked when it sits in front of the installed one, or when its record has no
 // checks, which is how a goal the driver will not reach again is written. The union is taken so that a
 // checkout that has never run the loop still counts the retired goals as walked.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "./paths.ts";
+import { pointerSlug } from "./state.ts";
 import { load } from "./store.ts";
 import { chain as chainType } from "../schema/chain.ts";
 import { goal as goalType } from "../schema/goal.ts";
@@ -65,8 +66,11 @@ export function chainGoals(): ChainGoal[] {
   });
 }
 
-/** The goal `docs/agent/loop-goal.md` is a copy of, or null. */
+/** The goal the driver's pointer names, else the one `docs/agent/loop-goal.md` is a copy of, else null. */
 export function liveGoal(goals: ChainGoal[] = chainGoals()): ChainGoal | null {
+  const slug = pointerSlug();
+  const pointed = slug === null ? undefined : goals.find((g) => g.slug === slug);
+  if (pointed) return pointed;
   if (!existsSync(join(ROOT, LIVE_GOAL))) return null;
   const head = h1Of(readFileSync(join(ROOT, LIVE_GOAL), "utf8"));
   if (!head) return null;

@@ -1,7 +1,7 @@
 // `bun nv loop --list`: the live goal's acceptance plan, read from `docs/agent/loop-goal.toml` while the
 // Python driver runs it and from the goal's record under `data/goals/` once that file is gone. One
 // line per check, `[<stage number> <stage title>]`, its kind, its name and what it runs, then
-// `list: N check(s) match` last. The live goal is the one `docs/agent/loop-goal.md` is a copy of, and its
+// `list: N check(s) match` last. The live goal is the slug the driver's pointer names (`lib/state.ts`), and its
 // record carries the floor as its own first stage, so the plan printed is the whole plan the driver runs.
 //
 // Three filters narrow it, and a check is printed when it matches every one given:
@@ -143,7 +143,7 @@ function livePlan(): { live: NonNullable<ReturnType<typeof liveGoal>>; goal: Goa
   const goals = chainGoals();
   const live = liveGoal(goals);
   if (live === null) {
-    console.error("nv loop: docs/agent/loop-goal.md is a copy of no goal on the chain, so there is no plan to read");
+    console.error("nv loop: the driver's pointer names no goal on the chain, and docs/agent/loop-goal.md is a copy of none, so there is no plan to read");
     return null;
   }
   const goal = planOf(live.slug, live.md!);
