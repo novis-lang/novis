@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a delivery program finds the store nearest to a customer on a flat map.
+
+class Map {
+    // Returns the straight-line distance between two points, in kilometres.
+    public static function distance(float $x1, float $y1, float $x2, float $y2): float {
+        return Core\Math::hypot($x2 - $x1, $y2 - $y1);
+    }
+}
+
+// The customer lives at x = 2 and y = 3.
+float $north = Map::distance(2.0, 3.0, 5.0, 7.0);
+float $station = Map::distance(2.0, 3.0, 1.0, 1.0);
+
+// This prints "North store: 5 km" and "Station store: 2.2 km".
+echo "North store: ", $north, " km\n";
+echo "Station store: ", Core\Math::round($station, {precision: 1}), " km\n";
+
+// This prints "Deliver from: Station store".
+echo "Deliver from: ", $station < $north ? "Station store" : "North store", "\n";

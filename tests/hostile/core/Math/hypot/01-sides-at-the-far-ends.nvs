@@ -1,0 +1,29 @@
+<?nvs
+// Attack: `Core\Math::hypot` is given sides at the ends of the `float` range, infinities beside
+// `NaN`, and a million calls. Every call should return a length, `INFINITY` or `NaN`, and the
+// program should run to its end.
+
+// 1. The biggest `float` on one side and on both sides.
+echo Core\Math::hypot(Core\Math::FLOAT_MAX, 0.0), "\n";
+echo Core\Math::hypot(Core\Math::FLOAT_MAX, Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::hypot(-Core\Math::FLOAT_MAX, -Core\Math::FLOAT_MAX), "\n";
+
+// 2. The smallest numbers above zero, where the `sqrt` form gives zero.
+float $tiny = Core\Math::FLOAT_MIN / 4503599627370496.0;
+echo Core\Math::hypot($tiny, $tiny), "\n";
+echo Core\Math::hypot(Core\Math::FLOAT_MIN, -0.0), "\n";
+
+// 3. An infinity beside `NaN`, in both orders, and `NaN` beside a number.
+echo Core\Math::hypot(Core\Math::INFINITY, Core\Math::NAN), "\n";
+echo Core\Math::hypot(Core\Math::NAN, -Core\Math::INFINITY), "\n";
+echo Core\Math::hypot(Core\Math::NAN, 1.0), "\n";
+
+// 4. A million calls. Each result becomes the next side, so the length grows every round
+// until it reaches `INFINITY` and stays there.
+float $length = 1.0;
+int $round = 0;
+while ($round < 1000000) {
+    $length = Core\Math::hypot($length, $length);
+    $round = $round + 1;
+}
+echo $length, "\n";

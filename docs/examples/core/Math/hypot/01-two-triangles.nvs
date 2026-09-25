@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to get the longest side of a right triangle from the other two sides.
+
+// The sides 3 and 4 give a longest side of 5. This prints "5".
+echo Core\Math::hypot(3.0, 4.0), "\n";
+
+// The sides 5 and 12 give 13. This prints "13".
+echo Core\Math::hypot(5.0, 12.0), "\n";
+
+// A negative side gives the same result. This prints "13".
+echo Core\Math::hypot(-5.0, 12.0), "\n";

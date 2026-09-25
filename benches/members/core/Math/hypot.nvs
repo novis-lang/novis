@@ -1,0 +1,19 @@
+<?nvs
+// Measures the distance between two points, as a map or a game does for every pair it compares.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 0.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: one side this round depends on last round's total.
+            $total = $total + Core\Math::hypot(3.0, $total * 0.000001);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
