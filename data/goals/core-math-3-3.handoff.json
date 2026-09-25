@@ -1,31 +1,18 @@
 {
-  "state": "Goal `core-math-3-3`: `Core\\Math::min`, `mod`, `round`, `sign`, `sqrt` and `truncate` carry every proof — about.md, three examples, a bench with a fresh record, an attack and a `covers:` Rust test each — and their reference cards in `crates/nvs-stdlib/src/math.rs` are in the plain voice. Seven members of the goal's check still owe proofs: `sin`, `sinh`, `tan`, `tanh`, `toBase`, `toDegrees` and `toRadians`. `bun nv proofs --record-perf` ran after this session's last Rust edit, so no `Core\\Math` record is stale. Nothing is blocked.",
+  "state": "Goal `core-math-3-3`: twelve of the thirteen members in the goal's check carry every proof. Each has about.md, three examples, a bench with a fresh record, an attack and a `covers:` Rust test, and its reference card in `crates/nvs-stdlib/src/math.rs` is in the plain voice. They are `min`, `mod`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `toDegrees`, `toRadians` and `truncate`. Only `Core\\Math::toBase` still owes: examples, hostile, perf and a Rust test. `bun nv proofs --record-perf` ran after this session's last Rust edit. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (row, card and test module), plus each member's new trees under `docs/examples/core/Math/`, `benches/members/core/Math/` and `tests/hostile/core/Math/`. `docs/examples/core/Math/sqrt/` and `tests/hostile/core/Math/sqrt/01-far-ends-and-negative-numbers.nvs` are the models for a one-float member. Put every Rust edit (tests and cards) in one patch, then run `bun nv proofs --record-perf` once after it.",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (row, card and test module), plus the member's new trees under `docs/examples/core/Math/toBase/`, `benches/members/core/Math/toBase.nvs` and `tests/hostile/core/Math/toBase/`. Its twin `Core\\Math::fromBase` is the model: `docs/examples/core/Math/fromBase/` and `tests/hostile/core/Math/fromBase/01-long-digits-and-bad-bases.nvs`. Put the card and test edit in one `bun nv splice --patch`, run `bun nv proofs --record-perf` once after it, and then the goal's whole check. If it is green, write `DONE` after the end-of-goal gates in the loop prompt's step 6.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::sin`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:245`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Math::tan`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:263`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Math::sinh`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:308`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Math::tanh`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:326`"
+        "text": "**`Core\\Math::toBase`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. Its row is at `crates/nvs-stdlib/src/math.rs:398` and its card at `crates/nvs-stdlib/src/math.rs:1063`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Math::toRadians` and `toDegrees` (`crates/nvs-stdlib/src/math.rs:362`, `:371`) — one pair, one session; `rule:testing/feature-proofs`.",
-    "`Core\\Math::toBase` (`crates/nvs-stdlib/src/math.rs:398`) — `fromBase`'s attack under `tests/hostile/core/Math/fromBase/` is the model; `rule:testing/feature-proofs`."
+    "`http::transport::tests::a_pooled_connection_to_any_approved_address_serves_the_call` failed once under a filtered `cargo test --lib to_`. It passed in both full `bun nv verify` runs of the same session, so it may be flaky; not checked further (`crates/nvs-stdlib/src/http/transport.rs:4940`)."
   ]
 }

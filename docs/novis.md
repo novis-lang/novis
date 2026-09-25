@@ -9214,13 +9214,13 @@ Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The ba
 Core\Math::sin(float $radians): float
 ```
 
-The sine of an angle in radians, as `sin` does.
+Returns the sine of an angle. The angle is in radians.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$radians` | `float` | The angle, in radians. |
+| `$radians` | `float` | The angle, in radians. `Core\Math::toRadians` converts degrees to radians. |
 
-**Returns** `float` — A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.
+**Returns** `float` — A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.
 
 <a id="core-core-math-cos"></a>
 #### `Core\Math::cos`
@@ -9244,13 +9244,13 @@ Returns the cosine of an angle. The angle is in radians.
 Core\Math::tan(float $radians): float
 ```
 
-The tangent of an angle in radians, as `tan` does.
+Returns the tangent of an angle. The angle is in radians. The tangent is the sine divided by the cosine.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$radians` | `float` | The angle, in radians. |
+| `$radians` | `float` | The angle, in radians. `Core\Math::toRadians` converts degrees to radians. |
 
-**Returns** `float` — `sin / cos` of the angle, any `float`; `NaN` for an infinity or `NaN`.
+**Returns** `float` — Any number. It is very large when the angle is close to 90 degrees. An infinity or `NaN` gives `NaN`.
 
 <a id="core-core-math-asin"></a>
 #### `Core\Math::asin`
@@ -9320,13 +9320,13 @@ Returns the angle of the point (`$x`, `$y`), in radians, measured from the posit
 Core\Math::sinh(float $n): float
 ```
 
-The hyperbolic sine of `$n`, as `sinh` does.
+Returns the hyperbolic sine of `$n`, which is `(exp($n) - exp(-$n)) / 2`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The argument, any `float`. |
+| `$n` | `float` | Any number. |
 
-**Returns** `float` — `(exp($n) - exp(-$n)) / 2`, carrying `$n`'s sign; an infinity once `$n` is past about `±710`.
+**Returns** `float` — A number with the same sign as `$n`. It is `INFINITY` when `$n` is above about `710`, and `-INFINITY` when `$n` is below about `-710`. `NaN` gives `NaN`.
 
 <a id="core-core-math-cosh"></a>
 #### `Core\Math::cosh`
@@ -9350,13 +9350,13 @@ Returns the hyperbolic cosine of `$n`, which is `(exp($n) + exp(-$n)) / 2`.
 Core\Math::tanh(float $n): float
 ```
 
-The hyperbolic tangent of `$n`, as `tanh` does.
+Returns the hyperbolic tangent of `$n`. That is `Core\Math::sinh` divided by `Core\Math::cosh`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The argument, any `float`. |
+| `$n` | `float` | Any number. |
 
-**Returns** `float` — `sinh / cosh` of `$n`, in `[-1, 1]` and reaching either end for an infinite `$n`.
+**Returns** `float` — A number from `-1.0` to `1.0`, with the same sign as `$n`. `INFINITY` gives `1.0`, `-INFINITY` gives `-1.0` and `NaN` gives `NaN`.
 
 <a id="core-core-math-asinh"></a>
 #### `Core\Math::asinh`
@@ -9410,13 +9410,13 @@ Returns the number whose hyperbolic tangent is `$n`. This is the inverse hyperbo
 Core\Math::toRadians(float $degrees): float
 ```
 
-An angle in degrees as radians, as `deg2rad` does — computed as PHP's own `($degrees / 180) * PI`, so a round trip through `toDegrees` agrees with PHP's.
+Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`, the same way as PHP.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$degrees` | `float` | The angle, in degrees. |
 
-**Returns** `float` — The same angle in radians, so `toRadians(180.0)` is `PI`.
+**Returns** `float` — The same angle in radians. `Core\Math::toRadians(180.0)` is `PI`. An infinity gives an infinity, and `NaN` gives `NaN`.
 
 <a id="core-core-math-todegrees"></a>
 #### `Core\Math::toDegrees`
@@ -9425,13 +9425,13 @@ An angle in degrees as radians, as `deg2rad` does — computed as PHP's own `($d
 Core\Math::toDegrees(float $radians): float
 ```
 
-An angle in radians as degrees, as `rad2deg` does — computed as PHP's own `($radians / PI) * 180`, so a round trip through `toRadians` agrees with PHP's.
+Converts an angle from radians to degrees. It computes `($radians / PI) * 180`, the same way as PHP.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$radians` | `float` | The angle, in radians. |
 
-**Returns** `float` — The same angle in degrees, so `toDegrees(PI)` is `180.0`.
+**Returns** `float` — The same angle in degrees. `Core\Math::toDegrees(Core\Math::PI)` is `180.0`. A result too big for a `float` is an infinity, and `NaN` gives `NaN`.
 
 <a id="core-core-math-isnan"></a>
 #### `Core\Math::isNan`
