@@ -107,14 +107,20 @@ everything else it writes is what you handed it.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
+# `bun nv session` is the wrap now. This runs it with the same arguments before the imports below,
+# because one of them reaches `tools/loop.py`, which starts `bun nv loop` when it is imported.
+if __name__ == "__main__":
+    sys.exit(subprocess.call(["bun", "nv", "session", *sys.argv[1:]]))
+
 import argparse
 import fnmatch
 import importlib.util
 import json
 import posixpath
 import re
-import subprocess
-import sys
 from datetime import date
 from pathlib import Path
 
