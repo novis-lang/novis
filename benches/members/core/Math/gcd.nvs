@@ -1,0 +1,19 @@
+<?nvs
+// Measures the greatest common divisor of two numbers, as a program does when it shortens a ratio.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the first number this round depends on last round's total.
+            $total = $total + Core\Math::gcd(1080 + $total % 1000, 1920);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

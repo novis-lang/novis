@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `Core\Math::gcd` is given the biggest and smallest integers, zeros, and the pair
+// that makes it work longest. It is also called a million times. Only the calls whose result
+// does not fit an `int` should throw an error, and the program should run to its end.
+
+// 1. The biggest integer with itself, with zero, and with the smallest integer.
+echo Core\Math::gcd(Core\Math::INT_MAX, Core\Math::INT_MAX), "\n";
+echo Core\Math::gcd(Core\Math::INT_MAX, 0), "\n";
+echo Core\Math::gcd(Core\Math::INT_MAX, Core\Math::INT_MIN), "\n";
+
+// 2. The smallest integer with numbers that divide it. Each result fits an `int`.
+echo Core\Math::gcd(Core\Math::INT_MIN, 2), "\n";
+echo Core\Math::gcd(Core\Math::INT_MIN, -4611686018427387904), "\n";
+
+// 3. The three calls whose result is one past the biggest integer. Each one throws an error.
+try {
+    echo Core\Math::gcd(Core\Math::INT_MIN, 0), "\n";
+} catch (ArithmeticError $tooBig) {
+    echo "ArithmeticError\n";
+}
+try {
+    echo Core\Math::gcd(0, Core\Math::INT_MIN), "\n";
+} catch (ArithmeticError $tooBig) {
+    echo "ArithmeticError\n";
+}
+try {
+    echo Core\Math::gcd(Core\Math::INT_MIN, Core\Math::INT_MIN), "\n";
+} catch (ArithmeticError $tooBig) {
+    echo "ArithmeticError\n";
+}
+
+// 4. The two biggest neighbouring Fibonacci numbers that fit an `int`.
+// No pair of this size needs more steps to find its divisor.
+echo Core\Math::gcd(7540113804746346429, 4660046610375530309), "\n";
+echo Core\Math::gcd(-7540113804746346429, -4660046610375530309), "\n";
+
+// 5. A million calls. Each result feeds the next one, and none is kept.
+int $value = 1;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::gcd($round * 6 + $value, 360) + 1;
+    $round = $round + 1;
+}
+echo $value, "\n";
