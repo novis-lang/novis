@@ -9165,14 +9165,14 @@ Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes 
 Core\Math::hypot(float $a, float $b): float
 ```
 
-The length of the hypotenuse of a right triangle with legs `$a` and `$b`, as `hypot` does, without the intermediate overflow `sqrt($a ** 2 + $b ** 2)` has.
+Returns the length of the longest side of a right triangle. `$a` and `$b` are the other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when `$a * $a` is too big for a `float`. This replaces PHP's `hypot`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `float` | One leg. |
-| `$b` | `float` | The other leg. |
+| `$a` | `float` | The length of one side. Its sign does not change the result. |
+| `$b` | `float` | The length of the other side. Its sign does not change the result. |
 
-**Returns** `float` — `sqrt($a * $a + $b * $b)`, never negative, and an infinity when either leg is one.
+**Returns** `float` — The length. It is never negative. When `$a` or `$b` is `INFINITY` or `-INFINITY`, the result is `INFINITY`, even when the other one is `NaN`.
 
 <a id="core-core-math-exp"></a>
 #### `Core\Math::exp`
@@ -9440,13 +9440,13 @@ An angle in radians as degrees, as `rad2deg` does — computed as PHP's own `($r
 Core\Math::isNan(float $n): bool
 ```
 
-Whether `$n` is `NaN` — the one `float` that is not equal to itself, so `==` cannot ask — as `is_nan` does.
+Returns `true` when `$n` is `NaN`, a value that means "not a number". `NaN` is not equal to any value, itself included, so `==` cannot find it. This replaces PHP's `is_nan`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$n` | `float` | The value to test. |
 
-**Returns** `bool` — `true` for `NaN` alone; `false` for every other `float`, the infinities included.
+**Returns** `bool` — `true` when `$n` is `NaN`. `false` for every other `float`, `INFINITY` and `-INFINITY` included.
 
 <a id="core-core-math-isfinite"></a>
 #### `Core\Math::isFinite`
@@ -9455,13 +9455,13 @@ Whether `$n` is `NaN` — the one `float` that is not equal to itself, so `==` c
 Core\Math::isFinite(float $n): bool
 ```
 
-Whether `$n` is neither an infinity nor `NaN`, as `is_finite` does; negated and joined with `isNan`, it is `is_infinite` too.
+Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` are not ordinary numbers. This replaces PHP's `is_finite`. PHP's `is_infinite($n)` is `!isFinite($n) && !isNan($n)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$n` | `float` | The value to test. |
 
-**Returns** `bool` — `true` for every ordinary `float`, zero included; `false` for `INFINITY`, `-INFINITY` and `NaN`.
+**Returns** `bool` — `true` for every ordinary `float`, zero included. `false` for `INFINITY`, `-INFINITY` and `NaN`.
 
 <a id="core-core-math-tobase"></a>
 #### `Core\Math::toBase`

@@ -765,21 +765,23 @@ const CBRT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::hypot`'s reference card — `rule:core-api/reference-card`.
 const HYPOT_DOC: MethodDoc = MethodDoc {
-    short: "The length of the hypotenuse of a right triangle with legs `$a` and `$b`, as `hypot` \
-            does, without the intermediate overflow `sqrt($a ** 2 + $b ** 2)` has.",
+    short: "Returns the length of the longest side of a right triangle. `$a` and `$b` are the \
+            other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when \
+            `$a * $a` is too big for a `float`. This replaces PHP's `hypot`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "One leg.",
+            desc: "The length of one side. Its sign does not change the result.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The other leg.",
+            desc: "The length of the other side. Its sign does not change the result.",
             shape: &[],
         },
     ],
-    ret: "`sqrt($a * $a + $b * $b)`, never negative, and an infinity when either leg is one.",
+    ret: "The length. It is never negative. When `$a` or `$b` is `INFINITY` or `-INFINITY`, \
+          the result is `INFINITY`, even when the other one is `NaN`.",
     errors: &[],
 };
 
@@ -1020,28 +1022,31 @@ const TO_DEGREES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::isNan`'s reference card — `rule:core-api/reference-card`.
 const IS_NAN_DOC: MethodDoc = MethodDoc {
-    short: "Whether `$n` is `NaN` — the one `float` that is not equal to itself, so `==` cannot \
-            ask — as `is_nan` does.",
+    short: "Returns `true` when `$n` is `NaN`, a value that means \"not a number\". `NaN` is not \
+            equal to any value, itself included, so `==` cannot find it. This replaces PHP's \
+            `is_nan`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The value to test.",
         shape: &[],
     }],
-    ret: "`true` for `NaN` alone; `false` for every other `float`, the infinities included.",
+    ret: "`true` when `$n` is `NaN`. `false` for every other `float`, `INFINITY` and \
+          `-INFINITY` included.",
     errors: &[],
 };
 
 /// `Core\Math::isFinite`'s reference card — `rule:core-api/reference-card`.
 const IS_FINITE_DOC: MethodDoc = MethodDoc {
-    short: "Whether `$n` is neither an infinity nor `NaN`, as `is_finite` does; negated and \
-            joined with `isNan`, it is `is_infinite` too.",
+    short: "Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` \
+            are not ordinary numbers. This replaces PHP's `is_finite`. PHP's `is_infinite($n)` \
+            is `!isFinite($n) && !isNan($n)`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The value to test.",
         shape: &[],
     }],
-    ret: "`true` for every ordinary `float`, zero included; `false` for `INFINITY`, `-INFINITY` \
-          and `NaN`.",
+    ret: "`true` for every ordinary `float`, zero included. `false` for `INFINITY`, \
+          `-INFINITY` and `NaN`.",
     errors: &[],
 };
 
@@ -2454,6 +2459,15 @@ mod tests {
         }
     }
 
+    /// A member over one `float`, returning its `bool` result.
+    fn bool_result(function: nvs_runtime::NvsFn, n: f64) -> bool {
+        let mut ctx = Ctx::buffered();
+        call(function, &mut ctx, &[Value::float(n)])
+            .expect("the call succeeds")
+            .as_bool()
+            .expect("a bool result")
+    }
+
     fn text_result(function: nvs_runtime::NvsFn, args: &[Value]) -> String {
         let mut ctx = Ctx::buffered();
         let value = call(function, &mut ctx, args).expect("the call succeeds");
@@ -3059,6 +3073,39 @@ mod tests {
         }
     }
 
+    /// `hypot` ignores both signs, stays finite where the naive
+    /// `sqrt(a * a + b * b)` overflows or underflows to zero, and returns
+    /// `INFINITY` for an infinite side even beside `NaN`.
+    // covers: Core\Math::hypot
+    #[test]
+    fn hypot_ignores_both_signs_survives_the_naive_overflow_and_prefers_infinity_to_nan() {
+        let hypot =
+            |a: f64, b: f64| float_result(nvs_core_math_hypot, &[Value::float(a), Value::float(b)]);
+        for (a, b) in [
+            (3.0, 4.0),
+            (-3.0, 4.0),
+            (3.0, -4.0),
+            (-3.0, -4.0),
+            (4.0, 3.0),
+        ] {
+            assert_eq!(hypot(a, b), 5.0, "hypot({a}, {b})");
+        }
+        assert_eq!(hypot(0.0, 0.0), 0.0);
+        assert_eq!(hypot(-0.0, 7.0), 7.0);
+        let big = 1e200_f64;
+        assert!((big * big).is_infinite(), "the naive form overflows");
+        assert!((hypot(big, big) - big * std::f64::consts::SQRT_2).abs() < 1e186);
+        let small = 1e-200_f64;
+        assert_eq!(small * small, 0.0, "the naive form underflows");
+        assert!(hypot(small, small) > 0.0);
+        assert_eq!(hypot(f64::MAX, 0.0), f64::MAX);
+        assert_eq!(hypot(f64::MAX, f64::MAX), f64::INFINITY);
+        assert_eq!(hypot(f64::NEG_INFINITY, 1.0), f64::INFINITY);
+        assert_eq!(hypot(f64::INFINITY, f64::NAN), f64::INFINITY);
+        assert_eq!(hypot(f64::NAN, f64::NEG_INFINITY), f64::INFINITY);
+        assert!(hypot(f64::NAN, 1.0).is_nan());
+    }
+
     /// `intDiv` truncates toward zero for every sign pair, reaches both ends
     /// of `int`, and throws for a zero divisor and for `INT_MIN / -1`, with a
     /// message saying which of the two it was.
@@ -3082,6 +3129,63 @@ mod tests {
         }
         let message = int_div(i64::MIN, -1).expect_err("2^63 does not fit an int");
         assert!(message.contains("does not fit"), "{message}");
+    }
+
+    /// `isFinite` is `true` for both zeros, both far ends of `float` and the
+    /// smallest subnormal, and `false` for both infinities and `NaN`; with
+    /// `isNan` it tells all three kinds of `float` apart.
+    // covers: Core\Math::isFinite
+    #[test]
+    fn is_finite_is_true_up_to_the_far_ends_and_false_for_both_infinities_and_nan() {
+        let is_finite = |n: f64| bool_result(nvs_core_math_is_finite, n);
+        for n in [
+            0.0,
+            -0.0,
+            1.5,
+            f64::MAX,
+            -f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+        ] {
+            assert!(is_finite(n), "{n}");
+        }
+        for n in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, -f64::NAN] {
+            assert!(!is_finite(n), "{n}");
+        }
+        let is_infinite = |n: f64| !is_finite(n) && !bool_result(nvs_core_math_is_nan, n);
+        assert!(is_infinite(f64::INFINITY) && is_infinite(f64::NEG_INFINITY));
+        assert!(!is_infinite(f64::NAN) && !is_infinite(f64::MAX));
+    }
+
+    /// `isNan` is `true` for every `NaN`, whatever its sign or payload, and
+    /// `false` for both infinities, both zeros and both far ends of `float`.
+    // covers: Core\Math::isNan
+    #[test]
+    fn is_nan_is_true_for_every_nan_and_false_for_both_infinities() {
+        let is_nan = |n: f64| bool_result(nvs_core_math_is_nan, n);
+        let quiet = f64::NAN;
+        let payload = f64::from_bits(f64::NAN.to_bits() | 1);
+        let overflow = f64::MAX * 2.0;
+        for n in [
+            quiet,
+            -quiet,
+            payload,
+            overflow - overflow,
+            0.0 * f64::INFINITY,
+        ] {
+            assert!(is_nan(n), "{n}");
+        }
+        for n in [
+            0.0,
+            -0.0,
+            f64::MAX,
+            -f64::MAX,
+            f64::from_bits(1),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
+            assert!(!is_nan(n), "{n}");
+        }
     }
 
     /// `lcm` ignores both signs, returns `0` when either argument is `0`,
