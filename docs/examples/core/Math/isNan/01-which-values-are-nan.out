@@ -1,0 +1,4 @@
+0 / 0: NaN
+sqrt(-1): NaN
+1 / 0: not NaN
+2.5: not NaN

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a program skips the failed readings from a sensor before it works out the average.
+
+// The sensor stores `NaN` when a reading fails.
+array<float> $readings = [21.5, Core\Math::NAN, 22.0, 22.5, Core\Math::NAN];
+
+float $sum = 0.0;
+float $count = 0.0;
+foreach ($readings as float $reading) {
+    // One `NaN` in the sum makes the whole sum `NaN`, so this loop skips it.
+    if (Core\Math::isNan($reading)) {
+        continue;
+    }
+    $sum = $sum + $reading;
+    $count = $count + 1.0;
+}
+
+// Three readings are left, and their average is 22. This prints "3 readings, average 22".
+echo $count, " readings, average ", $sum / $count, "\n";

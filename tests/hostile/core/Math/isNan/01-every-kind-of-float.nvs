@@ -1,0 +1,35 @@
+<?nvs
+// Attack: `Core\Math::isNan` is given every kind of `float`, and `NaN` made in several ways. It is
+// also called a million times. Every call should return `true` or `false`, and the program should
+// run to its end.
+
+// 1. Zeros with both signs, and the smallest and biggest numbers.
+echo Core\Math::isNan(0.0) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(-0.0) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(Core\Math::FLOAT_MIN) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(-Core\Math::FLOAT_MAX) ? "NaN\n" : "a number\n";
+
+// 2. Both infinities.
+echo Core\Math::isNan(Core\Math::INFINITY) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(-Core\Math::INFINITY) ? "NaN\n" : "a number\n";
+
+// 3. `NaN` made by an overflow, by a negation and by `NaN` itself.
+float $overflow = Core\Math::FLOAT_MAX * 2.0;
+echo Core\Math::isNan($overflow - $overflow) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(-Core\Math::NAN) ? "NaN\n" : "a number\n";
+echo Core\Math::isNan(Core\Math::NAN * 0.0) ? "NaN\n" : "a number\n";
+
+// 4. A million calls. The value grows until it reaches `INFINITY`, and `INFINITY` minus itself
+// is `NaN`. Each time that happens, the value starts again from 1.
+float $value = 1.0;
+int $found = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $value = $value * 1.0e10;
+    if (Core\Math::isNan($value - $value)) {
+        $found = $found + 1;
+        $value = 1.0;
+    }
+    $round = $round + 1;
+}
+echo $found, "\n";

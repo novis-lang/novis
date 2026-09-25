@@ -1,0 +1,14 @@
+<?nvs
+// Shows why `==` cannot find `NaN`, and how `Core\Math::isNan` finds it.
+
+float $result = Core\Math::sqrt(-4.0);
+
+// `NaN` is not equal to any value. It is not equal to itself either.
+// This prints "with ==: different".
+echo "with ==: ", $result == $result ? "equal" : "different", "\n";
+
+// This also prints "with ==: different". A test like this never finds `NaN`.
+echo "with ==: ", $result == Core\Math::NAN ? "equal" : "different", "\n";
+
+// `Core\Math::isNan` tests the value itself. This prints "with isNan: NaN".
+echo "with isNan: ", Core\Math::isNan($result) ? "NaN" : "a number", "\n";
