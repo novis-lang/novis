@@ -6,12 +6,6 @@
     }
   },
   "skip": {
-    "Core\\Net::connectLocal": {
-      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
-    },
-    "Core\\Net::listenLocal": {
-      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
-    },
     "Core\\Cache::shared": {
       "perf": "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
     },
@@ -19,6 +13,12 @@
       "examples": "Every example program runs on SQLite, which has no zone-carrying column type, so a program here would print the member's refusal instead of its answer.",
       "perf": "Every bench runs on SQLite, which has no zone-carrying column type, so a loop here would measure the refusal rather than the read.",
       "hostile": "Every attack runs on SQLite, which has no zone-carrying column type, so the member refuses every column the attack could put in front of it."
+    },
+    "Core\\Net::connectLocal": {
+      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
+    },
+    "Core\\Net::listenLocal": {
+      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
     },
     "lang:attributes/core-api-and-the-openapi-document": {
       "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
