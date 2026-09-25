@@ -9047,16 +9047,16 @@ Core\Math::round(float $n, {precision?: int, mode?: Core\RoundMode}): float
 Core\Math::intDiv(int $a, int $b): int
 ```
 
-The integer quotient of `$a / $b`, truncated toward zero, as `intdiv` does.
+Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. This replaces PHP's `intdiv`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `int` | The dividend. |
-| `$b` | `int` | The divisor, which may not be zero. |
+| `$a` | `int` | The integer to divide. |
+| `$b` | `int` | The integer to divide by. It may not be zero. |
 
-**Returns** `int` — The quotient with any remainder dropped, so `intDiv(-7, 2)` is `-3`.
+**Returns** `int` — The whole part of `$a / $b`. `intDiv(7, 2)` is `3`, and `intDiv(-7, 2)` is `-3`. The `%` operator gives the remainder.
 
-**Throws** `ArithmeticError` — When `$b` is zero, or when `$a` is `INT_MIN` and `$b` is `-1`, whose exact answer is one past `INT_MAX`.
+**Throws** `ArithmeticError` — When `$b` is zero. Also when `$a` is `Core\Math::INT_MIN` and `$b` is `-1`, because the result is one more than `Core\Math::INT_MAX`.
 
 <a id="core-core-math-mod"></a>
 #### `Core\Math::mod`
@@ -9099,16 +9099,16 @@ Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or `
 Core\Math::gcd(int $a, int $b): int
 ```
 
-The greatest common divisor of two integers, never negative, as `gmp_gcd` does without the GMP objects.
+Returns the greatest common divisor of two integers. This is the largest integer that divides both with no remainder. This replaces PHP's `gmp_gcd`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `int` | One integer; its sign is ignored. |
-| `$b` | `int` | The other integer; its sign is ignored. |
+| `$a` | `int` | The first integer. Its sign does not change the result. |
+| `$b` | `int` | The second integer. Its sign does not change the result. |
 
-**Returns** `int` — The largest integer dividing both, at least `0`; `gcd(0, 0)` is `0` and `gcd($a, 0)` is `abs($a)`.
+**Returns** `int` — The greatest common divisor, which is never negative. When one integer is `0`, the result is the other one without its sign. When both are `0`, the result is `0`.
 
-**Throws** `ArithmeticError` — When the answer does not fit an `int`, which only `gcd(INT_MIN, 0)` and `gcd(INT_MIN, INT_MIN)` reach.
+**Throws** `ArithmeticError` — When the result does not fit an `int`. This happens only when one integer is `Core\Math::INT_MIN` and the other is `Core\Math::INT_MIN` or `0`.
 
 <a id="core-core-math-lcm"></a>
 #### `Core\Math::lcm`
@@ -9117,16 +9117,16 @@ The greatest common divisor of two integers, never negative, as `gmp_gcd` does w
 Core\Math::lcm(int $a, int $b): int
 ```
 
-The least common multiple of two integers, never negative, as `gmp_lcm` does without the GMP objects.
+Returns the least common multiple of two integers. This is the smallest positive integer that both divide with no remainder. This replaces PHP's `gmp_lcm`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `int` | One integer; its sign is ignored. |
-| `$b` | `int` | The other integer; its sign is ignored. |
+| `$a` | `int` | The first integer. Its sign does not change the result. |
+| `$b` | `int` | The second integer. Its sign does not change the result. |
 
-**Returns** `int` — The smallest positive integer both divide, or `0` when either argument is `0`.
+**Returns** `int` — The least common multiple, which is never negative. When one integer is `0`, the result is `0`.
 
-**Throws** `ArithmeticError` — When the answer is past `INT_MAX`, the usual case for two large coprime arguments.
+**Throws** `ArithmeticError` — When the result is bigger than `Core\Math::INT_MAX`. This happens quickly for two big integers that share no divisor.
 
 <a id="core-core-math-sqrt"></a>
 #### `Core\Math::sqrt`

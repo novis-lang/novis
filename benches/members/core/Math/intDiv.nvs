@@ -1,0 +1,19 @@
+<?nvs
+// Measures dividing two whole numbers, as a program does when it counts full pages or minutes.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number divided this round depends on last round's total.
+            $total = $total + Core\Math::intDiv(1000003 + $total % 997, 7);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

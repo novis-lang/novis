@@ -1,0 +1,15 @@
+<?nvs
+// Shows the result for negative numbers, and what happens when you divide by zero.
+
+// The result moves toward zero. -3.5 becomes -3, so this prints -3.
+echo Core\Math::intDiv(-7, 2), "\n";
+
+// Two negative numbers give a positive result. This prints 3.
+echo Core\Math::intDiv(-7, -2), "\n";
+
+// Dividing by zero throws an `ArithmeticError`.
+try {
+    echo Core\Math::intDiv(7, 0), "\n";
+} catch (ArithmeticError $error) {
+    echo "You cannot divide by zero.\n";
+}
