@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run one of this directory's scripts, and write down what it read.
 
-    python tools/observe.py --out <file> -- tools/rules.py --check
+    python tools/observe.py --out <file> -- tools/<script>.py <args>
 
 `tools/loop.py` remembers a green check against a hash of what the check can read. For a Python
 gate that was the whole tree, the handoff included, because a script opens what it likes: two

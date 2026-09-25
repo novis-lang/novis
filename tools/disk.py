@@ -216,8 +216,8 @@ def prune_scratch(days=SCRATCH_DAYS, dry_run=False):
     kept for as long as anything in it is.
 
     `worktrees/` is never swept and never walked: a git worktree is somebody's branch, idle or
-    not, and is removed with `git worktree remove` by whoever made it -- `tools/side.py` for a side
-    run. Walking it would also stat every file of a second `target/` after every session."""
+    not, and is removed with `git worktree remove` by whoever made it. Walking it would also stat
+    every file of a second `target/` after every session."""
     if not SCRATCH.is_dir():
         return 0
     cutoff = time.time() - days * 86400
