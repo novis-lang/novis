@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `Core\Math::fdiv` divides by zeros with both signs, by values that are not ordinary
+// numbers, and by the biggest and smallest numbers. It is also called a million times. Every call
+// should return a number, `INFINITY`, `-INFINITY` or `NaN`, and the program should run to its end.
+
+// 1. Zero with both signs, as the number to divide by.
+echo Core\Math::fdiv(1.0, 0.0), "\n";
+echo Core\Math::fdiv(1.0, -0.0), "\n";
+echo Core\Math::fdiv(-0.0, -0.0), "\n";
+
+// 2. The biggest number divided by the smallest one, and the other way round.
+echo Core\Math::fdiv(Core\Math::FLOAT_MAX, Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::fdiv(Core\Math::FLOAT_MIN, Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::fdiv(-Core\Math::FLOAT_MAX, Core\Math::FLOAT_MIN), "\n";
+
+// 3. Values that are not ordinary numbers, on both sides.
+echo Core\Math::fdiv(Core\Math::INFINITY, Core\Math::INFINITY), "\n";
+echo Core\Math::fdiv(Core\Math::INFINITY, 0.0), "\n";
+echo Core\Math::fdiv(1.0, Core\Math::INFINITY), "\n";
+echo Core\Math::fdiv(Core\Math::NAN, 0.0), "\n";
+echo Core\Math::fdiv(0.0, Core\Math::NAN), "\n";
+
+// 4. A million calls. Each result feeds the next one, so some calls divide by zero or by
+// `INFINITY`, and none is kept.
+float $value = 2.0;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::fdiv(1.0, $value - 1.0);
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";

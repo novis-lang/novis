@@ -1,0 +1,14 @@
+<?nvs
+// Shows a few divisions with `Core\Math::fdiv`, some of them by zero.
+
+// This prints 2.5.
+echo Core\Math::fdiv(10.0, 4.0), "\n";
+
+// A positive number divided by zero. This prints INF.
+echo Core\Math::fdiv(1.0, 0.0), "\n";
+
+// A negative number divided by zero. This prints -INF.
+echo Core\Math::fdiv(-1.0, 0.0), "\n";
+
+// Zero divided by zero. This prints NAN.
+echo Core\Math::fdiv(0.0, 0.0), "\n";

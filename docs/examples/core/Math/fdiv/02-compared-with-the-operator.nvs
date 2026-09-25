@@ -1,0 +1,17 @@
+<?nvs
+// Shows how `Core\Math::fdiv` differs from the `/` operator when the divisor is zero.
+
+float $zero = 0.0;
+
+// The `/` operator throws an `ArithmeticError`. This prints "Division by zero".
+try {
+    echo 5.0 / $zero, "\n";
+} catch (ArithmeticError $error) {
+    echo $error->message, "\n";
+}
+
+// `Core\Math::fdiv` returns a value. This prints INF.
+echo Core\Math::fdiv(5.0, $zero), "\n";
+
+// Zero can have a minus sign, and the result has the sign of both numbers. This prints -INF.
+echo Core\Math::fdiv(5.0, -$zero), "\n";

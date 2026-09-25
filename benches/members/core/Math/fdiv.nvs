@@ -1,0 +1,19 @@
+<?nvs
+// Measures a division that allows a zero divisor, as a report does when it works out a rate.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number used this round depends on last round's total.
+            $total = $total + Core\Math::fdiv(1.0, $total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
