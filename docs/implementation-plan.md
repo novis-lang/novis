@@ -3,7 +3,7 @@
 <!-- This block has a fixed field set: Status, Done, On disk, Toolchain, ADR slices landed, Open now,
      Blocking. Overwrite a field in place; never add a paragraph or a new field name. That is what
      keeps it bounded as milestones accumulate. Aim for ~400 bytes a field — guidance, and nothing
-     trims to it. What IS checked is growth: `python tools/session.py --wrap` refuses an edit that
+     trims to it. What IS checked is growth: `bun nv session --wrap` refuses an edit that
      leaves a field over 5x that and bigger than it was, so past the ceiling a sentence is replaced
      and never added; a shrink is always taken. This comment is the one home of both numbers.
      History lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md § *Keep
@@ -18,19 +18,17 @@
 >
 > **Done:** **M0 through M8 are complete** — everything from project setup to the stdlib and the
 > five SQL drivers, which is the whole program ahead of the extension system, and M9 is the first
-> milestone with work still in front of it. `python tools/plan.py --past` is what says so, and it
-> derives the answer rather than reading it: every goal carrying a milestone has walked, and no
-> register still tags an item to it. Each milestone file under [docs/plan/](plan/) states its own
-> acceptance, and `python tools/plan.py --stale` finds a plan sentence still deferring work to a
-> goal the chain has walked.
+> milestone with work still in front of it. `bun nv plan --past` is what says so, and it derives the
+> answer rather than reading it: every goal carrying a milestone has walked, and no register still
+> tags an item to it. Each milestone file under [docs/plan/](plan/) states its own acceptance, and
+> `bun nv plan --stale` finds a plan sentence still deferring work to a goal the chain has walked.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan, tsan and fuzz legs), and
 > the nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`,
 > `nvs-runtime`, `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `nvs-lsp`, `fuzz/`,
 > `tools/`, `benches/abi-probe`, `editors/vscode`, and the two case trees `tests/conformance` and
 > `tests/differential`. **Each crate's own module doc is the authority on what it holds and what it
-> still owes**; `python tools/brief.py` prints one map line each, and `python tools/disk.py` the
-> live counts.
+> still owes**; `bun nv brief` prints one map line each, and `bun nv disk` the live counts.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -38,9 +36,9 @@
 > nightly toolchain (docs/setup.md is what a machine installs, and why).
 >
 > **ADR slices landed:** **each ADR's own *Verification* section is the authority on what its slice
-> covers, and this field never restates one** — `python tools/brief.py --where <keyword>` routes to
-> the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
-> still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
+> covers, and this field never restates one** — `bun nv brief --where <keyword>` routes to the ADR
+> that owns a topic, and `bun nv records --stats` shapes the whole set. What a crate still owes is
+> its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **`data/chain.json` is the list of what is open**, in the order the loop walks it,
 > and each goal is its prose at `docs/agent/goals/<slug>.md` plus its record under `data/goals/` —
@@ -81,10 +79,10 @@ one's verification passes.
 **A milestone's number is its identity, and the schedule is not in this table.** The schedule is
 [docs/agent/goals/](agent/goals/) — one entry per goal, in the order the driver walks
 them — and the **Carried by** cell names the goals that do a milestone's work. That cell is *derived*:
-`python tools/plan.py --sync` writes it from the chain and `--check` fails CI when the two disagree, so
+the Python plan tool's `--sync` wrote it from the chain and has no `bun nv` port, and `bun nv plan --check` fails CI when the two disagree, so
 this table cannot drift away from what is actually being run. A milestone the program has walked past
 and **finished** says `done` instead, whatever carried it, because naming the goals then says where the
-work was rather than where it is; `python tools/plan.py --past` is what decides that, from two facts read
+work was rather than where it is; `bun nv plan --past` is what decides that, from two facts read
 off the tree — every goal carrying it has walked, and no register still tags an item to it — and `--check`
 refuses a `done` cell on a milestone it does not call complete. A milestone no goal carries and nothing
 calls finished says where it stands on its own — `ongoing`, or `backlog N` for its place in the queue
@@ -129,7 +127,7 @@ scheduled as one continuous unattended run — see *The parity program* below, a
 optional extensions (`gd`, `intl`, `imap`, and the rest of the list in
 [02-php-migration.md](spec/02-php-migration.md)) are explicitly not part of it and stay with M9.
 
-Each row is a file under [docs/plan/](plan/). `python tools/plan.py --show M8` prints one
+Each row is a file under [docs/plan/](plan/). `bun nv plan --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.
 The decisions those milestones sit inside, the architecture and the verification strategy are
 [docs/plan/design.md](plan/design.md).
@@ -152,7 +150,7 @@ and the server sits on all of them.
 | [database](agent/goals/database.md) | M8, database | `Core\Db`, five drivers, the pool, the type map, `Core\Queue` |
 | [server](agent/goals/server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
 
-**The program's own stop condition is `python tools/check-migration.py` reporting 100% classified** —
+**The program's own stop condition is `bun nv migration` reporting 100% classified** —
 every one of the oracle build's **1167 functions and 255 types** accounted for as a `member`, `language`
 or `dropped` row, every `member` row's member registered, and every one of them carrying a conformance
 case. It was 25% when the program was scheduled. A count of conformance cases is a proxy for parity; a

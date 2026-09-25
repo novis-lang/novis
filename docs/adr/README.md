@@ -4,8 +4,8 @@ A decision record is the reasoning behind a rule: what was asked, what was consi
 answer, and what it costs. The rule itself lives in [docs/rules/](../rules/) — the chapters are the
 read surface, [docs/ground-rules.md](../ground-rules.md) is one line per rule, and
 [docs/divergences.md](../divergences.md) is every rule that departs from PHP, all three generated
-from the rulebook by `python tools/rules.py --render`. A record is where you go to *change* a rule,
-never to learn one; `python tools/brief.py --where <keyword>` routes a topic to the rule that owns it.
+from the rulebook by `bun nv rules --render`. A record is where you go to *change* a rule,
+never to learn one; `bun nv brief --where <keyword>` routes a topic to the rule that owns it.
 
 **Where they live.** `docs/decisions/NNNN.md`, one file per decision, frozen on acceptance. Each opens
 with a YAML block — `status` (`accepted` or `retired`) and `changes`, the rules the decision
@@ -18,7 +18,7 @@ fragment under `docs/rules/` and names the earlier record only through its own `
 sits in `docs/adr/` for historical reasons; the records moved at the docs migration's unit C1.
 
 **A section number is a public identifier.** `0007 § 3` is cited from `crates/`, from the goal
-manifests and from other records. Sections are never renumbered, and `python tools/records.py --check`
+manifests and from other records. Sections are never renumbered, and `bun nv records --check`
 reports a citation into a section that does not exist.
 
 **Measured numbers.** A record quotes only its own measurements, and every one is guarded by a test in
@@ -331,7 +331,7 @@ stage produced it, and `nvs_diagnostics::code`'s legend table is where that prom
 `E0500` is never issued and the types band continues at **`E07xx`**, one more row in that table, opening
 at `E0700`. Both alternatives cost more than a second range: widening every band to three digits
 renumbers two hundred released codes and every `.nvst` case that names one, and filling the lowest hole
-inside `E04xx` reuses a retired number, which the same promise forbids. `tools/brief.py` reports a band
+inside `E04xx` reuses a retired number, which the same promise forbids. `bun nv orient` reports a band
 whose max-plus-one would leave it as **full** rather than handing out the number past its end, so the
 next session reads this decision off the tool instead of re-deriving it. `E08xx` was held unallocated for
 whichever band filled next, and types is what filled it — a second time, at `E0799` — so

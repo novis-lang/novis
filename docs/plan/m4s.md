@@ -3,7 +3,7 @@
 **Carried by goal `core-depth` — the first milestone of the parity program.** §§ 1–12 are registered
 whole: the ratchet `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is the
 condition that file's own header states for it. What the parity program keeps adding is depth — cases per
-member — and `python tools/gaps.py` is the live worklist for that.
+member — and `bun nv gaps` is the live worklist for that.
 
 The library the language has been compiling calls *against* since M2 without any of it existing. Its shape
 is `rule:core-api/shape-rules` and its member list is
@@ -61,7 +61,7 @@ when its argument's refcount is 1 — measured, since it is the whole cost argum
 `rule:core-api/shape-rules` R3 — and allocates a copy when it is not.
 `rule:core-classes/derive-attribute`'s own *Verification* section lists the derive's cases, including the
 one that matters most: a decode with four bad fields throws exactly one error listing all four. The M4 CLI program
-is rewritten against `Core` and gets shorter. `python tools/check-migration.py` reports full coverage of
+is rewritten against `Core` and gets shorter. `bun nv migration` reports full coverage of
 every PHP name this milestone's classes replace, which is the point at which
 [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s string, array, number and date rows stop being
 a plan and become a tested claim.
