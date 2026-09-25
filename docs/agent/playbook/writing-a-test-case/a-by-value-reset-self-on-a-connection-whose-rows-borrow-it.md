@@ -3,4 +3,4 @@
   holds a `&Cell<State>` into its `SqliteConn`, so `conn.reset()` while rows are alive is E0505
   rather than the runtime refusal. Set `State::Poisoned` directly and assert the state a caller
   reaches with no rows in hand; the borrow checker holds the other half.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-db/src/sqlite.rs:State::Poisoned]

@@ -4,4 +4,4 @@
   indentation happily, but the pattern still demands a line break immediately before the literal, and
   the diff then prints two blocks that read alike. Write the wildcard inline instead, `%A= note: …`,
   which matches and also survives the gutter widening when the case's line number reaches two digits.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-test/src/expect.rs:%A]

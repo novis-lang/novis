@@ -3,4 +3,4 @@
   variable, so every read inside the guard works; `Core\Arr::first($rows)` indexed inline has no
   test to narrow. Bind it first (`?array<string> $row = Core\Arr::first($rows);`); under `??` every
   level of the chain is guarded and `$a["nope"]["j"] ?? "d"` needs no test.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/expr.rs:fn untag_narrowed]

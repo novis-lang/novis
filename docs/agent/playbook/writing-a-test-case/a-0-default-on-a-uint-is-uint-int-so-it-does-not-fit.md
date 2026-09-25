@@ -4,4 +4,4 @@
   $write->changed() ?? 0` is fine, because `echo` takes anything. Write the house idiom instead:
   `?uint $n = …;` and a `if ($n != null)` around the arithmetic, which is what
   `docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs` already does.
-  [until: reviewed 2026-09-22]
+  [until: gone docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs:?uint $size]

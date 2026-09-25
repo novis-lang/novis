@@ -1,6 +1,0 @@
-- **A case counts what a callback did through a captured *object*, since a closure captures by value
-  and there is no `use (&$n)`.** `rule:types/implicit-capture` still shares an object at file scope:
-  `final class Seen { public int $calls = 0; }`, `var $t = new Seen();`, then `fn (Core\Regex\Match
-  $m): string => { $t->calls = $t->calls + 1; return "X"; }` handed to `Core\Regex::replaceWith`. A
-  block-bodied `fn` declares its return type, and there is no `++` or `+=`.
-  [until: reviewed 2026-09-06]

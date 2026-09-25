@@ -3,4 +3,4 @@
   + $y * $y)` can agree on every row of a table only because MSVC happens to round them the same
   way, and nothing says glibc on the WSL leg does. Restrict the table to Pythagorean triples, zeros
   and dyadic fractions so the intermediate is exact and IEEE 754 requires the two to agree — a
-  property of the table, not the host. [until: reviewed 2026-09-06]
+  property of the table, not the host. [until: gone crates/nvs-stdlib/src/math.rs:"hypot"]

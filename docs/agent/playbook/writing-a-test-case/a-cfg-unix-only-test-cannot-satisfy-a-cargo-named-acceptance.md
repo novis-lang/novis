@@ -4,4 +4,4 @@
   `GetEffectiveRightsFromAclW`; spell the principal as the SID because `icacls` is localized. Assert
   on `Untrusted::Breach` and on the directory's last component, not the canonical path, which is
   `\\?\C:\...` on Windows (`a_world_writable_cache_directory_is_refused` is the shape).
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-cli/src/cache.rs:a_world_writable_cache_directory_is_refused]

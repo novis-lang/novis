@@ -3,4 +3,4 @@
   template, so a positional-placeholder fixture written with double quotes fails as ``E0301 `$s` is
   not declared`` and pins nothing about `format`. Single-quote any template containing `$`
   (`'%2$s'`), which is what the cases in `crates/nvs-types/tests/intrinsics.rs` already do.
-  [until: reviewed 2026-10-16]
+  [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::format]

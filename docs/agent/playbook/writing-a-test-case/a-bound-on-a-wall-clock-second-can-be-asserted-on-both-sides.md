@@ -4,4 +4,4 @@
   $exp) { Core\Time::sleep(5ms); }` and assert the refusal at `== $exp`, which survives an oversleep
   a fixed `sleep(1s)` would turn into a wrong number.
   `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
-  is the shape. [until: reviewed 2026-09-06]
+  is the shape. [until: gone tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst:Core\Time::now()->toEpochSeconds()]

@@ -3,4 +3,4 @@
   call's window — tens of kilobytes of fixed cost — so a small input and a large one measure
   nearly alike and no proportionality assertion holds. Measure a throwaway input first and drop
   the reading; the counters are thread-local, so nothing another test does beside it is in the
-  number. [until: reviewed 2026-09-09]
+  number. [until: gone crates/nvs-codegen/tests/closures.rs:fn live_bytes_of_run]

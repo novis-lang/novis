@@ -5,7 +5,7 @@
     "docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-22"
+    "kind": "gone",
+    "arg": "docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs:?uint $size"
   }
 }

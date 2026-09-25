@@ -1,6 +1,0 @@
-- **A check whose name says a value is "refused" can still be a *rows* test.**
-  `a_null_written_into_a_non_nullable_option_is_still_refused` reads as a checker case and
-  `crates/nvs-stdlib/Cargo.toml` names no `nvs-types`, so the first move looks like splitting the
-  check. What that crate can hold is why the refusal must exist: the option's omission already arrives
-  under `Tag::Null`, so a written one would be the argument the helper reads as not given. Ask what
-  the row makes true before asking which crate compiles the refusal. [until: reviewed 2026-09-10]

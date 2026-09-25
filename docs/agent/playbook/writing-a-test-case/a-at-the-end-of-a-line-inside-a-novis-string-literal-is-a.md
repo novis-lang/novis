@@ -3,4 +3,4 @@
   newline and the next line's indentation, so a `create table` wrapped that way reaches the driver
   as `…, \` plus the indentation, and SQLite answers `unrecognized token: "\"` at an offset in a
   statement the case never wrote. Keep a statement literal on one line however long it gets, or
-  build it by concatenation. [until: reviewed 2026-09-06]
+  build it by concatenation. [until: gone crates/nvs-syntax/src/string_lit.rs:pub fn cook_double_quoted_text]

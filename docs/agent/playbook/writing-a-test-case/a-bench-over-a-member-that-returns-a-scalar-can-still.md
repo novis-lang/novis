@@ -4,4 +4,4 @@
   `Core\Encoding::isValidText` — a `bool` answer over a decode it performs and discards — measures
   0.50 allocations per operation. Read the member's own doc comment for what it does inside before
   declaring a count, and leave the declaration off where the member allocates on purpose.
-  [until: reviewed 2026-09-22]
+  [until: gone crates/nvs-stdlib/src/encoding.rs:isValidText]
