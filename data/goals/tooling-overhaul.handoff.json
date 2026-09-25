@@ -1,23 +1,18 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. The two bench drivers are ported: `bun nv bench-load` (`tools/nv/cmd/bench-load.ts`) and `bun nv bench-proxied` (`tools/nv/cmd/bench-proxied.ts`). Both import the binary lookup, the server subprocess, the record writer, the FastCGI client and the closed-loop generator from `tools/nv/cmd/bench.ts`, which now exports them. Both were run live: `bench-load` against `target/release/nvs.exe` with every answer verified, and `bench-proxied` through both Docker stacks. The agreement GET in `bench-proxied` uses `fetch`, because nginx in front of PHP-FPM answers chunked and `bench.ts`'s `HttpConn` reads fixed bodies only.\n\nStill unported from the Stage 11 list: `machine` and `webcrypto-vectors.mjs`. `observe`, `proctree` and `written` are deleted by Stage 12, as the goal's Stage 11 bullet says. Deleting the ported `.py` files and repointing their citations (`docs/agent/commands.md` § *The server's throughput*, `benches/proxied/`, `benches/serve-probe/`) is Stage 12's work (`no Python`).",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. `bun nv machine` (`tools/nv/cmd/machine.ts`) replaces `tools/machine.py`. The width policy, the probes and the `.loop/machine.json` cache live in `tools/nv/lib/machine.ts`. `bun nv try` now takes its width from that module (`jobs(\"local\", …)`), the way `try.py` did. Its table matches the Python tool's output line for line, and `tools/nv/test/machine.test.ts` covers the policy, the probe reader, staleness and the cache. `posixProbe` and `remember` are ported, but nothing in TS calls them yet. The valgrind sweep and the WSL leg are still the Python driver's (`tools/nv/cmd/loop.ts:404`).\n\nThe one port left from the Stage 11 list is `webcrypto-vectors.mjs`. `observe`, `proctree` and `written` are deleted by Stage 12, as the goal's Stage 11 bullet says. Stage 12's work (`no Python`) is deleting the ported `.py` files and repointing their citations. That includes `docs/agent/commands.md` § *How wide anything runs* and `docs/agent/coordinator.md`'s sweep paragraph, which still name `tools/machine.py`.",
   "next": {
     "stage": 11,
-    "title": "the last two ports",
+    "title": "the last port",
     "files": [],
-    "note": "one file set: `tools/nv/main.ts` and one new `tools/nv/cmd/<name>.ts` for each tool below.",
+    "note": "one file set: `tools/nv/main.ts` and a new `tools/nv/cmd/webcrypto-vectors.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**Port `tools/machine.py` to `bun nv machine`**: `tools/machine.py:1`, registered in `tools/nv/main.ts:58`. It writes `.loop/machine.json`, which `tools/nv/proofs/collect.ts:318` already reads, so keep that file's shape. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this."
-      },
-      {
-        "done": false,
-        "text": "**Port `tools/webcrypto-vectors.mjs` to `bun nv webcrypto-vectors`**: `tools/webcrypto-vectors.mjs:1`. It is long, so read it in regions; `crates/nvs-stdlib/src/tests/vectors.rs:1` is what its output feeds. Same bullet."
+        "text": "**Port `tools/webcrypto-vectors.mjs` to `bun nv webcrypto-vectors`**: `tools/webcrypto-vectors.mjs:1`, registered in `tools/nv/main.ts:60`. It is long, so read it in regions. Under Bun it fails today at `agree` (`tools/webcrypto-vectors.mjs:170`), because Bun's `crypto.subtle` has no X25519. The playbook's X25519 bullet gives the way through. Done means `bun nv webcrypto-vectors --check` exits 0 against `crates/nvs-stdlib/tests/vectors/webcrypto.json`. The `jws` keep-if-it-still-verifies path means a rewrite must not re-randomize ES256/PS256. Repoint the file's own `Written by` line and `crates/nvs-stdlib/src/tests/vectors.rs:4`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this."
       }
     ]
   },
   "backlog": [
-    "Stage 11's CI, website and hook bullets: check each against the tree before Stage 12 (`docs/agent/goals/tooling-overhaul.md` § *Stage 11*).",
-    "Stage 12 repoints every `python tools/bench-load.py` and `tools/bench-proxied.py` citation to `bun nv` (`docs/agent/goals/tooling-overhaul.md` § *Stage 12*)."
+    "Stage 12 (`no Python`): delete every ported `.py`, repoint its citations, and delete `observe`, `proctree` and `written` — the goal's Stage 12 bullets own it."
   ]
 }
