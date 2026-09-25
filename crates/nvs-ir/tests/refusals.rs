@@ -8,14 +8,13 @@
 //! stops working anyway. Counting conformance cases says how much of the
 //! language is *exercised*; only this says how much of it is *there*.
 //!
-//! # Why this shells out to `tools/holes.py`
+//! # Why this shells out to `bun nv holes`
 //!
-//! That script is already the tree's one recognizer for a refusal site, and
-//! `docs/implementation-plan.md`'s `Open now` names it as the worklist no
-//! session re-derives. A second regex here would be a second answer to the
-//! same question, drifting from the first the day either is edited — so these
-//! tests *are* the script, run over the repository they sit in, plus the
-//! judgements below that the script deliberately does not make.
+//! That command is already the tree's one recognizer for a refusal site, and
+//! the worklist no session re-derives. A second regex here would be a second
+//! answer to the same question, drifting from the first the day either is
+//! edited — so these tests *are* the command, run over the repository they sit
+//! in, plus the judgements below that the command deliberately does not make.
 //!
 //! # What makes a standing site acceptable
 //!
@@ -28,7 +27,7 @@
 //!     items that made it green not at all, so that inventory has to live
 //!     somewhere the switch does not rewrite). That
 //!     is a hole with a schedule: the item names the file and the function,
-//!     and closing the item removes the site. `holes.py`'s own attribution
+//!     and closing the item removes the site. `bun nv holes`'s own attribution
 //!     decides this, so a site in a file no item anchors is *unattributed* and
 //!     fails here. The last such item has landed, so nothing is left to claim
 //!     a site and this gate now refuses everything not on the allowlist — the
@@ -49,14 +48,14 @@
 //! Lowering the shape, or a `lower::guarded_by!` naming the diagnostic that
 //! refuses it where it is written — `nvs_ir`'s own § *Known gaps* preamble is
 //! where the two are contrasted. A guard is a claim about the front end rather
-//! than a hole, so `holes.py` does not count it; what holds it honest is
+//! than a hole, so `bun nv holes` does not count it; what holds it honest is
 //! [`every_guarded_site_names_a_code_a_conformance_case_expects`], which
 //! requires a conformance case to expect the code each guard names. Rewording a
 //! `panic!` is neither close, and a guard naming a code nothing raises is that
 //! rewording wearing a macro.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// A refusal the language keeps on purpose, as `(file, the start of its
 /// message)`.
@@ -72,26 +71,27 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// shape the language names either lowers or is refused by a diagnostic the
 /// front end raises where the shape is written, so a new `panic!` claiming a
 /// lowering gap is a red test and not a number to raise — full stop, with no
-/// exception for a design landing an operator in stages. `python
-/// tools/holes.py --sites` names whatever the tree holds.
+/// exception for a design landing an operator in stages. `bun nv holes
+/// --sites` names whatever the tree holds.
 ///
 /// A site leaves this count two ways, and `nvs_ir`'s own § *Known gaps*
 /// preamble is where they are contrasted: the shape lowers, or the site becomes
 /// a `lower::guarded_by!` naming the diagnostic that refuses the shape where it
 /// is written, which is a front-end guarantee rather than a hole. An engine
 /// invariant no checked program reaches is neither, and was never in this
-/// count: `holes.py` reads a site from the construct that carries it **and**
+/// count: `bun nv holes` reads a site from the construct that carries it **and**
 /// from the claim its message makes, so a panic that states the guarantee it
 /// rests on stays out without anyone deciding it does — and rewording one that
 /// does claim a gap is the move `every_refusal_is_a_diagnostic_or_decided`
 /// exists to catch.
 const CEILING: usize = 0;
 
-/// What `tools/holes.py` opens: itself, the two item lists and the goal's
-/// manifest, the diagnostic registry, and the two crates that lower. It imports
-/// nothing else from `tools/`.
+/// What `bun nv holes` opens: the `nv` program and the script entry that names
+/// it, the two item lists and the goal's manifest, the diagnostic registry, and
+/// the two crates that lower.
 const HOLES_READS: &[&str] = &[
-    "tools/holes.py",
+    "package.json",
+    "tools/nv",
     "docs/agent/loop-goal.md",
     "docs/agent/loop-goal.toml",
     "docs/agent/carried-refusals.md",
@@ -100,46 +100,36 @@ const HOLES_READS: &[&str] = &[
     "crates/nvs-codegen/src",
 ];
 
-/// `python tools/holes.py <args>`, run in the directory that holds `tools/`.
+/// `bun nv holes <args>`, run at the repository root, where `package.json`
+/// names the `nv` script.
 ///
-/// The interpreter is looked up the way every other entry point into this
-/// tree's tooling is invoked, and a machine with no Python fails the gate
-/// rather than skipping it: `loop.py`, `session.py` and several of the steps
-/// `nv verify` runs are Python, so a checkout that cannot run one cannot run
-/// this project's checks at all.
+/// A machine with no Bun fails the gate rather than skipping it: every check
+/// this project runs is a `bun nv` command, so a checkout that cannot run one
+/// cannot run this project's checks at all. Bun writes the script line it runs
+/// to stderr, so stdout is the command's output alone.
 fn holes(arg: &str) -> String {
-    let script = nvs_repo::path("tools/holes.py");
-    assert!(script.is_file(), "{} is missing", script.display());
-    let above_tools: PathBuf = script
+    let root = nvs_repo::path("package.json")
         .parent()
-        .and_then(Path::parent)
-        .expect("`tools/holes.py` has two directories above it")
+        .expect("`package.json` has a directory above it")
         .to_owned();
-    let mut last = String::new();
-    for exe in ["python3", "python", "py"] {
-        let out = nvs_repo::spawn(exe, HOLES_READS)
-            .arg(&script)
-            .arg(arg)
-            .current_dir(&above_tools)
-            .output();
-        match out {
-            Ok(done) if done.status.success() => {
-                return String::from_utf8_lossy(&done.stdout).replace("\r\n", "\n");
-            }
-            Ok(done) => {
-                last = format!(
-                    "{exe} exited {}: {}",
-                    done.status,
-                    String::from_utf8_lossy(&done.stderr)
-                );
-            }
-            Err(err) => last = format!("{exe}: {err}"),
+    let out = nvs_repo::spawn("bun", HOLES_READS)
+        .args(["nv", "holes", arg])
+        .current_dir(&root)
+        .output();
+    match out {
+        Ok(done) if done.status.success() => {
+            String::from_utf8_lossy(&done.stdout).replace("\r\n", "\n")
         }
+        Ok(done) => panic!(
+            "`bun nv holes {arg}` exited {}: {}",
+            done.status,
+            String::from_utf8_lossy(&done.stderr)
+        ),
+        Err(err) => panic!("could not run `bun nv holes {arg}` — bun: {err}"),
     }
-    panic!("could not run `tools/holes.py {arg}` — {last}");
 }
 
-/// The leading `N` of `holes.py`'s `"N … site(s)"` header.
+/// The leading `N` of `bun nv holes`'s `"N … site(s)"` header.
 ///
 /// Read rather than assumed, and every caller cross-checks it against what it
 /// parsed: a format change that this file did not follow shows up as a
@@ -150,10 +140,10 @@ fn counted(out: &str, what: &str) -> usize {
     assert_eq!(
         rest,
         format!("{what} site(s)"),
-        "`holes.py` printed a header this test does not know how to read: {head:?}"
+        "`bun nv holes` printed a header this test does not know how to read: {head:?}"
     );
     n.parse().unwrap_or_else(|err| {
-        panic!("`holes.py` header {head:?} does not start with a count: {err}")
+        panic!("`bun nv holes` header {head:?} does not start with a count: {err}")
     })
 }
 
@@ -266,7 +256,7 @@ fn every_guarded_site_names_a_code_a_conformance_case_expects() {
         "{} guarded site(s) name a diagnostic no conformance case expects. A guard says \
          the front end refuses the shape where it is written; a code nothing raises is a \
          refusal closed on paper only. Write the case, or name the code that is really \
-         raised — `python tools/holes.py --guarded` lists them.\n{}",
+         raised — `bun nv holes --guarded` lists them.\n{}",
         unproven.len(),
         unproven.join("\n")
     );
@@ -327,7 +317,7 @@ fn every_refusal_is_a_diagnostic_or_decided() {
         "the tree holds {total} refusal site(s) against a ceiling of {CEILING}. Above it: a \
          new refusal in a file an item already anchors is claimed by that item's attribution \
          and would otherwise be invisible here, so the count is the second half of the gate — \
-         `python tools/holes.py --sites` lists them. Below it: lower CEILING to {total} in \
+         `bun nv holes --sites` lists them. Below it: lower CEILING to {total} in \
          this file, in the slice that closed them, so the ratchet cannot slip back."
     );
 }

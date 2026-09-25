@@ -2130,7 +2130,7 @@ fn live_keys(table: &toml::Table, prefix: &str, found: &mut Vec<String>) {
 /// Whether a `#` line is a setting rather than the prose above one.
 ///
 /// The `#` with nothing between it and the key is the whole difference, which is why every prose
-/// line in that file opens `# ` and every commented-out key opens `#key`. `tools/directives.py`
+/// line in that file opens `# ` and every commented-out key opens `#key`. `bun nv directives`
 /// draws the line in the same place.
 fn is_setting(after_hash: &str) -> bool {
     let Some((key, _)) = after_hash.split_once('=') else {
@@ -2151,7 +2151,7 @@ fn is_setting(after_hash: &str) -> bool {
 /// A blank line or a block header ends a prose block, so what comes back beside a key is what an
 /// operator reads immediately before writing it — which is the only place a warning about the key
 /// is any use. The header is carried along because the block and the name together are the *dotted*
-/// key, which `tools/directives.py` otherwise has to walk the field graph to learn.
+/// key, which `bun nv directives` otherwise has to walk the field graph to learn.
 fn settings_with_prose() -> Vec<(String, String, String)> {
     let mut found = Vec::new();
     let mut prose = String::new();
@@ -2216,7 +2216,7 @@ fn names_an_owner(owner: &str) -> bool {
 ///
 /// Read out of `tree.rs`'s own text rather than listed here, so that a key gaining a trailer joins
 /// this case in the commit that declares it and a key losing one leaves. Which *dotted* key a field
-/// is belongs to `tools/directives.py`, which walks the field graph a string scan cannot see; what
+/// is belongs to `bun nv directives`, which walks the field graph a string scan cannot see; what
 /// is asserted below is the declaration the file owes either way.
 fn declared_unread() -> Vec<(String, String, String)> {
     const TREE: &str = include_str!("../src/tree.rs");
@@ -2292,7 +2292,7 @@ fn every_unimplemented_key_in_the_default_file_is_marked_as_one() {
 /// The roster half of `rule:config/three-changeability-classes`, asked of the declaration rather
 /// than of its presence: a trailer that names nothing is the same silence as no trailer at all.
 ///
-/// `tools/directives.py`'s gate reads a trailer that *parses* — an `[unread:]` with anything at all
+/// `bun nv directives`'s gate reads a trailer that *parses* — an `[unread:]` with anything at all
 /// in its two slots — and a regex cannot go further than that. What it cannot ask is whether the two
 /// slots say something. The *why* is what a later session reads instead of re-deriving the gap from
 /// the absence of a reader, and the *owner* is where the operator who followed a `NOT IMPLEMENTED`
@@ -2321,7 +2321,7 @@ fn every_unread_key_names_what_is_missing_and_who_owns_it() {
 /// The dotted key of every setting the default file marks unimplemented.
 ///
 /// The block header and the setting name are the dotted key, so the file hands this case what
-/// `tools/directives.py` walks the field graph to derive — and the pair of cases above holds that
+/// `bun nv directives` walks the field graph to derive — and the pair of cases above holds that
 /// set equal to the tree's own `[unread:]` trailers, so it is the roster read off the artifact an
 /// operator reads.
 fn keys_marked_unimplemented() -> Vec<String> {
@@ -2340,7 +2340,7 @@ fn keys_marked_unimplemented() -> Vec<String> {
 
 /// `tree.rs` is the roster itself, and the directive and capability registries name every key
 /// without reading one, so a match in any of the three is a classification rather than a read
-/// (`tools/directives.py`'s module doc, § *A registry row names a key*).
+/// (`tools/nv/cmd/directives.ts`'s module doc, § *A registry row names a key*).
 const NOT_READERS: [&str; 3] = [
     "crates/nvs-config/src/tree.rs",
     "crates/nvs-config/src/directive.rs",
@@ -2421,7 +2421,7 @@ fn reads_the_key<'a>(source: &'a [(String, String)], dotted: &str) -> Option<&'a
 /// `server.listen` and `[app] mode`, so a scan for a field access answers about whichever field it
 /// found and fails for a reason that has nothing to do with the key. So what is asserted here is one
 /// sound half — no key the default file marks unimplemented is read anywhere by name — and the
-/// census over all three spellings stays `tools/directives.py --check`'s, which `nv verify`
+/// census over all three spellings stays `bun nv directives --check`'s, which `nv verify`
 /// runs. The half asserted here is the one a field search cannot see, which is why it is worth
 /// having twice: `Core\Storage` reaches its disk root as `config.get("storage.{disk}.root")`.
 #[test]

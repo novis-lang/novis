@@ -54,8 +54,8 @@ const cli = (tier: "card" | "shipped"): Omit<Build, "own"> & { own: string[] } =
 export const STEP_READS: Record<string, (tree: Tree, graph: Graph | null) => Part[]> = {
   fmt: (t) => files(t, (r) => isRust(r) || isManifest(r) || r === "rustfmt.toml"),
   lints: (t) => files(t, (r) => isManifest(r) || r === "tools/nv/cmd/lints.ts"),
-  directives: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/directives.py"),
-  template: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/directives.py"),
+  directives: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/nv/cmd/directives.ts"),
+  template: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/nv/cmd/directives.ts"),
   owners: (t) => files(t, within("crates", ...OWNERS_READS)),
   nv: (t) => files(t, within(...NV_READS)),
   "fuzz-lock": (t) => [...toolchain(t), ...files(t, isManifest)],

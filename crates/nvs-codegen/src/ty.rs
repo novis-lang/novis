@@ -76,7 +76,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 /// forgot that. Likewise for [`Ty::Void`], which is not a value at all.
 /// Neither is a shape the language refuses, which is why neither is a
 /// [`CodegenError::Unsupported`]: no program reaches either one, so no item
-/// on `tools/holes.py`'s worklist could ever close it.
+/// on `bun nv holes`'s worklist could ever close it.
 /// An exception is an ordinary [`Tag::Object`], with no case of its own.
 pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
     Ok(match ty {

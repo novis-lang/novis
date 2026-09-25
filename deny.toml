@@ -29,7 +29,7 @@ ignore = []
 #
 # This list decides what Novis may *link*. What it must then *ship* — the
 # reproduced notice for each component — is ADR 0065 and its generator,
-# `tools/gen-attribution.py`, whose `PREFERENCE` must name exactly the
+# `tools/nv/cmd/gen-attribution.ts`, whose `PREFERENCE` must name exactly the
 # identifiers below, in preference order. The generator fails if the two ever
 # drift, so edit both together.
 # ---------------------------------------------------------------------------

@@ -49,9 +49,9 @@ Three causes, and they want different fixes. Do not assume the first one.
    check, and move it** — a `kind = "nvs-suite"` entry, or a Rust test written to match. A block
    whose every name moves is deleted rather than left empty.
 3. **The test is genuinely unwritten.** `every_refusal_is_a_diagnostic_or_decided` was the
-   load-bearing one: Stage 8's "no refusal left" guard, red on its merits while `python
-   tools/holes.py` read seventeen standing refusal sites, and written in the end as
-   [refusals.rs](../../crates/nvs-ir/tests/refusals.rs), which runs `holes.py` over the tree rather
+   load-bearing one: Stage 8's "no refusal left" guard, red on its merits while `bun nv
+   holes` read seventeen standing refusal sites, and written in the end as
+   [refusals.rs](../../crates/nvs-ir/tests/refusals.rs), which runs `bun nv holes` over the tree rather
    than carrying a second recognizer. **Fix: write it.**
 
 A session that lands a guard test **reconciles its name here and in `loop-goal.toml` in the same

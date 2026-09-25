@@ -113,7 +113,7 @@ pub use value::{Quantity, Unit};
 /// does not say on its own whether it is the default or a suggestion. A key a running server
 /// cannot apply a change to adds `; restart required`, and exactly the registry's
 /// [`Apply::Boot`] rows do (`rule:config/reloadability-is-its-own-field`).
-/// `python tools/directives.py --check-template` holds the file to the tree beside it — a key the
+/// `bun nv directives --check-template` holds the file to the tree beside it — a key the
 /// parser gained and the file omits, a key spelled twice, a key that parses and does nothing
 /// without saying so, and a setting line whose note is missing, disagrees with another spelling of
 /// the same field or shows a value this crate does not ship are each a failure there.

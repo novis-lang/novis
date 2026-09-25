@@ -626,12 +626,9 @@ function render(components: Component[], groups: Group[], notices: [string, stri
   add(`the \`${BINARY}\` binary. Novis's own terms are MIT and live in LICENSE; they are`);
   add("not restated here.");
   add("");
-  // The notice names the Python tool because the `gen-attribution` parity group compares the notice both
-  // programs write, byte for byte. The slice that deletes `tools/gen-attribution.py` and its parity group
-  // makes this line name `bun nv gen-attribution` and regenerates the committed notice.
   add("GENERATED FILE — do not edit by hand. Regenerate with:");
   add("");
-  add("    python tools/gen-attribution.py");
+  add("    bun nv gen-attribution");
   add("");
   add("");
   // `nvs info` slices this file at the two section headings below and prints the parts verbatim, so

@@ -321,7 +321,7 @@ no file resolves to. An `[[entry]]` is the exception, because writing one says t
 `[[app]]` with no path is refused rather than skipped, and the shipped file keeps every `[[entry]]`
 header, and the tables belonging to one, commented out — and the two `pool` tables under `[db]`,
 each of which is the same TOML key as the `pool = false` beside it and cannot be live with it.
-`python tools/directives.py
+`bun nv directives
 --check-template` refuses a key left under a commented-out header when the live header above it has
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.

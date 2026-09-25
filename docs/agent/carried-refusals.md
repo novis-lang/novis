@@ -1,6 +1,6 @@
 # Carried refusals — the holes an earlier milestone left, and who owns them now
 
-`python tools/holes.py` attributes every refusal site to the goal item that anchors its file, and
+`bun nv holes` attributes every refusal site to the goal item that anchors its file, and
 [crates/nvs-ir/tests/refusals.rs](../../crates/nvs-ir/tests/refusals.rs) fails on a site nothing claims.
 That works while the goal that opened a hole is still running. It stops working the moment the chain
 advances: `tools/goal-switch.py` carries the outgoing goal's `[[check]]` blocks forward as the next goal's
@@ -12,8 +12,8 @@ either, because nothing in the tree is shaped wrong. They live in the `# Known g
 module doc that owes them, each tagged `— owner:`, and `python tools/owners.py` derives the roster
 rather than indexing it. A refusal site is here; everything else is there.
 
-**This file is that item list, kept where a goal switch cannot reach it.** `holes.py` reads it alongside
-`loop-goal.md` and numbers what it finds from 900, so the first entry here is `python tools/holes.py
+**This file is that item list, kept where a goal switch cannot reach it.** `bun nv holes` reads it alongside
+`loop-goal.md` and numbers what it finds from 900, so the first entry here is `bun nv holes
 --item 901` and no goal's own numbering ever collides with it. Nothing here has to be inherited by hand,
 and a goal's `.md` should not restate it.
 

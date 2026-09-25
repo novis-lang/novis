@@ -74,48 +74,6 @@
       ["--driver", "sqlite"]
     ]
   },
-  "decisions": {
-    "python": ["python", "tools/decisions.py"],
-    "nv": ["bun", "tools/nv/main.ts", "decisions"],
-    "cases": [
-      [],
-      ["--check"],
-      ["--gate"],
-      ["--work"],
-      ["--work", "--limit", "0"],
-      ["--work", "--group", "internal", "--limit=3"],
-      ["--group", "nowhere"],
-      ["--json"],
-      ["--groups"],
-      ["--apply", "docs/decisions.toml", "--dry-run"],
-      ["--apply", "tools/nv/parity/fixtures/decisions-refused.toml", "--dry-run"],
-      ["--apply", "no/such.toml"],
-      ["--limit", "x"],
-      ["--work", "--bogus"]
-    ]
-  },
-  "directives": {
-    "python": ["python", "tools/directives.py"],
-    "nv": ["bun", "tools/nv/main.ts", "directives"],
-    "cases": [
-      [],
-      ["--check"],
-      ["--json"],
-      ["--explain", "storage.<name>.root"],
-      ["--explain", "storage.local.root"],
-      ["--explain", "limits.max_script_depth"],
-      ["--explain", "debug.mode"],
-      ["--explain", "limits.no_such_key"],
-      ["--explain", "nowhere.at.all"],
-      ["--check-template"],
-      ["--check-template", "crates/nvs-config/src/default.toml"],
-      ["--check-template", "tools/nv/parity/fixtures/directives-template.toml"],
-      ["--check-template", "no/such.toml"],
-      ["--check-template", "--check"],
-      ["--explain"],
-      ["--bogus"]
-    ]
-  },
   "disk": {
     "python": ["python", "tools/disk.py"],
     "nv": ["bun", "tools/nv/main.ts", "disk"],
@@ -146,20 +104,6 @@
       ["--member=Core\\NoSuch::thing"],
       ["--json"],
       ["--json", "--coverage"]
-    ]
-  },
-  "holes": {
-    "python": ["python", "tools/holes.py"],
-    "nv": ["bun", "tools/nv/main.ts", "holes"],
-    "cases": [
-      [],
-      ["--guarded"],
-      ["--sites"],
-      ["--unattributed"],
-      ["--cases"],
-      ["--item", "900"],
-      ["--item", "7"],
-      ["--json"]
     ]
   },
   "links": {
@@ -327,20 +271,6 @@
       ["--agent-walk", "--keep"],
       ["--only"],
       ["--bogus"]
-    ]
-  },
-  "gen-attribution": {
-    "python": ["python", "tools/gen-attribution.py"],
-    "nv": ["bun", "tools/nv/main.ts", "gen-attribution"],
-    "sequential": "Both programs write the same THIRD-PARTY-LICENSES.txt at the repository root, and a check would read it while the other side writes it.",
-    "cases": [
-      [],
-      ["--check"],
-      ["--check-c-deps"],
-      ["--check-c", "--check-c-deps"],
-      ["--help"],
-      ["--bogus"],
-      ["--check-c-deps", "x"]
     ]
   },
   "writers": {

@@ -1,6 +1,6 @@
 - **`refusals.rs`'s `CEILING` never rises, so a new `assert!`/`panic!` refusing a shape in `nvs-ir`
   or `nvs-codegen` turns `nv verify` red.** `crates/nvs-ir/tests/refusals.rs`'s message names a
-  count against the ceiling and no file; `python tools/holes.py --sites` lists every site and the
+  count against the ceiling and no file; `bun nv holes --sites` lists every site and the
   new one is obvious. Before writing the guard, check whether an existing site already refuses the
   shape — run the fixture and read the panic; an internal-consistency `panic!` is not counted, a
   guard against a language shape is. [until: gone crates/nvs-ir/tests/refusals.rs:CEILING]

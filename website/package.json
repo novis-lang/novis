@@ -14,7 +14,7 @@
     "astro": "astro",
     "sync": "npm run sync:render && node scripts/sync-examples.mjs && npm run sync:decisions",
     "sync:render": "bun ../tools/nv/main.ts render --website",
-    "sync:decisions": "python ../tools/decisions.py --render",
+    "sync:decisions": "bun ../tools/nv/main.ts decisions --render",
     "sync:examples": "node scripts/sync-examples.mjs",
     "examples:check": "node scripts/check-examples.mjs"
   },

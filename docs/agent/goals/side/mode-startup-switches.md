@@ -80,11 +80,11 @@ One file set: `crates/nvs-config/src/server.rs`, `crates/nvs-server/src/mount.rs
 
 **Does:** Says the mode's defaults in the template and the reference, and adds their feature proofs.
 
-One file set: `crates/nvs-config/src/default.toml` and its guard in `tools/directives.py`,
+One file set: `crates/nvs-config/src/default.toml` and its guard in `tools/nv/cmd/directives.ts`,
 `docs/reference/tools/25-server.md`, `docs/rules/config/a-startup-default-is-never-flipped.md`.
 
 - **The template's two lines** end `# default: "entry"; "path" in development` and
-  `# default: false; true in development`, and `python tools/directives.py --check-template`
+  `# default: false; true in development`, and `bun nv directives --check-template`
   stays green.
 - **The `[mode] default` line's comment** says that development also turns on path dispatch and
   static files when those two are unwritten.

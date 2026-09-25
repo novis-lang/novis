@@ -29,7 +29,7 @@
 #
 # A key whose comment opens with `NOT IMPLEMENTED` is parsed and accepted and then does nothing. The
 # note names the rule that closes it, and it is there so that this is learned before the key is
-# written rather than after. `python tools/directives.py --check-template` keeps the file and the
+# written rather than after. `bun nv directives --check-template` keeps the file and the
 # parser in step: a key the parser gained and this file omits, a key spelled twice, and an
 # unimplemented key with no note are each a failure.
 #

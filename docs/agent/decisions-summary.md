@@ -1,9 +1,9 @@
 # The decision summary pass
 
-How to bring `docs/decisions.toml` — the plain-language summary of every decision
-Novis has taken — back level with the decision records. Fire it the way
-[doc-cleanup.md](doc-cleanup.md) is fired: the **user** asks for it, or `python
-tools/decisions.py --check` has accumulated findings between passes.
+How to bring the plain-language summary of every decision Novis has taken back level with the
+decision records. Each entry is the `summary` field of its record, `data/decisions/NNNN.json`. Fire
+this pass the way [doc-cleanup.md](doc-cleanup.md) is fired: the **user** asks for it, or `bun nv
+decisions --check` has accumulated findings between passes.
 
 **Read this, then start with the tool.** It holds the mechanism, the group list and every rule it can
 check by itself. This file holds the one thing it cannot: how to write the prose.
@@ -27,25 +27,18 @@ entry is the renderer's business, not the prose's.
 ## The loop
 
 ```
-python tools/decisions.py --check          # what the summary owes: missing, stale, malformed
-python tools/decisions.py --work --limit 20   # the work order, with the raw material inlined
-                                              #   --group syntax narrows it to one group
-                                              #   --limit 0 prints all of it
-                              ... write the entries ...
-python tools/decisions.py --apply <file>   # merge, validate, render — all of it or none of it
+bun nv decisions --check             # what the summary owes: missing, malformed
+bun nv decisions --work --limit 20   # the work order, with the raw material inlined
+                                     #   --limit 0 prints all of it
+                     ... write the entries ...
+bun nv decisions --apply <file>      # validate, write the records, render — all of it or none of it
 ```
 
 `--work` prints a fillable block per decision owed, carrying that decision's title, its `In short`
-summary and the rules its `changes:` block created and modified. **That is the whole input.** Do not
-open the record itself unless the work order genuinely does not say what was decided — the material it
+summary and the numbered parts of its `Decision` section. **That is the whole input.** Do not open
+the record itself unless the work order genuinely does not say what was decided — the material it
 prints is what a summary is written from, and opening 20 records instead is how this pass stops fitting
 in a session.
-
-**An entry stamps a digest of the material it was written from**, and `tools/decisions.py`'s module
-doc is the home of exactly what that hashes: the record's frozen title — `# ADR NNNN — …` — and its
-`changes:` block, the rule ids the decision created and modified. When either moves, `--check`
-reports the entry stale. A stale entry is a *re-check*, not a rewrite: one whose decision still means
-the same thing is re-stamped as it stands, under the rule at the end of this file.
 
 Write every entry into one file and apply it once. `--apply` refuses the whole file if any entry
 breaks a rule, so a refusal costs you nothing but the fix, and there is never a half-applied batch.
@@ -81,7 +74,7 @@ decisions cost something real — say so plainly where it is true, in the same v
 else. An entry that reads as marketing copy makes the forty around it less believable.
 
 **Pick the group by what the reader is looking for**, not by which part of the compiler owns it.
-`python tools/decisions.py --groups` prints the list with what belongs in each. `internal` is for
+`bun nv decisions --groups` prints the list with what belongs in each. `internal` is for
 decisions about building Novis rather than using it — real decisions, kept for the record, in a group
 a reader can skip whole.
 
@@ -93,8 +86,8 @@ that has been drawn wrong.
 ## What the tool decides, so you do not have to
 
 `--check` enforces: no cross-reference of any kind in the prose, no decision cited by number,
-headline and body length, the jargon floor, and a group that exists. It stamps the digest that makes
-the next pass cheap. It writes both generated files.
+headline and body length, the jargon floor, and a group that exists. `--apply` writes each entry
+into its record and renders both generated files.
 
 You decide: which group, what the decision actually means to somebody using the language, and
 whether the paragraph is worth a stranger's time.
@@ -102,8 +95,8 @@ whether the paragraph is worth a stranger's time.
 ## Two things never to do
 
 **Never edit `docs/decisions.md` or `website/src/data/decisions.json`.** Both are generated; the next
-`--render` silently discards whatever you put there. `docs/decisions.toml` is the only home.
+`--render` silently discards whatever you put there. The records' `summary` fields are the only home.
 
-**Never reword an entry whose digest still matches.** Nothing decided has changed, so a rewrite is
+**Never reword an entry whose decision has not moved.** Nothing decided has changed, so a rewrite is
 churn in the one file that is supposed to be stable — and it costs the budget that the decisions
 still owed are waiting on. Rewrite an entry when its decision moved, or when it is wrong.

@@ -100,7 +100,7 @@ use crate::{span_text, strip_sigil};
 /// arguments like any other panic.
 ///
 /// **The spelling is the claim.** A plain `panic!` naming a shape says the gap
-/// is open: `tools/holes.py` counts it and `crates/nvs-ir/tests/refusals.rs`
+/// is open: `bun nv holes` counts it and `crates/nvs-ir/tests/refusals.rs`
 /// ratchets the total down, so it is owed a lowering or a diagnostic. This
 /// macro says the opposite — the shape never arrives, because the code it
 /// names refuses it where it is written. That test holds the claim to a

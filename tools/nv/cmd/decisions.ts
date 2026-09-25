@@ -3,7 +3,7 @@
 //     bun nv decisions              the summary, rendered to the terminal
 //     bun nv decisions --check      what the summary owes; quiet on success
 //     bun nv decisions --gate       only the findings that are always wrong; the CI shape
-//     bun nv decisions --work       the work order for a pass: only what is missing or stale
+//     bun nv decisions --work       the work order for a pass: only the decisions not summarized yet
 //     bun nv decisions --apply FILE merge written entries, transactionally
 //     bun nv decisions --render     rewrite the two derived artifacts from the source
 //     bun nv decisions --json       the website feed, on stdout
@@ -11,13 +11,13 @@
 //
 // The records under `docs/decisions/` are every settled decision at full length. The summary is one
 // plain-language paragraph per decision, grouped by topic, in the order the decisions were taken, with
-// no cross-reference in the prose. `docs/decisions.toml` is its source, and every entry in it is prose a
-// person wrote. `docs/decisions.md` and `website/src/data/decisions.json` are generated from it: `--render`
-// writes both, and `--check` reports either one being stale.
+// no cross-reference in the prose. Each entry is the `summary` field of the decision's record,
+// `data/decisions/NNNN.json`, and every one is prose a person wrote. `docs/decisions.md` and
+// `website/src/data/decisions.json` are generated from those fields: `--render` writes both, and
+// `--check` reports either one being stale.
 //
-// Each entry stamps a digest of the record it summarizes: the record's title and its `changes:` block.
-// An entry whose digest still matches is current and is never looked at again, so a pass does only the
-// records that are new or whose digest moved. The stamps are written by `--apply`, never by hand.
+// A pass does only the accepted decisions that have no summary yet. `--work` prints them as `[[entry]]`
+// blocks to fill in, and `--apply` checks the filled file and writes each entry into its record.
 //
 // `--check` holds the prose to three mechanical rules. `refs`: no `ADR`, no `§`, no bare decision
 // number, no markdown link, because the renderer puts the one link per entry on the website. `size`: a
@@ -28,17 +28,18 @@
 // order they were decided, and `pin = true` floats one entry to the top: the one that frames the group.
 // At most one per group, checked.
 
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { ROOT, rel } from "../lib/paths.ts";
 import { ArgError, fill, parseArgs, pyInt, pyRepr, squash, wrap } from "../lib/py.ts";
+import type { RecordType } from "../lib/schema.ts";
+import { load, write as writeRecord } from "../lib/store.ts";
+import { decision } from "../schema/decision.ts";
 import { parse as parseRecord, type Prose } from "./records.ts";
 
 export const summary = "the plain-language decision summary: nv decisions [--check|--gate|--work|--apply FILE|--render|--json|--groups]";
 
-const SOURCE = join(ROOT, "docs", "decisions.toml");
 const RENDER_MD = join(ROOT, "docs", "decisions.md");
 const RENDER_JSON = join(ROOT, "website", "src", "data", "decisions.json");
 const RECORDS = join(ROOT, "docs", "decisions");
@@ -46,10 +47,7 @@ const RECORDS = join(ROOT, "docs", "decisions");
 /** Where a decision record is read on the web. `website/config/site.mjs` holds the site's own copy. */
 const GITHUB_BLOB = "https://github.com/novis-lang/novis/blob/main";
 
-// The generated files and the source's header name the command that writes them, and both
-// implementations write the same bytes while the Python tool still exists.
-const COMMAND = "python tools/decisions.py";
-/** What a message tells the reader to run. */
+/** What a message tells the reader to run, and the command the generated files' headers name. */
 const CLI = "bun nv decisions";
 
 /** [id, heading, what belongs here]. The third column is the only description of a group anywhere. */
@@ -129,11 +127,13 @@ const BANNED_REFS: [RegExp, string][] = [
 const pyLen = (s: string) => [...s].length;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** A record's `summary` field, which `apply` writes after `check` has vouched for its group. */
+type Summary = NonNullable<(typeof decision extends RecordType<infer T> ? T : never)["summary"]>;
+
 interface Entry {
   adr: string;
   group: string;
   pin: boolean;
-  digest: string;
   headline: string;
   body: string;
 }
@@ -198,13 +198,6 @@ function frontmatter(a: Record): { status: string; creates: string[]; modifies: 
   return out;
 }
 
-/** What a summary of this record was written from, hashed: the title and the `changes:` block. */
-function digestOf(a: Record): string {
-  const fm = frontmatter(a);
-  const material = [a.title, `creates: ${fm.creates.join(" ")}`, `modifies: ${fm.modifies.join(" ")}`].join("\n");
-  return createHash("sha256").update(material, "utf8").digest("hex").slice(0, 12);
-}
-
 /** Every accepted record, by number. A retired one is not a decision the summary owes. */
 function corpus(): Map<string, Record> {
   const out = new Map<string, Record>();
@@ -220,54 +213,38 @@ function corpus(): Map<string, Record> {
   return out;
 }
 
-// ---------------------------------------------------------------------------------- the source file
+// ---------------------------------------------------------------------------------------- the entries
 
-function loadEntries(path: string = SOURCE): Map<string, Entry> {
+/** Each decision record's `summary`, by number. A record with none is not in the map. */
+function loadEntries(): Map<string, Entry> {
+  const out = new Map<string, Entry>();
+  for (const r of load(decision)) {
+    const s = r.value?.summary;
+    if (!s) continue;
+    out.set(r.id, { adr: r.id, group: s.group, pin: Boolean(s.pin), headline: squash(s.headline), body: squash(s.body) });
+  }
+  return out;
+}
+
+/** The `[[entry]]` blocks of a file `--apply` is handed, in the shape `--work` prints them. */
+function readEntries(path: string): Map<string, Entry> {
   const out = new Map<string, Entry>();
   if (!existsSync(path)) return out;
   const data = parseToml(readFileSync(path, "utf8")) as { entry?: { [k: string]: unknown }[] };
   for (const raw of data.entry ?? []) {
-    const e = { ...raw } as unknown as Entry;
-    e.body = squash(String(raw.body ?? ""));
-    e.headline = squash(String(raw.headline ?? ""));
-    e.pin = Boolean(raw.pin ?? false);
-    out.set(String(raw.adr ?? "").padStart(4, "0"), e);
+    const adr = String(raw.adr ?? "").padStart(4, "0");
+    out.set(adr, {
+      adr,
+      group: String(raw.group ?? ""),
+      pin: Boolean(raw.pin ?? false),
+      headline: squash(String(raw.headline ?? "")),
+      body: squash(String(raw.body ?? "")),
+    });
   }
   return out;
 }
 
 const sortedKeys = <V>(m: Map<string, V>) => [...m.keys()].sort();
-
-/** A TOML literal string. Single quotes take no escapes, so a value carrying one goes basic. */
-function tomlString(value: string): string {
-  if (!value.includes("'")) return `'${value}'`;
-  return JSON.stringify(value).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
-}
-
-function dumpEntries(entries: Map<string, Entry>): string {
-  const out = [
-    "# The plain-language decision summary -- the one home for it.",
-    "#",
-    "# One entry per accepted decision, written for a reader who has never opened an ADR.",
-    "# `docs/decisions.md` and `website/src/data/decisions.json` are generated from this file",
-    `# and must never be edited; \`${COMMAND} --render\` writes them both.`,
-    "#",
-    "# `digest` is stamped by the tool. Write `adr`, `group`, `headline` and `body`,",
-    `# and let \`${COMMAND} --apply\` fill in the rest.`,
-    "#",
-    "# `pin = true` floats one entry to the top of its group, ahead of decision order, for the",
-    "# one that frames what the group is about. At most one per group.",
-    "",
-  ];
-  for (const num of sortedKeys(entries)) {
-    const e = entries.get(num)!;
-    out.push("[[entry]]", `adr      = '${num}'`, `group    = '${e.group}'`);
-    if (e.pin) out.push("pin      = true");
-    out.push(`digest   = '${e.digest}'`, `headline = ${tomlString(e.headline)}`);
-    out.push("body     = '''", fill(e.body, 96, { breakLongWords: false, breakOnHyphens: false }), "'''", "");
-  }
-  return out.join("\n");
-}
 
 // ------------------------------------------------------------------------------------------- checks
 
@@ -316,7 +293,6 @@ function check(entries: Map<string, Entry>, adrs: Map<string, Record>): Found {
       continue;
     }
     if (!GROUP_IDS.includes(e.group)) add("group", `${num}: unknown group ${e.group === undefined ? "None" : pyRepr(e.group)}`);
-    if (e.digest !== digestOf(a)) add("stale", `${num}: the digest moved since this was written`);
     for (const f of proseFindings(num, e)) add("prose", f);
   }
   for (const gid of GROUP_IDS) {
@@ -350,7 +326,7 @@ function renderMd(entries: Map<string, Entry>): string {
   const out = [
     "# What Novis has decided",
     "",
-    `<!-- Generated by \`${COMMAND} --render\` from docs/decisions.toml.`,
+    `<!-- Generated by \`${CLI} --render\` from the summaries in data/decisions/.`,
     "     Do not edit: the next render overwrites it without saying so. -->",
     "",
     "Every decision this project has taken, in plain language, grouped by what it is about and",
@@ -398,8 +374,7 @@ function fail(msg: string): number {
 }
 
 const LABELS: { [kind: string]: string } = {
-  missing: "not summarized yet",
-  stale: `the record's title or \`changes:\` moved since the summary was written; a re-pass is owed (${CLI} --work)`,
+  missing: `not summarized yet (${CLI} --work)`,
   orphan: "summarizes a decision that is not there",
   group: "not in a group the tool knows",
   pin: "more than one entry pinned to the top of a group",
@@ -408,7 +383,7 @@ const LABELS: { [kind: string]: string } = {
 };
 
 function report(found: Found, out: string[]): void {
-  for (const kind of ["missing", "stale", "orphan", "group", "pin", "prose", "render"]) {
+  for (const kind of ["missing", "orphan", "group", "pin", "prose", "render"]) {
     const rows = found.get(kind);
     if (!rows || rows.length === 0) continue;
     out.push(`${kind} — ${LABELS[kind]} (${rows.length})`, ...rows.map((r) => `  ${r}`), "");
@@ -416,16 +391,11 @@ function report(found: Found, out: string[]): void {
 }
 
 function work(entries: Map<string, Entry>, adrs: Map<string, Record>, group: string | undefined, limit: number, out: string[]): number {
-  let owed: [string, string][] = [];
-  for (const num of sortedKeys(adrs)) {
-    const e = entries.get(num);
-    if (!e) owed.push([num, "new"]);
-    else if (e.digest !== digestOf(adrs.get(num)!)) owed.push([num, "changed"]);
-  }
-  if (group) owed = owed.filter(([n]) => entries.get(n)?.group === group);
+  // An owed decision has no entry, so no group either: `--group` narrows the list to nothing.
+  const owed = sortedKeys(adrs).filter((num) => !entries.has(num) && !group);
   const total = owed.length;
   if (total === 0) {
-    out.push(`nothing owed: all ${adrs.size} decisions are summarized and current`);
+    out.push(`nothing owed: all ${adrs.size} decisions are summarized`);
     return 0;
   }
   const shown = limit ? owed.slice(0, limit) : owed;
@@ -435,9 +405,9 @@ function work(entries: Map<string, Entry>, adrs: Map<string, Record>, group: str
     `# Groups: ${GROUP_IDS.join(", ")}   (${CLI} --groups)`,
     "",
   );
-  for (const [num, why] of shown) {
+  for (const num of shown) {
     const a = adrs.get(num)!;
-    out.push(`# ${"-".repeat(94)}`, `# ${num} (${why}) — ${titleOf(a)}`);
+    out.push(`# ${"-".repeat(94)}`, `# ${num} — ${titleOf(a)}`);
     for (const line of wrap(inShort(a), 94)) out.push(`#   ${line}`);
     const parts = shape(a);
     if (parts.length > 0) out.push("# the decision has these parts:", ...parts.map((p) => `#   - ${p}`));
@@ -453,21 +423,13 @@ function write(path: string, text: string): void {
 }
 
 function apply(path: string, entries: Map<string, Entry>, adrs: Map<string, Record>, dryRun: boolean, out: string[]): number {
-  const incoming = loadEntries(path);
+  const incoming = readEntries(path);
   if (incoming.size === 0) return fail(`${path} holds no [[entry]] blocks`);
   const merged = new Map(entries);
   const touched: string[] = [];
   for (const [num, e] of incoming) {
-    const a = adrs.get(num);
-    if (!a) return fail(`${num} is not an accepted decision — nothing to summarize`);
-    merged.set(num, {
-      adr: num,
-      group: e.group ?? "",
-      pin: Boolean(e.pin),
-      digest: digestOf(a),
-      headline: e.headline ?? "",
-      body: e.body ?? "",
-    });
+    if (!adrs.has(num)) return fail(`${num} is not an accepted decision — nothing to summarize`);
+    merged.set(num, e);
     touched.push(num);
   }
   const findings = check(merged, adrs);
@@ -485,7 +447,13 @@ function apply(path: string, entries: Map<string, Entry>, adrs: Map<string, Reco
     );
     return 0;
   }
-  write(SOURCE, dumpEntries(merged));
+  const records = new Map(load(decision).map((r) => [r.id, r.value]));
+  for (const num of touched) {
+    const e = merged.get(num)!;
+    const body = fill(e.body, 96, { breakLongWords: false, breakOnHyphens: false });
+    const summary = { group: e.group, headline: e.headline, body, ...(e.pin ? { pin: true } : {}) } as Summary;
+    writeRecord(decision, num, { ...records.get(num)!, summary });
+  }
   write(RENDER_MD, renderMd(merged));
   write(RENDER_JSON, renderJson(merged));
   const still = [...adrs.keys()].filter((n) => !merged.has(n)).length;
@@ -549,7 +517,7 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
   if (flags.has("--render")) {
-    if (entries.size === 0) return fail("docs/decisions.toml is empty — nothing to render");
+    if (entries.size === 0) return fail("no record under data/decisions/ has a summary — nothing to render");
     write(RENDER_MD, renderMd(entries));
     write(RENDER_JSON, renderJson(entries));
     console.log(`rendered ${entries.size} entries to ${rel(RENDER_MD)} and ${rel(RENDER_JSON)}`);
@@ -561,7 +529,7 @@ export async function run(args: string[]): Promise<number> {
   if (flags.has("--gate")) {
     // A decision not summarized yet is a pass that has not run, which is a schedule and not a fault.
     // The other kinds are always a mistake.
-    const bad: Found = new Map([...found].filter(([k]) => k !== "missing" && k !== "stale"));
+    const bad: Found = new Map([...found].filter(([k]) => k !== "missing"));
     const m = [...bad.values()].reduce((s, v) => s + v.length, 0);
     if (m) {
       report(bad, out);

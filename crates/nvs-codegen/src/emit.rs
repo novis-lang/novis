@@ -6,7 +6,7 @@
 //! representation. Nothing is re-checked; a shape this slice cannot lower is a
 //! [`CodegenError::Unsupported`] naming it, never a diagnostic — and a shape
 //! no lowering can *construct* is a [`CodegenError::Internal`] instead, so
-//! that `tools/holes.py`'s inventory of what the language still refuses holds
+//! that `bun nv holes`'s inventory of what the language still refuses holds
 //! only entries a session could close. [`internal`] is the one spelling.
 //!
 //! # One walk, any `Module`
@@ -3490,7 +3490,7 @@ impl Emitter<'_, '_> {
             // every other representation is a scalar with no reference to
             // count. `InstKind::Retain`/`Release` is the only producer of an
             // arrival here and `nvs-ir` emits one only behind that predicate,
-            // so no program reaches this arm and no item on `tools/holes.py`'s
+            // so no program reaches this arm and no item on `bun nv holes`'s
             // worklist could close it. An arrival is a site in `nvs-ir` that
             // emitted a refcount operation without asking the predicate first
             // — which is the trap `docs/agent/playbook.md` records under a
@@ -3671,7 +3671,7 @@ impl Emitter<'_, '_> {
             // enum's only producer and every block it builds ends in one of
             // them, so no program reaches here and this is an `Internal`
             // rather than an `Unsupported`: it names no shape the language
-            // refuses, and an item on `tools/holes.py`'s worklist could never
+            // refuses, and an item on `bun nv holes`'s worklist could never
             // close it. The arm exists because that enum is `#[non_exhaustive]`
             // and this is a downstream crate, so the compiler asks for it
             // whether or not a variant is missing; that is also what makes it
@@ -4069,7 +4069,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         // is here only because that enum is `#[non_exhaustive]` and this is a
         // downstream crate. So it is an `Internal` for the same reason that
         // one is — nothing a program can write arrives here, so nothing on
-        // `tools/holes.py`'s worklist could close it. The table is the whole
+        // `bun nv holes`'s worklist could close it. The table is the whole
         // of the compiler's side of the runtime ABI — a helper added in
         // `nvs-ir` and given no symbol here is a linking question answered at
         // compile time by this arm, which is why it is worth keeping even

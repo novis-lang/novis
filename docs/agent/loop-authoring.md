@@ -197,7 +197,7 @@ Three failure modes worth naming, all of which have happened here:
   named test must be checked for having *existed and run*. That is what `kind = "cargo-named"` is for, and
   it is why most of the tests a goal names do not exist when it is written: writing one is how an item
   finishes.
-- **A chore is not a check.** Four goals ran `python tools/decisions.py --check`, which counts every
+- **A chore is not a check.** Four goals ran `bun nv decisions --check`, which counts every
   decision not yet summarized — a pass the user fires, never a goal. A goal that opens an ADR is
   `missing` its own summary from the moment it writes the record, so all four were red on arrival and
   would each have held the run on a backlog no session of theirs could clear. A check has to be

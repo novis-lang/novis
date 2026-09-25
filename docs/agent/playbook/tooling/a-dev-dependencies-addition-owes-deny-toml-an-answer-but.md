@@ -1,5 +1,5 @@
 - **A `[dev-dependencies]` addition owes `deny.toml` an answer but owes `THIRD-PARTY-LICENSES.txt`
-  nothing, and the two are checked in opposite directions.** `tools/gen-attribution.py` walks normal
+  nothing, and the two are checked in opposite directions.** `bun nv gen-attribution` walks normal
   and build dependencies only, so `--check` stays green after one and there is nothing to
   regenerate; `cargo deny`'s `[graph] all-features = true` license-checks every crate that reaches
   `Cargo.lock`, optional ones no target builds included. Run `cargo deny check`, or read the new

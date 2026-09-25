@@ -1,6 +1,6 @@
-- **`holes.py`'s per-item refusal sites are the file's *catch-all* panics, so an item can read "N
-  sites standing" after the feature runs.** `lower_expr`'s and `emit_binop`'s "got {other:?}" arms
+- **`bun nv holes`'s per-item refusal sites are the file's *catch-all* panics, so an item can read
+  "N sites standing" after the feature runs.** `lower_expr`'s and `emit_binop`'s "got {other:?}" arms
   are attributed to whatever item anchors their file and will still be there when the last hole
   closes. The tool ranks *candidates*; the ground truth is four lines in a scratch
-  `.agent-tmp/*.nvs` and one `nvs run`, and `holes.py --cases` is the half that does not lie — a
-  named case either exists on disk or does not. [until: gone tools/holes.py:--cases]
+  `.agent-tmp/*.nvs` and one `nvs run`, and `bun nv holes --cases` is the half that does not lie — a
+  named case either exists on disk or does not. [until: gone tools/nv/cmd/holes.ts:--cases]

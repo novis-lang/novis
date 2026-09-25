@@ -1,9 +1,9 @@
 {
   "lead": "A `NOT IMPLEMENTED` note in `crates/nvs-config/src/default.toml` stands over every key after it, not only the one below it.",
-  "body": "`tools/directives.py`'s template parser clears the prose block on a blank line or a block header and nowhere else, and `--check-template` never notices, because it reads that prose only for a key the tree declares unread. Leave a blank line after the last key a note covers.",
+  "body": "`tools/nv/cmd/directives.ts`'s template parser clears the prose block on a blank line or a block header and nowhere else, and `--check-template` never notices, because it reads that prose only for a key the tree declares unread. Leave a blank line after the last key a note covers.",
   "files": [
     "crates/nvs-config/src/default.toml",
-    "tools/directives.py"
+    "tools/nv/cmd/directives.ts"
   ],
   "until": {
     "kind": "gone",

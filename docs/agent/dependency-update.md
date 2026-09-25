@@ -72,7 +72,7 @@ cargo test --workspace --doc
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo deny check                          # cargo install cargo-deny --locked, if absent
-python tools/gen-attribution.py           # regenerate; commit the diff in the same commit
+bun nv gen-attribution                    # regenerate; commit the diff in the same commit
 ```
 
 **B. If `cranelift-*`, `wasmtime`, `corosensei` or anything the runtime links moved** — the premise guards.

@@ -118,8 +118,8 @@ nvs info                # build and host facts, plus every component and its lic
 nvs info --licenses     # the same, plus every licence text in full
 nvs -i                  # the same command, under PHP's spelling
 
-python tools/gen-attribution.py           # regenerate after changing a dependency
-python tools/gen-attribution.py --check   # what CI runs; fails if the notice is stale
+bun nv gen-attribution           # regenerate after changing a dependency
+bun nv gen-attribution --check   # what CI runs; fails if the notice is stale
 ```
 
 The generator fails closed: a licence it has no policy for, or one missing from
