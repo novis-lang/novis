@@ -48,12 +48,12 @@ behaviour, and not before:
 - `docs/reference/tools/25-server.md` — the two comments in the `[server]` block, and the sentence
   under the dispatch steps that begins "With `dispatch = "path"` and `static = true`".
 
-`docs/novis.md` is generated and is regenerated with `python tools/reference.py --no-examples`,
+`docs/novis.md` is generated and is regenerated with `bun nv reference --no-examples`,
 never edited.
 
 ## Stage 1 — the floor
 
-Main's carried floor, which a side run is always checked against (`tools/side.py`). Never traded.
+Main's carried floor, which a side run is always checked against. Never traded.
 
 ## Stage 2 — the switches follow the mode (the keystone)
 
@@ -91,8 +91,8 @@ One file set: `crates/nvs-config/src/default.toml` and its guard in `tools/nv/cm
 - **The server chapter's `[server]` block** says the same in its two comments, and the sentence
   under the dispatch steps names the development mode again.
 - **The rule's *What is on disk* paragraph** names the function and drops the sentence saying
-  the two rows are not derived. `python tools/rules.py --render` regenerates the chapter.
-- **The proofs.** `python tools/dossier.py --id` for each feature this touches — the server
+  the two rows are not derived. `bun nv rules --render` regenerates the chapter.
+- **The proofs.** `bun nv proofs --id` for each feature this touches — the server
   chapter's sections and the two configuration keys — names what is still owed, and the goal
   pays it.
 
@@ -116,5 +116,5 @@ No session re-decides one.
   under its mount root. The rule accepted that, and production, and a host with no configuration,
   never do. Simplicity: two fewer keys to write in development.
 - **Every comment in a new `.nvs` and every new or changed `about.md` follows `AGENTS.md`
-  § *Text an end user reads* at the first write**, and `python tools/dossier.py --comments <paths>`
+  § *Text an end user reads* at the first write**, and `bun nv proofs --comments <paths>`
   is run over them before the wrap.

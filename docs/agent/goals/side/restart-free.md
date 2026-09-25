@@ -75,7 +75,7 @@ overtake.
 
 ## Stage 1 — the floor
 
-Main's carried floor, which a side run is always checked against (`tools/side.py`). Never traded.
+Main's carried floor, which a side run is always checked against. Never traded.
 
 ## Stage 2 — every file a program reached is watched, in every mode (the keystone)
 
@@ -186,7 +186,7 @@ One file set: `crates/nvs-config/src/default.toml` and its guards, `docs/referen
   copy is safe, and a slow upload should switch a link to a finished directory, which is always
   safe. It says what no compiler can make consistent: data written by old code and read by new
   code (cache entries, sessions, queued jobs).
-- The section is a feature on the roster, so it owes its proofs: `python tools/dossier.py --id`
+- The section is a feature on the roster, so it owes its proofs: `bun nv proofs --id`
   names them.
 
 ## Standing decisions
@@ -217,5 +217,5 @@ These are the user's calls, made on 2026-09-23. No session re-decides one.
   and two units alive during a swap. Usability: no deploy step. Simplicity: `never` is gone and the
   restart list is three keys.
 - **Every comment in a new `.nvs` and every new or changed `about.md` follows `AGENTS.md`
-  § *Text an end user reads* at the first write**, and `python tools/dossier.py --comments <paths>`
+  § *Text an end user reads* at the first write**, and `bun nv proofs --comments <paths>`
   is run over them before the wrap.

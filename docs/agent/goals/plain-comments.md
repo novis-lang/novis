@@ -27,7 +27,7 @@ turns the floor red for every session until the sweep is done.
 
 ## Stage 1 — the floor
 
-Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by the goal switch. Never traded.
 
 ## Stage 2 — the sweep
 
@@ -47,7 +47,7 @@ who has understood the member once rewrites all of its programs with that one un
 
 Add `"comments": true` under `owes.all` in `data/proofs/policy.json`. From then on `owed()` counts
 a feature whose programs leave the bounds, `--gate` names it, and `--id` and a worker's brief say
-which file and which line. Nothing in `tools/dossier.py` changes: the file is the repository's
+which file and which line. Nothing in `tools/nv/proofs/collect.ts` changes: the file is the repository's
 durable answer, exactly as it is for `perf` and `about`.
 
 This is last on purpose. Switched on before Stage 2 is green it fails the floor.
@@ -55,7 +55,7 @@ This is last on purpose. Switched on before Stage 2 is green it fails the floor.
 ## Standing decisions
 
 - **The rule is not reopened here.** `AGENTS.md` § *Text an end user reads* is the standard, and
-  `comment_problems` in `tools/dossier.py` counts the three bounds it states as numbers and reads no
+  `commentProblems` in `tools/nv/proofs/collect.ts` counts the three bounds it states as numbers and reads no
   words. A bound that seems wrong goes in the handoff's `## Backlog`; it is not loosened to pass a
   file.
 - **A comment the check names is written again from the code, never patched.** Read the lines under

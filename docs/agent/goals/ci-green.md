@@ -18,9 +18,9 @@ the account's payments fail, and nothing in the tree changes that. A check that 
 not traded or rewritten to pass, so it moved — whole — to the one place where holding costs nothing,
 which is after the last piece of work that does not need it.
 
-`position: last` in this file's front matter is what keeps it there. `python tools/dossier.py
---emit-goals` appends behind the chain's last goal, so it moves a goal carrying that key back to the
-end of what it appended; `python tools/chain.py --new --end` lands in front of one, and `--check`
+`position: last` in this file's front matter is what keeps it there. The step that appended the
+generated proof goals behind the chain's last goal moved a goal carrying that key back to the end of
+what it appended; `bun nv chain --new <slug> --end` lands in front of one, and `bun nv chain --check`
 fails when one is not last.
 
 **What this spends:** every commit landed while CI is blocked is unproven on the hosted runners. The
@@ -33,7 +33,7 @@ None.
 
 ## Stage 1 — the floor
 
-The last generated goal's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never
+The last generated goal's whole acceptance list, carried in verbatim by the goal switch. Never
 traded.
 
 ## Stage 2 — the run exists, and it is this commit's

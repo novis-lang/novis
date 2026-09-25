@@ -23,13 +23,13 @@ One file set -- the policy file and the example tree -- so this is one group.
       creating `owes` if the file has none. Nothing in `tools/nv/proofs/collect.ts`
       changes: `POLICY` stays the default and the file is the repository's durable
       answer, exactly as it is for `perf`.
-- [ ] **Read what is left.** `python tools/dossier.py --owed` now lists every feature
+- [ ] **Read what is left.** `bun nv proofs --owed` now lists every feature
       with no description, and every description outside 40 to 200 words, opening
       with a heading, or carrying a code block.
 - [ ] **Close it, one feature at a time.** Read the feature's examples first -- they are
       already on disk here, so the description is written to fit them, and where it
       closes with `**The examples below**` it names what they really show, in their
-      order. `python tools/dossier.py --partition --group <G>` fans a large group out.
+      order. `bun nv proofs --owed --group <G>` lists one group at a time.
 
 ## Stage 2 — the description is owed
 

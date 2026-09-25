@@ -26,7 +26,7 @@ bug and is deleted by the session that closes it.
 
 ## Stage 1 — the floor
 
-Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by the goal switch. Never traded.
 
 ## Stage 2 — the handler runs, the keystone
 

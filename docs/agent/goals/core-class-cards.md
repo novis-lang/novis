@@ -11,7 +11,7 @@ classes still owing a card is empty and stays empty — a new class lands with i
 
 The same goal then brings every existing feature up to the *Help* proof ADR 0216 added: `nvs agent
 find` reaches every configuration key, command, flag and diagnostic code, every code carries a plain
-card that `nvs agent show` prints, and `dossier.py` owes *Help* for the whole roster. It is the same
+card that `nvs agent show` prints, and `bun nv proofs` owes *Help* for the whole roster. It is the same
 work as the class cards — a field, a guard with a "still owing" list, and a drain — so it sits here
 rather than in a goal of its own.
 
@@ -27,7 +27,7 @@ lands carded on its own.
 
 ## Stage 1 — the floor
 
-Goal `limit-handler-reach`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `limit-handler-reach`'s whole acceptance list, carried in verbatim by the goal switch. Never traded.
 
 ## Stage 2 — the cards, the keystone
 
@@ -73,7 +73,7 @@ test does. Then drain the list in file order, one band per session. The stage is
 
 **Does:** Makes the Help proof owed by every kind of feature, and writes the help the backlog lists.
 
-`tools/dossier.py` already owes *Help* for a member (its class's card), an enum (its card), and a
+`bun nv proofs` already owes *Help* for a member (its class's card), an enum (its card), and a
 language or tool heading (its section shows code), and every goal from `core-http-response-and-1-more`
 on has written it for its own features. What is left is the backlog and the three kinds still off:
 
@@ -83,7 +83,7 @@ on has written it for its own features. What is left is the backlog and the thre
   `POLICY`.
 - Once stage 3 has landed, set a directive's help from its index entry and switch `help` on for it.
 
-The stage is green when `python tools/dossier.py --gate` says the whole roster owes nothing and the
+The stage is green when `bun nv proofs --gate` says the whole roster owes nothing and the
 help backlog is empty.
 
 ## Standing decisions
