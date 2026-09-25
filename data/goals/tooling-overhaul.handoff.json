@@ -1,25 +1,27 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 98 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\nNo code comment, README, rule, playbook bullet or setup page names a deleted tool (`peek`, `bench`, `bench-load`, `bench-proxied`, `db-matrix`, `origin`) any more. The one file left that does is `docs/agent/commands.md`, which item 1 below rewrites. Frozen records and reached goals' prose still name them, as the audit allows. Only the `disk` parity group is left, so `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes. `proof.py`, `side.py` and the unscoped part of `brief.py` have no port; `bun nv orient --full` is the nearest to the last.\n\nAn untracked `tools/nv/driver/proctree.ts` (and `console.ts`, `transcript.ts`, with `launch.ts` modified) was on disk during this session and is not from any session commit. It looks like by-hand driver work, so leave it alone unless it is committed.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 97 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\n`docs/agent/commands.md` now names only `bun nv` commands. Its passages on the plan, the playbook and the chain describe the ported commands, not the old Python flags. The passages on dossier goal emission, `--partition` fan-out, `proof.py` and the memo-audit sample are gone, because no port has them. Only the `disk` parity group is left, so `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes. `tools/nv/keys/checks.ts` still keys a Python gate on `tools/observe.py`'s record. That branch goes when `observe.py` does.\n\nThe pack printed `docs/agent/loop-goal.md is missing`. The driver still ran, so the pack only warned about it.\n\nAn untracked `tools/nv/driver/proctree.ts` (and `console.ts`, `transcript.ts`, with `launch.ts`, `loop.ts`, `status.ts` and `tools/loop.py` modified) is by-hand driver work and not from any session commit. Leave it alone.",
   "next": {
     "stage": 12,
     "title": "no Python",
     "files": [],
-    "note": "one file set: `docs/agent/commands.md`, `AGENTS.md` and the `bun nv audit python` document list, then the four `.py` files with no port.",
+    "note": "one file set: `AGENTS.md`, then the `bun nv audit python` document list under `docs/agent/`.",
     "items": [
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/commands.md:1` as a whole so it names `bun nv` commands**, as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:656`). It is 108 lines of the audit's list, including every `peek.py` and `bench*.py` line left in the tree (`docs/agent/commands.md:157`, `docs/agent/commands.md:520`, `docs/agent/commands.md:544`). `AGENTS.md` still names `orient.py`, `brief.py`, `dossier.py`, `loop-stats.py`, `plan.py` and `chain.py`. The `bun nv audit python` document list is the rest of that sweep."
+        "text": "**Rename every Python tool in `AGENTS.md` (its line 24 onward) to its `bun nv` port** (`orient.py`, `brief.py`, `dossier.py` → `bun nv proofs`, `loop-stats.py`, `plan.py`, `chain.py`), as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:656`). The rewritten `docs/agent/commands.md:1` is the model for which flags each port has. `brief.py` has no full port, and `bun nv orient --full` is the nearest."
       },
       {
         "done": false,
-        "text": "**Decide the four `.py` files with no port.** `tools/observe.py:1`, `tools/proctree.py:1`, `tools/written.py:1` and `editors/vscode/scripts/mkwoff.py:1`. Their only callers are `docs/agent/commands.md`, `docs/agent/coordinator.md` and `tools/nv/keys/checks.ts`. Port the one a check runs, and delete the rest with the prose that names them. Check whether the untracked `tools/nv/driver/proctree.ts` already is the port before writing one."
+        "text": "**Clear the rest of the `bun nv audit python` document list**, biggest first: `docs/agent/coordinator.md:44` (51 lines), `docs/agent/loop-authoring.md:10` (32), `docs/agent/conventions.md:43` (25), `docs/agent/goals/README.md:6` (19), `docs/agent/doc-cleanup.md:6` (17), then the playbook fragments under `docs/agent/playbook/tooling/`."
+      },
+      {
+        "done": false,
+        "text": "**Decide the four `.py` files with no port**: `tools/observe.py:1` (and its branch in `tools/nv/keys/checks.ts:509`), `tools/proctree.py:1`, `tools/written.py:1`, `editors/vscode/scripts/mkwoff.py:1`, then port `tools/disk.py:1`'s last parity group and delete it with `tools/nv/cmd/parity.ts:1`."
       }
     ]
   },
   "backlog": [
-    "Side goals have no runner since `side.py` went. `docs/agent/goals/README.md` and `docs/agent/coordinator.md` say so. Side goal `mode-startup-switches` waits on it, and whether to port it is the user's call.",
-    "`crates/nvs-stdlib/tests/spec_registry_coverage.rs` and other Rust doc comments still cite `tools/owners.py` and `tools/rules.py`. The audit reads Markdown only, so nothing gates them.",
-    "`bun nv import --check` throws a stack trace (`tools/nv/cmd/import.ts`).",
-    "`bun nv parity disk` differs on every run (`tools/nv/cmd/disk.ts`)."
+    "`proof.py` (the blind-reader proof of `docs/novis.md`) and `side.py` have no port; `docs/agent/goals/tooling-overhaul.md` owns whether they need one.",
+    "The loop prompt still names `dossier.py --partition` as the subagent carve-out, but no port has `--partition` (`docs/agent/session-prompt.md`)."
   ]
 }
