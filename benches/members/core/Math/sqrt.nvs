@@ -1,0 +1,21 @@
+<?nvs
+// Measures a square root, as a program does to find a distance or a standard deviation.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $value = 0.0;
+        float $total = 0.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number used this round depends on last round's result.
+            $value = Core\Math::sqrt($value + 12.0);
+            $total = $total + $value;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

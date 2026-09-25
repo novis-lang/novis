@@ -1,0 +1,35 @@
+<?nvs
+// Attack: `Core\Math::sqrt` is given the far ends of `float`, negative numbers, `NaN`, the
+// infinities and a million calls. Every call should return a number or `NaN`, and the program
+// should run to its end.
+
+// 1. The largest `float`, and the smallest `float` above zero.
+echo Core\Math::sqrt(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::sqrt(5e-324), "\n";
+
+// 2. Negative numbers, from the smallest to the largest. Each result is `NaN`.
+array<float> $negatives = [-5e-324, -1.0, -Core\Math::FLOAT_MAX, -Core\Math::INFINITY];
+foreach ($negatives as float $negative) {
+    echo Core\Math::isNan(Core\Math::sqrt($negative)) ? "NaN\n" : "a number\n";
+}
+
+// 3. Both zeros, infinity and `NaN`.
+echo Core\Math::sqrt(0.0), ' ', Core\Math::sqrt(-0.0), "\n";
+echo Core\Math::sqrt(Core\Math::INFINITY), ' ', Core\Math::sqrt(Core\Math::NAN), "\n";
+
+// 4. The biggest `int`, given where a `float` is expected. A `float` cannot hold it
+// exactly, so that conversion throws an error.
+try {
+    echo Core\Math::sqrt(Core\Math::INT_MAX), "\n";
+} catch (ArithmeticError $tooBig) {
+    echo "not a float\n";
+}
+
+// 5. A million calls. Each result feeds the next one.
+float $total = 0.0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = Core\Math::sqrt($total + 12.0);
+    $round = $round + 1;
+}
+echo $total, "\n";
