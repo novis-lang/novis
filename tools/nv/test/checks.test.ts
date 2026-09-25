@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, checkName, isWide, proofGroups, roleOf, suitesIn, testTargets, units } from "../keys/checks.ts";
+import { type Check, checkName, isWide, proofGroups, recordId, roleOf, spawnParts, suitesIn, testTargets, units } from "../keys/checks.ts";
 import type { Graph, Package } from "../keys/graph.ts";
-import { testBuild } from "../keys/key.ts";
+import { keyOf, testBuild } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
 
 function pkg(name: string, targets: [string, string][]): Package {
@@ -14,7 +14,7 @@ const graph: Graph = new Map([
 ]);
 
 function sources(checks: Check[], wide: string[] = []): Record<string, string> {
-  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), proofReads: new Map() });
+  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), proofReads: new Map(), nvReads: new Map() });
   return Object.fromEntries(us.map((u) => [u.name, u.source]));
 }
 
@@ -77,7 +77,7 @@ describe("the units a key answers for", () => {
 
   test("a proofs group keys on its own recorded paths, and on everything before it has run", async () => {
     const check: Check = { kind: "command", name: "g", argv: ["bun", "nv", "proofs", "--verify", "--group", "lang:types"] };
-    const records = (proofReads: Map<string, string[]>) => ({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), proofReads });
+    const records = (proofReads: Map<string, string[]>) => ({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), proofReads, nvReads: new Map() });
     const tree = await Tree.read();
     const unit = (proofReads: Map<string, string[]>) => units(records(proofReads)).find((u) => u.name === "proofs: lang:types")!;
     expect(isWide(unit(new Map()).parts(tree))).toBe(true);
@@ -85,6 +85,50 @@ describe("the units a key answers for", () => {
     expect(labels).toContain("docs/examples/lang/types/");
     expect(labels).toContain("<conformance>");
     expect(labels).not.toContain("<hostile>");
+  });
+
+  test("a `bun nv` check keys on what it last read, and on everything until it has run", async () => {
+    const check: Check = { kind: "command", name: "plan", argv: ["bun", "nv", "plan", "--check"] };
+    const rec = (spawns: string[][]) => ({ files: ["data/chain.json"], exists: ["docs/plan/m0.md"], dirs: ["data/goals"], spawns });
+    const unit = (nvReads: Map<string, ReturnType<typeof rec>>) =>
+      units({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), proofReads: new Map(), nvReads }).find((u) => u.name === "plan")!;
+    const tree = await Tree.read();
+    expect(unit(new Map()).source).toBe("everything");
+    const seen = unit(new Map([[recordId(".", check.argv as string[]), rec([["git", "ls-files", "-z"]])]]));
+    expect(seen.source).toBe("observed");
+    const key = (t: Tree) => keyOf("plan", seen.parts(t));
+    expect(isWide(seen.parts(tree))).toBe(false);
+    expect(seen.parts(tree).map((p) => p.label)).toContain("tools/nv/cmd/plan.ts");
+    // What it read moves the key, and what it did not read does not.
+    expect(key(tree.edited({ "data/chain.json": "{}" }))).not.toBe(key(tree));
+    expect(key(tree.edited({ "docs/agent/playbook.md": "x" }))).toBe(key(tree));
+    expect(key(tree.edited({ "tools/nv/cmd/webcrypto-vectors.ts": "x" }))).toBe(key(tree));
+    expect(key(tree.edited({ "tools/nv/cmd/plan.ts": "x" }))).not.toBe(key(tree));
+    // A listed directory moves it with a new name, not with new text in a file it never opened.
+    expect(key(tree.edited({ "data/goals/zz-new.json": "{}" }))).not.toBe(key(tree));
+    // A program it cannot key widens it.
+    expect(isWide(unit(new Map([[recordId(".", check.argv as string[]), rec([["git", "log", "-1"]])]])).parts(tree))).toBe(true);
+  });
+
+  test("a key on everything leaves out the handoff a wrap rewrites", async () => {
+    const tree = await Tree.read();
+    const wide = units({ graph, checks: [{ kind: "command", name: "w", argv: ["bun", "nv", "selftest"] }], reads: new Map(), wide: new Set<string>(), proofReads: new Map(), nvReads: new Map() }).find((u) => u.name === "w")!;
+    const key = (t: Tree) => keyOf("w", wide.parts(t));
+    expect(key(tree.edited({ "data/goals/zz-probe.handoff.json": "{}" }))).toBe(key(tree));
+    expect(key(tree.edited({ "docs/agent/playbook.md": "x" }))).not.toBe(key(tree));
+  });
+
+  test("each program a `bun nv` process starts keys on what that program reads", async () => {
+    const tree = await Tree.read();
+    const labels = (argv: string[]) => spawnParts(tree, graph, argv)?.map((p) => p.label) ?? null;
+    expect(labels(["bun", "nv", "peek", "x"])).toEqual([]);
+    expect(labels([process.execPath, `${process.cwd()}/tools/nv/main.ts`, "orient"])).toEqual([]);
+    expect(labels(["git", "ls-files", "-z"])).toEqual(["<names>./"]);
+    expect(labels(["git", "rev-parse", "--show-toplevel"])).toEqual([]);
+    expect(labels(["git", "grep", "-n", "x", "--", "AGENTS.md"])).toEqual(["AGENTS.md"]);
+    expect(labels(["cargo", "metadata", "--format-version", "1"])).toEqual(["<every Cargo.toml>"]);
+    expect(labels(["git", "log", "-1"])).toBeNull();
+    expect(labels(["docker", "ps"])).toBeNull();
   });
 
   test("an unnamed check is named by its file, else by what it runs", () => {

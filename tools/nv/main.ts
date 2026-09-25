@@ -1,58 +1,12 @@
 // `bun nv <command> [args]`: the one entry point of the repository's tools. Each command is a module
 // under `cmd/` exporting a `summary` line and `run(args)`, which returns the exit status. Every command
 // runs with the console held in the modes `lib/tty.ts` names, whatever the programs it starts do to it.
+//
+// A command's module is loaded only when it runs, so what `bun nv <command>` loads is this file, its
+// two imports and that module's own imports: `tools/nv/keys/modules.ts` keys a check on exactly those.
+// When `NV_READS_LOG` names a file, `lib/reads.ts` records what the command reads before it is loaded.
 
-import * as audit from "./cmd/audit.ts";
-import * as bg from "./cmd/bg.ts";
-import * as bench from "./cmd/bench.ts";
-import * as benchLoad from "./cmd/bench-load.ts";
-import * as benchProxied from "./cmd/bench-proxied.ts";
-import * as brief from "./cmd/brief.ts";
-import * as chain from "./cmd/chain.ts";
-import * as check from "./cmd/check.ts";
-import * as ciChanges from "./cmd/ci-changes.ts";
-import * as ciGreen from "./cmd/ci-green.ts";
-import * as classCards from "./cmd/class-cards.ts";
-import * as dbMatrix from "./cmd/db-matrix.ts";
-import * as decisions from "./cmd/decisions.ts";
-import * as directives from "./cmd/directives.ts";
-import * as disk from "./cmd/disk.ts";
-import * as exeIcons from "./cmd/exe-icons.ts";
-import * as gaps from "./cmd/gaps.ts";
-import * as genAttribution from "./cmd/gen-attribution.ts";
-import * as goal from "./cmd/goal.ts";
-import * as guard from "./cmd/guard.ts";
-import * as holes from "./cmd/holes.ts";
-import * as impact from "./cmd/impact.ts";
-import * as importCmd from "./cmd/import.ts";
-import * as layout from "./cmd/layout.ts";
-import * as links from "./cmd/links.ts";
-import * as lints from "./cmd/lints.ts";
-import * as loop from "./cmd/loop.ts";
-import * as loopStats from "./cmd/loop-stats.ts";
-import * as machine from "./cmd/machine.ts";
-import * as migration from "./cmd/migration.ts";
-import * as owners from "./cmd/owners.ts";
-import * as peek from "./cmd/peek.ts";
-import * as plan from "./cmd/plan.ts";
-import * as playbook from "./cmd/playbook.ts";
-import * as proofs from "./cmd/proofs.ts";
-import * as query from "./cmd/query.ts";
-import * as records from "./cmd/records.ts";
-import * as reference from "./cmd/reference.ts";
-import * as release from "./cmd/release.ts";
-import * as relink from "./cmd/relink.ts";
-import * as orient from "./cmd/orient.ts";
-import * as origin from "./cmd/origin.ts";
-import * as render from "./cmd/render.ts";
-import * as rules from "./cmd/rules.ts";
-import * as selftest from "./cmd/selftest.ts";
-import * as session from "./cmd/session.ts";
-import * as splice from "./cmd/splice.ts";
-import * as tryCmd from "./cmd/try.ts";
-import * as verify from "./cmd/verify.ts";
-import * as webcryptoVectors from "./cmd/webcrypto-vectors.ts";
-import * as why from "./cmd/why.ts";
+import { ENV as READS_ENV, install } from "./lib/reads.ts";
 import { holdConsole } from "./lib/tty.ts";
 
 interface Command {
@@ -60,24 +14,78 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, "bench-load": benchLoad, "bench-proxied": benchProxied, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, machine, migration, orient, origin, owners, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, "webcrypto-vectors": webcryptoVectors, why };
+const COMMANDS: Record<string, () => Promise<Command>> = {
+  audit: () => import("./cmd/audit.ts"),
+  bench: () => import("./cmd/bench.ts"),
+  "bench-load": () => import("./cmd/bench-load.ts"),
+  "bench-proxied": () => import("./cmd/bench-proxied.ts"),
+  bg: () => import("./cmd/bg.ts"),
+  brief: () => import("./cmd/brief.ts"),
+  chain: () => import("./cmd/chain.ts"),
+  check: () => import("./cmd/check.ts"),
+  "ci-changes": () => import("./cmd/ci-changes.ts"),
+  "ci-green": () => import("./cmd/ci-green.ts"),
+  "class-cards": () => import("./cmd/class-cards.ts"),
+  "db-matrix": () => import("./cmd/db-matrix.ts"),
+  decisions: () => import("./cmd/decisions.ts"),
+  directives: () => import("./cmd/directives.ts"),
+  disk: () => import("./cmd/disk.ts"),
+  "exe-icons": () => import("./cmd/exe-icons.ts"),
+  gaps: () => import("./cmd/gaps.ts"),
+  "gen-attribution": () => import("./cmd/gen-attribution.ts"),
+  goal: () => import("./cmd/goal.ts"),
+  guard: () => import("./cmd/guard.ts"),
+  holes: () => import("./cmd/holes.ts"),
+  impact: () => import("./cmd/impact.ts"),
+  import: () => import("./cmd/import.ts"),
+  layout: () => import("./cmd/layout.ts"),
+  links: () => import("./cmd/links.ts"),
+  lints: () => import("./cmd/lints.ts"),
+  loop: () => import("./cmd/loop.ts"),
+  "loop-stats": () => import("./cmd/loop-stats.ts"),
+  machine: () => import("./cmd/machine.ts"),
+  migration: () => import("./cmd/migration.ts"),
+  orient: () => import("./cmd/orient.ts"),
+  origin: () => import("./cmd/origin.ts"),
+  owners: () => import("./cmd/owners.ts"),
+  peek: () => import("./cmd/peek.ts"),
+  plan: () => import("./cmd/plan.ts"),
+  playbook: () => import("./cmd/playbook.ts"),
+  proofs: () => import("./cmd/proofs.ts"),
+  query: () => import("./cmd/query.ts"),
+  records: () => import("./cmd/records.ts"),
+  reference: () => import("./cmd/reference.ts"),
+  release: () => import("./cmd/release.ts"),
+  relink: () => import("./cmd/relink.ts"),
+  render: () => import("./cmd/render.ts"),
+  rules: () => import("./cmd/rules.ts"),
+  selftest: () => import("./cmd/selftest.ts"),
+  session: () => import("./cmd/session.ts"),
+  splice: () => import("./cmd/splice.ts"),
+  try: () => import("./cmd/try.ts"),
+  verify: () => import("./cmd/verify.ts"),
+  "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),
+  why: () => import("./cmd/why.ts"),
+};
 
-function usage(): void {
+async function usage(): Promise<void> {
   console.log("usage: bun nv <command> [args]\n");
   const width = Math.max(...Object.keys(COMMANDS).map((n) => n.length));
-  for (const [name, cmd] of Object.entries(COMMANDS)) console.log(`  ${name.padEnd(width)}  ${cmd.summary}`);
+  for (const [name, load] of Object.entries(COMMANDS)) console.log(`  ${name.padEnd(width)}  ${(await load()).summary}`);
 }
 
+const log = process.env[READS_ENV];
+if (log) install(log);
 holdConsole();
 const [name, ...args] = process.argv.slice(2);
 if (name === undefined || name === "help" || name === "--help" || name === "-h") {
-  usage();
+  await usage();
   process.exit(name === undefined ? 2 : 0);
 }
-const cmd = COMMANDS[name];
-if (!cmd) {
+const load = COMMANDS[name];
+if (!load) {
   console.error(`nv: no command ${name}\n`);
-  usage();
+  await usage();
   process.exit(2);
 }
-process.exit(await cmd.run(args));
+process.exit(await (await load()).run(args));

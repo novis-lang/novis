@@ -15,9 +15,13 @@
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
 //   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
 // - `observed`: a check over what it was last seen to read. A proofs group, the unit `proofs: <group>` for
-//   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, what the
-//   roster and the audit read for every group, and the example, attack and bench paths `nv proofs`
-//   last recorded for that group. A check that names groups is the union of its groups.
+//   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, the
+//   `nv proofs` modules, what the roster and the audit read for every group, and the example, attack
+//   and bench paths `nv proofs` last recorded for that group. A check that names groups is the union of
+//   its groups. Any other `bun nv` check keys on the modules its command loads (`modules.ts`) and on
+//   what its processes read, tested, listed and started when the sweep last ran it (`lib/reads.ts`);
+//   it keys on everything until it has run once, and whenever it started a program `spawnParts`
+//   cannot key.
 // - `partitions`: a check whose reads are whole directories or files it names.
 // - `everything`: anything else, and every doubt.
 //
@@ -26,17 +30,19 @@
 // `cargo test` argument list its script writes, and an integration test among them builds its
 // package's library without its test modules. The matrix is `bun nv db-matrix`, and its lists are
 // read from that command's module. Both key on what runs them, every `Cargo.toml` and `examples/`,
-// and the matrix on `tests/db/` too. What runs the matrix is the whole `nv` program, since
-// `tools/nv/main.ts` loads every command.
+// and the matrix on `tests/db/` too. What runs the matrix is the `nv db-matrix` command's modules.
 //
 // A probe names units by `<role>: <name>`, and `roleOf` says what a check's role is.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { abs } from "../lib/paths.ts";
+import type { Reads } from "../lib/reads.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
-import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
+import { NV_MANIFESTS, commandModules } from "./modules.ts";
+import { OTHER, PARTITIONS, partitionOf } from "./partition.ts";
 import { TIERS, digest } from "./scan.ts";
 import type { Tree } from "./tree.ts";
 
@@ -69,12 +75,16 @@ export interface Records {
   wide: Set<string>;
   /** Each proofs group's own paths, as `nv proofs` last recorded them. */
   proofReads: Map<string, string[]>;
+  /** What each `bun nv` check's processes read when it last ran, by `recordId`. */
+  nvReads: Map<string, Reads>;
 }
 
 const READS = ".agent-tmp/impact-reads.json";
 const WIDE = "tools/data/impact-wide.txt";
 /** Each proofs group's example and attack directories and bench file, which `nv proofs` writes. */
 export const PROOF_READS = ".loop/proof-reads.json";
+/** What each `bun nv` check read when it last ran, which the sweep writes (`lib/reads.ts`). */
+export const NV_READS = ".loop/nv-reads.json";
 
 /** The two memos that are a whole leg rather than a check, keyed like a program. */
 export const LEGS = ["wsl leg", "valgrind sweep"];
@@ -86,14 +96,16 @@ const PROGRAM_READS = ["docs", "examples", "tests"];
 const NVS_COMMAND_READS = ["docs", "examples", ...TEST_TREES];
 /** The case trees whose verdicts `verify` keeps. */
 const VERIFY_TREES = ["tests/conformance", "tests/differential"];
-/** Every partition, for a unit keyed on everything. */
-export const EVERYTHING = [...Object.keys(PARTITIONS), OTHER, STATE];
+/** Every partition a unit keyed on everything reads. `state` is not one: a wrap rewrites it every
+ * session, nothing under `crates/` opens it, and a `bun nv` check that reads it keys on it through the
+ * reads it was seen to make. */
+export const EVERYTHING = [...Object.keys(PARTITIONS), OTHER];
+/** The part that marks a key on everything. Its digest is constant, so it moves no key. */
+const WIDE_MARK: Part = { label: "<everything>", partition: OTHER, tier: "raw", digest: "everything" };
 
 const FUZZ = "cargo +nightly fuzz run";
 const TSAN = "tools/tsan.sh";
 const DB_MATRIX = "tools/nv/cmd/db-matrix.ts";
-/** What `bun nv <command>` runs besides the command's own module. */
-const NV_PROGRAM = ["tools/nv", "package.json", "bun.lock", "tsconfig.json"];
 
 function readJson(rel: string): unknown {
   try {
@@ -134,7 +146,35 @@ export function loadRecords(graph: Graph, live = true): Records {
       if (Array.isArray(v)) proofReads.set(group, v.filter((p): p is string => typeof p === "string"));
     }
   }
-  return { graph, checks: doc.check ?? [], reads, wide, proofReads };
+  const nvReads = new Map<string, Reads>();
+  const logged = readJson(NV_READS);
+  if (logged && typeof logged === "object") {
+    for (const [id, v] of Object.entries(logged as Record<string, Partial<Reads>>)) {
+      if (v && Array.isArray(v.files) && Array.isArray(v.exists) && Array.isArray(v.dirs) && Array.isArray(v.spawns)) nvReads.set(id, v as Reads);
+    }
+  }
+  return { graph, checks: doc.check ?? [], reads, wide, proofReads, nvReads };
+}
+
+/** Where a `bun nv` check's reads are kept: its directory and its argument list. */
+export function recordId(cwd: string, argv: string[]): string {
+  return [cwd, ...argv].join("\0");
+}
+
+/** Keeps what one run of a `bun nv` check read, in place of what it read before. */
+export function saveNvReads(id: string, reads: Reads): void {
+  const got = readJson(NV_READS);
+  const all = got && typeof got === "object" && !Array.isArray(got) ? (got as Record<string, Reads>) : {};
+  all[id] = reads;
+  try {
+    // Written beside and renamed over, so a reader never parses half a file.
+    const path = abs(NV_READS);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(`${path}.${process.pid}`, `${JSON.stringify(all)}\n`);
+    renameSync(`${path}.${process.pid}`, path);
+  } catch {
+    // A record that cannot be kept leaves the check keyed on everything, which is never unsafe.
+  }
 }
 
 /** A check's name, as the driver files its verdict: its `name`, else its `file`, else what it runs. */
@@ -205,13 +245,13 @@ function manifests(tree: Tree): Part[] {
   });
 }
 
-/** Is this a key on everything? Only `everything` puts the `state` partition in a key. */
+/** Is this a key on everything? Only `everything` puts its mark in a key. */
 export function isWide(parts: Part[]): boolean {
-  return parts.some((p) => p.label === `<${STATE}>`);
+  return parts.some((p) => p.label === WIDE_MARK.label);
 }
 
 function everything(tree: Tree): Part[] {
-  return cached(tree, "everything", () => EVERYTHING.flatMap((p) => partition(tree, p)));
+  return cached(tree, "everything", () => [WIDE_MARK, ...EVERYTHING.flatMap((p) => partition(tree, p))]);
 }
 
 function build(tree: Tree, graph: Graph, b: Build): Part[] {
@@ -277,9 +317,9 @@ export function proofGroups(c: Check): string[] | undefined {
   return groups.length > 0 ? groups : undefined;
 }
 
-/** What `nv proofs` reads for every group: its own code and runtime, the policy, the help backlog and
+/** What `nv proofs` reads for every group besides its own modules: the policy, the help backlog and
  * the perf ledger. */
-const PROOF_INPUTS = ["tools/nv", "package.json", "bun.lock", "data/proofs", "docs/perf/members.ndjson"];
+const PROOF_INPUTS = ["data/proofs", "docs/perf/members.ndjson"];
 /** The partitions it reads for every group: the roster's chapters and spec, the registry and its tables,
  * and each `covers:` marker and plain call in the case trees and in `crates/`. */
 const PROOF_PARTITIONS = ["crates", "crate-tests", "docs", "conformance", "differential"];
@@ -291,9 +331,91 @@ function proofParts(tree: Tree, r: Records, group: string): Part[] {
   if (!own) return everything(tree);
   return union(
     build(tree, r.graph, program("shipped")),
+    nvProgram(tree, "proofs"),
     ...PROOF_PARTITIONS.map((p) => partition(tree, p)),
     ...[...PROOF_INPUTS, ...own].map((p) => path(tree, p)),
   );
+}
+
+/** What `bun nv <name>` is loaded from: its modules and the manifests. Everything when no command has
+ * that name. */
+function nvProgram(tree: Tree, name: string): Part[] {
+  return cached(tree, `nv\0${name}`, () => {
+    const mods = commandModules(tree, name);
+    if (mods === null) return everything(tree);
+    return union(...[...mods, ...NV_MANIFESTS].map((p) => path(tree, p)));
+  });
+}
+
+/** Whether `p` is a file, a directory or absent, and nothing about what it holds. */
+function exists(tree: Tree, p: string): Part[] {
+  const d = p === "." ? "dir" : tree.has(p) ? "file" : tree.under(p).length > 0 ? "dir" : "absent";
+  return [{ label: `<exists>${p}`, partition: partitionOf(p), tier: "raw", digest: d }];
+}
+
+/** The name of every file under the directory `d`, and nothing about what they hold. */
+function names(tree: Tree, d: string): Part[] {
+  return cached(tree, `names\0${d}`, () => {
+    const files = d === "." ? tree.files : tree.under(d);
+    return [{ label: `<names>${d}/`, partition: d === "." ? OTHER : partitionOf(`${d}/`), tier: "raw", digest: digest(d, ...files) }];
+  });
+}
+
+const BUILT_CLI = /^target\/[^/]+\/nvs(?:\.exe)?$/;
+
+/** What a program a `bun nv` check started reads, or null when this cannot say, and the check keys on
+ * everything. Another `bun nv` process records its own reads into the same log, so it adds nothing. */
+export function spawnParts(tree: Tree, graph: Graph, argv: string[]): Part[] | null {
+  const exe = (argv[0] ?? "").replace(/\\/g, "/");
+  const name = exe.slice(exe.lastIndexOf("/") + 1).replace(/\.exe$/i, "").toLowerCase();
+  const args = argv.slice(1);
+  const sub = args.find((a) => !a.startsWith("-") && !a.startsWith("+"));
+  const pair = (flag: string, value: string) => args.some((a, i) => a === flag && args[i + 1] === value);
+  if (name === "bun") {
+    if (args[0] === "nv" || (args[0] === "run" && args[1] === "nv")) return [];
+    const script = (args.find((a) => !a.startsWith("-")) ?? "").replace(/\\/g, "/");
+    return script.endsWith("tools/nv/main.ts") ? [] : null;
+  }
+  if (name === "git") {
+    if (sub === "ls-files" || sub === "check-ignore") return names(tree, ".");
+    if (sub === "config") return [];
+    if (sub === "rev-parse" && args.every((a) => a === "rev-parse" || /^--(show-toplevel|show-prefix|git-dir|is-inside-work-tree)$/.test(a))) return [];
+    if (sub === "grep" && args.includes("--")) {
+      const specs = args.slice(args.indexOf("--") + 1);
+      if (specs.length > 0 && specs.every((s) => !/[*?[:]/.test(s))) return union(...specs.map((s) => path(tree, s.replace(/\/+$/, ""))));
+    }
+    return null;
+  }
+  if (name === "rustc") return [{ label: "<rustc>", partition: "toolchain", tier: "raw", digest: digest(tree.toolchain) }];
+  if (name === "cargo") {
+    if (sub === "metadata") return manifests(tree);
+    if (sub === "build" && (pair("-p", "nvs-cli") || pair("--bin", "nvs"))) return programParts(tree, graph, NVS_COMMAND_READS, "shipped");
+    return null;
+  }
+  const rel = /^[A-Za-z]:\//.test(exe) || exe.startsWith("/") ? relPath(exe) : exe;
+  return rel !== null && BUILT_CLI.test(rel) ? programParts(tree, graph, NVS_COMMAND_READS, "shipped") : null;
+}
+
+/** An absolute path as repo-relative, or null outside the repository. */
+function relPath(p: string): string | null {
+  const root = abs(".").replace(/\\/g, "/").replace(/\/$/, "");
+  return p.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? p.slice(root.length + 1) : null;
+}
+
+/** A `bun nv` check's parts over what it read when it last ran: its command's modules, each file it
+ * read, each path it tested, each directory it listed, and what each program it started reads. A file
+ * that is a directory in the tree was only ever `stat`ed, so it is keyed on its existence. */
+function nvParts(tree: Tree, graph: Graph, name: string, rec: Reads): Part[] {
+  const lists: Part[][] = [nvProgram(tree, name)];
+  for (const f of rec.files) lists.push(!tree.has(f) && tree.under(f).length > 0 ? exists(tree, f) : path(tree, f));
+  for (const f of rec.exists) lists.push(exists(tree, f));
+  for (const d of rec.dirs) lists.push(names(tree, d));
+  for (const argv of rec.spawns) {
+    const got = spawnParts(tree, graph, argv);
+    if (got === null) return everything(tree);
+    lists.push(got);
+  }
+  return union(...lists);
 }
 
 /** A test binary's parts. Its name is `<package> <kind> <target>`, as `testBinaries` writes it. */
@@ -453,12 +575,19 @@ function checkUnit(r: Records, c: Check): Unit {
     return unit("package key", (t) => {
       const builds = suitesIn(t, g, DB_MATRIX);
       if (builds.length === 0) return everything(t);
-      return union(...builds.map((b) => build(t, g, b)), ...NV_PROGRAM.map((p) => path(t, p)), manifests(t), path(t, "examples"), path(t, "tests/db"));
+      return union(...builds.map((b) => build(t, g, b)), nvProgram(t, "db-matrix"), manifests(t), path(t, "examples"), path(t, "tests/db"));
     });
   }
 
   const groups = proofGroups(c);
   if (groups) return unit("observed", (t) => union(...groups.map((gr) => proofParts(t, r, gr))));
+
+  // Any other `bun nv` check keys on what it read when it last ran, and on everything until it has.
+  if (argv[0] === "bun" && argv[1] === "nv") {
+    const rec = r.nvReads.get(recordId(cwd, argv));
+    if (rec !== undefined) return unit("observed", (t) => nvParts(t, g, argv[2] ?? "", rec));
+    return wide;
+  }
 
   // A `git grep` over literal paths reads those paths and nothing else.
   if (argv[0] === "git" && argv[1] === "grep" && argv.includes("--")) {

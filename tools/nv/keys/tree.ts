@@ -11,11 +11,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { run } from "../lib/proc.ts";
-import { ROOT, abs } from "../lib/paths.ts";
+import { NOT_INPUTS, ROOT, abs } from "../lib/paths.ts";
 import { type Analysis, type Tier, SCANNER, analyse, digest } from "./scan.ts";
-
-/** Directories that are never an input wherever they appear. */
-export const NOT_INPUTS = new Set([".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test", "__pycache__"]);
 
 const MEMO = join(ROOT, ".agent-tmp", "nv-key-tiers.json");
 

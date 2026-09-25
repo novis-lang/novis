@@ -25,6 +25,9 @@
 // profile. A fixture tier runs to its end and reports its reds as one line, earliest stage first. An
 // `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
 //
+// A `bun nv` check runs with `NV_READS_LOG` set, and what its processes read is kept in
+// `.loop/nv-reads.json` for its next key (`lib/reads.ts`, `keys/checks.ts`).
+//
 // `GreenMemo` remembers a green check under its id and the key `nv why` prints for it, which is every
 // input the check reads. The memo answers a check green only while that key is unchanged. A check with
 // `memoize = false` reads something outside the tree, so the memo never answers it. A suite below its
@@ -34,10 +37,12 @@
 // `driver/legs.ts`'s, run after these tiers. A sweep does not reuse `nv verify`'s green test records: a
 // test a check names runs here whatever `verify` last found.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { recordId, saveNvReads } from "../keys/checks.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
+import { ENV as READS_ENV, readLog } from "../lib/reads.ts";
 import { linked, releaseCli } from "../lib/relink.ts";
 
 /** A check as the goal record holds it. */
@@ -301,6 +306,21 @@ async function capture(argv: string[], cwd: string = ROOT, env?: Record<string, 
   }
 }
 
+let logs = 0;
+
+/** Runs a `bun nv` check with what its processes read recorded (`lib/reads.ts`), and keeps the record
+ * for the check's next key. A run that leaves no record keeps the one before. */
+async function recorded(argv: string[], cwd: string): Promise<Outcome> {
+  const log = join(ROOT, ".loop", "reads", `nv-${process.pid}-${++logs}.ndjson`);
+  mkdirSync(dirname(log), { recursive: true });
+  rmSync(log, { force: true });
+  const r = await capture(argv, join(ROOT, cwd), { [READS_ENV]: log });
+  const reads = readLog(log);
+  rmSync(log, { force: true });
+  if (reads !== null) saveNvReads(recordId(cwd, argv), reads);
+  return r;
+}
+
 export interface SweepOptions {
   /** A check's stage as the ledger prints it, `9 the cutover`. */
   stageLabel: (n: number) => string;
@@ -447,7 +467,8 @@ export class Sweep {
         if (built.code !== 0) return none(`${label}: the release build failed -- ${firstErrLine(built)}`);
       }
       const cwd = c.cwd ?? ".";
-      const r = await this.once(`cmd\0${cwd}\0${argv.join("\0")}`, argv.join(" "), () => capture(argv, join(ROOT, cwd)));
+      const nv = argv[0] === "bun" && argv[1] === "nv";
+      const r = await this.once(`cmd\0${cwd}\0${argv.join("\0")}`, argv.join(" "), () => (nv ? recorded(argv, cwd) : capture(argv, join(ROOT, cwd))));
       return none(judgeCommand(c, r, label));
     }
 

@@ -178,11 +178,11 @@
       },
       "rerun": [
         "^nv: proofs: Core\\\\Arr ",
-        "^nv: proofs: every program this goal writes or rewrites carries comments",
         "^nv: chain: every goal is walkable and its manifest resolves"
       ],
       "keep": [
-        "^nv: proofs: (?!Core\\\\Arr )"
+        "^nv: proofs: (?!Core\\\\Arr$)\\S+$",
+        "^nv: proofs: every program this goal writes or rewrites carries comments"
       ]
     },
     {
@@ -197,7 +197,7 @@
         "^nv: one proofs run verifies several groups$"
       ],
       "keep": [
-        "^nv: proofs: (?!lang:types$)"
+        "^nv: proofs: (?!lang:types$)\\S+$"
       ]
     },
     {

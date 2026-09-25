@@ -7,7 +7,8 @@
 // `docs/agent/goals/`, which one crate test walks; `prose` is the rest of `docs/`, which nothing
 // under `crates/` opens. The case trees under `tests/` are each their own partition, `tests` is what
 // is left of it, and `bench-members` is `benches/members/`, which only the bench tools read. The
-// files a wrap rewrites every session are `state`. Any other top-level entry is `other`.
+// files a wrap rewrites every session are `state`, which no key reads as a whole: a check that reads
+// one names it. Any other top-level entry is `other`.
 
 export const PARTITIONS: Record<string, readonly string[]> = {
   crates: ["crates", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rustfmt.toml", "deny.toml", "nvs.toml", "LICENSE", "THIRD-PARTY-LICENSES.txt"],
