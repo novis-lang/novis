@@ -3,4 +3,4 @@
   which sets no locale, and silently fails to match `🤖 Generated with [...]` when git itself runs
   it. Run a hook's test the way *git* invokes it, and locate a phrase with `match()` and ask a
   pure-ASCII question about the text before it rather than stepping a character class across
-  multibyte input. [until: reviewed 2026-09-06]
+  multibyte input. [until: gone tools/git-hooks/commit-msg:awk]

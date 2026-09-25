@@ -5,4 +5,4 @@
   `docs/rules/packaging.md` — `git show HEAD:<file>` showed the line unchanged, so "this session's"
   was about which resolver ran rather than about the diff. Write a fragment's links to resolve from
   the *chapter*, `python tools/rules.py --render`, and confirm with `python tools/check-links.py`.
-  [until: reviewed 2026-09-07]
+  [until: gone tools/nv/cmd/rules.ts:--render]

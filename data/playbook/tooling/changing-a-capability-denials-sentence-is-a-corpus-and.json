@@ -6,10 +6,11 @@
     "docs/reference/lang/70-errors.md",
     "docs/reference/lang/80-concurrency.md",
     "docs/reference/tools/20-config.md",
-    "docs/novis.md"
+    "docs/novis.md",
+    "crates/nvs-runtime/src/capability.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-09"
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/capability.rs:which is not granted"
   }
 }

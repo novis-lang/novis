@@ -2,4 +2,4 @@
   the space after it.** `pub const ` → `pub(crate) const ` arrives as `pub(crate) constMAGIC`, and
   the same edit re-applied to repair it is refused as "old and new are identical" because the tool
   compares the stripped strings. Include the following identifier in both halves, or write the run
-  as one `bun nv splice --patch` file. [until: reviewed 2026-09-06]
+  as one `bun nv splice --patch` file. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]

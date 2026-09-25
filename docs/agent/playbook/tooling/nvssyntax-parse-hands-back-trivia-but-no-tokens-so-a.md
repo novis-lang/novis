@@ -4,4 +4,4 @@
   tiling `crates/nvs-fmt/src/print.rs` walks. It is enough to rewrite whitespace and comments and it is
   not enough to *insert* a space inside `$a+$b`, so the first rule that needs token boundaries either
   puts them in `Parsed` beside the trivia — which `Lexer::with_trivia`'s own doc anticipates — or reads
-  them from `nvs_syntax::tokenize`. [until: reviewed 2026-09-12]
+  them from `nvs_syntax::tokenize`. [until: gone crates/nvs-fmt/src/print.rs:nvs_syntax::parse]

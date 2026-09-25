@@ -2,4 +2,4 @@
   argument that *starts* with a slash into a Win32 path before the process sees it, so `file.rs:/fn
   foo/` arrives as `file.rs;C:/Program Files/Git/fn foo/` and the tool reports no such file; quoting
   does not help, because the conversion happens in argv handling. The same trap catches any tool
-  argument spelled as a leading-slash path. [until: reviewed 2026-09-06]
+  argument spelled as a leading-slash path. [until: gone tools/peek.py:re:]

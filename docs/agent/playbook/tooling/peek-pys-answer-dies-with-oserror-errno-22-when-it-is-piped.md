@@ -2,4 +2,4 @@
   under it and Python reports the broken write as a traceback on top of a partial answer, so a call that
   looked like a narrow read comes back as a crash with no usable result. Narrow the target instead — a
   `:NN-NN` window, a `re:pat:3`, a `--locate` — rather than trimming a wide answer downstream.
-  [until: reviewed 2026-09-13]
+  [until: gone tools/peek.py:--locate]

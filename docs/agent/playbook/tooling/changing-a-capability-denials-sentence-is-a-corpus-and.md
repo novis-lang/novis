@@ -7,4 +7,4 @@
   `docs/reference/tools/20-config.md`, which `nv verify`'s `reference` leg runs and
   which owe `python tools/reference.py --no-examples` for `docs/novis.md` in the same commit. Budget
   the pass as the slice itself, and price any design that leaves `$e->message` alone against it
-  before choosing. [until: reviewed 2026-09-09]
+  before choosing. [until: gone crates/nvs-runtime/src/capability.rs:which is not granted]

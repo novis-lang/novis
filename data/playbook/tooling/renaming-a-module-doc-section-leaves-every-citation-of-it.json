@@ -8,7 +8,7 @@
     "docs/agent/goals/"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-14"
+    "kind": "gone",
+    "arg": "crates/nvs-server/src/lib.rs:§"
   }
 }

@@ -1,9 +1,11 @@
 {
   "lead": "`cargo test` does not always relink `target/debug/nvs.exe`.",
   "body": "A stale binary reports a member you just registered as `mixed`, which reads as a registry bug. Run `cargo build` before running a fixture or a `.nvst` case by hand.",
-  "files": [],
+  "files": [
+    "AGENTS.md"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "AGENTS.md:cargo build"
   }
 }

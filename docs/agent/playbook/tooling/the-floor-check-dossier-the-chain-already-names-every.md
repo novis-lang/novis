@@ -1,6 +1,0 @@
-- **The floor check `dossier: the chain already names every emitted goal` turns red on its own the
-  session a reference chapter grows a heading.** A heading under `docs/reference/` *is* a feature
-  (`rule:testing/roster-is-derived`), so features nobody planned become owed and unclaimed, and the
-  ledger's "lacks ... nothing appended" reads exactly like unwritten work. Run `python
-  tools/dossier.py --emit-goals` and stage `docs/agent/goals/` whole: it appends the goal, renumbers
-  the `position: last` tail and leaves the live goal alone. [until: reviewed 2026-09-22]

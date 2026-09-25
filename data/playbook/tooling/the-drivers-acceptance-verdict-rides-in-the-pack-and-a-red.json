@@ -1,9 +1,0 @@
-{
-  "lead": "The driver's acceptance verdict rides in the pack, and a red one outranks your item.",
-  "body": "`orient.py`'s RUN section prints the last `goal check:` line out of `.loop/log.md`, and because the check short-circuits at its first failure, everything after a red line is unmeasured rather than green — a line repeating verbatim across sessions *is* the work, whatever the handoff says. A check naming a test that \"did not run\" is an open item; any other failure is a regression the run cannot end under, and `python tools/loop.py --goal-only` re-runs the check in one call.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

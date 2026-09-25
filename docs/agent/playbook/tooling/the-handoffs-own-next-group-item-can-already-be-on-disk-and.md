@@ -4,4 +4,4 @@
   exist. Before writing a line: `git log --oneline -S '<the symbol>'`, `python tools/peek.py
   --locate <test name>` then `cargo test -p <crate> <name>`, or run the check's `cases` ahead of the
   failing one, since acceptance names only the *first* thing missing; then say "already landed" in
-  the next handoff. [until: reviewed 2026-09-06]
+  the next handoff. [until: gone tools/nv/cmd/orient.ts:YOUR ITEM]

@@ -3,4 +3,4 @@
   in the same call that added it, because the needle read `bytes round trip` where
   `crates/nvs-stdlib/src/uuid.rs` writes `` `bytes` round trip ``. Copy the needle out of the file it
   watches, or point it at a plain-text state such as `owner: unowned` instead.
-  [until: reviewed 2026-09-10]
+  [until: gone tools/nv/cmd/playbook.ts:holds]

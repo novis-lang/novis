@@ -3,4 +3,4 @@
   the later call, so the one line needing a fix is the one line that cannot be addressed. Write such a
   character as code — `String.fromCodePoint(0xe000)` — from the start, and if a raw one is already on
   disk, `git restore <file>` and redo the edit rather than hunting for an anchor.
-  [until: reviewed 2026-09-12]
+  [until: gone AGENTS.md:A shell never carries file content]

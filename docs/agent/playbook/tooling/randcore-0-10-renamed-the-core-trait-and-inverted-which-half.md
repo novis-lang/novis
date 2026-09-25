@@ -4,4 +4,4 @@
   two errors for one mistake. Implement `TryRng`'s three `try_*` methods and take `Rng` and
   `rand::RngExt` for free; `RngExt` needs a `Sized` receiver, so `&mut dyn rand::Rng` offers only
   `next_u64`, which is what `crates/nvs-stdlib/src/random.rs`'s `Generator` newtype is for.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/random.rs:rand::RngExt]

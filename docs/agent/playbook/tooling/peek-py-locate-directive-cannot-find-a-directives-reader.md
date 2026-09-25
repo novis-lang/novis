@@ -3,4 +3,4 @@
   anything in the tree" for a whole goal on that evidence, while `Ctx::output_limit` had been reading
   it through `configured_bytes("max_output")` since it landed. Locate a *symbol*; find a directive
   with `peek.py "crates/**/*.rs:re:<key>"`, which reads the string literals too.
-  [until: reviewed 2026-09-10]
+  [until: gone tools/peek.py:--locate]

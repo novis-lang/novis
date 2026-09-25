@@ -3,4 +3,4 @@
   over a second crate whose test has never been written is the same slice's, and the driver stops at
   the first failure, holding the whole acceptance list at that stage. One `grep -n -i <topic>
   docs/agent/loop-goal.toml` before starting lists every check the slice owes.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/orient.ts:YOUR ITEM]

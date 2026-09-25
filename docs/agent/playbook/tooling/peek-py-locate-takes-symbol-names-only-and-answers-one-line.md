@@ -5,4 +5,4 @@
   `NOT FOUND` for it rather than scoping the search — while a `file.rs:@Type::method` target answers
   "no definition or mention" for a method that is right there. For a name a file carries twice, one
   `grep -n 'fn <name>' <file>` names both and is the only form that does.
-  [until: reviewed 2026-09-08]
+  [until: gone tools/peek.py:--locate]

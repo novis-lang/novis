@@ -3,4 +3,4 @@
   a crate you barely touched are the tell; `git status --short` and `git diff --stat` say whose each
   change is. Where one file carries both writers' work, write your own hunk to a patch with the Write
   tool, `git apply --cached --recount` it, and leave that path out of the wrap's `## commit:` list,
-  which stages whole files. [until: reviewed 2026-10-17]
+  which stages whole files. [until: gone tools/nv/cmd/orient.ts:A LOOP DRIVER HOLDS THIS TREE]

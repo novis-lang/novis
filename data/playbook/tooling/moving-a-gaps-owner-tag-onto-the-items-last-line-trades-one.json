@@ -1,9 +1,0 @@
-{
-  "lead": "Moving a gap's owner tag onto the item's last line trades one `owners.py` failure for the next one.",
-  "body": "The repair two bullets up makes the tag *readable*, and what it then reads is `unowned`, which `--reasons` refuses until `carried-gaps.md` § *Unowned* carries a bullet naming that module's path — so a session that fixed the paragraph placement and stopped leaves the same floor check red for a different reason. Re-run `python tools/owners.py --check --reasons` after the repair, never the bare `--check`, and distrust a handoff that calls the floor green without quoting the tool.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-11"
-  }
-}

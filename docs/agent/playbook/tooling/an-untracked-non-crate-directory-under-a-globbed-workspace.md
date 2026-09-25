@@ -1,6 +1,0 @@
-- **An untracked non-crate *directory* under a globbed workspace member path breaks every `cargo`
-  call.** The root manifest globs `members = ["crates/*", "benches/*"]`, so a directory without a
-  `Cargo.toml` there kills cargo with `failed to read .../Cargo.toml` before any crate is read;
-  through `| tail -3` the error scrolls past and the next run uses a stale `target/debug/nvs.exe`.
-  `cargo metadata --no-deps >/dev/null; echo $?` is the one-call check, and the fix is the `exclude
-  = [...]` line beside the glob. [until: reviewed 2026-09-06]

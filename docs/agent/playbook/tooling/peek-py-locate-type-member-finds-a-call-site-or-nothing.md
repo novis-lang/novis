@@ -3,4 +3,4 @@
   qualified spelling only exists where somebody *calls* it: `--locate Registry::of` answered with a
   line inside that file's own tests and `Registry::request` with `NOT FOUND`, while both were defined
   and public three hundred lines above. Locate the type instead, or take the file's outline with
-  `grep -n '^\s*pub fn ' <file>` and read the region. [until: reviewed 2026-09-15]
+  `grep -n '^\s*pub fn ' <file>` and read the region. [until: gone tools/peek.py:--locate]

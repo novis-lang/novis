@@ -4,4 +4,4 @@
   `Lowering::staged_targets`: lower the sub-expression once, record `(span, value, ty)`, and let
   `lower_expr` answer from that table first — `aliasing_read` must answer `true` for a staged span
   and the stager must `own_temporary` a refcounted staged value; neither half is optional.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/mod.rs:staged_targets]

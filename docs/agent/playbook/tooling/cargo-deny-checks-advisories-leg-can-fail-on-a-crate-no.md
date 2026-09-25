@@ -3,4 +3,4 @@
   under a tree nobody touched, so this leg goes red on its own schedule, naming a transitive crate
   that has been in the lock file for months. Read the finding's own package before suspecting the
   dependency in your diff; `cargo update -p <crate>` to the next patch is the whole fix for a yank,
-  in the same commit as the `Cargo.lock` you were already writing. [until: reviewed 2026-09-06]
+  in the same commit as the `Cargo.lock` you were already writing. [until: gone deny.toml:advisories]

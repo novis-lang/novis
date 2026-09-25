@@ -6,7 +6,7 @@
     "nvs.toml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2027-03-31"
+    "kind": "gone",
+    "arg": "nvs.toml:tls_ca_file"
   }
 }

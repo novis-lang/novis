@@ -3,10 +3,11 @@
   "body": "Deleting the index `tools/owners.py:102` calls `CARRIED_GAPS` left that tool and `tools/playbook.py` passing every other gate while the link check reported `retired  tools/owners.py:102 -> …`, because both module docs spelled the full path while explaining why the file is gone. Run `python tools/check-links.py` in the same slice as any deletion, and in prose — a bullet here as much as a docstring — that has to go on mentioning the path, name the constant that holds it rather than spelling it.",
   "files": [
     "tools/owners.py",
-    "tools/playbook.py"
+    "tools/playbook.py",
+    "tools/nv/cmd/links.ts"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-18"
+    "kind": "gone",
+    "arg": "tools/nv/cmd/links.ts:retired"
   }
 }

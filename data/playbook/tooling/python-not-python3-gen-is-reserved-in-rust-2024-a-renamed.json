@@ -1,9 +1,11 @@
 {
   "lead": "`python`, not `python3`; `gen` is reserved in Rust 2024; a renamed snapshot test needs its old `.snap` deleted.",
   "body": "`cargo test --release -p nvs-abi-probe` takes over two minutes.",
-  "files": [],
+  "files": [
+    "Cargo.toml"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "Cargo.toml:edition = \"2024\""
   }
 }

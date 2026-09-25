@@ -3,4 +3,4 @@
   silently not applied, which looks like the size refusal repeating with the byte count unchanged
   after you added more cuts to buy the space. Repeat `--- old`/`--- new` *inside* the one section;
   if a rejection's numbers do not move after an edit, check that the section it names appears once.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/session.ts:plan-edit]

@@ -1,6 +1,0 @@
-- **The item `orient.py` hands you can already be on disk, uncommitted, from a session that died
-  before its wrap.** The next pack opens on the same item as if nothing existed, and re-deriving it
-  throws the work away and leaves two designs for one rule. Run `git status --short` and read the
-  modified and untracked files your item names before writing a line of it; the tell is a `0
-  commit(s) | (no status written)` line for the previous session in `.loop/log.md`.
-  [until: reviewed 2026-09-06]

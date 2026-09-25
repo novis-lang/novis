@@ -4,4 +4,4 @@
   `file.rs:NN-NN` spans that `docs/agent/goals/m7-server-surface.md:67` quotes for it. Grep the
   old title *and* the old line span across `crates/` and `docs/agent/goals/` in the same call that
   makes the edit.
-  [until: reviewed 2026-09-14]
+  [until: gone crates/nvs-server/src/lib.rs:§]

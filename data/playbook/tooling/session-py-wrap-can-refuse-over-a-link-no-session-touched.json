@@ -3,10 +3,11 @@
   "body": "A fragment's links are copied verbatim into the chapter one directory above it, so `../../../README.md` resolved from `docs/rules/packaging/the-banner-states-the-build.md` and escaped the repository from `docs/rules/packaging.md` — `git show HEAD:<file>` showed the line unchanged, so \"this session's\" was about which resolver ran rather than about the diff. Write a fragment's links to resolve from the *chapter*, `python tools/rules.py --render`, and confirm with `python tools/check-links.py`.",
   "files": [
     "docs/rules/packaging/the-banner-states-the-build.md",
-    "docs/rules/packaging.md"
+    "docs/rules/packaging.md",
+    "tools/nv/cmd/rules.ts"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-07"
+    "kind": "gone",
+    "arg": "tools/nv/cmd/rules.ts:--render"
   }
 }

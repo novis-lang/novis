@@ -1,9 +1,11 @@
 {
   "lead": "The handoff's own next-group item can already be on disk, and the tree, not the handoff, is what says so.",
   "body": "A re-scope carries an item forward without re-checking it, and a stale item reads exactly like an open one — down to a `loop-goal.toml` comment still saying the feature does not exist. Before writing a line: `git log --oneline -S '<the symbol>'`, `python tools/peek.py --locate <test name>` then `cargo test -p <crate> <name>`, or run the check's `cases` ahead of the failing one, since acceptance names only the *first* thing missing; then say \"already landed\" in the next handoff.",
-  "files": [],
+  "files": [
+    "tools/nv/cmd/orient.ts"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/nv/cmd/orient.ts:YOUR ITEM"
   }
 }

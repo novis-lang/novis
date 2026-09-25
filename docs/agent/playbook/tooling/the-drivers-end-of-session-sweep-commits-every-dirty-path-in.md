@@ -4,4 +4,4 @@
   number, and `orient.py` then opens the next pack presenting it as the predecessor's unfinished
   slice. Read `git reflog` before continuing such a commit: a reset and a re-land by the user leaves
   the same paths dirty as work that is genuinely still owed, and the reflog is the only thing that
-  tells the two apart. [until: reviewed 2026-09-08]
+  tells the two apart. [until: gone tools/nv/driver/sweep.ts:wip(loop)]

@@ -4,4 +4,4 @@
   "a resolved call's parameter or return type", so the message points at a call boundary or a
   `foreach` element rather than at the feature you built. Add the erasing arm with the variant:
   `Ty::Shape` needed `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/mod.rs:erase_checked_ty]

@@ -3,4 +3,4 @@
   `## handoff`, `## commit: <paths>` once per slice, `## status` — and it applies all of them in a
   fixed order, or refuses one as broken and writes *nothing*. `--check` first says what the tree
   still owes, including any plan field whose prose names a conformance or differential count the
-  tree contradicts. [until: reviewed 2026-09-06]
+  tree contradicts. [until: gone tools/nv/cmd/session.ts:plan-edit]

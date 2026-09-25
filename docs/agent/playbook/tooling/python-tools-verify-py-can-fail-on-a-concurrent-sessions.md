@@ -1,7 +1,0 @@
-- **`bun nv verify` can fail on a *concurrent session's* half-written file, and the repair
-  is never to format it.** The driver runs several sessions at once and the gate stops at the first
-  failure, so the verdict says nothing about what this session wrote, and formatting another
-  session's file lands their work under your commit. `git status --porcelain` is the triage; then
-  run the same checks scoped to your crates (`cargo fmt -p A -- --check`, `cargo test -p A`, `cargo
-  clippy -p A --all-targets`) and say in the handoff that the full gate was not reached.
-  [until: reviewed 2026-09-06]

@@ -4,4 +4,4 @@
   list. A six-line `ReflectionFunction` loop over `get_defined_functions()["internal"]`, run as `php
   .agent-tmp/<name>.php`, prints every parameter type, return type and `isDeprecated()` in one call;
   copy the `Core\X::y` spellings out of an already-green sibling section rather than inventing them.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/check-migration.py:check-migration]

@@ -4,4 +4,4 @@
   an unrendered `int` subscript turned the *unchanged* `if !key_aliasing { emit_release }` into a
   release of a plain integer, and only the IR snapshots showed it. Return the operand's `Ty` and
   guard on `ty.is_refcounted()`, and re-read every consumer of a widened operand for a decision
-  phrased as the *negation* of the old invariant. [until: reviewed 2026-09-06]
+  phrased as the *negation* of the old invariant. [until: gone crates/nvs-ir/src/lower/expr.rs:lower_array_key]

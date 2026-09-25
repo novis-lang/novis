@@ -1,6 +1,0 @@
-- **`python tools/peek.py` takes its options before its targets, and a flag written between two
-  targets makes it refuse every target after it.** `peek.py A.rs:@sym --context 12 B.rs:@sym
-  C.rs:230-248` answers `unrecognized arguments` and lists the trailing two, which reads as a
-  misspelled target rather than a misplaced flag. Put `--context` and `--window` first —
-  `peek.py --context 14 A B C` — and read that refusal's list as where the flag sits.
-  [until: reviewed 2026-09-21]

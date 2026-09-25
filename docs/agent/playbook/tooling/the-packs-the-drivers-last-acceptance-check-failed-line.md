@@ -4,4 +4,4 @@
   someone else's hand while the run is held — so the line can describe a tree several commits older than
   the one the session is in. Run the named check's own `argv` once before treating it as the session's
   work; when it exits 0 the job is to collect the acceptance and re-claim, not to re-fix.
-  [until: reviewed 2026-09-13]
+  [until: gone tools/nv/cmd/orient.ts:THE DRIVER'S LAST ACCEPTANCE CHECK FAILED]
