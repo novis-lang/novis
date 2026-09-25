@@ -1,26 +1,25 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11's port list is done.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv webcrypto-vectors` (`tools/nv/cmd/webcrypto-vectors.ts`) replaces `tools/webcrypto-vectors.mjs`, which is deleted. `--check` exits 0 against `crates/nvs-stdlib/tests/vectors/webcrypto.json`. A rewrite changed only the file's `about` lines, so every vector byte, the kept ES256/PS256 signatures included, is what Node wrote. X25519 agreement goes through `node:crypto`'s `diffieHellman`, and `browserJwk` writes a public JWK in Node's member order. The file's header comment says why for both. The rule fragment `core-classes/crypto-interop-tier`, `crates/nvs-stdlib/src/tests/vectors.rs` and `crates/nvs-stdlib/src/crypto.rs` now cite the command. Decision record 0179 and goal `webcrypto`'s prose still name the `.mjs`, and they stay that way because they are history.\n\nThe driver's floor sweep after session 0109 reported one failed conformance case. The full tree passed 2340 of 2340 twice this session, so that failure was flaky, and no case was changed.\n\nStage 12 (`no Python`) is next. Its check runs `bun nv audit python`, which does not exist yet (`nv audit: no audit named python`). The valgrind sweep and the WSL leg are still the Python driver's (`tools/nv/cmd/loop.ts:404`).",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 42 stray `.py` files and 303 documents today. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached (the live goal included). A document names a Python tool by any `tools/<x>.py` path, or by a bare `<x>.py` where `<x>` is an `nv` subcommand or a tracked `tools/*.py`. The module doc owns the definition.\n\n`tools/machine.py` and `tools/try.py` are deleted, with the `try` parity group and its fixtures (`bun nv parity try` matched 11 of 11 first). Their citations in `docs/agent/commands.md`, `docs/agent/coordinator.md`, `crates/nvs-cli/src/bundle.rs` and 12 playbook bullets name `bun nv try`, `bun nv machine` and `tools/nv/lib/machine.ts`. Upcoming goal prose still names them, and so do the rest of the 303 documents.\n\nThe valgrind sweep and the WSL leg still have no TS caller (`tools/nv/cmd/loop.ts:404`).",
   "next": {
     "stage": 12,
     "title": "no Python",
-    "files": [
-      "tools/nv/cmd/audit.ts",
-      "docs/agent/commands.md",
-      "docs/agent/coordinator.md"
-    ],
+    "files": [],
+    "note": "one file set: `docs/agent/commands.md`, `docs/agent/coordinator.md`, the playbook fragments and records that cite a deleted tool.",
     "items": [
       {
         "done": false,
-        "text": "**Add `bun nv audit python`**, which prints `audit: no Python file is tracked beyond the launch shims` and `audit: no document names a Python tool` when both hold, and names each offender otherwise. The launch shims are `tools/respawn.py` and `tools/loop.py`. The goal's Stage 12 bullet `Every tracked .py file is deleted, except two` specifies it (`docs/agent/goals/tooling-overhaul.md:663`). Register it beside `goals`/`checks`/`eol`/`ci` at `tools/nv/cmd/audit.ts:183`. Decide first what counts as \"names a Python tool\": `python tools/<x>.py` and `` `tools/<x>.py` ``, outside `docs/decisions/` and retired goal prose, which are history."
+        "text": "**Delete the next ported `.py` tools and repoint their citations**, working down `bun nv audit python`'s first list. Take a tool only when its `bun nv parity <group>` matches (`tools/nv/parity/groups.json`) and no remaining `.py` imports it (`git grep -n \"^import <x>\"` over `tools/*.py`). Delete its parity group and fixtures in the same slice. Repoint citations the way `tools/nv/cmd/audit.ts:199` counts them. A playbook bullet is edited in its fragment under `docs/agent/playbook/`, and its record is rebuilt from it (see the playbook's `Tooling` bullet on `data/playbook/`). The goal's Stage 12 bullet specifies it (`docs/agent/goals/tooling-overhaul.md:663`)."
       },
       {
         "done": false,
-        "text": "**Delete the ported `.py` tools and repoint their citations**, starting with `tools/machine.py`: `docs/agent/commands.md:633` (§ *How wide anything runs*, lines 636–641) and `docs/agent/coordinator.md:387`. Once the audit exists, its output is the list to work through."
+        "text": "**Rewrite `docs/agent/commands.md` whole to name `bun nv` commands**, as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:670`). The audit counts 113 lines there, starting at `docs/agent/commands.md:4`."
       }
     ]
   },
   "backlog": [
-    "`posixProbe` and `remember` in `tools/nv/lib/machine.ts` are ported but nothing in TS calls them yet. The valgrind sweep and the WSL leg that need them still run in the Python driver (`tools/nv/cmd/loop.ts:404`).",
+    "`editors/vscode/scripts/mkwoff.py` builds the extension's icon font with `fonttools`. A TS port would need a WOFF writer, and the goal allows no new dependency. Decide between a declared exemption in `tools/nv/cmd/audit.ts` and deleting it (`docs/agent/goals/tooling-overhaul.md:663`).",
+    "The upcoming generated goals (`docs/agent/goals/core-*.md`) each name `python tools/dossier.py` at line 6. That is one scripted rewrite over all of them (`docs/agent/goals/tooling-overhaul.md` § *Standing decisions*).",
+    "`posixProbe` and `remember` in `tools/nv/lib/machine.ts` are ported, but nothing in TS calls them yet. The valgrind sweep and the WSL leg that need them have no driver (`tools/nv/cmd/loop.ts:404`).",
     "Stage 12's decision records: one for the data model, the runtime and the generated-output rule, and one for Stage 7's perf-currency change if Stage 7 did not write it (`docs/agent/goals/tooling-overhaul.md:676`).",
     "Stage 12 deletes `observe`, `proctree` and `written`, as the goal's Stage 11 bullet says."
   ]
