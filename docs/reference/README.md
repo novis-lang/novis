@@ -2,7 +2,7 @@
 
 [`docs/novis.md`](../novis.md) is the one-file reference to everything Novis has, written for a
 reader who has never seen this repository: a search engine, a language model, a person. **It is
-generated, never edited** — `python tools/reference.py` builds it from three inputs and runs every
+generated, never edited** — `bun nv reference` builds it from three inputs and runs every
 example in it against the binary; `bun nv verify` does the same after every build, so it
 follows the code without anyone remembering to.
 
@@ -139,6 +139,6 @@ Rules that keep examples honest and cheap:
     `toml file=nvs.toml` fence granting `fs.read`; without one the example runs with no
   configuration at all.
 - Keep each under ~40 lines; two small examples beat one that does everything.
-- `python tools/reference.py --examples-only --only <chapter-file-substring>` runs one chapter's
+- `bun nv reference --examples-only --only <chapter-file-substring>` runs one chapter's
   examples while writing it; `--keep` leaves the directories under `.agent-tmp/reference-examples/`
   to look at.

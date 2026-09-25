@@ -5,14 +5,14 @@ Every feature Novis ships owes an attack
 case here is not a test of what the feature *does*. It is the program somebody writes when they are
 trying to make the runtime come apart, and it passes when the runtime is still standing afterwards.
 
-`python tools/dossier.py --run hostile` runs them, `--valgrind` runs them again under valgrind on a
+`bun nv proofs --run` runs them with the examples, and `--valgrind` runs them under valgrind on a
 Linux leg. This file owns what a case **is**; the tool owns how it is judged.
 
 ## Where a case goes
 
 `tests/hostile/<the feature's path>/NN-slug.nvs`, the same path the example and bench trees use:
 `tests/hostile/core/Str/length/01-unbounded-input.nvs`. As many files per feature as the feature
-deserves; one is what is owed. `python tools/dossier.py --id '<feature>'` prints the directory.
+deserves; one is what is owed. `bun nv proofs --id '<feature>'` prints the directory.
 
 ## The contract — what makes a case pass
 
@@ -98,7 +98,7 @@ it with a gap record under `data/gaps/<crate>/`, naming its owner, and a marker 
     // proof: gap nvs-stdlib/a-slug-naming-what-breaks
 
 The sweep then counts the case as `known-gap` instead of a failure, so a long unattended run is not
-stopped by a bug too big for the session that found it, and `python tools/dossier.py --gaps` keeps
+stopped by a bug too big for the session that found it, and `bun nv proofs --gaps` keeps
 the list in front of anyone who asks. **A marked case that passes fails the sweep**, so the marker
 comes off with the fix.
 

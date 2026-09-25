@@ -6,7 +6,7 @@ Every feature Novis ships owes three real-world examples
 them: `npm run sync:examples` in [`website/`](../../website/README.md) copies this tree into the
 site, and nothing edits them there.
 
-`python tools/dossier.py --run examples` is what runs them. This file owns what an example **is**;
+`bun nv proofs --run` is what runs them. This file owns what an example **is**;
 that tool owns how it is checked, the way [`benches/userland/README.md`](../../benches/userland/README.md)
 and `tools/nv/cmd/bench.ts` already split the same way.
 
@@ -25,7 +25,7 @@ nothing registers an example anywhere:
 | an `nvs.toml` directive | `config/<key-with-dots-as-dashes>/` |
 
 Inside it, `01-slug.nvs` … `03-slug.nvs`, each with a sibling `01-slug.out` holding exactly what the
-program prints. `python tools/dossier.py --id 'Core\Str::length'` prints the directory for any
+program prints. `bun nv proofs --id 'Core\Str::length'` prints the directory for any
 feature rather than making you derive it.
 
 ## The description — `about.md`
@@ -125,15 +125,15 @@ feature's proofs are made of — the examples here, the attacks under `tests/hos
 under `benches/members/` — and for `about.md`. It lives there because every agent has it in context
 before it writes anything, and nothing checks the words afterwards.
 
-`python tools/dossier.py --comments <file or directory> ...` counts the three bounds that rule states
+`bun nv proofs --comments <file or directory> ...` counts the three bounds that rule states
 as numbers: the lines in a comment block, the words in a sentence, and a dash joining two sentences.
-It reads and never runs a program. `[all] comments = true` in `tools/data/dossier-policy.toml` makes
+It reads and never runs a program. `"comments": true` in the `all` override of `data/proofs/policy.json` makes
 it part of `--gate`; goal `plain-comments` writes that line once the programs that landed before the
 rule are inside the bounds.
 
 ## Creating the `.out`
 
-    python tools/dossier.py --bless docs/examples/core/Str/length/01-count-characters.nvs
+    bun nv proofs --bless docs/examples/core/Str/length/01-count-characters.nvs
 
 That runs the program and writes what it printed, then prints it back so you read it. **Blessing is
 how an expected output is created, never how a red example is made green** — the same rule the loop

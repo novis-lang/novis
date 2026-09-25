@@ -402,7 +402,7 @@ in that goal. An item's owner is the row it sits in.
       and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.
 - [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("`rule:core-classes/regex-two-tiers`'s two engines",
-      "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `tools/reference.py`
+      "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `bun nv reference`
       strips the parenthesised form `(`rule:classes/comparable`)`; the inline ones need rewording in the cards.
 
 ## Facts worth keeping (not bugs, but not written anywhere a user reads until now)
