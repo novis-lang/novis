@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `Core\Math::cbrt` works for negative numbers.
+
+// -2 × -2 × -2 is -8. This prints -2.
+echo Core\Math::cbrt(-8.0), "\n";
+
+// The result has the same sign as the number. This prints -0.1.
+echo Core\Math::cbrt(-0.001), "\n";
+
+// The `**` operator with a power of one third gives `NaN` for a negative number.
+// `Core\Math::isNan` tests for it. This prints "not a number".
+float $power = (-8.0) ** (1.0 / 3.0);
+echo Core\Math::isNan($power) ? "not a number\n" : "a number\n";

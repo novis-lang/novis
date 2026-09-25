@@ -1,0 +1,20 @@
+<?nvs
+// Measures the cube root, as a shop does when it finds the size of a box
+// that holds a given volume.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number used this round depends on last round's total.
+            $total = $total + Core\Math::cbrt($total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

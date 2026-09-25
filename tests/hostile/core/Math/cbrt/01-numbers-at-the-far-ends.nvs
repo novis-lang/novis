@@ -1,0 +1,28 @@
+<?nvs
+// Attack: `Core\Math::cbrt` is given the biggest and smallest numbers, numbers that are
+// not ordinary, and a million calls in a loop. Every call should return a number, and
+// the program should run to its last line.
+
+// 1. The biggest numbers, positive and negative.
+echo Core\Math::cbrt(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::cbrt(-Core\Math::FLOAT_MAX), "\n";
+
+// 2. The smallest numbers, a number smaller than `FLOAT_MIN`, and zero with a minus sign.
+echo Core\Math::cbrt(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::cbrt(-Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::cbrt(4.9e-324), "\n";
+echo Core\Math::cbrt(-0.0), "\n";
+
+// 3. Values that are not ordinary numbers.
+echo Core\Math::cbrt(Core\Math::NAN), "\n";
+echo Core\Math::cbrt(Core\Math::INFINITY), "\n";
+echo Core\Math::cbrt(-Core\Math::INFINITY), "\n";
+
+// 4. A million calls. Each result feeds the next one, and none is kept.
+float $value = -1.0e300;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::cbrt($value) * 1.0e200;
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";
