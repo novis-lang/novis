@@ -13,8 +13,9 @@
 // quotes. The goal's position is `N of M` in `data/chain.json`.
 //
 // The pack exists to save a session turns, not bytes: the item's anchors are printed inline because
-// each one replaces a `peek` call, and the traps are narrowed to the item's own paths because a trap
-// about a file the item never opens replaces no call at all. `--audit` appends what each section
+// each one replaces a `peek` call, and the traps are narrowed to the item's own paths, or to the goal's
+// `context.modules` when the item names none, because a trap about a file the session never opens
+// replaces no call at all. `--audit` appends what each section
 // cost, and never exits non-zero over a size.
 //
 //   bun nv orient              the pack
@@ -68,8 +69,9 @@ const TRAPS_TITLE = "THE TRAPS THAT APPLY HERE";
 const PROMOTED_WHOLE = 20;
 
 /**
- * The traps for reading a failing acceptance check. They print whole when the driver's verdict names
- * a check that should already pass, and as one line otherwise, whatever the manifest names.
+ * The traps for reading a failing acceptance check. When the driver's verdict names a check that should
+ * already pass they are listed one lead-in each, with the selector that prints one; otherwise a single
+ * line says they are held back, whatever the manifest names.
  */
 const TRIAGE = "Tooling > a goal record's*";
 
@@ -1200,13 +1202,21 @@ function runTraps(paths: string[]): void {
   }
 }
 
-function runPlaybook(wanted: string[], item: string, stage: number | null): void {
+/** A bullet's lead-in as one listed line's label, links stripped and cut to 110 characters. */
+function leadLabel(body: string): string {
+  const lead = /^- \*\*(.+?)\*\*/.exec(body.split("\n")[0]!);
+  const label = lead ? lead[1]! : body.split("\n")[0]!.slice(2);
+  return [...stripLinks(label).replace(/^[* ]+|[* ]+$/g, "")].slice(0, 110).join("");
+}
+
+function runPlaybook(wanted: string[], item: string, stage: number | null, modules: string[]): void {
   if (wanted.length === 0) return;
   const book = playbookBook();
   if (book.every((s) => s.bullets.length === 0)) {
     warn(`${PLAYBOOK}/ holds no bullet`);
     return;
   }
+  const selectorOf = new Map(allBullets(book).map((b) => [b.text, b.selector]));
   const [triage] = sliceBullets(book, TRIAGE);
   const needed = triageApplies(stage);
 
@@ -1226,7 +1236,11 @@ function runPlaybook(wanted: string[], item: string, stage: number | null): void
     }
   }
 
-  const terms = [...new Set([...item.matchAll(ITEM_PATH_RE)].map((m) => m[1]!))];
+  // An item that names no path -- a reached goal has no item at all -- is narrowed to the goal's own
+  // modules, so a family selector's bullets about crates this goal never opens stay one line each.
+  const itemTerms = [...new Set([...item.matchAll(ITEM_PATH_RE)].map((m) => m[1]!))];
+  const byModules = itemTerms.length === 0 && modules.length > 0;
+  const terms = byModules ? [...new Set(modules.map((p) => p.replace(/\\/g, "/")))] : itemTerms;
   let whole: [string, string][];
   let listed: [string, string][];
   let spilled: [string, string][] = [];
@@ -1243,7 +1257,8 @@ function runPlaybook(wanted: string[], item: string, stage: number | null): void
     [whole, listed] = [picked, []];
   }
 
-  section(TRAPS_TITLE, `${PLAYBOOK}/, filtered to [context] playbook` + (terms.length > 0 ? `, then to the ${terms.length} path(s) your item names` : ""));
+  const narrowing = terms.length === 0 ? "" : byModules ? `, then to the goal's ${terms.length} [context] module(s)` : `, then to the ${terms.length} path(s) your item names`;
+  section(TRAPS_TITLE, `${PLAYBOOK}/, filtered to [context] playbook${narrowing}`);
   const atWhole = out.length;
   for (const [, body] of whole) {
     emit();
@@ -1252,23 +1267,17 @@ function runPlaybook(wanted: string[], item: string, stage: number | null): void
   const atListed = out.length;
   if (listed.length > 0) {
     emit();
-    emit(`-- ${listed.length} more trap(s) this GOAL names that your ITEM does not touch. One line`);
+    emit(`-- ${listed.length} more trap(s) this GOAL names that your ${byModules ? "goal's modules do" : "ITEM does"} not touch. One line`);
     emit(`   each; \`${tool("playbook")} --show '<selector>'\` prints one in full:`);
-    for (const [name, body] of listed) {
-      const lead = /^- \*\*(.+?)\*\*/.exec(body.split("\n")[0]!);
-      const label = lead ? lead[1]! : body.split("\n")[0]!.slice(2);
-      emit(`   ${name}  --  ${[...stripLinks(label).replace(/^[* ]+|[* ]+$/g, "")].slice(0, 110).join("")}`);
-    }
+    for (const [name, body] of listed) emit(`   ${selectorOf.get(body) ?? name}  --  ${leadLabel(body)}`);
   }
   const atTriage = out.length;
   if (triage.length > 0 && needed) {
     emit();
-    emit("-- The driver's last acceptance check FAILED on a check that should already pass, so");
-    emit(`   here in full are the ${triage.length} trap(s) for reading one:`);
-    for (const body of triage) {
-      emit();
-      emit(body);
-    }
+    emit("-- The driver's last acceptance check FAILED on a check that should already pass. These");
+    emit(`   ${triage.length} trap(s) are for reading one. Read the lead-ins, then print the one that fits`);
+    emit(`   with \`${tool("playbook")} --show '<selector>'\`:`);
+    for (const body of triage) emit(`   ${selectorOf.get(body) ?? TRIAGE}  --  ${leadLabel(body)}`);
   } else if (triage.length > 0) {
     emit();
     emit(`-- ${triage.length} trap(s) for reading a failing acceptance check are held back: nothing the driver`);
@@ -1284,11 +1293,11 @@ function runPlaybook(wanted: string[], item: string, stage: number | null): void
   trapsDetail = [
     `    manifest names ${wanted.length} selector(s) -> ${picked.length} bullet(s), ${n(unnarrowed)} B whole`,
     terms.length > 0
-      ? `    your ITEM's ${terms.length} path(s) promote ${whole.length + spilled.length}, of which ${whole.length} print whole: ${n(wholeB)} B` +
+      ? `    ${byModules ? "your ITEM names no path, so the goal's" : "your ITEM's"} ${terms.length} ${byModules ? "module(s)" : "path(s)"} promote ${whole.length + spilled.length}, of which ${whole.length} print whole: ${n(wholeB)} B` +
         (spilled.length > 0 ? ` (${spilled.length} spilled past PROMOTED_WHOLE=${PROMOTED_WHOLE})` : "")
-      : `    your ITEM names no path, so all ${whole.length} are printed in full: ${n(wholeB)} B`,
+      : `    neither your ITEM nor the goal's [context] modules name a path, so all ${whole.length} are printed in full: ${n(wholeB)} B`,
     `    the other ${listed.length} cost one lead-in line each: ${n(listedB)} B`,
-    `    ${triage.length} failing-check trap(s) ` + (needed ? "printed whole, a check that should pass being red" : "held back") + `: ${n(triageB)} B`,
+    `    ${triage.length} failing-check trap(s) ` + (needed ? "listed one line each, a check that should pass being red" : "held back") + `: ${n(triageB)} B`,
     `    so narrowing saved ${n(Math.max(unnarrowed - wholeB - listedB, 0))} B -- the item's share`,
     `    is bounded by PROMOTED_WHOLE; trimming the manifest acts on the ${n(unnarrowed)} B`,
   ];
@@ -1711,7 +1720,7 @@ export async function run(args: string[]): Promise<number> {
   runAdrs(m);
   await runMap(m);
   runShapes(m);
-  runPlaybook(m.playbook, item, stage);
+  runPlaybook(m.playbook, item, stage, m.modules);
   runPlan(m);
   runMilestones(m);
   runNumbers();
