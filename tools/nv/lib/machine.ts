@@ -152,7 +152,7 @@ export function readProbe(text: string | null | undefined): Record<string, numbe
   return found;
 }
 
-/** How a caller reaches the context being probed: `wsl.exe -- bash -lc` for the WSL leg, a local
+/** How a caller reaches the context being probed: `wsl.exe --exec bash -lc` for the WSL leg, a local
  * `bash -lc` for a native Linux one. */
 export type Runner = (line: string) => { code: number; text: string };
 

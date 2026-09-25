@@ -360,6 +360,15 @@ async function exportAnchor(driver: Driver, dir: string): Promise<string> {
 }
 
 /**
+ * `bash -lc <line>` inside the default WSL distro. `wsl.exe --exec` starts `bash` directly. `wsl.exe --`
+ * would first hand the line to the distro's default shell, which expands every `$` and strips every quote
+ * in it before `bash` sees it.
+ */
+function inDistro(line: string): string[] {
+  return ["wsl.exe", "--exec", "bash", "-lc", line];
+}
+
+/**
  * One suite of one leg, here or inside the default WSL distro. The distro runs `bash -lc` because that is
  * where the login PATH puts `cargo`, and only the `NVS_DB_MATRIX_*` group crosses into it.
  */
@@ -374,7 +383,7 @@ async function cargoTest(suite: string[], env: Record<string, string>, inWsl = f
   const inner =
     `cd ${shQuote(repo)} && CARGO_TARGET_DIR=${shQuote(WSL_TARGET)} ${fields} ` +
     `cargo test -q ${suite.map(shQuote).join(" ")}`;
-  return spawn(["wsl.exe", "--", "bash", "-lc", inner], baseEnv(), TEST_TIMEOUT_S);
+  return spawn(inDistro(inner), baseEnv(), TEST_TIMEOUT_S);
 }
 
 type Verdict = ["ok" | "FAILED" | "n/a", string];
@@ -449,7 +458,7 @@ async function runDriver(driver: Driver, config: Config | null): Promise<Verdict
  */
 async function socketPublished(path: string): Promise<boolean> {
   if (!IS_WINDOWS) return existsSync(path);
-  const probe = await spawn(["wsl.exe", "--", "bash", "-lc", `test -e ${shQuote(path)}`], baseEnv(), 120);
+  const probe = await spawn(inDistro(`test -e ${shQuote(path)}`), baseEnv(), 120);
   return probe.code === 0;
 }
 
