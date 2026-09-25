@@ -6,4 +6,4 @@
   `corosensei-0.2.2/src/coroutine.rs` twice — the second, *"cannot propagte coroutine panic with
   #![no_std]"*, is the double-panic, not the cause. `nvs_runtime::Teardown` makes `run_task`
   re-raise instead of contain, and anything else gaining a `catch_unwind` between a coroutine's root
-  and its suspension points owes the same guard. [until: reviewed 2026-09-06]
+  and its suspension points owes the same guard. [until: gone crates/nvs-runtime/src/lib.rs:catch_unwind]

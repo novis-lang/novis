@@ -4,4 +4,4 @@
   convert `int` 9223372036854775807 to `float`` with nothing said at compile time. `Core\Math` has
   `FLOAT_MAX`, `FLOAT_MIN` (the smallest positive normal, not `f64::MIN`), `INFINITY` and `NAN`; a
   derived infinity is `Core\Math::FLOAT_MAX * 10.0` or `Core\Math::log(0.0)`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/math.rs:FLOAT_MAX]

@@ -5,4 +5,4 @@
   finds `crates/nvs-stdlib` and nothing else. What needs a checker rule is the opposite shape, a
   sink whose parameter is `mixed` (`Core\Debug::dump`, `Core\Serialize::encode`), where nothing
   below the call can still see the qualifier; those live in `expr/quals.rs` as call-site walks over
-  the written arguments. [until: reviewed 2026-09-06]
+  the written arguments. [until: gone crates/nvs-stdlib/src/serialize.rs:Core\Serialize::encode]

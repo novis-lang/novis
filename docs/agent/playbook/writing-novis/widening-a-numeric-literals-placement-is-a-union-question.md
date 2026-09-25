@@ -5,4 +5,4 @@
   printing `0`; build and `cargo test` were both green and only the PHP twin caught it. Place `-e`
   with the same exact test the bare literal's arm uses (`wants_decimal`, not `placed_literal`), and
   run `nvs test tests/differential` before believing a placement change is contained.
-  [until: reviewed 2026-09-22]
+  [until: gone crates/nvs-types/src/expr/literals.rs:wants_decimal]

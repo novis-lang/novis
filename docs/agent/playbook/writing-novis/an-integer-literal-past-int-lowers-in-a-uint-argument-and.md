@@ -1,5 +1,0 @@
-- **An integer literal past `int` lowers in a `uint` argument and panics `nvs-ir` inside an
-  `array<uint>` literal.** `Core\Random::bytes(9223372036854775808)` is fine, but `array<uint>
-  $counts = [1, 9223372036854775808];` dies with *"integer literal `9223372036854775808` doesn't fit
-  an `int`"*. Compute such rows, and multiply by a declared `uint $two = 2;` (`$n * 2` over a `uint`
-  is `E0407`, the `2` being an `int`). [until: reviewed 2026-09-06]

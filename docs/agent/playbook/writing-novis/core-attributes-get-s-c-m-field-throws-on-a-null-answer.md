@@ -5,4 +5,4 @@
   correctly. Bind the retrieval to a local before reading it — `open_nullsafe` in
   `crates/nvs-ir/src/lower/expr.rs` builds no guard at all unless the lowered receiver is
   `Ty::Tagged`, which a folded constant is not.
-  [until: reviewed 2026-09-20]
+  [until: gone crates/nvs-ir/src/lower/expr.rs:open_nullsafe]

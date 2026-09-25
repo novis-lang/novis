@@ -5,7 +5,7 @@
     "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst:#["
   }
 }

@@ -3,4 +3,4 @@
   `Contagious` as "admits `tainted` only where the return type can carry the bit out", so a `void`
   row marked that way gives `E0401: expected string, found tainted string`. A rule's word for a body
   is not the enum's case for an answer: a writer that returns nothing is `Qual::Neutral`, as
-  `Core\Cli::write`'s `string` arm is. [until: reviewed 2026-09-06]
+  `Core\Cli::write`'s `string` arm is. [until: gone crates/nvs-types/src/expr/quals.rs:admits_tainted_argument]

@@ -3,4 +3,4 @@
   wildcard however many variants a cross-crate match spells out, so a plan to make a new variant fail to
   compile in `nvs-ir` cannot be written there. Spell the named shapes as their own arms and leave the
   wildcard as an engine invariant, or take the attribute off — the second is a decision about
-  `nvs-syntax`'s surface. [until: reviewed 2026-09-14]
+  `nvs-syntax`'s surface. [until: gone crates/nvs-syntax/src/ast.rs:non_exhaustive]

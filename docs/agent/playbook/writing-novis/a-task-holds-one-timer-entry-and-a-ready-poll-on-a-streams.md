@@ -3,4 +3,4 @@
   then the writable half in the same pass (`Ready`, deadline lifted), so the connection parks with
   no clock, and the tell is a test hanging for exactly the client's patience.
   `nvs_host::NvsStream::timed` records which interest filed the entry; anything else parking two
-  interests of one stream under one task inherits the question. [until: reviewed 2026-09-06]
+  interests of one stream under one task inherits the question. [until: gone crates/nvs-host/src/net.rs:timed: Option<Interest>]

@@ -7,4 +7,4 @@
   gate greps the `--FILE--` section and never runs anything, so `--EXPECTF-ERROR--` cases discharge
   it, and the address gate takes a body that says at its own site why it was reached — never a
   placeholder `Fault::`, which `every_error_path_is_asserted_or_declared_unreachable` then wants a
-  case or a declaration for. [until: reviewed 2026-09-06]
+  case or a declaration for. [until: gone crates/nvs-stdlib/src/lib.rs:every_registered_member_has_an_implementation_address]

@@ -4,4 +4,4 @@
   and `StreamOwned` hands nothing back once `NvsTls::over` has the adapter, so the switch is shared
   before the handshake. `crates/nvs-db/src/tds/prelogin.rs`'s `Tunnel` keeps the flag in an
   `Rc<Cell<bool>>` and the caller takes its `TunnelEnd` before the handshake.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-db/src/tds/prelogin.rs:TunnelEnd]

@@ -3,4 +3,4 @@
   and six end in `other => driverless(...)`, so an arm added to `open` alone hands out a connection
   that refuses every statement, with no compile error. Count the `Connection::` matches before
   pricing the slice; a driver sharing MySQL's protocol also needs a seam where
-  `mysql_rows`/`mysql_write` take `&mut nvs_db::MySqlConn` by name. [until: reviewed 2026-09-06]
+  `mysql_rows`/`mysql_write` take `&mut nvs_db::MySqlConn` by name. [until: gone crates/nvs-stdlib/src/db/execute.rs:Connection::]

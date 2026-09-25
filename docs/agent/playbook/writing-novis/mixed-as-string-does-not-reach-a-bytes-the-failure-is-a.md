@@ -4,4 +4,4 @@
   convert a `bytes` value to `string`` on the first leaf. Write `$value as bytes as string` — narrow
   the `mixed` to the type it holds, then take the checked row; and `Core\Json::encode` refuses an
   array holding a `bytes`, so a member that starts answering octets invalidates every JSON-rendering
-  fixture. [until: reviewed 2026-09-06]
+  fixture. [until: gone crates/nvs-runtime/src/helpers.rs:value_to_string]

@@ -4,4 +4,4 @@
   `W1xxx` band sits at the foot of `crates/nvs-diagnostics/src/lib.rs`. The number an ADR states is
   a claim to check against that file, not a fact to copy; when it is wrong, fold the ADR body in the
   same commit and move everything naming the old code (`loop-goal.md`, the `[[check]]` test name in
-  `loop-goal.toml`) with it. [until: reviewed 2026-09-06]
+  `loop-goal.toml`) with it. [until: gone crates/nvs-diagnostics/src/lib.rs:E_INSTANCE_METHOD_CALLED_STATICALLY]

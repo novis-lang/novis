@@ -4,4 +4,4 @@
   rows) is invisible to a scanner that parses the kind out of each call. Turn `nvs_codegen::emit`'s
   tolerant `None` arm into an `internal(...)` refusal and run the crate's tests: the backend already
   knows which instructions return a status, so let the suite enumerate the producers.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/convert.rs:InstKind::]

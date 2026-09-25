@@ -4,4 +4,4 @@
   recoveries, none naming the cause. Before renaming an option away from what its rule spells, check
   `crates/nvs-syntax/src/token.rs`'s keyword table;
   `nvs_syntax::parser::expr::parse_object_literal_fields` is where an object-literal field was
-  widened to take one. [until: reviewed 2026-09-06]
+  widened to take one. [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_object_literal_fields]

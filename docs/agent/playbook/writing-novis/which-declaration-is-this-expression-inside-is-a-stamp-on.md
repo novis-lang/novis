@@ -3,4 +3,4 @@
   site of that struct (`grep -n 'Ctx {' crates/nvs-types/src/`) for a fact one table wants. Take a
   mark before the body in `check::check_method` (`ExprTypeTable::inline_snapshot_mark`) and name the
   owner of everything recorded after it at both exits; the shape generalises to any per-declaration
-  fact an expression-level table wants. [until: reviewed 2026-09-06]
+  fact an expression-level table wants. [until: gone crates/nvs-types/src/expr_table.rs:inline_snapshot_mark]

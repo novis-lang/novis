@@ -3,4 +3,4 @@
   SQLite's, and prefixing them with a directory names a file nothing opens;
   `nvs_config::db::is_relative_file` is the predicate. On Windows `/no-such/x` has `is_absolute() ==
   false` because it names no drive, so joining it moves it to the base's drive — use
-  `Path::has_root`, which answers the same on both platforms. [until: reviewed 2026-09-06]
+  `Path::has_root`, which answers the same on both platforms. [until: gone crates/nvs-config/src/db.rs:is_relative_file]

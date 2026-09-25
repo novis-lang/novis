@@ -4,4 +4,4 @@
   `write_back_array`'s property arm (`$m->rows["0"] = "w"` through a narrowed `?T` local) lacked the
   `untag_receiver` call `lower_reassignment`'s arm has. Read it as an untag hole, not a codegen bug
   — the checker is happy and the lowering never panics, so nothing above catches it.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/mod.rs:lower_reassignment]

@@ -5,4 +5,4 @@
   `built_fallibly` caller. The shape to recognise is a member whose size check and allocation are
   two different expressions (`padding_run` bounds the run while `built_fallibly` allocates the run
   plus the subject), and the boundary count is the largest the first accepts, not a round number.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/str.rs:nvs_runtime::affordable]

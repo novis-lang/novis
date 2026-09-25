@@ -4,4 +4,4 @@
   three called a helper asserting a clean parse, so they failed with the new code rather than with
   anything about the shape they test. Before writing a refusal, grep the crate for the spelling;
   move the fixture to the helper that collects both halves (`casing.rs`'s `parse_and_check`) or hand
-  the shape to the new test, never weaken the refusal. [until: reviewed 2026-09-06]
+  the shape to the new test, never weaken the refusal. [until: gone crates/nvs-syntax/src/lexer.rs:operators_longest_match_wins]

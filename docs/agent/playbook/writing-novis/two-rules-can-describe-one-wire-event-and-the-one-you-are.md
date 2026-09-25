@@ -3,4 +3,4 @@
   what a preflight is answered with, but `rule:http-server/a-request-resolves-in-five-steps` defines
   one as `OPTIONS` carrying `Origin` and `Access-Control-Request-Method`, and `Cors::preflight` read
   only the second header — invisible while the policy was closed. Grep `docs/rules` for the noun
-  before writing the predicate. [until: reviewed 2026-09-06]
+  before writing the predicate. [until: gone crates/nvs-server/src/cors.rs:fn preflight]

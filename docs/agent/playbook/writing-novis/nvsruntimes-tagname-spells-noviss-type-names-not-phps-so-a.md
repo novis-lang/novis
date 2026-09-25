@@ -4,4 +4,4 @@
   refusal (`no ordering for a ...`) rather than a transcription. A site that owes PHP's exact wording
   — `clone`'s `must be of type object, <type> given` is the one in front of us — needs its own
   rendering with PHP's spellings, and the two must not be folded into one table without deciding
-  which set of names each caller wants. [until: reviewed 2026-12-14]
+  which set of names each caller wants. [until: gone crates/nvs-runtime/src/helpers.rs:tag_name]

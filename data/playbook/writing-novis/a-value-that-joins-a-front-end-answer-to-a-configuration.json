@@ -4,10 +4,11 @@
   "files": [
     "crates/nvs-hir",
     "crates/nvs-cli/src/main.rs",
-    "Cargo.toml"
+    "Cargo.toml",
+    "crates/nvs-cli/src/cache.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/cache.rs:EnvHash"
   }
 }

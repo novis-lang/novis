@@ -3,4 +3,4 @@
   asserting "the transferred value is never released" fails on the error path, where the frame still
   owes it: a callee that returned non-OK never took the reference. Assert per block — the call's own
   block for what the normal edge does, `inst.on_error`'s for what the throw does.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/call.rs:TemporaryKind::Transferred]

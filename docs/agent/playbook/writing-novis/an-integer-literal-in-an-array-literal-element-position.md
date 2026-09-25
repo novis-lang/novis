@@ -2,4 +2,4 @@
   declared element type says.** `array<uint> $u = [7, 8];` compiles with elements tagged `int`,
   while `[7 as uint, 8 as uint]` carries `uint` — `rule:types/numeric-literal-placement` applies at
   a parameter and a binding but not at an element. Convert in the literal whenever the tag is the
-  subject; only a `callable`'s parameter-tag check observes it today. [until: reviewed 2026-09-06]
+  subject; only a `callable`'s parameter-tag check observes it today. [until: gone docs/rules/types/numeric-literal-placement.md:untyped until it is placed]

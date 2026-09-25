@@ -4,4 +4,4 @@
   moment `Core\Uri::with` did — a class away from the slice, and the assertion names the member
   rather than the rule. Before landing such a pairing, `grep -n 'CoreTy::Mixed' crates/nvs-stdlib/src/`
   for the rows it will reach, and widen each helper's "not given" branch from `Tag::Null` to
-  `Tag::Null | Tag::Unset` in the same edit. [until: reviewed 2026-09-10]
+  `Tag::Null | Tag::Unset` in the same edit. [until: gone crates/nvs-stdlib/src/queue.rs:Const::NeverWritten]

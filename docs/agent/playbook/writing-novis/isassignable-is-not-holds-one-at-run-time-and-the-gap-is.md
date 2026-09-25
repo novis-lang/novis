@@ -3,4 +3,4 @@
   `rule:types/conversion`'s one implicit conversion lets an `int` **occupy** a `float` position while
   carrying a tag it never has. Decompose unions yourself and refuse that pair before calling it —
   `always_holds` in `crates/nvs-types/src/expr/type_test.rs` is the shape, and the `false` direction
-  reuses `types_are_disjoint` rather than negating this one. [until: reviewed 2026-09-10]
+  reuses `types_are_disjoint` rather than negating this one. [until: gone crates/nvs-types/src/expr/type_test.rs:always_holds]

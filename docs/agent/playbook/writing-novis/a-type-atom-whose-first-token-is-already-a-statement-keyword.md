@@ -6,4 +6,4 @@
   missing class name even with `Parser::at_class_reference` in `can_start_type`. Every keyword arm
   earlier in that match is a second door the new atom has to be let through; the conversion slot
   (`$x as class<Animal>`) passes with no such edit, so a test that only exercises `as` reports green
-  on half a feature. [until: reviewed 2026-09-06]
+  on half a feature. [until: gone crates/nvs-syntax/src/parser/stmt.rs:can_start_type]

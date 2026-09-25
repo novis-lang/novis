@@ -4,4 +4,4 @@
   `ClassDesc` — which is why `nvs_stdlib::json`'s encoder walks a shape's slots by tag instead of
   reading `desc.codec()` (`crates/nvs-stdlib/src/json.rs:583`). Anything handing a shape's per-field
   wire types to a native helper has to carry them at the *call site*, next to the
-  `WRITTEN_CLASS_MEMBERS` descriptor rather than inside it. [until: reviewed 2026-09-08]
+  `WRITTEN_CLASS_MEMBERS` descriptor rather than inside it. [until: gone crates/nvs-ir/src/lower/mod.rs:shape_class_label]

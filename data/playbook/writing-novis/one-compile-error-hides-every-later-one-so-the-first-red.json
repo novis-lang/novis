@@ -1,9 +1,0 @@
-{
-  "lead": "One compile error hides every later one, so \"the first red fixture line\" moves backwards as you fix it.",
-  "body": "A parse error suppresses name resolution entirely, so behind it can sit a member the spec says does not exist and a subscript that panics `nvs-ir`, none of them reported until the parse error is gone. Budget a fixture as \"run it again after every fix until it exits 0\", not as \"one report, one slice\" — and do not trust a handoff's claim about which line a fixture stops at without running it.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

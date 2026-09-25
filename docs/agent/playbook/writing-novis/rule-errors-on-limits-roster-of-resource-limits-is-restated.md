@@ -4,4 +4,4 @@
   `crates/nvs-stdlib/src/fatal.rs` each enumerate them, and only the enum's `name()` arm is
   load-bearing, so nothing fails when the other three drift. `grep -rn "cpu_time" docs/decisions
   crates/nvs-stdlib/src crates/nvs-runtime/src` finds all of them in one call.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/fatal.rs:Core\Fatal::onLimit]

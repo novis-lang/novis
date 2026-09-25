@@ -5,4 +5,4 @@
   the row, and the functions list of
   `a_file_with_no_class_still_carries_every_compiler_declared_class`. Land all in one change;
   `INSTA_UPDATE=always bun nv verify -p nvs-ir` rewrites the snapshots that go red.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/tests.rs:a_file_with_no_class_still_carries_every_compiler_declared_class]

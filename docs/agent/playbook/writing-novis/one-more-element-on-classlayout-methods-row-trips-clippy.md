@@ -3,4 +3,4 @@
   threshold of 250 and a sixth `Vec<String>` puts it at 290 — `-D warnings` in a struct field, a `fn`
   signature or a `let`, but never in a `type` alias's right-hand side. Widen one of these rosters by
   naming the tuple, as `nvs_types::layout::MethodEntry` does, and re-export the name so a crate that
-  does not depend on `nvs-types` can still write it. [until: reviewed 2026-09-17]
+  does not depend on `nvs-types` can still write it. [until: gone crates/nvs-types/src/layout.rs:MethodEntry]

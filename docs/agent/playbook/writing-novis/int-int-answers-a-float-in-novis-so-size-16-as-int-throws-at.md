@@ -3,4 +3,4 @@
   value to int` on a frame whose length was odd, which reads as the member being broken rather than
   the arithmetic. Pick the divisor-free spelling in a proof — a fixed piece size with a `$take`
   clamp for the last one — rather than a cast that depends on the input's length.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-types/src/expr/operators.rs:Div]

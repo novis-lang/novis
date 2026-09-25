@@ -4,4 +4,4 @@
   matched — all PHP-identical, all easy to write an expectation against as though the operand were
   unconditional. `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` before `make` runs,
   so a case whose operand has a side effect has to expect the interleaving.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/conformance/lang/an-increment-in-value-position-answers-one-of-its-two-numbers.nvst:++]

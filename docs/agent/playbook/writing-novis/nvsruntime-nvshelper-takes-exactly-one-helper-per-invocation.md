@@ -4,4 +4,4 @@
   repetition around it, and the doc comment of the *second* fn is the first token it cannot match —
   which reads as a broken doc comment rather than as a block that should have been closed. Close the
   block after the helper you are writing beside and open a fresh `nvs_runtime::nvs_helper! {`.
-  [until: reviewed 2026-09-18]
+  [until: gone crates/nvs-runtime/src/abi.rs:$body:block]

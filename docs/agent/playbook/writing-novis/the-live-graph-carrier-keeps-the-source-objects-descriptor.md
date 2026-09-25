@@ -5,4 +5,4 @@
   are not, since `nvs-cli` compiles one unit per written path (`copy_graph_into(value,
   Some(&resolve))` and `Live::admit` carry the rule there). Do not read a refusal in `graph.rs` as
   covering both carriers; the `Carrier` trait is the list of what they share.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-runtime/src/graph.rs:Live::admit]

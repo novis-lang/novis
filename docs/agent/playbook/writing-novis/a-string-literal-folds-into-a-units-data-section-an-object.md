@@ -3,4 +3,4 @@
   the bytes, while an instance needs a `*const ClassDesc` — and a `Core` class's was leaked once per
   core, so no single address existed for a unit every core reads to bake in. Before carrying the
   immortal-string precedent to another representation, ask what else its header holds and where that
-  word's identity comes from. [until: reviewed 2026-10-12]
+  word's identity comes from. [until: gone crates/nvs-runtime/src/string.rs:immortal_header_bytes]

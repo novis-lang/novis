@@ -3,4 +3,4 @@
   has a fraction, while `Core\Str::slice`'s `offset` and `length` are `int` and `int|null`, so a
   width or a length held as `uint` is refused at the call. Write an example's arithmetic with `-`
   and `%` only, and cast at the call site with `as int` rather than declaring the local `uint`.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::slice]

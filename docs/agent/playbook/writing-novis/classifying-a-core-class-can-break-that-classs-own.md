@@ -4,4 +4,4 @@
   asserts `matches!(bag[0].ty, CoreTy::Str)` over every one, which `CoreTy::Text(Qual::Neutral)` is
   not — so the registry-wide `every_member_parameter_carries_a_qualifier_classification` passes
   while a test naming a member you did not think you were editing fails. Grep the class's own `mod
-  tests` for `CoreTy::Str` before classifying it. [until: reviewed 2026-09-06]
+  tests` for `CoreTy::Str` before classifying it. [until: gone crates/nvs-stdlib/src/registry.rs:every_member_parameter_carries_a_qualifier_classification]

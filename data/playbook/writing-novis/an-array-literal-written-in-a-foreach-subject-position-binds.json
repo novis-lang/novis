@@ -1,9 +1,11 @@
 {
   "lead": "An array literal written in a `foreach` subject position binds `mixed`, so `foreach ([\"a\", \"b\"] as string $x)` is refused as `E0401`.",
   "body": "A literal takes its element type from the declaration it is assigned to, and a subject position gives it none. Declare it first — `array<string> $queue = [\"a\", \"b\"];` — and iterate the variable.",
-  "files": [],
+  "files": [
+    "crates/nvs-diagnostics/src/lib.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-19"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0401"
   }
 }

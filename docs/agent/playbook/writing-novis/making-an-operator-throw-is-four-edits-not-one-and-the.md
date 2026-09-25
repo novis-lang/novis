@@ -5,4 +5,4 @@
   codegen guard, the same rule in `nvs_runtime::helpers` for the tagged path a `mixed` operand
   takes, and every `.nvst` that used the old answer as an *instrument* — the math cases that read
   the sign of a zero with `1.0 / $z` had to move to `Core\Math::fdiv` — so grep for the shape (`1.0
-  /`, `/ 0.0`), not the feature. [until: reviewed 2026-09-06]
+  /`, `/ 0.0`), not the feature. [until: gone crates/nvs-ir/src/lower/operator.rs:fallible]

@@ -4,4 +4,4 @@
   row pulled `redirect` in with it and the sweep refused that member's `url` parameter, which names a
   URL legitimately. The derivation is per member now — `takes_a_path` in that file is where it is
   decided — so a new fs row sweeps the member holding it and nothing beside it.
-  [until: reviewed 2026-09-15]
+  [until: gone crates/nvs-stdlib/tests/capability.rs:takes_a_path]

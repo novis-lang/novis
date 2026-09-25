@@ -7,7 +7,7 @@
     "docs/novis.md"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-types/src/core_lib.rs:nvs_stdlib::registry"
   }
 }

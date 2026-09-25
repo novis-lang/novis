@@ -4,4 +4,4 @@
   the checker, `nvs-ir` and the runtime, and not a second caller of one that exists. Run the spelling
   through `target/debug/nvs.exe run` before planning a row around a walk a rule names, because a rule
   naming a conversion is not evidence the conversion lowers.
-  [until: reviewed 2026-11-01]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0711]

@@ -3,4 +3,4 @@
   `CLASSES` the whole roster — and refuses `new Core\Test\Failure(...)`, which lives in
   `nvs_hir::errors::TREE`; `QName::is_reserved_global_class`'s doc says so, on the predicate you are
   not editing. Any check reading `is_core()` as "in the registry" owes `errors::is_exception_class`
-  beside it. [until: reviewed 2026-09-06]
+  beside it. [until: gone crates/nvs-hir/src/errors.rs:is_reserved_global_class]

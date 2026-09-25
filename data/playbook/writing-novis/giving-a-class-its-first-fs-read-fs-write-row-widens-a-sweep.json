@@ -5,7 +5,7 @@
     "crates/nvs-stdlib/tests/capability.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-15"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/capability.rs:takes_a_path"
   }
 }

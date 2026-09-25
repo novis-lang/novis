@@ -1,9 +1,11 @@
 {
   "lead": "`Core\\Bytes::slice`'s offset and length are `int|null`, and `Core\\Bytes::length` answers `uint`, so feeding one to the other does not compile.",
   "body": "`E0401: expected int|null, found uint` lands on the argument, so it reads as the wrong member rather than as a missing cast. Write `int $length = Core\\Bytes::length($b) as int;` once at the top and slice with that.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/bytes.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-21"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/bytes.rs:Core\\Bytes::length"
   }
 }

@@ -5,4 +5,4 @@
   question about an element's surroundings, handing the document back in, is refused by a test two
   thousand lines away from the row. Resolve what needs ancestors while the tree is being built,
   where the scope is still known, and carry the answer on the node.
-  [until: reviewed 2026-09-17]
+  [until: gone crates/nvs-stdlib/src/xml.rs:a_parsed_tree_has_no_path_back_into_execution]

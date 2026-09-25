@@ -4,4 +4,4 @@
   a `ConnectionReset` at the peer, with no error server-side. Copy
   `crates/nvs-server/src/serve.rs`'s `Served` tail with the spawn: a tally incremented before it, a
   guard whose `Drop` decrements and wakes the parent, and `while outstanding > 0 {
-  suspend_current(Waiting::Parked) }` before returning. [until: reviewed 2026-09-06]
+  suspend_current(Waiting::Parked) }` before returning. [until: gone crates/nvs-server/src/serve.rs:Served]

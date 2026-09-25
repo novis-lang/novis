@@ -3,4 +3,4 @@
   `crates/nvs-types/src/core_lib.rs`'s tainted-answer roster, two `--EXPECTF-ERROR--` cases under
   `tests/conformance/core/`, and the generated `docs/novis.md`. One `grep -rn` for the old rendering
   across `crates docs tests` finds all four, and since the rendered union order is not the
-  declaration order, `python tools/try.py <case>` prints the real one. [until: reviewed 2026-09-06]
+  declaration order, `python tools/try.py <case>` prints the real one. [until: gone crates/nvs-types/src/core_lib.rs:nvs_stdlib::registry]

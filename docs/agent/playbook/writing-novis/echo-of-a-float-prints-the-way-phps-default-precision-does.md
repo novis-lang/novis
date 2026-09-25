@@ -4,4 +4,4 @@
   writes the `.out`. Show the difference with a comparison —
   `Core\Arr::sum($shares) == 0.3 ? 'yes' : 'no'` prints `no` — which is what
   `docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs` already does.
-  [until: reviewed 2026-09-20]
+  [until: gone docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs:$floatTotal]

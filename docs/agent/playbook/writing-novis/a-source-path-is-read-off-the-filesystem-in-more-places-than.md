@@ -6,4 +6,4 @@
   `E0605` after the program compiled cleanly (`run_run` now substitutes the executable's own path,
   since a bundle is one trust domain). Before changing a byte source, `grep -n
   'canonicalize\|read_to_string' crates/` for the other readers; only one of them is in `nvs-hir`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-cli/src/main.rs:trust::canonical]

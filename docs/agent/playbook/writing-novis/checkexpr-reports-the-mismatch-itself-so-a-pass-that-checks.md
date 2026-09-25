@@ -4,4 +4,4 @@
   expectation only to positions that are already final — a mid-pass check against a
   half-substituted type reports a mismatch the last pass would have reported correctly, and the
   message names the unsubstituted variable's `mixed`. Call `infer` where the expectation is there to
-  place a literal rather than to judge it. [until: reviewed 2026-09-07]
+  place a literal rather than to judge it. [until: gone crates/nvs-types/src/expr/args.rs:check_generic_args]

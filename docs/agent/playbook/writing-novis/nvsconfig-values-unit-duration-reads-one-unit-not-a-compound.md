@@ -3,4 +3,4 @@
   two spellings look like one feature, and the refusal is `is not a duration` against a value the
   language accepts. Write a config bound as a bare count of the base unit, as `nvs_config::db`'s own
   bounds do; nothing in a block's module widens `crates/nvs-config/src/value.rs`'s parser.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-config/src/value.rs:Unit::Duration]

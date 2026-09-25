@@ -5,7 +5,7 @@
     "crates/nvs-db/src/ddl.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-07"
+    "kind": "gone",
+    "arg": "crates/nvs-db/src/ddl.rs:mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists"
   }
 }

@@ -4,4 +4,4 @@
   it, since a written name is checked against the target's declarations and a computed one falls
   back to the empty result. Write the parameter name at the call site, and where a list is really
   wanted, build the array of results rather than the array of names.
-  [until: reviewed 2026-09-20]
+  [until: gone crates/nvs-stdlib/src/attributes.rs:Core\Attributes::get]

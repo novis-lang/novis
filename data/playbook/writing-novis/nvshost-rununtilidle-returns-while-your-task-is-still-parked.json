@@ -5,7 +5,7 @@
     "crates/nvs-cli/src/serve.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/serve.rs:run_until_idle"
   }
 }
