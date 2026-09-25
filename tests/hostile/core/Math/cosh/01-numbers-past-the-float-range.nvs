@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `Core\Math::cosh` is given numbers whose result is too big for a `float`, and values
+// that are not ordinary numbers. It is also called a million times. Every call should return a
+// number, `INFINITY` or `NaN`, and the program should run to its end.
+
+// 1. The last numbers with a finite result, and the first ones past them.
+echo Core\Math::cosh(710.0), "\n";
+echo Core\Math::cosh(710.5), "\n";
+echo Core\Math::cosh(-710.5), "\n";
+
+// 2. The biggest numbers, positive and negative.
+echo Core\Math::cosh(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::cosh(-Core\Math::FLOAT_MAX), "\n";
+
+// 3. The smallest numbers, and zero with a minus sign.
+echo Core\Math::cosh(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::cosh(-0.0), "\n";
+
+// 4. Values that are not ordinary numbers.
+echo Core\Math::cosh(Core\Math::NAN), "\n";
+echo Core\Math::cosh(Core\Math::INFINITY), "\n";
+echo Core\Math::cosh(-Core\Math::INFINITY), "\n";
+
+// 5. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::cosh($value) - 1.5;
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";
