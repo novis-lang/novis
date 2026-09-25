@@ -1,23 +1,20 @@
 {
-  "state": "Goal `core-metrics-and-4-more` is reached. Every check of stage 2, the goal's last stage, passes:\n`Core\\Metrics`, `Core\\Mime`, `Core\\Net`, `Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe\nnothing, and their examples and attacks pass. `Core\\Net::connectLocal` and `listenLocal` run their\nUnix-only examples under the `// requires: unix` directive, which skips them on Windows; their perf\nproofs are `skip` entries in `data/proofs/policy.json`. `bun nv verify --doc`, `owners --closes` and\n`playbook --closes` are green. Nothing is blocked.",
+  "state": "Goal `core-metrics-and-4-more` is reached. Every check of stage 2, the goal's last stage, passes:\n`Core\\Metrics`, `Core\\Mime`, `Core\\Net`, `Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe\nnothing, and their examples and attacks pass. The floor check `bun nv check` is green again:\n`data/proofs/policy.json` is back in the writer's key order after the `connectLocal` and\n`listenLocal` perf skips were inserted by hand. `bun nv verify --doc`, `owners --closes` and\n`playbook --closes` are green. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, `tools/nv/proofs/run.ts`, and the `core/Net/connectLocal/` and `core/Net/listenLocal/` proof directories.",
+    "files": [
+      "data/proofs/policy.json",
+      "tools/nv/lib/store.ts"
+    ],
     "items": [
       {
         "done": true,
-        "text": "**`Core\\Net::connectLocal` and `listenLocal`** — every proof, the Rust one at `crates/nvs-stdlib/src/net.rs:2296` (`rule:testing/feature-proofs`), and the `requires: unix` directive at `tools/nv/proofs/run.ts:55`."
-      },
-      {
-        "done": true,
-        "text": "**Close the goal** — `bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` are green, anchored at `tools/nv/proofs/run.ts:55`."
+        "text": "**`data/proofs/policy.json` is in the writer's layout**, so `bun nv check` reports 0 findings — `tools/nv/lib/store.ts:56`."
       }
     ]
   },
   "backlog": [
-    "No sweep runs a `requires: unix` example on Linux, so its `.out` is checked only by hand under WSL; a Linux leg of `bun nv proofs --verify` would close that (`benches/members/README.md`).",
-    "The perf ledger has no Unix figure, so the two `perf` skips in `data/proofs/policy.json` stay until a Unix sweep measures `benches/members/core/Net/connectLocal.nvs` and `listenLocal.nvs`."
+    "Nothing this goal owes. The next goal on `data/chain.json` starts from its own handoff record."
   ]
 }
