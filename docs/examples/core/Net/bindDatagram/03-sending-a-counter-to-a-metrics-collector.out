@@ -1,0 +1,2 @@
+collector got: orders.created:1|c
+collector got: orders.paid:1|c

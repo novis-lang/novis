@@ -2078,6 +2078,7 @@ mod tests {
     /// `Core\Net\Datagram\Message::host` a plain `string` rather than a
     /// `tainted` one, since a qualified answer could not be handed to `send`'s
     /// sink at all.
+    // covers: Core\Net::bindDatagram, Core\Net\Datagram::send, Core\Net\Datagram::receive, Core\Net\Datagram::port, Core\Net\Datagram::close, Core\Net\Datagram\Message::payload, Core\Net\Datagram\Message::host, Core\Net\Datagram\Message::port
     #[test]
     fn a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor() {
         let mut ctx = Ctx::buffered();
