@@ -4,4 +4,4 @@
   recall nor the obvious fetch is a source on its own. Fetch the document where it is short enough to
   arrive whole, and otherwise lean on the vector being self-checking — a scalar, key or signature with
   one digit wrong cannot agree or verify, so a passing test has confirmed its own literals.
-  [until: reviewed 2026-09-12]
+  [until: gone crates/nvs-stdlib/src/crypto.rs:RFC]

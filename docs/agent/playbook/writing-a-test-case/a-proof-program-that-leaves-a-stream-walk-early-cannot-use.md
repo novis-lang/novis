@@ -5,4 +5,4 @@
   `rule:core-classes/a-stream-parks-its-read-on-the-connection`'s "returns to `Idle`" is the pooled
   reset rather than something the program gets back. Bound the result with `limit` in the statement
   instead, and where a case really has to abandon a walk, make that its last step.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-stdlib/src/db/stream.rs:Core\Db\Connection::stream]

@@ -5,7 +5,7 @@
     "crates/nvs-stdlib/tests/allocation_policy.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/allocation_policy.rs:nvs_runtime::call_closure"
   }
 }

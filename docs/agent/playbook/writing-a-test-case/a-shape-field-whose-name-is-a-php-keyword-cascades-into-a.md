@@ -4,4 +4,4 @@
   points at the name while every error after it blames the `<` of the type beside it — which reads
   exactly like a shape that cannot hold an `array<T>`. Rename the field before believing the type is at
   fault: `{items: array<string>}` parses, takes `tainted`'s distribution and is silent.
-  [until: reviewed 2026-09-08]
+  [until: gone crates/nvs-syntax/src/parser/ty.rs:parse_shape_type]

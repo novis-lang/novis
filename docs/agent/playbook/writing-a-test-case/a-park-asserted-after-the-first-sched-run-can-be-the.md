@@ -4,4 +4,4 @@
   reached the reactor. Turn until the origin thread signals it holds the request, sending that
   signal before it writes any reply bytes;
   `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` in
-  `crates/nvs-stdlib/src/http/transport.rs` is the shape. [until: reviewed 2026-09-06]
+  `crates/nvs-stdlib/src/http/transport.rs` is the shape. [until: gone crates/nvs-stdlib/src/http/transport.rs:a_socket_read_runs_on_the_reactor_and_parks_its_coroutine]

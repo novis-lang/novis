@@ -4,4 +4,4 @@
   illegal default before it. Seed an `array<T>` property in `constructor` from a typed local
   (`array<int> $seed = […]; $this->counts = $seed;`), as
   `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst` does.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0472]

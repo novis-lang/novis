@@ -5,4 +5,4 @@
   a `"\n"` of its own and matches. So a case that echoes a raw body writes no newline after it, and one
   that reads a field out of a raw body gets that newline inside the last field's value — write the body
   the member will read rather than the one that looks tidy in the file.
-  [until: reviewed 2026-09-08]
+  [until: gone tests/conformance/core/a-raw-request-body-reaches-the-program-verbatim.nvst:content-length]

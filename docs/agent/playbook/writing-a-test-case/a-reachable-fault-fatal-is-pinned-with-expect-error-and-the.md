@@ -3,4 +3,4 @@
   stops there, so `--EXPECT--` holds only what printed *before* it: every other row must come first,
   or a fatal in the middle truncates them. Writing the call inside a `try` with an `echo
   "unreachable"` in the `catch` makes the *uncatchable* half an assertion.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-test/src/case.rs:--EXPECT-ERROR--]

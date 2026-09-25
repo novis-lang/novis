@@ -3,4 +3,4 @@
   `take()` from either reader into a `None` for the other, in a case that passes alone under
   `--test-threads=1`. Compiled code is called through a bare `extern "C"` pointer that captures
   nothing, so the fix is a slot and a recorder per test (`crates/nvs-host/tests/limits.rs`'s
-  `SEEN_LIMIT` and its twin), not a lock held longer. [until: reviewed 2026-09-06]
+  `SEEN_LIMIT` and its twin), not a lock held longer. [until: gone crates/nvs-host/tests/limits.rs:SEEN_LIMIT]

@@ -4,4 +4,4 @@
   `Core\Compress::decompress` fails to compile at the *comparison*, and the diagnostic names the
   argument rather than the stream. Declare the result `tainted bytes` and compare the two lengths,
   or compare frames the compressing half produced, whose `finish` is plain `bytes`.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-stdlib/src/compress.rs:Core\Compress::decompress]

@@ -4,4 +4,4 @@
   $unwrapped = $named->string("owner");` next door compiles, and `if ($a != null && $b != null)`
   still raises `E0459` on both receivers in the body. Write one `if` per object receiver; a
   `?decimal` or `?bool` needs none, since `echo` and a ternary condition take them.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/db/row.rs:Core\Time\Date]

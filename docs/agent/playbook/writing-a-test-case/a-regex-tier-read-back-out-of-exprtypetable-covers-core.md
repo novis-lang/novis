@@ -4,4 +4,4 @@
   recorded tier — a test counting `regex_tiers()` over the conformance suite sees an eighth of the
   patterns it looks like it sees. Find the pattern argument through `nvs_syntax::walk` and the class's
   own registry rows instead, and settle each one by handing it to `compile`, which is what
-  `every_literal_regex_pattern_in_the_suite_has_its_tier_recorded` does. [until: reviewed 2026-09-16]
+  `every_literal_regex_pattern_in_the_suite_has_its_tier_recorded` does. [until: gone crates/nvs-types/tests/intrinsics.rs:every_literal_regex_pattern_in_the_suite_has_its_tier_recorded]

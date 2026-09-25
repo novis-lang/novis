@@ -1,9 +1,11 @@
 {
   "lead": "A reachable `Fault::fatal` is pinned with `--EXPECT-ERROR--`, and the program's own `try`/`catch` around it is worth writing anyway.",
   "body": "`FATAL:` goes to standard error and the process stops there, so `--EXPECT--` holds only what printed *before* it: every other row must come first, or a fatal in the middle truncates them. Writing the call inside a `try` with an `echo \"unreachable\"` in the `catch` makes the *uncatchable* half an assertion.",
-  "files": [],
+  "files": [
+    "crates/nvs-test/src/case.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/case.rs:--EXPECT-ERROR--"
   }
 }

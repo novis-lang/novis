@@ -5,7 +5,7 @@
     "tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-21"
+    "kind": "gone",
+    "arg": "tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs:LogicError"
   }
 }

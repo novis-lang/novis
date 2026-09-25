@@ -3,4 +3,4 @@
   with `BINARY_MARK` (`crates/nvs-db/src/tds/rpc.rs:115`) and `bind` strips it, which is the only
   channel a parameter list of opaque octets has — so `&[Some(&[0xFF, 0xFE])]`, written to pin the
   refusal, now binds one octet of binary instead. Start a case's *invalid* octets at `0xFE`, which
-  no UTF-8 sequence begins with either and no form claims. [until: reviewed 2026-09-17]
+  no UTF-8 sequence begins with either and no form claims. [until: gone crates/nvs-db/src/tds/rpc.rs:BINARY_MARK]

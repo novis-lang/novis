@@ -3,4 +3,4 @@
   `set_methods` pair with a plain `unsafe extern "C" fn` is a whole closure;
   `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of` is the shape, and leaks the table: a
   descriptor's address is its identity. The callee owes the exit sweep or valgrind catches it.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/tests/allocation_policy.rs:nvs_runtime::call_closure]

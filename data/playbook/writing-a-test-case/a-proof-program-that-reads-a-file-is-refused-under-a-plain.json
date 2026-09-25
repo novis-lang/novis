@@ -4,10 +4,11 @@
   "files": [
     "examples/files.nvs",
     "examples/capability.nvs",
-    "nvs.toml"
+    "nvs.toml",
+    "crates/nvs-stdlib/src/io.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-21"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/io.rs:Core\\IO::open"
   }
 }

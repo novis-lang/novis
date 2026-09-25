@@ -3,4 +3,4 @@
   `HeldConnection` to `nvs_db::Connection`, so a fake reaches only driver-free members. Split the
   member's tail into a function over the receiver alone (`stream.rs`'s `park_row`), drive it with
   `crate::instance::build(&CLASS, [...])` and count with `NvsObj::refcount_of`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/db/stream.rs:NvsObj::refcount_of]

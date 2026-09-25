@@ -4,4 +4,4 @@
   cover the trailing `aborting due to 2 errors`. Declare the surrounding position `mixed`
   (`this-is-not-read-in-a-static-method.nvst`) or pin both errors deliberately; `python tools/try.py
   <case>.nvst` prints the exact block to freeze, reading the `.nvst` in place.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-types/src/expr/assign.rs:check_read]

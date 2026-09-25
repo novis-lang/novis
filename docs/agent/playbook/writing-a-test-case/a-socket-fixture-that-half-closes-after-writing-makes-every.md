@@ -2,4 +2,4 @@
   vacuous, and the control row fails.** Half-closing makes `read_to_string` return, but a pipelined
   pair written down one socket and then half-closed reads back one response, whatever the door did.
   Use a bounded wait instead of an EOF — `set_read_timeout` a few hundred milliseconds, read until
-  close or timeout — and write the pipelined pair as a control row. [until: reviewed 2026-09-06]
+  close or timeout — and write the pipelined pair as a control row. [until: gone crates/nvs-server/src/serve.rs:set_read_timeout]

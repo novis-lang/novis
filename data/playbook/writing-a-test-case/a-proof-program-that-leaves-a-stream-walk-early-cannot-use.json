@@ -5,7 +5,7 @@
     "crates/nvs-stdlib/src/db/stream.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-21"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/db/stream.rs:Core\\Db\\Connection::stream"
   }
 }

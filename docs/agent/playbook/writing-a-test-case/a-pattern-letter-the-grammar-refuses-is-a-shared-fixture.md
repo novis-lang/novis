@@ -5,4 +5,4 @@
   replacement from the letters CLDR reserves and gives no field — `j`, `J`, `C`, `l` — since every
   letter that module's gap once named now formats. Two of those cases also **count** the alphabet
   and the field roster, so widening the subset moves four numbers in one `--EXPECT--`.
-  [until: reviewed 2026-09-16]
+  [until: gone crates/nvs-stdlib/src/cldr.rs:is not a pattern letter]

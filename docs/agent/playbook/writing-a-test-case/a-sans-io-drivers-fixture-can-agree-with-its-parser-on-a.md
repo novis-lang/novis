@@ -2,4 +2,4 @@
   every gate stays green.** `tds/stream.rs`'s `login_ack` and its fixture both wrote LOGINACK's
   `TDSVersion` little-endian, and a real SQL Server refused; no `.nvst` case can open a socket.
   Before claiming a handshake reaches a server, run a scratch `.nvs` under `.agent-tmp/` against
-  `tests/db/compose.yaml`'s endpoint with `target/debug/nvs.exe run`. [until: reviewed 2026-09-06]
+  `tests/db/compose.yaml`'s endpoint with `target/debug/nvs.exe run`. [until: gone crates/nvs-db/src/tds/stream.rs:login_ack]

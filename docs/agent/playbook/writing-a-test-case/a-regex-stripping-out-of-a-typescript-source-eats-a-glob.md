@@ -3,4 +3,4 @@
   stripped `editors/vscode/src/tests.ts` reported a client that never looks for a `.nvst` file,
   because `const CASES` had been deleted with the line above it. Drop comment *lines* instead —
   `!/^\s*(\/\/|\/\*|\*)/` over the split source — which is exact where every block comment is a doc
-  comment on its own lines, and blind to what a string holds. [until: reviewed 2026-09-11]
+  comment on its own lines, and blind to what a string holds. [until: gone editors/vscode/src/tests.ts:const CASES]

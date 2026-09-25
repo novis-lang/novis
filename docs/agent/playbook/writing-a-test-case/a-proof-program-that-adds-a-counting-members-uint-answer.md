@@ -3,4 +3,4 @@
   `uint`, and `E0407` refuses `int + uint` outright, so an attack whose accumulator is the usual
   `int $seen = 0` loses every step it had rather than one line. Declare the accumulator `uint` the
   moment anything in the sum came from a member that counts, and read a red hostile case's message
-  before deciding the attack itself is wrong. [until: reviewed 2026-09-20]
+  before deciding the attack itself is wrong. [until: gone crates/nvs-diagnostics/src/lib.rs:E0407]

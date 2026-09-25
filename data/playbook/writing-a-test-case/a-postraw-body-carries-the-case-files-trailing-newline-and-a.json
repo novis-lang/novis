@@ -6,7 +6,7 @@
     "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-08"
+    "kind": "gone",
+    "arg": "tests/conformance/core/a-raw-request-body-reaches-the-program-verbatim.nvst:content-length"
   }
 }

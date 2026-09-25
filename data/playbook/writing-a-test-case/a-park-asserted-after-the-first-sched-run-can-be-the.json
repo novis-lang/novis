@@ -5,7 +5,7 @@
     "crates/nvs-stdlib/src/http/transport.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/http/transport.rs:a_socket_read_runs_on_the_reactor_and_parks_its_coroutine"
   }
 }

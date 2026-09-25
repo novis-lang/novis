@@ -2,10 +2,11 @@
   "lead": "A property default is a scalar literal or `[]`, and a *hooked* property takes none at all.",
   "body": "`public array<string> $rows = [\"a\"];` is `E0472`, and a `{ get => …; set { … } }` block after a default is a *parse* error that cascades, so the hook reads as broken syntax rather than as the illegal default before it. Seed an `array<T>` property in `constructor` from a typed local (`array<int> $seed = […]; $this->counts = $seed;`), as `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst` does.",
   "files": [
-    "tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst"
+    "tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst",
+    "crates/nvs-diagnostics/src/lib.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0472"
   }
 }

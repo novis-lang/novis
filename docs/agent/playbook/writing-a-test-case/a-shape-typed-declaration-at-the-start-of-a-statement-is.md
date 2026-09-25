@@ -1,6 +1,0 @@
-- **A shape-typed declaration at the start of a statement is `E0117`, not a type.** `{sub: string}
-  $claims = …` parses its `{` as a block, and the fix the diagnostic offers — wrap it in `({…})` —
-  is for an object *literal* in expression position, so following it produces three more errors
-  rather than one declaration. Write `var $claims = Core\Json::decodeAs<{sub: string}>(…)` instead:
-  the written type is already on the call, and a shape type still reads fine in a parameter or a
-  return position, where no block can begin. [until: reviewed 2026-09-12]

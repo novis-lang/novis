@@ -4,4 +4,4 @@
   dispatch test installs an `ErrorClass::new(Rc::new(table), id)` over an unrelated class. The row
   is `MethodRow { arity }` excluding the receiver and slot 0 is the called class as a
   `Value::class_desc`; `crates/nvs-stdlib/src/command.rs`'s `dispatching` is the shape.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/command.rs:Ctx::set_runtime_error_class]

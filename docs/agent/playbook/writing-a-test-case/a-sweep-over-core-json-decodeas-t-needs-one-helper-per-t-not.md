@@ -3,4 +3,4 @@
   parameter can carry it. Write one `try { … return true; } catch (Throwable $bad) { return false;
   }` per type over the same document builder and sweep the *documents*, as
   `tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst` does.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst:rule:core-api/shape-rules]

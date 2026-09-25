@@ -4,4 +4,4 @@
   bool}>` reports `alsoBad` before `bad`, while a `#[Core\Json\Derive]` class declaring `zeta, alpha,
   mid` reports them in exactly that order. Run the program before writing the `--EXPECT--` block, and
   name fields whose two orders differ when the order is what a case pins.
-  [until: reviewed 2026-09-19]
+  [until: gone crates/nvs-stdlib/src/arr.rs:shapeAs]

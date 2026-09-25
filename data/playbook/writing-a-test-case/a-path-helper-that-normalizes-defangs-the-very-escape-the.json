@@ -6,7 +6,7 @@
     "crates/nvs-config/tests/capability.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-config/tests/capability.rs:fn lexical"
   }
 }

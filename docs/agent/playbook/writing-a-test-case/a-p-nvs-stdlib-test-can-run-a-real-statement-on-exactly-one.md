@@ -4,4 +4,4 @@
   in-memory database is a real engine needing no container and no `NVS_DB_MATRIX_DRIVER`. Reach for
   it when the subject is a *statement* rather than a member, build the schema from the value the
   product uses so the fixture cannot drift, and see `crates/nvs-stdlib/tests/queue_sqlite.rs`.
-  [until: reviewed 2026-09-10]
+  [until: gone crates/nvs-stdlib/tests/queue_sqlite.rs:nvs_db::sqlite::open]
