@@ -617,24 +617,26 @@ const ROUND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
 const INT_DIV_DOC: MethodDoc = MethodDoc {
-    short: "The integer quotient of `$a / $b`, truncated toward zero, as `intdiv` does.",
+    short: "Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. This \
+            replaces PHP's `intdiv`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The dividend.",
+            desc: "The integer to divide.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The divisor, which may not be zero.",
+            desc: "The integer to divide by. It may not be zero.",
             shape: &[],
         },
     ],
-    ret: "The quotient with any remainder dropped, so `intDiv(-7, 2)` is `-3`.",
+    ret: "The whole part of `$a / $b`. `intDiv(7, 2)` is `3`, and `intDiv(-7, 2)` is `-3`. The \
+          `%` operator gives the remainder.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$b` is zero, or when `$a` is `INT_MIN` and `$b` is `-1`, whose exact \
-               answer is one past `INT_MAX`.",
+        desc: "When `$b` is zero. Also when `$a` is `Core\\Math::INT_MIN` and `$b` is `-1`, \
+               because the result is one more than `Core\\Math::INT_MAX`.",
     }],
 };
 
@@ -687,50 +689,51 @@ const FDIV_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::gcd`'s reference card — `rule:core-api/reference-card`.
 const GCD_DOC: MethodDoc = MethodDoc {
-    short: "The greatest common divisor of two integers, never negative, as `gmp_gcd` does \
-            without the GMP objects.",
+    short: "Returns the greatest common divisor of two integers. This is the largest integer \
+            that divides both with no remainder. This replaces PHP's `gmp_gcd`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "One integer; its sign is ignored.",
+            desc: "The first integer. Its sign does not change the result.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The other integer; its sign is ignored.",
+            desc: "The second integer. Its sign does not change the result.",
             shape: &[],
         },
     ],
-    ret: "The largest integer dividing both, at least `0`; `gcd(0, 0)` is `0` and \
-          `gcd($a, 0)` is `abs($a)`.",
+    ret: "The greatest common divisor, which is never negative. When one integer is `0`, the \
+          result is the other one without its sign. When both are `0`, the result is `0`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When the answer does not fit an `int`, which only `gcd(INT_MIN, 0)` and \
-               `gcd(INT_MIN, INT_MIN)` reach.",
+        desc: "When the result does not fit an `int`. This happens only when one integer is \
+               `Core\\Math::INT_MIN` and the other is `Core\\Math::INT_MIN` or `0`.",
     }],
 };
 
 /// `Core\Math::lcm`'s reference card — `rule:core-api/reference-card`.
 const LCM_DOC: MethodDoc = MethodDoc {
-    short: "The least common multiple of two integers, never negative, as `gmp_lcm` does \
-            without the GMP objects.",
+    short: "Returns the least common multiple of two integers. This is the smallest positive \
+            integer that both divide with no remainder. This replaces PHP's `gmp_lcm`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "One integer; its sign is ignored.",
+            desc: "The first integer. Its sign does not change the result.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The other integer; its sign is ignored.",
+            desc: "The second integer. Its sign does not change the result.",
             shape: &[],
         },
     ],
-    ret: "The smallest positive integer both divide, or `0` when either argument is `0`.",
+    ret: "The least common multiple, which is never negative. When one integer is `0`, the \
+          result is `0`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When the answer is past `INT_MAX`, the usual case for two large coprime \
-               arguments.",
+        desc: "When the result is bigger than `Core\\Math::INT_MAX`. This happens quickly for two \
+               big integers that share no divisor.",
     }],
 };
 
@@ -2438,6 +2441,19 @@ mod tests {
             .expect("a float result")
     }
 
+    /// A member over two `int`s, returning its `int` result or the message of
+    /// the error it threw.
+    fn int_pair(function: nvs_runtime::NvsFn, a: i64, b: i64) -> Result<i64, String> {
+        let mut ctx = Ctx::buffered();
+        match call(function, &mut ctx, &[Value::int(a), Value::int(b)]) {
+            Ok(result) => Ok(result.as_int().expect("an int result")),
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("the error is pending")
+                .into_owned()),
+        }
+    }
+
     fn text_result(function: nvs_runtime::NvsFn, args: &[Value]) -> String {
         let mut ctx = Ctx::buffered();
         let value = call(function, &mut ctx, args).expect("the call succeeds");
@@ -3013,5 +3029,89 @@ mod tests {
         assert_eq!(floor(f64::INFINITY), f64::INFINITY);
         assert_eq!(floor(f64::NEG_INFINITY), f64::NEG_INFINITY);
         assert!(floor(f64::NAN).is_nan());
+    }
+
+    /// `gcd` ignores both signs, returns the other argument's magnitude for
+    /// one zero and `0` for two, returns `1` for the largest neighbouring
+    /// Fibonacci numbers, and throws only where the result is `2^63`.
+    // covers: Core\Math::gcd
+    #[test]
+    fn gcd_ignores_both_signs_and_throws_only_where_the_result_is_two_to_the_63() {
+        let gcd = |a: i64, b: i64| int_pair(nvs_core_math_gcd, a, b);
+        for (a, b) in [(12, 18), (-12, 18), (12, -18), (-12, -18), (18, 12)] {
+            assert_eq!(gcd(a, b), Ok(6), "gcd({a}, {b})");
+        }
+        assert_eq!(gcd(0, 5), Ok(5));
+        assert_eq!(gcd(-5, 0), Ok(5));
+        assert_eq!(gcd(0, 0), Ok(0));
+        assert_eq!(gcd(17, 5), Ok(1));
+        assert_eq!(gcd(i64::MAX, i64::MAX), Ok(i64::MAX));
+        assert_eq!(gcd(i64::MAX, i64::MIN), Ok(1));
+        assert_eq!(gcd(i64::MIN, 2), Ok(2));
+        assert_eq!(gcd(i64::MIN, i64::MIN / 2), Ok(1 << 62));
+        assert_eq!(
+            gcd(7_540_113_804_746_346_429, 4_660_046_610_375_530_309),
+            Ok(1)
+        );
+        for (a, b) in [(i64::MIN, 0), (0, i64::MIN), (i64::MIN, i64::MIN)] {
+            let message = gcd(a, b).expect_err("2^63 does not fit an int");
+            assert!(message.contains("Core\\Math::gcd"), "{message}");
+        }
+    }
+
+    /// `intDiv` truncates toward zero for every sign pair, reaches both ends
+    /// of `int`, and throws for a zero divisor and for `INT_MIN / -1`, with a
+    /// message saying which of the two it was.
+    // covers: Core\Math::intDiv
+    #[test]
+    fn int_div_truncates_toward_zero_and_throws_for_a_zero_divisor_and_int_min_by_minus_one() {
+        let int_div = |a: i64, b: i64| int_pair(nvs_core_math_int_div, a, b);
+        assert_eq!(int_div(7, 2), Ok(3));
+        assert_eq!(int_div(-7, 2), Ok(-3));
+        assert_eq!(int_div(7, -2), Ok(-3));
+        assert_eq!(int_div(-7, -2), Ok(3));
+        assert_eq!(int_div(9, 10), Ok(0));
+        assert_eq!(int_div(i64::MAX, -1), Ok(-i64::MAX));
+        assert_eq!(int_div(i64::MIN, 1), Ok(i64::MIN));
+        assert_eq!(int_div(i64::MIN, -2), Ok(1 << 62));
+        assert_eq!(int_div(i64::MIN, i64::MAX), Ok(-1));
+        assert_eq!(int_div(i64::MAX, i64::MIN), Ok(0));
+        for a in [1, 0, i64::MIN, i64::MAX] {
+            let message = int_div(a, 0).expect_err("a zero divisor throws");
+            assert!(message.contains("zero divisor"), "{message}");
+        }
+        let message = int_div(i64::MIN, -1).expect_err("2^63 does not fit an int");
+        assert!(message.contains("does not fit"), "{message}");
+    }
+
+    /// `lcm` ignores both signs, returns `0` when either argument is `0`,
+    /// fits on both sides of the bound `2^62` sets, and throws for every
+    /// result past `INT_MAX`, `2^63` included.
+    // covers: Core\Math::lcm
+    #[test]
+    fn lcm_ignores_both_signs_returns_zero_for_a_zero_and_throws_past_int_max() {
+        let lcm = |a: i64, b: i64| int_pair(nvs_core_math_lcm, a, b);
+        for (a, b) in [(4, 6), (-4, 6), (4, -6), (-4, -6), (6, 4)] {
+            assert_eq!(lcm(a, b), Ok(12), "lcm({a}, {b})");
+        }
+        assert_eq!(lcm(0, 5), Ok(0));
+        assert_eq!(lcm(5, 0), Ok(0));
+        assert_eq!(lcm(0, 0), Ok(0));
+        assert_eq!(lcm(i64::MIN, 0), Ok(0));
+        assert_eq!(lcm(7, 49), Ok(49));
+        assert_eq!(lcm(i64::MAX, 1), Ok(i64::MAX));
+        assert_eq!(lcm(i64::MAX, i64::MAX), Ok(i64::MAX));
+        assert_eq!(lcm(1 << 62, 2), Ok(1 << 62));
+        for (a, b) in [
+            (1 << 62, 3),
+            (i64::MAX, 2),
+            (i64::MIN, 1),
+            (i64::MIN, i64::MIN),
+            (i64::MAX, i64::MIN),
+            (7_540_113_804_746_346_429, 4_660_046_610_375_530_309),
+        ] {
+            let message = lcm(a, b).expect_err("the result is past INT_MAX");
+            assert!(message.contains("Core\\Math::lcm"), "{message}");
+        }
     }
 }
