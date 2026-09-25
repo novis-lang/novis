@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to measure the distance between two numbers. You subtract one from
+// the other and call `Core\Math::abs` on the result.
+
+float $morning = 14.5;
+float $evening = 9.0;
+
+// The difference has a sign, so this prints -5.5.
+echo $evening - $morning, "\n";
+
+// `abs` removes the sign, and what is left is the distance. This prints 5.5.
+echo Core\Math::abs($evening - $morning), "\n";
+
+// Subtracting the other way round gives the same distance. This prints 5.5.
+echo Core\Math::abs($morning - $evening), "\n";

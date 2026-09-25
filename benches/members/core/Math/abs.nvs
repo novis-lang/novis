@@ -1,0 +1,21 @@
+<?nvs
+// Measures removing the sign of a whole number, as a program does when it
+// checks how far apart two counts are.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<int> $offsets = [-3, 5, -7];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the offset used this round is picked by last round's total.
+            $total = $total + (Core\Math::abs($offsets[$total % 3] - $i) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

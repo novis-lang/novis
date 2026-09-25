@@ -47,13 +47,20 @@ use nvs_runtime::{Ctx, Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
 // ============================================================================
+
+/// `Core\Math`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Functions and constants for numbers: rounding, powers, roots, logarithms, angles and \
+            limits. A result that does not fit its type throws an `ArithmeticError`, and a value \
+            outside a function's range, such as `sqrt(-1.0)`, gives `NaN`.",
+};
 
 /// `Core\Math`'s registry rows, in the spec's own order.
 ///
@@ -61,7 +68,7 @@ use crate::registry::{
 /// reason [`crate::arr::CLASS`] states.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Math",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "abs",
@@ -422,18 +429,19 @@ pub const CLASS: CoreClass = CoreClass {
 
 /// `Core\Math::abs`'s reference card — `rule:core-api/reference-card`.
 const ABS_DOC: MethodDoc = MethodDoc {
-    short: "The magnitude of `$n`, in `$n`'s own type, as `abs` does — the one member here whose \
-            result type is the argument's.",
+    short: "Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-2.5` \
+            gives `2.5`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The number to take the magnitude of: an `int`, a `float` or a `decimal`.",
+        desc: "The number whose sign is removed: an `int`, a `float` or a `decimal`.",
         shape: &[],
     }],
-    ret: "`$n` with its sign dropped, in the type it came in; `-0.0` becomes `0.0`.",
+    ret: "`$n` without its sign. An `int` or a `uint` gives an `int`, a `float` gives a `float` and \
+          a `decimal` gives a `decimal` with the same decimal places. `-0.0` becomes `0.0`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$n` is `INT_MIN`, whose magnitude is one past `INT_MAX`, or a `uint` past \
-               `INT_MAX`.",
+        desc: "When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`, or a `uint` \
+               larger than `INT_MAX`.",
     }],
 };
 
@@ -856,13 +864,13 @@ const ASIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::acos`'s reference card — `rule:core-api/reference-card`.
 const ACOS_DOC: MethodDoc = MethodDoc {
-    short: "The arc cosine — the angle in radians whose cosine is `$n` — as `acos` does.",
+    short: "Returns the angle, in radians, whose cosine is `$n`. This is the arc cosine.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A cosine, in `[-1, 1]`.",
+        desc: "A cosine: a number from `-1.0` to `1.0`.",
         shape: &[],
     }],
-    ret: "An angle in `[0, PI]`; `NaN` for a `$n` outside `[-1, 1]`.",
+    ret: "An angle from `0.0` to `PI`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.",
     errors: &[],
 };
 
@@ -2541,6 +2549,64 @@ mod tests {
                 }
                 assert_eq!(read.as_int(), Some(value), "{value} in base {base}");
             }
+        }
+    }
+
+    /// `abs` answers in the argument's own type on every arm, and throws
+    /// `ArithmeticError` exactly where that type has no answer.
+    // covers: Core\Math::abs
+    #[test]
+    fn abs_keeps_the_arguments_type_and_throws_only_where_it_has_no_answer() {
+        let mut ctx = Ctx::buffered();
+        let int = call(nvs_core_math_abs, &mut ctx, &[Value::int(-42)]).expect("an int answer");
+        assert_eq!(int.as_int(), Some(42));
+        let largest = call(nvs_core_math_abs, &mut ctx, &[Value::int(-i64::MAX)])
+            .expect("the negated largest int has an answer");
+        assert_eq!(largest.as_int(), Some(i64::MAX));
+        let small = call(nvs_core_math_abs, &mut ctx, &[Value::uint(7)]).expect("a small uint");
+        assert_eq!(small.as_int(), Some(7));
+
+        let zero = float_result(nvs_core_math_abs, &[Value::float(-0.0)]);
+        assert!(zero == 0.0 && zero.is_sign_positive(), "-0.0 becomes 0.0");
+        assert_eq!(
+            float_result(nvs_core_math_abs, &[Value::float(f64::NEG_INFINITY)]),
+            f64::INFINITY
+        );
+        assert!(float_result(nvs_core_math_abs, &[Value::float(f64::NAN)]).is_nan());
+
+        let price = Decimal::parse("-19.90").expect("a decimal literal");
+        let exact = call(nvs_core_math_abs, &mut ctx, &[Value::decimal(price)])
+            .expect("a decimal answer")
+            .as_decimal()
+            .expect("a decimal result");
+        assert_eq!(exact.to_string(), "19.90", "the scale is kept");
+
+        for refused in [Value::int(i64::MIN), Value::uint(u64::MAX)] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_abs, &mut ctx, &[refused]).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::abs"), "{message}");
+        }
+    }
+
+    /// `acos` answers on the closed range `[-1, 1]`, ends included, and `NaN`
+    /// one step past either end — never a throw.
+    // covers: Core\Math::acos
+    #[test]
+    fn acos_answers_on_its_closed_range_and_nan_one_step_outside_it() {
+        let acos = |n: f64| float_result(nvs_core_math_acos, &[Value::float(n)]);
+        assert_eq!(acos(1.0), 0.0);
+        assert_eq!(acos(-1.0), std::f64::consts::PI);
+        assert_eq!(acos(0.0), std::f64::consts::FRAC_PI_2);
+        assert_eq!(acos(-0.0), std::f64::consts::FRAC_PI_2);
+        for outside in [
+            1.0f64.next_up(),
+            (-1.0f64).next_down(),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(acos(outside).is_nan(), "{outside} has no angle");
         }
     }
 }

@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `Core\Math::abs` is given the numbers at the far ends of every type
+// it accepts, then called a million times in a loop. It should throw an error
+// where no answer fits, and the program should run to its last line.
+
+// 1. The smallest `int`. Its positive value is one past the largest `int`.
+try {
+    echo Core\Math::abs(Core\Math::INT_MIN), "\n";
+} catch (ArithmeticError $tooSmall) {
+    echo "refused\n";
+}
+
+// 2. The largest `uint`. It is past the largest `int`, so it cannot be used.
+try {
+    echo Core\Math::abs(Core\Math::UINT_MAX), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo "refused\n";
+}
+
+// 3. The `float` values that are not ordinary numbers, and the largest one.
+echo Core\Math::abs(-Core\Math::INFINITY), "\n";
+echo Core\Math::abs(Core\Math::NAN), "\n";
+echo Core\Math::abs(-0.0), "\n";
+echo Core\Math::abs(-Core\Math::FLOAT_MAX), "\n";
+
+// 4. The largest `decimal` there is, with a minus sign.
+decimal $widest = -79228162514264337593543950335;
+echo Core\Math::abs($widest), "\n";
+
+// 5. A million calls. Each result is thrown away the round after it is made,
+//    so the memory the program holds must not grow.
+int $round = 0;
+int $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + (Core\Math::abs(-$round % 7) as int);
+    $round = $round + 1;
+}
+echo $sum, "\n";

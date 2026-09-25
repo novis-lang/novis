@@ -1,0 +1,28 @@
+<?nvs
+// Shows a customer balance on an invoice page. The sign decides the words,
+// and `Core\Math::abs` gives the amount to show next to them.
+// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union
+
+class Balance {
+    // Returns a sentence for a balance. A negative balance means the shop owes the customer.
+    public static function describe(decimal $balance): string {
+        if ($balance < 0) {
+            // `abs` returns a `decimal` here, because the balance is a `decimal`.
+            decimal $owed = Core\Math::abs($balance);
+            return "We owe you " . $owed;
+        }
+        if ($balance > 0) {
+            return "You owe us " . $balance;
+        }
+        return "Nothing is due";
+    }
+}
+
+// This prints "You owe us 12.50".
+echo Balance::describe(12.50), "\n";
+
+// This prints "We owe you 3.20". The minus sign is not shown.
+echo Balance::describe(-3.20), "\n";
+
+// This prints "Nothing is due".
+echo Balance::describe(0.00), "\n";
