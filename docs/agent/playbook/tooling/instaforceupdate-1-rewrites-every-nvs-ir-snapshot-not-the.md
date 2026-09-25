@@ -2,5 +2,5 @@
   `INSTA_UPDATE=always` alone.** The extra variable rewrites snapshots that *pass* as well, and
   stale `source:` headers come back as a one-line diff on each that buries the ones that matter.
   `INSTA_UPDATE=always bun nv verify -p nvs-ir` touches only what differs; if it already
-  happened, `git checkout --` the rest before the wrap, because `session.py --wrap` sweeps
+  happened, `git checkout --` the rest before the wrap, because `bun nv session --wrap` sweeps
   everything unnamed into the last commit. [until: gone crates/nvs-ir/Cargo.toml:insta.workspace]

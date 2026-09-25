@@ -2,5 +2,5 @@
   file.** `git commit -F .agent-tmp/msg.txt` can pick up a stale message another session left there,
   with no error and no warning, and the same applies to a `--patch` file handed to `nv splice`. Name
   a scratch file for the thing it holds (`wrap-msg-handoff.txt`), never `msg.txt`/`patch.txt`, read
-  `git log --oneline -1` after any `-F` commit, or let `python tools/session.py --wrap` write the
+  `git log --oneline -1` after any `-F` commit, or let `bun nv session --wrap` write the
   commits, which never touches a shared path. [until: gone AGENTS.md:.agent-tmp/]

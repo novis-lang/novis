@@ -1,30 +1,31 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 56 documents: 48 playbook bullets under `docs/agent/playbook/` and 8 goal prose files under `docs/agent/goals/`. The single documents (`CONTRIBUTING.md`, the three bench READMEs), every rule fragment, its rendered chapter and its website page are clear. The audit's two calls, which the user may overrule: the Python twins under `benches/userland/` stay because `bun nv bench` runs them as a workload, and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\nA Python step with no port is described by what it did, with no path: `tools/nv/cmd/loop.ts:70` lists the driver's, `tools/nv/driver/accept.ts:30` the WSL leg and the valgrind sweep. `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes, and `tools/nv/keys/checks.ts` keys a Python gate on `tools/observe.py`'s record until `observe.py` goes.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check. Every document is clear now: `audit: no document names a Python tool`. What is left is 5 tracked `.py` files: `tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py` and `editors/vscode/scripts/mkwoff.py`. The audit's two calls, which the user may overrule: the Python twins under `benches/userland/` stay because `bun nv bench` runs them as a workload, and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\nA Python step with no port is described by what it did, with no path: `tools/nv/cmd/loop.ts:70` lists the driver's, `tools/nv/driver/accept.ts:30` the WSL leg and the valgrind sweep. The goal switch, the side run and the proof tool's partition mode have no port either, and the goal prose now says what each did.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
   "next": {
     "stage": 12,
     "title": "no Python",
     "files": [],
-    "note": "one file set: the goal prose and the playbook bullets `bun nv audit python` still lists.",
+    "note": "one file set: the five tracked `.py` files and the `tools/nv/` files that still name them.",
     "items": [
       {
         "done": false,
-        "text": "**Rewrite the 8 goal prose files to name the `bun nv` ports**: `docs/agent/goals/ci-green.md:21`, `docs/agent/goals/core-class-cards.md:30`, `docs/agent/goals/foreach-var.md:27`, `docs/agent/goals/limit-handler-reach.md:29`, `docs/agent/goals/plain-comments.md:30`, `docs/agent/goals/side/mode-startup-switches.md:51`, `docs/agent/goals/side/restart-free.md:78`, `docs/agent/goals/the-description-is-owed.md:26`. Each `tools/<x>.py` becomes the `bun nv <x>` that `ls tools/nv/cmd/` shows (`dossier.py` is `bun nv proofs`, `brief.py`'s status is `bun nv orient --full`); a tool with no port is described by what it did, as `docs/setup.md:195` does."
+        "text": "**Delete `tools/disk.py`** (`tools/disk.py:1`); its port is `tools/nv/cmd/disk.ts:1`. `tools/nv/cmd/parity.ts:1` and its `tools/nv/parity/groups.json:3` row go with it, and so does the root manifest's comment naming it and the `what` at `tools/data/optimization-baseline.json:65`, both of which name the Python file."
       },
       {
         "done": false,
-        "text": "**Triage the playbook bullets whose lead-in names a Python tool** — `peek.py`, `splice.py`, `session.py`, `disk.py`, from `docs/agent/playbook/tooling/a-peek-py-re-pattern-must-not-contain-a-colon-and-powershell.md:1` and `docs/agent/playbook/tooling/the-end-of-a-session-is-one-call-python-tools-session-py.md:1`. Delete a bullet whose trap the `bun nv` port no longer has, with its record under `data/playbook/`; rewrite the rest. The lead-in is the selector goal records fetch by, and `bun nv chain --check` refuses a selector that reaches nothing, so a rewritten lead-in is followed into every `data/goals/*.json` that names it (`tools/nv/cmd/playbook.ts:28`)."
+        "text": "**Delete `tools/observe.py`** (`tools/observe.py:1`). `tools/nv/keys/checks.ts:17` keys a Python gate on its record (`checks.ts:67`, `checks.ts:509`); drop the `observed` source once no check runs Python, which `bun nv audit checks` says."
       },
       {
         "done": false,
-        "text": "**Then the playbook bullets that name a Python tool only in their body**, the rest of the list, from `docs/agent/playbook/tooling/a-commit-section-cannot-name-a-path-the-session-renamed-away.md:2`."
+        "text": "**Delete `tools/proctree.py` and `tools/written.py`** (`tools/proctree.py:1`, `tools/written.py:1`). `tools/nv/driver/proctree.ts:1` is the first one's port; find the second's with `bun nv peek --locate` before you delete it."
       },
       {
         "done": false,
-        "text": "**Then the five `.py` files**, from `tools/disk.py:1` (its port is `tools/nv/cmd/disk.ts:1`, and `tools/nv/cmd/parity.ts:1` goes with it) and `tools/observe.py:1` (`tools/nv/keys/checks.ts` keys a gate on its record)."
+        "text": "**Port or delete `editors/vscode/scripts/mkwoff.py`** (`editors/vscode/scripts/mkwoff.py:1`). It builds the extension's icon font from an SVG. `tools/nv/test/audit.test.ts:73` uses its path as an example of a stray file and keeps working after it goes. When `bun nv audit python` exits 0, Stage 12 is green."
       }
     ]
   },
   "backlog": [
-    "`rule:testing/member-perf-ledger` is now the only statement of what `--impl-hash` reads; `benches/members/README.md` points at it."
+    "`bun nv import --check` crashes on the missing `docs/rules/_index.json` (`tools/nv/import/rules.ts:10`). Either retire the importer or point it at `data/rules/`. Owner: goal `tooling-overhaul`.",
+    "The lead-in of `docs/agent/playbook/tooling/a-loop-goal-toml-program-check-runs-its-file-through-leg-run.md` still names Python's `leg.run`, and the audit does not catch it. Its body names `tools/nv/driver/accept.ts`."
   ]
 }

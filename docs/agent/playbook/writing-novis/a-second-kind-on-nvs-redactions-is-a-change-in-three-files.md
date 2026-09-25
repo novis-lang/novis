@@ -3,5 +3,5 @@
   `crates/nvs-lsp/src/redactions.rs` alone bars an identifier until
   `editors/vscode/src/concealment.ts`'s `MARKERS` has been taught it, and
   `docs/reference/tools/40-editor.md` names the kinds in prose, so `docs/novis.md` goes stale under
-  a check nobody edited. Write all three, then `python tools/reference.py --no-examples`.
+  a check nobody edited. Write all three, then `bun nv reference --no-examples`.
   [until: gone editors/vscode/src/concealment.ts:const MARKERS]

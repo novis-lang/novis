@@ -1,4 +1,4 @@
-- **A `rule:` token is not derivable from the rule's title, and only `rules.py --check` says so.** Three
+- **A `rule:` token is not derivable from the rule's title, and only `bun nv rules --check` says so.** Three
   citations written from a remembered title were each one word off the real id —
   `member-names-are-full-words` for `members-are-full-words`, `a-unit-is-a-type` for `units-are-types`,
   `library-placement-tests` for `tier-placement`. Grep the topic's JSON for `"id"`, or paste the token into

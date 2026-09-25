@@ -2,5 +2,5 @@
   resolves in that block's module and is transcribed into `default.toml` — but the rule fragment
   printing the block's keys **is** the rule, and the record deciding it goes in `because` in
   `docs/rules/<topic>.json`, the only home for that metadata. Edit the fragment and the json, then
-  `python tools/rules.py --render`, or `nv verify` fails on the stale generated chapter — a sentence
+  `bun nv rules --render`, or `nv verify` fails on the stale generated chapter — a sentence
   about a file nobody edits rather than about the key you added. [until: gone crates/nvs-config/src/tree.rs:because]

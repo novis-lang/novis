@@ -5,6 +5,6 @@
   expectation bump never finds them, and the executed `output` fences in
   `docs/reference/lang/70-errors.md`, `docs/reference/lang/80-concurrency.md` and
   `docs/reference/tools/20-config.md`, which `nv verify`'s `reference` leg runs and
-  which owe `python tools/reference.py --no-examples` for `docs/novis.md` in the same commit. Budget
+  which owe `bun nv reference --no-examples` for `docs/novis.md` in the same commit. Budget
   the pass as the slice itself, and price any design that leaves `$e->message` alone against it
   before choosing. [until: gone crates/nvs-runtime/src/capability.rs:which is not granted]

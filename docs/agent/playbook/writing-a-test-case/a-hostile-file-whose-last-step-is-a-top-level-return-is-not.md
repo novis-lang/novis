@@ -2,6 +2,6 @@
   marker fails the sweep.** The suite reads that marker as "the program did not reach its end", and a
   `return` outside any method is an ordinary ending, so a file that behaves exactly as its comment
   says is reported as `declares ends-early, but ran to its last line`. Keep `ends-early` for a limit,
-  an uncaught throw or `exit`, and run `python tools/dossier.py --run hostile --group <group>` while
+  an uncaught throw or `exit`, and run `bun nv proofs --run --group <group>` while
   you still have the file open rather than leaving it to the driver's acceptance check.
   [until: gone tools/nv/proofs/run.ts:ran to its last line]
