@@ -1,27 +1,26 @@
 {
-  "state": "Goal `core-metrics-and-4-more`, stage 2, per-member feature proofs. `Core\\Metrics` and `Core\\Mime`\nare done and their group checks pass. All three classes this goal still owes now have their class\ncards (`Core\\Net`, `Core\\Net\\Datagram`, `Core\\Net\\Datagram\\Message`), so no member owes help any more.\n`Core\\Net::connect` and `Core\\Net::listen` carry every proof, perf recorded. `Core\\Net::bindDatagram`,\n`connectLocal` and `listenLocal` still owe examples, hostile, perf and a Rust `covers:` marker. The\n`Datagram` and `Message` members owe every proof except help. A proof directory may now carry an\n`nvs.toml` that the runner passes as `--config` (`docs/examples/README.md` § *A grant the examples\nneed*). This is how a `Core\\Net` example gets a loopback grant. Nothing is blocked.",
+  "state": "Goal `core-metrics-and-4-more`, stage 2, per-member feature proofs. `Core\\Metrics` and `Core\\Mime`\nare done and their group checks pass. `Core\\Net::connect`, `listen` and `bindDatagram` carry every\nproof, and `Core\\Net\\Datagram::send` does too. One Rust test and one `.nvst` case now carry\n`covers:` markers for all eight datagram members, so no datagram member owes a test any more.\nThe members still owed are `Datagram::receive`, `port` and `close`, the three `Message` members,\nand `Core\\Net::connectLocal` and `listenLocal`. The two local members have a platform problem,\nwhich item 3 below describes. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, and the `core/Net/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`, each with its `nvs.toml` grant (copy `docs/examples/core/Net/connect/nvs.toml`).",
+    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, and the `core/Net-Datagram/` and `core/Net-Datagram-Message/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`. Copy the `nvs.toml` from `docs/examples/core/Net-Datagram/send/`, `tests/hostile/core/Net-Datagram/send/` and `benches/members/core/Net-Datagram/`. That last one is already shared by the class.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Net::bindDatagram`** — about, 3 examples, hostile, bench and a `covers:` marker (`rule:testing/feature-proofs`). Put the marker on the UDP test at `crates/nvs-stdlib/src/net.rs:2082`. The member is at `crates/nvs-stdlib/src/net.rs:1720`. Its grant is `listen = [\"127.0.0.1:0\"]`, and `send` also needs `connect`/`internal = [\"127.0.0.1\"]`. After the marker, record perf again for `connect` and `listen` with `bun nv proofs --record-perf --id`, because the record is keyed on the bytes of `net.rs`."
+        "text": "**`Core\\Net\\Datagram::receive`, `port` and `close`** — about, 3 examples, hostile and bench each (`rule:testing/feature-proofs`). Tests are already credited. The class is at `crates/nvs-stdlib/src/net.rs:701`, receive at `crates/nvs-stdlib/src/net.rs:1806` and close at `crates/nvs-stdlib/src/net.rs:1864`. `docs/examples/core/Net-Datagram/send/` is the model. A catch variable cannot be reused at a different exception type in one file, so name them `$io`, `$late` and `$e`."
       },
       {
         "done": false,
-        "text": "**`Core\\Net::connectLocal` and `Core\\Net::listenLocal`** — the same proofs. The members are at `crates/nvs-stdlib/src/net.rs:1422` and `crates/nvs-stdlib/src/net.rs:1452`, and the marker goes on `crates/nvs-stdlib/src/net.rs:2210`. Windows has no `AF_UNIX` transport, so a granted call prints something different on Windows and Linux. Keep the examples and the attack to the not-granted path and the argument checks, which run before the transport check and print the same on both. A bench cannot run a real local socket on Windows. Decide between a bench of the refusal path and a `skip` entry in `data/proofs/policy.json`, and say why in the commit."
+        "text": "**`Core\\Net\\Datagram\\Message::payload`, `host` and `port`** — the same proofs. The class is at `crates/nvs-stdlib/src/net.rs:886` and payload at `crates/nvs-stdlib/src/net.rs:1880`. Its path is `core/Net-Datagram-Message/<member>`, and a `Message` exists only from a `receive`, so every proof binds two sockets first."
       },
       {
         "done": false,
-        "text": "**`Core\\Net\\Datagram`'s four members and `Core\\Net\\Datagram\\Message`'s three** — every proof except help. The classes are at `crates/nvs-stdlib/src/net.rs:756` and `crates/nvs-stdlib/src/net.rs:928`. Directories are `core/Net-Datagram/<member>` and `core/Net-Datagram-Message/<member>`. Each needs its own `nvs.toml`, and a bench directory needs one per class directory."
+        "text": "**`Core\\Net::connectLocal` and `listenLocal`** — every proof except help, plus a Rust `covers:` marker on the path-grant test near `crates/nvs-stdlib/src/net.rs:2292`. The members are at `crates/nvs-stdlib/src/net.rs:1422` and `crates/nvs-stdlib/src/net.rs:1452`. **This build has no Unix-domain transport on Windows** (`crates/nvs-stdlib/src/net.rs:1491`), so a working example prints something different on Windows than on Linux. Only a grant refusal prints the same on both, because the grant is checked before the transport. The proof runner has no platform directive, only `requires: unimplemented` (`tools/nv/proofs/run.ts:54`). Recommended: add a `// requires: unix` directive beside it (skip on Windows, at `tools/nv/proofs/run.ts:165` and `tools/nv/proofs/run.ts:227`), document it in the three proof READMEs, and bless under WSL. Then decide how the Windows perf gate treats a bench it skips. The hostile case can be all grant refusals and pass on both."
       }
     ]
   },
   "backlog": [
-    "`Core\\Net::connect` costs about 15.5 ms per call over loopback on Windows (`docs/perf/members.ndjson`), about one Windows timer tick. `listen` costs 56 µs. The cause is not checked. A blocking connect path that polls with a sleep would give this figure. Owner: `nvs_host::net`'s `connect_timeout`.",
-    "Map-typed locals (`array<string, uint>`) do not parse. An example that needs a map uses a helper class instead. Not checked against the spec."
+    "`Core\\Net\\Datagram::send`'s recorded wall-clock is `0.0 ns/op` while its counts look right. Check how `nv proofs --record-perf` calibrates before trusting that column (`benches/members/README.md`)."
   ]
 }

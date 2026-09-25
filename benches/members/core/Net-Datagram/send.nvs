@@ -1,0 +1,24 @@
+<?nvs
+// Sends one short message over UDP, as a program does for each metric or log line it reports.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Datagram $sender = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $target = Core\Net::bindDatagram("127.0.0.1", 0);
+        uint $port = $target->port();
+        array<bytes> $lines = ["hits:1|c" as bytes, "errors:1|c" as bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round picks its message from what the rounds before sent.
+            $total = $total + $sender->send("127.0.0.1", $port, $lines[$total % 2], 1s);
+            $i = $i + 1;
+        }
+        $sender->close();
+        $target->close();
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

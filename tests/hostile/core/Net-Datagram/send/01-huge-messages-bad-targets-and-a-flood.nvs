@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a program sends messages that are too large, to hosts and ports that are wrong, and then floods a socket.
+// Each bad send should throw, and the request should end cleanly.
+
+Core\Net\Datagram $socket = Core\Net::bindDatagram('127.0.0.1', 0);
+uint $port = $socket->port();
+
+// 1. A message of one million bytes. One datagram cannot be that large.
+try {
+    $socket->send('127.0.0.1', $port, Core\Str::repeat('x', 1000000) as bytes, 1s);
+} catch (IOError $io) {
+    echo "1 ok\n";
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. A host of one million characters, and a host with a zero byte in it.
+try {
+    $socket->send(Core\Str::repeat('a', 1000000), $port, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2a ok\n";
+}
+try {
+    $socket->send("127.0.0.1\0", $port, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2b ok\n";
+}
+
+// 3. Port 0, a port past 65535, and the largest number a `uint` can be.
+try {
+    $socket->send('127.0.0.1', 0, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "3a ok\n";
+}
+try {
+    $socket->send('127.0.0.1', 65536, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "3b ok\n";
+}
+try {
+    $socket->send('127.0.0.1', 18446744073709551615, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "3c ok\n";
+}
+
+// 4. A broadcast address and a host outside this computer. The configuration allows neither.
+try {
+    $socket->send('255.255.255.255', 9, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "4a ok\n";
+}
+try {
+    $socket->send('example.com', 9, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "4b ok\n";
+}
+
+// 5. Five thousand messages to a socket that never reads them. The system may drop some.
+uint $i = 0;
+while ($i < 5000) {
+    try {
+        $socket->send('127.0.0.1', $port, Core\Str::repeat('y', 1024) as bytes, 10ms);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "5 ok\n";
+
+// 6. A send after the socket is closed.
+$socket->close();
+try {
+    $socket->send('127.0.0.1', $port, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "6 ok\n";
+}

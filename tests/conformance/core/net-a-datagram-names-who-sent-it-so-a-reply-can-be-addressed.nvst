@@ -2,6 +2,7 @@
 a bound datagram socket, a message that carries the endpoint it came from, and a reply addressed with what that message answered — `rule:core-classes/net-one-api-three-transports` and `rule:security/net-address-policy`
 --FILE--
 <?nvs
+// covers: Core\Net\Datagram::send, Core\Net\Datagram::receive, Core\Net\Datagram::port, Core\Net\Datagram::close, Core\Net\Datagram\Message::payload, Core\Net\Datagram\Message::host, Core\Net\Datagram\Message::port
 // The whole of `Core\Net`'s datagram third, in the order a program meets it.
 // Two sockets in one task and nothing deadlocks, which is a property of
 // datagrams rather than of luck: a send does not wait for a receiver, so the

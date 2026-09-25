@@ -1,0 +1,24 @@
+<?nvs
+// Shows a program that sends its log lines to a syslog server over UDP.
+
+// The syslog server usually runs on another machine. Here it is a second socket in the same program.
+Core\Net\Datagram $syslog = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $app = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// A syslog line starts with a priority in angle brackets. `<14>` means "an information message".
+// Each line is one message, so the server never gets half a line.
+array<string> $events = ["order 1042 paid", "order 1042 shipped"];
+foreach ($events as string $event) {
+    $app->send("127.0.0.1", $syslog->port(), ("<14>shop: " . $event) as bytes, 1s);
+}
+
+// The server reads the two lines. Text from the network is `tainted`, which means it is not checked yet.
+uint $i = 0;
+while ($i < 2) {
+    tainted string $line = $syslog->receive(1024, 5s)->payload() as string;
+    echo "syslog got: ", $line, "\n";
+    $i = $i + 1;
+}
+
+$app->close();
+$syslog->close();
