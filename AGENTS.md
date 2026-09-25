@@ -11,9 +11,6 @@ written — and the session workflow. **Everything else is one call away.**
 **Every fact in this repository has exactly one home.** If two documents state the same thing, the one
 named as the home is authoritative and the other is a bug — fix it rather than reconciling it in your head.
 
-Any agent, any harness. The root carries no harness's file: `.claude/CLAUDE.md` is a pointer to this one,
-because Claude Code discovers `CLAUDE.md` and never `AGENTS.md`. Nothing here is Claude-specific.
-
 ## Where to look
 
 Do not read the docs tree breadth-first: most of it is reasoning you only need when you are about to
@@ -259,24 +256,13 @@ Every session runs the same five steps, in this order, and **stops**:
    related slices and the file set they share. **Keep taking slices from that group while both hold: the
    next one touches files already loaded, *and* you are under 120k with the previous one committed. Stop at
    the first slice that fails either test.** Context is the binding budget here, not the clock: an agent
-   degrades well before its window is full, so the ceiling is a fixed **200k**. **This paragraph is the cap's only home** — every other file points here rather than
-   restating a number, because three files holding three different numbers is how it last went wrong.
+   degrades well before its window is full, so the ceiling is a fixed **200k**. **This paragraph is the
+   cap's only home** — every other file points here rather than restating a number.
 
-   **The gate is the budget, not a count**, because a slice's cost is not fixed and a count prices every
-   slice as the most expensive one. A session pays a **fixed cost** — orienting at the front, collecting
-   the verification and applying the wrap at the back — that is the same for a three-line slice as for a
-   three-hundred-line one, so a slice that only writes a test over landed work buys that whole fixed cost
-   a second time when it gets a session to itself. `bun nv loop-stats`'s `fixed cost per session`
-   line is what it currently is; **the number is not copied here on purpose.** It moved from 39% to 22%
-   the day the tail was measured correctly — `nv verify --start` fires mid-work, so every call after it
-   had been counted as wrap-up — and a copy in this file was wrong between every pair of optimization
-   passes that refreshed it. Read the tool.
-   One lowering slice spends the 120k by itself; five test-writing slices over one file set do not, and a
-   rule counting slices cannot tell those apart. This replaced a cap of 2, which `bun nv
-   loop-stats` had derived three ways at once — and could not have derived otherwise, because it
-   prices a slice from sessions that each did one hard one. Take the **ceiling** from that tool after any
-   run that changes what a session reads: its projection opens where the *next* session will open, so a
-   pass that cuts the pack shows up immediately. Leave the number of slices to the 120k gate.
+   **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
+   wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
+   one file set share a session and one hard slice fills it alone. `bun nv loop-stats` reports that fixed
+   cost and where the next session will open; read them there, because this file copies no measured figure.
 3. **Verify what you touched, once, at the end of the group** — `bun nv verify` in the loop, `bun nv
    affected --run` anywhere else, plus whatever the change specifically warrants (a `valgrind` run for a
    new refcount edge). **This is the only place
@@ -293,8 +279,7 @@ Every session runs the same five steps, in this order, and **stops**:
 **Steps 4 and 5 are one call.** Write a single wrap file — plan fields, playbook bullet, handoff, a
 `## commit:` per slice, the status line — and apply it with `bun nv session --wrap <file>`
 (`--help` is the format, `--check` first says what the tree still owes). It applies everything or refuses
-everything, so there is no half-written tail. Measured before the tool existed, this was 33 of a session's
-98 calls and 42% of its token bill, because context is at its peak by then.
+everything, so there is no half-written tail.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
 do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second
@@ -305,53 +290,36 @@ the session is over.
 
 Step 5 above, in detail:
 
-- Always commit your work before you exit, and never leave a slice uncommitted. You don't need to review
-  the history first — stage each slice's own files, and let the last commit sweep whatever is left.
+- Always commit your work before you exit, and never leave a slice uncommitted. Stage each slice's own
+  files, and let the last commit sweep whatever is left.
 - The handoff is the live goal's record `data/goals/<slug>.handoff.json`, written by the wrap file's
-  `## handoff` section: **overwrite it**, never append, so it describes where the work
-  stands now rather than the path taken to get here. Its shape is in
-  [docs/agent/session-prompt.md](docs/agent/session-prompt.md). Then show the user the same prompt in chat.
-- **The playbook is the opposite file.** [docs/agent/playbook.md](docs/agent/playbook.md) holds traps,
-  not history: add a three-sentence bullet with an `[until:]` trailer when a trap costs you time
-  ([conventions.md](docs/agent/conventions.md) § *A playbook bullet*), edit one when it stops being true,
-  and otherwise leave it alone. Never reword a bullet to say the same thing differently, and never write
-  the session's story into one — `git log` is the changelog, and the wrap deletes a bullet the day its
-  trailer's condition holds.
+  `## handoff` section. **Overwrite it**, never append: it says where the work stands now. Its shape is
+  [docs/agent/session-prompt.md](docs/agent/session-prompt.md) § *The handoff's shape*. Then show the
+  user the same prompt in chat.
+- **The playbook is the opposite file**: traps, not history ([docs/agent/playbook.md](docs/agent/playbook.md)).
+  Add a bullet in the shape [conventions.md](docs/agent/conventions.md) § *A playbook bullet* gives when a
+  trap costs you time, edit one when it stops being true, and never reword one or write a session's story
+  into it.
 - The process docs drift as decisions land. Periodically — the user fires this by hand, never you
   automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
 - Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,
   memory, usability and simplicity for developers using the language. If there are large tradeoffs, notify
   the user and ask for agreement before proceeding. If there are only benefits, go ahead.
-- [docs/implementation-plan.md](docs/implementation-plan.md)'s leading status block has a **fixed field
-  set** — `Status`, `Done`, `On disk`, `Toolchain`, `ADR slices landed`, `Open now`, `Blocking`. Overwrite
-  a field in place each session; never append a paragraph, and never add a field name. Session-by-session
-  history lives in `git log`; per-file known-gap detail belongs in that crate's own module doc comment, not
-  in the plan.
-- **The plan is that index plus one file per milestone**, under [docs/plan/](docs/plan/), with the frozen
-  half — the pre-M0 decisions, the architecture, the verification strategy — in
-  [docs/plan/design.md](docs/plan/design.md). Never open the directory to find one: `bun nv plan
-  --show M8` prints a milestone and `--show M8:verify` its acceptance paragraph, and a `## milestone: M8`
-  section in a `bun nv session --wrap` file rewrites one.
-- **The schedule is the chain, not the milestone table.**
-  `data/chain.json` *is* the chain: `goals`, a list of goal slugs whose order is the order the loop
-  walks, and `live`, the goal the driver works on. `live` is tracked, so every clone, CI and the
-  pre-push hook see the same live goal, and the driver moves it to the next goal when one is reached.
-  A goal is its prose at `docs/agent/goals/<slug>.md` and its record at
-  `data/goals/<slug>.json`, with a handoff record beside it until it is retired. A milestone is an **identity tag** one or more goals carry, and
-  the plan's `Carried by` cells are checked against it, so a milestone number says nothing about what
-  is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
-  `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `bun nv orient` prints the live
-  goal; `bun nv plan --check` gates it. **A side goal is off the chain**: its prose is under
-  `docs/agent/goals/side/` and its record under `data/goals/side/`, a person runs it by hand in a
-  worktree of its own, and it lands on `main` when green —
+- **The plan** is [docs/implementation-plan.md](docs/implementation-plan.md), an index whose status block
+  has a fixed field set — `Status`, `Done`, `On disk`, `Toolchain`, `ADR slices landed`, `Open now`,
+  `Blocking` — plus one file per milestone under [docs/plan/](docs/plan/) and the frozen design in
+  [docs/plan/design.md](docs/plan/design.md). Overwrite a field in place; never append a paragraph or add
+  a field. Known-gap detail belongs in the crate's module doc. `bun nv plan --show M8` prints a milestone,
+  `--show M8:verify` its acceptance paragraph, and a `## milestone: M8` wrap section rewrites one.
+- **The schedule is the chain, not the milestone table.** `data/chain.json` holds `goals`, the slugs in
+  the order the loop walks them, and `live`, the goal the driver works on and moves on when one is
+  reached. A goal is its prose at `docs/agent/goals/<slug>.md` and its record at `data/goals/<slug>.json`.
+  A milestone is an identity tag goals carry, so its number says nothing about what is next. **A side
+  goal is off the chain** and run by hand in a worktree of its own —
   [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
-- **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
-  in a code comment, in a commit message, in an owner column, **and in what a tool prints**. A
-  number is fine as a *position* beside a total (`29 of 43`), which is what it is; what is never
-  fine is a number where the goal's name goes. **The position moves** the moment anything is
-  inserted in front of it, and a line naming one silently comes to mean a different goal; the slug
-  never moves. `bun nv chain --check` fails on prose that names a goal by its number.
-- **Reordering the chain is editing `data/chain.json`, and `bun nv chain` is what does it.**
-  `--new <slug>`, `--move <slug>` and `--remove <slug>` each take one place — `--after <goal>`,
-  `--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file's `goals` and
-  nothing else, never `live`. A goal's record and prose are written by hand around it.
+- **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
+  column and what a tool prints. A position beside a total (`29 of 43`) is fine; a position moves when a
+  goal is inserted, and a slug never does. `bun nv chain --check` fails on a goal named by its number.
+- **`bun nv chain` reorders the chain**: `--new`, `--move` or `--remove <slug>` with one place —
+  `--after <goal>`, `--before <goal>`, `--to <position>`, `--next` or `--end`. It edits `goals` only,
+  never `live`; a goal's record and prose are written by hand around it.

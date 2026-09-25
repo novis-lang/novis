@@ -6,8 +6,7 @@ You are one session of an unattended loop. A driver starts a fresh session after
 **One line already in your context is wrong for this repository.** The driver launches you under
 `--permission-mode bypassPermissions`, and under that mode the harness tells you to make file changes
 with `sed`, heredocs or short scripts rather than Read, Edit and Write. `AGENTS.md` rule 1 says the
-opposite and **rule 1 wins**: Write and Edit for files, `bun nv peek` for reading, never file content through
-a shell. The harness line saves permission prompts, and this mode has none to save.
+opposite and **rule 1 wins**.
 
 ## The six steps
 
@@ -15,27 +14,20 @@ a shell. The harness line saves permission prompts, and this mode has none to sa
 changes about them, and step 6.
 
 1. **Your orientation is already in this message — do not fetch it.** The driver piped
-   `bun nv orient` in ahead of this prompt, narrowed to the `context` manifest in the goal's record,
-   `data/goals/<slug>.json`. Re-running it spends three calls and about 20k of context on a pack you
-   already hold. If it is genuinely absent, run it once and say so in the handoff — that is a driver bug.
-   `bun nv orient --full` is the unscoped map; reach for it only for something outside the goal —
-   then **widen the goal's `context` by the selector it was missing**. A module is added with `bun nv
-   goal context --add <path>`, which writes it into the record's `context.modules`; any other field is
-   edited in the record with Edit. The manifest is reloaded every session and widening it breaks
-   nothing, so a gap you only describe in the handoff is one the next session pays for again.
-2. **Take your item, then keep taking slices from the group while both hold:** the next one touches
-   files you have already loaded, and you are under 120k of context with the previous one committed.
-   Past 120k, stop and say in the handoff where you stopped. The gate and its measurement are
-   `AGENTS.md` § *Session workflow* step 2.
-3. **Verify once, at the end of the group, and start it before you write the wrap.** `bun nv
-   verify --start` returns at once, `--wait` collects the verdict, and the wrap file gets
-   written in between. A mid-work check is `--fast` or `-p <crate>`, never the full gate. Add a
-   `valgrind` run for a new refcount edge (`docs/agent/commands.md`).
-4. **Write the docs and the handoff once for the whole group**, and **choose the next group** — you hold
-   the context that makes that cheap. A *trap* — something that looked like it should work and did not —
-   earns one bullet in `docs/agent/playbook.md`, in the shape `docs/agent/conventions.md` § *A playbook
-   bullet* gives, ending with the `[until: ...]` trailer `tools/nv/cmd/playbook.ts`'s module doc defines.
-5. **Commit one slice at a time**, staging each slice's own files.
+   `bun nv orient` in behind this prompt, narrowed to the `context` manifest in the goal's record,
+   `data/goals/<slug>.json`. If it is genuinely absent, run it once and say so in the handoff — that is
+   a driver bug. For something outside the goal, reach for `bun nv orient --full`, then **widen the
+   goal's `context` by the selector it was missing**: `bun nv goal context --add <path>` adds a module,
+   and any other field is edited in the record with Edit. A gap you only describe in the handoff is one
+   the next session pays for again.
+2. **Take your item, then more of the group** while `AGENTS.md` step 2's gate holds. Past 120k, stop and
+   say in the handoff where you stopped.
+3. **Verify with `bun nv verify`, and start it before you write the wrap.** `--start` returns at once,
+   `--wait` collects the verdict, and the wrap file gets written in between. A mid-work check is `--fast`
+   or `-p <crate>`, never the full gate. Add a `valgrind` run for a new refcount edge
+   (`docs/agent/commands.md`).
+4. **Choose the next group** while you write the handoff — you hold the context that makes that cheap.
+5. **Commit one slice at a time**, each as a `## commit:` section of the wrap.
 6. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you landed>` — the normal case.
    - `DONE <what goal was reached>` — the live goal, `docs/agent/goals/<slug>.md`, is met. Run `bun nv
@@ -48,32 +40,19 @@ changes about them, and step 6.
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
      can answer it, and carries on from the tree as it stands when they lift the hold.
 
-**Steps 4 to 6 are one wrap file and two calls.** The pack ends with the skeleton `bun nv
-session --template` would print for this tree; fill it in and apply it with `bun nv session
---wrap <file>`. It validates every section before writing a byte, writes the docs,
-and commits them with the slices — no second call, no `git add` by hand. **Then stop**: no second
-verification, no re-reading the orientation, no trimming a doc to a length. The driver runs the
-acceptance check itself, and holds the run after `--max-stalls` sessions without a commit.
+**Steps 4 to 6 are one wrap file**, and the pack ends with its skeleton. **Then stop.** The driver runs
+the acceptance check itself, and holds the run after `--max-stalls` sessions without a commit.
 
 ## Context is the budget, and reading is where it goes
 
-A session must finish under **200k**, and that is a quality ceiling: an agent starts missing what it
-has read well before its window is full. `bun nv orient` starts you under 20k of it.
+`AGENTS.md` rules 2 and 3 say how to read. In the loop, also:
 
-- **Read a big file in the region you need.** Whole file under about 400 lines; past that, locate the
-  anchor and read around it.
 - **Do not re-read what the pack printed** — the handoff, the rules, the record sections, the shapes,
-  the traps. A rule's chapter body is the rule and a decision record is frozen reasoning; for another
-  record section, slice it and name it in the handoff for `[context] adrs`.
-- **Read with `bun nv peek`, not one probe at a time.** `bun nv peek A.rs:120-160 B.rs:@symbol
-  rule:types/conversion C.md:"## 4" "crates/**/*.rs:re:pat"` takes as many targets as you have
-  questions, and `--locate <symbol> ...` returns `file:line` anchors alone. A `rule:` citation is a
-  target: paste the token and get the fragment, which is the rule.
+  the traps. For another record section, slice it and name it in the handoff for `[context] adrs`.
 - **Delegate a read-heavy search to a subagent, and keep its answer rather than its reading.** Its
   reads are charged to its own window. Send one for "where is X, and what are its anchors" over files
-  you will not otherwise open. One measured run: 1 session in 39 delegated anything, while discovery
-  and source reads took 53% of everything fetched — `bun nv loop-stats --attribute` is that
-  number now.
+  you will not otherwise open. `bun nv loop-stats --attribute` measures how much of a session reading
+  takes.
 - **What is safe to delegate, and what is not.** Safe: *where is X*, *how many of Y are there*, *what
   spelling does the corpus use*, over a tree you are not editing — and sent as the read-only agent
   type, `Explore`, which has no Edit or Write tool, so the boundary holds by construction rather than
@@ -81,10 +60,8 @@ has read well before its window is full. `bun nv orient` starts you under 20k of
   design question; judging whether a check passed; the wrap. The handoff and the code must rest on
   what **you** read — a subagent's summary is a pointer to verify, not evidence to commit. There is
   no carve-out.
-- **When you have two or three independent searches, send them in one message.** They then run
-  concurrently and cost you one round trip instead of three, which is the wall-clock half of the win;
-  the context half you get either way. Independent means neither one's prompt depends on the other's
-  answer — otherwise they are sequential and sending them together just guesses.
+- **Send two or three independent searches in one message**, so they run concurrently. Independent
+  means neither one's prompt depends on the other's answer.
 - **A delegated search gets the question, the place to look and the answer's shape — never the
   project.** It starts with its own copy of `AGENTS.md`. Ask for `file.rs:NN` anchors and one line
   each, never excerpts. The whole prompt:
@@ -92,12 +69,6 @@ has read well before its window is full. `bun nv orient` starts you under 20k of
       Search only under crates/nvs-stdlib/src. Find every CoreMethod row whose return type is
       CoreTy::Instance. Return one line each: `file.rs:NN  Class::member  -> instance name`.
       No excerpts, no commentary. If you find none, say so.
-- **`bun nv verify` once, for the whole group** — and `--start` it *before* you write the
-  wrap, so the build runs while you write. That is the one piece of parallelism that is free every
-  single session, and step 3 above is where it belongs.
-
-`bun nv loop-stats` measures all of this from `.loop/logs/`, and `--attribute` says which reads
-put a session where it landed.
 
 ## The handoff's shape
 
