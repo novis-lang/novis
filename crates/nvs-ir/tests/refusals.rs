@@ -20,8 +20,8 @@
 //!
 //! Two things, and the difference between them is who owns the site:
 //!
-//! *   **An open numbered item claims it** — one in
-//!     `docs/agent/loop-goal.md`, or one in `docs/agent/carried-refusals.md`,
+//! *   **An open numbered item claims it** — one in the live goal's prose
+//!     under `docs/agent/goals/`, or one in `docs/agent/carried-refusals.md`,
 //!     which is where a hole an earlier milestone left is owned once no current
 //!     goal can be judged on it (a goal switch carries a check forward and the
 //!     items that made it green not at all, so that inventory has to live
@@ -34,7 +34,7 @@
 //!     end state the check's name, `nvs-ir (no refusal left)`, describes.
 //! *   **[`ALLOWLIST`] names it**, because it is a refusal the language means
 //!     to keep. **That list may never grow.** Every entry is a bullet in
-//!     `docs/agent/loop-goal.md` § *Standing decisions*, and adding one to
+//!     the live goal's § *Standing decisions*, and adding one to
 //!     make a run go green is the single move that goal forbids outright. It
 //!     is empty today, and the honest way to keep it empty is to make the
 //!     refusal a diagnostic or to remove it.
@@ -87,13 +87,14 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 const CEILING: usize = 0;
 
 /// What `bun nv holes` opens: the `nv` program and the script entry that names
-/// it, the two item lists and the goal's manifest, the diagnostic registry, and
-/// the two crates that lower.
+/// it, the chain that names the live goal, that goal's prose and record, the
+/// carried item list, the diagnostic registry, and the two crates that lower.
 const HOLES_READS: &[&str] = &[
     "package.json",
     "tools/nv",
-    "docs/agent/loop-goal.md",
-    "docs/agent/loop-goal.toml",
+    "data/chain.json",
+    "data/goals",
+    "docs/agent/goals",
     "docs/agent/carried-refusals.md",
     "crates/nvs-diagnostics/src/lib.rs",
     "crates/nvs-ir/src",
@@ -300,9 +301,9 @@ fn every_refusal_is_a_diagnostic_or_decided() {
     assert!(
         standing.is_empty(),
         "{} refusal(s) belong to nobody — each is a shape that type-checks and then \
-         refuses, with no open item in docs/agent/loop-goal.md or \
-         docs/agent/carried-refusals.md claiming it and no entry on this test's \
-         allowlist. Give it a diagnostic, close it, or take the decision in loop-goal.md \
+         refuses, with no open item in the live goal's prose under docs/agent/goals/ or \
+         in docs/agent/carried-refusals.md claiming it and no entry on this test's \
+         allowlist. Give it a diagnostic, close it, or take the decision in the goal's \
          § Standing decisions — do NOT add it to the allowlist to make this pass.\n{}",
         standing.len(),
         standing.join("\n")

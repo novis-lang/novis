@@ -24,21 +24,21 @@
 // registry in `crates/nvs-diagnostics/src/lib.rs` gives its constant, and `no-such-constant` for one it
 // does not declare. `crates/nvs-ir/tests/refusals.rs` holds each code to a conformance case.
 //
-// The items are the goal's numbered items in `docs/agent/loop-goal.md` and the carried ones in
-// `docs/agent/carried-refusals.md`, which number from 900. A site belongs to the item that names its
-// enclosing function in backticks, or else to the item with the nearest `crates/…:NN` anchor in the
-// same file; a site neither claims is unattributed. The named cases are the `cases` lists of
-// `docs/agent/loop-goal.toml`'s checks. Nothing here is a gate.
+// The items are the live goal's numbered items in its prose, `docs/agent/goals/<slug>.md`, and the
+// carried ones in `docs/agent/carried-refusals.md`, which number from 900. A site belongs to the item
+// that names its enclosing function in backticks, or else to the item with the nearest `crates/…:NN`
+// anchor in the same file; a site neither claims is unattributed. The named cases are the `cases`
+// lists of the live goal's checks, in `data/goals/<slug>.json`. Nothing here is a gate.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseToml } from "smol-toml";
+import { liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
+import { loadFile } from "../lib/store.ts";
+import { goal as goalType } from "../schema/goal.ts";
 
 export const summary = "the shapes the language still refuses: nv holes [--item N | --unattributed | --cases | --sites | --guarded | --json]";
 
-const GOAL_MD = "docs/agent/loop-goal.md";
-const GOAL_TOML = "docs/agent/loop-goal.toml";
 const CARRIED_MD = "docs/agent/carried-refusals.md";
 /** Carried items number from here, so they cannot collide with a goal's own items. */
 const CARRIED_BASE = 900;
@@ -266,16 +266,25 @@ function items(): Item[] | null {
     console.error(`${CARRIED_MD}: item ${low.n} must be numbered from ${CARRIED_BASE} so it cannot collide with a goal's own item ${low.n}`);
     return null;
   }
-  return [...itemsIn(GOAL_MD), ...carried];
+  const prose = goalProse();
+  return [...(prose === null ? [] : itemsIn(prose)), ...carried];
+}
+
+/** The live goal's prose, or null when the chain names no live goal. */
+function goalProse(): string | null {
+  return liveGoal()?.md ?? null;
 }
 
 function namedCases(): Case[] {
-  if (!existsSync(join(ROOT, GOAL_TOML))) return [];
-  const spec = parseToml(read(GOAL_TOML)) as { check?: { name?: string; stage?: unknown; cases?: string[] }[] };
-  return (spec.check ?? []).flatMap((check) =>
+  const live = liveGoal();
+  const path = live === null ? "" : `data/goals/${live.slug}.json`;
+  if (live === null || !existsSync(join(ROOT, path))) return [];
+  const goal = loadFile(goalType, path).value;
+  const labels = new Map(goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
+  return goal.checks.flatMap((check) =>
     (check.cases ?? []).map((path) => ({
       suite: check.name ?? "?",
-      stage: check.stage ?? "?",
+      stage: labels.get(check.stage) ?? String(check.stage),
       path,
       written: existsSync(join(ROOT, path)),
     })),
@@ -386,7 +395,7 @@ export async function run(args: string[]): Promise<number> {
   if (item !== null) {
     const one = scheduled.find((i) => i.n === item);
     if (!one) {
-      console.log(`no item ${item} in ${GOAL_MD}`);
+      console.log(`no item ${item} in ${goalProse() ?? "the live goal's prose"} or ${CARRIED_MD}`);
       return 1;
     }
     console.log(`item ${one.n}: ${one.title}\n`);
