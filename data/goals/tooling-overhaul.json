@@ -94,7 +94,6 @@
       "tools/nv/cmd/verify.ts",
       "tools/verify_keys.py",
       "tools/impact.py",
-      "tools/dossier.py",
       "tools/chain.py",
       "tools/goals.py",
       "tools/goal-switch.py",
