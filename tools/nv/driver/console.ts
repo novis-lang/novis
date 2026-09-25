@@ -1,4 +1,4 @@
-// The driver's console, in the colours and layout `tools/loop.py` used. The session's transcript and the
+// The driver's console. The session's transcript and the
 // driver's own steps scroll up the terminal, and a live block of three rows stays under them:
 //
 //   ─────────────────────────────────────────────  a grey rule
@@ -484,6 +484,8 @@ class Control {
   parked = false;
   /** Who owns the armed hold: `user`, `agent` or "". */
   pauseBy = "";
+  /** The verdict a hold the driver armed waits on, or "" for any other hold. */
+  pauseWhy = "";
   /** The hold has taken effect: the driver sits between two sessions. */
   held = false;
   session: LiveSession | null = null;
@@ -688,6 +690,7 @@ class Control {
     if (this.pauseBy) {
       const mine = this.pauseBy === "user";
       this.pauseBy = "";
+      this.pauseWhy = "";
       this.held = false;
       rmSync(abs(PAUSE), { force: true });
       say(mine ? "   [p] carrying on -- the hold is lifted" : `   [p] carrying on -- ${PAUSE} was another agent's hold, and the console outranks it`, C.GREEN);
@@ -706,7 +709,8 @@ class Control {
       : "Delete this file to let the run carry on.\nDo not edit this tree until the `held:` line above is there: until then the\nhold is only queued, and the session in flight is still committing to it.\n";
     const d = new Date();
     const held = this.held ? `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${clock(d)}` : "(not yet)";
-    writeQuiet(PAUSE, `by:      ${mine ? "user (the console)" : "agent (this file)"}\nheld:    ${held}\npid:     ${process.pid}\n\n${note}`);
+    const why = this.pauseWhy ? `why:     ${this.pauseWhy}\n` : "";
+    writeQuiet(PAUSE, `by:      ${mine ? "user (the console)" : "agent (this file)"}\nheld:    ${held}\npid:     ${process.pid}\n${why}\n${note}`);
   }
 
   /** Reconciles the armed hold with the file: a file that appears arms an agent's hold, and one that goes lifts it, unless the console owns the hold. */
@@ -728,6 +732,7 @@ class Control {
       );
     } else if (!there && this.pauseBy === "agent") {
       this.pauseBy = "";
+      this.pauseWhy = "";
       this.held = false;
       say(`   ${PAUSE} is gone -- carrying on`, C.GREEN);
     }
@@ -760,15 +765,28 @@ class Control {
     this.writePause();
   }
 
+  /**
+   * Holds the run because the driver needs a person, naming the verdict. It is an agent's hold, lifted by
+   * deleting `.loop/pause` as well as by `p`, since the person it waits for may be reading the tree from
+   * another terminal. A hold already armed is left to whoever armed it.
+   */
+  armHold(why: string): void {
+    if (this.pauseBy) return;
+    this.pauseBy = "agent";
+    this.pauseWhy = why;
+    this.writePause();
+  }
+
   leaveHold(): void {
     this.held = false;
     if (this.pauseBy === "user") this.writePause();
   }
 
-  /** The run ends: a hold taken at the console goes with the console. Another agent's file is left alone. */
+  /** The run ends: a hold taken at the console or armed by the driver goes with the run. Another agent's file is left alone. */
   dropPause(): void {
-    if (this.pauseBy === "user") rmSync(abs(PAUSE), { force: true });
+    if (this.pauseBy === "user" || this.pauseWhy) rmSync(abs(PAUSE), { force: true });
     this.pauseBy = "";
+    this.pauseWhy = "";
     this.held = false;
   }
 

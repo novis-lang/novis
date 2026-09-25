@@ -30,8 +30,9 @@
 // `memoize = false` reads something outside the tree, so the memo never answers it. A suite below its
 // `minPassing` is not remembered, since the next sweep must report it again.
 //
-// Not here yet, and each is the Python driver's until it is: reusing `nv verify`'s green test records,
-// the floor gate, the WSL leg and the valgrind sweep.
+// The floor gate is the turn's (`cmd/loop.ts`), and the WSL leg and the valgrind sweep are
+// `driver/legs.ts`'s, run after these tiers. A sweep does not reuse `nv verify`'s green test records: a
+// test a check names runs here whatever `verify` last found.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

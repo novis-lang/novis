@@ -8,8 +8,6 @@
 // a turn tells its own run's `.loop/running` from another run's), and waits. The console belongs to the
 // turn: stdin, stdout and stderr are passed through, and a Ctrl-C, which reaches both processes, is left
 // to the turn, which sweeps the session and exits; this then ends with the turn's exit code.
-//
-// `tools/respawn.py` does the same for a run started with `python tools/loop.py`.
 
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";

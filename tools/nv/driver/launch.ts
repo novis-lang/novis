@@ -9,9 +9,8 @@
 // `extraEnv` over it, less `NOVIS_LOOP_RUN`: that variable tells a turn it belongs to the run holding
 // `.loop/running`, and a session that inherited it would say the same of a `bun nv loop` it typed.
 //
-// `RunState` is `.loop/run.json`, in the shape `loop.py` writes, so a run continues across the cutover
-// with its numbering intact: `index` names the logs and only goes up, and `served` is what
-// `--max-sessions` counts. Its `judge` is a served session no sweep has judged yet, because the session
+// `RunState` is `.loop/run.json`, what one turn leaves for the next: `index` names the logs and only goes up,
+// and `served` is what `--max-sessions` counts. Its `judge` is a served session no sweep has judged yet, because the session
 // changed driver code the turn had imported: `driverFiles` and `driverChanged` find that, and the next
 // turn, a fresh process, serves no session and judges that one with the code it committed.
 
@@ -21,9 +20,9 @@ import { dirname, join, relative, sep } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { say } from "./console.ts";
 
-/** The environment variable that names the run; `tools/respawn.py` sets it for every turn. */
+/** The environment variable that names the run; `driver/respawn.ts` sets it for every turn. */
 export const RUN_ENV = "NOVIS_LOOP_RUN";
-/** The exit code that asks `tools/respawn.py` for the next turn. */
+/** The exit code that asks `driver/respawn.ts` for the next turn. */
 export const AGAIN = 75;
 
 export const RUNDIR = ".loop";
@@ -33,11 +32,14 @@ export interface LaunchOptions {
   model: string;
   permissionMode: string;
   effort?: string;
+  /** A session id whose transcript this launch rejoins, when its stream dropped mid-answer. */
+  resume?: string;
 }
 
 /** The command line of one session, after the executable. */
 export function claudeArgs(o: LaunchOptions): string[] {
   const args = ["-p", "--input-format", "stream-json", "--model", o.model, "--permission-mode", o.permissionMode, "--output-format", "stream-json", "--verbose"];
+  if (o.resume) args.push("--resume", o.resume);
   // Only when asked: the flag and the model's own default are not the same thing to the harness.
   if (o.effort) args.push("--effort", o.effort);
   return args;

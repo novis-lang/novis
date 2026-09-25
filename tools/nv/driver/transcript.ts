@@ -1,5 +1,4 @@
-// A session's stream-json events on the console, the way `tools/loop.py` showed them and the way Claude
-// Code's own transcript reads: the assistant's text in white, its thinking in magenta behind `. `, every
+// A session's stream-json events on the console, the way Claude Code's own transcript reads: the assistant's text in white, its thinking in magenta behind `. `, every
 // tool call in cyan behind `> ` with all of its input under it, and each result behind `< ` in green, or
 // behind `! ` in red when the call failed. A result or thinking block longer than `maxResultLines`, an
 // input longer than `maxInputLines` and a line longer than `maxLineChars` are cut, and the cut says how

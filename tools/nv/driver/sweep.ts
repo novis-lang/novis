@@ -24,6 +24,12 @@
 // `result` event, the wall is taken to reopen `BLIND_WAIT` from now, and the next session's own event
 // carries the real deadline. `.loop/limit.json` keeps a wall's deadline across turns, so a driver killed
 // during one does not walk straight back into it.
+//
+// **An overload and a dropped stream.** Two more exits are not crashes. A `529` in the terminal event's
+// `api_error_status` is a busy server: the session is swept and run again after `OVERLOAD_BACKOFF`, for as
+// long as it takes, costing no retry. A stream that died mid-answer (`streamDropped`) left a healthy session
+// whose transcript is whole, so it is rejoined with `claude --resume` and `RESUME_PROMPT`, the tree left as
+// it was, up to `MAX_RESUMES` times; after that it is swept like any failed session.
 
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -85,8 +91,12 @@ export class Touched {
     return join(this.root, WRITTEN);
   }
 
-  /** A session is about to launch: forget the last one's paths and empty the tools' ledger. */
-  start(): void {
+  /**
+   * A session is about to launch: forget the last one's paths and empty the tools' ledger. A rejoined session
+   * is the same session, so `carry` keeps both.
+   */
+  start(carry = false): void {
+    if (carry) return;
     this.written.clear();
     try {
       writeFileSync(this.ledger, "");
@@ -255,6 +265,46 @@ export function wallAfter(latest: RateLimit | null, code: number, result: Record
     return new RateLimit({ status: "rejected", resetsAt: Math.trunc(now / 1000) + BLIND_WAIT });
   }
   return null;
+}
+
+/** The HTTP statuses a terminal `result` event blames when the server was busy rather than the account refused. */
+export const OVERLOAD_STATUS = new Set([529]);
+/**
+ * Seconds before the nth re-run in a row of an overloaded session; the last entry repeats for as long as the
+ * overload lasts. It opens at a minute because the CLI has already fought the same 529 before it exited.
+ */
+export const OVERLOAD_BACKOFF = [60, 120, 300, 600];
+/** Resumes in a row of one dropped session before it is swept and a fresh one started. */
+export const MAX_RESUMES = 3;
+/** Seconds before the nth resume in a row of a dropped session; the last entry repeats. */
+export const RESUME_BACKOFF = [15, 30, 60];
+/**
+ * What a rejoined session is told in place of the session prompt, which is already the first turn of the
+ * transcript it replays: nothing moved under it, and its last call may or may not have landed.
+ */
+export const RESUME_PROMPT =
+  "The connection to the API dropped mid-response and this session was rejoined with `--resume`, so the conversation above is yours and you are continuing it.\n\n" +
+  "Nothing moved under you. The working tree is exactly as you left it and the driver committed nothing on your behalf. Your last tool call may or may not have landed -- read back whatever it touched rather than assuming either way.\n\n" +
+  "Pick up where you stopped and finish the session the way the prompt at the top told you to, ending with the wrap. Do not re-orient, and do not restart the group.";
+
+/** The nth entry of a backoff table, the last one repeating. */
+export function nthWait(table: number[], n: number): number {
+  return table[Math.min(Math.max(n, 1), table.length) - 1]!;
+}
+
+/** The HTTP status a terminal `result` event blames for the exit, or 0. Read off that one event, never grepped. */
+export function apiErrorStatus(result: Record<string, unknown> | null): number {
+  const status = Number(result?.api_error_status ?? 0);
+  return Number.isInteger(status) ? status : 0;
+}
+
+/**
+ * Whether the terminal `result` event blames a connection that died mid-answer: it is an error, its
+ * `terminal_reason` is `api_error`, and it carries no status, since nothing answered to supply one. A refusal
+ * carries a status, and the two need opposite recoveries.
+ */
+export function streamDropped(result: Record<string, unknown> | null): boolean {
+  return result !== null && result.is_error === true && result.terminal_reason === "api_error" && !result.api_error_status;
 }
 
 /** Writes the wall's deadline to `.loop/limit.json`. Best effort: a lost file costs one refused session. */

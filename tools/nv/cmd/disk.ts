@@ -597,7 +597,7 @@ export function freedLines(freed: Record<string, number | null>, verb = "freed")
 
 async function report(deep: boolean): Promise<void> {
   const drive = WINDOWS ? (/^[A-Za-z]:/.exec(ROOT)?.[0] ?? "/") : "/";
-  console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (tools/loop.py refuses to start a run below ${MIN_FREE_GB}G)`);
+  console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (\`bun nv loop\` refuses to start a run below ${MIN_FREE_GB}G)`);
   console.log();
 
   const [target, logs, scratchDir] = await Promise.all([walk(TARGET), walk(LOGDIR), walk(SCRATCH)]);
