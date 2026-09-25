@@ -3,7 +3,7 @@
 **Verify a claim before you make it, not when it is questioned.** A follow-up that sends you to the
 code and changes the answer means the answer went out early.
 
-The check is cheap, which is the whole argument: `python tools/brief.py --where <keyword>` names the
+The check is cheap, which is the whole argument: `bun nv brief --where <keyword>` names the
 file that owns a topic, `bun nv peek` reads several in one call, `grep -n` answers the rest.
 One minute there beats three rounds of revision.
 

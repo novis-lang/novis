@@ -12,8 +12,8 @@ item. `AGENTS.md` still holds in full, rule 1 included: the driver runs you unde
 
 1. **Find the cause.** Start with the verdict, then the evidence behind it. `.loop/log.md` is the
    ledger: read every `goal check:` line of this goal, not only the last. The session log it names,
-   `.loop/logs/<run>-NNNN.log`, has each check's whole output in its `loop_output` records. `python
-   tools/loop.py --goal-only` runs the acceptance list again with the code on disk now.
+   `.loop/logs/<run>-NNNN.log`, has each check's whole output in its `loop_output` records. `bun nv
+   loop --goal-only` runs the acceptance list again with the code on disk now.
    [coordinator.md](coordinator.md) says what each verdict means and when the driver gives one.
 2. **Fix the cause, not the symptom.** The loop's own tooling under `tools/` is in scope, and so is a
    check that is itself wrong. A test renamed to match, a check removed or a bound loosened until it

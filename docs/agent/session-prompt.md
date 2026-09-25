@@ -6,7 +6,7 @@ You are one session of an unattended loop. A driver starts a fresh session after
 **One line already in your context is wrong for this repository.** The driver launches you under
 `--permission-mode bypassPermissions`, and under that mode the harness tells you to make file changes
 with `sed`, heredocs or short scripts rather than Read, Edit and Write. `AGENTS.md` rule 1 says the
-opposite and **rule 1 wins**: Write and Edit for files, `peek.py` for reading, never file content through
+opposite and **rule 1 wins**: Write and Edit for files, `bun nv peek` for reading, never file content through
 a shell. The harness line saves permission prompts, and this mode has none to save.
 
 ## The six steps
@@ -79,8 +79,8 @@ has read well before its window is full. `bun nv orient` starts you under 20k of
   type, `Explore`, which has no Edit or Write tool, so the boundary holds by construction rather than
   by instruction. Not safe, ever: writing anything; reading a file you are about to edit; deciding a
   design question; judging whether a check passed; the wrap. The handoff and the code must rest on
-  what **you** read — a subagent's summary is a pointer to verify, not evidence to commit. The one
-  carve-out in this repository is `dossier.py --partition`, which is a different protocol and says so.
+  what **you** read — a subagent's summary is a pointer to verify, not evidence to commit. There is
+  no carve-out: the dossier tool's partition mode was the one, and it has no `bun nv` port.
 - **When you have two or three independent searches, send them in one message.** They then run
   concurrently and cost you one round trip instead of three, which is the wall-clock half of the win;
   the context half you get either way. Independent means neither one's prompt depends on the other's
@@ -116,8 +116,8 @@ Every future session reads this file in full, so it is a **bounded state file, n
      `**Stage 5: diagnostics, phase-gated** — one file set: …`. Each names the rule that specifies it
      (`rule:<topic>/<rule>`, or a record section when only the reasoning has it) and the anchors it
      touches, **repo-rooted in the item** — `crates/nvs-runtime/src/ctx/isolate.rs:116`, never a bare
-     file name and never up in `## State` — because that is the only place `orient.py` reads them from
-     to inline the code into the next pack, and `session.py --wrap` refuses an open item without one.
+     file name and never up in `## State` — because that is the only place `bun nv orient` reads them from
+     to inline the code into the next pack, and `bun nv session --wrap` refuses an open item without one.
      The stage number is read the same way, to pick the goal's `[context.stage.N]` overlay
      ([loop-authoring.md](loop-authoring.md) § 2); a group that names none gets the goal's base
      manifest, which is the wider pack and never a broken one.
