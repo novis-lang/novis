@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `Core\Math::round` is given the far ends of `float` and values that are not
+// ordinary numbers. It also gets every mode, precisions at both ends of `int` and a million
+// calls. Every call should return a number, and the program should run to its end.
+
+// 1. The largest and smallest numbers, in every mode.
+array<Core\RoundMode> $modes = [
+    Core\RoundMode::HalfUp, Core\RoundMode::HalfDown, Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd, Core\RoundMode::Up, Core\RoundMode::Down,
+];
+foreach ($modes as Core\RoundMode $mode) {
+    echo Core\Math::round(Core\Math::FLOAT_MAX, { precision: 2, mode: $mode }), ' ';
+    echo Core\Math::round(-Core\Math::FLOAT_MAX, { precision: -2, mode: $mode }), ' ';
+    echo Core\Math::round(1e-300, { precision: 22, mode: $mode }), ' ';
+    echo Core\Math::round(-0.5, { mode: $mode }), "\n";
+}
+
+// 2. Values that are not ordinary numbers.
+echo Core\Math::round(Core\Math::NAN, { precision: 3 }), "\n";
+echo Core\Math::round(Core\Math::INFINITY, { precision: -3 }), "\n";
+echo Core\Math::round(-Core\Math::INFINITY, { mode: Core\RoundMode::Up }), "\n";
+
+// 3. Precisions at both ends of `int`, and one past the last one that rounds.
+array<int> $precisions = [Core\Math::INT_MIN, Core\Math::INT_MAX, -23, 23, -22, 22];
+foreach ($precisions as int $precision) {
+    echo Core\Math::round(1.5, { precision: $precision }), "\n";
+}
+
+// 4. A million calls. Each result feeds the next one.
+float $total = 0.0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = Core\Math::round($total * 1.5 + 0.25, { precision: 1, mode: Core\RoundMode::HalfEven });
+    if ($total > 1000.0) {
+        $total = $total - 1000.0;
+    }
+    $round = $round + 1;
+}
+echo $total, "\n";

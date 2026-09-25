@@ -1,0 +1,19 @@
+<?nvs
+// Measures rounding a `float` to two decimal places, as a program does before it shows a measured value.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 0.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value rounded this round depends on last round's total.
+            $total = Core\Math::round($total * 0.5 + 1.2345, {precision: 2});
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

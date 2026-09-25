@@ -1,0 +1,12 @@
+<?nvs
+// Shows rounding to tens and hundreds, and a decimal fraction that a `float` cannot store exactly.
+
+// A negative precision rounds to the left of the point. This prints 1200, then 1230.
+echo Core\Math::round(1234.5, {precision: -2}), "\n";
+echo Core\Math::round(1234.5, {precision: -1}), "\n";
+
+// `Up` rounds every value away from zero. This prints 1300.
+echo Core\Math::round(1201.0, {precision: -2, mode: Core\RoundMode::Up}), "\n";
+
+// 1.005 is stored as a number slightly below 1.005, so it rounds down. This prints 1.
+echo Core\Math::round(1.005, {precision: 2}), "\n";

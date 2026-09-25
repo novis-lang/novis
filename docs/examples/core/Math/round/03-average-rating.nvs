@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a shop shows the average star rating of a product with one decimal place.
+
+class Rating {
+    // Returns the average of the ratings, rounded to one decimal place.
+    public static function average(array<float> $stars): float {
+        float $sum = 0.0;
+        float $count = 0.0;
+        foreach ($stars as float $star) {
+            $sum = $sum + $star;
+            $count = $count + 1.0;
+        }
+        return Core\Math::round($sum / $count, {precision: 1});
+    }
+}
+
+// The averages are 4.2 and 4.666..., so this prints 4.2, then 4.7.
+echo "Lamp: ", Rating::average([5.0, 4.0, 4.0, 5.0, 3.0]), " stars\n";
+echo "Chair: ", Rating::average([5.0, 5.0, 4.0]), " stars\n";
