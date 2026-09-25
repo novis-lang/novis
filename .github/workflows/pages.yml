@@ -14,7 +14,7 @@ name: Website
 #
 # There is no path gate. `ci.yml` has one because its jobs are tens of minutes of Rust; this is
 # `npm ci` and a seven-second build, and a second copy of "what the site is built from" would drift
-# against `tools/ci-changes.py` for less than a runner-minute a push. The site also reads far more
+# against `tools/nv/cmd/ci-changes.ts` for less than a runner-minute a push. The site also reads far more
 # of the tree than `website/` — the rulebook, the spec, the decision records, the examples — so the
 # gate would have to name most of `docs/` to be correct.
 on:

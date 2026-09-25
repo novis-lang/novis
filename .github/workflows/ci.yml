@@ -57,7 +57,7 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
-  # here, and the table deciding them is `tools/ci-changes.py` — one home, and
+  # here, and the table deciding them is `tools/nv/cmd/ci-changes.ts` — one home, and
   # answerable locally with `--base HEAD~1` without pushing anything. ADR 0143.
   #
   # `blob:none` is what keeps the full history cheap: `git diff --name-only`

@@ -6,7 +6,7 @@ reference check when the binary or its chapters changed.
 
 The table deciding those booleans is a dictionary in **one Python file** — not a set of path filters
 spread over the workflow, and not a third-party action on the critical path of every run.
-`python tools/ci-changes.py --base HEAD~1` answers "what would CI have run for this commit" without
+`bun nv ci-changes --base HEAD~1` answers "what would CI have run for this commit" without
 pushing anything.
 
 **The platform matrix is not one of the gates.** Whenever any build input changed, all three

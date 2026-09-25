@@ -5,7 +5,7 @@
     "title": "the run exists, and it is this commit's",
     "files": [
       "tools/nv/cmd/ci-green.ts",
-      "tools/ci-changes.py"
+      "tools/nv/cmd/ci-changes.ts"
     ],
     "items": [
       {
@@ -19,7 +19,7 @@
     ]
   },
   "backlog": [
-    "Stage 3: a leg that really ran and went red is ordinary work — `gh run view --log-failed`, fix, ask for the push again. File set: whatever the log names, plus `tools/ci-changes.py`.",
+    "Stage 3: a leg that really ran and went red is ordinary work — `gh run view --log-failed`, fix, ask for the push again. File set: whatever the log names, plus `tools/nv/cmd/ci-changes.ts`.",
     "When this goal's last check goes green the chain is walked."
   ]
 }

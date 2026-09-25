@@ -12,8 +12,8 @@
 //! this member" means are worse than one gate.
 //!
 //! [`Attribution::asked`] is that rule's only home. Everything about *why* a
-//! case is attributed to a class it never names is in `python tools/gaps.py`'s
-//! own docstring, which this is a port of rather than a second design — the
+//! case is attributed to a class it never names is in `tools/nv/cmd/gaps.ts`'s
+//! own header comment, which this is a port of rather than a second design — the
 //! tool ranks the worklist and these gates close it, so the two must agree
 //! member for member.
 
@@ -85,8 +85,8 @@ pub(crate) fn sources() -> Vec<String> {
 
 /// Which classes a case exercises, and which of their members it calls.
 ///
-/// This is `python tools/gaps.py`'s `coverage` attribution, ported rather than
-/// re-invented: that tool's docstring owns *why* a case is attributed this way
+/// This is `tools/nv/cmd/gaps.ts`'s `coverage` attribution, ported rather than
+/// re-invented: that command's header comment owns *why* a case is attributed this way
 /// and is the only home for the reasoning. The gates over the same figure have
 /// to agree with it — a member the tool ranks at two cases has to fail a floor
 /// of three, or the worklist and the gate send a session in different

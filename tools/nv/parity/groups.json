@@ -42,22 +42,6 @@
     "nv": ["bun", "tools/nv/main.ts", "chain"],
     "cases": [["--check"]]
   },
-  "ci-changes": {
-    "python": ["python", "tools/ci-changes.py"],
-    "nv": ["bun", "tools/nv/main.ts", "ci-changes"],
-    "cases": [
-      ["--full"],
-      ["--files", "tools/nv/parity/fixtures/ci-changes-crates.txt"],
-      ["--files", "tools/nv/parity/fixtures/ci-changes-docs.txt"],
-      ["--files", "tools/nv/parity/fixtures/ci-changes-lsp.txt"],
-      ["--base", "HEAD~1"],
-      ["--base", "nosuchcommit"],
-      ["--base", "0000000000000000000000000000000000000000"],
-      ["--base"],
-      ["--f", "x"],
-      ["--bogus"]
-    ]
-  },
   "db-matrix": {
     "python": ["python", "tools/db-matrix.py"],
     "nv": ["bun", "tools/nv/main.ts", "db-matrix"],
@@ -88,49 +72,6 @@
       ["--grace-hours"],
       ["--grace-hours=x1"],
       ["--scratch", "3", "extra"]
-    ]
-  },
-  "gaps": {
-    "python": ["python", "tools/gaps.py"],
-    "nv": ["bun", "tools/nv/main.ts", "gaps"],
-    "cases": [
-      [],
-      ["--errors"],
-      ["--differential"],
-      ["--coverage", "--limit", "0"],
-      ["--errors", "--limit", "3"],
-      ["--differential", "--coverage", "--limit=5"],
-      ["--member", "Core\\Arr::chunk"],
-      ["--member=Core\\NoSuch::thing"],
-      ["--json"],
-      ["--json", "--coverage"]
-    ]
-  },
-  "links": {
-    "python": ["python", "tools/check-links.py"],
-    "nv": ["bun", "tools/nv/main.ts", "links"],
-    "cases": [
-      [],
-      ["docs/decisions"],
-      ["docs/agent", "tools"],
-      ["crates/nvs-host/src", "tests/hostile"],
-      ["docs/dec"],
-      ["no/such/dir"]
-    ]
-  },
-  "migration": {
-    "python": ["python", "tools/check-migration.py"],
-    "nv": ["bun", "tools/nv/main.ts", "migration"],
-    "cases": [
-      [],
-      ["--report"],
-      ["--min", "33"],
-      ["--min", "100"],
-      ["--min", "101"],
-      ["--report", "--min", "101"],
-      ["--min"],
-      ["--min", "most"],
-      ["--seed"]
     ]
   },
   "orient": {

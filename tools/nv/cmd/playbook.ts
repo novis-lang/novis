@@ -422,7 +422,7 @@ export function retire(expired: Expired[], dry: boolean, root: string = ROOT, sa
 const DELIBERATE_STALE = new Map<string, string>([
   [
     "Tooling > a tool's prose citing\ntests/vectors.rs", // check-links:subject
-    "the suffix `check-links.py` wrongly resolves to; the file is crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the relation between them is the trap",
+    "the suffix `bun nv links` wrongly resolves to; the file is crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the relation between them is the trap",
   ],
 ]);
 

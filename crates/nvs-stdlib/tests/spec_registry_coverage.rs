@@ -1878,7 +1878,7 @@ fn migration_member_refs() -> (usize, BTreeSet<(String, String)>) {
     let table = nvs_repo::path("docs/spec/02-php-migration.md");
     let text =
         fs::read_to_string(&table).unwrap_or_else(|err| panic!("{}: {err}", table.display()));
-    // `python tools/check-migration.py`'s own `ROW`, transcribed: a backticked
+    // `tools/nv/cmd/migration.ts`'s own `ROW`, transcribed: a backticked
     // PHP name, a bare outcome word, and the rest of the line up to the closing
     // pipe. Deliberately not [`cells`], which reads a `\` as an escape and so
     // doubles every one in `Core\Str::trim` — that function serves

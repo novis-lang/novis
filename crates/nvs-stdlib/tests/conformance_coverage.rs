@@ -131,7 +131,7 @@ fn every_part_one_member_has_a_conformance_case() {
 /// as a ratchet or does not arrive, and what it buys on the day it lands is
 /// that there is never a twenty-seventh.
 ///
-/// `python tools/gaps.py --coverage` ranks these by class and names each one's
+/// `bun nv gaps --coverage` ranks these by class and names each one's
 /// anchor; a case that asks one of them a *second question* — not the same
 /// question again — is what removes a line.
 const BELOW_THE_FLOOR: &[&str] = &[];
@@ -195,7 +195,7 @@ fn every_core_class_has_a_conformance_floor_of_three() {
         thin.is_empty(),
         "{} `Core` member(s) are asked by fewer than {FLOOR} conformance cases, so their \
          class's floor is below it:\n  {}\n\
-         `python tools/gaps.py --coverage` ranks every class by the same figure and names \
+         `bun nv gaps --coverage` ranks every class by the same figure and names \
          the thinnest members of each with their anchors. A case that asks one of these a \
          second question closes it; a case that asks the same question again does not. \
          `BELOW_THE_FLOOR` in this file is not where a new one goes — it only shrinks.",
@@ -281,7 +281,7 @@ fn stdlib_sources() -> Vec<(String, String)> {
 /// because a message reached through a PHP-comparable member is asserted in
 /// `tests/differential/` and nowhere else.
 ///
-/// This is the corpus `python tools/gaps.py --errors` reads, deliberately the
+/// This is the corpus `bun nv gaps --errors` reads, deliberately the
 /// same one: that tool is the worklist [`OWED_A_CASE`] freezes, and a gate
 /// computing a different set could not be cross-checked against it.
 fn error_corpus() -> String {
@@ -322,7 +322,7 @@ struct Site {
 /// however the search is going. Without that stop, a `Fault::` whose message
 /// was built above it reads the *next item's* prose as its message, which is
 /// how `test.rs`'s `Fault::thrown_as` acquires the stem "a test that asserts
-/// nothing" in `python tools/gaps.py --errors`.
+/// nothing" in `bun nv gaps --errors`.
 fn head(text: &str, bytes: usize) -> &str {
     let mut end = match text.char_indices().find(|(at, _)| *at >= bytes) {
         Some((at, _)) => at,
@@ -341,7 +341,7 @@ fn head(text: &str, bytes: usize) -> &str {
 /// The first string literal in `window` whose content is 10 to 400 characters,
 /// still carrying its escapes.
 ///
-/// The bound is the same one `gaps.py` writes: under ten characters is a
+/// The bound is the same one `tools/nv/cmd/gaps.ts` writes: under ten characters is a
 /// separator or a member name passed alongside the message rather than the
 /// message, and past four hundred no case froze it whole.
 fn first_literal(window: &str) -> Option<String> {
@@ -491,7 +491,7 @@ fn fault_sites() -> Vec<Site> {
 /// the other, so an entry cannot go stale in either direction and nothing can
 /// be added without deleting this sentence.
 ///
-/// `python tools/gaps.py --errors` is the same set with each site's anchor and
+/// `bun nv gaps --errors` is the same set with each site's anchor and
 /// whole message, which is what a session works from; the key here is the file
 /// and the stem because a line number moves under an unrelated edit and a stem
 /// does not. One line covers every site in its file writing that stem.
@@ -523,7 +523,7 @@ const OWED_A_CASE: &[(&str, &str)] = &[];
 /// sites this reads 165, the ones whose message begins with enough literal
 /// text to find in a case. A message opening on its own format hole —
 /// `` `{code}` is not a pack directive `` — has a stem that would match half
-/// the corpus or none of it, so neither this nor `gaps.py` can say whether a
+/// the corpus or none of it, so neither this nor `bun nv gaps` can say whether a
 /// case reaches it, and requiring a declaration for one would be requiring a
 /// judgement no case could ever discharge. Giving such a site a few words of
 /// its own before the first hole brings it under the gate, which is a better

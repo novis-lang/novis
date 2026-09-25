@@ -1,10 +1,9 @@
 // The spec chapters' tables. `docs/spec/01-core-library.md` becomes `data/spec/core-members.json`:
-// every table in it, whole, under the headings it sits beneath, which is what `tools/gaps.py`,
-// `tools/check-migration.py` and the website's Core reference (`tools/nv/renderers/website-core.ts`)
+// every table in it, whole, under the headings it sits beneath, which is what `bun nv gaps`,
+// `bun nv migration` and the website's Core reference (`tools/nv/renderers/website-core.ts`)
 // each pick their own rows out of.
 // `docs/spec/02-php-migration.md` becomes `data/spec/php-migration.json`: one row per line of a
-// `PHP | Outcome | Novis` table, which is what `tools/reference.py` and `tools/check-migration.py`
-// read. Every other table in that chapter is its legend, and stays prose.
+// `PHP | Outcome | Novis` table, which is what `bun nv reference` and `bun nv migration` read. Every other table in that chapter is its legend, and stays prose.
 //
 // A cell is kept as written, trimmed, with its `\|` escapes intact, so a renderer writes it back
 // unchanged. A section is the heading text without its `#`s.

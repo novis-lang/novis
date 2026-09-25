@@ -274,7 +274,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // [`CoreTy::Instance`]: the bare spelling would intern the class at
             // its *own* `T`, a variable no call site of `query` ever binds.
             // Written out on both classes rather than named once, because
-            // `tools/gaps.py` attributes a case to the class a member answers
+            // `bun nv gaps` attributes a case to the class a member answers
             // by reading this very line.
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
@@ -635,7 +635,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             // [`CoreTy::Instance`]: the bare spelling would intern the class at
             // its *own* `T`, a variable no call site of `query` ever binds.
             // Written out on both classes rather than named once, because
-            // `tools/gaps.py` attributes a case to the class a member answers
+            // `bun nv gaps` attributes a case to the class a member answers
             // by reading this very line.
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
@@ -651,7 +651,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             ],
             defaults: &[],
             // [`CONNECTION`]'s row, written out for the reason its `query`
-            // sibling is: this is the class `tools/gaps.py` attributes a case
+            // sibling is: this is the class `bun nv gaps` attributes a case
             // to. The symbol is the connection's too — `rule:classes/no-traits`'s delegation
             // is one body reached through either handle, and [`handle_of`] is
             // what reads the two of them the same way.

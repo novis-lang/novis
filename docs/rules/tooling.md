@@ -1349,7 +1349,7 @@ leaves), `dialect` and `proof`. `diverges` says what will break; `idiomatic` say
 Three tables, three homes, no fourth copy.
 
 1. **Names → `docs/spec/02-php-migration.md`**, one row per PHP built-in, already CI-checked by
-   `tools/check-migration.py`. The converter's name mapping is *generated* from it: a row whose Novis
+   `bun nv migration`. The converter's name mapping is *generated* from it: a row whose Novis
    cell is exactly one `Core` member spelling is machine-read as a mechanical rename; any other cell
    must carry a rule id, because prose like "`Core\Str::format` into `$file->write`" is a rewrite,
    not a rename. A `dropped` row with neither is a checker error once the converter exists.

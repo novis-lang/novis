@@ -29,20 +29,6 @@
       "why": "A message names the program that printed it."
     }
   ],
-  "ci-changes": [
-    {
-      "side": "python",
-      "pattern": "^(usage: |)ci-changes\\.py(:? )",
-      "replace": "$1nv ci-changes$2",
-      "why": "A message names the program that printed it."
-    },
-    {
-      "side": "python",
-      "pattern": "^(usage: nv ci-changes .*\\[--files FILE\\])$",
-      "replace": "$1 [--lanes]",
-      "why": "nv adds `--lanes`, which prints the lane table a floor check reads, so no check has to read a tool's source text."
-    }
-  ],
   "db-matrix": [
     {
       "side": "python",
@@ -79,14 +65,6 @@
       "pattern": "^(usage: |)disk\\.py(:? )",
       "replace": "$1nv disk$2",
       "why": "A message names the program that printed it."
-    }
-  ],
-  "migration": [
-    {
-      "side": "python",
-      "pattern": "\\(tools\\\\data\\\\php-builtins\\.txt\\)$",
-      "replace": "(tools/data/php-builtins.txt)",
-      "why": "Python prints the inventory's path with the platform's separator. nv prints every path with forward slashes."
     }
   ],
   "owners": [

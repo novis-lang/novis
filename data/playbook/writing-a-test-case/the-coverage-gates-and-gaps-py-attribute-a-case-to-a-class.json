@@ -1,11 +1,11 @@
 {
-  "lead": "The coverage gates and `gaps.py` attribute a case to a class textually, so a new return variant or call spelling drops it.",
-  "body": "`Attribution::new` reads `return_ty:`, its `arrows` matches `->member(`, `tools/gaps.py`'s `RETURNS_RE` is the same regex, and `conformance_coverage.rs` spells a call `Class::name(`. Teach every one the variant, and spell `return_ty:` inline; a named `const` is invisible to the regex.",
+  "lead": "The coverage gates and `bun nv gaps` attribute a case to a class textually, so a new return variant or call spelling drops it.",
+  "body": "`Attribution::new` reads `return_ty:`, its `arrows` matches `->member(`, `tools/nv/cmd/gaps.ts`'s `RETURNS_RE` is the same regex, and `conformance_coverage.rs` spells a call `Class::name(`. Teach every one the variant, and spell `return_ty:` inline; a named `const` is invisible to the regex.",
   "files": [
-    "tools/gaps.py"
+    "tools/nv/cmd/gaps.ts"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/gaps.py:RETURNS_RE"
+    "arg": "tools/nv/cmd/gaps.ts:RETURNS_RE"
   }
 }

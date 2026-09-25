@@ -9,6 +9,6 @@
     "testing/ci-lanes"
   ],
   "guardedBy": [
-    "tools/ci-changes.py"
+    "tools/nv/cmd/ci-changes.ts"
   ]
 }

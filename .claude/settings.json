@@ -14,7 +14,7 @@
       "Bash(python tools/playbook.py:*)",
       "Bash(python tools/records.py:*)",
       "Bash(python tools/reference.py:*)",
-      "Bash(python tools/check-links.py:*)",
+      "Bash(bun nv links:*)",
       "Bash(python tools/loop-stats.py:*)",
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",

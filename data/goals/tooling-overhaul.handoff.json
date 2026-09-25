@@ -1,27 +1,25 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 35 stray `.py` files and 228 documents today. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached (the live goal included). The module doc owns the definition.\n\nNo code runs a Python tool any more. `directives.py`, `decisions.py`, `gen-attribution.py` and `holes.py` are deleted with their parity groups. `nv verify` runs `bun nv directives`, and `crates/nvs-ir/tests/refusals.rs` spawns `bun nv holes`. `bun nv decisions` reads and writes each record's `summary` field under `data/decisions/`, with no digest and so no `stale` finding.\n\nThese parity groups matched on an earlier tree, and their tools can go once their citations are repointed: `ci-changes`, `links`, `migration`. `bun nv parity disk` differs on every run, so `tools/disk.py` stays until that is explained.\n\nThe valgrind sweep and the WSL leg still have no TS caller (`tools/nv/cmd/loop.ts:404`).",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 31 stray `.py` files and about 200 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached (the live goal included). The module doc owns the definition.\n\nNo code runs a Python tool any more. `check-links`, `check-migration`, `ci-changes` and `gaps` are deleted with their parity groups, following `directives`, `decisions`, `gen-attribution` and `holes`. Every playbook bullet that cited one names its `bun nv` port and expires on a word in the port's `.ts` file, and `bun nv playbook --check` is clean. `tools/session.py` hands off to `bun nv session` before its imports run, so running it still works. Importing it as a module no longer does, because it loads the deleted `check-links.py`.\n\n`bun nv links` reports 12 `retired` findings, all in the prose of Python tools still tracked, which name tools already deleted. The next group clears them by deleting those tools.\n\n`bun nv parity disk` differs on every run, so `tools/disk.py` stays until that is explained. The valgrind sweep and the WSL leg still have no TS caller (`tools/nv/cmd/loop.ts:404`).",
   "next": {
     "stage": 12,
     "title": "no Python",
     "files": [],
-    "note": "one file set: the Python tools only docs still cite, their playbook bullets, and `docs/agent/commands.md`.",
+    "note": "one file set: the Python tools whose prose `bun nv links` reports as `retired`, their parity groups in `tools/nv/parity/groups.json`, and `docs/agent/commands.md`.",
     "items": [
       {
         "done": false,
-        "text": "**Delete `check-links`, `check-migration`, `ci-changes` and `gaps`, and settle their playbook bullets.** Their callers are only docs and comments, but about 20 bullets under `docs/agent/playbook/` expire on `[until: gone tools/<x>.py:<word>]`. For each bullet, either the trap still holds for the port and its trailer names the word in `tools/nv/cmd/<x>.ts`, or the trap is gone and the bullet is deleted. Edit the fragment, then rebuild its record with `bulletValue` (`tools/nv/import/playbook.ts:62`); `.agent-tmp/rebuild-bullets.ts` does that for a list of fragments, if it is still there. `tools/ci-changes.py` also names `tools/nv/cmd/gen-attribution.ts` in its `deps` lane. `bun nv audit python` lists what is left (`tools/nv/cmd/audit.ts:199`)."
+        "text": "**Delete the Python tools whose prose names a deleted tool, with their parity groups.** `bun nv links` names them: `tools/session.py:679`, `tools/impact.py:116`, `tools/orient.py:1752`, `tools/reference.py:497` and `tools/verify_keys.py:94`. Check first that no remaining `.py` imports each one (`tools/orient.py:1707` runs `session.py` as a subprocess, which forwards to `bun nv session`). Then remove the matching group from `tools/nv/parity/groups.json:1` and its entries in `tools/nv/parity/known.json`, and repoint any playbook bullet whose trailer names the file. The previous deletion's commit is the model."
       },
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/commands.md` whole to name `bun nv` commands**, as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:670`)."
+        "text": "**Rewrite `docs/agent/commands.md` as a whole so it names `bun nv` commands**, as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:670`). `bun nv audit python` lists its lines."
       }
     ]
   },
   "backlog": [
-    "`bun nv holes` reads goal items from `docs/agent/loop-goal.md`, which the cutover deleted, so today it attributes sites only to `docs/agent/carried-refusals.md` items. Point `GOAL_MD` at the live goal's prose (`tools/nv/cmd/holes.ts:40`).",
-    "`bun nv parity disk` sizes `target/*/incremental/` 2G larger than `tools/disk.py`. Explain the difference or declare it in `tools/nv/parity/known.json` before `disk.py` goes (`tools/nv/cmd/disk.ts`).",
-    "`.claude/settings.json` still allowlists `python tools/*.py` commands. They go with the contract rewrite (`docs/agent/goals/tooling-overhaul.md:670`).",
-    "The generated goals still say \"the dossier\" in their stage title, and `tooling-overhaul` wants the word gone (`docs/agent/goals/tooling-overhaul.md:711`).",
-    "Three reload tests in `crates/nvs-cli/tests/live_config.rs:934` failed once beside the other test binaries with `invalidated: 0`, then passed alone and on the next `nv verify`: a shared resource or a timeout under load.",
-    "The pack printed `!! nv orient: docs/agent/loop-goal.md is missing`, and the driver ran normally anyway (`tools/nv/cmd/orient.ts`)."
+    "`tools/nv/cmd/links.ts:50` reads bare path mentions from `.py` files only (`MENTION_EXTS`). After Stage 12 deletes every `.py`, the `retired` kind reads nothing. It is open whether it should read `.ts` comments instead. Two playbook bullets expire on its words.",
+    "`bun nv parity disk` differs on every run, so `tools/disk.py` stays until that is explained.",
+    "The valgrind sweep and the WSL leg have no TS caller (`tools/nv/cmd/loop.ts:404`).",
+    "`AGENTS.md`, `CONTRIBUTING.md` and the `docs/agent/` process docs still name Python tools. `bun nv audit python` lists every line."
   ]
 }

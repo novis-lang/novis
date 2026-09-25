@@ -1,7 +1,7 @@
-- **`python tools/gaps.py --coverage` does not list every registered class, and the classes it drops
-  are the ones a floor gate finds.** `gaps.py` reads class names out of the Rust source with
+- **`bun nv gaps --coverage` does not list every registered class, and the classes it drops are the
+  ones a floor gate finds.** `tools/nv/cmd/gaps.ts` reads class names out of the Rust source with
   `CLASS_RE`/`NAME_CONST_RE` rather than out of the registry, so a class whose `name:` const it
   cannot resolve vanishes silently — unranked, uncounted, unreported. Treat the tool as a *ranking*
   over most of the tree: check `registry()` against `grep -c CoreClass` before believing a total,
   and read `nvs_stdlib::registry::CLASSES` directly for anything that must hold of **every** member.
-  [until: gone tools/gaps.py:NAME_CONST_RE]
+  [until: gone tools/nv/cmd/gaps.ts:NAME_CONST_RE]

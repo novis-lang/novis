@@ -6,7 +6,7 @@
   "context": {
     "modules": [
       "tools/nv/cmd/ci-green.ts",
-      "tools/ci-changes.py"
+      "tools/nv/cmd/ci-changes.ts"
     ],
     "rules": [
       "testing/ci-lanes"

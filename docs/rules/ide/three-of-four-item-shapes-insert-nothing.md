@@ -9,7 +9,7 @@ shapes, and three insert nothing:
 | `dropped` | appears, gives the row's reason and rewrite, inserts nothing |
 | `open`, or no row at all | appears, says undecided, inserts nothing |
 
-A missing row and an `open` row are one case, exactly as `check-migration.py` treats them. "Inserts
+A missing row and an `open` row are one case, exactly as `bun nv migration` treats them. "Inserts
 nothing" is asserted as the absence of an edit, not as an empty string.
 
 A row whose cell names more than one destination is prose the converter may not guess at, and is a

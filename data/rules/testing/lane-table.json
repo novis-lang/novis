@@ -12,7 +12,7 @@
     "testing/perf-two-mechanisms"
   ],
   "guardedBy": [
-    "tools/ci-changes.py",
+    "tools/nv/cmd/ci-changes.ts",
     ".github/workflows/ci.yml"
   ]
 }
