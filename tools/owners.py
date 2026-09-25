@@ -32,7 +32,7 @@ conformance case.
 
 **Two owner kinds and no third:**
 
-*   **A goal slug** -- `xml-tree`, `dossier` -- naming an entry in `docs/agent/goals/`. That
+*   **A goal slug** -- `xml-tree`, `parses` -- naming an entry in `docs/agent/goals/`. That
     entry closes the gap, or the tag is wrong. A slug rather than a chain number, because a number
     is a *position* and moves the moment anything is inserted ahead of it, which would silently
     re-point every tag in the tree.

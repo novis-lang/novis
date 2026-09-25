@@ -248,8 +248,8 @@ def milestones(lines=None):
 
 #: What this chain writes for work that lands in no milestone at all -- goals `temp-sweep` through `doc-comments` are five of
 #: them. A milestone is not invented to hold a goal; the goal says so and `--check` accepts it.
-#: It is a convention rather than the only legal word: `dossier.py --emit-goals` writes chains
-#: tagged `dossier`, and a future program will have its own. Hence MILESTONE_TAG_RE below --
+#: It is a convention rather than the only legal word: a goal generator tags its goals with a
+#: label of its own, and a future program will have its own too. Hence MILESTONE_TAG_RE below --
 #: **what `--check` gates on is the shape**, so a tag spelled like a milestone must be a real row
 #: (`M18` is a typo worth catching) and a tag that is plainly a label is taken as one.
 POST_PARITY = "post-parity"

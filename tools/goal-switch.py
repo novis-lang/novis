@@ -116,8 +116,8 @@ def unbannered(lines):
     this one wrote, and `blocks` hands a header the whole comment run above it. Carried as they are,
     those four lines land under the new marker and banner, and the switch after that carries both --
     one more copy per goal, each banner naming a floor size that was true one switch ago. The marker
-    is also load-bearing: `chain.py` and `dossier.py` test a goal for it, and a copy inside a
-    comment run is one they cannot tell from the real one.
+    is also load-bearing: `chain.py` tests a goal for it, and a copy inside a comment run is one it
+    cannot tell from the real one.
     """
     at = next(i for i, ln in enumerate(lines) if HEADER.match(ln))
     lead = [ln for ln in lines[:at]

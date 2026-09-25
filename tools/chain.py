@@ -122,11 +122,12 @@ def find(chain, num):
 
 
 def generated(goal):
-    """A goal `dossier.py` wrote, which is edited in the emitter and never here.
+    """Whether this goal sits in a subdirectory of `docs/agent/goals/`, where no hand-written goal is.
 
-    The directory it sits in, and not a marker in its prose: `dossier.py --emit-goals` writes into
-    `goals/dossier/` and nothing else does. Reading it off the word "generated" in the opening
-    paragraph found a hand-written goal whose subject happened to be generated files.
+    The test is the directory, and not a marker in the goal's prose: reading it off the word
+    "generated" in the opening paragraph found a hand-written goal whose subject happened to be
+    generated files. `bun nv proofs` writes its goals beside the others with a slug name, so none of
+    them is in a subdirectory and this is false for every goal on the chain.
     """
     return goal.folder != GOALS
 
@@ -223,9 +224,8 @@ def apply_renumber(chain, mapping, dry_run):
 
     # The rename goes through a temporary name because the map is a permutation: 21 -> 7 and 7 -> 9
     # both want the same directory, and either order overwrites one of them going straight across.
-    # A goal's files sit in its own folder -- `goals/` for a hand-written one, `goals/dossier/`
-    # for one the emitter wrote -- and a rename keeps each where it is: the folder is what says
-    # who edits the goal (`generated`), and the number is the only thing moving.
+    # A rename keeps each goal's files in the folder they are already in, and the number is the
+    # only thing moving: the folder is what `generated` reads.
     pairs = []
     for old, new in moves.items():
         g = by_num[old]

@@ -1230,7 +1230,7 @@ def body_goal_numbers(sections: list[Section]) -> list[str]:
                 named = f"`## {s.kind}: {s.arg}`" if s.arg else f"`## {s.kind}`"
                 out.append(
                     f"{named} line {line_no} writes `{m.group(0)}`, naming a goal by its number. Say "
-                    f"the slug -- goal `dossier`, never `goal 71` -- because a number is a position "
+                    f"the slug -- goal `parses`, never `goal 21` -- because a number is a position "
                     f"and every insert in front of it moves the position without touching the "
                     f"sentence. `python tools/chain.py --check` refuses this over the whole tree and "
                     f"is on the goal's `1 floor`, so a number written here turns that check red for "

@@ -8,7 +8,7 @@ is open fails at the link with `failed to remove file`, and the tree keeps whate
 there before.
 
 That is an annoyance for somebody building by hand and a stop for the unattended loop, whose
-acceptance checks judge a proof against the release binary: `dossier.py` asks cargo for one that is
+acceptance checks judge a proof against the release binary: the check asks cargo for one that is
 current, cargo cannot produce it, and a goal fails for a reason that has nothing to do with the
 tree. The failure also reads as *the tree does not build in release*, which is the opposite of what
 happened.
@@ -41,12 +41,7 @@ ASIDE = ".held-"
 
 
 def release_cli(root: Path) -> Path:
-    """`target/release/nvs`, with this platform's extension.
-
-    One home for the path, because two tools build that binary -- `dossier.py` to judge a proof
-    against the tree as it stands, `loop.py` to measure the CLI's own start -- and both of them
-    free it through here.
-    """
+    """`target/release/nvs`, with this platform's extension."""
     return root / "target" / "release" / ("nvs.exe" if os.name == "nt" else "nvs")
 
 

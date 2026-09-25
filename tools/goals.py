@@ -8,9 +8,8 @@ saying what the order is, which is the whole point: an order kept in two places 
 drifts, and the `chain.toml` this replaced had drifted far enough that its seventh entry was the
 one every other document called `carried-gaps` -- by a number that was not seven.
 
-The tree under that directory is walked, not just its top level, because `dossier.py` emits ninety
-goals at a time into `goals/dossier/` and three files each at the top level would bury the chain a
-person reads. Where a goal's files sit says nothing about when it runs; the number says that.
+The tree under that directory is walked, not just its top level, so a goal in a subdirectory is
+still on the chain. Where a goal's files sit says nothing about when it runs; the number says that.
 
 Everything a chain entry used to carry is now either the filename or derived from the goal's own
 files:
@@ -82,11 +81,9 @@ class Goal:
     def __init__(self, num, slug, folder=None):
         self.num = num
         self.slug = slug
-        #: The directory holding the three files. `docs/agent/goals/` for a hand-written goal and
-        #: `docs/agent/goals/dossier/` for a generated one -- `dossier.py` emits ninety-odd at a
-        #: time and three files each at the top level would bury the chain a person reads. The
-        #: number orders the chain across both, because the number is the position and the
-        #: directory is only where the file sits.
+        #: The directory holding the three files: `docs/agent/goals/` unless the goal was found in
+        #: a subdirectory of it. The number orders the chain across every directory, because the
+        #: number is the position and the directory is only where the file sits.
         self.folder = Path(folder) if folder else GOALS
 
     @property
@@ -140,7 +137,7 @@ class Goal:
         """Whether this goal says `position: last`: it runs after everything else on the chain.
 
         The number still is the position -- the key moves nothing by itself. It is what the two
-        writers read so the goal *stays* last: `dossier.py --emit-goals` appends in front of it,
+        writers read so the goal *stays* last: `bun nv proofs` appends its goals in front of it,
         and `chain.py --new --end` lands in front of it. `chain.py --check` fails when one is not
         where it says it is.
         """

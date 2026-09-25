@@ -1,24 +1,30 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stage 10 is done; the earliest red check is Stage 9's.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nEvery playbook section is triaged. `bun nv playbook --triage <section>` ends on `every bullet names a file and declares a condition the tree decides` for each of them.\n\n`bun nv playbook --check` is now the Stage 10 gate (`tools/nv/cmd/playbook.ts:440`). It fails on any bullet record that `decided()` refuses (`tools/nv/cmd/playbook.ts:591`), and on success its last line is the verdict the Stage 10 check wants. The `reviewed` kind is gone from the schema, the trailer regex, `holds` and the wrap. `nv check` refuses a bullet with no `files` (`tools/nv/schema/playbook.ts`). `bun nv loop --goal-only --stage 10` is green.\n\n`tools/playbook.py`'s module doc still lists five kinds, `reviewed` among them. That file goes in Stage 12, so it was left as it is.\n\nThe goal-only sweep is red on Stage 9's `audit checks`, Stage 11's `audit ci` and `loop-stats --guard`, and Stage 12's `audit python`. `bun nv audit checks` is red only on the word `dossier` in the prose of seven Python tools.",
+  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done; the earliest red check is Stage 11's.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit checks` exits 0: no Python tool's prose says the old proofs name any more. The goal-only sweep passes every check through Stage 10 and stops at Stage 11's `CI, the website and the git hooks run bun`.\n\nThat check runs `bun nv audit ci`, and `tools/nv/cmd/audit.ts:145` registers only `goals`, `checks` and `eol`, so it exits 2 with `no audit named ci`. The audit is not written yet. This is an open item and not a regression.\n\nStage 11's `loop-stats --guard` and Stage 12's `audit python` follow it. The sweep stops at its first red, so neither was reached this session.\n\n`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
   "next": {
-    "stage": 9,
-    "title": "the cutover's last audit",
+    "stage": 11,
+    "title": "the CI audit and the workflows",
     "files": [],
-    "note": "one file set: the Python tools that still say `dossier` in their prose.",
+    "note": "one file set: `tools/nv/cmd/audit.ts` and the `.github/workflows/*.yml` files.",
     "items": [
       {
         "done": false,
-        "text": "**Clear `bun nv audit checks`** — it prints `7 place(s) say dossier`. Every hit is a docstring, a comment or one message string: `tools/chain.py:125`, `tools/chain.py:226`, `tools/goal-switch.py:119`, `tools/goals.py:11`, `tools/goals.py:86`, `tools/goals.py:143`, `tools/owners.py:35`, `tools/plan.py:251`, `tools/relink.py:11`, `tools/relink.py:46`, `tools/session.py:1233`. Rewrite each sentence whole, from what the tool does now: the emitter is `bun nv proofs`, and a generated goal sits beside the others with a slug name (`docs/agent/goals/tooling-overhaul.md:553`, step 2 and step 3). For session.py's example slug, use a real goal slug such as `parses`. Then `bun nv audit checks` exits 0."
+        "text": "**Write `bun nv audit ci`** — register it beside the others at `tools/nv/cmd/audit.ts:145`. It fails on any `python tools/` step in `.github/workflows/ci.yml:1`, `.github/workflows/pages.yml:1`, `.github/workflows/release.yml:1` and `.github/workflows/release-promote.yml:1`, on a `python` call in `tools/git-hooks/pre-push:1` and `tools/git-hooks/commit-msg:1`, and on `website/scripts/sync-rules.mjs:1` or `website/scripts/sync-core.mjs:1` still existing. Stage 11's bullets in `docs/agent/goals/tooling-overhaul.md:641` are the list. Add a unit test beside the other audits' tests in `tools/nv/test/`."
       },
       {
         "done": false,
-        "text": "**Re-run the whole goal-only sweep** — `bun nv loop --goal-only` (`tools/nv/cmd/loop.ts:1`). Confirm that only the Stage 11 and Stage 12 checks stay red, and name the first Stage 11 group in the handoff (`docs/agent/goals/tooling-overhaul.md:623`)."
+        "text": "**Port the workflow steps** — every `python tools/...` step in `.github/workflows/ci.yml:1` becomes `bun nv ...`, `oven-sh/setup-bun` is pinned by SHA like every other action, and the docs job runs `bun nv check` and `bun nv render --check` (`docs/agent/goals/tooling-overhaul.md:641`)."
+      },
+      {
+        "done": false,
+        "text": "**Port the git hooks** — `tools/git-hooks/commit-msg:1` and `tools/git-hooks/pre-push:1` call `bun nv`. `docs/setup.md:1` says Bun is installed and `bun install` runs after a clone."
       }
     ]
   },
   "backlog": [
-    "Stage 11: port the remaining tools, CI, the website and the hooks — `docs/agent/goals/tooling-overhaul.md:623`.",
-    "Stage 12: delete the Python tools and rewrite the contract. This includes the playbook kinds in `docs/agent/conventions.md` § *A playbook bullet* — `docs/agent/goals/tooling-overhaul.md:653`.",
-    "Kept bullets whose text still says `python tools/peek.py` or `session.py` (the two LIVE MANIFEST ones among them) need their selectors or text re-pointed before Stage 12 deletes those tools, or `bun nv chain --check` goes red — `docs/agent/goals/tooling-overhaul.md:653`."
+    "The website half of Stage 11: delete `website/scripts/sync-rules.mjs` and `sync-core.mjs` in favour of `bun nv render --website` (`docs/agent/goals/tooling-overhaul.md:645`).",
+    "`nv loop-stats --guard` (`docs/agent/goals/tooling-overhaul.md:634`).",
+    "The Python tools' ports in Stage 11's first bullet (`docs/agent/goals/tooling-overhaul.md:629`).",
+    "Stage 12's `audit python`, and `tools/playbook.py`'s stale `reviewed` kind with it.",
+    "The pack printed `docs/agent/loop-goal.md is missing` and could not print Stage 11's audit table. The goal has no `[context.stage.11]` overlay naming `tools/nv/cmd/audit.ts`."
   ]
 }
