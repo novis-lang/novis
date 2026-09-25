@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when the text is not a number in the base.
+
+// `y` is not a hexadecimal digit, so each call throws a `RuntimeError`.
+// A prefix such as `0x` and an empty string also throw.
+array<string> $inputs = ["beefy", "0xff", ""];
+foreach ($inputs as string $input) {
+    try {
+        echo Core\Math::fromBase($input, 16), "\n";
+    } catch (RuntimeError $e) {
+        echo "not a number: \"", $input, "\"\n";
+    }
+}
+
+// This number is too large for an `int`, so the call throws an `ArithmeticError`.
+try {
+    echo Core\Math::fromBase("ffffffffffffffff", 16), "\n";
+} catch (ArithmeticError $overflow) {
+    echo "too large\n";
+}

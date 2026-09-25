@@ -1,0 +1,20 @@
+<?nvs
+// Measures reading a short hexadecimal number, as a program does with a colour code or an id.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $codes = ["ff", "8800", "1a2b3c", "7f"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the text read this round depends on last round's total.
+            $total = $total + Core\Math::fromBase($codes[($total + $i) % 4], 16) % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

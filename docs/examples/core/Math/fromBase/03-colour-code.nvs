@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the red, green and blue parts of a colour code such as `#FF8800`.
+
+class Colour {
+    // Returns one part of the colour code as a number from 0 to 255.
+    // `$start` is the position of the part's two digits, after the `#`.
+    public static function part(string $code, int $start): int {
+        return Core\Math::fromBase(Core\Str::slice($code, $start, 2), 16);
+    }
+}
+
+string $code = "#FF8800";
+// This prints red 255, green 136, blue 0.
+echo "red ", Colour::part($code, 1), ", green ", Colour::part($code, 3),
+    ", blue ", Colour::part($code, 5), "\n";

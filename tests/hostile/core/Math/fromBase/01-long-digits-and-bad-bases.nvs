@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `Core\Math::fromBase` is given bad bases, bad characters, numbers one past the
+// `int` range and a million digits. Each bad call should throw an error that the program
+// catches, and the program should run to its end.
+
+// 1. The largest and smallest `int`, and one past each of them.
+echo Core\Math::fromBase('7fffffffffffffff', 16), "\n";
+echo Core\Math::fromBase('-8000000000000000', 16), "\n";
+array<string> $tooLarge = ['8000000000000000', '-8000000000000001', 'ffffffffffffffff0'];
+foreach ($tooLarge as string $digits) {
+    try {
+        echo Core\Math::fromBase($digits, 16), "\n";
+    } catch (ArithmeticError $overflow) {
+        echo "too large\n";
+    }
+}
+
+// 2. Bases just outside the range, and the largest `uint`.
+array<uint> $bases = [0, 1, 37, 18446744073709551615];
+foreach ($bases as uint $base) {
+    try {
+        echo Core\Math::fromBase('1', $base), "\n";
+    } catch (RuntimeError $e) {
+        echo "no such base\n";
+    }
+}
+
+// 3. Text with no digits, signs in the wrong place, spaces and characters outside ASCII.
+array<string> $inputs = ['', '-', '--1', '+1', '1-', ' 1', '1 ', '1_000', 'é', "\u{0}", 'z'];
+foreach ($inputs as string $input) {
+    try {
+        echo Core\Math::fromBase($input, 35), "\n";
+    } catch (RuntimeError $e) {
+        echo "not a number\n";
+    }
+}
+
+// 4. One million zeros read as 0, and one million `z` digits are too large.
+echo Core\Math::fromBase(Core\Str::repeat('0', 1000000), 2), "\n";
+try {
+    echo Core\Math::fromBase(Core\Str::repeat('z', 1000000), 36), "\n";
+} catch (ArithmeticError $overflow) {
+    echo "too large\n";
+}
+
+// 5. A million calls. Each result feeds the next one, and `% 1000` keeps it small.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = (Core\Math::fromBase(Core\Math::toBase($total + $round, 36), 36) + 1) % 1000;
+    $round = $round + 1;
+}
+echo $total, "\n";
