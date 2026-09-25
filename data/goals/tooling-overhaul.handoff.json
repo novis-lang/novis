@@ -1,28 +1,29 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv release` replaces `tools/release.py`, which is deleted (`tools/nv/cmd/release.ts`, test `tools/nv/test/release.test.ts`). Its output matched the Python script's for `--check`, `--plan`, `--preview`, `--notes` and `--docker-tags` on this tree, and `--apply 0.0.2 --manifests-only` gave the same diff to `Cargo.toml` and `Cargo.lock`. `--apply` finds the pins by reading the manifest as TOML, so it bumps every pin `--check` checks. `--package` writes tar.gz and zip itself; system `tar` and Python's `zipfile` both read the archives.\n\n`ci.yml`'s `docs` job, all four `release.yml` jobs and `release-promote.yml` now run `bun nv release` after `setup-bun` and `bun install --frozen-lockfile`. No workflow sets up Python. Not checked: whether `setup-bun` installs Bun 1.3.5 on the `windows-11-arm` build runner. That matrix row is `optional: true`.\n\n`bun nv audit ci` still exits 1, and the Stage 11 check is red. This is an open item, not a regression. The only thing it still names is the two website sync scripts.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv render --website` writes the website's rulebook: `website/src/data/rules.json` and every page under `website/src/content/docs/docs/rules/` except the handwritten `index.mdx` (`tools/nv/renderers/website-rules.ts`). It reads `data/rules/`, the prose under `docs/rules/<topic>/`, and `website/config/rule-sections.mjs`. Over an adapter rulebook built from `data/rules/`, its output was byte-identical to the old `sync-rules.mjs` apart from the marker line. A renderer can now own a directory (`Renderer.owns` in `tools/nv/lib/render.ts`): `render` deletes a file there that it no longer writes, and `render --check` names it. The plain `bun nv render --check`, which CI's docs job runs, covers the website pages too. `website/scripts/sync-rules.mjs` is deleted. `npm run sync:render` in `website/` runs the render.\n\n`bun nv audit ci` still exits 1, and the Stage 11 check is red. This is an open item, not a regression. The only thing it still names is `website/scripts/sync-core.mjs`.",
   "next": {
     "stage": 11,
-    "title": "the website sync scripts",
+    "title": "the Core pages of `bun nv render --website`",
     "files": [
-      "tools/nv/cmd/render.ts",
-      "website/scripts/sync-rules.mjs",
+      "tools/nv/renderers/",
       "website/scripts/sync-core.mjs",
+      "website/scripts/lib/*.mjs",
+      "website/scripts/spec-overrides.mjs",
       "website/package.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`bun nv render --website`** -- write the pages `website/scripts/sync-rules.mjs:1` (497 lines) and `website/scripts/sync-core.mjs:1` (414 lines) write, from the records under `data/` and not from the Markdown. `tools/nv/cmd/render.ts:1` gets the mode, and `--check` covers it. Diff the output against what the scripts produce today before deleting anything."
+        "text": "**Port `sync-core.mjs` to a `website-core` renderer** -- `website/scripts/sync-core.mjs:48` writes `website/src/data/core.json` and the tool-owned `.mdx` stubs under `website/src/content/docs/docs/core/`. Its member rows come from tables, which are in `data/spec/core-members.json`. But `website/scripts/lib/spec.mjs:284` also reads prose the records do not carry: each class's summary, the `Enums:` and `Constants:` lines, and the bullet rosters. Before porting, decide where each of those comes from: `nvs meta --json` (`website/scripts/lib/meta.mjs:1`), `data/reference/core/<Class>.json`'s `summary`, or a new record field. Note that a stub is only rewritten while it still says `draft: true`, so `Renderer.owns` (`tools/nv/lib/render.ts:21`) cannot own that directory. Diff `core.json` against what the script writes before deleting it."
       },
       {
         "done": false,
-        "text": "**Delete the two scripts** -- and point `website/package.json:15` (`sync`, `sync:rules`, `sync:core`) at `bun nv render --website`. Then `tools/nv/cmd/audit.ts:149` finds nothing and `bun nv audit ci` exits 0. The playbook bullet with `[until: gone website/scripts/sync-rules.mjs]` expires on its own. Also rewrite the comments that name the scripts: `website/config/rule-sections.mjs:13` and `website/src/styles/rulebook.css:24`."
+        "text": "**Delete `sync-core.mjs` and its `lib/` helpers** -- point `website/package.json:15` (`sync`, `sync:core`) at `bun nv render --website`. Then `tools/nv/cmd/audit.ts:149` finds nothing and `bun nv audit ci` exits 0."
       }
     ]
   },
   "backlog": [
-    "`docs/agent/commands.md:317` still names `rules.py`, `check-links.py`, `layout.py`, `records.py`, `plan.py` and `playbook.py` as CI's `docs` job, but that job runs `bun nv` for each of them now.",
-    "`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
-    "`windows-11-arm` and `setup-bun`: check this on the first release dispatch (`.github/workflows/release.yml`)."
+    "The website's `tmLanguage` is rendered from the editor's grammar, or a reason in the grammar's record says why both stay. The goal's Stage 11 bullet `The website.` owns this.",
+    "`nv verify` does not run `bun nv render --check`, so a rule edit that leaves the website pages stale fails only in CI. The playbook bullet `Editing a rule fragment leaves the website's copy of it stale` covers this.",
+    "`tools/check-links.py:73` still says `npm run sync:rules`. Stage 12 deletes the file."
   ]
 }
