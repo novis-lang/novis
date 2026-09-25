@@ -26,7 +26,7 @@ Read the version in [Cargo.toml](../../Cargo.toml)'s `[workspace.package]`.
 ## 1. Orient
 
 ```sh
-python tools/brief.py                     # status block, guard tests, what exists
+bun nv orient --full                      # where the run and the work stand, one line per module
 git status                                # start clean; a sweep never rides on top of unrelated work
 cargo update --dry-run                    # what would move inside the declared ranges
 cargo tree --duplicates                   # multiple-versions warnings that a bump might fix or create
@@ -86,9 +86,11 @@ cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 **C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep:
 
 ```sh
-python tools/loop.py --goal-only          # --list shows what it would run
-python tools/loop.py --leg-only           # the Linux leg alone, when that is all that moved
+bun nv loop --goal-only                   # --list shows what it would run
 ```
+
+The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/driver/accept.ts`'s "Not here
+yet" list names them.
 
 **D. If a lexer/parser-adjacent crate moved:**
 
@@ -147,7 +149,7 @@ Write the migration note in the same commit as the warning, not at release time.
    `Cargo.toml` and nowhere else; do not copy a version number into prose.
 2. **Every hold has a date and a reason** on its own line in `[workspace.dependencies]`, or a dated entry in
    `deny.toml`'s `advisories.ignore`.
-3. **`python tools/check-links.py`** if any doc moved.
+3. **`bun nv links`** if any doc moved.
 4. **Commit** — one per bump, classification in the message.
 5. **Overwrite `docs/agent/handoff.md`** per [AGENTS.md](../../AGENTS.md) § *Keep work small, commit your
    work*, then show the user the report below.

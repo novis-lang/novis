@@ -36,9 +36,9 @@ and queueing up the next one.
 
 ## Your evidence is already in this message
 
-The run ran the measurements ahead of this prompt and piped them in: `loop-stats.py` and its
-`--attribute` breakdown, `orient.py --audit` with any selector warnings, `playbook.py --dupes`,
-`check-links.py`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines for the leg that
+The run ran the measurements ahead of this prompt and piped them in: `bun nv loop-stats` and its
+`--attribute` breakdown, `bun nv orient --audit` with any selector warnings, the report of overlapping
+playbook bullets, `bun nv links`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines for the leg that
 just ran, and the path to write your report to. **Do not re-run any of them to start with** — that is the
 whole reason they were piped in. Re-run one only to confirm a change you just made.
 
@@ -50,13 +50,13 @@ measurement is a supervisor bug and the next pass should not pay for it again.
 Each row is signal → action → the gate that says you may. **No signal, no action** — a pass that finds
 nothing to do and says so is a successful pass, and by far the cheapest one.
 
-1. **Duplicate playbook bullets.** *Signal:* `playbook.py --dupes` names an overlapping set. *Action:*
+1. **Duplicate playbook bullets.** *Signal:* the overlapping-bullet report names a set. *Action:*
    keep the single clearest bullet **verbatim** and delete the others; if one carries a detail the keeper
    lacks, move that clause across unchanged. *Gate:* every fact in the deleted bullets still appears
    somewhere. **Never reword the survivor** — rewording this file to say the same thing differently is the
    exact cost the playbook was split out of the handoff to stop.
 
-2. **Dead `[context]` selectors.** *Signal:* `orient.py` warns that a selector in `docs/agent/loop-goal.toml`
+2. **Dead `[context]` selectors.** *Signal:* `bun nv orient` warns that a selector in `docs/agent/loop-goal.toml`
    names a module, ADR section, shape, playbook heading or milestone that no longer exists. *Action:*
    delete that entry — unless § *The live goal* says a tool wrote that file, in which case this is item 8
    and the entry is deleted in the emitter. *Gate:* the warning names it. It was printing nothing but the
@@ -68,7 +68,7 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    symbol's new site is the one `--locate` printed. A stale anchor costs a session two discovery calls and
    prints the wrong code into its pack, so this is a correction, not a trim.
 
-4. **Broken references inside the agent docs.** *Signal:* `check-links.py` reports a dead link under
+4. **Broken references inside the agent docs.** *Signal:* `bun nv links` reports a dead link under
    `docs/agent/`, or a doc names a tool flag that the tool's `--help` no longer has. *Action:* fix the
    reference to what is actually there. *Gate:* you ran the `--help` and read it.
 
@@ -96,13 +96,12 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
 8. **A defect in a *generated* goal.** *Signal:* the evidence pack's § *The live goal* names the command
    that wrote `docs/agent/loop-goal.toml`, and one of the findings above lands in a file that command
    produced. *Action:* fix the emitter, re-run its command, commit the regenerated tree. *Gate:* the
-   emitter's own check passes — `python tools/dossier.py --check-goals` is the dossier's — and re-running
-   the emission changes nothing (`--emit-goals --dry-run` appends nothing).
+   emitter's own check passes, and re-running the emission changes nothing.
    **Never hand-edit a generated goal.** The next emission discards the edit, and the defect is in every
    goal that command wrote rather than the one the warning fired on, so a hand-edit is both lost and
    incomplete. This is the one item where the fix is further away than the file the signal named, and it is
-   worth the extra distance precisely because of the multiplier: `dossier.py --emit-goals` writes ~93 goals,
-   so one wrong line in `goal_toml()` is 93 warnings a run and one commit to remove them all.
+   worth the extra distance precisely because of the multiplier: an emitter writes dozens of goals, so one
+   wrong line in it is a warning per goal every run, and one commit removes them all.
 
 ## What stays a proposal
 
@@ -127,8 +126,8 @@ Short, and each entry is here because it fails § *The one rule* — not because
 **What the supervisor checks when you exit**, so nothing here is a surprise:
 
 - every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md` or `README.md`;
-- every `tools/*.py` you touched still parses and still answers `--help`;
-- `orient.py` still produces a pack, and `loop.py --list` still reads the acceptance list;
+- every `bun nv` command you touched still runs;
+- `bun nv orient` still produces a pack, and `bun nv loop --list` still reads the acceptance list;
 - if you touched `tools/`, `nv verify` is no worse than the state named in your evidence pack. **The tree
   being red is normal** — a red acceptance check is what the loop is working on — so the comparison is
   against that, not against green. You are never asked to fix it, and fixing it is a work session's job.
@@ -170,7 +169,7 @@ Anything that looked like a bug in the loop itself, including a measurement that
 
 1. **Verify only what you touched.** Edited something under `tools/`? `bun nv verify`, once, and
    it must be green. Edited only markdown and TOML? Then re-run just the script whose output you changed —
-   `python tools/orient.py --audit` after a manifest edit, `python tools/playbook.py --check` after a
+   `bun nv orient --audit` after a manifest edit, `bun nv playbook --check` after a
    playbook edit — and nothing else. Prose cannot break a build, and a full gate here is fifteen minutes
    the loop is not working.
 2. **Commit each menu item separately**, with the repo's commit shape (`docs/agent/conventions.md`), scope
