@@ -1,0 +1,23 @@
+<?nvs
+// Shows how an upload form can accept images and reject every other kind of file.
+
+class Avatar {
+    public static function accepts(bytes $upload): bool {
+        Core\Mime\Type $type = Core\Mime::detect($upload);
+        return $type == Core\Mime\Type::Png
+            || $type == Core\Mime\Type::Jpeg
+            || $type == Core\Mime\Type::Webp;
+    }
+}
+
+array<string> $uploads = [
+    "me.png" => "89504e470d0a1a0a",
+    "me.jpg" => "ffd8ffe000104a4649",
+    "me.zip" => "504b03041400",
+];
+
+foreach ($uploads as string $name => string $hex) {
+    bytes $upload = Core\Encoding::fromHex($hex);
+    // The ZIP file is rejected, because it is not one of the three image types.
+    echo $name, ": ", Avatar::accepts($upload) ? "accepted" : "rejected", "\n";
+}

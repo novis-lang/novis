@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to get the standard name of a file type.
+
+// This prints "image/png".
+echo Core\Mime::mediaType(Core\Mime\Type::Png), "\n";
+
+// This prints "application/pdf".
+echo Core\Mime::mediaType(Core\Mime\Type::Pdf), "\n";

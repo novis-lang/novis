@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `detect` reads the bytes, and not what a file is called.
+
+// These bytes are the text "holiday.png". They are not an image.
+bytes $text = "holiday.png" as bytes;
+// This prints "true".
+echo Core\Mime::detect($text) == Core\Mime\Type::Unknown ? "true" : "false", "\n";
+
+// These bytes start a PDF document, whatever name the file had.
+bytes $pdf = "%PDF-1.7\n" as bytes;
+// This prints "true".
+echo Core\Mime::detect($pdf) == Core\Mime\Type::Pdf ? "true" : "false", "\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Attack: `Core\Mime::mediaType` is called one million times for every case, and the results
+// are joined into one long text. The program should run to its end.
+
+// 1. Every case, taken from real bytes and from `Unknown`, one million times in total.
+array<string> $signatures = [
+    '', '89504e470d0a1a0a', 'ffd8ffe000104a4649', '474946383961', '255044462d312e37',
+    '504b03041400', '1f8b0800', '28b52ffd', 'fd377a585a00', '0061736d01000000', '1a45dfa3',
+];
+array<Core\Mime\Type> $types = [];
+foreach ($signatures as string $hex) {
+    $types[] = Core\Mime::detect(Core\Encoding::fromHex($hex));
+}
+uint $length = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $length = $length + Core\Str::length(Core\Mime::mediaType($types[$i % 11]));
+    $i = $i + 1;
+}
+echo $length, "\n";
+
+// 2. The results joined into one text of several megabytes.
+string $joined = '';
+$i = 0;
+while ($i < 200000) {
+    $joined = $joined . Core\Mime::mediaType($types[$i % 11]) . ';';
+    $i = $i + 1;
+}
+echo Core\Str::length($joined) > 0 ? "joined\n" : "empty\n";

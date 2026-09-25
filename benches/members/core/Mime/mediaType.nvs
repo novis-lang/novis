@@ -1,0 +1,19 @@
+<?nvs
+// Measures getting the name of a file type, as a server does for the `Content-Type` of a download.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Mime\Type> $types = [Core\Mime\Type::Png, Core\Mime\Type::Pdf, Core\Mime\Type::Unknown];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case named this round depends on last round's total.
+            $total = $total + Core\Str::length(Core\Mime::mediaType($types[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

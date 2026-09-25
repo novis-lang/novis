@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `Core\Mime::detect` gets empty bytes, a signature cut short by one byte, a signature
+// with one byte changed, and ten megabytes. The program should run to its end.
+
+// 1. Empty bytes.
+echo Core\Mime::mediaType(Core\Mime::detect('' as bytes)), "\n";
+
+// 2. Every signature with its last byte missing, and with its last byte changed.
+array<string> $signatures = [
+    '89504e470d0a1a0a', 'ffd8ffe000104a4649', '474946383961', '524946462400000057454250',
+    '0000001c6674797061766966', '255044462d312e37', '504b03041400', '1f8b0800',
+    '28b52ffd', 'fd377a585a00', '0061736d01000000', '1a45dfa3',
+];
+uint $unknown = 0;
+foreach ($signatures as string $hex) {
+    bytes $full = Core\Encoding::fromHex($hex);
+    string $cut = Core\Str::slice($hex, 0, (Core\Str::length($hex) - 2) as int);
+    bytes $short = Core\Encoding::fromHex($cut);
+    bytes $changed = Core\Encoding::fromHex($cut . '7e');
+    if (Core\Mime::detect($short) == Core\Mime\Type::Unknown) {
+        $unknown = $unknown + 1;
+    }
+    Core\Mime::detect($changed);
+    Core\Mime::detect($full);
+}
+echo $unknown, " cut signatures are unknown\n";
+
+// 3. A PNG signature in front of ten megabytes of zero bytes. Only the first bytes are read.
+bytes $big = Core\Encoding::fromHex('89504e470d0a1a0a' . Core\Str::repeat('00', 10000000));
+echo Core\Mime::mediaType(Core\Mime::detect($big)), "\n";
+
+// 4. The same short input one million times.
+bytes $zip = Core\Encoding::fromHex('504b0304');
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Mime::detect($zip);
+    $i = $i + 1;
+}
+echo "detected many times\n";

@@ -52,7 +52,7 @@
 use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -190,11 +190,18 @@ const TYPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// `Core\Mime`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Finds out what kind of file some bytes are, such as a PNG image or a PDF, by reading \
+            the first bytes. `detect` returns a `Core\\Mime\\Type` case, and `mediaType` gives its \
+            name, such as `image/png`.",
+};
+
 /// `Core\Mime`'s registry rows — the detection, and the one direction in which
 /// a case becomes a name.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "detect",
@@ -661,6 +668,7 @@ mod tests {
     /// signature detects as its own case, which also holds the table's
     /// first-match-wins order, since an entry shadowed by an earlier one would
     /// answer that one's case here.
+    // covers: Core\Mime::detect
     #[test]
     fn a_type_is_detected_from_magic_bytes_and_never_from_a_file_extension() {
         let mut detected = 0;
@@ -709,6 +717,7 @@ mod tests {
     /// The mirror's variants are spelled exactly as the source cases, which is
     /// what lets `Debug` hold the two rosters together here rather than a third
     /// list of names that could drift from both.
+    // covers: Core\Mime::mediaType
     #[test]
     fn the_answer_is_a_closed_enum_plus_unknown_and_never_a_free_string() {
         let detect = CLASS

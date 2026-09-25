@@ -1,0 +1,8 @@
+<?nvs
+// Shows the name you get for bytes that `Core\Mime::detect` could not identify.
+
+// Plain text has no signature, so `detect` returns `Core\Mime\Type::Unknown`.
+Core\Mime\Type $type = Core\Mime::detect("name,price\nTea,3\n" as bytes);
+
+// This prints "application/octet-stream".
+echo Core\Mime::mediaType($type), "\n";

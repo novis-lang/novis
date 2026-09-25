@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check what kind of file some bytes are.
+
+// These are the first eight bytes of every PNG image.
+bytes $upload = Core\Encoding::fromHex("89504e470d0a1a0a");
+
+Core\Mime\Type $type = Core\Mime::detect($upload);
+// This prints "a PNG image".
+if ($type == Core\Mime\Type::Png) {
+    echo "a PNG image\n";
+} else {
+    echo "not a PNG image\n";
+}
