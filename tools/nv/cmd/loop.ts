@@ -512,6 +512,33 @@ async function settle(): Promise<number> {
   return 0;
 }
 
+/**
+ * The sweep over the live plan's checks whose ids are in `ids`, memo consulted and every red collected:
+ * what `nv affected --run` runs once it has chosen them. Exits 0 when every one is green, 1 when one is
+ * red, and 2 when there is no plan or no key.
+ */
+export async function sweepIds(ids: Set<string>): Promise<number> {
+  const found = selected({});
+  if (found === null) return 2;
+  const { goal, labelOf } = found;
+  const chosen = (goal.checks as Check[]).filter((c) => ids.has(c.id));
+  if (chosen.length === 0) return 0;
+  const keyed = await checkKeys(goal, chosen);
+  if (typeof keyed === "string") {
+    console.error(`nv loop: ${keyed}`);
+    return 2;
+  }
+  console.log(`running ${chosen.length} acceptance ${chosen.length === 1 ? "check" : "checks"} (collecting every red)`);
+  const { result, secs } = await sweepOver(goal, chosen, labelOf, keyed, { full: false, collect: true });
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${chosen.length}`);
+  if (result.fail !== "") {
+    console.log(`NOT GREEN: ${result.fail}`);
+    return 1;
+  }
+  console.log("GREEN: every acceptance check the change reaches passes");
+  return 0;
+}
+
 interface TurnFlags extends LaunchOptions, Caps {
   maxSessions: number;
   maxStalls: number;

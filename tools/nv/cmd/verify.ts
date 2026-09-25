@@ -1,4 +1,6 @@
-// `bun nv verify`: AGENTS.md § *Session workflow* step 3, as one command.
+// `bun nv verify`: the build gate, one command. A loop session runs it as AGENTS.md § *Session workflow*
+// step 3; anywhere else `bun nv affected --run` runs it first and then the acceptance checks a change
+// reaches.
 //
 //     bun nv verify                  every step
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
@@ -31,7 +33,7 @@
 //
 // A step whose key has not moved since it was last green is answered from `.agent-tmp/verify-green.json`
 // rather than run. `tools/nv/keys/steps.ts` is what each step reads. Only a green step is recorded, the
-// moment it passes; an entry expires after an hour; a red step's entry is deleted. `build` is answered
+// moment it passes, and it holds for as long as its key does; a red step's entry is deleted. `build` is answered
 // from the cache only when every later step that uses what it leaves on disk is too, or, for `test`,
 // when the test binaries cargo last built are provably the ones this code compiles to: the build key
 // they were built under still holds, and every file cargo produced then is untouched. A `-p` run's
@@ -104,7 +106,6 @@ const BACKGROUND = join(TMP, "verify-background.json");
 const BACKGROUND_TIMEOUT_S = 600;
 
 const TAIL_LINES = 60;
-const CACHE_TTL_S = 3600;
 /** A step is killed past this, so a hung test cannot hold a session forever. */
 const STEP_TIMEOUT_MS = 60 * 60 * 1000;
 
@@ -830,7 +831,7 @@ const scopeOf = (name: string, opts: Opts) => (name === "test" ? opts.package : 
 function held(cache: Cache, ctx: Ctx | null, opts: Opts, name: string): Entry | null {
   if (ctx === null || opts.noCache) return null;
   const entry = cache.steps[name];
-  if (!entry || typeof entry !== "object" || now() - Number(entry.when ?? 0) > CACHE_TTL_S) return null;
+  if (!entry || typeof entry !== "object") return null;
   // An unscoped `test` verdict proves every `-p`; the reverse does not hold.
   const wanted = [keyFor(ctx, name, scopeOf(name, opts)), keyFor(ctx, name)].filter((k) => k !== null);
   return wanted.includes(entry.key ?? "") ? entry : null;
@@ -1110,6 +1111,27 @@ async function verify(opts: Opts): Promise<number> {
   if (hidden) console.log(`\n... ${hidden} earlier line(s) hidden`);
   console.log(`\nfull output: .agent-tmp/verify-${red.name}.log`);
   return 1;
+}
+
+/** The steps an unnarrowed run walks, in order. */
+export function stepNames(): string[] {
+  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }).map((s) => s.name);
+}
+
+/** Whether the green cache answers step `name` over `tree`, as an unnarrowed run would. `nvs-fmt` has
+ * no key, and a step `steps.ts` does not describe always runs. */
+export function stepGreen(tree: Tree, graph: Graph | null, name: string): boolean {
+  const entry = loadCache().steps[name];
+  const key = stepKey(tree, graph, name);
+  return key !== null && entry?.key === key;
+}
+
+/** Each test binary's last green run, by its name: the key it was green under and the test lines it
+ * printed. */
+export function greenBinaries(): Map<string, { key: string; tests: string[] }> {
+  return new Map(
+    Object.entries(readObject<Green>(TEST_GREEN)).flatMap(([name, g]) => (typeof g?.key === "string" ? [[name, { key: g.key, tests: Array.isArray(g.tests) ? g.tests : [] }] as const] : [])),
+  );
 }
 
 /** `--keys`: `{name: {key, wide}}` for every binary the last build recorded, keyed as `test` keys it. */
