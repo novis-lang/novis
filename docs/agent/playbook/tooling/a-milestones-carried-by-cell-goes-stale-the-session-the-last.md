@@ -4,4 +4,4 @@
   derived from the chain and the registers, and no session-level gate derives it. When `plan.py
   --check` reports a structural finding naming a milestone, run `python tools/plan.py --past` to see
   which milestone completed and `python tools/plan.py --sync` to write the cell; it is one edit and
-  never the work the goal was doing. [until: reviewed 2026-09-18]
+  never the work the goal was doing. [until: gone tools/plan.py:--sync]

@@ -1,6 +1,0 @@
-- **A failing acceptance check can name a feature with no foundation anywhere in the tree, and the
-  cheapest triage is one `grep -rn` for the rule across `crates/*/src`.** The grep finds the surface
-  *named* in a module doc's *Known gaps* rather than implemented or absent: not misfiled, not a
-  regression, but a milestone-sized item reported as "did not run". Read the owning module's gap
-  section before planning; it also says which of the names the check's crate cannot host.
-  [until: reviewed 2026-09-06]

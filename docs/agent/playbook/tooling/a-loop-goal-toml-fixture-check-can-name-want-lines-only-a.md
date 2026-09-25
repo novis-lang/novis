@@ -3,4 +3,4 @@
   `nvs run --request`" while passing no `--request` leaves the fixture printing a refusal forever,
   which reads exactly like unwritten work. `python tools/loop.py --list` prints each fixture's whole
   argv: read that before believing a `want` cannot be produced, and fix
-  `docs/agent/goals/<goal>.toml` too. [until: reviewed 2026-09-08]
+  `docs/agent/goals/<goal>.toml` too. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

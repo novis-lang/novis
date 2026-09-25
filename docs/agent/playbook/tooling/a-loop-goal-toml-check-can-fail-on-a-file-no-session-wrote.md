@@ -3,4 +3,4 @@
   and staging it to make the check pass takes the user's in-flight work into your commit. `git
   status --short` before diagnosing says whose change it is; a fix that lands in a *tool* —
   `check-migration.py`'s `AHEAD_OF_THE_BUILD` is the shape — is committable on its own without
-  touching those files. [until: reviewed 2026-09-06]
+  touching those files. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

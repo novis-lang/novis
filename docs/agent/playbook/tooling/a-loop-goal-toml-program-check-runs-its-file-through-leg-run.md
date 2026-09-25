@@ -4,4 +4,4 @@
   exactly that reason (`tools/loop.py:1449`), so a missing `args = ["run"]` is never what is wrong
   with a red one. Reproduce a program check as `target/debug/nvs.exe run <file>` and judge stdout
   alone — `exact` compares `stdout_lines` and never reads stderr, so a fixture whose stderr is full
-  of warnings can still be green. [until: reviewed 2026-09-11]
+  of warnings can still be green. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

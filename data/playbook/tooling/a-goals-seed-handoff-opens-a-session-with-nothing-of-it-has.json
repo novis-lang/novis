@@ -6,7 +6,7 @@
     "crates/nvs-stdlib/Cargo.toml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-12-01"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/Cargo.toml:bigint"
   }
 }

@@ -4,4 +4,4 @@
   `Core` class with instances`. It reads like a registry wiring mistake and is an ordering fact.
   Land the class's first instance member in the slice that first answers one — the conformance floor
   wants it too, a handle with no members having no three questions to be asked.
-  [until: reviewed 2026-09-11]
+  [until: gone crates/nvs-stdlib/src/instance.rs:class with instances]

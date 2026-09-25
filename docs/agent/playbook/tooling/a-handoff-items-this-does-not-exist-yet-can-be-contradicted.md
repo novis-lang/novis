@@ -2,4 +2,4 @@
   printed directly beneath it.** The item was written from the tree at drafting time and the anchor
   is resolved live, so when they disagree the anchor is right by construction. Read the window the
   pack already gave you before believing the sentence above it; a claim about the *tree* is answered
-  by something already in the pack. [until: reviewed 2026-09-06]
+  by something already in the pack. [until: gone tools/nv/cmd/orient.ts:THE CODE YOUR ITEM ANCHORS]

@@ -3,4 +3,4 @@
   naming the dependency passes the sibling triage and says nothing: every case under
   `crates/nvs-types/tests/` compiles a source string and reads `Diagnostics` back, so a runtime fact
   — a media type declared on a response — cannot be observed there. Read the first twenty lines of
-  any existing test in the named directory before the manifest. [until: reviewed 2026-09-06]
+  any existing test in the named directory before the manifest. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

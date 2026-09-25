@@ -3,4 +3,4 @@
   `emit_fallible`, which builds the call's fault edge out of whatever is on the stack at that
   moment, and a callee releases its parameters on its *throwing* edge as much as on its normal one.
   Ask which instruction the changed `bbN` is the `! bb` of: if it is the call that consumed the
-  value, the release does not belong there. [until: reviewed 2026-09-06]
+  value, the release does not belong there. [until: gone crates/nvs-ir/src/lower/mod.rs:Lowering::owned_temporaries]

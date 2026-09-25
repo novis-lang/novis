@@ -4,4 +4,4 @@
   of the workspace is not, and a check run while `cargo build --release` saturates the machine can
   miss a frame that arrives every other time. Before treating a red *named* test as the regression
   that outranks your item, run that one test and then its whole crate suite — if both pass, it was
-  load and the ledger's next line will not repeat it. [until: reviewed 2026-09-07]
+  load and the ledger's next line will not repeat it. [until: gone tools/nv/driver/accept.ts:judgeTests]

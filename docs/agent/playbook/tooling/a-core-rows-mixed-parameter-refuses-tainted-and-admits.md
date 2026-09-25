@@ -4,4 +4,4 @@
   `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_*_argument` family, one per carrier of the graph
   copy. Before pinning a `secret` refusal at a `mixed` parameter, run the three-line program and read the
   output: nothing reported means that carrier has not joined the family yet.
-  [until: reviewed 2026-09-13]
+  [until: gone crates/nvs-types/src/expr/quals.rs:CoreTy::Mixed]

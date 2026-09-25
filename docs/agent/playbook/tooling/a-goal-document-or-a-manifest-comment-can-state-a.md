@@ -4,4 +4,4 @@
   first `cargo check`'s resolution list. `cargo tree -i <dep> -e normal` names the parent and
   `~/.cargo/registry/src/*/<crate>-<version>/Cargo.toml` says whether that edge is `optional` or
   feature-gated — do both *before* writing the comment that claims the graph, because the comment is
-  what the next reader trusts. [until: reviewed 2026-09-06]
+  what the next reader trusts. [until: gone Cargo.toml:default-features]

@@ -3,4 +3,4 @@
   one line on disk, and the refusal reads *"the anchor matches for its first 100 character(s) … the
   anchor wants: ''"*. Keep a prose anchor inside one displayed line or take it from `grep -n`;
   `nv splice` matches exactly, trailing newline included, so strip the one the Write tool ends a
-  patch file with when splicing mid-paragraph. [until: reviewed 2026-09-06]
+  patch file with when splicing mid-paragraph. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]

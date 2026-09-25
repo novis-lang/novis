@@ -4,4 +4,4 @@
   shapes and traps and none of the red one's — a stage-13 rulebook flip arrived with stage 12's
   runaway rules and no `A rule fragment` shape, though the overlay naming it was already on disk. When
   a stage closes and the goal has another, name the **next** stage in that line — the driver's failing
-  check says which one it is. [until: reviewed 2026-09-15]
+  check says which one it is. [until: gone tools/nv/cmd/orient.ts:Narrowed to STAGE]

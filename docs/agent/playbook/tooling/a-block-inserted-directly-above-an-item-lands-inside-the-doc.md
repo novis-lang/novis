@@ -4,4 +4,4 @@
   while the old item keeps the second — two docs that each read as a non-sequitur, with no warning
   anywhere (`crates/nvs-cli/src/serve.rs`'s `FleetLease` and `Scheduled` were one, repaired here).
   Anchor an insertion on the blank line *above* a doc comment rather than on the item, and read the
-  `///` lines on both sides of the seam back afterwards. [until: reviewed 2026-10-15]
+  `///` lines on both sides of the seam back afterwards. [until: gone crates/nvs-cli/src/serve.rs:FleetLease]

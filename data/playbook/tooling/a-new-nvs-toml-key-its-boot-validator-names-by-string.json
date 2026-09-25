@@ -4,10 +4,11 @@
   "files": [
     "tools/directives.py",
     "crates/nvs-config/src/http.rs",
-    "nvs.toml"
+    "nvs.toml",
+    "crates/nvs-config/tests/directives.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-13"
+    "kind": "gone",
+    "arg": "crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread"
   }
 }

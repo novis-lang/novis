@@ -4,4 +4,4 @@
   that recurses into it reports "a bare name is not a value"
   there. `nvs_hir::members::walk_class_side` is the helper over those sites in `walk_expr` and
   `nvs_types::expr::check_expr`; nothing catches a miss but a conformance case reporting an extra
-  error. [until: reviewed 2026-09-06]
+  error. [until: gone crates/nvs-hir/src/members.rs:ExprKind::ConstFetch]

@@ -3,4 +3,4 @@
   the named crate owns the *decision* and a crate it may not name owns only the *data* the decision
   reads — adding the dependency would put the test one layer above its rule.
   `crates/nvs-server/src/schedule.rs`'s `Fires` is the shape: a trait the crate declares and
-  `nvs-cli`, which names both sides, implements. [until: reviewed 2026-09-06]
+  `nvs-cli`, which names both sides, implements. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

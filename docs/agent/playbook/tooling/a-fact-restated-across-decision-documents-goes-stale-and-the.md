@@ -5,4 +5,4 @@
   "holds .* names\|opens with exactly" docs/`); the fix that sticks is a table in the owning rule
   that names the code registry it must agree with (`nvs_types::derive::ATTRIBUTES` for
   `rule:core-classes/derive-attribute`), and amendments that state no number.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-types/src/derive.rs:rule:core-classes/derive-attribute]

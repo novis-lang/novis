@@ -4,4 +4,4 @@
   `ts` unconditionally would have broken
   `application_code_and_the_engine_floor_produce_schema_identical_records`. Read a check's whole
   `tests` list as one sentence before writing the first of them; a sibling name is cheaper than
-  re-deriving the bound from the rule. [until: reviewed 2026-09-06]
+  re-deriving the bound from the rule. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

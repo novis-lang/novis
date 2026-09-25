@@ -1,7 +1,0 @@
-- **A `rule:` token written as an illustrative placeholder turns the rulebook floor red.** `python
-  tools/rules.py --check` resolves every `rule:` citation under `docs/`, the playbook and the handoff
-  included, so an example that spells `rule:` followed by a made-up topic and slug fails the `1 floor`
-  rulebook check for every later session while reading as good prose — the bullet that first described
-  this trap did exactly that. Write a real id in an example, `rule:types/conversion`, or describe the
-  token in words; `session.py --wrap` refuses a wrap body that carries one, but an Edit made by hand
-  goes straight to the tree, so run the check yourself after one. [until: reviewed 2026-09-13]

@@ -1,9 +1,11 @@
 {
   "lead": "A `loop-goal.toml` stage's *comment header* can carry a rule the orientation pack never prints.",
   "body": "`orient.py` prints the item, the standing decisions and the rule sections, not the TOML's own comments — and a `[[check]]` block's comment can forbid the obvious fix (*\"Do not rename one to something already green\"*). When an acceptance failure names a test that \"did not run\", `sed -n` the twenty lines around its `[[check]]` block before deciding what the failure means; that block, comment included, is the specification.",
-  "files": [],
+  "files": [
+    "tools/nv/cmd/orient.ts"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/nv/cmd/orient.ts:a loop-goal.toml*"
   }
 }

@@ -3,4 +3,4 @@
   because only one of those is a decision — a comment describing `==` as component comparison
   contradicts `rule:expressions/object-identity-equality`, under which `==` on objects is identity
   and `compareTo` is the spelling for content equality. One `peek.py` of the cited rule before
-  writing the member settles it, and the comment is the thing to fix. [until: reviewed 2026-09-06]
+  writing the member settles it, and the comment is the thing to fix. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

@@ -4,4 +4,4 @@
   a file whose every other citation is real. `rules.py`'s `rules-py:examples` marker is the other
   way out and is whole-file, which would stop checking those too — write the token with no topic and
   no name, since the regex needs both, and keep the marker for a file that is only about the format.
-  [until: reviewed 2026-09-22]
+  [until: gone tools/nv/cmd/rules.ts:rules-py:examples]

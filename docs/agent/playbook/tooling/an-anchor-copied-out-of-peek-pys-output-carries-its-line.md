@@ -4,4 +4,4 @@
   has eight — reporting a divergence eighteen lines above the anchor, because the first candidate it
   found was a shallower line with the same opening brace. Take the depth from a line whose nesting you
   already know, or read the exact bytes with `sed -n 'A,Bp' <file> | cat -A`, before writing the OLD
-  block. [until: reviewed 2026-09-08]
+  block. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]

@@ -2,4 +2,4 @@
   change it did not make as a "changed on disk" reminder — a long module is thousands of tokens,
   more than the edit cost — and the Edit tool never triggers it. Take the heredoc/`nv splice` route
   only for an edit Edit genuinely cannot express (a non-unique anchor, a whole-field rewrite).
-  [until: reviewed 2026-09-06]
+  [until: gone AGENTS.md:A shell never carries file content]

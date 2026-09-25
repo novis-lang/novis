@@ -6,7 +6,7 @@
     "nvs.toml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-11"
+    "kind": "gone",
+    "arg": "crates/nvs-cli/tests/check_grants.rs:nvs check"
   }
 }

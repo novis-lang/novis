@@ -3,4 +3,4 @@
   `the_engine_floor_rotates_and_rate_limits_itself` split into `..._rotates` and `..._rate_limits`
   reads better, passes `cargo test`, and leaves the driver reporting `did not run` forever. Read the
   `tests = [...]` list before deciding how many functions the work becomes, even when it is two
-  slices and two mechanisms. [until: reviewed 2026-09-06]
+  slices and two mechanisms. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

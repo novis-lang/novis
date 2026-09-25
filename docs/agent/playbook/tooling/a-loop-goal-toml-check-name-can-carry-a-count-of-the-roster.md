@@ -4,4 +4,4 @@
   `sqlite-queue` makes it four, so the drafted name could only be satisfied by a test whose name
   lies about what it asserts. Rename the check in both toml copies to the claim with the count
   taken out — in a name of that shape the claim is the half after the `and`, and the count is
-  decoration — rather than writing the test under the drafted name. [until: reviewed 2026-09-10]
+  decoration — rather than writing the test under the drafted name. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

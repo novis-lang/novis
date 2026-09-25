@@ -4,4 +4,4 @@
   is read from the frozen WebCrypto set, so five checks citing RFC 5903, 7515, 7520 and 8037 read as
   unwritten work while every claim under them is asserted. When a grep for a check's cited RFC number
   returns nothing at all, read the doc comment of the test covering that primitive before budgeting
-  the vectors. [until: reviewed 2026-09-12]
+  the vectors. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

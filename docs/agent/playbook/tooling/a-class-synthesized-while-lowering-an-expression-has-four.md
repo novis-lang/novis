@@ -3,4 +3,4 @@
   literal's) rides out of `lower_method`/`lower_hook`/`lower_script` at their three identical
   `std::mem::take(&mut low.closures)` sites *and* out of `lower_closure`'s own recursion, or a body
   nested one level deeper contributes no class and codegen fails much later on a `New` naming a
-  label the table lacks. Grep the take sites, not the struct field. [until: reviewed 2026-09-06]
+  label the table lacks. Grep the take sites, not the struct field. [until: gone crates/nvs-ir/src/lower/mod.rs:crate::ir::Class]

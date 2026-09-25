@@ -1,5 +1,0 @@
-- **A `covers:` marker added to a Rust test re-stales every perf figure measured against that
-  file.** `dossier.py` keys a member's figure to the implementing file's text, so a one-line comment
-  in `cache.rs` put `Core\Cache::local`'s just-recorded figure back into `OWED` the moment the next
-  slice marked its own test. Do every Rust edit of a group first, then `--record-perf --only …`
-  once at the end. [until: reviewed 2026-09-21]

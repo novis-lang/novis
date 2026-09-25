@@ -5,4 +5,4 @@
   the registry's member rosters alone turns `Core\Out::capture` cases red at the full verify.
   `nvs_stdlib::registry::class_renders` joins the two rosters; a rule stated over `registry.rs`'s
   rows is not the whole rule where `nvs_runtime` answers for a class itself.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/cli.rs:nvs_runtime::is_carrier]

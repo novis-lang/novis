@@ -4,4 +4,4 @@
   then resolves to nothing — three of `nvs agent`'s cases went red on the ten `…As` members at once.
   Split on `['(', '<', ' ']` when reading a name back out of a rendered signature, and check
   `Core\Arr::shapeAs` and `Core\Request::queryAs` before believing a walk over the registry is
-  complete. [until: reviewed 2026-09-09]
+  complete. [until: gone crates/nvs-stdlib/src/request.rs:Core\Request::queryAs]

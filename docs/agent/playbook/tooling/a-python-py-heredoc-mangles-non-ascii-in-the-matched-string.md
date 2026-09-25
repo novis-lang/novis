@@ -1,5 +1,0 @@
-- **A `python - <<'PY'` heredoc mangles non-ASCII in the *matched* string, so a `str.replace` on a
-  `§` or an em dash finds nothing.** Writing one out is fine; an `assert s.count(old) == 1` over a
-  fragment quoted from a doc comment fails with no clue why, and re-grepping the file only confirms
-  the text *is* there. Use Edit for anything whose anchor is prose; a heredoc is safe only when
-  every matched byte is ASCII. [until: reviewed 2026-09-06]

@@ -3,4 +3,4 @@
   to measure a program against nothing and now measures it against a deny-all file of its own
   making, which is how `crates/nvs-cli/tests/check_grants.rs:88` turned red on a change that never
   named it. A fixture meaning *no configuration* has to say so: pass `--no-init`, or set
-  `NOVIS_NO_INIT` on the child. [until: reviewed 2026-09-11]
+  `NOVIS_NO_INIT` on the child. [until: gone crates/nvs-cli/tests/check_grants.rs:nvs check]

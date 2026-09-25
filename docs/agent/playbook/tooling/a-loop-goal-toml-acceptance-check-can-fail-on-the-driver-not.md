@@ -3,4 +3,4 @@
   as a description of what was missing, so a `kind = "command"` check failed exactly when it passed
   and printed `True` as its reason, and successive handoffs wrote it off as a stale build. When a
   failure's detail is not a sentence about your code — `True`, an empty string, a bare number — read
-  the branch in `loop.py` that produced it before touching the tree. [until: reviewed 2026-09-06]
+  the branch in `loop.py` that produced it before touching the tree. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

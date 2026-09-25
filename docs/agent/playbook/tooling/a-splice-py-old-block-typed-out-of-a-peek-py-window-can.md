@@ -1,8 +1,0 @@
-- **A `nv splice` OLD block typed out of a `peek.py` window can carry the wrong
-  indentation, and the miss reports as a stale anchor.** `peek.py` prints a line-number
-  gutter ahead of the source, so leading spaces counted off the screen include however many
-  the gutter took — a block eight spaces deep in the file arrives twelve deep in the patch
-  and matches nothing that is there. Anchor on the shortest unique run of lines rather than
-  on a whole comment, or read the exact region back before typing one; the refusal names the
-  first character that diverged, which is the tell that it is the indentation and not the
-  words. [until: reviewed 2026-09-08]

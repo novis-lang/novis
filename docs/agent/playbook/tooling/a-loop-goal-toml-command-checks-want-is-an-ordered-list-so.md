@@ -4,4 +4,4 @@
   by table name, so the dump is alphabetical and the check read as unwritten work forever.
   Before writing output to satisfy a `want`, ask whether the order it names is one the data
   can have — and when it is not, fix the `want` and say in a comment which ordering is real.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

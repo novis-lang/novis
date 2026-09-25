@@ -4,4 +4,4 @@
   call that hands the callee the reference, so a retain after it can read a value the hook already
   released, and only a valgrind fixture whose hook *discards* its argument shows it. `lower_store`'s
   `extra_owner` flag exists for that: the retain is emitted where each arm still holds a reference,
-  which for that arm is *before* the call. [until: reviewed 2026-09-06]
+  which for that arm is *before* the call. [until: gone crates/nvs-ir/src/lower/stmt.rs:lower_store]

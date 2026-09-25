@@ -3,4 +3,4 @@
   the registry cache only once something in the workspace resolves it, and a dependency still being
   considered never has. Read the feature map and the dependency kinds from
   `https://crates.io/api/v1/crates/<name>/<version>` and its `/dependencies`, and name the version you
-  read in the record, because the answer is a property of that release. [until: reviewed 2026-09-14]
+  read in the record, because the answer is a property of that release. [until: gone Cargo.lock:checksum]

@@ -1,7 +1,0 @@
-- **A `Core\Arr` slice's Rust test stales every other member's perf row in the same file, and they
-  then read as unwritten work.** `rule:testing/member-perf-ledger` makes a row current against the
-  *implementing file's* text rather than the member's, so one `#[test]` added to `arr.rs` put all
-  ten finished members back on the owed list with their benches sitting on disk. Record the whole
-  group once, after the session's last edit to that file — `python tools/dossier.py --record-perf
-  --group 'Core\Arr'` re-measures exactly the stale rows and leaves the current ones alone.
-  [until: reviewed 2026-09-20]

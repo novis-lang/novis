@@ -4,4 +4,4 @@
   alike — neither compiler-owned roster was refused anywhere, because every resolver short-circuits on
   those names before the symbol table and nothing ever looked at the declaration. Probe the precedent
   with `target/debug/nvs.exe check` on a two-line file before budgeting the slice as a one-line
-  addition. [until: reviewed 2026-09-08]
+  addition. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

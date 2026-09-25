@@ -4,4 +4,4 @@
   `every_unimplemented_key_in_the_default_file_is_marked_as_one` then failed naming `password` — a
   key whose field has a reader and rightly carries no `[unread:]` trailer, so the failure reads as a
   missing trailer rather than as a misplaced note. Order the block so every key that is read sits
-  above the note and the unread one directly under it. [until: reviewed 2026-10-13]
+  above the note and the unread one directly under it. [until: gone crates/nvs-config/tests/directives.rs:every_unimplemented_key_in_the_default_file_is_marked_as_one]

@@ -3,4 +3,4 @@
   the wrong place, with nothing in the pack to say so. Trust the symbol name in the item, not the
   code beside it — `python tools/peek.py --locate <sym> ...` re-derives every anchor in one call —
   and resolve the next group's anchors after the last commit, not before it.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/orient.ts:## Next group]

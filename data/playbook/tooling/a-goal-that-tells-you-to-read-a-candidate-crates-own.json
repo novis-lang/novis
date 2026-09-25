@@ -5,7 +5,7 @@
     "Cargo.lock"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-14"
+    "kind": "gone",
+    "arg": "Cargo.lock:checksum"
   }
 }

@@ -1,6 +1,0 @@
-- **A goal's § *Standing decisions* can be right about the ruling and wrong about the reason it
-  gives, and a frozen test name can carry the wrong reason with it.** A module doc outlives the goal
-  file that seeded it, so a stated reason the code contradicts becomes a sentence that is simply
-  false. Write the doc from what the code does (`capability.rs`'s `pin_host` is asked of a hostname,
-  not `denied_by_default`'s address), keep the frozen test name, and say in the handoff that the
-  wording was wrong rather than the decision. [until: reviewed 2026-09-06]

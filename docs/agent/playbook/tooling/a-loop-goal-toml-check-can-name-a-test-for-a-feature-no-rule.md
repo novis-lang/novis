@@ -3,4 +3,4 @@
   surface at all, the cited record defers rather than specifies, and its *Verification* names a
   later milestone than the check's stage. Do not move the check or write the test against nothing —
   decide the thing, which a `[context]`-listed goal pre-authorizes under its own § *Standing
-  decisions*. [until: reviewed 2026-09-06]
+  decisions*. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

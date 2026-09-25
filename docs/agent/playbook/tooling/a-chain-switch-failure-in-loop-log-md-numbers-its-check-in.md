@@ -3,4 +3,4 @@
   the live copy after `goal-switch.py` has folded the previous goal's floor checks in above the
   entry's own, so the index is offset by the floor count `goal-switch.py` prints on its first line.
   Run `python tools/chain.py --check`, which validates every queued entry, before spending anything
-  on what the message says. [until: reviewed 2026-09-06]
+  on what the message says. [until: gone tools/goal-switch.py:goal-switch.py]

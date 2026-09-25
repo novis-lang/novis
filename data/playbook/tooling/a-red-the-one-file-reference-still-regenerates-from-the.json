@@ -7,7 +7,7 @@
     "docs/reference/tools/"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-13"
+    "kind": "gone",
+    "arg": "docs/novis.md:python tools/reference.py"
   }
 }

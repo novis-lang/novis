@@ -1,9 +1,11 @@
 {
   "lead": "A moved module takes its `insta` snapshots with it",
   "body": "— they resolve relative to the module's own file.",
-  "files": [],
+  "files": [
+    "crates/nvs-diagnostics/Cargo.toml"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/Cargo.toml:insta"
   }
 }

@@ -4,4 +4,4 @@
   compile under the workspace's `unsafe_code = "forbid"`, which `#[expect(unsafe_code)]` cannot
   open. `grep -rn unsafe_code crates/*/Cargo.toml` lists the crates that chose `deny`; then ask
   which crate holds the state the claim is about before moving the check.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

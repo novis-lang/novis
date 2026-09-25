@@ -3,4 +3,4 @@
   an unwind" framed a fourth unwind kind, while `php -r 'try { exit(3); } finally { echo "f"; }'`
   prints nothing and exits 3, so the cheap shape — a helper whose success is a non-`OK` status — was
   the PHP-exact one. Priority 2 decides these and PHP is on `PATH`: run the twin *before* costing
-  the design. [until: reviewed 2026-09-06]
+  the design. [until: gone AGENTS.md:PHP-compatible observable behaviour]

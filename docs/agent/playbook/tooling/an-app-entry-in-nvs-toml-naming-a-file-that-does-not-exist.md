@@ -4,4 +4,4 @@
   whole file — which means writing a proof's grants before writing the proof makes every other
   example and fixture unrunnable in the meantime. Write the `.nvs` files first and the grant block
   second, and when a run fails on a path you have not created yet, that is what happened.
-  [until: reviewed 2026-09-19]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0605]

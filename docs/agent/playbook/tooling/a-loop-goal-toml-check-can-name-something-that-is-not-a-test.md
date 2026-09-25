@@ -4,4 +4,4 @@
   driver stops there — `over 4 check(s)` in `.loop/log.md` where a healthy iteration reads over a
   hundred. Check that a name *could* be a `#[test]` before writing one, and fix
   `docs/agent/goals/<goal>.toml` alongside the live copy, or the next `goal-switch.py` carries it
-  back. [until: reviewed 2026-09-06]
+  back. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

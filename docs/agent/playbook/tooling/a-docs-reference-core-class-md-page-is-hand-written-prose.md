@@ -3,4 +3,4 @@
   right in the `docs/reference/lang/` chapter and wrong on the class page, and nothing checks them
   against each other. Check all three and let the binary break the tie — a probe under `.agent-tmp/`
   against `target/debug/nvs.exe` costs one call and is the only copy that cannot be out of date.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/registry.rs:MethodDoc]

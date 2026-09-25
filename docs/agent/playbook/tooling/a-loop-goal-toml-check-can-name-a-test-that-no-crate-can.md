@@ -1,5 +1,0 @@
-- **A loop-goal.toml check can name a test that no crate can host *yet*, and the two reasons look
-  identical from the driver's report.** A test "did not run" either because it was filed against the
-  wrong crate — a filing bug fixed in one edit — or because the feature under it does not exist, in
-  which case staying open is correct. Read the *known gaps* of the crates the check names before
-  assuming either. [until: reviewed 2026-09-06]

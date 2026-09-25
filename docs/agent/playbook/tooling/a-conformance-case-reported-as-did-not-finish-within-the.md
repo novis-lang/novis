@@ -3,4 +3,4 @@
   beside cargo builds, so every process creation and pipe wakeup becomes a scheduling question, and a
   child dribbling its output a line at a time costs orders of magnitude more to drain than the same
   bytes in bulk. Reproduce under `nproc`-many busy loops before reading the tree as regressed, and see
-  `nvs_test::run::CASE_TIMEOUT`'s doc for what the deadline is for. [until: reviewed 2026-09-18]
+  `nvs_test::run::CASE_TIMEOUT`'s doc for what the deadline is for. [until: gone crates/nvs-test/src/run.rs:did not finish within]

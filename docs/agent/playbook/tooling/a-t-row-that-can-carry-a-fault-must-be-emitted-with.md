@@ -4,4 +4,4 @@
   ?string` could run the operand's own `toString()` — and a non-fallible `HelperCall` discards the
   status word, so the program prints `Uncaught Exception` *with* a `catch (Throwable $e)` around it.
   When a new row makes a uniform emit site fallible, the scratch file to write throws from inside
-  the new row and catches it. [until: reviewed 2026-09-06]
+  the new row and catches it. [until: gone crates/nvs-ir/src/lower/mod.rs:emit_fallible]

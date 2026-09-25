@@ -5,7 +5,7 @@
     "tools/reference.py"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-08"
+    "kind": "gone",
+    "arg": "tools/reference.py:pending"
   }
 }

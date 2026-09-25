@@ -4,4 +4,4 @@
   `docs/reference/core/<Class>.md` per class — so an untracked chapter somebody added turns that floor
   red with no member having changed. Run `git status --short` before diagnosing it, and run `python
   tools/reference.py` only once the prose it reads is settled, because the tool bakes whatever is on
-  disk into a document that is then committed. [until: reviewed 2026-09-13]
+  disk into a document that is then committed. [until: gone docs/novis.md:python tools/reference.py]

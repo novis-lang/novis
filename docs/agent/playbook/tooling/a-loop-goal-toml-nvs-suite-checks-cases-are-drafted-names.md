@@ -5,4 +5,4 @@
   `crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst`. List the directory for that
   member and compare `--TEST--` lines before writing anything: where the tree holds the claim the
   repair is the name in the goal file, and where it holds half of it the drafted case is real work.
-  [until: reviewed 2026-10-12]
+  [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

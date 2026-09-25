@@ -4,4 +4,4 @@
   gets silently dropped. Quote the `--- old` fragment as the field *reads* — one single-spaced
   paragraph, however it is wrapped on disk — so it matches exactly once; a deliberate trim to under
   60% of the size, or a real rewrite, still goes through as a `## plan:`.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/nv/cmd/session.ts:plan-edit]

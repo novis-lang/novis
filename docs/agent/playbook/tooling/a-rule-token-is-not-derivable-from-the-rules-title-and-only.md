@@ -3,4 +3,4 @@
   `member-names-are-full-words` for `members-are-full-words`, `a-unit-is-a-type` for `units-are-types`,
   `library-placement-tests` for `tier-placement`. Grep the topic's JSON for `"id"`, or paste the token into
   `python tools/peek.py rule:<id>` and see whether a fragment comes back.
-  [until: reviewed 2026-09-13]
+  [until: gone tools/nv/cmd/rules.ts:rules-py:examples]

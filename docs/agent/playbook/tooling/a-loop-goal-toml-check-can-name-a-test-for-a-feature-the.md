@@ -3,4 +3,4 @@
   section that names its own repair in a sentence — a doc that precise has already done the design,
   so the check asks for the implementation, not a filing correction. Read the module doc's gap
   section before `Cargo.toml`: it answers "impossible", "unwritten" and "decided but unlanded" in
-  one call, and only the third looks like a misfiling from outside. [until: reviewed 2026-09-06]
+  one call, and only the third looks like a misfiling from outside. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]

@@ -3,4 +3,4 @@
   echo "CODE=$?"'` prints `CODE=0`, and a `for f in a b; do … $f …; done` runs with `$f` empty every
   iteration, so a failing valgrind run reads as green. Use `&&`/`||` or `if cmd; then … fi`, never
   `$?`, and put the varying part in `xargs -I@`, which substitutes before any shell sees it.
-  [until: reviewed 2026-09-06]
+  [until: gone docs/agent/commands.md:wsl.exe]

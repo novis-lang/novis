@@ -3,4 +3,4 @@
   is not written yet" on that evidence sizes the next slice at half its real scope. Never `| head` a
   grep whose result you are about to assert is empty (use `-c`, `-l`, or no pipe at all), and
   re-check a handoff's "not written yet" in one call before scoping around it.
-  [until: reviewed 2026-09-06]
+  [until: gone AGENTS.md:Verify a claim before you make it]

@@ -1,7 +1,0 @@
-- **A guard name that looks like a rename is often a `.nvst` case instead, and two greps settle it,
-  not `cargo test -- --list`.** `grep -rhoE "fn [a-z_]+"` over a crate's `src` and `tests` gives the
-  cargo half and `ls tests/conformance/*/ | grep -iE "topic1|topic2"` the case half for a whole
-  stage; a name already under the toml's `nvs-suite` `cases` wants its cargo entry deleted, not
-  renamed into a Rust test that will never exist. A name matching a *private function* is not a
-  match, a case sharing the topic still has to be read, and a name whose claim differs from the
-  landed test's is not a rename. [until: reviewed 2026-09-06]

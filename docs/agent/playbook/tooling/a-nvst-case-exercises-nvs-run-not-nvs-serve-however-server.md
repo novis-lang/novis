@@ -4,4 +4,4 @@
   `crates/nvs-cli/src/main.rs`, and a group scoped to `serve.rs` writes that mechanism where the case can
   never reach it. Read the `[[check]]`'s own `args` before choosing the file set: `args = ["test", ...]`
   over a `.nvst` tree means the surface under test is `nvs run`, whatever the stage header says the stage
-  is about. [until: reviewed 2026-09-11]
+  is about. [until: gone crates/nvs-cli/src/main.rs:nvs serve]

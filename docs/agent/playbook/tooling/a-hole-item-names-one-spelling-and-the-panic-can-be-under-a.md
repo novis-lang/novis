@@ -4,4 +4,4 @@
   naming one route (`mixed`) is reached by every receiver `class_qname_of` cannot resolve. Run one
   scratch file per spelling and per receiver family against `target/debug/nvs.exe` before editing
   the site the item names; `git log -S` on the code it quotes says whether its half already landed.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-types/src/expr/assign.rs:check_write_target]

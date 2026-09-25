@@ -1,5 +1,0 @@
-- **A plan field can disagree with `loop-goal.toml`, and the toml wins.** A field claiming every
-  catch-up check passes while tests those checks name exist in no crate sends a session behind a
-  gate `loop.py` short-circuits before reaching. The toml names each test literally, so one `grep
-  -rn "<test_name>" --include=*.rs` over the block settles it in one call; correct the prose, not
-  the toml. [until: reviewed 2026-09-06]

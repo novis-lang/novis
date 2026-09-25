@@ -3,4 +3,4 @@
   `E_UNSPELLED_EXPORTER` and the band's next free number was `E0635` — which the orientation pack
   prints for every band, under *the next free number*. Take the number from that block and never from
   a goal, a rule or a check's comment, and amend the prose that named the stale one in the same
-  session, or the next session derives it again. [until: reviewed 2026-09-09]
+  session, or the next session derives it again. [until: gone crates/nvs-diagnostics/src/lib.rs:E_UNSPELLED_EXPORTER]
