@@ -2595,12 +2595,7 @@ mod tests {
     /// this asserts about at all. `bun nv loop` brings both up for the
     /// acceptance sweep, which is where the assertion below actually runs.
     fn compose_postgres() -> Option<nvs_config::tree::Database> {
-        let bundle = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join("tests")
-            .join("db")
-            .join("ca.crt");
+        let bundle = nvs_repo::path("tests/db/ca.crt");
         if !bundle.is_file() {
             return None;
         }

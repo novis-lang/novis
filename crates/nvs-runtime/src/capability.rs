@@ -1627,7 +1627,7 @@ mod tests {
     fn nothing_but_those_three_extensions_is_a_shell_target() {
         for allowed in [
             "/usr/bin/convert",
-            "target/debug/nvs.exe",
+            "bin/nvs.exe",
             "tools/deploy.sh",
             "batch",
             "archive.bat.gz",

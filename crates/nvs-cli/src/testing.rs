@@ -27,7 +27,7 @@ pub(crate) fn refuse_new_files(dir: &Path) {
     }
     #[cfg(windows)]
     {
-        let denied = std::process::Command::new("icacls")
+        let denied = nvs_repo::spawn("icacls", &[])
             .arg(dir)
             .arg("/deny")
             .arg("*S-1-1-0:(OI)(CI)(WD,AD)")
@@ -58,7 +58,7 @@ pub(crate) fn open_to_the_world(dir: &Path) {
     }
     #[cfg(windows)]
     {
-        let granted = std::process::Command::new("icacls")
+        let granted = nvs_repo::spawn("icacls", &[])
             .arg(dir)
             .arg("/grant")
             .arg("*S-1-1-0:(OI)(CI)(M)")

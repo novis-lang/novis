@@ -1851,14 +1851,16 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
 
-    /// The repository root, which is what a written path is anchored at — and
-    /// which `cargo test` does not run in, hence the manifest directory.
+    /// A program under the repository root, which `cargo test` does not run in. Its whole
+    /// directory is recorded as read, since a program may open the files beside it.
     fn from_root(relative: &str) -> String {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join(relative);
-        root.to_string_lossy().into_owned()
+        let (dir, file) = relative
+            .rsplit_once('/')
+            .expect("a program path names its directory");
+        nvs_repo::path(dir)
+            .join(file)
+            .to_string_lossy()
+            .into_owned()
     }
 
     /// Runs a resolved program inside a real isolate, which is the only way to

@@ -4,20 +4,10 @@
 # that are wide for a reason somebody looked at, and `bun nv verify`'s `test` step fails on any
 # other (`tools/nv/keys/escape.ts`). So a new test that joins `..` onto
 # `CARGO_MANIFEST_DIR` or starts a process fails the run that wrote it, with the line, instead of
-# quietly costing every later run its narrow key: reach the file through `nvs_repo::path`.
+# quietly costing every later run its narrow key: reach the file through `nvs_repo::path`, and a
+# process through `nvs_repo::spawn`. Product code may start a process and read its working
+# directory without making its binary wide, because the test that drives it names every path it
+# hands over, and that test is judged.
 # A line naming a binary that is narrow now fails too, so this list only ever shrinks by hand.
 #
 # `<binary>  --  <why it cannot be narrow>`. The binary is named as `bun nv verify --keys` prints it.
-
-# Product code that starts a process or reads its working directory. `nvs_repo` is for tests.
-nvs-diagnostics lib nvs_diagnostics  --  `embedded.rs` reads the working directory to resolve a relative entry script
-nvs-abi-probe lib nvs_abi_probe  --  `process.rs` starts the probe's child processes
-nvs-runtime lib nvs_runtime  --  `capability.rs` starts a process
-nvs-cli bin nvs  --  the CLI reads its working directory and starts workers, services and bundles
-nvs-repo lib nvs_repo  --  `spawn` is the recorded `Command::new` every other test uses
-nvs-test lib nvs_test  --  `run.rs` starts the program under test
-
-# It reads the whole tree, and says so.
-nvs-runtime test manifest_policy  --  finds every `Cargo.toml` by walking from `nvs_repo::root`
-
-# A climbing literal that is data, not a read, is listed in `impact-data-literals.txt` instead.

@@ -7,11 +7,13 @@
 # archive built in memory, a path resolved against a scratch directory or inside the package, or an
 # escape the code under test is expected to refuse. Every occurrence of the literal in
 # that file is covered, so list one only when all of them are data. Only a climbing literal can be
-# listed: a process, the working directory and `CARGO_MANIFEST_DIR` beside a climb stay ways out.
+# listed: a process or the working directory in test code, and `CARGO_MANIFEST_DIR` beside a climb
+# anywhere, stay ways out.
 # A line whose literal no longer climbs out of its file fails `bun nv verify`'s `test` step.
 #
 # `<file>  <literal as the source writes it>  --  <why it opens nothing>`
 
+crates/nvs-cli/src/service.rs  "../../logs/novis.log"  --  a relative log path a service plan is expected to refuse, never opened
 crates/nvs-config/src/resolve.rs  ".."  --  a component pushed while normalising a path lexically
 crates/nvs-config/tests/capability.rs  "../escape.txt"  --  judged against a grant of `.`, expected to be refused, never opened
 crates/nvs-config/tests/capability.rs  "../app-next-door/x.txt"  --  judged against a grant of `.`, expected to be refused, never opened
@@ -19,6 +21,7 @@ crates/nvs-config/tests/mount.rs  "../secret/public/index.nvs"  --  a mount entr
 crates/nvs-config/tests/trust.rs  ".."  --  joined onto the test's own temporary directory
 crates/nvs-hir/src/requires.rs  "../lib.nvs"  --  a `require` target compared as a path, never opened
 crates/nvs-lsp/src/case.rs  "../escape.nvs"  --  a case file's auxiliary path the parser is expected to refuse
+crates/nvs-runtime/src/capability.rs  "../say"  --  a program path compared after `spawn_target`, never started
 crates/nvs-stdlib/src/io.rs  ".."  --  joined onto a scratch directory
 crates/nvs-stdlib/src/io.rs  "../outside.txt"  --  resolved against a scratch base, expected to be refused
 crates/nvs-stdlib/src/io.rs  "sub/../../outside.txt"  --  resolved against a scratch base, expected to be refused
@@ -37,3 +40,4 @@ crates/nvs-stdlib/src/zip.rs  "../escape"  --  an entry name in an archive built
 crates/nvs-stdlib/src/zip.rs  "../../etc/passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-stdlib/src/zip.rs  "notes/../../etc/passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-stdlib/src/zip.rs  r"notes\..\..\etc\passwd"  --  an entry name in an archive built in memory, expected to be refused
+crates/nvs-test/src/case.rs  "../x.nvs"  --  a case file's auxiliary path the parser is expected to refuse

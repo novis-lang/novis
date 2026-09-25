@@ -2642,13 +2642,14 @@ mod tests {
         }
     }
 
-    /// The repository root a written script path is anchored at, which `cargo test` does not run
-    /// in — `crate::script`'s own test module anchors its fixtures the same way.
+    /// A script under the repository root, which `cargo test` does not run in. Its whole
+    /// directory is recorded as read, as `crate::script`'s own test module records its fixtures.
     fn from_root(relative: &str) -> String {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join(relative)
+        let (dir, file) = relative
+            .rsplit_once('/')
+            .expect("a script path names its directory");
+        nvs_repo::path(dir)
+            .join(file)
             .to_string_lossy()
             .into_owned()
     }

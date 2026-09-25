@@ -3,14 +3,24 @@
 // lists it with the reason. `verify`'s `test` step fails on a wide binary the list does not name, and
 // on a listed one that is narrow now, so the list and the code cannot drift apart.
 //
-// The sources judged are the ones rustc's dep-info names for the binary. The ways out:
+// The sources judged are the ones rustc's dep-info names for the binary, less `nvs_repo`'s own, which
+// records every path it builds. Each source is test code or product code. Test code is a file under
+// a package's `tests/`, `benches/` or `examples/`, a file a test-only `mod name;` declares, and an
+// item under `#[test]` or a `#[cfg(…)]` that names `test`. The ways out:
 //
-// - it starts a process that is not its package's own binary, which reads what it likes;
-// - it reads or sets its own working directory, which a test binary starts in its package;
+// - test code starts a process that is not its package's own binary, which reads what it likes;
+// - test code reads its working directory, or product code reads it in a function that also climbs
+//   a path, since a test binary starts in its package;
+// - any code sets the working directory;
 // - a string literal climbs out of the directory it starts in, or names `target/debug`. A bare `".."`
 //   counts only where it is joined, pushed or sits beside the manifest directory;
 // - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
 //   `.parent()`, `.ancestors()` or `.pop()`.
+//
+// Product code starting a process or reading the working directory is not a way out, because a test
+// that drives it hands it every path it opens, and that test's own code is judged here. What this
+// does not see is product code that finds a path in the tree by itself, through a helper function
+// the working directory is handed to.
 //
 // A climbing literal that is data -- a path a pure function takes apart, an entry name in an archive
 // built in memory, an escape the code under test is expected to refuse, a detour that stays inside
@@ -23,7 +33,9 @@
 // dep-info already and is not a way out.
 
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, posix, relative, resolve } from "node:path";
+
+const { basename, dirname } = posix;
 import { ROOT } from "../lib/paths.ts";
 import { WRAP_WRITES } from "./partition.ts";
 
@@ -133,22 +145,113 @@ export interface WayOut {
   climbs?: string;
 }
 
-/** Every way this source can reach a file outside its package without `nvs_repo`. */
-export function waysOut(text: string): WayOut[] {
+/** Each `{` in `code` at the index of its matching `}`, or the end of the code for one never closed. */
+function braces(code: string): Map<number, number> {
+  const out = new Map<number, number>();
+  const open: number[] = [];
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === "{") open.push(i);
+    else if (code[i] === "}" && open.length > 0) out.set(open.pop()!, i);
+  }
+  for (const i of open) out.set(i, code.length);
+  return out;
+}
+
+/** An outer attribute that compiles its item for tests only: `#[test]`, or a `#[cfg(…)]` naming
+ * `test` anywhere, `not(test)` included, since reading one of those as test code is the strict side. */
+const TEST_ATTR = /#\[(?:test|cfg\((?:[^\]]*[^\p{L}\p{N}_])?test(?:[^\p{L}\p{N}_][^\]]*)?\))\]/gu;
+const MOD_DECL = /^(?:pub(?:\([^)]*\))?)?mod([\p{L}\p{N}_]+)$/u;
+
+/** Where the test-only items of `code` are, and the modules declared test-only whose files are
+ * elsewhere. An item runs from its attribute to its closing brace, or to its `;`. */
+function testItems(code: string): { ranges: [number, number][]; mods: string[] } {
+  const close = braces(code);
+  const ranges: [number, number][] = [];
+  const mods: string[] = [];
+  for (const m of code.matchAll(TEST_ATTR)) {
+    let at = m.index + m[0].length;
+    // Further attributes on the same item.
+    while (code.startsWith("#[", at)) {
+      const end = code.indexOf("]", at);
+      if (end < 0) break;
+      at = end + 1;
+    }
+    let depth = 0;
+    let end = code.length;
+    for (let i = at; i < code.length; i++) {
+      const c = code[i];
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") depth--;
+      else if (depth === 0 && c === ";") {
+        end = i;
+        const decl = MOD_DECL.exec(code.slice(at, i).replace(/\s+/g, ""));
+        if (decl) mods.push(decl[1]!);
+        break;
+      } else if (depth === 0 && c === "{") {
+        end = close.get(i)!;
+        break;
+      }
+    }
+    ranges.push([m.index, end]);
+  }
+  return { ranges, mods };
+}
+
+const FN = /(?<![\p{L}\p{N}_])fn [\p{L}\p{N}_]+/gu;
+const CWD_READ = /(?<![\p{L}\p{N}_])current_dir\(\)/gu;
+
+/** Does the innermost function around `at` climb a path? Code outside every function counts as one
+ * that does. */
+function climbsAround(code: string, at: number): boolean {
+  const close = braces(code);
+  let body: [number, number] | null = null;
+  for (const m of code.matchAll(FN)) {
+    if (m.index > at) break;
+    const semi = code.indexOf(";", m.index);
+    const open = code.indexOf("{", m.index);
+    if (open < 0 || (semi >= 0 && semi < open)) continue;
+    const end = close.get(open)!;
+    if (open < at && at < end) body = [open, end];
+  }
+  return body === null || CLIMBS.test(code.slice(body[0], body[1]));
+}
+
+/**
+ * Every way this source can reach a file outside its package without `nvs_repo`. `test` says which of
+ * its code the binary's tests are: the whole file, or only its test-only items.
+ *
+ * Test code is judged on everything below. Product code is not judged on starting a process, or on
+ * reading the working directory unless the function that reads it also climbs a path: a test that
+ * drives it hands it every path it opens, and that test's own code is judged here. Everything else
+ * counts in product code too.
+ */
+export function waysOut(text: string, test: "whole" | "items" = "whole"): WayOut[] {
   const { code, literals } = scan(text);
   const out: WayOut[] = [];
+  const items = test === "items" && !/#!\[cfg\([^\]]*test/.test(code) ? testItems(code).ranges : null;
+  const isTest = (at: number) => items === null || items.some(([a, b]) => a <= at && at <= b);
   const count = (s: string) => s.split("\x02").length - 1;
   for (const m of code.matchAll(SPAWN)) {
     const index = count(code.slice(0, m.index));
     OWN_BIN.lastIndex = m.index;
     const own = OWN_BIN.test(code) && index < literals.length;
-    if (!(own && literals[index]!.includes("CARGO_BIN_EXE_"))) {
+    if (!(own && literals[index]!.includes("CARGO_BIN_EXE_")) && isTest(m.index)) {
       out.push({ how: "starts a process with `Command::new`" });
       break;
     }
   }
   // `Command::current_dir(dir)` takes an argument and moves a child, which was judged above.
-  if (code.includes("set_current_dir") || code.includes("current_dir()")) out.push({ how: "reads or sets the working directory" });
+  if (code.includes("set_current_dir")) out.push({ how: "sets the working directory" });
+  for (const m of code.matchAll(CWD_READ)) {
+    if (isTest(m.index)) {
+      out.push({ how: "reads the working directory" });
+      break;
+    }
+    if (climbsAround(code, m.index)) {
+      out.push({ how: "reads the working directory in a function that climbs a path" });
+      break;
+    }
+  }
   const rustcOpens = new Set<number>();
   const starts: number[] = [];
   for (let at = code.indexOf("\x02"); at >= 0; at = code.indexOf("\x02", at + 1)) {
@@ -172,8 +275,8 @@ export function waysOut(text: string): WayOut[] {
 
 /** How this source can reach a file outside its package without `nvs_repo`, or "". A climbing
  * literal in `data` is not a way out. */
-export function wayOut(text: string, data: ReadonlySet<string> = new Set()): string {
-  return waysOut(text).find((w) => w.climbs === undefined || !data.has(w.climbs))?.how ?? "";
+export function wayOut(text: string, data: ReadonlySet<string> = new Set(), test: "whole" | "items" = "whole"): string {
+  return waysOut(text, test).find((w) => w.climbs === undefined || !data.has(w.climbs))?.how ?? "";
 }
 
 /** The bodies of this source's string literals, with `\\` read as `/`. */
@@ -206,18 +309,78 @@ export function depInfo(exe: string): string[] | null {
   return out.length > 0 ? out : null;
 }
 
+/** `nvs_repo` itself: every path it builds outside its package is one it records first. */
+const RECORDER = "crates/nvs-repo/src/lib.rs";
+
+/** The directory of the package `rel` belongs to: the nearest one above it holding a `Cargo.toml`. */
+function packageOf(rel: string): string {
+  for (let dir = dirname(rel); dir !== "." && dir !== ""; dir = dirname(dir)) {
+    if (existsSync(resolve(ROOT, dir, "Cargo.toml"))) return dir;
+  }
+  return "";
+}
+
+/** The files a `mod name;` in `rel` can be, among `sources`. Both layouts are tried, a crate root's
+ * and a module file's, since which one `rel` is does not show in its path. */
+function modFiles(rel: string, name: string, sources: Set<string>): string[] {
+  const dir = dirname(rel);
+  const stem = basename(rel, ".rs");
+  const tries = [`${dir}/${name}.rs`, `${dir}/${name}/mod.rs`, `${dir}/${stem}/${name}.rs`, `${dir}/${stem}/${name}/mod.rs`];
+  return tries.map((p) => p.replace(/^\.\//, "")).filter((p) => sources.has(p));
+}
+
+/** The sources that are test code whole: under a package's `tests/`, `benches/` or `examples/`,
+ * declared by a test-only `mod name;`, or declared by a file that is test code whole. A test-only
+ * `mod name;` whose file is not among `sources` is returned as `lost`. */
+function testFiles(texts: Map<string, string>): { files: Set<string>; lost: string } {
+  const all = new Set(texts.keys());
+  const files = new Set<string>();
+  for (const rel of all) {
+    const pkg = packageOf(rel);
+    const inside = pkg ? rel.slice(pkg.length + 1) : rel;
+    if (/^(?:tests|benches|examples)\//.test(inside)) files.add(rel);
+  }
+  for (const [rel, text] of texts) {
+    for (const name of testItems(scan(text).code).mods) {
+      const found = modFiles(rel, name, all);
+      if (found.length === 0) return { files, lost: `${rel}: the test-only module \`${name}\` has no file among the binary's sources` };
+      for (const f of found) files.add(f);
+    }
+  }
+  // A module a test-only file declares is test-only too.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const rel of [...files]) {
+      for (const m of scan(texts.get(rel) ?? "").code.matchAll(/(?:^|[;{}\x01\]])(?:pub(?:\([^)]*\))?)?mod ([\p{L}\p{N}_]+);/gu)) {
+        for (const f of modFiles(rel, m[1]!, all)) {
+          if (!files.has(f)) {
+            files.add(f);
+            grew = true;
+          }
+        }
+      }
+    }
+  }
+  return { files, lost: "" };
+}
+
 /** The first of these sources with a way out, as `file: how`, or "". One that cannot be read counts.
- * A climbing literal `data` names for its file is not a way out. */
+ * A climbing literal `data` names for its file is not a way out. Test code and product code are
+ * judged apart (`waysOut`), and `nvs_repo`'s own source is not judged. */
 export function escapes(sources: string[], data: Map<string, Set<string>> = dataLiterals()): string {
+  const texts = new Map<string, string>();
   for (const rel of sources) {
-    if (!rel.endsWith(".rs")) continue;
-    let text: string;
+    if (!rel.endsWith(".rs") || rel === RECORDER) continue;
     try {
-      text = readFileSync(resolve(ROOT, rel), "utf8");
+      texts.set(rel, readFileSync(resolve(ROOT, rel), "utf8"));
     } catch {
       return `${rel}: could not be read`;
     }
-    const how = wayOut(text, data.get(rel));
+  }
+  const { files, lost } = testFiles(texts);
+  if (lost) return lost;
+  for (const [rel, text] of texts) {
+    const how = wayOut(text, data.get(rel), files.has(rel) ? "whole" : "items");
     if (how) return `${rel}: ${how}`;
   }
   return "";
