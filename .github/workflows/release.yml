@@ -133,9 +133,14 @@ jobs:
           ALLOW: ${{ inputs.allow_contract }}
         run: |
           set -euo pipefail
-          args=(--plan "$BUMP" --version "$EXACT" --github-output)
+          args=(--plan "$BUMP" --github-output)
+          # `--version` goes only when one was typed: `bun nv` is a package script, and `bun run`
+          # drops an empty argument, which would leave `--version` without its value.
           # An `if`, not `[ ... ] && ...`: under `set -e` the && form makes the whole step exit
           # non-zero whenever the condition is false, which is the common case here.
+          if [ -n "$EXACT" ]; then
+            args+=(--version "$EXACT")
+          fi
           if [ "$ALLOW" = "true" ]; then
             args+=(--allow-contract)
           fi
