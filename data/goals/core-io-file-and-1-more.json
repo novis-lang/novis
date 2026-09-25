@@ -14593,7 +14593,7 @@
         "--list"
       ],
       "want": [
-        "owners.py --check"
+        "nv owners --check"
       ]
     },
     {
