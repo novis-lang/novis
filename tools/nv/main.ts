@@ -25,6 +25,7 @@ import * as layout from "./cmd/layout.ts";
 import * as links from "./cmd/links.ts";
 import * as lints from "./cmd/lints.ts";
 import * as loop from "./cmd/loop.ts";
+import * as loopStats from "./cmd/loop-stats.ts";
 import * as migration from "./cmd/migration.ts";
 import * as owners from "./cmd/owners.ts";
 import * as parity from "./cmd/parity.ts";
@@ -51,7 +52,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, render, rules, selftest, session, splice, try: tryCmd, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, render, rules, selftest, session, splice, try: tryCmd, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
