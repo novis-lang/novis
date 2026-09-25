@@ -36,9 +36,21 @@ export interface LaunchOptions {
   resume?: string;
 }
 
-/** The command line of one session, after the executable. */
+/**
+ * The only tools a session is given. Every tool's schema is in the opening context whether it is called
+ * or not, and the harness adds tools and claude.ai connectors between releases. These are the seven a
+ * session has called, plus `Agent`, which the session prompt's delegated searches need.
+ */
+export const SESSION_TOOLS = ["Bash", "PowerShell", "Edit", "Write", "Read", "Grep", "Glob", "Agent"];
+
+/**
+ * The command line of one session, after the executable. Besides `SESSION_TOOLS`, it loads no MCP server
+ * and turns auto-memory off: the memory directory is the user's notes from work done by hand, and a
+ * session reads the rules from the tree and the pack.
+ */
 export function claudeArgs(o: LaunchOptions): string[] {
   const args = ["-p", "--input-format", "stream-json", "--model", o.model, "--permission-mode", o.permissionMode, "--output-format", "stream-json", "--verbose"];
+  args.push("--tools", SESSION_TOOLS.join(","), "--strict-mcp-config", "--settings", JSON.stringify({ autoMemoryEnabled: false }));
   if (o.resume) args.push("--resume", o.resume);
   // Only when asked: the flag and the model's own default are not the same thing to the harness.
   if (o.effort) args.push("--effort", o.effort);

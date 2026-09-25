@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../driver/launch.ts";
+import { SESSION_TOOLS, claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../driver/launch.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const made: string[] = [];
@@ -19,8 +19,16 @@ const scratch = () => {
 describe("claudeArgs", () => {
   test("streams both ways, and passes --effort only when it is asked for", () => {
     const plain = claudeArgs({ model: "opus", permissionMode: "bypassPermissions" });
-    expect(plain).toEqual(["-p", "--input-format", "stream-json", "--model", "opus", "--permission-mode", "bypassPermissions", "--output-format", "stream-json", "--verbose"]);
+    expect(plain.slice(0, 10)).toEqual(["-p", "--input-format", "stream-json", "--model", "opus", "--permission-mode", "bypassPermissions", "--output-format", "stream-json", "--verbose"]);
     expect(claudeArgs({ model: "opus", permissionMode: "default", effort: "high" }).slice(-2)).toEqual(["--effort", "high"]);
+    expect(plain).not.toContain("--effort");
+  });
+
+  test("gives the session only SESSION_TOOLS, no MCP server and no auto-memory", () => {
+    const plain = claudeArgs({ model: "opus", permissionMode: "bypassPermissions" });
+    expect(plain[plain.indexOf("--tools") + 1]).toBe(SESSION_TOOLS.join(","));
+    expect(plain).toContain("--strict-mcp-config");
+    expect(JSON.parse(plain[plain.indexOf("--settings") + 1]!)).toEqual({ autoMemoryEnabled: false });
   });
 });
 
