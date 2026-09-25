@@ -1,0 +1,28 @@
+<?nvs
+// Reads the sender's port of a received UDP message, as a server does before it sends a reply.
+// bench: iterations 2000000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $first = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $second = Core\Net::bindDatagram("127.0.0.1", 0);
+        $first->send("127.0.0.1", $server->port(), "a" as bytes, 1s);
+        $second->send("127.0.0.1", $server->port(), "b" as bytes, 1s);
+        array<Core\Net\Datagram\Message> $messages = [$server->receive(64, 5s), $server->receive(64, 5s)];
+        $first->close();
+        $second->close();
+        $server->close();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round picks its message from the ports the rounds before read.
+            $total = $total + $messages[($total % 2) as int]->port();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000000) > 0 ? "done" : "none", "\n";

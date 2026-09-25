@@ -1,0 +1,30 @@
+<?nvs
+// Shows a small metrics collector that adds up the counters that programs send to it.
+
+Core\Net\Datagram $collector = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $app = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// Each message is one line such as `hits:3`: a name, a colon and a number.
+array<string> $lines = ["hits:3", "hits:4", "bad line"];
+foreach ($lines as string $line) {
+    $app->send("127.0.0.1", $collector->port(), $line as bytes, 1s);
+}
+
+// The collector splits each payload at the colon. A line without a number is skipped.
+int $hits = 0;
+uint $i = 0;
+while ($i < 3) {
+    tainted string $text = $collector->receive(512, 5s)->payload() as string;
+    array<tainted string> $parts = Core\Str::split($text, ":");
+    // `as ?int` converts the text to a number. If that is not possible, the result is `null`.
+    ?int $count = Core\Arr::count($parts) == 2 ? $parts[1] as ?int : null;
+    if ($count != null) {
+        $hits = $hits + $count;
+    }
+    $i = $i + 1;
+}
+// This prints `hits: 7`.
+echo "hits: ", $hits, "\n";
+
+$app->close();
+$collector->close();

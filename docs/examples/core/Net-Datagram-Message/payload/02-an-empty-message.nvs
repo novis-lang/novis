@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a UDP message can be empty, and that an empty payload is still a message.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $client = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// `send` returns 0, because the message has no bytes.
+echo "sent: ", $client->send("127.0.0.1", $server->port(), "" as bytes, 1s), "\n";
+
+// `receive` returns a message, and its payload is empty. This prints `empty: yes`.
+Core\Net\Datagram\Message $message = $server->receive(64, 5s);
+echo "empty: ", $message->payload() as string == "" ? "yes" : "no", "\n";
+
+$client->close();
+$server->close();

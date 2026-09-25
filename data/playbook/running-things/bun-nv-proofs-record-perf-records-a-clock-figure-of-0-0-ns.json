@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv proofs --record-perf` records a clock figure of `0.0` ns/op without complaint when the bench is too short.",
+  "body": "The calibration subtracts the empty loop and the program's start, so a getter at 200000 iterations, or a UDP round trip at 2000, reads `0.0` while its counts look normal. Read the `ns/op` column after every recording, raise `// bench: iterations` and the `Bench::run` argument together until it is non-zero, and re-record with `--force`; `benches/members/core/Net-Datagram-Message/port.nvs` needed 2000000.",
+  "files": [
+    "benches/members/core/Net-Datagram-Message/port.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "benches/members/core/Net-Datagram-Message/port.nvs:2000000"
+  }
+}

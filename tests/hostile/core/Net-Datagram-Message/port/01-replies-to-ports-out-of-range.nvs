@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program changes the sender's port to numbers that are not ports, and replies there.
+// Every bad reply should throw, and the request should end cleanly.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram('127.0.0.1', 0);
+Core\Net\Datagram $client = Core\Net::bindDatagram('127.0.0.1', 0);
+$client->send('127.0.0.1', $server->port(), 'hi' as bytes, 1s);
+Core\Net\Datagram\Message $message = $server->receive(64, 1s);
+uint $port = $message->port();
+
+// 1. The port plus 65536, which is past the largest port.
+try {
+    $server->send($message->host(), $port + 65536, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. The port minus itself, which is 0.
+try {
+    $server->send($message->host(), $port - $port, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. The port added to a number near the largest a `uint` can be.
+uint $largest = 18446744073709551615;
+try {
+    $server->send($message->host(), $largest - 65535 + $port, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "3 ok\n";
+}
+
+// 4. The port read one hundred thousand times. It must never change.
+uint $changed = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($message->port() != $port) {
+        $changed = $changed + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 changed: ', $changed, "\n";
+
+// 5. The port read after both sockets are closed. The message keeps its own copy.
+$server->close();
+$client->close();
+echo '5 same: ', $message->port() == $port ? 'yes' : 'no', "\n";
