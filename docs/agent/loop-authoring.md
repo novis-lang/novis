@@ -1,20 +1,22 @@
 # Authoring a loop goal
 
-Read this before rewriting `loop-goal.md` and `loop-goal.toml` for a new target. It carries the rules that
+Read this before writing a goal: its prose at `docs/agent/goals/<slug>.md` and its record at
+`data/goals/<slug>.json`. It carries the rules that
 every goal so far has needed and that nobody should have to restate — what makes a goal drivable, what has
 to be settled with the user *before* the run rather than during it, and the shape the stages take.
 
 [coordinator.md](coordinator.md) owns how the loop is *driven*: the driver, the files, the acceptance-check
 kinds, the per-iteration flow. This file owns how a goal is *written*. Neither restates the other.
 
-**Start from the scaffold, not from a blank file or a copied neighbour**: `python tools/chain.py --new
-<slug> --after N --title "…"` writes the three files a goal needs, with the boilerplate already carried
-forward and every question this file answers left as a marked `TODO`, and renumbers every goal from
-that position on so the chain still runs `1..N`. What each `TODO` wants is the sections below.
+**Place the goal on the chain first, then write its files by hand**: `bun nv chain --new <slug> --after
+<goal>` puts the slug into `data/chain.json` and edits nothing else. A goal's place is its position in
+that list, so no file is renamed when one is inserted. `bun nv chain --check` then names what the goal
+still lacks — its prose, its record, its handoff record, a § *Why here* or § *Standing decisions*, a
+`TODO` left in the prose — and what each of those wants is the sections below.
 
 ## 1. Measure first — this is step zero, not a formality
 
-    python tools/loop-stats.py
+    bun nv loop-stats
 
 It reads `.loop/logs/` and re-derives every constant the loop's shape rests on: seconds per tool call, how
 much of a session is fixed cost, how fast context grows, the model's actual context window, and the three
@@ -30,7 +32,7 @@ three change. A number you did not just measure is a number that is probably sta
 **The one fixed input is the ceiling: 200k, and it is a quality limit, not a capacity one.** The window is
 1M and nothing compacts, but an agent starts missing what it has already read long before its window is
 full, and a session that degrades produces work the acceptance test then rejects — which costs far more
-than the session saved. `loop-stats.py` hard-codes it for that reason and reads the model's real window
+than the session saved. `bun nv loop-stats` hard-codes it for that reason and reads the model's real window
 only to catch the case where capacity binds first. Raise it only with evidence.
 
 **Then reconsider the strategy, not just the number.** A shape follows from whichever budget binds, and
@@ -45,15 +47,15 @@ counted as wrap-up. Corrected, the fixed cost is about 22%, not "over half", and
 always weaker than the number made it look. A measurement that flatters the strategy you already hold is
 the one to re-derive first. So:
 
-| If `loop-stats.py` now says | Then |
+| If `bun nv loop-stats` now says | Then |
 |---|---|
 | Sessions finish **over** the ceiling | The lever is *reading less*: whole files only when small, regions otherwise, and nothing re-read that orientation already printed. Do **not** answer it with a slice count. A session that blew the ceiling inside its first slice never reached the group gate, so no count could have saved it — while a count does stop the sessions that finished with headroom to spare. The 120k gate is the one that binds, and it binds on context. |
 | Sessions finish **well under** the ceiling | Grouping is paying. It needs no new number: the 120k gate lets a session keep taking slices exactly as long as it has room. Read the projection for the **ceiling**, not for a count of slices. |
 | Fixed cost is a small share of a session | Grouping has stopped paying whatever the context says. Look at parallel lanes instead (coordinator.md's last section). |
 | Sessions are compacting | The ceiling is far too high — compaction loses the standing instructions the run depends on. Drop it until it stops, and treat every result from that run as suspect. |
-| Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. It has never happened by hand — 0 in 3,647 calls — which is why reading goes through `peek.py` instead. |
-| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything, and then re-billed on every turn of it. Over one run `playbook.md` grew 61% and dragged `ctx_start` up 5.3k with it; over the next, the pack went 59 KB to 118 KB at +907 B a session and the projection's cap fell to one slice on the strength of it alone. `--calibrate` prices a byte here; `session.py --wrap` reports the growth each session leaves behind; § 2 says what to do about it. |
-| The same trap appears in the playbook twice | `python tools/playbook.py --dupes`. An append-mostly file cannot notice it already knows something: one trap had been written down six times, by six sessions, in six wordings, and each copy was charged to every session afterwards. |
+| Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. It has never happened by hand — 0 in 3,647 calls — which is why reading goes through `bun nv peek` instead. |
+| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything, and then re-billed on every turn of it. Over one run `playbook.md` grew 61% and dragged `ctx_start` up 5.3k with it; over the next, the pack went 59 KB to 118 KB at +907 B a session and the projection's cap fell to one slice on the strength of it alone. `--calibrate` prices a byte here; `bun nv session --wrap` reports the growth each session leaves behind; § 2 says what to do about it. |
+| The same trap appears in the playbook twice | `bun nv playbook --show '<section>'` prints the section whole, so two wordings of one trap sit side by side. An append-mostly file cannot notice it already knows something: one trap had been written down six times, by six sessions, in six wordings, and each copy was charged to every session afterwards. |
 
 **The projection opens where the *next* session will open**, not where the last ones did — the regressed
 fixed floor plus the pack that is on disk right now. That matters when you have just changed what a
@@ -62,14 +64,14 @@ run has been spent re-measuring what was just measured.
 
 Whatever number you change there — the ceiling or the 120k gate — **say in the commit which one it is and
 why.** AGENTS.md § *Session workflow* step 2 is the one place either lives, and it takes no slice count:
-`loop-stats.py`'s three group-curve readings are a read of the curve, not a menu to install one of.
+`bun nv loop-stats`'s three group-curve readings are a read of the curve, not a menu to install one of.
 
 ## 2. Scope the context — decide what a session may read, before deciding what it does
 
 A goal is a **finite contained group of work**. It never needs the whole repository, and every byte a
 session reads that the goal does not need is charged to the 200k ceiling exactly like a byte it did.
-Before the run, write the `[context]` block in `loop-goal.toml`. That block is what `python
-tools/orient.py` slices the session's entire step 1 out of; without it there is no orientation but the
+Before the run, write the `context` field of the goal's record, `data/goals/<slug>.json`. That field is
+what `bun nv orient` slices the session's entire step 1 out of; without it there is no orientation but the
 unscoped one, which is about 30k of context before a session has read a line of the code it came to change.
 
 | Field | Selects | Get it wrong by |
@@ -77,9 +79,8 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | `modules` | globs under `crates/`; the map line for each | naming a crate when you meant a module, so the whole crate's map prints |
 | `rules` | two entry forms, told apart by the `/` a rule id always has. **A rule id** — `"core-classes/schema-plan"` — prints that rule's fragment **whole**, which is the authoritative current text; name the two or three the item is written against. **A decision-record number** — `"0067"` — expands to the rules whose `because` names it: every one it **created** as `rule:` token plus title, a count of their guard paths, and the ids it **modified** — whole when there are six or fewer, only the header's count past that, never a sample. That form is the surrounding map, not the rule, and the titles are its cost — a record that created twenty rules prints twenty lines | naming only record numbers, so the pack carries titles and no rule text and the session pays a call to fetch one anyway; or listing every record the topic touches rather than the ones that *bind the work* — a foundational record sits in the `because` of sixty rules |
 | `adrs` | `"NNNN"` for a record's *In short* block, `"NNNN §N"` for one section of `docs/decisions/NNNN.md` — frozen reasoning, for when the *why* is the question | naming a record whose rules are already in the rulebook: a record is history, and if the question is what is true now the answer is a rule id in `rules`. Naming a whole record is 7k of context where a section is 1k |
-| `spec` | `"01 §15"` for one section of [docs/spec/](../spec/) — the file's number, then the section. The rosters and their *Replaces* column live here; the tree is live and deliberately kept, since `01-core-library.md` is read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by `tools/check-migration.py`, and `02-php-migration.md` is the only home of the per-builtin migration table `tools/reference.py` renders into `docs/novis.md` | naming a whole file: `01-core-library.md` is 1,200 lines, and one of its `##` sections is what the question was |
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
-| `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > a whole decision record"`, matched against the opening words of its bold lead-in. `chain.py --check` refuses a selector that opens several lead-ins unless it ends in `*`, which claims the whole family: `"Writing a test case > a -p*"`. The traps for reading a failing acceptance check are never named here: `orient.py` prints them whole when the driver reports a failing floor check, or one in a stage the handoff has passed, and as one line otherwise. Don't pick by hand: `python tools/playbook.py --goal` ranks every bullet against this goal's own `modules` and prints the list as TOML | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest. Naming four whole sections cost 42 KB of a 78 KB pack until it was measured. `orient.py` narrows this list a second time, to the paths the session's own item names, so a selector that no item touches costs one line rather than a bullet |
+| `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > a whole decision record"`, matched against the opening words of its bold lead-in. `bun nv chain --check` refuses a selector that opens several lead-ins unless it ends in `*`, which claims the whole family: `"Writing a test case > a -p*"`. The traps for reading a failing acceptance check are never named here: `bun nv orient` prints them whole when the driver reports a failing floor check, or one in a stage the handoff has passed, and as one line otherwise. Don't pick by hand: `bun nv orient --traps <path>...` ranks every bullet against the paths you give it, which are this goal's own `modules` | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest. Naming four whole sections cost 42 KB of a 78 KB pack until it was measured. `bun nv orient` narrows this list a second time, to the paths the session's own item names, so a selector that no item touches costs one line rather than a bullet |
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
 | `milestones` | `"M4S"` for a whole milestone out of [docs/plan/](../plan/), `"M4S:lead"` or `"M4S:verify"` for one paragraph | naming the whole milestone when `:verify` was the question — M8 is 11k, its acceptance paragraph is under 1k |
 
@@ -91,31 +92,40 @@ redaction sections — which say nothing at all to the session writing its stage
 existed: 13,120 of that goal's 17,746 B of sliced ADR text belonged to a stage either already landed or
 not yet open, and its whole pack was 71,627 B.
 
-So `[context]` carries a table per **prose stage** — the `## Stage N` headings in the goal's own `.md`:
+So the record carries a `context` per **prose stage** — the `## Stage N` headings in the goal's own `.md`,
+which are its `stages` list. The goal's own `context` is what a session needs whatever stage it is on;
+a stage's `context` is what that stage needs on top of it:
 
-```toml
-[context]                    # what a session needs whatever stage it is on
-rules = ["ide/an-lsp-answer-is-frozen-as-an-lspt-case", "0099"]
-adrs  = []
-
-[context.stage.4]            # ... and what stage 4 needs on top of that
-rules = ["ide/an-open-document-is-its-own-entry-point", "ide/positions-have-one-home"]
-adrs  = ["0099 §1"]
+```json
+"context": {
+  "rules": ["ide/an-lsp-answer-is-frozen-as-an-lspt-case", "0099"],
+  "adrs": []
+},
+"stages": [
+  {
+    "number": 4,
+    "title": "the requests",
+    "context": {
+      "rules": ["ide/an-open-document-is-its-own-entry-point", "ide/positions-have-one-home"],
+      "adrs": ["0099 §1"]
+    }
+  }
+]
 ```
 
-- **`orient.py` applies the stage `handoff.md`'s `## Next group` names**, and `--stage N` prices one the
+- **`bun nv orient` applies the stage `handoff.md`'s `## Next group` names**, and `--stage N` prices one the
   run has not reached. A goal with no stage tables prints exactly the pack it printed before they existed,
   which is what makes this safe to add to queued goals one at a time.
 - **An overlay only ever adds.** Its entries are appended to the base's, deduplicated. The saving comes
   from keeping the *base* small — from moving an entry down into a stage, never from deleting one — and
   the worst a wrong stage number can do is print the base pack.
-- **Narrowable: `rules`, `adrs`, `spec`, `shapes`, `playbook`, `milestones`.** Not `modules`, because
-  `context-sync.py` writes to the base list and a stage-local copy would silently stop receiving what a
-  session edited; not `plan`, whose default is two fields every session reads.
-- **The number is the prose stage, not a `[[check]]`'s `stage = "4 the requests"` label.** Those are
-  coarser on purpose — one acceptance line often spans several prose stages, and goal `lsp-server`'s own comment
-  says so — and making the two agree would give that grouping up for nothing.
-- **`chain.py --check` audits every stage's entries**, not the one in flight, so a selector that resolves
+- **Narrowable: `rules`, `adrs`, `shapes`, `playbook`, `milestones`.** A stage's `context` takes the
+  other two fields as well, and neither belongs there: not `modules`, because the context sweep and
+  `bun nv goal context --add` write to the goal's own list and a stage-local copy would silently stop
+  receiving what a session edited; not `plan`, whose default is two fields every session reads.
+- **A stage is one number in both places.** A check's `stage` names one of the record's `stages`, and
+  `bun nv chain --check` refuses a check whose stage the goal does not have.
+- **`bun nv chain --check` audits every stage's entries**, not the one in flight, so a selector that resolves
   to nothing in stage 9 is caught while the goal is being written rather than by the session that opens
   stage 9 at 3am.
 
@@ -127,23 +137,25 @@ run about 4 kB against the 15 kB of titles eight record numbers expand to.
 
 Three rules make it work:
 
-- **Every entry is a selector, never a copy.** `orient.py` slices the live file at session start, so a
+- **Every entry is a selector, never a copy.** `bun nv orient` slices the live file at session start, so a
   manifest cannot silently go stale the way a frozen context pack would. It can only go *wrong*, by naming
   something that no longer exists, and that prints as a loud warning.
-- **`modules` corrects itself between sessions.** `tools/context-sync.py`, run by the driver, appends any
-  `crates/*/src/` or `editors/*/src/` module the session's own commits touched that no pattern matched —
-  never a crate root or a test module — with the module's own `//!` first sentence as its comment. Widening is the only thing it can do, which is
-  why it needs no supervision; past `MAX_ADDED` in one session, or `MAX_TOTAL` in the list, it refuses and
-  prints instead, because a manifest that has to grow that far was written for different work. No other
-  field sweeps: nothing on disk records that a session needed a rule section and did not get it.
+- **`modules` corrects itself between sessions.** The driver's context sweep appends any `crates/*/src/`
+  or `editors/*/src/` module the session's own commits touched that no pattern matched — never a crate
+  root or a test module. Widening is the only thing it can do, which is why it needs no supervision;
+  past a cap on one session's additions, or on the list's length, it refuses and prints instead, because
+  a manifest that has to grow that far was written for different work. `bun nv loop` does not run that
+  sweep yet — `tools/nv/cmd/loop.ts`'s module doc lists it among what the driver lacks — so a session
+  widens the list itself with `bun nv goal context --add <path>`. No other field sweeps: nothing on disk
+  records that a session needed a rule section and did not get it.
 - **An absent field selects nothing, not everything.** A goal that forgets to name its modules gets a short
   pack and a warning, rather than the whole map. Failing closed is what keeps the block honest.
-- **`python tools/orient.py --audit` prints what the pack costs**, section by section. Look at it once,
+- **`bun nv orient --audit` prints what the pack costs**, section by section. Look at it once,
   here, while writing the goal. It is a number, not a check — nothing exits non-zero over a size, and
   trimming prose against a tripwire is a cost this repository has already paid once
   ([doc-style.md](doc-style.md)).
 
-**Write it from measurement, not from taste.** `python tools/loop-stats.py --attribute` charges the last
+**Write it from measurement, not from taste.** `bun nv loop-stats --attribute` charges the last
 run's context to whatever fetched it, and each bucket argues for a specific fix: a large `adr` share means
 whole records are being read where a rule or a `§` slice would do; a large `discovery` share means the checklist items
 are missing their `file.rs:NN` anchors; a large `orientation` share means the manifest itself is too wide.
@@ -159,15 +171,15 @@ and only one of them is work.
 
 | Carries over untouched | Because |
 |---|---|
-| `peek.py`, `session.py`, `nv verify`, `nv splice`, `plan.py`, `disk.py` | They are about how this repository is read and written, not about what any goal is doing. A new goal changes neither. |
+| `bun nv peek`, `session`, `verify`, `splice`, `plan`, `disk` | They are about how this repository is read and written, not about what any goal is doing. A new goal changes neither. |
 | The rules you will otherwise break, and the session workflow, in `AGENTS.md` | Same. |
 | The handoff contract, the playbook, `conventions.md` | Same. |
-| The calibration in `tools/data/calibration.json` | Bytes per token is a property of the model and the pack's prose, not of the goal. Re-run `--calibrate --write` when the *model* changes, not when the goal does. |
+| The calibration in `tools/data/calibration.json` | Bytes per token is a property of the model and the pack's prose, not of the goal. Re-run `bun nv loop-stats --calibrate --write` when the *model* changes, not when the goal does. |
 
 | Per-goal, and owed before the run | Cost |
 |---|---|
-| The `[context]` manifest, **and a `[context.stage.N]` table per stage** | The real work. It names the files, rules, record sections, shapes and traps *this* goal's sessions read, and nothing else knows them. The stage tables are where most of that lands: the base holds only what every stage needs. |
-| A fresh `python tools/loop-stats.py` | One call. § 1 above: the constants are measurements, and a number you did not just measure is probably stale. |
+| The record's `context`, **and a `context` on each of its `stages`** | The real work. It names the files, rules, record sections, shapes and traps *this* goal's sessions read, and nothing else knows them. The stage tables are where most of that lands: the base holds only what every stage needs. |
+| A fresh `bun nv loop-stats` | One call. § 1 above: the constants are measurements, and a number you did not just measure is probably stale. |
 
 So the answer to "do we have to re-do this every time" is **no for the tooling and yes for the manifest** —
 and the manifest is not an optimisation you redo, it is the goal's own definition of what its sessions may
@@ -176,9 +188,9 @@ read. Write it once, let the sessions correct it, and the rest applies itself.
 **One thing does drift on its own**: the pack's fixed floor. `playbook.md` is append-mostly by decision, so
 every trap a session writes down is charged to every session after it. Three things hold that down — a
 bullet's shape and weight ([conventions.md](conventions.md) § *A playbook bullet*; the wrap refuses a new
-one past 700 bytes), the `[until:]` trailer the wrap retires bullets by, and `orient.py`'s cap on how many
+one past 700 bytes), the `[until:]` trailer the wrap retires bullets by, and `bun nv orient`'s cap on how many
 print whole — but the manifest is still the lever a goal author holds: name **bullets** rather than
-sections in `[context] playbook` when a new goal only needs a few. `python tools/orient.py --audit`
+sections in the `context`'s `playbook` when a new goal only needs a few. `bun nv orient --audit`
 prices both.
 
 ## 3. A goal is a stop condition, or it is not a goal
@@ -194,50 +206,51 @@ Three failure modes worth naming, all of which have happened here:
   member, the check must be a test that *reads the spec* and fails naming what is missing. A count of
   conformance cases is a proxy; a test that enumerates the source of truth is not.
 - **A green suite is not a run guard.** `cargo test` passes on a suite that never ran your new guard, so a
-  named test must be checked for having *existed and run*. That is what `kind = "cargo-named"` is for, and
+  named test must be checked for having *existed and run*. That is what `"kind": "cargo-named"` is for, and
   it is why most of the tests a goal names do not exist when it is written: writing one is how an item
   finishes.
 - **A chore is not a check.** Four goals ran `bun nv decisions --check`, which counts every
   decision not yet summarized — a pass the user fires, never a goal. A goal that opens an ADR is
   `missing` its own summary from the moment it writes the record, so all four were red on arrival and
   would each have held the run on a backlog no session of theirs could clear. A check has to be
-  something the goal's own work turns green. `CHORE_ARGV` in [loop.py](../../tools/loop.py) is the list
-  of commands that are not, with what to run instead and why; `chain.py --check` refuses an entry that
-  names one, so this is caught when the goal is written rather than when the chain reaches it.
-- **A tag is not a build.** Goal `unowned-closures`'s gate was `owners.py`'s `unowned: 0`, and its
-  stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
+  something the goal's own work turns green. `bun nv chain --check` does not look for a chore, so this
+  is the author's to catch while the goal is written, not the session's when the chain reaches it.
+- **A tag is not a build.** Goal `unowned-closures`'s gate was `unowned: 0` from the owners audit, and
+  its stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
   reached with forty items tagged to it and none built. A gate over a register must ask what the
-  goal's own tag cannot answer: `owners.py --closes <slug>` is red while any item names the goal, and
-  `owner_gate` in [loop.py](../../tools/loop.py) asks it of every goal on the sweep that would reach
-  it, whether or not the goal's list does.
+  goal's own tag cannot answer: `bun nv owners --closes <slug>` is red while any item names the goal.
+  The driver's owner gate asks it of every goal on the sweep that would reach it, whether or not the
+  goal's list does; `bun nv loop` does not run that gate yet (`tools/nv/cmd/loop.ts`'s module doc), so
+  a session runs it itself before it writes `DONE`.
 
 ## 4. The two halves, and what belongs in each
 
 | File | Holds | Never holds |
 |---|---|---|
-| `loop-goal.md` | The target, why it matters, the standing decisions, and the known gaps that sit on the path | The checks. Not one of them, not even summarised. |
-| `loop-goal.toml` | Every check as data: fixtures, exact expected output, suites, named guard tests — **and the `[context]` block of § 2**, which is what a session may read | Reasoning. A comment says what a check guards, not why the goal exists. |
+| `docs/agent/goals/<slug>.md` | The target, why it matters, the standing decisions, and the known gaps that sit on the path | The checks. Not one of them, not even summarised. |
+| `data/goals/<slug>.json` | Every check as data: fixtures, exact expected output, suites, named guard tests — **and the `context` of § 2**, which is what a session may read | Reasoning. A check's `name` says what it guards, not why the goal exists. |
 
-The driver reads the TOML directly, so nothing in it can drift from what actually runs. `python
-tools/loop.py --list` prints it as a summary; `--goal-only` runs it once without a session; `python
-tools/orient.py --audit` prints what its `[context]` block costs a session.
+The driver reads the record directly, so nothing in it can drift from what actually runs. `bun nv loop
+--list` prints the live goal's checks as a summary; `--goal-only` runs them once without a session; `bun
+nv orient --audit` prints what its `context` costs a session, and `--goal <slug>` reads a goal that is
+not live.
 
 **Every session ends on one line that says whether the run needs you** — `nothing for you to do`, or
-`YOUR HAND IS NEEDED` and the reason. `verdict()` in `tools/loop.py` writes it from what the driver
+`YOUR HAND IS NEEDED` and the reason. `verdict()` in `tools/nv/driver/console.ts` writes it from what the driver
 decided rather than from the session's own `CONTINUE`/`DONE`/`BLOCKED` line, because those two disagree
 exactly when it matters: a session reports `CONTINUE` and the driver is stopping on a stall streak. On
 that second line the run **holds** instead of ending, so answering it and pressing `p` is the whole of
 what a `BLOCKED` costs — [coordinator.md](coordinator.md) § *Holding the tree* owns the rule.
 
-The `[context]` block lives with the checks rather than with the prose for the same reason the checks do:
-it is read by a program, and a selector that names a section is either right or a loud warning. Prose about
-*why* those are the files this goal touches belongs in `loop-goal.md`.
+The `context` lives with the checks rather than with the prose for the same reason the checks do: it is
+read by a program, and a selector that names a section is either right or a loud warning. Prose about
+*why* those are the files this goal touches belongs in the goal's `.md`.
 
 ## 5. Pre-authorize every tradeoff, before the run
 
 **Anything a session could reasonably stop and ask about will eventually hold the run on `BLOCKED`.** So
-walk the path first and settle it with the user, then write each decision into `loop-goal.md`
-§ *Standing decisions* as an instruction rather than a question. The current goal's section is the worked
+walk the path first and settle it with the user, then write each decision into the goal's prose,
+§ *Standing decisions*, as an instruction rather than a question. The current goal's section is the worked
 example — dependency choices, representation choices, which language holes are in scope, which questions
 are closed and must not be re-opened.
 
@@ -254,7 +267,7 @@ end of the chain is a number an earlier goal claims first, and the session that 
 and frozen. Say *one new record and no other number*; the goal `editor-install` form — naming the record because it
 has already landed and this goal only implements it — is the other legitimate one.
 
-`python tools/chain.py --check` notes a queued goal with no § *Standing decisions* at all, which is
+`bun nv chain --check` notes a queued goal with no § *Standing decisions* at all, which is
 the cheap half of this and the only half a tool can see. It cannot tell whether the section answers
 the questions the stages actually reach — that is this section's judgement, and the goal whose design
 record is not yet written is where it is hardest: implementing an accepted ADR asks a session to look
@@ -298,8 +311,8 @@ otherwise costs a session a second orientation.
 
 **Every item carries its anchors.** The rule that specifies it (`rule:<topic>/<rule>`), and the `file.rs:NN` of the site it
 changes. You are resolving them from context you already hold; a session without them spends ten `grep`s
-rediscovering what you knew for free, and `loop-stats.py --attribute` charges that to the `discovery`
-bucket where it shows up as a large share and an obvious fix. This is also how the `[context]` block gets
+rediscovering what you knew for free, and `bun nv loop-stats --attribute` charges that to the `discovery`
+bucket where it shows up as a large share and an obvious fix. This is also how the `context` gets
 written: the union of the anchors is the `modules` list.
 
 ## 8. What never goes in a loop
@@ -317,11 +330,11 @@ written: the union of the anchors is the `modules` list.
 
 ## 9. When the run ends
 
-Run `python tools/loop-stats.py` again, and `python tools/loop-stats.py --attribute` beside it: the first
-says where the sessions landed, the second says which *reads* put them there, and only the second tells you
-what to change in the next goal's `[context]` block. If the constants moved enough to change the cap or the
+Run `bun nv loop-stats` again, and `bun nv loop-stats --attribute` beside it: the first says where the
+sessions landed, the second says which *reads* put them there, and only the second tells you what to
+change in the next goal's `context`. If the constants moved enough to change the cap or the
 strategy, change them **and say so in the commit** — that is how the next goal starts from measurement rather than
 from whatever this file happened to say. Fold anything durable the run taught you into the file that owns
 it: a trap into [playbook.md](playbook.md), a shape into [conventions.md](conventions.md), a decision into
-the rule's fragment under [docs/rules/](../rules/) with a new record for its reasoning. `loop-goal.md` and
-`loop-goal.toml` are then rewritten from scratch for the next target, not amended.
+the rule's fragment under [docs/rules/](../rules/) with a new record for its reasoning. The next goal's
+prose and record are written for its own target, never amended from this one's.
