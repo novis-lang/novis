@@ -40,13 +40,15 @@
 // the carried checks alone, memo consulted and every red collected, so it runs what `--owed` names and
 // ends on `SETTLED` or `NOT GREEN`.
 //
-// `bun nv loop` with none of those modes is one turn of the driver: one session, its acceptance sweep and
-// its ledger lines in `.loop/log.md`, then exit 75, which asks `tools/respawn.py` for the next turn. It
+// `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
+// `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
+// is `bun nv loop` with that variable set: one session, its acceptance sweep and its ledger lines in
+// `.loop/log.md`, then exit 75, which asks for the next turn. `tools/respawn.py` starts turns the same
+// way for a run started with `python tools/loop.py`. It
 // takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions`,
 // `--max-stalls` (10), `--max-retries` (3) and `--max-limit-wait` (21600 seconds). The run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its session
 // count from turn to turn in the shape `loop.py` writes, so a run the Python driver started goes on here
-// with its numbering. A turn refuses a tree whose `.loop/running` names another run. With no
-// `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
+// with its numbering. A turn refuses a tree whose `.loop/running` names another run.
 //
 // The console is `driver/console.ts`'s, in `loop.py`'s colours and layout: the session's transcript through
 // `driver/transcript.ts`, the driver's stamped steps, and the live block, whose status line is
@@ -79,7 +81,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, launch, ledger, loadRun, openingLine, runName, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
+import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, launch, ledger, loadRun, openingLine, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
+import { respawn } from "../driver/respawn.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { installedGoal } from "../import/goals.ts";
 import type { Unread } from "../import/lib.ts";
@@ -606,8 +609,7 @@ function floorSince(): number {
  * what it left into a wip commit and ends the run.
  */
 async function turn(f: TurnFlags): Promise<number> {
-  const byRespawn = Boolean(process.env[RUN_ENV]);
-  const name = process.env[RUN_ENV] || runName();
+  const name = process.env[RUN_ENV]!;
   const held = holder();
   if (held !== "" && held !== name) {
     say(`nv loop: run \`${held}\` holds this tree (${MARKER}); a second driver would edit it beside that one`, C.RED);
@@ -640,7 +642,7 @@ async function turn(f: TurnFlags): Promise<number> {
   CONTROL.enable();
   if (f.status) TICKER.start();
   try {
-    return await serve(f, state, fresh, byRespawn, touched, ctx);
+    return await serve(f, state, fresh, touched, ctx);
   } finally {
     process.off("SIGINT", onSignal);
     TICKER.stop();
@@ -656,7 +658,7 @@ interface TurnContext {
 }
 
 /** The turn inside the console `turn` set up: one session, its sweep, and whether the run goes on. */
-async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: boolean, touched: Touched, ctx: TurnContext): Promise<number> {
+async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Touched, ctx: TurnContext): Promise<number> {
   if (fresh) {
     writeFileSync(join(ROOT, MARKER), `pid:      ${process.pid}\nrun:      ${state.run}\nstarted:  ${stamp()}\nsessions: ${Number.isFinite(f.maxSessions) ? f.maxSessions : "uncapped"}, model ${f.model}\n`);
     ledger("");
@@ -872,7 +874,6 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
   await CONTROL.settleStop();
   const asked = CONTROL.stopReason();
   if (asked) return finish(state, asked);
-  if (!byRespawn) return finish(state, `one turn: ${RUN_ENV} is not set, so nothing starts a next one`);
   saveRun(state);
   return AGAIN;
 }
@@ -901,7 +902,8 @@ export async function run(args: string[]): Promise<number> {
       console.error(`usage: ${USAGE}`);
       return 2;
     }
-    return turn(flags);
+    // Started by hand, this process is the run and every turn is a child of it; `driver/respawn.ts`.
+    return process.env[RUN_ENV] ? turn(flags) : respawn(args);
   }
   const filters = mode === "--list" || mode === "--run" || mode === "--goal-only" ? parse(args) : null;
   if (filters === null) {
