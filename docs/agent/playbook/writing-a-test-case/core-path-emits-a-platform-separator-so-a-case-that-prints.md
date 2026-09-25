@@ -3,4 +3,4 @@
   and count what a member dropped by `Core\Str::length($rebuilt) != Core\Str::length($p)` rather
   than by string inequality, which counts every re-rendered separator on one leg only. A `Core\Time`
   case has the same hazard elsewhere: never assert `Zone::system()`'s answer or a wall-clock value.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/path.rs:SEPARATOR]

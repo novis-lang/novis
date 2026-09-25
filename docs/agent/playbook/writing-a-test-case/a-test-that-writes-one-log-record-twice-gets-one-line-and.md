@@ -4,4 +4,4 @@
   `request_id`, `trace_id` and `span_id`, so two writes differing only in the request or the trace
   are one record and the failure reads as serde's `EOF while parsing a value`. Give each write its
   own message or `source`, and reach for `floor::expire_log_windows` only where the *count* is the
-  subject. [until: reviewed 2026-09-09]
+  subject. [until: gone crates/nvs-stdlib/src/log.rs:admit_log_record]

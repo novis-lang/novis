@@ -1,9 +1,11 @@
 {
   "lead": "`function (…) { … }` is `E0222` outright; `fn (…) => …` or `fn (…) => { … }` is the one closure literal.",
   "body": "Calling it through its variable or `$f(...$args)` lowers, but a call through a `callable` answers `mixed`, so the result takes an `as T` where a narrower type is declared (`rule:types/closure-literal`). When a sweep's rows are *data*, a typed array plus `foreach`, counting into an `int` declared above the loop, is the shape.",
-  "files": [],
+  "files": [
+    "crates/nvs-diagnostics/src/lib.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0222"
   }
 }

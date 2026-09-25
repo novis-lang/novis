@@ -3,4 +3,4 @@
   to `\Command` and the answer is `E0303: `Command` is not declared` — the ordinary undeclared-name
   refusal, pointing at the wrong file. Import it as `use Core\Command;` exactly as `#[Test]`'s is
   `use Core\Test;`, or write `#[\Core\Command(...)]` fully qualified when the case is about the
-  match rather than the import. [until: reviewed 2026-09-06]
+  match rather than the import. [until: gone crates/nvs-diagnostics/src/lib.rs:E0303]

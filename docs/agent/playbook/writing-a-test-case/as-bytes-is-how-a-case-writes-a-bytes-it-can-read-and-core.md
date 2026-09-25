@@ -2,4 +2,4 @@
   how it writes one it cannot.** There is no `bytes` literal; `as bytes` is total and free but only
   reaches octets that are valid UTF-8, so an arbitrary buffer — a lone `ff`, a truncated sequence —
   has to come from `fromHex`. Assert the result with `toHex` either way, since `echo` has no `bytes`
-  row and `rule:types/conversion` makes `bytes as string` checked. [until: reviewed 2026-09-06]
+  row and `rule:types/conversion` makes `bytes as string` checked. [until: gone crates/nvs-stdlib/src/encoding.rs:fromHex]

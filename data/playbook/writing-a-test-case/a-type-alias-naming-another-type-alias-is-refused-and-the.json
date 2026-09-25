@@ -2,10 +2,11 @@
   "lead": "A `type` alias naming another `type` alias is refused, and the diagnostic calls it a class.",
   "body": "`E0307` reads the written atom rather than what it resolves to (`crates/nvs-hir/src/resolve.rs:284`), so `type B = A;` over `type A = int;` is \"a `type` alias may not name a single class, interface or enum on its own\" — right about the shape, wrong about the kind. Chain through a wrapper instead, `type B = ?A;` or `type B = array<A>;`, which is what a hostile case needs to build a long chain that compiles at all.",
   "files": [
-    "crates/nvs-hir/src/resolve.rs"
+    "crates/nvs-hir/src/resolve.rs",
+    "crates/nvs-diagnostics/src/lib.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-19"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0307"
   }
 }

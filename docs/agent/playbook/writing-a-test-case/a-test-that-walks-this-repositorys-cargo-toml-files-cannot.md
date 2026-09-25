@@ -4,4 +4,4 @@
   `crates/nvs-runtime/tests/manifest_policy.rs` walks every `Cargo.toml` outside `target/` and
   `.git/`, and `benches/*` is a member of the root workspace while `fuzz/Cargo.toml` declares its own
   empty `[workspace]`. Seed the line in `fuzz/`, watch the assertion fail naming that path, and revert
-  — that walk reads the file and cargo never resolves it. [until: reviewed 2026-09-08]
+  — that walk reads the file and cargo never resolves it. [until: gone crates/nvs-runtime/tests/manifest_policy.rs:fuzz]

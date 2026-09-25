@@ -3,4 +3,4 @@
   `NvsArray` counts the output's own `Vec` doubling, which the guard cannot tell from the allocation
   it exists to catch. Walk twice and measure the *second* pass, where every write lands at a
   position that already exists; `a_callback_that_does_not_want_a_key_synthesizes_none` is the shape.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-runtime/src/array.rs:a_callback_that_does_not_want_a_key_synthesizes_none]

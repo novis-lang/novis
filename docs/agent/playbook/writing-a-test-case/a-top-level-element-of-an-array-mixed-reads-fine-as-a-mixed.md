@@ -3,4 +3,4 @@
   about the second level only: `$lefts[$i as string]` handed straight to a `mixed` parameter lowers.
   So a table whose rows are an `int`, a `float`, an array and an object is parallel arrays
   (`array<string> $labels`, `array<mixed> $lefts`, `array<mixed> $rights`) plus a counter and a
-  `public static function` that asks the members about one row. [until: reviewed 2026-09-06]
+  `public static function` that asks the members about one row. [until: gone crates/nvs-diagnostics/src/lib.rs:E_SUBSCRIPT_ON_NON_ARRAY]

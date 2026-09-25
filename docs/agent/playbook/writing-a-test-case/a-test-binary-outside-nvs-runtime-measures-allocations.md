@@ -4,4 +4,4 @@
   `budget::Accounting` in every `not(test)` build, so a second global allocator in a test file is
   `error: the #[global_allocator] in this crate conflicts with global allocator in: nvs_runtime`.
   `crates/nvs-stdlib/tests/allocation_policy.rs` reads the shared counters.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/tests/allocation_policy.rs:nvs_runtime::budget]

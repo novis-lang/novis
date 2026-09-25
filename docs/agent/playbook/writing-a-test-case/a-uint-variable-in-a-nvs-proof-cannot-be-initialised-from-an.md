@@ -3,4 +3,4 @@
   an `E0401` against a `uint` declaration, and the error points at the whole expression as if the
   member returned the wrong type. Write `(40 * 1048576) as uint`, and turn a division into a
   multiplication on the other side: `$peak * 5 > $limit * 4` is "more than four fifths of the
-  limit". [until: reviewed 2026-09-20]
+  limit". [until: gone crates/nvs-types/src/expr/operators.rs:BinaryOp::Div]

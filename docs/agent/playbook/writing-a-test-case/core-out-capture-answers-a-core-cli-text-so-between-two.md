@@ -4,4 +4,4 @@
   neighbouring `Core\Response` cases hide it by only ever printing a capture. Interpolate each into
   a `string` first — `string $s = "{$captured}";` renders the carrier through
   `rule:security/capture-answers-the-carrier` — and `==` then compares content.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/out.rs:Core\Out::capture]

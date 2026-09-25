@@ -3,4 +3,4 @@
   where a `Bind`'s portal and its statement are both the empty string, so `frontend::bind` called
   with the two swapped sent a `PBDES` that looked right in every case and drew SQLSTATE 26000 on
   every real connection. Assert the names a message carries and not only its tag, and give the
-  enabled path a case at a non-zero capacity. [until: reviewed 2026-09-06]
+  enabled path a case at a non-zero capacity. [until: gone crates/nvs-db/src/pg.rs:no_cache]

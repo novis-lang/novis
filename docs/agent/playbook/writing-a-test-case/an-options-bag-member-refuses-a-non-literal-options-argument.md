@@ -4,4 +4,4 @@
   and the answer is `an options argument must be written out as {...} at the call site` — the
   options are flattened one per argument, so there is nothing for a value to be checked against.
   Write the case, run `target/debug/nvs.exe test <file>`, and paste back the line it printed.
-  [until: reviewed 2026-09-10]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0453]

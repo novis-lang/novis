@@ -3,4 +3,4 @@
   failures (`E0102`/`E0101`, `E0220`) repeated per line, none naming the spelling that works, and
   they hide whatever else the case asserts. `examples/arrays.nvs` has `["alpha" => 1]`;
   `tests/conformance/enum/an-enum-carries-negative-and-zero-cases.nvst` has `enum Level: int { Off =
-  0, On = 1, }`. [until: reviewed 2026-09-06]
+  0, On = 1, }`. [until: gone examples/arrays.nvs:'alpha' => 1]

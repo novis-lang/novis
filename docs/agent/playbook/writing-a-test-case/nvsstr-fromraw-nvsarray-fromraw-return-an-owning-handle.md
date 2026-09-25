@@ -2,4 +2,4 @@
   one in a unit test releases a reference when it drops, so the test ends in a heap corruption
   rather than an assertion failure. Wrap it in `std::mem::ManuallyDrop`; `crate::arr::borrowed` is
   that wrapper for an argument, and `crate::instance::slot` is the borrowed read of an object's
-  slot. [until: reviewed 2026-09-06]
+  slot. [until: gone crates/nvs-stdlib/src/arr.rs:fn borrowed]

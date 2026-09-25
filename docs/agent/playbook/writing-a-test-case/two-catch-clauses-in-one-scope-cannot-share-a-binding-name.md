@@ -1,7 +1,0 @@
-- **Two `catch` clauses in one scope cannot share a binding name, and the diagnostic is `E0406:
-  already declared` pointing at the earlier clause.** A catch binding is declared for the whole
-  enclosing scope rather than for its own block, so the PHP habit of calling every one `$e` — or two
-  clauses in one file both calling theirs `$notThisOne` — fails to compile for a reason that has
-  nothing to do with what is being caught. Give each clause a name saying what that branch means, or
-  put each `try` in its own static method the way the landed `types/` cases do.
-  [until: reviewed 2026-09-19]

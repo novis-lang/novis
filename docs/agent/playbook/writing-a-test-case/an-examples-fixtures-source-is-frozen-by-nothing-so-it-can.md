@@ -1,6 +1,0 @@
-- **An `examples/` fixture's source is frozen by nothing, so it can name members that never existed
-  and blame your class.** `examples/reflect.nvs`, `crypto.nvs` and `cli.nvs` were written ahead of
-  their members and asked for a property, an unregistered member (`Core\Arr::length`) and a
-  top-level `function`, surfacing as `E0405`/`E0401`. Only its `[[check]]` `want` lines are frozen:
-  `nvs run` it and `grep -n 'name: "..."'` in the owning module before reading the failure as a gap.
-  [until: reviewed 2026-09-06]

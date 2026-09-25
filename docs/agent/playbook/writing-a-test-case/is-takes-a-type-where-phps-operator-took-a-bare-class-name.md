@@ -4,4 +4,4 @@
   everywhere that production is used, so `$it is Iterator` is refused where the PHP spelling
   compiled. Write the argument — `$it is Iterator<int>` — and say in
   the case that the walk compares descriptors and erases it, which is why no answer moves.
-  [until: reviewed 2026-09-18]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0442]

@@ -4,4 +4,4 @@
   on the order of two hundred million elements, four and a half minutes in a debug build, where the
   identical loop finished in under two seconds once it stopped. Grow an array in a loop with
   `$a[] = $x` and keep `Core\Arr::append` for the one-off where a second array is what you actually
-  want. [until: reviewed 2026-09-19]
+  want. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::append]

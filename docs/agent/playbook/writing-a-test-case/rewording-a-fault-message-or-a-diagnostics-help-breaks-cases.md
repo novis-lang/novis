@@ -3,4 +3,4 @@
   `Core\Str::contains($message, "at offset " . $j . " is")` and prints `0 of 8`, and a differential
   helper asserts `Core\Str::startsWith($message, ...)` and prints a column of `|`, so the failure
   waits for `nv verify`. Before changing it, `grep -rn` the corpus under `tests/` for the head, a
-  distinctive interior phrase, and `startsWith`. [until: reviewed 2026-09-06]
+  distinctive interior phrase, and `startsWith`. [until: gone crates/nvs-test/src/run.rs:standard output does not match]

@@ -3,4 +3,4 @@
   nothing else; the casing/visibility pass `nvs-cli`'s `front_end` runs
   (`crates/nvs-syntax/src/casing.rs`, `E0122`) is not in it. So `interface Labelled { function
   label(): string; }` is a fine unit fixture and a broken case file, and the fix is one keyword
-  rather than a hunt. [until: reviewed 2026-09-06]
+  rather than a hunt. [until: gone crates/nvs-diagnostics/src/lib.rs:E0122]

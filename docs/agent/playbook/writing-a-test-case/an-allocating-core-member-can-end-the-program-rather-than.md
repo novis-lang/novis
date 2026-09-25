@@ -3,4 +3,4 @@
   count nothing could ever hold, and `Core\Arr::fill(4000000000, 'x')` instead reaches the ceiling,
   which ends the process and takes every later step of the attack with it. Run a new attack once
   with `target/debug/nvs.exe run` before fixing its order: the step that ends the program goes last,
-  and the file declares `// hostile: ends-early`. [until: reviewed 2026-09-20]
+  and the file declares `// hostile: ends-early`. [until: gone tests/hostile/README.md:ends-early]

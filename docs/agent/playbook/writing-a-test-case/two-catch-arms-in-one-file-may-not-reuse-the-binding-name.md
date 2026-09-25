@@ -1,6 +1,0 @@
-- **Two `catch` arms in one file may not reuse the binding name.** A hostile case is several
-  numbered `try` steps in one program, so a second `} catch (LogicError $caught) {` is `E0406:
-  $caught is already declared` pointing at the first arm, because a catch binding is an ordinary
-  file-scope local and not scoped to its arm. Name each arm for what it caught — `$byZero`,
-  `$repeats`, `$tooWide` — which reads better in the `echo` beside it anyway.
-  [until: reviewed 2026-09-22]

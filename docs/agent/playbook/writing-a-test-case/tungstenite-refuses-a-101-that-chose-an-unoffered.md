@@ -3,4 +3,4 @@
   `Server sent an invalid subprotocol`, naming neither the protocol nor the member, so a case
   asserting Novis's own wording against a live origin fails on a refusal that was correct. Assert
   that wording of `transport::settled` directly — the judgement `openSocket`'s scripted arm reaches —
-  and assert of the live `101` only that it was refused. [until: reviewed 2026-11-12]
+  and assert of the live `101` only that it was refused. [until: gone crates/nvs-stdlib/src/http/transport.rs:fn settled]

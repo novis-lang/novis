@@ -3,4 +3,4 @@
   (`crates/nvs-hir/src/resolve.rs:284`), so `type B = A;` over `type A = int;` is "a `type` alias may
   not name a single class, interface or enum on its own" — right about the shape, wrong about the
   kind. Chain through a wrapper instead, `type B = ?A;` or `type B = array<A>;`, which is what a
-  hostile case needs to build a long chain that compiles at all. [until: reviewed 2026-09-19]
+  hostile case needs to build a long chain that compiles at all. [until: gone crates/nvs-diagnostics/src/lib.rs:E0307]

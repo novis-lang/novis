@@ -4,4 +4,4 @@
   machine-applicable `Suggestion { message, replacement, span }` and is empty for every
   configuration diagnostic in the tree, so a refusal test reading `refused.suggestions` compiles and
   then fails on an empty vector. Assert a help sentence as `refused.notes.iter().any(...)`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-diagnostics/src/diagnostic.rs:fn with_help]

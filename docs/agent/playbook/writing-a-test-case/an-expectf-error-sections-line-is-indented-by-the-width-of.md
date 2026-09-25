@@ -1,5 +1,0 @@
-- **An `--EXPECTF-ERROR--` section's `-->` line is indented by the width of the line number, and any
-  edit above the code moves the number.** The gutter is `" ".repeat(digits) + " --> "`, counted from
-  `--FILE--`'s first line, so a neighbour's two-space `  --> case.nvs:9:40` copied onto a case whose
-  error is on line 14 fails with a diff whose halves look identical. Run `python tools/try.py
-  <case>` and copy the whole location line verbatim. [until: reviewed 2026-09-06]

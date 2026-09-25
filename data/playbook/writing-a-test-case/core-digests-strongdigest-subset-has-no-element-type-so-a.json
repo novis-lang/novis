@@ -5,7 +5,7 @@
     "tests/hostile/core/Hash/hmac/01-keys-of-every-size.nvs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-22"
+    "kind": "gone",
+    "arg": "tests/hostile/core/Hash/hmac/01-keys-of-every-size.nvs:Core\\Hash::hmac"
   }
 }

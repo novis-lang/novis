@@ -4,4 +4,4 @@
   `crates/nvs-runtime/src/object.rs:2798`, which faults on a class with no `CONSTRUCTOR` row — and
   `crates/nvs-stdlib/tests/allocation_policy.rs:288`, the nearest shape, declares none. Budget the
   fixture as its own slice, and leak the table, because a descriptor's address is its identity.
-  [until: reviewed 2026-09-08]
+  [until: gone crates/nvs-runtime/src/object.rs:fn set_codec]

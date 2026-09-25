@@ -3,4 +3,4 @@
   is the file's stem, so `02-the-script-is-written-from-your-commands.nvs` blessed a bash function
   called `__02_the_script_is_written_from_your_commands_complete`. Keep the slug short for any
   example whose output quotes the program's own name, and read the blessed lines rather than
-  trusting the exit status. [until: reviewed 2026-09-18]
+  trusting the exit status. [until: gone crates/nvs-stdlib/src/command.rs:Core\Command::completions]

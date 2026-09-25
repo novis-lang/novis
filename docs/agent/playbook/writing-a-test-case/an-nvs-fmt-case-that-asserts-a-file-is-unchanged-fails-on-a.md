@@ -4,4 +4,4 @@
   fails the case for a reason that has nothing to do with what it asserts. Write the input as the
   formatter already answers it and vary only the bytes under test — the assertion prints both whole
   files, and the line that differs names the rule that actually moved.
-  [until: reviewed 2026-09-12]
+  [until: gone crates/nvs-fmt/tests/fixtures.rs:formatted(]

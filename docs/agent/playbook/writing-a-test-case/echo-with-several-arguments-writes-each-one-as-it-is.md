@@ -3,4 +3,4 @@
   on a `PropertyObserver` class prints `  bump gave ` first, then the observer's lines, then `1` —
   which reads as a broken pipeline rather than as evaluation order, and costs a blessed `.out` or an
   `--EXPECT--` block to discover. Assign the call to a variable first and echo the variable when the
-  callee can print anything: `int $bumped = $l->bump();`. [until: reviewed 2026-09-19]
+  callee can print anything: `int $bumped = $l->bump();`. [until: gone crates/nvs-ir/src/lower/expr.rs:fn lower_echo]

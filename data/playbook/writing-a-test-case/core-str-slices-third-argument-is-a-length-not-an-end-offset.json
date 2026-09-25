@@ -1,9 +1,11 @@
 {
   "lead": "`Core\\Str::slice`'s third argument is a *length*, not an end offset, and getting it wrong still counts plausibly.",
   "body": "`Core\\Str::slice($alphabet, $i, $i + 1)` is \"from `$i`, take `$i + 1` characters\", so a counted assertion still comes out right while row 16 hands the decoder a seventeen-character operand. Spell it `Core\\Str::slice($s, $i, 1)`, and have a counting sweep echo the *set* it counted as well as the count.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/str.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/str.rs:Core\\Str::slice"
   }
 }

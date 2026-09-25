@@ -2,4 +2,4 @@
   output a `%A` was absorbing goes away, the case fails with an identical-looking expected and
   actual block, because the diff prints the pattern rather than what it expanded to and the only
   visible difference is the extra `%A` line. Delete the wildcard when the output it covered goes
-  away; a `%A` is an absorber, not an optional tail. [until: reviewed 2026-09-06]
+  away; a `%A` is an absorber, not an optional tail. [until: gone crates/nvs-test/src/expect.rs:%A]

@@ -1,8 +1,0 @@
-- **`if ($x != null)` narrows only a plain variable, only while nothing in the block reassigns it,
-  and `while ($x != null)` does not narrow the body at all.** Walking a `previous` chain the obvious
-  way fails twice over: `while ($at != null) { $at = $at->previous; }` reports the receiver nullable
-  because the loop test does not narrow, and moving the test into an `if` still fails because the
-  assignment inside the block drops the narrowing — and a property path like
-  `$e->previous->message` is never narrowed by testing the path. Read the value into a fresh local
-  at the top of the body, test *that*, and assign the next step to the outer name.
-  [until: reviewed 2026-09-19]

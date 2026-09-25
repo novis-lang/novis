@@ -2,4 +2,4 @@
   mismatch**, so freeze an `--EXPECT--` by running the case with an *empty* one and pasting back
   what it printed. The report indents the output by four spaces, so de-indent the paste; and a value
   that can be empty or end in a space needs a delimiter in the `echo` (`"[", $x, "]"`), because a
-  trailing space is invisible there and exact in the comparison. [until: reviewed 2026-09-06]
+  trailing space is invisible there and exact in the comparison. [until: gone crates/nvs-test/src/run.rs:standard output does not match]

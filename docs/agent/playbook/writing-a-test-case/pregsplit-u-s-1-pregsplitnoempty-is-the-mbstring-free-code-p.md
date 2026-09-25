@@ -3,4 +3,4 @@
   PHP to count code points has a real oracle rather than a frozen `--EXPECT--`. What it cannot give
   is a code point's *number* (`mb_ord`) or a grapheme (`grapheme_strlen`: no `intl` either), so an
   oracle needing those still decodes UTF-8 by hand in the `--ORACLE--` block or freezes the rows and
-  cites the UCD table. [until: reviewed 2026-09-06]
+  cites the UCD table. [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::length]

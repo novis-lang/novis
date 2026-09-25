@@ -5,4 +5,4 @@
   without ever parking and `parked` came back 1 where the test wanted 2 — green on Windows, red on the
   floor, with nothing in the diff to blame. Arm a deadline inside the task that waits on it, where the
   window is the wait's own, and leave a margin the slowest leg can spend.
-  [until: reviewed 2026-09-20]
+  [until: gone crates/nvs-host/src/timer.rs:a_timer_and_a_deadline_are_the_same_wheel]

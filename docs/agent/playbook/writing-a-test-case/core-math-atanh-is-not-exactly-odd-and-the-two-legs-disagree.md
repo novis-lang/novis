@@ -2,4 +2,4 @@
   Every other member satisfies `f(-$x) == 0.0 - f($x)` bit for bit, but `atanh` takes a logarithm of
   an asymmetric expression, so MSVC and glibc miss on different magnitudes and a parity sweep fails
   on the other leg. Assert a *relative* agreement for that one member (`abs($there + $back) <=
-  abs($there) * 1.0e-15`, the infinite row by exact equality). [until: reviewed 2026-09-06]
+  abs($there) * 1.0e-15`, the infinite row by exact equality). [until: gone crates/nvs-stdlib/src/math.rs:Core\Math::atanh]

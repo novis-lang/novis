@@ -1,5 +1,0 @@
-- **A bare array literal is `array<mixed>` wherever it sits inline, a `Core\Arr` member's second
-  argument or a `foreach` header, and does not narrow.** `Core\Arr::diff($a, [4, 2])` is `E0401:
-  expected array<int>, found array<mixed>` at the literal, and `foreach ([1, 2, 3] as int $n)` is
-  `E0401: expected 'int', found 'mixed'` pointing at the *binding*. Declare a typed local on the
-  line above (`array<int> $against = [4, 2];`) and use that. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr]

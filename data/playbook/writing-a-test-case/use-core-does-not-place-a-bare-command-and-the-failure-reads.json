@@ -1,9 +1,11 @@
 {
   "lead": "`use Core;` does not place a bare `#[Command]`, and the failure reads as if the roster edit did not land.",
   "body": "A `use` aliases one *name*, so with only `use Core;` in scope the attribute resolves to `\\Command` and the answer is `E0303: `Command` is not declared` — the ordinary undeclared-name refusal, pointing at the wrong file. Import it as `use Core\\Command;` exactly as `#[Test]`'s is `use Core\\Test;`, or write `#[\\Core\\Command(...)]` fully qualified when the case is about the match rather than the import.",
-  "files": [],
+  "files": [
+    "crates/nvs-diagnostics/src/lib.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0303"
   }
 }

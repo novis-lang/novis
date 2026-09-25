@@ -1,6 +1,0 @@
-- **An array type takes one parameter, so `array<string, uint>` does not parse and all three
-  diagnostics point at the `<` rather than at the comma.** `rule:types/arrays` fixes every key as a
-  `string` — one parameter, not two — so a counter keyed by a column label is `array<uint>`, and no
-  `.nvs` or `.nvst` file in the corpus writes a key type at all. Grep the corpus for the spelling
-  before reaching for a second type argument; a spelling nothing uses is usually one nothing
-  parses. [until: reviewed 2026-09-21]

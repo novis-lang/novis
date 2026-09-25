@@ -3,4 +3,4 @@
   `InstKind::Call`; late static binding lowers to `InstKind::CallVirtual`. Use a `Base` whose
   `shout()` calls `static::speak()` and a `Derived` overriding `speak`, assert on
   `Derived::shout()`, then delete the binding call, watch it fail, and put it back.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/call.rs:CallVirtual]

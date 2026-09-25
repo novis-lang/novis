@@ -3,4 +3,4 @@
   obvious counter-example to a rendered-string sort agrees; they part only where one segment is a
   proper *prefix* of the other and the longer one's next byte is below `\` (0x5C): `App\Sub\A`
   against `App\SubA`. Work the divergence out on paper before writing the fixture.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-hir/src/qname.rs:fn segments]

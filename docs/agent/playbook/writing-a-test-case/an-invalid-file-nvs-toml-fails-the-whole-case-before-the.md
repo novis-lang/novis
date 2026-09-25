@@ -3,4 +3,4 @@
   `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s typed tree refuses an
   `[[app]]` block with no `root` or `entry`, a root-level `origin` and any unknown key. `entry =
   "nvs.toml"` is a legal key matching no program, the shape a decoy block wants.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-cli/src/config.rs:boot_snapshot]

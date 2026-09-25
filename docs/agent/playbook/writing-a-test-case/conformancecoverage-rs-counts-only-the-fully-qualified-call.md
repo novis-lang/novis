@@ -3,4 +3,4 @@
   `{class}::{name}(` from the registry row and asks whether the corpus contains it, and
   `corpus::Attribution` indexes a case the same way, so an aliased call site is invisible to both
   and two tests fail without saying the word alias. Write the member's FQ spelling at least once per
-  case; the surrounding calls may stay aliased. [until: reviewed 2026-09-06]
+  case; the surrounding calls may stay aliased. [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:asked by]

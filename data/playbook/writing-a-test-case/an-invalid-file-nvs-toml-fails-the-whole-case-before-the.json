@@ -1,9 +1,11 @@
 {
   "lead": "An invalid `--FILE nvs.toml--` fails the whole case before the program starts: `E0601`/`E0609` on stderr, empty stdout.",
   "body": "`boot_snapshot` reads it for real, and `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s typed tree refuses an `[[app]]` block with no `root` or `entry`, a root-level `origin` and any unknown key. `entry = \"nvs.toml\"` is a legal key matching no program, the shape a decoy block wants.",
-  "files": [],
+  "files": [
+    "crates/nvs-cli/src/config.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/config.rs:boot_snapshot"
   }
 }

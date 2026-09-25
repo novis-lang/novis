@@ -1,9 +1,11 @@
 {
   "lead": "A test that a method table was bound needs a call the compiler cannot devirtualize, and `static::m()` is the reliable one.",
   "body": "`$obj->m()` on a known class lowers to a direct `InstKind::Call`; late static binding lowers to `InstKind::CallVirtual`. Use a `Base` whose `shout()` calls `static::speak()` and a `Derived` overriding `speak`, assert on `Derived::shout()`, then delete the binding call, watch it fail, and put it back.",
-  "files": [],
+  "files": [
+    "crates/nvs-ir/src/lower/call.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-ir/src/lower/call.rs:CallVirtual"
   }
 }

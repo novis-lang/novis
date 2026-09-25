@@ -5,4 +5,4 @@
   the two runners hand the request different ceilings, and the scratch pad's answer is the wrong one
   to freeze into an `--EXPECT--`. Author the row wherever you like, then run it with
   `target/debug/nvs test <case>.nvst` before believing what it printed.
-  [until: reviewed 2026-09-17]
+  [until: gone tools/try.py:argparse]

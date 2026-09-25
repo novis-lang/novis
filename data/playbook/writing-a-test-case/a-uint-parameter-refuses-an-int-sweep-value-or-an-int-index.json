@@ -1,9 +1,11 @@
 {
   "lead": "A `uint` parameter refuses an `int` sweep value or an `int` index, and the diagnostic lands at the call, not the literal.",
   "body": "`Core\\Str::repeat`'s count and both of `Core\\Bytes::fill`'s arguments are `uint`, so `foreach ($lengths as int $n)` fails `E0401: expected uint, found int` at the call; `Core\\Bytes::at` takes an `int` index while `Core\\Bytes::length` answers `uint`, so `uint $i < length` fails at `at`. Declare a length list as `array<uint>` bound `as uint $n`, and carry an index as `int` with the length cast `as int`.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/bytes.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/bytes.rs:Core\\Bytes::length"
   }
 }

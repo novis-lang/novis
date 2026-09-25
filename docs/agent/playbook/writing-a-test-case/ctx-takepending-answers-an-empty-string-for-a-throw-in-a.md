@@ -3,4 +3,4 @@
   class and `Thrown::message()` returns `String::new()` when its object is null, so the member seems
   to have said nothing. Assert the `rule:errors/propagation` *status* (`THROWN` against `FATAL`);
   `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the shape.
-  [until: reviewed 2026-09-06]
+  [until: gone benches/abi-probe/tests/invariants.rs:decode_on_this_stack]

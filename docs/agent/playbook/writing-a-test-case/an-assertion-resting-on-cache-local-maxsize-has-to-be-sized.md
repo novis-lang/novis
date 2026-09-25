@@ -2,4 +2,4 @@
   is not the writes' sum.** `Local::put` (`crates/nvs-stdlib/src/cache.rs`) prices an incoming entry
   before removing the one it replaces, so a rewrite needs room for the two largest entries and a cap
   at twice the total evicts nothing. Run a copy writing the same values under distinct keys; if it
-  does not forget the first key, the case is vacuous. [until: reviewed 2026-09-06]
+  does not forget the first key, the case is vacuous. [until: gone crates/nvs-stdlib/src/cache.rs:fn put]

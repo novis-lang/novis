@@ -3,4 +3,4 @@
   refused by `fill`, and the row pins `fill` twice. The reachable count-shaped refusals are
   `Core\Str::repeat`/`padStart`/`padEnd`, `Core\Bytes::repeat`/`fill` and `Core\Random`'s two; a
   *product*-sized member reaches `nvs_runtime::affordable`'s sentence, a `uint`-sized one only the
-  allocator's. [until: reviewed 2026-09-06]
+  allocator's. [until: gone crates/nvs-stdlib/src/bytes.rs:nvs_runtime::affordable]

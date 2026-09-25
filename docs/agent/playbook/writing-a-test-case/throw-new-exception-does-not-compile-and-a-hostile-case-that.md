@@ -3,4 +3,4 @@
   `TimeoutError` and `ArithmeticError`; `Exception` is PHP's name for the root and E0303 says only
   `no matching declaration`, which reads like a missing import. Take the spelling from
   `grep -rho "throw new [A-Za-z\\\\]*" tests/conformance` before writing one.
-  [until: reviewed 2026-09-18]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0303]

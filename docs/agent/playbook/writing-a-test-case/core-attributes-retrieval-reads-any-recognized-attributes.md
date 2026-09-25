@@ -2,4 +2,4 @@
   only the first of two on one method.** `rule:attributes/structural-retrieval` is structural, so
   `Core\Attributes::get<{name: string, about: string}>(Deploy::deploy(...))` answers a
   `#[Core\Command]`; read an alias with `all<T>` and index it. A payload-less `#[Option]` is
-  indistinguishable from no attribute. [until: reviewed 2026-09-06]
+  indistinguishable from no attribute. [until: gone crates/nvs-stdlib/src/attributes.rs:Core\Attributes]

@@ -1,9 +1,11 @@
 {
   "lead": "`tungstenite` refuses a `101` that chose an unoffered subprotocol before Novis sees it.",
   "body": "Its handshake compares the reply's `Sec-WebSocket-Protocol` against the offers it sent and fails with `Server sent an invalid subprotocol`, naming neither the protocol nor the member, so a case asserting Novis's own wording against a live origin fails on a refusal that was correct. Assert that wording of `transport::settled` directly — the judgement `openSocket`'s scripted arm reaches — and assert of the live `101` only that it was refused.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/http/transport.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-11-12"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/http/transport.rs:fn settled"
   }
 }

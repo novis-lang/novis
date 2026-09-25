@@ -3,4 +3,4 @@
   and a last digit short of it under MSVC; `sqrt` is the only root member IEEE 754 requires to be
   correctly rounded, so only its inexact rows are the same on every platform. A *perfect* cube does
   round trip on both legs, because the answer is representable and every libm's final refinement
-  lands on it — assert that half and not the irrational one. [until: reviewed 2026-09-06]
+  lands on it — assert that half and not the irrational one. [until: gone crates/nvs-stdlib/src/math.rs:Core\Math::cbrt]

@@ -1,9 +1,11 @@
 {
   "lead": "An example is run as `nvs run <file>` with no words after it and no terminal, so a feature whose subject is input has to print something when it is given none.",
   "body": "`dossier.py` runs and blesses an example with a bare argument vector and captured streams, and there is no `--ARGS--` section like the one a `.nvst` case has. Write the program the way a real tool behaves with nothing given: an empty list from `Core\\Cli::arguments`, a prompt taking its `{default: …}`, a `colorDepth()` of `None`.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/cli.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-21"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/cli.rs:Core\\Cli::arguments"
   }
 }

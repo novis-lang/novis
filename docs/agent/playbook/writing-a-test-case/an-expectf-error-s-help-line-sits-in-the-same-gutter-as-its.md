@@ -3,4 +3,4 @@
   `case.nvs:5` and again at `case.nvs:15` needs two spaces on the first and three on the second, and
   the diff reads as two identical lines refused because the `%A` above absorbed the caret excerpt and
   left the leading space to the literal. Copy each `= help:`/`= note:` line out of the runner's actual
-  half per error block rather than writing one and repeating it. [until: reviewed 2026-09-06]
+  half per error block rather than writing one and repeating it. [until: gone crates/nvs-diagnostics/src/render.rs:= help:]

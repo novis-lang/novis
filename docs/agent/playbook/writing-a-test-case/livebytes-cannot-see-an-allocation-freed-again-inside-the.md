@@ -3,4 +3,4 @@
   hands it to the packed arm and drops it before returning — live delta zero, exactly like the pair
   that never allocated. Use `counting_alloc::allocated_bytes()`, the monotone total, for any claim
   about a *transient* cost, and assert in the same test that the old spelling *does* allocate, or a
-  broken counter reads as a passing guard. [until: reviewed 2026-09-06]
+  broken counter reads as a passing guard. [until: gone crates/nvs-runtime/src/budget.rs:live_bytes]

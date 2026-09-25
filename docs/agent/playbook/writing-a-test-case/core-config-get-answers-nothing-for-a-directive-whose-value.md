@@ -4,4 +4,4 @@
   `nvs_config::request`'s `get` returns `None` for a key naming a table or a list rather than a
   rendering nothing could set back. Run the example against the binary before writing a line into
   `nvs.toml` for a page's sake — a scalar sibling in the same block, `min_version` here, is what makes
-  a page print a value. [until: reviewed 2026-09-18]
+  a page print a value. [until: gone crates/nvs-config/src/request.rs:pub fn get]

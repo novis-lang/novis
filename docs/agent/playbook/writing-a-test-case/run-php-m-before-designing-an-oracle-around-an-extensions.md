@@ -2,4 +2,4 @@
   no `mbstring`, so every `mb_*` dies with *"Call to undefined function"*, and neither leg has
   `gmp`, so `Core\Math::gcd`/`lcm` have no callable twin; `bcmath` is on both. Write the oracle as a
   second implementation in PHP, as `Core\Path::normalize` does (`gaps.py --differential` looks for
-  the Novis member in `tests/differential/`, not the twin). [until: reviewed 2026-09-06]
+  the Novis member in `tests/differential/`, not the twin). [until: gone crates/nvs-stdlib/src/path.rs:Core\Path::normalize]

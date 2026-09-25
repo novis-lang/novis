@@ -2,10 +2,11 @@
   "lead": "Run `php -m` before designing an oracle around an extension's function.",
   "body": "The Windows `php` has no `mbstring`, so every `mb_*` dies with *\"Call to undefined function\"*, and neither leg has `gmp`, so `Core\\Math::gcd`/`lcm` have no callable twin; `bcmath` is on both. Write the oracle as a second implementation in PHP, as `Core\\Path::normalize` does (`gaps.py --differential` looks for the Novis member in `tests/differential/`, not the twin).",
   "files": [
-    "tests/differential/"
+    "tests/differential/",
+    "crates/nvs-stdlib/src/path.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/path.rs:Core\\Path::normalize"
   }
 }

@@ -1,9 +1,11 @@
 {
   "lead": "An `nvs fmt` case that asserts a file is unchanged fails on a rule it was not written about.",
   "body": "`assert_eq!(formatted(source), source)` holds only if the input is already canonical under *every* landed rule, so a control-structure brace on its own line, or a `?>` at column 0 inside a block, fails the case for a reason that has nothing to do with what it asserts. Write the input as the formatter already answers it and vary only the bytes under test — the assertion prints both whole files, and the line that differs names the rule that actually moved.",
-  "files": [],
+  "files": [
+    "crates/nvs-fmt/tests/fixtures.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-12"
+    "kind": "gone",
+    "arg": "crates/nvs-fmt/tests/fixtures.rs:formatted("
   }
 }

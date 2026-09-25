@@ -1,9 +1,11 @@
 {
   "lead": "`Core\\Test::answerHttp` registered twice for one exact URL serves the first answer every time, so a second registration does not script a reconnect.",
   "body": "Answers accumulate and the first exact match wins, so an example that reads a stream, \"connects again\" and expects new events prints the first body twice. Give the second connection its own URL (a query such as `?after=2` is the honest one), and read `nvs agent show 'Core\\Test::answerHttp'` for the matching order.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/test.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-23"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/test.rs:Core\\Test::answerHttp"
   }
 }

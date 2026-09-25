@@ -2,4 +2,4 @@
   round trip.** A `Core\Csv` probe measuring `"a\r\nb"` read 3 on both sides, which reads as "the
   reader normalized the CRLF away"; it had not. Any claim about *which bytes* survived a member is
   written with `Core\Encoding::toHex($s as bytes)`, and `length` is kept for a count of characters.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::length]

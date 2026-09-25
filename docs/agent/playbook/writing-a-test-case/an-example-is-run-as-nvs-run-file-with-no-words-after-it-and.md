@@ -4,4 +4,4 @@
   the one a `.nvst` case has. Write the program the way a real tool behaves with nothing given: an
   empty list from `Core\Cli::arguments`, a prompt taking its `{default: …}`, a `colorDepth()` of
   `None`.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-stdlib/src/cli.rs:Core\Cli::arguments]

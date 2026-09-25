@@ -3,4 +3,4 @@
   breaches at the next helper call; drop the ballast before restoring, since a request cannot
   un-allocate by lowering its own limit. A case may carry `--EXPECT--` and `--EXPECTF-ERROR--`
   together, so both the stdout before a `FATAL` and the `FATAL` line are pinnable.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/config.rs:Core\Config::restore]

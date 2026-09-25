@@ -3,4 +3,4 @@
   against the real wall clock, so a run crossing a second boundary between the two reads
   `exp == now` and prints the expiry refusal where the verifying line was frozen. Re-run that case
   alone before believing a red `conformance` leg that names it — it passed by itself immediately
-  after failing in the suite. [until: reviewed 2026-12-01]
+  after failing in the suite. [until: gone tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst:Core\Jwt]

@@ -3,4 +3,4 @@
   become a second case with an `--ORACLE-DIVERGES--` line. Substitute control bytes on both sides
   first (`Core\Str::replaceAll` against PHP's `strtr`), because
   `rule:tooling/terminal-output-is-a-sink` renders a band wider than CR and LF.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::replaceAll]

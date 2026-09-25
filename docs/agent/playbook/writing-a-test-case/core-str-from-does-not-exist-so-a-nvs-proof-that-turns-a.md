@@ -2,4 +2,4 @@
   string` cast.** The diagnostic is `E0405: Core\Str has no member named from`, which names the miss
   and not the spelling that works, so it reads as a member still to be written. Write `($k as
   string)` — `Core\Str::repeat('k', 1000) . ($k as string)` is what builds a long key from a counter.
-  [until: reviewed 2026-09-20]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0405]

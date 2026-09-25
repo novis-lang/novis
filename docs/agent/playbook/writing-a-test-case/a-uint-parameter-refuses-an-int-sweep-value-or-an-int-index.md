@@ -3,4 +3,4 @@
   are `uint`, so `foreach ($lengths as int $n)` fails `E0401: expected uint, found int` at the call;
   `Core\Bytes::at` takes an `int` index while `Core\Bytes::length` answers `uint`, so `uint $i <
   length` fails at `at`. Declare a length list as `array<uint>` bound `as uint $n`, and carry an
-  index as `int` with the length cast `as int`. [until: reviewed 2026-09-06]
+  index as `int` with the length cast `as int`. [until: gone crates/nvs-stdlib/src/bytes.rs:Core\Bytes::length]

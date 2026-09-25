@@ -2,4 +2,4 @@
   hang.** A park on a `nvs_host::channel` receiver whose sender the same closure holds never
   returns: `Peer::drop` cancels then waits, and neither it nor `run_until_idle` unwedges the task.
   Park on the body instead: a head promising 100 bytes whose client sends four and closes parks the
-  program inside `next_chunk`, where the connection can fail it. [until: reviewed 2026-09-06]
+  program inside `next_chunk`, where the connection can fail it. [until: gone crates/nvs-host/src/reactor.rs:fn run_until_idle]

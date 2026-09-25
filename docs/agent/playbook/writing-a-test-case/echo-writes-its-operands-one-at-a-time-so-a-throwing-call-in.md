@@ -1,6 +1,0 @@
-- **`echo` writes its operands one at a time, so a throwing call in the middle of one leaves half a
-  line on stdout.** `try { echo "[", $t, "] port=", Show::port($t), "\n"; } catch (Throwable $e) {
-  echo "[", $t, "] refused\n"; }` prints `[x] port=[x] refused`, which reads as a subtly wrong
-  expectation, and freezing it pins the prefix of every refused row. Bind the call to a local inside
-  the `try` and echo the whole line after it — or route each verdict through one helper returning a
-  `string`, which also lets verdicts be counted over a corpus. [until: reviewed 2026-09-06]

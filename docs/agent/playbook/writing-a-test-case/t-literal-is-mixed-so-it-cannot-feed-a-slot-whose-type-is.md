@@ -2,4 +2,4 @@
   (Core\Arr::first($a) ?? 0)` does not compile against `uint $total`, and neither does `array<int>
   $held = Core\Arr::first($outer) ?? [];` — both are `E0401`, `found mixed`. `echo` accepts it, so a
   proof program only fails where a type is written down: bind `?uint $v = Core\Arr::first($a);` and
-  branch on `$v != null`. [until: reviewed 2026-09-20]
+  branch on `$v != null`. [until: gone crates/nvs-syntax/src/parser/expr.rs:BinaryOp::Coalesce]

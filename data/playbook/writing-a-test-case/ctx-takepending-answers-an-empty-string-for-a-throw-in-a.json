@@ -5,7 +5,7 @@
     "benches/abi-probe/tests/invariants.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "benches/abi-probe/tests/invariants.rs:decode_on_this_stack"
   }
 }

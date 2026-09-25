@@ -1,6 +1,0 @@
-- **Adding a `// covers:` marker to a `.nvst` case shifts every line under it, and a case whose
-  `--EXPECT--` pins a `file:line` then fails.** `a-location-is-the-throw-site-and-a-rethrow-moves-it`
-  froze `rethrown=case.nvs:16`, and the one marker line moved the rethrow to 17, so a one-line
-  attribution edit turned the conformance suite red. Before marking a case, `grep -n 'case.nvs:'` it:
-  where a number is pinned, move it by the number of lines the marker adds, in the same edit.
-  [until: reviewed 2026-09-19]

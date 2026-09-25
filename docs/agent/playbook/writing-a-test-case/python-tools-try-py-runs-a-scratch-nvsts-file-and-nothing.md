@@ -4,4 +4,4 @@
   beside the program and `Core\Request` refuses exactly as it does in any CLI program, which reads as a
   broken case rather than as a runner that was never asked. Iterate such a case with
   `target/debug/nvs.exe test <path/to/case.nvst>`, which takes one file as readily as a directory.
-  [until: reviewed 2026-09-14]
+  [until: gone tools/try.py:argparse]

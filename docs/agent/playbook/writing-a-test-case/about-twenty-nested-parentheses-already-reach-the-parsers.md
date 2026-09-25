@@ -3,4 +3,4 @@
   `((((...))))` written to look extreme stops the program being read at all — which
   `tests/hostile/README.md` counts as a failure, because an attack that does not compile was never
   delivered. Keep a depth attack in a hostile file well under it, or build the nesting at run time
-  out of values. [until: reviewed 2026-09-19]
+  out of values. [until: gone crates/nvs-diagnostics/src/lib.rs:E_TOO_DEEPLY_NESTED]

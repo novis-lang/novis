@@ -3,4 +3,4 @@
   carries a warning Novis's side cannot print and the case fails on a row that agrees; `INF` is
   fine. Render the value through a guard — `$v == $v` is false for exactly one `float`, on both
   sides — and echo a sentinel, as `math-int-div-and-mod-match-intdiv-and-fmod`'s `Show::real` does.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/differential/core/math-int-div-and-mod-match-intdiv-and-fmod.nvst:Show::real]

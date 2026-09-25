@@ -3,4 +3,4 @@
   reference" reads as behaviour a `compareTo` case can pin, but `parse` throws on `http://h/50%`, so
   no program can build such a `Uri` and the branch is defensive against one built some other way.
   Check what `parse` admits before writing a row about what a normalizer keeps.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/uri.rs:Core\Uri::parse]

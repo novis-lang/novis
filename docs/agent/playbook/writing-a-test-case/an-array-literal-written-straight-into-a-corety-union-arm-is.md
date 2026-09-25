@@ -4,4 +4,4 @@
   element type first and then fails to assign, which reads as the option's type being wrong rather
   than the literal's. Bind it to a typed variable one line up — `array<string> $lines = ["a", "b"];`
   — and pass that, which assigns cleanly and documents the arm at the call site.
-  [until: test an_array_literal_is_placed_against_a_union_arm]
+  [until: gone crates/nvs-types/src/core_lib.rs:CoreTy::Union]

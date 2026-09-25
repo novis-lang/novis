@@ -3,4 +3,4 @@
   'string'`, so a computed index needs its own parentheses, `($i - 1) as string`. A `bool` printed
   with `as string` renders `1` for true and *nothing* for false, so a column of booleans in
   `--EXPECT--` silently changes width and passes review; `$b ? "y" : "n"` keeps such a row legible.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-syntax/src/parser/expr.rs:binds tighter than any binary operator]

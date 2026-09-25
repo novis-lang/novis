@@ -3,4 +3,4 @@
   member name accepts a keyword the way PHP's does, so a case written to pin resilient behaviour
   ends up freezing an answer about `if` rather than about the arrow. Reach `MemberName::Missing` by
   leaving the arrow at end of file and putting the unclosed brace *above* it.
-  [until: reviewed 2026-09-08]
+  [until: gone crates/nvs-syntax/src/index.rs:MemberName::Missing]
