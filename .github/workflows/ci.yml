@@ -81,9 +81,11 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
       - id: lanes
         name: Which lanes this diff needs
         # An empty, zeroed or unreachable BASE means every lane: a first push, a force push and a
@@ -91,7 +93,7 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           FULL: ${{ inputs.full || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        run: python tools/ci-changes.py
+        run: bun nv ci-changes
 
   # ---------------------------------------------------------------------------
   # The matrix that matters: Novis generates native code, so "it compiles" is not
@@ -187,7 +189,7 @@ jobs:
     timeout-minutes: 45
     env:
       # Where the compose file publishes the three Unix sockets, and where the legs dial them: one
-      # directory, because the runner is the Docker host. `tools/db-matrix.py` reads this same field
+      # directory, because the runner is the Docker host. `bun nv db-matrix` reads this same field
       # for the client end, and its header owns why the two spellings differ on Docker Desktop.
       NOVIS_DB_SOCKET_DIR: /tmp/novis-db
     steps:
@@ -200,18 +202,20 @@ jobs:
         with:
           key: database
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       # The harness brings the servers up itself -- `up -d --wait`, so "up" means healthy -- and
       # takes them down again whatever the verdict, because a runner that leaks containers is a
       # runner the next job on it inherits.
       - name: The five drivers, and the three that answer over a socket too
-        run: python tools/db-matrix.py --all
+        run: bun nv db-matrix --all
       - name: Stop the servers
         if: always()
-        run: python tools/db-matrix.py --down
+        run: bun nv db-matrix --down
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that
@@ -484,11 +488,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
       - name: Every PHP name is accounted for
-        run: python tools/check-migration.py
+        run: bun nv migration
 
   # ---------------------------------------------------------------------------
   # docs/novis.md is generated from the binary's own registry (`nvs meta
@@ -510,16 +516,18 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: reference
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
       - run: cargo build -p nvs-cli
       - name: docs/novis.md matches the binary and the chapters, and every example holds
-        run: python tools/reference.py --check
+        run: bun nv reference --check
 
   # ---------------------------------------------------------------------------
-  # The docs have linters of their own. Every script here is Python only, needs
-  # no toolchain and they run quickly together, which is why they are one job
+  # The docs have linters of their own. Every command here needs Bun and no
+  # Rust toolchain, and they run quickly together, which is why they are one job
   # rather than steps bolted onto a build.
   #
   # Each of these gates on *structure* and never on a length: a stale index row,
@@ -537,40 +545,51 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      # The records under data/ first, because every generated page is rendered from them.
+      # `nv check` holds each record to its schema, its foreign keys and its invariants;
+      # `nv render --check` writes nothing and fails when a committed rendered file no longer
+      # matches the records it is rendered from.
+      - name: Every record matches its schema, its foreign keys and its invariants
+        run: bun nv check
+      - name: Every rendered file matches the records it is rendered from
+        run: bun nv render --check
+      # The rulebook next, because it is the authority the rest of the tree cites. `--check`
+      # reads every topic JSON against its fragments and resolves every `rule:` citation;
+      # `--render --check` fails when a committed generated page — docs/rules/<topic>.md,
+      # ground-rules.md, divergences.md — no longer matches what the fragments and the JSON say.
+      - name: Every rule loads, and every `rule:` citation resolves
+        run: bun nv rules --check
+      - name: The generated rulebook pages match the fragments they are rendered from
+        run: bun nv rules --render --check
+      - name: Every decision record's field set, heading order, cross-links and derived counters
+        run: bun nv records --check
+      - name: Every markdown link resolves, with matching case
+        run: bun nv links
+      - name: CONTRIBUTING.md's layout listing still describes the tree
+        run: bun nv layout --check
+      - name: Every milestone row parses and agrees with the file it names
+        run: bun nv plan --check
+      # The schedule the loop actually walks, which `nv plan` above does not see: every entry's
+      # records exist, the driver can run its acceptance list, and its `[context]` manifest
+      # resolves. A manifest naming a shape `conventions.md` has no heading for costs nothing
+      # until the run reaches the entry, and then costs that session the section it needed.
+      - name: Every chain entry is walkable and its [context] manifest resolves
+        run: bun nv chain --check
+      - name: Every playbook bullet names a file and expires by a condition the tree decides
+        run: bun nv playbook --check
+      # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
+      # release tag all agree, and a released version has a changelog section. It belongs here
+      # rather than in `nv verify` because that command's green cache does not hash `docs/`, and
+      # this reads CHANGELOG.md. It is the one step here still on Python, until `release` is a
+      # `bun nv` command.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.x'
-      # The rulebook first, because it is the authority the rest of the tree cites. `--check`
-      # reads every topic JSON against its fragments and resolves every `rule:` citation;
-      # `--render --check` writes nothing and fails when a committed generated page —
-      # docs/rules/<topic>.md, ground-rules.md, divergences.md — no longer matches what the
-      # fragments and the JSON say.
-      - name: Every rule loads, and every `rule:` citation resolves
-        run: python tools/rules.py --check
-      - name: The generated rulebook pages match the fragments they are rendered from
-        run: python tools/rules.py --render --check
-      - name: Every decision record's field set, heading order, cross-links and derived counters
-        run: python tools/records.py --check
-      - name: Every markdown link resolves, with matching case
-        run: python tools/check-links.py
-      - name: CONTRIBUTING.md's layout listing still describes the tree
-        run: python tools/layout.py --check
-      - name: Every milestone row parses and agrees with the file it names
-        run: python tools/plan.py --check
-      # The schedule the loop actually walks, which `plan.py` above does not see: every entry's
-      # three files exist, the driver can run its acceptance list, and its `[context]` manifest
-      # resolves. That last one is why this is here — five queued goals were naming shapes
-      # `conventions.md` has no heading for, which costs nothing until the run reaches the entry
-      # and then costs one 3am session the section it needed. About two seconds, Python only.
-      - name: Every chain entry is walkable and its [context] manifest resolves
-        run: python tools/chain.py --check
-      - name: Every playbook bullet is reachable by exactly one selector
-        run: python tools/playbook.py --check
-      # The workspace version, the `[workspace.dependencies]` pins that restate it and
-      # the newest release tag all agree, and a released version has a changelog section. Cheap
-      # and Python-only like the checks above. It belongs here rather than in `nv verify` for the
-      # same reason they do: that script's green cache deliberately does not hash `docs/`, and
-      # this reads CHANGELOG.md.
       - name: The version is consistent across the manifest, the tags and the changelog
         run: python tools/release.py --check
 
