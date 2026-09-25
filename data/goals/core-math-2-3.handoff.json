@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Math (2/3) has been taken yet.",
+  "state": "Goal `core-math-2-3`: `Core\\Math::exp`, `Core\\Math::fdiv` and `Core\\Math::floor` carry every feature proof — `about.md`, three examples, an attack, a bench and a `covers:` Rust test in `crates/nvs-stdlib/src/math.rs`'s test module — and their reference cards are rewritten in the plain voice.\nTen members of the goal's `--only` list still owe proofs: `format`, `fromBase`, `gcd`, `hypot`, `intDiv`, `isFinite`, `isNan`, `lcm`, `log`, `max`.\nNo proof found a bug in these three.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (registry rows, cards, the integer helpers and the test module), plus each member's new directories under `docs/examples/core/Math/`, `tests/hostile/core/Math/` and `benches/members/core/Math/`. The three are integer members and neighbours in the file, so the second and third reuse what the first loaded.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::exp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:219`"
+        "text": "**`Core\\Math::gcd`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/math.rs:182`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::fdiv`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:165`"
+        "text": "**`Core\\Math::lcm`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/math.rs:191`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::floor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:120`"
+        "text": "**`Core\\Math::intDiv`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/math.rs:155`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Math::hypot`, `isFinite`, `isNan`, `log` and `max` — the next group after this one, each owed every proof (`rule:testing/feature-proofs`).",
+    "`Core\\Math::format` and `Core\\Math::fromBase` — heavier members with options and errors; take them as their own group (`rule:testing/feature-proofs`).",
+    "`Core\\Math` has no `isInfinite`: an example tests an infinity with `isFinite`, which also answers `false` for `NaN` (`docs/spec/01-core-library.md` § 3)."
   ]
 }

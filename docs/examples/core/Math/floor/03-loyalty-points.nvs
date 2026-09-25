@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a shop gives one loyalty point for every full ten euros a customer spends.
+
+class Loyalty {
+    // Only a full ten euros gives a point. The rest of the amount gives nothing.
+    public static function points(float $spent): float {
+        return Core\Math::floor($spent / 10.0);
+    }
+}
+
+// 47.50 euros is four full tens. This prints 4.
+echo Loyalty::points(47.5), "\n";
+
+// Exactly 30 euros is three full tens. This prints 3.
+echo Loyalty::points(30.0), "\n";
+
+// 9.99 euros is not a full ten. This prints 0.
+echo Loyalty::points(9.99), "\n";

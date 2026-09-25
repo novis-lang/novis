@@ -9000,13 +9000,13 @@ Rounds `$n` up to the next whole number. For a negative `$n`, up means toward ze
 Core\Math::floor(float $n): float
 ```
 
-The largest integral value at or below `$n`, as `floor` does.
+Rounds `$n` down to the next whole number. For a negative `$n`, down means away from zero.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to round down. |
+| `$n` | `float` | The number to round down. |
 
-**Returns** `float` — An integral `float`; `NaN` and the infinities pass through unchanged.
+**Returns** `float` — A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-1.0`. `NaN` and the infinities stay the same.
 
 <a id="core-core-math-truncate"></a>
 #### `Core\Math::truncate`
@@ -9083,14 +9083,14 @@ The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; i
 Core\Math::fdiv(float $a, float $b): float
 ```
 
-The IEEE quotient of `$a / $b`, as `fdiv` does — the one member here that answers a zero divisor instead of throwing, the `/` operator having no such spelling.
+Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or `NaN`. The `/` operator throws an error there. This replaces PHP's `fdiv`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `float` | The dividend. |
-| `$b` | `float` | The divisor, which may be zero. |
+| `$a` | `float` | The number to divide. |
+| `$b` | `float` | The number to divide by. It may be zero. |
 
-**Returns** `float` — `$a / $b` under IEEE 754: an infinity signed by both operands when `$b` is zero and `$a` is not, and `NaN` when both are.
+**Returns** `float` — `$a / $b`. When `$b` is zero, the result is `INFINITY` or `-INFINITY`. Its sign comes from the signs of both numbers together. When both numbers are zero, the result is `NaN`.
 
 <a id="core-core-math-gcd"></a>
 #### `Core\Math::gcd`
@@ -9181,13 +9181,13 @@ The length of the hypotenuse of a right triangle with legs `$a` and `$b`, as `hy
 Core\Math::exp(float $n): float
 ```
 
-`E` raised to the power `$n`, as `exp` does.
+Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's `exp`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The exponent. |
+| `$n` | `float` | The power to raise `E` to. |
 
-**Returns** `float` — `E ** $n`, always positive; `INFINITY` once `$n` is past about `709.78`, and `0.0` far enough below zero.
+**Returns** `float` — `E ** $n`, which is never negative. Above about `709.78` the result is `INFINITY`. Far enough below zero, the result is `0.0`. `NaN` gives `NaN`.
 
 <a id="core-core-math-log"></a>
 #### `Core\Math::log`
