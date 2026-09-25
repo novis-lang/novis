@@ -21,12 +21,11 @@
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
-import { goalValue, handoffValue } from "../import/goals.ts";
+import { handoffValue } from "../import/goals.ts";
 import type { Unread } from "../import/lib.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { cutOver } from "../lib/state.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -380,35 +379,22 @@ export function manifestProblems(copies: ManifestCopy[]): string[] {
   return problems.map((p) => `${p} -- \`nv chain --check\` is on the floor and halts a DONE claim on this; fix the manifest before the wrap, or drop the line`);
 }
 
-/**
- * The live goal's manifest copies: its stored record and, while the Python driver runs, the
- * `loop-goal.toml` it installs, which a session edits in place so the two can disagree. A side goal's
- * installed copy is its own toml. Once `cutOver` holds, the record is the only copy. A retired goal, or
- * none, has no manifest to gate.
- */
+/** The live goal's manifest, its stored record, as one copy. A retired goal, or none, has no manifest to gate. */
 function manifestCopies(): ManifestCopy[] {
   const side = sideGoal();
-  let slug: string, md: string, toml: string, stored: any;
+  let slug: string, md: string, stored: any;
   if (side) {
     slug = side;
     md = `docs/agent/goals/side/${side}.md`;
-    toml = `docs/agent/goals/side/${side}.toml`;
     stored = load<any>(sideGoalType).find((g) => g.id === side);
   } else {
     const live = liveGoal(chainGoals());
     if (!live || live.retired) return [];
     slug = live.slug;
-    md = live.md ?? "docs/agent/loop-goal.md";
-    toml = "docs/agent/loop-goal.toml";
+    md = live.md ?? `docs/agent/goals/${slug}.md`;
     stored = load<any>(goalType).find((g) => g.id === live.slug);
   }
-  const copies: ManifestCopy[] = [];
-  if (stored) copies.push({ value: stored.value as GoalValue, where: side ? `data/goals/side/${slug}.json` : `data/goals/${slug}.json`, prose: md });
-  if (!cutOver() && existsSync(join(ROOT, toml))) {
-    const v = goalValue(ROOT, { slug, md, toml, handoff: null }, []);
-    if (v) copies.push({ value: v as unknown as GoalValue, where: toml, prose: md });
-  }
-  return copies;
+  return stored ? [{ value: stored.value as GoalValue, where: side ? `data/goals/side/${slug}.json` : `data/goals/${slug}.json`, prose: md }] : [];
 }
 
 // ---------------------------------------------------------------------------- the link gate
@@ -1403,10 +1389,7 @@ function applyHandoff(s: Section, dry: boolean): string {
   if (dry) return note;
   const side = sideGoal();
   const owner = handoffOwner(side);
-  if (owner === null) {
-    writeFileSync(join(ROOT, handoffPath(side)), body);
-    return note;
-  }
+  if (owner === null) return `${note}\n  its record is not written: data/chain.json names no live goal that is not retired`;
   // A live goal's handoff is its record alone: the Markdown is parsed from a scratch copy, and a
   // tracked `handoff.md` would be the copy `nv audit goals` refuses.
   const scratch = handoffScratch(side);

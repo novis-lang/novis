@@ -1,7 +1,8 @@
-// `bun nv chain`: the loop's goal chain, which is `data/chain.json`, a list of slugs. A goal's position
-// is its place in that list, printed as `N of M`, so no file is renamed and no number is written.
-// `--new`, `--move` and `--remove` edit that one file and nothing else; a goal's record and prose are
-// written by hand around it, and `--check` reports what is still missing.
+// `bun nv chain`: the loop's goal chain, which is `data/chain.json`: `goals`, a list of slugs, and `live`,
+// the goal the driver works on. A goal's position is its place in that list, printed as `N of M`, so no
+// file is renamed and no number is written. `--new`, `--move` and `--remove` edit the list in that one
+// file and nothing else, and never `live`, which only the goal switch moves; a goal's record and prose
+// are written by hand around it, and `--check` reports what is still missing.
 //
 // `--check` is whether the driver can walk the chain, as a query over the records.
 //
@@ -300,7 +301,9 @@ function edit(args: string[]): number {
     order.splice(i, 0, slug);
   }
 
-  write(chainType, id, order);
+  const liveSlug = loaded?.value.live ?? order[0];
+  if (liveSlug === undefined) throw new Error("the chain would hold no goal");
+  write(chainType, id, { live: liveSlug, goals: order });
   const record = `data/goals/${slug}.json`;
   if (removed !== undefined) {
     console.log(`chain: \`${slug}\` removed, ${order.length} goals left`);

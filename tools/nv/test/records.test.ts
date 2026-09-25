@@ -36,7 +36,7 @@ function seed(): Index {
   tmp = scratch();
   write(milestone, "m12", { title: "Measurement", order: 12, loopDays: "measurement-bound", state: "ongoing" }, tmp.root);
   write(goal, "tooling-overhaul", TOOLS, tmp.root);
-  write(chain, "chain", ["tooling-overhaul"], tmp.root);
+  write(chain, "chain", { live: "tooling-overhaul", goals: ["tooling-overhaul"] }, tmp.root);
   write(handoff, "tooling-overhaul", { state: "Stage 3 landed.", next: { stage: 4, title: "the importer", files: ["tools/nv/import/**"], items: [{ done: false, text: "Record types" }] }, backlog: [] }, tmp.root);
   write(decision, "0134", { title: "Features owe proofs", status: "accepted", scope: "What a feature owes.", dependsOn: [] }, tmp.root);
   write(topic, "testing", { title: "Testing", order: 90, rules: ["testing/feature-proofs"] }, tmp.root);

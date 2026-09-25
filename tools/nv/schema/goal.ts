@@ -117,7 +117,7 @@ export const goal = defineRecord({
     {
       name: "every goal is in the chain",
       sql: `SELECT path, id || ' is not in data/chain.json' AS detail FROM goal
-            WHERE id NOT IN (SELECT value FROM chain__items)`,
+            WHERE id NOT IN (SELECT value FROM chain__goals)`,
     },
   ],
 });
