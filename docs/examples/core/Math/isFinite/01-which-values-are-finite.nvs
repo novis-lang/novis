@@ -1,0 +1,21 @@
+<?nvs
+// Shows which values are ordinary numbers and which are special.
+
+class Check {
+    // Prints the label, then "finite" or "not finite".
+    public static function show(string $label, float $n): void {
+        echo $label, ": ", Core\Math::isFinite($n) ? "finite" : "not finite", "\n";
+    }
+}
+
+// Zero and the biggest `float` are ordinary numbers.
+// This prints "0: finite" and "FLOAT_MAX: finite".
+Check::show("0", 0.0);
+Check::show("FLOAT_MAX", Core\Math::FLOAT_MAX);
+
+// Twice the biggest `float` does not fit, so it is `INFINITY`.
+// This prints "FLOAT_MAX * 2: not finite".
+Check::show("FLOAT_MAX * 2", Core\Math::FLOAT_MAX * 2.0);
+
+// Zero divided by zero is `NaN`. This prints "0 / 0: not finite".
+Check::show("0 / 0", Core\Math::fdiv(0.0, 0.0));
