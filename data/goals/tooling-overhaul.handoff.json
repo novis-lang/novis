@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 95 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\n`AGENTS.md`, `docs/agent/commands.md` and `docs/agent/conventions.md` now name only `bun nv` commands. `conventions.md`'s rule-fragment, rule-order and decision-record sections describe the records under `data/rules/` and `data/decisions/`. `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes, and `tools/nv/keys/checks.ts` keys a Python gate on `tools/observe.py`'s record until `observe.py` goes.\n\n`bun nv links` (a floor check) was red on two retired paths in `tools/disk.py` and `tools/observe.py`, and is green again.\n\nThe pack printed `docs/agent/loop-goal.md is missing`. The driver still ran, so the pack only warned about it.\n\nAn untracked `tools/nv/driver/proctree.ts` (and `console.ts`, `transcript.ts`, with `launch.ts`, `loop.ts`, `status.ts` and `tools/loop.py` modified) is by-hand driver work and not from any session commit. Leave it alone.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 94 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\n`AGENTS.md`, `docs/agent/commands.md`, `docs/agent/conventions.md` and `docs/agent/coordinator.md` now name only `bun nv` commands. `coordinator.md` points at `tools/nv/cmd/loop.ts`'s module doc for the steps `bun nv loop` does not take yet, and says plainly that it has no side mode, no `rejudge` turn and no successor for the Python launcher (`tools/respawn.py`). `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes, and `tools/nv/keys/checks.ts` keys a Python gate on `tools/observe.py`'s record until `observe.py` goes.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
   "next": {
     "stage": 12,
     "title": "no Python",
@@ -8,25 +8,21 @@
     "items": [
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/coordinator.md:44` (51 lines) to name the `bun nv` ports**, as Stage 12's contract bullet says (`docs/agent/goals/tooling-overhaul.md:670`). `docs/agent/commands.md:1` is the model for which flags each port has. `brief.py` has no full port: `bun nv orient --full` is the map and `bun nv brief --where` routes a keyword. `plan.py --amend`/`--set` and `playbook.py --match` have none either: a wrap section writes a plan field or a milestone, and `bun nv orient --traps <path>` lists the traps for a path."
+        "text": "**Rewrite `docs/agent/loop-authoring.md:10` (32 lines) to name the `bun nv` ports.** The chain is `data/chain.json`, goal files are slug-named, and a goal's record is `data/goals/<slug>.json`, which replaced `loop-goal.toml` (both `loop-goal.*` files are gone). `docs/agent/coordinator.md:44` is the model: it names each port and points at `tools/nv/cmd/loop.ts:68`'s \"Not here yet\" list for what the driver lacks."
       },
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/loop-authoring.md:10` (32 lines) the same way.** The chain is `data/chain.json`, goal files are slug-named, and a goal's record is `data/goals/<slug>.json` (`tools/nv/cmd/chain.ts:1`)."
+        "text": "**Rewrite `docs/agent/goals/README.md:6` (19 lines).** Its § *Side goals* still names `python tools/loop.py --side`. `tools/nv/cmd/loop.ts:1` has no side mode, so say that, as `docs/agent/coordinator.md` does."
       },
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/goals/README.md:6` (19 lines).** Its § *Side goals* still names `python tools/loop.py --side`, and `tools/nv/cmd/loop.ts:1` has no side run: say so or port it, and the side-goal sentence in `AGENTS.md` names no command until then."
-      },
-      {
-        "done": false,
-        "text": "**Then `docs/agent/doc-cleanup.md:6`, `docs/agent/user-report.md:80`, `docs/agent/doc-style.md:7` and `docs/setup.md:33`**, and after them the four `.py` files with no port: `tools/observe.py:1` (and its branch in `tools/nv/keys/checks.ts:509`), `tools/proctree.py:1`, `tools/written.py:1` and `editors/vscode/scripts/mkwoff.py:1`."
+        "text": "**Then `docs/agent/doc-cleanup.md:6`, `docs/agent/user-report.md:80`, `docs/agent/doc-style.md:7` and `docs/setup.md:33`**, and after them the rest of `bun nv audit python`'s list under `docs/agent/` (`tools/nv/cmd/audit.ts:233`)."
       }
     ]
   },
   "backlog": [
-    "`bun nv loop` has no `--side` run, and nothing else runs a side goal (`docs/agent/goals/README.md` § *Side goals*); Stage 8's file set named a `side.ts` that was never written.",
-    "No renderer writes a decision's front matter and bold field lines, though `tools/nv/schema/decision.ts` says they are rendered from `data/decisions/NNNN.json`; `docs/agent/conventions.md` § *A decision record* says they are hand-written to agree with it.",
-    "`docs/agent/loop-goal.md` is missing, and `bun nv orient` warns about it every session."
+    "**The launcher has no port.** Stage 8's file set names `tools/nv/cmd/respawn.ts`, and it does not exist. `tools/nv/cmd/loop.ts` says that a turn with no `NOVIS_LOOP_RUN` is a run of one session, so once the closing commit deletes `tools/respawn.py`, `bun nv loop` is not an unattended run. That is Stage 8's work, and it has to land before the goal's end — `docs/agent/goals/tooling-overhaul.md` § Stage 8.",
+    "The steps the TS driver has not ported (chain switch, goal-end gates, repair/DONE-claim sessions, optimization pass, `rejudge`, side mode) are listed in `tools/nv/cmd/loop.ts`'s module doc, except `rejudge` and side mode, which it does not name.",
+    "The five `.py` files: `tools/disk.py` (with `tools/nv/cmd/parity.ts`), `tools/observe.py` (with its gate in `tools/nv/keys/checks.ts`), `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py` — `docs/agent/goals/tooling-overhaul.md` § Stage 12."
   ]
 }

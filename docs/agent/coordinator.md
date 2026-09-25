@@ -40,14 +40,14 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
 | `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
-| `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. The directory **is** the order — `N-<slug>.md` walked by number, and there is exactly one chain, read always and not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` names the goal that is installed. Its README is the only home for all of that. |
-| `tools/orient.py` | The whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
-| `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
-| `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
-| `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
-| `tools/loop.py` | The driver, and the run above it. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. One file and one command. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it; at that boundary it decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides. |
-| `tools/proctree.py` | A child process and everything it started, as one thing the driver can freeze, thaw and kill. What `h` is made of. |
-| `tools/respawn.py` | What starts `loop.py` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Never run by hand — `python tools/loop.py` starts it. |
+| `data/chain.json` and `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. `data/chain.json` **is** the order, a list of slugs, and there is exactly one chain, read always and not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, and every walked goal's checks are the next one's floor. The goals README is the only home for all of that. |
+| `docs/agent/goals/<slug>.md` | A goal's prose: its target, each stage's reasoning, and the decisions pre-authorized on the way there. |
+| `data/goals/<slug>.json` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
+| `tools/nv/cmd/orient.ts` | `bun nv orient`: the whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
+| `tools/nv/cmd/loop-stats.ts` | `bun nv loop-stats`: what the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
+| `tools/nv/cmd/loop.ts` | `bun nv loop`: the driver, and the run above it, with `tools/nv/driver/` beside it. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it; at that boundary it decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides, and the module doc names what of it `bun nv loop` does not do yet. |
+| `tools/nv/driver/proctree.ts` | A child process and everything it started, as one thing the driver can freeze, thaw and kill. What `h` is made of. |
+| the launcher | What starts `bun nv loop` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Today it is a Python script, which this goal's closing commit deletes, and `bun nv loop` has no successor for it yet: a turn with no `NOVIS_LOOP_RUN` in its environment is a run of one session. |
 | `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once: the contract here, one file per bullet under `docs/agent/playbook/`. Append-mostly, and outlives every session. |
@@ -55,19 +55,19 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
-| `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
+| `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `bun nv loop-stats` skips it. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
-| `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second run is refused unless you pass `--force`. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
+| `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `bun nv orient` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. A turn refuses a tree whose marker names another run. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
 | `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on, a session still waiting for its verdict, and the verdict the next session repairs with the goal's count of repairs. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
 | `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
-| `.loop/chain.json` | Which entry of the chain is installed, as a bare position and nothing else. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
-| `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths it swept, the paths it `left` for whoever else is working in this tree, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves nothing of its own behind. |
-| `.loop/written.txt` | The tracked files the session's own tools reported writing, appended by [`written.py`](../../tools/written.py) and truncated before every session. It is half of how the sweep tells the session's work from a person's — the event stream names what `Write` and `Edit` touched, and this names what `nv splice` and `reference.py` touched behind a `Bash` call that mentions no path at all. |
+| `.loop/state.sqlite` | The chain pointer: the slug of the goal the run has installed, and nothing else. A goal switch writes it and copies no file, so a driver killed and restarted mid-switch finds the goal it left (`tools/nv/lib/state.ts`). |
+| `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths it swept, the paths it `left` for whoever else is working in this tree, and why. `bun nv orient` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves nothing of its own behind. |
+| `.loop/written.txt` | The tracked files the session's own tools reported writing, appended through [`written.ts`](../../tools/nv/lib/written.ts) and truncated before every session. It is half of how the sweep tells the session's work from a person's — the event stream names what `Write` and `Edit` touched, and this names what `bun nv splice` and `bun nv reference` touched behind a `Bash` call that mentions no path at all. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
@@ -83,11 +83,9 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
-    (before the first session of a leg: install the next staged goal if none is -- goal-switch.py
-     carries the live goal's checks in as its floor, the three files are copied into place, the
-     entry the run just left is retired (chain.py --retire: its checks are now in the file above,
-     so its own copy goes), the switch is committed, and any [docker] services the goal declares
-     are brought up once)
+    (before the first session of a leg: install the next goal on the chain if none is -- the
+     switch writes the pointer in .loop/state.sqlite and copies nothing, since the floor is every
+     walked goal's checks -- and bring up once any [docker] services the goal declares)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
     if the result event blamed a 529       -> back off and re-run this session, forever -- not a failure,
@@ -95,8 +93,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
-    run the acceptance test from docs/agent/loop-goal.toml
-      -> passes, then `nv verify --doc`, and `owners.py --closes <slug>` with `playbook.py --closes`:
+    run the acceptance test from the goal's record, data/goals/<slug>.json
+      -> passes, then `bun nv verify --doc`, and `bun nv owners --closes <slug>` with `bun nv playbook --closes`:
                                               either red -> the goal stays open, the run carries on
       -> passes, the chain has a next goal -> install it and keep going, stall streak reset
       -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
@@ -107,9 +105,14 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 
 The acceptance check running *before* the `DONE` check is deliberate: the machine outranks the claim.
 
+`tools/nv/cmd/loop.ts`'s module doc names the steps in this file that `bun nv loop` does not take yet —
+among them the chain switch, the goal-end gates, the repair and DONE-claim sessions and the
+optimization pass. Each is the design the driver owes, and a turn without it ends the run where the
+design would carry on.
+
 **Every phase of that names itself on the console, stamped with the clock.** A session prints itself as
 it happens, but the driver's own half between two sessions — the subagent sweep, the acceptance test
-(build, fixtures, both suites, the WSL leg, valgrind), then `orient.py` and the CLI's own start-up for
+(build, fixtures, both suites, the WSL leg, valgrind), then `bun nv orient` and the CLI's own start-up for
 the next one — used to print nothing, so a run that was working looked hung for minutes behind the last
 session's status line. It now prints a `[HH:MM:SS]` line entering each phase and what the phase cost, and
 the acceptance test always runs verbose here, naming each check as it starts and each one that took a
@@ -198,9 +201,9 @@ console that has gone away cannot leave a hold behind for the next driver to sit
 
 **A verdict that needs a person holds the run rather than ending it.** `blocked`, `stalled`,
 `done-claim`, `cli-failed`, `chain-error` and `wall` are all things one edit usually answers, and
-everything the next turn reads — the chain, the goal file, the handoff, `loop.py` itself — is read from
-disk, so there is nothing a relaunch would do that lifting the hold does not. The driver arms the hold as
-an agent's, with a `why:` line naming the verdict, and `HOLD_KINDS` in `tools/loop.py` is the list. `p`
+everything the next turn reads — the chain, the goal record, the handoff, the driver itself — is read
+from disk, so there is nothing a relaunch would do that lifting the hold does not. The driver arms the
+hold as an agent's, with a `why:` line naming the verdict, and the kinds above are the whole list. `p`
 or deleting the file starts a fresh turn; `s` ends the run, and the hold the driver armed goes with it
 rather than being left to catch the next one. `--no-hold` restores ending, for a run nobody is watching.
 
@@ -211,8 +214,8 @@ judged like any other session. It finds the cause, fixes it, commits and writes 
 `BLOCKED` when the fix needs the user's decision. The ledger marks it `repair session`. A goal gets
 `REPAIRS_PER_GOAL` of them, and a repairable verdict past that holds as above. So does one whose repair
 session was never served, since a second repair would not be served either. `blocked` and `wall` always
-hold: the first is a session asking for a decision, and the second is the usage limit. `REPAIR_KINDS` in
-`tools/loop.py` is the list, and this applies under `--no-hold` too, since nobody is asked.
+hold: the first is a session asking for a decision, and the second is the usage limit. The kinds above
+are the whole list, and this applies under `--no-hold` too, since nobody is asked.
 
 **The same verdict twice ends the run.** A hold lifted and a turn that comes back with the identical
 reason means the question was not answered, and holding again would spend another session asking it. This
@@ -220,8 +223,8 @@ is the one place the driver decides a person has had their turn.
 
 **A refused DONE claim gets a session before it gets a hand.** The sweep's `goal check:` line is in
 the next pack whatever happens, so a fresh session is given it first; `done-claim` holds the run when that
-session's own DONE fails on the check it was handed, or once a goal has spent `DONE_RETRIES` of them
-(`tools/loop.py` holds the number and why it is bounded twice). A retry that closed its check and fell to
+session's own DONE fails on the check it was handed, or once a goal has spent a bounded number of them.
+A retry that closed its check and fell to
 a different one gets another session, because the sweep stops at its first red check and a goal several
 checks short of green meets them one per sweep — each a new question, not the same one asked twice.
 Measured on the day it was added, three of four such holds were one session's work.
@@ -247,7 +250,7 @@ visible — the status line says `held` and the console says why — and deletin
 
 Nothing landed was ever lost to this, before or after: every session commits its own slices, so a wall
 costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
-records the uncommitted paths and why, and `orient.py` puts them in front of the next session instead of
+records the uncommitted paths and why, and `bun nv orient` puts them in front of the next session instead of
 letting them read as the tree it was supposed to start from.
 
 **The sweep takes the session's paths and nothing else.** This working tree is shared with whoever is
@@ -261,7 +264,7 @@ home for how the two watchers divide the work, and for the one gap they leave.
 
 ## The acceptance test
 
-`docs/agent/loop-goal.toml` is a list of checks, run in order and short-circuiting on the first failure,
+A goal's record, `data/goals/<slug>.json`, carries a list of checks, run in order and short-circuiting on the first failure,
 so the ledger line each iteration writes says exactly how far the loop got. Every check is an exit code
 plus an exact or ordered-substring match on real output — no model judgment sits anywhere on the stop path.
 Check kinds:
@@ -286,8 +289,8 @@ never written, and `min_passing` cannot tell "the corpus grew" from "the corpus 
 Unlike `min_passing`, which is a stopping condition and is held back to the end of the sweep, a missing
 or skipped named case fails on the spot: it is one item's missing proof, not a count.
 
-**The list is checked against that schema when it is read, not when a check runs** (`loop.py`'s
-`validate_spec`, which is the schema's only home — the keys each kind takes are a table there, not prose
+**The list is checked against that schema when it is read, not when a check runs** (the goal
+record's type, `tools/nv/schema/goal.ts`, which is the schema's only home — the keys each kind takes are a table there, not prose
 here). A check missing a key the driver reads, carrying one it does not — `min_passsing` is a threshold
 that silently is not there — naming a fixture outside `files`, or written so it cannot fail is refused
 whole, naming the check and what is wrong with it. Both readers treat that exactly as they treat a TOML
@@ -299,7 +302,7 @@ native and WSL, because a JIT is exactly where a calling-convention divergence b
 the WSL leg runs only once the native one is fully green, so a broken iteration is cheap. On Linux the
 native leg already is that target, so there is one leg. The `cargo-*` checks run once, between the legs —
 except the ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up
-item is what the ledger names rather than a later stage's fixture (`loop-goal.md` § *Stage 0*).
+item is what the ledger names rather than a later stage's fixture.
 Then the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
 (in WSL on Windows, directly on Linux; skipped entirely where `valgrind` is not installed).
 
@@ -347,26 +350,26 @@ test module stales no fixture, suite or leg, and one
 that adds a conformance case, an attack, an example and a bench stales the conformance suite, the
 crates' tests and the tool gates, and no fixture, leg, valgrind sweep, fuzz run, matrix or cost
 guard. Identical inputs into a deterministic check cannot come out a different verdict,
-which is the same argument `nv verify` makes for its own green cache, and `PARTITIONS`, `SPLITS`
-`reads_of` and the two by-name tables beside it in `tools/loop.py` are the one home of which paths
-a partition holds and which set a check gets, each with the grep that derived it. Narrowing one is
+which is the same argument `bun nv verify` makes for its own green cache. `PARTITIONS` and `SPLITS`
+in `tools/nv/keys/partition.ts` are the one home of which paths a partition holds, and
+`tools/nv/keys/checks.ts` of which set a check gets. Narrowing one is
 a claim to be shown, never a tuning knob. What no partition holds is a service's state — the
 database a `queue migrate` check reaches — which is not something a session changes in the tree,
-and which `python tools/loop.py --goal-only --full` sees exactly as every sweep used to.
+and which `bun nv loop --goal-only --full` sees exactly as every sweep used to.
 
 The two files the wrap rewrites every session — the handoff and a goal's `.handoff.md` — count
 toward their own partition by name alone and toward a `state` partition by content, which only the
 whole-tree set holds. That is what lets a session that wrote nothing but its handoff skip the floor,
-and it is why a tool command is re-run every session: `chain.py`, `plan.py` and `playbook.py` read
-the handoff.
+and it is why a tool command is re-run every session: `bun nv chain --check`, `bun nv plan` and
+`bun nv playbook` read the handoff.
 
 **The memo is what scopes the sweep a goal is reached on.** A verdict is filed under the check's own
 spec — less its `stage`, which the fold relabels — and the bytes it read, and the file outlives the
 session, the run and the goal switch. So a verdict stands for as long as no session changes a byte
 the check reads, however many sessions or goals ago it was filed, and a check runs again the first
 time one does. The sweep that declares a goal done consults it like any other: it pays for the
-checks whose inputs the goal's sessions changed, and for nothing else. `python tools/loop.py
---goal-only --full` consults nothing and runs every check, by hand. When both consumers of the
+checks whose inputs the goal's sessions changed, and for nothing else. `bun nv loop --goal-only
+--full` consults nothing and runs every check, by hand. When both consumers of the
 Linux binary are green, the WSL build is skipped with them — never one without the other, or the
 sweep would silently fall back to a platform with no valgrind on it.
 
@@ -375,8 +378,8 @@ previous goal's whole list relabelled `1 floor` — some seven hundred checks ag
 is working on — and it is nearly all of what a sweep costs while being almost none of what a session
 is told, because the pack names the goal's earliest red check and a floor regression is rare. So the
 driver holds the carried floor, on every leg and under valgrind, together with the release profile and
-its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/loop.py` is that
-number's only home, with the ledger replay that set it. A held floor is not a memo hit: a sweep that
+its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
+that number's only home. A held floor is not a memo hit: a sweep that
 held anything reports `held` on its cost line, and a green one is run again, gate open, before the
 goal is declared reached — where each held check is answered from the memo or runs, by the rule
 above. Stage
@@ -399,15 +402,15 @@ wall clock and the three slowest checks. The headline is wall clock rather than 
 which stopped being the same number when the sweep went parallel. An acceptance test nobody has ever
 timed is one nobody can tune.
 
-Inspect it without running it: `python tools/loop.py --list`. Run it once, without any session:
-`python tools/loop.py --goal-only`, which prints each check as it goes, names the first failure, and
-prints what it cost.
+Inspect it without running it: `bun nv loop --list`, narrowed by `--stage`, `--name` or `--feature`.
+Run it once, without any session: `bun nv loop --goal-only`, which prints each check as it goes,
+names the first failure, and prints what it cost.
 
 ## Running it
 
-    python tools/loop.py
+    bun nv loop
 
-**That is the whole command.** It walks `docs/agent/goals/`, it runs until the chain is walked
+**That is the whole command.** It walks `data/chain.json`, it runs until the chain is walked
 or something goes wrong or you stop it, and it starts itself again for every session — § *The run* below
 is what that second half means. There is nothing to add to make a long run safe; `--max-sessions N` is there for
 a short one you intend to watch, and the count is otherwise the answer to a question nobody can ask at
@@ -415,29 +418,26 @@ the start.
 
 Flags worth knowing: `--model`, `--effort` (`low`|`medium`|`high`|`xhigh`|`max`; omitted, the harness
 uses the model's own default, which is `high` on opus-5 — the run's setting goes in the ledger header, so
-`loop-stats.py --run <stamp>` prices one against another), `--permission-mode`, `--max-sessions`
-(uncapped by default), `--max-stalls`,
-`--max-retries`, `--delay-seconds`,
+`bun nv loop-stats --run <stamp>` prices one against another), `--permission-mode`, `--max-sessions`
+(uncapped by default), `--max-stalls`, `--max-retries`,
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`
 (with `--full`, consulting no memo), `--list`, `--no-status`.
 
-    python tools/loop.py --side <slug>          # one side goal, in its own worktree, landed when green
-    python tools/loop.py --side <slug> --land   # no session: verify that branch over main and land it
-
-`--side` runs a **side goal** and nothing else, beside the chain run or without one; `python tools/side.py
---status` lists them. [goals/README.md](goals/README.md) § *Side goals* is what one is.
+A **side goal** runs beside the chain run or without one, in a worktree of its own, and lands on `main`
+when green; [goals/README.md](goals/README.md) § *Side goals* is what one is. `bun nv loop` has no side
+mode yet, so no side goal can run until one is written.
 
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
 `acceptance check`), the tool call it is on, and how long this phase has been going. Above it, one grey
 row says what the work is *for*, the moving half first — what the session has landed so far
-(`2 commits · <the last one's subject>`, and until the first one lands, the item `orient.py` handed it),
+(`2 commits · <the last one's subject>`, and until the first one lands, the item `bun nv orient` handed it),
 then the loop goal the run is driving toward. Longer than a terminal, it scrolls rather than truncates.
 **The window title carries the same fields**, so a run behind another window still says where it is from
 a taskbar button or a tab. The acceptance sweep is
 the one phase that also carries `31/94 33%`, because it is the only one whose size is known before it
-starts — `loop-goal.toml` is a fixed list, the legs are known, and the two memos say up front what will
+starts — the goal's checks are a fixed list, the legs are known, and the two memos say up front what will
 be skipped. A session shows a running tool-call count and no percentage rather than a number that
 pretends to be one. Under it sits one more row naming the keys that do something at that moment — `[s]`
 always, `[r]` only while a usage limit is being waited out — which is where those two are documented at
@@ -467,7 +467,7 @@ not the unattended one every measurement over the ledger assumes.
 
 - **`h`, or `.loop/halt`, freezes the session where it stands** — `claude` and every process under it,
   a running `cargo` included — and `h` again, or deleting the file, lets all of it carry on from the same
-  instruction. Nothing is lost and nothing is re-sent: it is a suspend, not a kill (`tools/proctree.py`:
+  instruction. Nothing is lost and nothing is re-sent: it is a suspend, not a kill (`tools/nv/driver/proctree.ts`:
   a Job Object on Windows, the process group on POSIX). The status line says `HALTED` and for how long.
   The one thing a long freeze can cost is the API stream; the session then exits as a dropped stream and
   the driver rejoins its transcript with `--resume`, exactly as for a drop nobody caused.
@@ -482,34 +482,35 @@ not the unattended one every measurement over the ledger assumes.
 
 ## The run
 
-**A run is a sequence of turns, and a turn is a process.** One turn is one `loop.py`: it serves one
-session, runs the acceptance check that judges it, does whatever the boundary behind it holds — a hold, a
-look for drift, an optimization pass — and exits asking to be started again. `tools/respawn.py` starts it
-again, with every flag exactly as you typed it, so there is no second parser and no list of flags to keep
-in step. A fresh process costs a fifth of a second to import and nothing else: what a run sets up once —
-an installed goal, a Docker daemon, the goal's containers — is files and services, not a process's.
+**A run is a sequence of turns, and a turn is a process.** One turn is one `bun nv loop`: it serves
+one session, runs the acceptance check that judges it, does whatever the boundary behind it holds — a
+hold, a look for drift, an optimization pass — and exits asking to be started again. The launcher starts
+it again, with every flag exactly as you typed it, so there is no second parser and no list of flags to
+keep in step. What a run sets up once — an installed goal, a Docker daemon, the goal's containers — is
+files and services, not a process's.
 
-- **Nothing in the loop goes stale.** `orient.py` is a subprocess, `session-prompt.md` is re-read and
-  `loop-goal.toml` is re-loaded every session, and since every session is a fresh interpreter, so is
-  `loop.py`. An edit to the driver — a session's commit, or yours while the run holds — is live at the
-  next session. Hold with `p`, edit, release: the next turn runs what you wrote.
+- **Nothing in the loop goes stale.** `bun nv orient` is a subprocess, `session-prompt.md` is re-read and
+  the goal's record is re-loaded every session, and since every turn is a fresh process, so is the
+  driver's code under `tools/nv/`. An edit to the driver — a session's commit, or yours while the run
+  holds — is live at the next session. Hold with `p`, edit, release: the next turn runs what you wrote.
 - **A session that changed the driver is judged by the next turn.** The sweep behind a session runs in
-  the process that imported the driver before the session started. A session that changed `loop.py` or
-  a module it imports would be judged by the code it replaced, and a fix to the driver's own verdict
-  would fail as if it had not landed. So that turn ends with `rejudge` and does not run the sweep. The
-  next turn serves no session: it judges the waiting one from `.loop/run.json`.
-- **`respawn.py` runs nothing, and that is the constraint the rest follows from.** It is the one process
+  the process that loaded the driver before the session started. A session that changed
+  `tools/nv/cmd/loop.ts` or a module it imports would be judged by the code it replaced, and a fix to
+  the driver's own verdict would fail as if it had not landed. So that turn ends with `rejudge` and does
+  not run the sweep, and the next turn serves no session: it judges the waiting one from
+  `.loop/run.json`. `bun nv loop` has no `rejudge` turn yet.
+- **The launcher runs nothing, and that is the constraint the rest follows from.** It is the one process
   that outlives a session, so anything it did would be code read once per run, done by a process that
-  does not read the keys. It starts the turn, waits, and starts another when the turn exits with
-  `respawn.AGAIN`; any other exit code ends the run and is passed through. A `loop.py` that no longer
-  starts is therefore a run that stops, never one that spins, and a turn that asks to be started again
-  five times in five seconds each ends it too.
+  does not read the keys. It starts the turn, waits, and starts another when the turn exits with `75`
+  (`AGAIN` in `tools/nv/driver/launch.ts`); any other exit code ends the run and is passed through. A
+  driver that no longer starts is therefore a run that stops, never one that spins, and a turn that asks
+  to be started again five times in five seconds each ends it too.
 - **Nothing about a run is kept in a process.** `.loop/run.json` is what a turn leaves for the next;
-  `.loop/running` is held across all of them, because it is what `brief.py` and `disk.py` ask and a
-  marker dropped between two sessions would say no loop was running exactly where a pass edits the tree.
-  `respawn.py` names the run in each turn's environment, which is how a turn tells its own run's marker
-  from somebody else's; a session's environment has the name taken out again, so a `python tools/loop.py`
-  typed *by* a session is still refused.
+  `.loop/running` is held across all of them, because it is what `bun nv orient` and `bun nv disk` ask,
+  and a marker dropped between two sessions would say no loop was running exactly where a pass edits
+  the tree. The launcher names the run in each turn's environment as `NOVIS_LOOP_RUN`, which is how a
+  turn tells its own run's marker from somebody else's; a session's environment has the name taken out
+  again, so a `bun nv loop` typed *by* a session is still refused.
 
 **Another turn follows two verdicts**: `served` — the session ran and nothing ended the run — and
 `rejudge`, a session the next turn has to judge. A repairable verdict with a repair left is followed by
@@ -520,13 +521,13 @@ a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-
 `.loop/pause` holds it between two sessions as well as through a checkpoint.
 
 **The console belongs to the one turn alive.** Stdin and the bottom rows are inherited by the turn and
-never touched by `respawn.py` — two readers on one console take each other's keypresses. `s`, `p` and `r`
+never touched by the launcher — two readers on one console take each other's keypresses. `s`, `p` and `r`
 therefore mean the same thing during a checkpoint, which can be a full `nv verify` followed by a whole
 optimization session, as they do inside a work session.
 
 **A run's logs share one stamp.** `<run>-console.log` is the whole run, checkpoints included, and
-`<run>-NNNN.log` its sessions, so `loop-stats.py --run <stamp>` prices a run and the log retention in
-`disk.py` keeps whole ones.
+`<run>-NNNN.log` its sessions, so `bun nv loop-stats --run <stamp>` prices a run and the log retention
+in `bun nv disk` keeps whole ones.
 
 ### When it spends a session on the loop itself
 
@@ -535,8 +536,8 @@ pass due; it runs a pass only if something has actually drifted.
 The distinction is what makes the cadence safe to be wrong about — **looking is four subprocesses, a pass
 is a session** — so the number is set by the pack slope (25 sessions is ~23 KB of growth at the measured
 rate) against the ~4% of the run a pass costs, and not much rests on it. The signals, any one of which is
-enough: a selector `orient.py` warns about, a duplicate `playbook.py --dupes` finds, a playbook bullet
-naming a path that is gone, a dead link, or `orient.py` failing outright. A pack that grew 20 KB since the
+enough: a selector `bun nv orient` warns about, a near-duplicate `bun nv playbook --triage` finds, a
+playbook bullet naming a path that is gone, a dead link, or `bun nv orient` failing outright. A pack that grew 20 KB since the
 last pass triggers one early, no sooner than `--min-pass-gap` (15) sessions after the last.
 
 Every checkpoint writes one `## run checkpoint` line to `.loop/log.md`, whichever way it went:
@@ -558,7 +559,7 @@ it was handed rather than deciding what to go and look at.
 This is the one place in the loop where an agent edits the machinery that will drive the next several hours
 unattended, so what follows a pass is not a review — it is four exit codes and a `git revert` on any of
 them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` or `CONTRIBUTING.md`;
-`orient.py` must still produce a pack; `loop.py --list` must still read the acceptance list; and a pass that
+`bun nv orient` must still produce a pack; `bun nv loop --list` must still read the acceptance list; and a pass that
 touched `tools/` must leave `nv verify` green. A failure reverts the whole pass — `revert`, not `reset`, so
 the history still shows what was undone — and the loop carries on with the code it had. `--no-optimize`
 turns the pass off and keeps the restarts; `--optimize-only` runs one against the tree as it stands.
@@ -595,13 +596,13 @@ last one — which argues for putting several related slices in one session. But
 it has already read. So the available saving is reading less per session, not doing more, and step 2's cap
 is one slice with a conditional second.
 
-**Reading less is now a mechanism rather than an instruction.** `tools/orient.py` prints a session's whole
+**Reading less is now a mechanism rather than an instruction.** `bun nv orient` prints a session's whole
 step 1 out of the goal's own `[context]` manifest, so the unscoped orientation — the full map, every guard
 test, four whole agent docs — is no longer what a session pays to start. What a goal narrows to is decided
 once, when the goal is written ([loop-authoring.md](loop-authoring.md) § 2), from the previous run's
-`loop-stats.py --attribute` rather than from taste. Re-measure before believing any ratio in this file.
+`bun nv loop-stats --attribute` rather than from taste. Re-measure before believing any ratio in this file.
 
-**Do not read a ratio out of this paragraph; run `python tools/loop-stats.py`.** It re-derives the curve
+**Do not read a ratio out of this paragraph; run `bun nv loop-stats`.** It re-derives the curve
 from `.loop/logs/` and prints where the sessions actually landed against the ceiling. The cap it implies
 has already been 4, then 2, then 1 within a single afternoon as better evidence arrived — which is exactly
 why the script exists and the sentence does not.
