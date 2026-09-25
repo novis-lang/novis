@@ -72,6 +72,15 @@ describe("the console's helpers", () => {
     TICKER.set({ phase: "held" });
     expect(TICKER.phase()).toBe("held");
   });
+
+  test("the status line's clock starts again with a new phase, and not with a new detail", async () => {
+    TICKER.set({ phase: "launching" });
+    await Bun.sleep(1100);
+    TICKER.set({ detail: "Run the guard tests" });
+    expect(TICKER.elapsed()).toBe("1s");
+    TICKER.set({ phase: "closing the session" });
+    expect(TICKER.elapsed()).toBe("0s");
+  });
 });
 
 describe.if(process.platform === "win32")("the process tree", () => {

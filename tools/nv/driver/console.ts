@@ -2,13 +2,15 @@
 // driver's own steps scroll up the terminal, and a live block of three rows stays under them:
 //
 //   ─────────────────────────────────────────────  a grey rule
-//   ⠋ goal tooling-overhaul/8 | 64% | 84.2kin/6.1kout | 42 tool calls | session 14 | Run the guard tests
+//   ⠋ goal tooling-overhaul/8 | 64% | 84.2kin/6.1kout | 42 tool calls | session 14 | Run the guard tests | 23m41s
 //     [g] goal table · [h] halt now · [i] type a prompt · [s] stop after this session · [p] hold after …
 //
 // The status line's words are `driver/status.ts`'s `statusRow`, which `row` is set to; this module paints
-// it white behind a cyan spinner, cut at the terminal's width. Between two sessions its last field is the
-// driver's phase, `phase()`: `acceptance sweep 31/58`, `usage wall, 12m03s left`, `held`. The window
-// title is the same row. The key row lists only the keys that do something now, and is left out when
+// it white behind a cyan spinner, cut at the terminal's width, and ends it with how long the current phase
+// has been going. A session is one phase from launch to exit, so while one runs that clock is the session's.
+// Between two sessions the row's last field is the driver's phase, `phase()`: `acceptance sweep 31/58`,
+// `usage wall, 12m03s left`, `held`. The window title is the same row without the clock, which would
+// rewrite the title every second. The key row lists only the keys that do something now, and is left out when
 // stdin is not a console.
 //
 // `say` erases the block, writes its line and paints the block again, and a ticker repaints it eight times
@@ -176,6 +178,8 @@ class StatusLine {
   /** The status line's words at a width; `turn` sets it to the goal's `statusRow`. */
   row: (width: number) => string = (width) => cut(this.phase(), width);
   private phaseName = "";
+  /** When the current phase began: the clock at the status line's end counts from here. */
+  private since = now();
   private detail = "";
   private done = 0;
   private total = 0;
@@ -202,6 +206,7 @@ class StatusLine {
     consoleMode();
     this.enabled = true;
     this.lastTitle = "";
+    this.since = now();
     this.timer = setInterval(() => this.tick(), StatusLine.INTERVAL);
   }
 
@@ -224,10 +229,11 @@ class StatusLine {
     this.draw();
   }
 
-  /** Sets the driver's phase. A new phase clears its detail and its count. */
+  /** Sets the driver's phase. A new phase clears its detail and its count, and starts the clock again. */
   set(f: { phase?: string; detail?: string; total?: number; done?: number }): void {
     if (f.phase !== undefined && f.phase !== this.phaseName) {
       this.phaseName = f.phase;
+      this.since = now();
       this.detail = "";
       this.done = this.total = 0;
     }
@@ -253,11 +259,18 @@ class StatusLine {
     return process.stdout.columns ?? 100;
   }
 
+  /** How long the current phase has been going; the whole session while one runs, since its phase lasts that long. */
+  elapsed(): string {
+    return mmss(now() - this.since);
+  }
+
   private statusLine(): string {
     // One column short of the room: a line that exactly fills the terminal wraps, and the next erase half removes it.
-    const room = Math.max(18, this.width() - 3);
+    // The clock is kept and the row is cut, so the clock is always read.
+    const clock = ` | ${this.elapsed()}`;
+    const room = Math.max(18, this.width() - 3 - clock.length);
     const spin = this.frames[this.frame % this.frames.length]!;
-    return `${paint(spin, C.CYAN)} ${paint(cut(this.row(room).replace(/\n/g, " "), room), C.WHITE)}`;
+    return `${paint(spin, C.CYAN)} ${paint(cut(this.row(room).replace(/\n/g, " "), room) + clock, C.WHITE)}`;
   }
 
   private divider(): string {
