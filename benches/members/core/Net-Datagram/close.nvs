@@ -1,0 +1,20 @@
+<?nvs
+// Closes a UDP socket, as a program does after it sends a metric or a log line. Each round also opens the socket.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+            // Each round adds the port it closed, so no round can be skipped.
+            $total = $total + $socket->port() % 2;
+            $socket->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000) <= 2000 ? "done" : "wrong", "\n";

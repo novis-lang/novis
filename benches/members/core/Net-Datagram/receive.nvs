@@ -1,0 +1,25 @@
+<?nvs
+// Receives one short message over UDP, as a server does for each request it gets. Each round also sends that message.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $client = Core\Net::bindDatagram("127.0.0.1", 0);
+        uint $port = $server->port();
+        array<bytes> $requests = ["status" as bytes, "version" as bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round picks its message from the size of what the rounds before received.
+            $client->send("127.0.0.1", $port, $requests[($total % 2) as int], 1s);
+            $total = $total + $server->receive(64, 5s)->port() % 2 + 6;
+            $i = $i + 1;
+        }
+        $client->close();
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

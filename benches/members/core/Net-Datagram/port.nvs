@@ -1,0 +1,26 @@
+<?nvs
+// Reads the port of an open UDP socket, as a program does before it tells a client where to send.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Net\Datagram> $sockets = [
+            Core\Net::bindDatagram("127.0.0.1", 0),
+            Core\Net::bindDatagram("127.0.0.1", 0),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round picks its socket from the ports the rounds before read.
+            $total = $total + $sockets[($total % 2) as int]->port();
+            $i = $i + 1;
+        }
+        foreach ($sockets as Core\Net\Datagram $socket) {
+            $socket->close();
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "done" : "none", "\n";

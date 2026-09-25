@@ -1,0 +1,19 @@
+<?nvs
+// Shows that a closed socket throws a `RuntimeError` when you use it again.
+
+Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+$socket->close();
+
+// `receive` on a closed socket throws.
+try {
+    $socket->receive(64, 1s);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// A second `close` also throws.
+try {
+    $socket->close();
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

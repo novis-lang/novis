@@ -1,0 +1,2 @@
+Core\Net\Datagram::receive: this handle is closed
+Core\Net\Datagram::close: this handle is closed

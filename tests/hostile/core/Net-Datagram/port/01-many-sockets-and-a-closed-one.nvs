@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program opens many sockets, asks each one for its port many times, and asks a closed socket.
+// Every port should be real and different, the closed socket should throw, and the request should end cleanly.
+
+// 1. Five hundred sockets open at the same time. No two may have the same port.
+array<Core\Net\Datagram> $sockets = [];
+array<uint> $ports = [];
+uint $opened = 0;
+uint $repeated = 0;
+uint $i = 0;
+while ($i < 500) {
+    try {
+        Core\Net\Datagram $socket = Core\Net::bindDatagram('127.0.0.1', 0);
+        uint $port = $socket->port();
+        if ($port < 1 || $port > 65535) {
+            $repeated = $repeated + 1;
+        }
+        foreach ($ports as uint $earlier) {
+            if ($earlier == $port) {
+                $repeated = $repeated + 1;
+            }
+        }
+        $ports[] = $port;
+        $sockets[] = $socket;
+        $opened = $opened + 1;
+    } catch (IOError $io) {
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '1 bad ports: ', $repeated, "\n";
+
+// 2. One socket asked for its port one hundred thousand times.
+Core\Net\Datagram $one = Core\Net::bindDatagram('127.0.0.1', 0);
+uint $first = $one->port();
+uint $changed = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($one->port() != $first) {
+        $changed = $changed + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 changed: ', $changed, "\n";
+
+// 3. Every socket is closed, and then each one is asked for its port.
+$one->close();
+foreach ($sockets as Core\Net\Datagram $open) {
+    $open->close();
+}
+uint $threw = 0;
+foreach ($sockets as Core\Net\Datagram $closed) {
+    try {
+        $closed->port();
+    } catch (RuntimeError $e) {
+        $threw = $threw + 1;
+    }
+}
+try {
+    $one->port();
+} catch (RuntimeError $e) {
+    $threw = $threw + 1;
+}
+echo '3 ok: ', $threw == $opened + 1 ? 'yes' : 'no', "\n";

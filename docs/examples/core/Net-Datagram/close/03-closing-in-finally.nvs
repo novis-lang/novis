@@ -1,0 +1,25 @@
+<?nvs
+// Shows a method that always closes its socket, even when no answer arrives.
+
+// `askStatus` asks a server for its status and waits a short time for the answer.
+// The `finally` block runs in both cases, so the socket is always closed.
+class Status {
+    // The answer comes from the network, so the method returns a `tainted string`.
+    public static function askStatus(uint $serverPort): tainted string {
+        Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+        try {
+            $socket->send("127.0.0.1", $serverPort, "status" as bytes, 1s);
+            return $socket->receive(64, 100ms)->payload() as string;
+        } catch (TimeoutError $late) {
+            return "no answer";
+        } finally {
+            $socket->close();
+            echo "socket closed\n";
+        }
+    }
+}
+
+// This server never answers, so `askStatus` returns `no answer`.
+Core\Net\Datagram $silent = Core\Net::bindDatagram("127.0.0.1", 0);
+echo Status::askStatus($silent->port()), "\n";
+$silent->close();
