@@ -1,0 +1,22 @@
+<?nvs
+// Measures recording one duration in a histogram, as a server does once for every request it handles.
+// bench: iterations 400000
+// bench: allocations 0
+// proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value recorded this round depends on last round's total.
+            uint $millis = $total % 7 + 1;
+            Core\Metrics::observe("request_duration_seconds", ($millis as float) / 1000.0);
+            $total = $total + $millis;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
