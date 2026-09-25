@@ -35,6 +35,7 @@ import * as proofs from "./cmd/proofs.ts";
 import * as query from "./cmd/query.ts";
 import * as records from "./cmd/records.ts";
 import * as reference from "./cmd/reference.ts";
+import * as release from "./cmd/release.ts";
 import * as orient from "./cmd/orient.ts";
 import * as render from "./cmd/render.ts";
 import * as rules from "./cmd/rules.ts";
@@ -50,7 +51,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, render, rules, selftest, session, splice, try: tryCmd, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, render, rules, selftest, session, splice, try: tryCmd, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

@@ -316,7 +316,7 @@ the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `nv verify` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
-`playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
+`playbook.py --check` and `bun nv release --check` are CI's `docs` job — no Rust toolchain, about a
 second together — and `session.py --wrap` runs **six families** of them in-process, so a wrap cannot
 commit what it just broke: the link half and the live goal's `[context]` manifest always, the tests the
 goal's `cargo-named` checks name on a DONE claim, and then the rulebook (`rules.py`), the records
@@ -505,10 +505,10 @@ The procedure and the one-time GitHub setup are [docs/release.md](../release.md)
 writes nothing:
 
 ```sh
-python tools/release.py --preview minor     # the exact version and notes a dispatch would produce
+bun nv release --preview minor     # the exact version and notes a dispatch would produce
 ```
 
-`python tools/release.py --check` is the gate CI's `docs` job runs: the workspace version, the fourteen
+`bun nv release --check` is the gate CI's `docs` job runs: the workspace version, the
 `[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
 
 `session.py` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`

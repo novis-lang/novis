@@ -11,7 +11,7 @@
     "programs/no-compatibility-promise"
   ],
   "guardedBy": [
-    "tools/release.py",
+    "tools/nv/cmd/release.ts",
     ".github/workflows/release.yml"
   ]
 }

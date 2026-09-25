@@ -107,7 +107,7 @@ export function currentTarget(): Target | undefined {
 /**
  * The file `version` was released as for `target`.
  *
- * `tools/release.py --package` builds the name, and this is the same stem read from the other end:
+ * `bun nv release --package` builds the name, and this is the same stem read from the other end:
  * `nvs-0.1.0-linux-x86_64.tar.gz`, `.zip` where the workflow says `zip`.
  */
 export function archiveName(version: string, target: Target): string {
@@ -118,7 +118,7 @@ export function archiveName(version: string, target: Target): string {
  * The release number a tag names — `v0.1.0` and `0.1.0` both give `0.1.0`, and anything else gives
  * `undefined`.
  *
- * The releases carry a `v` (`tools/release.py`'s `vX.Y.Z`) and the archives inside them do not, so
+ * The releases carry a `v` (`bun nv release`'s `vX.Y.Z`) and the archives inside them do not, so
  * something has to strip it, and doing it here keeps the callers holding whichever form they need.
  */
 export function releaseVersion(tag: string): string | undefined {
@@ -204,7 +204,7 @@ export const SUMS = "SHA256SUMS";
 /**
  * Where `file` sits in the release of `version`, which carries the `v` its archives do not.
  *
- * `tools/release.py` tags `vX.Y.Z` and `.github/workflows/release.yml` uploads `dist/SHA256SUMS`
+ * `bun nv release` tags `vX.Y.Z` and `.github/workflows/release.yml` uploads `dist/SHA256SUMS`
  * and `dist/nvs-*` to it, so both halves of a verified download are two names under one URL.
  */
 export function assetUrl(version: string, file: string): string {
@@ -290,7 +290,7 @@ export function executableName(target: Target): string {
 /**
  * The `nvs` inside `archive`, or a throw saying which archive did not hold one.
  *
- * `tools/release.py --package` puts the binary under a `nvs-<version>-<name>/` directory beside the
+ * `bun nv release --package` puts the binary under a `nvs-<version>-<name>/` directory beside the
  * notices every archive ships, so this reads the one member it wants by name rather than extracting
  * a tree. Both formats are read here in plain Node — `zlib` is in the runtime and an archive reader
  * is not something to add a dependency for, when the extension's dependency list is a thing its own

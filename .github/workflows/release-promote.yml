@@ -21,7 +21,7 @@
 # an older draft being finished out of order. Two guards handle that:
 #
 #   * `if:` below refuses a prerelease outright.
-#   * `tools/release.py --docker-tags --floating` compares the version against every `v*` tag and
+#   * `bun nv release --docker-tags --floating` compares the version against every `v*` tag and
 #     silently drops the moving tags when it is not the newest, so publishing a stale draft
 #     cannot walk `latest` backwards. That check is in the script rather than here, with the rest
 #     of the release arithmetic.
@@ -69,9 +69,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
@@ -85,7 +87,7 @@ jobs:
         shell: bash
         env:
           IMAGE: ghcr.io/${{ github.repository }}
-          # The tag with its `v` stripped is the version, and `release.py` refuses anything that
+          # The tag with its `v` stripped is the version, and `nv release` refuses anything that
           # is not MAJOR.MINOR.PATCH — so a tag this workflow should not act on fails here rather
           # than reaching the registry.
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -95,7 +97,7 @@ jobs:
           for variant in distroless debian; do
             # Every tag this variant claims, immutable ones included.
             mapfile -t all < <(
-              python tools/release.py --docker-tags "$version" \
+              bun nv release --docker-tags "$version" \
                 --image "$IMAGE" --variant "$variant" --floating
             )
             # The source is the variant's own version tag, which `--docker-tags` always prints

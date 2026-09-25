@@ -55,7 +55,7 @@ section is for.
 
 A comment says what the code does **now**. It is never a record of how the code got here, and this
 repository has exactly one of those: `git log`. (`CHANGELOG.md` is a generated subset of it, written by
-`tools/release.py` and edited by nobody.) The same rule that keeps a rule's fragment true in the present
+`bun nv release` and edited by nobody.) The same rule that keeps a rule's fragment true in the present
 tense — [doc-style.md](doc-style.md) § *Edit the rule, never overlay it* — is the rule for a `//!` header,
 a `///` on a `Core` member, a `#` in a manifest and a `//` inside a `.nvst` case. Prose is prose.
 

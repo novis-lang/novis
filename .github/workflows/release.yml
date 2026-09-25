@@ -24,20 +24,20 @@
 # `CARGO_PKG_VERSION` (crates/nvs-cli/src/main.rs), so a binary built before the bump would report
 # the *previous* version for the whole life of the release — which is precisely the bug the
 # obvious order hides. Applying it in both places buys correct binaries and a clean history at
-# once, and `tools/release.py` makes it the same code path both times.
+# once, and `bun nv release` makes it the same code path both times.
 #
-# ## Every decision lives in tools/release.py, not here
+# ## Every decision lives in tools/nv/cmd/release.ts, not here
 #
 # Version arithmetic, the changelog rules, the manifest rewrite and the packaging are all in that
-# script, for the reason `nv verify` holds the verification steps: YAML that computes things
-# can only be tested by pushing it. Run `python tools/release.py --preview major` on a clone to
+# command, for the reason `nv verify` holds the verification steps: YAML that computes things
+# can only be tested by pushing it. Run `bun nv release --preview major` on a clone to
 # see exactly what a dispatch would produce, without a runner and without credentials.
 #
 # ## Credentials
 #
 # The only credential in this file is the per-run `GITHUB_TOKEN`, which GitHub mints for this run
 # and revokes when it ends. There is no PAT, no deploy key and no secret of any other kind, and
-# `tools/release.py` has no code path that reads one — it is runnable by anyone with a clone.
+# `bun nv release` has no code path that reads one — it is runnable by anyone with a clone.
 #
 # Three habits keep it that way, and each is load-bearing rather than decorative:
 #
@@ -119,9 +119,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       - name: Compute the next version
         id: plan
@@ -137,12 +139,12 @@ jobs:
           if [ "$ALLOW" = "true" ]; then
             args+=(--allow-contract)
           fi
-          python tools/release.py "${args[@]}"
+          bun nv release "${args[@]}"
 
       - name: Render the release notes
         env:
           VERSION: ${{ steps.plan.outputs.version }}
-        run: python tools/release.py --notes "$VERSION" --out release-notes.md
+        run: bun nv release --notes "$VERSION" --out release-notes.md
 
       - name: Show them in the run summary
         env:
@@ -238,9 +240,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       # rust-toolchain.toml pins the version, the components and the targets, and a bare
       # `rustup toolchain install` installs exactly what it names. The release target below
@@ -277,7 +281,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.plan.outputs.version }}
-        run: python tools/release.py --apply "$VERSION" --manifests-only
+        run: bun nv release --apply "$VERSION" --manifests-only
 
       - name: Build
         shell: bash
@@ -294,7 +298,7 @@ jobs:
           NAME: ${{ matrix.name }}
           ARCHIVE: ${{ matrix.archive }}
         run: |
-          python tools/release.py --package \
+          bun nv release --package \
             --version "$VERSION" --target "$TARGET" --name "$NAME" \
             --archive "$ARCHIVE" --out dist
 
@@ -334,9 +338,11 @@ jobs:
           # The one checkout that keeps the token: this job pushes.
           persist-credentials: true
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -373,12 +379,12 @@ jobs:
       - name: Render the notes for what is actually being released
         env:
           VERSION: ${{ needs.plan.outputs.version }}
-        run: python tools/release.py --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
+        run: bun nv release --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
 
       - name: Bump the manifests and prepend the changelog
         env:
           VERSION: ${{ needs.plan.outputs.version }}
-        run: python tools/release.py --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+        run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
 
       - name: Commit and tag
         env:
@@ -398,7 +404,7 @@ jobs:
             "" \
             "Cut by .github/workflows/release.yml after the full suite and every release binary" \
             "were green. The version scheme is ADR 0068 section 3; the notes are rendered from the" \
-            "commit log by tools/release.py." > "$RUNNER_TEMP/msg"
+            "commit log by bun nv release." > "$RUNNER_TEMP/msg"
           git commit -F "$RUNNER_TEMP/msg"
           git tag -a "$TAG" -m "Novis $VERSION"
           # --atomic: the commit and the tag land together or neither does. Without it a push
@@ -478,9 +484,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -557,7 +565,7 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
           VARIANT: ${{ matrix.variant }}
         run: |
-          python tools/release.py --docker-tags "$VERSION" \
+          bun nv release --docker-tags "$VERSION" \
             --image "$IMAGE" --variant "$VARIANT" --github-output
 
       - id: build

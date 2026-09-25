@@ -2,7 +2,7 @@
 
 A release is one click in the Actions tab and one click on a draft, with a review in between. The
 schedule is [.github/workflows/release.yml](../.github/workflows/release.yml) and every decision
-it makes is [tools/release.py](../tools/release.py) — that split is the workflow header's subject
+it makes is `bun nv release`, in [tools/nv/cmd/release.ts](../tools/nv/cmd/release.ts) — that split is the workflow header's subject
 and is not repeated here. **This file is the procedure and the one-time GitHub setup it needs.**
 
 Nothing here is automatic. No push, no schedule and no agent may start a release; the workflow has
@@ -47,7 +47,7 @@ refuses to run on any other ref, so a release cut from a topic branch is impossi
 discouraged.
 
 `Cargo.toml`'s `repository` is `novis-lang/novis` and its `homepage` is `novis-lang.org`.
-`tools/release.py` builds commit links from the first of those when it runs outside CI; inside CI the
+`bun nv release` builds commit links from the first of those when it runs outside CI; inside CI the
 runner supplies the real one, which is why a stale value there produces correct release notes and
 wrong local previews — the worst kind of stale, because nothing fails. Change either only alongside
 the repository actually moving.
@@ -121,7 +121,7 @@ thing to question.
 1. **Preview it locally first.** No runner, no credentials, writes nothing:
 
    ```sh
-   python tools/release.py --preview patch
+   bun nv release --preview patch
    ```
 
    That prints the exact version and the exact notes the run will produce.
@@ -169,7 +169,7 @@ regime and declares the version contract — "the switch is thrown once, in the 
 ## Credentials
 
 The only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and revoked when
-it ends. `tools/release.py` has no code path that reads a token at all, which is what makes the
+it ends. `bun nv release` has no code path that reads a token at all, which is what makes the
 whole release reproducible on a laptop with no access to anything.
 
 Three habits in the workflow keep it that way, each load-bearing rather than decorative:
@@ -201,7 +201,7 @@ is the one rollback with a procedure. Three levels — take the lowest one that 
 
 **1. Move the floating tags back to the previous release.** Everyone pulling `latest` or the
 `MAJOR.MINOR` line stops getting the bad build; everyone who pinned a version or a digest is
-untouched. **Delete the bad `vX.Y.Z` git tag first.** `release.py` refuses to move a floating tag
+untouched. **Delete the bad `vX.Y.Z` git tag first.** `nv release` refuses to move a floating tag
 onto a version older than the newest `v*` tag — that is what stops a stale draft walking `latest`
 backwards, and it is also what silently blocks this rollback while the bad tag still exists.
 With it gone, dispatch [release-promote.yml](../.github/workflows/release-promote.yml) with the
@@ -238,4 +238,4 @@ has to be done again on the next release.
 | `docker pull` says *denied* or asks for a login | The package is still private. Setup § 6 — it is a one-time switch and it is not the repository's own visibility. |
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
 | The `docker` job failed *before* the release was tagged | It cannot: it `needs: [plan, publish]`. There is no state where an image exists for a version the repository has no tag for. |
-| `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `release.py` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
+| `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |

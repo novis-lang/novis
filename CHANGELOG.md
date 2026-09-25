@@ -1,7 +1,7 @@
 # Changelog
 
 Every released version of Novis, newest first. Generated from the commit log by
-`tools/release.py` and prepended by the release workflow -- edit a section only to correct it,
+`bun nv release` and prepended by the release workflow -- edit a section only to correct it,
 never to add one by hand.
 
 What a version number promises is [ADR 0068](docs/decisions/0068.md)

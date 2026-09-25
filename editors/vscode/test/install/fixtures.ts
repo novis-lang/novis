@@ -6,7 +6,7 @@
 // unpack, all of which are the code the extension runs.
 //
 // The archives are written by hand because the two formats are what is under test: a reader is only
-// worth its lines if the bytes it is given are shaped like the ones `tools/release.py --package`
+// worth its lines if the bytes it is given are shaped like the ones `bun nv release --package`
 // produces. So `tarGz` writes ustar headers with real checksums and `zip` writes a central
 // directory, and the cases put a directory entry and a global header in front of the binary the way
 // Python's `tarfile` does.

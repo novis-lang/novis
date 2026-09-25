@@ -587,13 +587,9 @@ jobs:
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
       # release tag all agree, and a released version has a changelog section. It belongs here
       # rather than in `nv verify` because that command's green cache does not hash `docs/`, and
-      # this reads CHANGELOG.md. It is the one step here still on Python, until `release` is a
-      # `bun nv` command.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: '3.x'
+      # this reads CHANGELOG.md.
       - name: The version is consistent across the manifest, the tags and the changelog
-        run: python tools/release.py --check
+        run: bun nv release --check
 
   # Nightly and at release only. It is `continue-on-error` below, so it gates nothing at all, and a
   # `cargo install cargo-geiger` per push bought a number no push was ever blocked by. It becomes a

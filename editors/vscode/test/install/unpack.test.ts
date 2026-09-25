@@ -1,7 +1,7 @@
 // Getting the binary out of the archive, and onto disk as something the machine can run.
 //
 // Both formats the release workflow builds are read here in plain Node, so both are exercised here
-// against archives shaped like the ones `tools/release.py --package` writes: the binary sits under a
+// against archives shaped like the ones `bun nv release --package` writes: the binary sits under a
 // `nvs-<version>-<name>/` directory beside the notices, and it is the one member wanted.
 //
 // The disk half is the part with a failure mode worth pinning: an install that is interrupted must
