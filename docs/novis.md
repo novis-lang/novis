@@ -8930,16 +8930,16 @@ Which side of zero `$n` is on — `-1`, `0` or `1` — as PHP's `$n <=> 0` does.
 Core\Math::min(T $a, T $b): T
 ```
 
-The smaller of two values under their natural order, as `min` does with two scalar arguments; the array form is `Core\Arr::min`.
+Returns the smaller of two values. This replaces PHP's `min` with two values. For the smallest value in an array, use `Core\Arr::min`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `T` | One value, of a type with a natural order: a number, a string, a `bool` or `null`. |
+| `$a` | `T` | One value: a number, a string, a `bool` or `null`. |
 | `$b` | `T` | The other value, of the same type as `$a`. |
 
-**Returns** `T` — Whichever compares smaller; `$a` on a tie, where PHP's `min` answers `$b`.
+**Returns** `T` — The smaller value. When the two are equal, the result is `$a`. `NaN` is smaller than every other `float`.
 
-**Throws** `RuntimeError` — When the pair has no natural order — an object, an array, or two values of different kinds.
+**Throws** `RuntimeError` — When the two values cannot be compared: an object, an array, or two values of different kinds.
 
 <a id="core-core-math-max"></a>
 #### `Core\Math::max`
@@ -9030,15 +9030,15 @@ Core\Math::truncate(float $n): float
 Core\Math::round(float $n, {precision?: int, mode?: Core\RoundMode}): float
 ```
 
-`$n` rounded to `precision` decimal places, with the tie rule named as a `Core\RoundMode` case, as `round` and its four `PHP_ROUND_*` constants do.
+Rounds `$n` to a number of decimal places. This replaces PHP's `round`. The `mode` option chooses the result for a value exactly halfway between two results.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to round. |
-| `{precision: …}` | `int` (default `0`) | Decimal places to keep; zero rounds to an integer and a negative count rounds to tens, hundreds and up, PHP's `round($n, -2)`. |
-| `{mode: …}` | `Core\RoundMode` (default `Core\RoundMode::HalfUp`) | Which neighbour a value between two goes to, `RoundMode::HalfUp` — half away from zero — unless said otherwise. |
+| `$n` | `float` | The number to round. |
+| `{precision: …}` | `int` (default `0`) | How many decimal places to keep. The default is `0`, which rounds to a whole number. `-2` rounds to hundreds. |
+| `{mode: …}` | `Core\RoundMode` (default `Core\RoundMode::HalfUp`) | A `Core\RoundMode` case. The default is `RoundMode::HalfUp`, which rounds a half away from zero. |
 
-**Returns** `float` — The nearest `float` to the rounded value; `$n` unchanged when it is `NaN` or an infinity, when `precision` is past `±22`, or when `$n` is already past `2 ** 53` at that precision and has no fraction left to decide.
+**Returns** `float` — The rounded `float`. `NaN` and the infinities are returned unchanged. `$n` is also returned unchanged when `precision` is above `22` or below `-22`, or when `$n * 10 ** precision` is `2 ** 53` or more.
 
 <a id="core-core-math-intdiv"></a>
 #### `Core\Math::intDiv`
@@ -9065,16 +9065,16 @@ Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. T
 Core\Math::mod(float $a, float $b): float
 ```
 
-The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; integer modulo is the `%` operator, so this member is the `float` case only.
+Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has the sign of `$a`. This replaces PHP's `fmod`. For whole numbers, use the `%` operator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `float` | The dividend. |
-| `$b` | `float` | The divisor, which may not be zero. |
+| `$a` | `float` | The number to divide. |
+| `$b` | `float` | The number to divide by. It may not be zero. |
 
-**Returns** `float` — `$a - $b * truncate($a / $b)`, carrying `$a`'s sign; `NaN` when `$a` is an infinity, and `$a` unchanged when `$b` is one.
+**Returns** `float` — The remainder. `mod(7.5, 2.0)` is `1.5`, and `mod(-7.5, 2.0)` is `-1.5`. When `$a` is an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.
 
-**Throws** `ArithmeticError` — When `$b` is zero — a division by zero, which throws here rather than answering `NaN` as `fmod` does.
+**Throws** `ArithmeticError` — When `$b` is zero. PHP's `fmod` returns `NaN` here.
 
 <a id="core-core-math-fdiv"></a>
 #### `Core\Math::fdiv`
