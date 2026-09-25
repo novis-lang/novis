@@ -13,7 +13,7 @@
     "programs/three-claims"
   ],
   "guardedBy": [
-    "tools/bench.py",
+    "tools/nv/cmd/bench.ts",
     "benches/userland/README.md"
   ]
 }

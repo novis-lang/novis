@@ -1,5 +1,5 @@
 `benches/userland/` holds ordinary web-and-CLI programs written once per engine — Novis, PHP and
-Python — and `python tools/bench.py` runs whichever engines a case has twins for and prints the
+Python — and `bun nv bench` runs whichever engines a case has twins for and prints the
 same-host ratios. That is where a comparison against another engine is made, and it is the only
 place one is made.
 

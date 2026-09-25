@@ -63,7 +63,7 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    warning, so removing it removes no context a session had.
 
 3. **Dead item anchors.** *Signal:* a checklist item's `file.rs:NN` anchor no longer resolves, or resolves
-   to something unrelated because the file moved under it. *Action:* `python tools/peek.py --locate <symbol>`
+   to something unrelated because the file moved under it. *Action:* `bun nv peek --locate <symbol>`
    and re-point the anchor; delete it only when the symbol is gone from the tree entirely. *Gate:* the
    symbol's new site is the one `--locate` printed. A stale anchor costs a session two discovery calls and
    prints the wrong code into its pack, so this is a correction, not a trim.

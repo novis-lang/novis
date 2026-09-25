@@ -1521,7 +1521,7 @@ Five refusals, each a rule of its own.
 `rule:tooling/bench-engine-list-is-data`
 
 `benches/userland/` carries a twin per engine beside each case — `.nvs`, `.php`, `.py`, and `.ts`
-for Bun — and `python tools/bench.py` runs whichever engines a case has twins for
+for Bun — and `bun nv bench` runs whichever engines a case has twins for
 ([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks)). **The engine list is data, not a count.** `evaluate`, the
 `00-baseline` subtraction, the table, `explain` and the NDJSON record all iterate the list, and
 `--engines nvs,php` narrows it; adding an engine is one `Engine` entry plus a suffix. Bun is kept

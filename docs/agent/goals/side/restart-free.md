@@ -81,7 +81,7 @@ Main's carried floor, which a side run is always checked against (`tools/side.py
 
 One file set: `crates/nvs-cli/src/script.rs`, `crates/nvs-config/src/cache.rs`,
 `crates/nvs-config/src/default.toml`, and the resolver that runs a discovery query
-(`python tools/peek.py --locate implementing`).
+(`bun nv peek --locate implementing`).
 
 - **The unit is keyed on the program, not on its entry file.** A compile records every file it
   read, with the stamp and digest it read, and the unit key is the whole-program digest the disk

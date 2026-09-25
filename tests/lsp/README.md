@@ -1,7 +1,7 @@
 # The `.lspt` tree — one editor answer per file, frozen
 
 A case here is a document, a `<|>` cursor, a request and the answer rendered as text
-(`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). `python tools/peek.py rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
+(`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). `bun nv peek rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
 is the rule; **the format itself is `crates/nvs-lsp/src/lib.rs`'s module doc**, which is its one home, and
 [docs/agent/conventions.md](../../docs/agent/conventions.md) § *An `.lspt` case* is the shape to copy.
 

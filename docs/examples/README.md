@@ -8,7 +8,7 @@ site, and nothing edits them there.
 
 `python tools/dossier.py --run examples` is what runs them. This file owns what an example **is**;
 that tool owns how it is checked, the way [`benches/userland/README.md`](../../benches/userland/README.md)
-and `tools/bench.py` already split the same way.
+and `tools/nv/cmd/bench.ts` already split the same way.
 
 ## Where an example goes
 

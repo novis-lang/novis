@@ -12,6 +12,6 @@
   ],
   "guardedBy": [
     "benches/userland/README.md",
-    "tools/bench.py"
+    "tools/nv/cmd/bench.ts"
   ]
 }

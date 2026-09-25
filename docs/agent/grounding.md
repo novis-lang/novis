@@ -4,7 +4,7 @@
 code and changes the answer means the answer went out early.
 
 The check is cheap, which is the whole argument: `python tools/brief.py --where <keyword>` names the
-file that owns a topic, `python tools/peek.py` reads several in one call, `grep -n` answers the rest.
+file that owns a topic, `bun nv peek` reads several in one call, `grep -n` answers the rest.
 One minute there beats three rounds of revision.
 
 This binds an answer given in conversation. [session-prompt.md](session-prompt.md) owns what a loop

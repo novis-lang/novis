@@ -419,7 +419,7 @@ order* below gives it — never appended because it is the newest:
 
 - **The `id` is the path.** `core-classes/schema-plan` is `docs/rules/core-classes/schema-plan.md`, and
   the citation token everywhere is `rule:core-classes/schema-plan`. The topic half namespaces it, so two
-  topics cannot collide, and `python tools/peek.py rule:core-classes/schema-plan` reads it.
+  topics cannot collide, and `bun nv peek rule:core-classes/schema-plan` reads it.
 - **The `title` is the rule as one statement of what is now true** — the same voice as a record's H1 and a
   commit subject, and the line `ground-rules.md` prints. Not a topic ("Plan grades"), not an instruction.
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does

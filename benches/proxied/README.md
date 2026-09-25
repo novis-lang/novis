@@ -1,13 +1,14 @@
 # The proxied benchmark: nginx in front of both peers
 
-`tools/bench-proxied.py` runs this directory. It answers the same question
+`bun nv bench-proxied` runs this directory. It answers the same question
 [docs/plan/m7.md](../../docs/plan/m7.md)'s *Verify* line asks — requests/sec for `nvs serve` against
 PHP 8.5 with opcache — but in the shape both peers actually ship in, with the same generator, the
 same kernel and the same CPU budget on either side.
 
 **This file is the only home for why this leg is built the way it is.** The other leg's decisions —
-why `tools/bench.py --serve-vs-fpm` hand-rolls a generator, why its baseline is `php-cgi -b`, why its
-concurrency is 1 — stay in that file's `## The serve-versus-FPM leg`, and nothing here restates them.
+why `bun nv bench --serve-vs-fpm` hand-rolls a generator, why its baseline is `php-cgi -b`, why its
+concurrency is 1 — stay in `tools/nv/cmd/bench.ts`'s `# The serve-versus-FPM leg`, and nothing here
+restates them.
 The two legs are not one series and must never be read as one; § *Two artifacts* below is why.
 
 ## Why nginx fronts both, and why that is not a handicap
@@ -19,7 +20,7 @@ earlier and better. PHP-FPM is the same shape for the same reason — FPM speaks
 else, so *there is no deployment of it without a proxy*.
 
 So nginx in front of both is not a fairness adjustment applied to a benchmark. It is the only
-topology either peer has. The measurement `tools/bench.py` takes — our HTTP parse against PHP's
+topology either peer has. The measurement `bun nv bench --serve-vs-fpm` takes — our HTTP parse against PHP's
 FastCGI frame, no proxy on either side — is the artificial one, which is why its record carries a
 caveat saying so in every row.
 
@@ -49,7 +50,7 @@ fair arm — one core *and one PHP worker* against one Novis core — does not m
 not run: a FastCGI worker holding a keep-alive connection is *bound* to that connection and accepts
 no other, so a single worker facing eight concurrent connections serves one of them and leaves the
 rest accepted by the kernel and answered by nobody. It presents as a socket timeout while the
-container's own log shows healthy `200`s going past. `tools/bench.py`'s single-process peer has the
+container's own log shows healthy `200`s going past. `bun nv bench`'s single-process peer has the
 same property, which is why that leg pins its concurrency to 1 and this one does not have to.
 
 So the pool is sized from `--concurrency` (`max(2 × concurrency, 96)`, rendered into
@@ -67,7 +68,7 @@ difference between them is the backend.
 Because they must never be up at the same time. One file with two profiles is one `docker compose
 up` away from both stacks competing for the same cores, and a run taken that way is not merely noisy
 — it is wrong in a direction nothing in the output would reveal. Two files make "both at once" an
-explicit act rather than a default. `tools/bench-proxied.py` brings one up, measures it, tears it
+explicit act rather than a default. `bun nv bench-proxied` brings one up, measures it, tears it
 down, and only then brings up the other.
 
 ## The arms, and the generator each uses
@@ -80,13 +81,13 @@ down, and only then brings up the other.
 | 4 | fcgi → php-fpm | `bench.py`'s FastCGI client | what nginx and the bridge cost PHP |
 
 **`oha` and not our own generator**, unlike the other leg: M7's *Verify* names `wrk`/`oha` by name,
-and `tools/bench.py` substitutes a hand-rolled one only because neither is installed on the Windows
+and `bun nv bench` substitutes a hand-rolled one only because neither is installed on the Windows
 box it runs on. In a container both are one pinned image away, so the substitution has no reason to
 survive here — and `oha` reports the tail latencies our own generator deliberately does not.
 
 **Arm 4 is the one asymmetry, and it is recorded rather than hidden.** FPM has no HTTP origin, so
 "PHP without a proxy" cannot be driven by `oha` at all; it is driven over FastCGI by the client in
-`tools/bench.py`, imported rather than written twice. That makes arm 3 → 1 and arm 4 → 2 a *within
+`tools/nv/cmd/bench.ts`, imported rather than written twice. That makes arm 3 → 1 and arm 4 → 2 a *within
 stack* proxy cost each, and it makes arm 3 against arm 4 a comparison across two generators. Every
 record says so in its `caveats`.
 
@@ -94,7 +95,7 @@ record says so in its `caveats`.
 
 `benches/serve.json` is the Windows-native leg. This one writes `benches/serve-proxied.json`, and
 they are separate files because every input differs: operating system, generator, topology, CPU
-budget and container runtime. `tools/bench.py`'s own rule — a figure taken at concurrency 1 and one
+budget and container runtime. `tools/nv/cmd/bench.ts`'s own rule — a figure taken at concurrency 1 and one
 taken at 64 "can never be read as one series" — applies with more force here, and the split is how
 it is enforced rather than remembered.
 
@@ -128,11 +129,11 @@ tag.
 ## Running it
 
 ```sh
-python tools/bench-proxied.py                                  # the fair arm, both stacks
-python tools/bench-proxied.py --arm deployed --backend-cpus 8   # PHP's pool against our one core
-python tools/bench-proxied.py --record benches/serve-proxied.json
-python tools/bench-proxied.py --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
-python tools/bench-proxied.py --down                           # tear both stacks down and stop
+bun nv bench-proxied                                  # the fair arm, both stacks
+bun nv bench-proxied --arm deployed --backend-cpus 8  # PHP's pool against our one core
+bun nv bench-proxied --record benches/serve-proxied.json
+bun nv bench-proxied --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
+bun nv bench-proxied --down                           # tear both stacks down and stop
 ```
 
 The first run builds `nvs` for Linux inside the image and costs a cold release build; every run after

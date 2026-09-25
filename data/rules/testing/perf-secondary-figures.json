@@ -10,7 +10,7 @@
     "testing/userland-benchmarks"
   ],
   "guardedBy": [
-    "tools/bench.py",
+    "tools/nv/cmd/bench.ts",
     "docs/perf/history.ndjson"
   ]
 }

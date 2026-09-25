@@ -14,15 +14,15 @@ and an engine you have not installed is narrowed away rather than left to fail e
 Run them with one call:
 
 ```sh
-python tools/bench.py                    # every case, every engine, side by side
-python tools/bench.py 05 regex           # only the cases whose name contains these
-python tools/bench.py --check            # do all four agree? (no timing)
-python tools/bench.py --engines nvs,php  # narrow the roster; nvs is always in it
-python tools/bench.py --php-mode default # PHP as installed, not with opcache+JIT
+bun nv bench                    # every case, every engine, side by side
+bun nv bench 05 regex           # only the cases whose name contains these
+bun nv bench --check            # do all four agree? (no timing)
+bun nv bench --engines nvs,php  # narrow the roster; nvs is always in it
+bun nv bench --php-mode default # PHP as installed, not with opcache+JIT
 ```
 
-`python tools/bench.py --help` is the rest. That script owns *how* a case is measured; this file owns
-what a case **is**.
+`bun nv bench --help` is the rest. `tools/nv/cmd/bench.ts` owns *how* a case is measured; this file
+owns what a case **is**.
 
 ## What a case is
 
@@ -52,7 +52,7 @@ silently reading as agreement:
 - **Each iteration's input depends on the previous iteration's result.** This is the one rule that is not
   obvious, and it is not stylistic — see below.
 
-Add a case by writing the pair. `tools/bench.py` finds it; nothing else needs editing.
+Add a case by writing the pair. `bun nv bench` finds it; nothing else needs editing.
 
 ## Why the inputs are chained
 
@@ -100,7 +100,7 @@ project's own target is stated against PHP *with* JIT and a comparison against a
 slower proves nothing. `--php-mode default` runs it exactly as installed, which is what a CLI user
 actually gets. The mode is recorded in every JSON record so a history file cannot silently mix the two.
 
-Novis is always the **release** binary: `tools/bench.py` refuses a `target/debug/` build by name, because a
+Novis is always the **release** binary: `bun nv bench` refuses a `target/debug/` build by name, because a
 debug build measures its own assertions. Nothing in this suite builds anything — the binary on disk is the
 binary that runs, and the harness warns when it is older than the newest file under `crates/`.
 

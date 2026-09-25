@@ -206,7 +206,7 @@ it is paid.
 
 ### End to end, against PHP
 
-`python tools/bench.py 10-array 11-array --engines nvs,php --reps 7`, work milliseconds after the
+`bun nv bench 10-array 11-array --engines nvs,php --reps 7`, work milliseconds after the
 baseline subtraction, one binary per run:
 
 | case | merge sort | brainsort | PHP 8.5 JIT | PHP / Novis before → after |
