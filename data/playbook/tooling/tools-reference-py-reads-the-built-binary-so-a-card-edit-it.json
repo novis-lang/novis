@@ -1,12 +1,12 @@
 {
-  "lead": "`tools/reference.py` reads the *built* binary, so a card edit it has not been rebuilt for is reported as `docs/novis.md unchanged`.",
-  "body": "The generator asks `nvs meta` for the registry rather than parsing `registry.rs`, and `cargo test -p nvs-stdlib` does not rebuild the binary either, so a card fix that passes its own gate can still ship the old sentence. After fixing a `MethodDoc`, `cargo build` and *then* `reference.py`.",
+  "lead": "`bun nv reference` reads the *built* binary, so a card edit it has not been rebuilt for is reported as `docs/novis.md unchanged`.",
+  "body": "The generator asks `nvs meta` for the registry rather than parsing `registry.rs`, and `cargo test -p nvs-stdlib` does not rebuild the binary either, so a card fix that passes its own gate can still ship the old sentence. After fixing a `MethodDoc`, `cargo build` and *then* `bun nv reference`.",
   "files": [
-    "tools/reference.py",
+    "tools/nv/cmd/reference.ts",
     "docs/novis.md"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/reference.py:nvs meta"
+    "arg": "tools/nv/cmd/reference.ts:nvs meta"
   }
 }

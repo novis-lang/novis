@@ -358,7 +358,7 @@ function check(): number {
     }
   }
   console.log("  Every one of these is shipped into every session by orient.py and brief.py.");
-  console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: session.py --wrap`);
+  console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: nv session --wrap`);
   console.log("  refuses an edit that leaves a field both over it and bigger than it was. A shrink");
   console.log("  is always taken, so there is never prose to shave -- a sentence is replaced instead.");
 

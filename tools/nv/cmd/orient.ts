@@ -1070,7 +1070,7 @@ function runShapes(m: Manifest): void {
   }
   for (const [shape, implied] of SHAPE_IMPLIES) {
     if (m.shapes.includes(shape) && !m.shapes.includes(implied)) {
-      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit, and \`session.py --wrap\` refuses a rulebook left half-written -- add ${pyRepr(implied)} to the manifest`);
+      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit, and \`nv session --wrap\` refuses a rulebook left half-written -- add ${pyRepr(implied)} to the manifest`);
     }
   }
   section("THE SHAPES YOU ARE ABOUT TO WRITE", `${CONVENTIONS}, filtered to [context] shapes`);
@@ -1439,9 +1439,7 @@ function runNumbers(): void {
 
 /** The wrap skeleton for this tree, or "" when the writer cannot produce it. */
 async function wrapTemplate(): Promise<string> {
-  const session = tool("session");
-  const argv = session.startsWith("bun ") ? ["bun", "tools/nv/main.ts", "session", "--template"] : ["python", "tools/session.py", "--template"];
-  const r = await runProc(argv, { timeoutMs: 60_000 });
+  const r = await runProc(["bun", "tools/nv/main.ts", "session", "--template"], { timeoutMs: 60_000 });
   return r.code === 0 ? r.stdout.replace(/^\n+|\n+$/g, "") : "";
 }
 

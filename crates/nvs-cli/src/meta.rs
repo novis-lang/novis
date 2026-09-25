@@ -34,7 +34,7 @@
 //! ## The signature half, and the tables beside the registry
 //!
 //! A row is **signature** as well as documentation, and `docs/novis.md` —
-//! the one-file reference `tools/reference.py` generates — is built from this
+//! the one-file reference `bun nv reference` generates — is built from this
 //! command alone, so that a member's types never have to be scraped out of
 //! the spec a second time. Every member therefore also carries `kind`
 //! (`static` or `instance`), `signature` (the spec's own spelling,
@@ -65,7 +65,7 @@
 //! under `program`, and the registry half above is untouched, so the
 //! no-argument form is byte-identical to what it printed before the argument
 //! existed. That is the whole seam — one input added to one document, never a
-//! fork — and it is what lets `tools/reference.py` and the website's Core
+//! fork — and it is what lets `bun nv reference` and the website's Core
 //! reference stay renderers rather than sources
 //! (`rule:tooling/one-json-several-renderers`).
 //!

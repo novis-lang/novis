@@ -1,6 +1,6 @@
 # Novis — the complete reference
 
-<!-- GENERATED FILE — do not edit by hand. Written by `python tools/reference.py` from `nvs meta --json` and docs/reference/: edit the chapter under docs/reference/ or the registry in crates/nvs-stdlib, then regenerate. -->
+<!-- GENERATED FILE — do not edit by hand. Written by `bun nv reference` from `nvs meta --json` and docs/reference/: edit the chapter under docs/reference/ or the registry in crates/nvs-stdlib, then regenerate. -->
 
 ## How to read this file
 

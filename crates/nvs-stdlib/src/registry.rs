@@ -1539,7 +1539,7 @@ pub struct ClassDoc {
 /// The hand-written intro pages under `docs/reference/core/`, compiled in by
 /// `build.rs` as `(class, body)` rows — the one place the pages are read, so a
 /// page is compiled in the day it is written and never copied into Rust by
-/// hand. [`CoreClass::intro`] reads it; `tools/reference.py` and the website
+/// hand. [`CoreClass::intro`] reads it; `bun nv reference` and the website
 /// keep reading the `.md` files.
 mod intros {
     include!(concat!(env!("OUT_DIR"), "/intros.rs"));
@@ -5444,8 +5444,8 @@ mod tests {
     /// A card states the fact, never the decision's file name.
     ///
     /// `rule:core-api/reference-card`'s card is reference documentation for someone writing
-    /// Novis, and it ships **raw** through `nvs meta --json`: `tools/
-    /// reference.py` rewrites citations on its way to the website, but that
+    /// Novis, and it ships **raw** through `nvs meta --json`: `bun nv
+    /// reference` rewrites citations on its way to the website, but that
     /// consumer never sees the rewrite, so "throws as `rule:core-classes/regex-two-tiers`'s two engines
     /// require" reaches a reader who has no ADR tree and cannot follow it.
     /// The rule is therefore on the card itself rather than on any renderer —

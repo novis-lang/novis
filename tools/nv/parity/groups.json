@@ -193,39 +193,5 @@
       ["--c"],
       ["--bogus", "extra"]
     ]
-  },
-  "reference": {
-    "python": ["python", "tools/reference.py"],
-    "nv": ["bun", "tools/nv/main.ts", "reference"],
-    "sequential": "Both programs lay each example out under the same `.agent-tmp/reference-examples/` directory and park the primer at the same path, so run together each would delete the other's files mid-run.",
-    "cases": [
-      [],
-      ["--check"],
-      ["--no-examples"],
-      ["--check", "--no-examples"],
-      ["--examples-only", "--only", "20-types"],
-      ["--examples-only", "--only", "tools/"],
-      ["--examples-only", "--only=no-such-chapter"],
-      ["--primer"],
-      ["--primer", "--check"],
-      ["--agent-walk"],
-      ["--agent-walk", "--keep"],
-      ["--only"],
-      ["--bogus"]
-    ]
-  },
-  "writers": {
-    "python": ["python", "tools/session.py"],
-    "nv": ["bun", "tools/nv/main.ts", "session"],
-    "cases": [
-      ["--template"],
-      ["--counts"],
-      ["--check"],
-      ["--wrap", "tools/nv/parity/fixtures/session-malformed-wrap.md", "--dry-run"],
-      ["--wrap", "tools/nv/parity/fixtures/session-refused-wrap.md", "--dry-run"],
-      ["--wrap", "tools/nv/parity/fixtures/session-refused-sections.md", "--dry-run"],
-      ["--wrap", "tools/nv/parity/fixtures/session-valid-wrap.md", "--dry-run"],
-      ["--wrap", "no/such-wrap.md", "--dry-run"]
-    ]
   }
 }

@@ -62,7 +62,7 @@ nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
-# Dev-only: how a test reaches a file outside its own package, recorded for `tools/impact.py`.
+# Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.
 nvs-repo = { path = "crates/nvs-repo", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
 nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }

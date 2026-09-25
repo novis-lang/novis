@@ -7,7 +7,7 @@
 # and several agent harnesses append one by default without ever having read the convention. So
 # the convention is enforced here rather than trusted.
 #
-# `tools/session.py` already strips these out of any message it is handed; this catches the same
+# `bun nv session` already strips these out of any message it is handed; this catches the same
 # thing arriving by `git commit -m`, `-F`, an editor, a merge, or a tool nobody thought about.
 #
 # Enabled per clone, because git does not version `.git/hooks`:

@@ -31,7 +31,7 @@
 //! table with the YAML front matter cut off, which `src/registry.rs` includes
 //! as `CoreClass::intro`'s source. Read here rather than `include_str!`'d by
 //! hand, so a page is compiled in the day it is written and no class carries a
-//! hand-typed path to its own page. `tools/reference.py` and the website keep
+//! hand-typed path to its own page. `bun nv reference` and the website keep
 //! reading the `.md` files; nothing moves.
 //!
 //! # What this script may fail the build on
@@ -120,7 +120,7 @@ fn main() {
 ///
 /// The file name is the class's path with `-` for `\` — `Str.md` is
 /// `Core\Str`, `Time-Date.md` is `Core\Time\Date` — which is the spelling
-/// `tools/reference.py` reads the same tree by. A page naming a class the
+/// `bun nv reference` reads the same tree by. A page naming a class the
 /// registry does not hold is not a failure here, since a build script cannot
 /// ask the registry; `every_intro_page_names_a_registry_class` in
 /// `src/registry.rs` is what fails on one.

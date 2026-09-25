@@ -15,7 +15,7 @@
 // `bun nv directives --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees through the debug binary the build
-// produced, `tools/reference.py`, `cargo clippy --all-targets -- -D warnings`, and the VS Code
+// produced, `bun nv reference`, `cargo clippy --all-targets -- -D warnings`, and the VS Code
 // extension's headless suites. Green prints one line per step; a failure prints that step's output and
 // nothing else. The full output of every step is written to `.agent-tmp/verify-<step>.log`. This
 // command judges nothing: a step's own exit status is the whole verdict.
@@ -60,7 +60,7 @@
 // above an edit, so the loop driver runs it once, when a goal's acceptance list is green. The
 // documentation gates (`rules`, `records`, links, the plan, the playbook) are not steps: the green cache
 // deliberately does not key on prose, so a gate behind it would be skipped exactly when prose changed.
-// `session.py --wrap` refuses a wrap that breaks them.
+// `nv session --wrap` refuses a wrap that breaks them.
 //
 // `.agent-tmp/verify-progress.json` names the step in flight, for the loop driver's status line.
 //
@@ -121,7 +121,6 @@ const FUZZ = join(ROOT, "fuzz");
 /** The `.nvst` trees, run through the debug binary, which is the one the loop's acceptance check runs. */
 const CASE_TREES = ["conformance", "differential"];
 const NVS = join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
-const PYTHON = "python";
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 /** One test's line in libtest's output, a `#[should_panic]` test's included. */
@@ -750,7 +749,7 @@ function stepsFor(opts: Opts): Step[] {
       for (const tree of CASE_TREES) {
         if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", `tests/${tree}`], summaries.cases!, { exe: NVS }));
       }
-      steps.push(step("reference", ["tools/reference.py"], summaries.reference!, { exe: PYTHON }));
+      steps.push(step("reference", ["nv", "reference"], summaries.reference!, { exe: "bun" }));
     }
     steps.push(step("clippy", ["clippy", "--all-targets", "--", "-D", "warnings"], summaries.clippy!));
     // Last, because it is the one step that is not `cargo` or a script.
@@ -763,7 +762,7 @@ function stepsFor(opts: Opts): Step[] {
 
 /** One step's command as a reader types it. */
 function shown(s: Step): string {
-  let line = [s.exe === PYTHON ? "python" : basename(s.exe), ...s.args].join(" ");
+  let line = [basename(s.exe), ...s.args].join(" ");
   if (s.env) line = Object.entries(s.env).map(([k, v]) => `${k}=${v}`).join(" ") + " " + line;
   if (s.cwd !== ROOT) line += `   (in ${relative(ROOT, s.cwd).replace(/\\/g, "/")})`;
   return line;

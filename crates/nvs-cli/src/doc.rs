@@ -10,7 +10,7 @@
 //! nothing.
 //!
 //! It exists for a project that does not have this repository's
-//! `tools/reference.py` or the website's Core reference, which are the other two
+//! `bun nv reference` or the website's Core reference, which are the other two
 //! renderers on that one document (`rule:tooling/one-json-several-renderers`).
 //!
 //! **A page per class, an interface and an enum**, named for the declaration it

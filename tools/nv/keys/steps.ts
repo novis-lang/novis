@@ -65,7 +65,7 @@ export const STEP_READS: Record<string, (tree: Tree, graph: Graph | null) => Par
   "test:doc": (t, g) => compiled(t, g, { ownTier: "docs", depTier: "docs", test: false }),
   conformance: (t, g) => [...compiled(t, g, cli("card")), ...files(t, within("tests/conformance"))],
   differential: (t, g) => [...compiled(t, g, cli("card")), ...files(t, within("tests/differential"))],
-  reference: (t, g) => [...compiled(t, g, cli("shipped")), ...files(t, (r) => within("docs/reference")(r) || only("tools/reference.py")(r))],
+  reference: (t, g) => [...compiled(t, g, cli("shipped")), ...files(t, (r) => within("docs/reference")(r) || only("tools/nv/cmd/reference.ts")(r))],
   clippy: (t, g) => compiled(t, g, { ownTier: "docs", depTier: "docs", test: true }),
   extension: (t, g) => [...compiled(t, g, cli("shipped")), ...files(t, within("editors"))],
   doc: (t, g) => compiled(t, g, { ownTier: "docs", depTier: "docs", test: false }),

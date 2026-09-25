@@ -51,14 +51,6 @@
       "why": "The footer's advice reads a per-session ledger both programs write, and a parity case runs them at once, so which one counted first is a race."
     }
   ],
-  "reference": [
-    {
-      "side": "python",
-      "pattern": "^(usage: |)reference\\.py(:? )",
-      "replace": "$1nv reference$2",
-      "why": "A message names the program that printed it."
-    }
-  ],
   "disk": [
     {
       "side": "python",
@@ -163,62 +155,6 @@
       "pattern": "^chain: \\d+ goal record\\(s\\) on disk, and data/chain\\.json already names every one of them -- nothing appended\\n",
       "replace": "",
       "why": "nv checks that the chain names every goal record, which is the invariant the deleted goal emitter's dry run held for the goals it generated. No goal is generated now, and chain.py read no records."
-    }
-  ],
-  "writers": [
-    {
-      "side": "python",
-      "pattern": "^session\\.py:",
-      "replace": "nv session:",
-      "why": "A message names the program that printed it."
-    },
-    {
-      "side": "python",
-      "pattern": "(?<=^nv session: no such file: \\S*)\\\\",
-      "replace": "/",
-      "why": "Python prints the wrap file's path with the platform's separator. nv prints the path as it was given."
-    },
-    {
-      "side": "python",
-      "pattern": "goal `dos{2}ier`, never `goal 71`",
-      "replace": "goal `parses`, never `goal 21`",
-      "why": "The goal-number refusal's example names a goal by a slug that leaves the tree."
-    },
-    {
-      "side": "python",
-      "pattern": "`check-links\\.py` is CI's `docs` job",
-      "replace": "`nv links` is CI's `docs` job",
-      "why": "The link refusal names `check-links.py` by the nv subcommand that replaces it."
-    },
-    {
-      "side": "python",
-      "pattern": "`plan\\.py --check`",
-      "replace": "`nv plan --check`",
-      "why": "`--check` names the tool the reader runs next as the nv subcommand that replaces it."
-    },
-    {
-      "side": "python",
-      "pattern": "bun nv check-(links|migration)\\b",
-      "replace": "bun nv $1",
-      "why": "`--check` names `check-links.py` and `check-migration.py` by the nv subcommands that replace them, `nv links` and `nv migration`, which drop the `check-` prefix."
-    },
-    {
-      "side": "both",
-      "pattern": "^ {2,3}([MADRCU?][MADRCU?]?) ",
-      "replace": "  $1 ",
-      "why": "`--check` lists `git status --short` indented. Python strips the whole output first, which takes the leading space off the first line's status column and off no other line's. nv keeps every line as git printed it."
-    },
-    {
-      "side": "nv",
-      "pattern": "\\(\\d+ path\\(s\\)\\)  \\[\\+1 this wrap wrote: data/goals/\\S+\\.handoff\\.json\\]$",
-      "replace": "(N path(s))",
-      "why": "nv writes the handoff's record beside its Markdown, so a wrap with a handoff commits one more path than Python does, and names it."
-    },
-    {
-      "side": "python",
-      "pattern": "(?<=^  commit: .*)\\(\\d+ path\\(s\\)\\)$",
-      "replace": "(N path(s))",
-      "why": "The other half of the handoff record's difference: a Python commit line has no record in its path count."
     }
   ],
   "orient": [

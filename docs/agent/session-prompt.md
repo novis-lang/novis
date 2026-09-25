@@ -48,9 +48,9 @@ changes about them, and step 6.
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
      can answer it, and carries on from the tree as it stands when they lift the hold.
 
-**Steps 4 to 6 are one wrap file and two calls.** The pack ends with the skeleton `python
-tools/session.py --template` would print for this tree; fill it in and apply it with `python
-tools/session.py --wrap <file>`. It validates every section before writing a byte, writes the docs,
+**Steps 4 to 6 are one wrap file and two calls.** The pack ends with the skeleton `bun nv
+session --template` would print for this tree; fill it in and apply it with `bun nv session
+--wrap <file>`. It validates every section before writing a byte, writes the docs,
 and commits them with the slices — no second call, no `git add` by hand. **Then stop**: no second
 verification, no re-reading the orientation, no trimming a doc to a length. The driver runs the
 acceptance check itself, and stops after `--max-stalls` sessions without a commit.

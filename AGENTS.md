@@ -95,7 +95,7 @@ which are whole where they stand.
    package and writes a second copy of every workspace crate beside the first, and a day of those
    filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
    or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
-6. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
+6. **Finish with one call:** `bun nv session --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
 7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
@@ -282,7 +282,7 @@ Every session runs the same five steps, in this order, and **stops**:
    still reads a slice at a time. Then you are done.
 
 **Steps 4 and 5 are one call.** Write a single wrap file — plan fields, playbook bullet, handoff, a
-`## commit:` per slice, the status line — and apply it with `python tools/session.py --wrap <file>`
+`## commit:` per slice, the status line — and apply it with `bun nv session --wrap <file>`
 (`--help` is the format, `--check` first says what the tree still owes). It applies everything or refuses
 everything, so there is no half-written tail. Measured before the tool existed, this was 33 of a session's
 98 calls and 42% of its token bill, because context is at its peak by then.
@@ -321,7 +321,7 @@ Step 5 above, in detail:
   half — the pre-M0 decisions, the architecture, the verification strategy — in
   [docs/plan/design.md](docs/plan/design.md). Never open the directory to find one: `python tools/plan.py
   --show M8` prints a milestone, `--show M8:verify` its acceptance paragraph, `--amend M8 --from <file>`
-  rewrites one, and `session.py --wrap` takes a `## milestone: M8` section for the same thing.
+  rewrites one, and `bun nv session --wrap` takes a `## milestone: M8` section for the same thing.
 - **The schedule is the chain, not the milestone table.**
   [docs/agent/goals/](docs/agent/goals/) *is* the chain: a goal is `N-<slug>.md` plus, until it is
   retired, a sibling `.toml` and `.handoff.md`, the numbers run `1..N` with no gaps, and the order

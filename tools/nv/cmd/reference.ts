@@ -446,7 +446,7 @@ function build(reg: Json): string {
   // The `GENERATED FILE` marker is the repository's convention and the link checker reads it: without
   // it this file's chapter-relative links are checked again here, where they have become anchors.
   lines.push(
-    "<!-- GENERATED FILE — do not edit by hand. Written by `python tools/reference.py` from `nvs meta --json` and docs/reference/: edit the chapter under docs/reference/ or the registry in crates/nvs-stdlib, then regenerate. -->",
+    "<!-- GENERATED FILE — do not edit by hand. Written by `bun nv reference` from `nvs meta --json` and docs/reference/: edit the chapter under docs/reference/ or the registry in crates/nvs-stdlib, then regenerate. -->",
     "",
     HOW_TO_READ,
   );
