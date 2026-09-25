@@ -1,8 +1,9 @@
-// What `nv loop` paints: the one status row, the key row under it, and the goal table `[g]` and
-// `bun nv loop --goal` print. Everything here is a pure function of a goal plan, the check results and
+// A goal's progress: the goal table `bun nv loop --goal` prints, the share of the goal's own checks that
+// are green, which `nv loop`'s goal row shows, and a one-row summary of a session. The live block a turn
+// paints is `driver/console.ts`'s. Everything here is a pure function of a goal plan, the check results and
 // one session's event stream, so a recorded stream reproduces what a run showed.
 //
-// The row reads `goal {slug}/{stage} | {x}% | {in}in/{out}out | {calls} tool calls | session {n} | {doing}`:
+// The one-row summary reads `goal {slug}/{stage} | {x}% | {in}in/{out}out | {calls} tool calls | session {n} | {doing}`:
 //   - `{stage}` is the lowest stage with a check that is not green, and `done` when there is none;
 //   - `{x}` is the share of the goal's own checks that are green, with the floor stage left out, since
 //     the floor is every walked goal's checks and would start every goal near 100%;

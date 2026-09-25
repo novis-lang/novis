@@ -16,6 +16,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { say } from "./console.ts";
 
 /** The environment variable that names the run; `tools/respawn.py` sets it for every turn. */
 export const RUN_ENV = "NOVIS_LOOP_RUN";
@@ -53,9 +54,16 @@ export interface Launched {
   result: Record<string, unknown> | null;
 }
 
+/** The running child as `onStart` gets it: its pid, a line down its stdin, and whether stdin is still open. */
+export interface Started {
+  pid: number;
+  write: (line: string) => boolean;
+  open: () => boolean;
+}
+
 /**
  * Runs one session to its end. `exe` is the command that stands for `claude`, which a test replaces with
- * a recorded stream.
+ * a recorded stream. `onStart` is called once the child exists, which is how the console's keys reach it.
  */
 export async function launch(
   exe: string[],
@@ -65,6 +73,7 @@ export async function launch(
   pack: { bytes: number; goal: string },
   onEvent: (e: Record<string, any>) => void,
   extraEnv: Record<string, string> = {},
+  onStart?: (child: Started) => void,
 ): Promise<Launched> {
   mkdirSync(dirname(log), { recursive: true });
   appendFileSync(log, `${JSON.stringify({ type: "loop_pack", ...pack })}\n`);
@@ -83,6 +92,20 @@ export async function launch(
       // A child that exited first has already closed its end.
     }
   };
+  onStart?.({
+    pid: child.pid,
+    write: (line) => {
+      if (!open) return false;
+      try {
+        child.stdin.write(line);
+        child.stdin.flush();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    open: () => open,
+  });
   let sessionId = "";
   let result: Record<string, unknown> | null = null;
   const decoder = new TextDecoder();
@@ -160,5 +183,5 @@ export function ledger(line: string, root = ROOT): void {
   const path = join(root, RUNDIR, "log.md");
   mkdirSync(dirname(path), { recursive: true });
   appendFileSync(path, `${line}\n`);
-  console.log(line);
+  say(line, undefined, true);
 }

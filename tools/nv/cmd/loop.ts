@@ -48,10 +48,15 @@
 // with its numbering. A turn refuses a tree whose `.loop/running` names another run. With no
 // `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
 //
+// The console is `driver/console.ts`'s, the one `loop.py` painted: the session's transcript through
+// `driver/transcript.ts`, the driver's stamped steps, and the live block with the `r`, `s`, `p`, `h` and
+// `i` keys. `--max-result-lines` (60), `--max-input-lines` (40) and `--max-line-chars` (500) cap the
+// transcript, `--full-output` removes the caps, and `--no-status` paints no live block. A Ctrl-C ends
+// the session, sweeps what it left into a wip commit and ends the run.
+//
 // The session is `driver/launch.ts`'s: the session prompt with `nv orient`'s pack behind it, down
 // `claude -p`'s stdin as stream-json, or down the stand-in `NOVIS_LOOP_CLAUDE` names, a command a
-// rehearsal uses to play a session on a scratch tree. Each event repaints `driver/status.ts`'s status row when stdout is a
-// terminal. A session that ends without wrapping has its own uncommitted paths swept into a wip commit,
+// rehearsal uses to play a session on a scratch tree. A session that ends without wrapping has its own uncommitted paths swept into a wip commit,
 // and a session the usage wall refused or the CLI dropped is run again inside the same turn, after the
 // wall reopens or a backoff: `driver/sweep.ts` says how. The acceptance sweep behind it is the goal's own checks, with the carried floor and the release checks
 // held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in `.loop/accept-floor.json`). A scoped sweep
@@ -61,7 +66,7 @@
 // `MAX_WALLS` refused sessions in a row, or a wall further out than `--max-limit-wait`.
 //
 // Not here yet, and each is `loop.py`'s until it is: the chain switch after a reached goal, the overload
-// retries that cost no attempt, rejoining a dropped stream with `--resume`, the hold and the keys, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
+// retries that cost no attempt, rejoining a dropped stream with `--resume`, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
 // the checkpoint's optimization pass, and the disk and context sweeps.
 //
 // `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run`,
@@ -82,8 +87,11 @@ import { ROOT } from "../lib/paths.ts";
 import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
-import { goalTable, memoResults, Session, statusRow, title, type Results } from "../driver/status.ts";
-import { MAX_WALLS, type RateLimit, type Swept, Touched, backoff, hms, markInterrupted, readLimit, standingLimit, waitOutLimit, wallAfter } from "../driver/sweep.ts";
+import { goalTable, memoResults, percent, Session, type Results } from "../driver/status.ts";
+import { LIMIT, MAX_WALLS, type RateLimit, type Swept, Touched, backoff, markInterrupted, readLimit, rememberLimit, standingLimit, wallAfter } from "../driver/sweep.ts";
+import { C, CONSOLE, CONTROL, HALT, clock, LiveSession, PAUSE, RETRY, SAY, SLICES, STOP, TICKER, VERIFY, consoleMode, hms, holdPause, mmss, say, sessionGoal, step, verdict, wait } from "../driver/console.ts";
+import { Tree as ProcTree } from "../driver/proctree.ts";
+import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../driver/origin.ts";
 import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isCarried, isFloor, isRelease, owedChecks, tiers } from "../driver/accept.ts";
@@ -105,7 +113,7 @@ const GREEN = ".loop/accept-green.json";
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
 const USAGE =
-  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] |--list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] |--list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -344,6 +352,13 @@ async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string
   return { keys, tree };
 }
 
+/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. */
+interface Progress {
+  run: (what: string) => void;
+  trace: (c: Check, answered: boolean) => void;
+  note: (text: string) => void;
+}
+
 /**
  * One acceptance sweep over `checks`, with the memo read before it and written after it. `onDone` is
  * called with each check the memo answers green once the sweep ends, which is how a caller learns the
@@ -354,15 +369,20 @@ async function sweepOver(
   checks: Check[],
   labelOf: (n: number) => string,
   keyed: { keys: Map<string, string | null>; tree: Tree },
-  o: { full: boolean; collect: boolean; onDone?: (c: Check, green: boolean) => void },
+  o: { full: boolean; collect: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
 ): Promise<{ result: AcceptanceResult; secs: number }> {
   const memo = GreenMemo.load(join(ROOT, GREEN));
   const key = (c: Check) => keyed.keys.get(c.id) ?? null;
   const started = Date.now();
-  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  const p: Progress = o.progress ?? {
+    run: (what) => console.error(`  .. ${what}`),
+    trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
+    note: (text) => console.error(`  ${text}`),
+  };
+  const sweep = new Sweep({ stageLabel: labelOf, onRun: p.run });
   let result: AcceptanceResult;
   const origin = await holdOrigin();
-  console.error(`  ${origin.line}`);
+  p.note(origin.line);
   try {
     result = await acceptance(checks, {
       label: labelOf,
@@ -371,7 +391,7 @@ async function sweepOver(
       memo,
       full: o.full,
       collect: o.collect,
-      trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
+      trace: p.trace,
     });
   } finally {
     origin.close();
@@ -450,18 +470,26 @@ async function settle(): Promise<number> {
   return 0;
 }
 
-interface TurnFlags extends LaunchOptions {
+interface TurnFlags extends LaunchOptions, Caps {
   maxSessions: number;
   maxStalls: number;
   /** Non-zero CLI exits in a row that end the run. */
   maxRetries: number;
   /** Seconds of usage wall the turn sleeps through; a wall further out ends the run. */
   maxLimitWait: number;
+  /** Whether the live block is painted; it never is when stdout is not a terminal. */
+  status: boolean;
 }
 
 function parseTurn(args: string[]): TurnFlags | null {
-  const out: TurnFlags = { model: "opus", permissionMode: "bypassPermissions", maxSessions: Infinity, maxStalls: 10, maxRetries: 3, maxLimitWait: 6 * 3600 };
+  const out: TurnFlags = { model: "opus", permissionMode: "bypassPermissions", maxSessions: Infinity, maxStalls: 10, maxRetries: 3, maxLimitWait: 6 * 3600, ...DEFAULT_CAPS, status: true };
   for (let i = 0; i < args.length; i += 2) {
+    if (args[i] === "--full-output" || args[i] === "--no-status") {
+      if (args[i] === "--full-output") out.maxResultLines = out.maxInputLines = out.maxLineChars = 0;
+      else out.status = false;
+      i--;
+      continue;
+    }
     const value = args[i + 1];
     if (value === undefined) return null;
     const count = Number(value);
@@ -472,6 +500,9 @@ function parseTurn(args: string[]): TurnFlags | null {
     else if (args[i] === "--max-stalls" && Number.isInteger(count) && count > 0) out.maxStalls = count;
     else if (args[i] === "--max-retries" && Number.isInteger(count) && count > 0) out.maxRetries = count;
     else if (args[i] === "--max-limit-wait" && Number.isFinite(count) && count >= 0) out.maxLimitWait = count;
+    else if (args[i] === "--max-result-lines" && Number.isInteger(count) && count >= 0) out.maxResultLines = count;
+    else if (args[i] === "--max-input-lines" && Number.isInteger(count) && count >= 0) out.maxInputLines = count;
+    else if (args[i] === "--max-line-chars" && Number.isInteger(count) && count >= 0) out.maxLineChars = count;
     else return null;
   }
   return out;
@@ -496,13 +527,74 @@ function stamp(d = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** The run ends: said once in the ledger, the marker removed. Returns the exit code. */
-function finish(state: RunState, reason: string): number {
+/**
+ * The run ends: said once in the ledger and on the console, the marker removed, a hold taken at the
+ * console dropped. `done` is a run that ended as asked, `--max-sessions`, rather than one that needs a
+ * person. Returns the exit code.
+ */
+function finish(state: RunState, reason: string, done = false): number {
   ledger(`## run ended ${stamp()} -- ${reason}`);
   if (holder() === state.run) rmSync(join(ROOT, MARKER), { force: true });
+  CONTROL.dropPause();
   saveRun(state);
-  console.log(`run done: ${state.served} session(s)`);
+  verdict(!done, done ? reason : `the run ended for good: ${reason}`);
+  say("");
+  say(`run done: ${state.served} session(s)`, C.CYAN);
   return 0;
+}
+
+/** `docs/agent/goals/<slug>.md`'s title, without the `Loop goal N — ` its header opens with. */
+function goalHeading(md: string | null): string {
+  try {
+    const head = readFileSync(join(ROOT, md ?? ""), "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("# "));
+    if (head !== undefined) return head.slice(2).trim().replace(/^(Loop goal \d+|Side goal)\s*[—-]\s*/, "");
+  } catch {
+    // As below.
+  }
+  return `${md ?? "the goal's prose"} has no heading`;
+}
+
+/**
+ * Sleeps until the wall reopens, with a minute's margin for the server's clock, and `r` or `.loop/retry`
+ * ends the wait at once. Returns "" when the run may go on, or the reason it ends: a stop, or a wall
+ * further out than `maxWait` seconds.
+ */
+async function waitWall(limit: RateLimit, maxWait: number): Promise<string> {
+  let left = limit.left() + 60;
+  if (left <= 0) {
+    rmSync(join(ROOT, LIMIT), { force: true });
+    return "";
+  }
+  if (left > maxWait) {
+    return `${limit.describe()} -- further out than --max-limit-wait (${hms(maxWait)}), so the run stops here rather than sleeping through it. Nothing is lost: every session committed its own slices, and a restart after ${limit.when()} picks up from the handoff`;
+  }
+  rememberLimit(limit);
+  ledger(`       usage wall: ${limit.describe()}; waiting ${hms(left)}`);
+  TICKER.set({ phase: "waiting out the usage limit", detail: limit.describe() });
+  // A request older than this wall is not about it.
+  rmSync(join(ROOT, RETRY), { force: true });
+  step(`press r to retry now -- after switching accounts, say -- or s to stop the run. From another terminal: create ${RETRY} or ${STOP}`, C.CYAN);
+  CONTROL.parked = true;
+  try {
+    while (left > 0) {
+      const stop = CONTROL.stopReason();
+      if (stop) return `${stop}, while waiting out the usage limit`;
+      if (CONTROL.takeRetry()) {
+        step("retrying now at your request -- the wall is dropped, and the session it refused runs next", C.GREEN);
+        rmSync(join(ROOT, LIMIT), { force: true });
+        return "";
+      }
+      await wait(Math.min(30, left), `usage window reopens ${limit.when()}`, () => CONTROL.pending());
+      left = limit.left() + 60;
+    }
+  } finally {
+    CONTROL.parked = false;
+  }
+  rmSync(join(ROOT, LIMIT), { force: true });
+  step(`the usage window has reopened -- ${limit.when()} has passed`, C.GREEN);
+  return "";
 }
 
 /**
@@ -521,25 +613,85 @@ function floorSince(): number {
   return Number.isInteger(since) && since >= 0 ? since : FLOOR_GATE_EVERY;
 }
 
-/** One turn of the run; the module doc says what it does and what it does not do yet. */
+/**
+ * One turn of the run; the module doc says what it does and what it does not do yet. It owns the console
+ * for its length: the live block, the keys, and a Ctrl-C, which ends the session where it stands, sweeps
+ * what it left into a wip commit and ends the run.
+ */
 async function turn(f: TurnFlags): Promise<number> {
   const byRespawn = Boolean(process.env[RUN_ENV]);
   const name = process.env[RUN_ENV] || runName();
   const held = holder();
   if (held !== "" && held !== name) {
-    console.error(`nv loop: run \`${held}\` holds this tree (${MARKER}); a second driver would edit it beside that one`);
+    say(`nv loop: run \`${held}\` holds this tree (${MARKER}); a second driver would edit it beside that one`, C.RED);
     return 2;
   }
   const { state, fresh } = loadRun(name);
+  CONSOLE.openRun(join(ROOT, LOGDIR, `${state.run_id}-console.log`));
+  const touched = new Touched();
+  const ctx: TurnContext = { index: 0, live: null, ending: false };
+  const interrupt = async () => {
+    if (ctx.ending) return;
+    ctx.ending = true;
+    ctx.live?.tree.kill();
+    say("");
+    const swept = await markInterrupted(ctx.index, "the run was interrupted with Ctrl-C", touched);
+    say(
+      swept.committed ? `interrupted -- ${swept.paths} uncommitted path(s) swept into a wip commit` : "interrupted -- the session left nothing uncommitted of its own",
+      C.YELLOW,
+    );
+    ledger(`## run ended ${stamp()} -- interrupted (Ctrl-C)${swept.committed ? `; swept ${swept.paths} path(s) into a wip commit` : ""}`);
+    if (holder() === state.run) rmSync(join(ROOT, MARKER), { force: true });
+    CONTROL.dropPause();
+    TICKER.stop();
+    CONTROL.disable();
+    process.exit(0);
+  };
+  const onSignal = () => void interrupt();
+  process.on("SIGINT", onSignal);
+  CONTROL.onInterrupt = onSignal;
+  CONTROL.enable();
+  if (f.status) TICKER.start();
+  try {
+    return await serve(f, state, fresh, byRespawn, touched, ctx);
+  } finally {
+    process.off("SIGINT", onSignal);
+    TICKER.stop();
+    CONTROL.disable();
+  }
+}
+
+/** What the Ctrl-C handler needs of the turn in flight. */
+interface TurnContext {
+  index: number;
+  live: LiveSession | null;
+  ending: boolean;
+}
+
+/** The turn inside the console `turn` set up: one session, its sweep, and whether the run goes on. */
+async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: boolean, touched: Touched, ctx: TurnContext): Promise<number> {
   if (fresh) {
-    writeFileSync(join(ROOT, MARKER), `pid:      ${process.pid}\nrun:      ${name}\nstarted:  ${stamp()}\nsessions: ${Number.isFinite(f.maxSessions) ? f.maxSessions : "uncapped"}, model ${f.model}\n`);
+    writeFileSync(join(ROOT, MARKER), `pid:      ${process.pid}\nrun:      ${state.run}\nstarted:  ${stamp()}\nsessions: ${Number.isFinite(f.maxSessions) ? f.maxSessions : "uncapped"}, model ${f.model}\n`);
     ledger("");
     ledger(`## run started ${stamp()} (max ${Number.isFinite(f.maxSessions) ? `${f.maxSessions} sessions` : "uncapped"}${f.effort ? `, effort ${f.effort}` : ""}, logs ${state.run_id}-*)`);
+    say(`console log: ${LOGDIR}/${state.run_id}-console.log`, C.GRAY, true);
+    // The key row says this all the time, so it is a line only when that row is not painted.
+    if (!(CONTROL.tty && TICKER.enabled)) {
+      say(
+        `controls: ${
+          CONTROL.tty
+            ? "press r to end a usage wait early, s to stop after the current session, p to hold after it without ending the run, h to halt the running session at once and again to carry on, i to type it a prompt"
+            : `create ${RETRY} to end a usage wait early, ${STOP} to stop after the current session, ${PAUSE} to hold after it until the file goes, ${HALT} to freeze the running session until the file goes, ${SAY} with a prompt in it to send it one`
+        }`,
+        C.GRAY,
+        true,
+      );
+    }
   }
-  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`);
+  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`, true);
   const found = selected({});
   if (found === null) return 2;
-  const { live, goal, labelOf } = found;
+  const { live, goal, labelOf, total } = found;
   const checks = goal.checks as Check[];
   const plan = { slug: live.slug, stages: goal.stages, checks };
   const results: Results = new Map();
@@ -547,14 +699,12 @@ async function turn(f: TurnFlags): Promise<number> {
   if (typeof green === "object" && green !== null) for (const id of Object.keys(green)) results.set(id, true);
 
   const session = new Session(plan, results);
-  const tty = process.stdout.isTTY === true;
-  const paint = () => {
-    if (!tty) return;
-    const row = statusRow(plan, results, session, process.stdout.columns ?? 100);
-    process.stdout.write(`\r\x1b[2K${row}${title(row)}`);
-  };
+  const heading = goalHeading(live.md);
+  const showGoal = () => TICKER.set({ loopGoal: `goal ${live.slug} ${live.num}/${total}${TICKER.sep}${percent(plan, results)}%${TICKER.sep}${heading}` });
+  showGoal();
+  const scope = `session ${state.served + 1}${Number.isFinite(f.maxSessions) ? `/${f.maxSessions}` : ""}`;
   const exe = standIn() ?? [Bun.which("claude") ?? "claude"];
-  const touched = new Touched();
+  const renderer = new Renderer(f, f.effort ?? "");
   const sweptBy = (swept: Swept) =>
     swept.paths === 0
       ? "; the tree is clean"
@@ -565,34 +715,53 @@ async function turn(f: TurnFlags): Promise<number> {
   // A session the account refused or the CLI dropped is swept and run again, in this turn, until one is
   // served or the run ends. `index` goes up on every launch, so no log is written twice.
   let wall = standingLimit();
+  if (wall !== null) step(`${LIMIT} says ${wall.describe()}`, C.YELLOW);
   let walls = 0;
   let fails = 0;
   let index = 0;
   let number = "";
   let base = "";
+  let operator = "";
   for (;;) {
+    const asked = CONTROL.stopReason();
+    if (asked) return finish(state, asked);
     if (wall !== null) {
-      session.phase(`usage wall, ${hms(wall.left())} left`);
-      paint();
-      const stop = await waitOutLimit(wall, f.maxLimitWait, ledger);
+      const stop = await waitWall(wall, f.maxLimitWait);
       if (stop) return finish(state, stop);
       wall = null;
     }
+    // After the wall, since a hold is a promise about the tree: one queued during a wait is honoured when the window reopens.
+    const holdStop = await holdPause(ledger);
+    if (holdStop) return finish(state, holdStop);
     state.index++;
-    index = state.index;
+    index = ctx.index = state.index;
     number = String(index).padStart(4, "0");
     saveRun(state);
     const log = join(ROOT, LOGDIR, `${state.run_id}-${number}.log`);
     rmSync(join(ROOT, RUNDIR, "status.txt"), { force: true });
     base = await head();
-    console.log(`== session ${index}  ${stamp()}`);
+    SLICES.start(base);
+    TICKER.set({ scope, phase: "starting" });
+    say(`== session ${scope.slice("session ".length)}  ${clock()}`, C.CYAN);
+    step("building the orientation pack (bun nv orient)");
+    TICKER.set({ phase: "orienting", detail: "bun nv orient" });
+    const orientedAt = performance.now();
     const oriented = await runProc([process.execPath, join(ROOT, "tools/nv/main.ts"), "orient"], { timeoutMs: 120_000 });
     const pack = oriented.code === 0 ? oriented.stdout : "";
-    if (!pack) console.log("orientation pack: `nv orient` failed, so the session runs it itself");
+    const spent = mmss((performance.now() - orientedAt) / 1000);
+    if (pack) step(`orientation pack: ${Buffer.byteLength(pack).toLocaleString("en-US")} bytes in ${spent}`);
+    else step(`orientation pack: nv orient failed after ${spent} -- the session will run it itself`, C.YELLOW);
+    SLICES.pick(sessionGoal(pack));
     const prompt = readFileSync(join(ROOT, PROMPT), "utf8");
 
+    const effort = f.effort ? `, --effort ${f.effort}` : "";
+    step(`launching ${exe.join(" ")} (--model ${f.model}${effort}, --permission-mode ${f.permissionMode})`);
+    TICKER.set({ phase: "launching", detail: `${exe.join(" ")} --model ${f.model}${effort}` });
     session.begin(index);
+    renderer.begin();
     touched.start();
+    VERIFY.arm();
+    const startedAt = performance.now();
     let latest: RateLimit | null = null;
     const launched = await launch(
       exe,
@@ -604,11 +773,25 @@ async function turn(f: TurnFlags): Promise<number> {
         latest = readLimit(e) ?? latest;
         touched.note(e);
         session.feed(e);
-        paint();
+        if (e.type === "system" && e.subtype === "init") TICKER.set({ phase: "working" });
+        renderer.event(e);
       },
       { [WRITES_ENV]: touched.ledger },
+      (child) => {
+        // After `launch` has written the log's first line, which `loop-stats` reads as the pack's size.
+        CONSOLE.openSession(log);
+        ctx.live = new LiveSession(new ProcTree(child.pid), child.write, child.open);
+        CONTROL.attach(ctx.live);
+      },
     );
-    if (tty) process.stdout.write("\r\x1b[2K");
+    VERIFY.disarm();
+    operator = ctx.live?.record() ?? "";
+    ctx.live?.finish();
+    ctx.live = null;
+    CONTROL.detach();
+    consoleMode();
+    const tokens = renderer.tokens();
+    step(`session ${index} ended after ${mmss((performance.now() - startedAt) / 1000)}, claude exit ${launched.code}${tokens ? `, ${tokens}` : ""}`, C.CYAN);
     const where = log.slice(ROOT.length + 1).replace(/\\/g, "/");
 
     // The wall is judged before the exit code, because it explains it: a refused session exits non-zero
@@ -628,8 +811,9 @@ async function turn(f: TurnFlags): Promise<number> {
       ledger(`- ${number} CLI exit ${launched.code} (attempt ${fails}/${f.maxRetries})${sweptBy(swept)} -- see ${where}`);
       if (fails >= f.maxRetries) return finish(state, `claude CLI failed ${fails} times in a row`);
       const back = backoff(fails);
-      console.log(`backing off ${hms(back)} before retry ${fails + 1}`);
-      await Bun.sleep(back * 1000);
+      step(`backing off ${mmss(back)} before retry ${fails + 1}`, C.YELLOW);
+      TICKER.set({ phase: `backing off before retry ${fails + 1}` });
+      await wait(back, "claude exited non-zero");
       continue;
     }
     break;
@@ -642,12 +826,16 @@ async function turn(f: TurnFlags): Promise<number> {
   // A session that exits zero without wrapping, cut off by the harness or out of turns, leaves its
   // unfinished slice as surely as a crashed one, and one that wrapped leaves nothing and closes an earlier
   // interruption.
+  SLICES.finish();
   const swept = await markInterrupted(index, "it exited without wrapping", touched);
+  if (swept.committed) step(`swept ${swept.paths} uncommitted path(s) into a wip commit -- the session ended without wrapping`, C.YELLOW);
   const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
   const commits = Number(counted.stdout.trim()) || 0;
   const left = swept.left > 0 ? ` | ${swept.left} path(s) the session never wrote left in the tree` : "";
   const wip = swept.committed ? ` | ${swept.paths} path(s) swept into a wip commit` : swept.paths > 0 ? ` | ${swept.paths} path(s) left uncommitted, the sweep's commit failed` : "";
-  ledger(`- ${number} ${commits} commit(s)${wip}${left} | ${line || "(no status written)"}`);
+  // Said because it changes what the line means: a session a person halted or spoke to is not an unattended one.
+  const attended = operator ? ` | ${operator}` : "";
+  ledger(`- ${number} ${commits} commit(s)${wip}${left}${attended} | ${line || "(no status written)"}`);
 
   // The sweep, over the goal's list as the session left it.
   const again = selected({});
@@ -659,32 +847,62 @@ async function turn(f: TurnFlags): Promise<number> {
   let open = since >= FLOOR_GATE_EVERY;
   const heldBack = open ? [] : all.filter((c) => isFloor(c, again.labelOf(c.stage)) || isRelease(c));
   const scoped = all.filter((c) => !heldBack.includes(c));
-  session.phase(`acceptance sweep over ${scoped.length} checks`);
-  paint();
+  step(`acceptance check: the goal's own checks${open ? ", the carried floor and the release checks" : ` (carried floor and release checks held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
+  const checkedAt = performance.now();
+  const progress = sweepProgress(again.labelOf, checkedAt);
   const onDone = (c: Check, ok: boolean) => results.set(c.id, ok);
-  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: false, onDone });
+  TICKER.set({ phase: "acceptance check", total: scoped.length, done: 0 });
+  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: false, onDone, progress });
   let cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
   if (result.fail === "" && heldBack.length > 0) {
+    step(`scoped sweep green with ${heldBack.length} check(s) held -- opening the floor gate over what this goal changed before the goal is reached`, C.CYAN);
     ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate)`);
     open = true;
-    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, keyed, { full: false, collect: true, onDone }));
+    TICKER.set({ phase: "acceptance check, floor gate open", total: all.length, done: 0 });
+    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, keyed, { full: false, collect: true, onDone, progress }));
     cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
   }
   writeFileSync(join(ROOT, FLOOR_GATE), `${JSON.stringify({ since: open ? 0 : since })}\n`);
-  if (tty) process.stdout.write("\r\x1b[2K");
+  step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
   ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
+  showGoal();
+  // The verdict on this session is the last thing that belongs in its log.
+  CONSOLE.closeSession();
   if (result.fail === "") {
     ledger(`## goal reached: ${live.slug} -- every check in its acceptance list passes`);
+    say(`GOAL REACHED: ${live.slug}`, C.GREEN);
     return finish(state, `goal \`${live.slug}\` reached; switching to the next goal is still loop.py's`);
   }
   ledger(`       goal check: ${result.fail}`);
   if (line.startsWith("BLOCKED")) return finish(state, `blocked on a user decision: ${line}`);
   state.stalls = commits === 0 ? state.stalls + 1 : 0;
   if (state.stalls >= f.maxStalls) return finish(state, `${state.stalls} sessions in a row produced no commit`);
-  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`);
+  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`, true);
+  verdict(false, line || "the session wrote no status line, and the loop carries on");
+  // The key's flag lives in this process, so a stop pressed in the turn's last seconds is settled here.
+  await CONTROL.settleStop();
+  const asked = CONTROL.stopReason();
+  if (asked) return finish(state, asked);
   if (!byRespawn) return finish(state, `one turn: ${RUN_ENV} is not set, so nothing starts a next one`);
   saveRun(state);
   return AGAIN;
+}
+
+/** What a sweep inside a turn says: one grey line per check and per process it starts, stamped with the sweep's clock. */
+function sweepProgress(labelOf: (n: number) => string, begun: number): Progress {
+  const at = () => `+${mmss((performance.now() - begun) / 1000).padStart(6)}`;
+  return {
+    run: (what) => {
+      TICKER.set({ detail: what });
+      say(`   .. ${at()}  ${what}`, C.GRAY);
+    },
+    trace: (c, answered) => {
+      const label = `${nameOf(c)} [${labelOf(c.stage)}]`;
+      TICKER.advance(label);
+      say(`   .. ${at()}  ${label}${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
+    },
+    note: (text) => say(`   .. ${" ".repeat(7)}  ${text}`, C.GRAY),
+  };
 }
 
 export async function run(args: string[]): Promise<number> {
