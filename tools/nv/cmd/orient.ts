@@ -721,7 +721,7 @@ function capped(label: string, items: string[], tail: string, indent = "  "): vo
 
 function runRules(m: Manifest): void {
   section("THE RULES THIS GOAL LIVES INSIDE", `docs/rules/, selected by [context] rules = ${m.rules.length ? pyList(m.rules) : "[]"}`);
-  emit("AGENTS.md's priority ordering and its four rules are already in your context. These are");
+  emit("AGENTS.md's priority ordering and its numbered rules are already in your context. These are");
   emit("the rules this goal's own work sits inside. A rule named by id is printed whole, because");
   emit("the fragment IS the rule; a record number expands to the rules it created or changed.");
   emit(`A short changed list is named whole; a long one is only its count, and \`${tool("brief")} --where\``);
@@ -1418,7 +1418,6 @@ async function wrapTemplate(): Promise<string> {
 async function runClosing(): Promise<void> {
   const template = await wrapTemplate();
   const session = tool("session");
-  const peek = tool("peek");
   section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-5");
   emit("  bun nv verify --start / --wait    build + test + clippy + fmt, once, at the end");
   if (template) {
@@ -1443,32 +1442,19 @@ async function runClosing(): Promise<void> {
     emit("are in it. `--wrap` is all-or-nothing: it validates every section before it writes a");
   }
   emit("byte, so a dry run only buys the same refusal a call earlier. ONE WRAP WRITES THE DOCS");
-  emit("AND COMMITS THEM -- the handoff, the playbook and the plan are on disk before any");
-  emit("commit is staged, and anything it wrote that no `## commit:` names joins the last one.");
-  emit("There is no second call for a docs commit, and no `git add` by hand.");
+  emit("AND COMMITS THEM -- anything it wrote that no `## commit:` names joins the last one, so");
+  emit("there is no second call for a docs commit and no `git add` by hand.");
   emit();
-  emit("Nothing about WHAT you write changes -- the handoff contract, one commit per slice and");
-  emit("the fixed plan field set all still hold, and `--wrap` refuses input that breaks them.");
-  emit();
-  emit("WHILE YOU WORK, read in one call, not fifty:");
-  emit(`  ${peek} A.rs:120-160 B.rs:@symbol C.md:"## 4" "crates/**/*.rs:re:pat:3"`);
+  emit("WHILE YOU WORK, beside `peek` (AGENTS.md rule 2):");
   emit("  a re: target prints the matching line ALONE -- `re:pat:3`, or --context 3 for the");
   emit("  whole call, is how a heading or a `//!` line comes back with the block under it");
-  emit(`  ${`${peek} --locate <symbol> ...`.padEnd(46)}file:line anchors, no bodies`);
   emit(`  ${tool("gaps").padEnd(34)}the next group, ranked: cases per member per class,`);
   emit("                                    the PHP twins with no oracle case, the unasserted");
   emit("                                    error paths -- never an `ls tests/` plus a `grep`");
-  emit("The first two take as many targets as you have questions. Measured over one 19-session");
-  emit("run, a session issued 38 tool calls and carried 1.97 shell commands in each, so the");
-  emit("habit is holding -- keep chaining read-only probes rather than spending a call each.");
   emit();
   emit("`target/debug/nvs.exe` IS ALREADY BUILT at the commit this session starts from -- the");
   emit("driver builds it after every acceptance check. Run it. Do not `ls` it first, and");
   emit("rebuild only once you have changed Rust yourself.");
-  emit();
-  emit("If this pack did not print something you needed, that is a gap in the goal record's");
-  emit("`context`. Say which field was missing it, in the handoff; `bun nv goal context --add");
-  emit("<path>` adds a module.");
   if (template) {
     emit();
     emit(`THE WRAP SKELETON -- \`${session} --template\` for this tree, so you do not call it.`);
