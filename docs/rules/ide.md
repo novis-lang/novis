@@ -1402,7 +1402,7 @@ pin a different one; never drop a flag to make it start.
 **The host verdict is never memoized.** The check carries `memoize = false`, so the sweep re-runs it
 whatever the tree hashes to. Every other check's inputs are tracked bytes and the compiler version, which
 is what makes a remembered verdict sound; this one also reads a downloaded editor build and an installed
-package tree that `tools/loop.py`'s walk prunes and never hashes, so a memo hit here would report a green
+package tree that `tools/nv/keys/tree.ts`'s walk prunes and never hashes, so a memo hit here would report a green
 editor run on a machine where no editor started.
 
 <sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0185](../decisions/0185.md).</sub>

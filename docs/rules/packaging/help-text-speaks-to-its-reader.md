@@ -6,7 +6,7 @@ the flag it was meant to describe goes unexplained.
 
 The reasoning is not lost, it moves down one line. An ordinary `//` comment between the doc comment
 and the item carries the citation, where `grep -rn 'rule:'` still finds it and
-`python tools/rules.py --citations` still resolves it. The `///` says what the flag does; the `//`
+`bun nv rules --citations` still resolves it. The `///` says what the flag does; the `//`
 says which rule decided that.
 
 **It also names no input Novis does not accept.** `nvs run`, `nvs check`, `nvs ast` and `nvs serve`

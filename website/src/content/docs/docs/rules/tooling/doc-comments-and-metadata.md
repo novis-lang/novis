@@ -198,7 +198,7 @@ sentence — that is a lint's design and belongs with the publisher.
 </div>
 
 `nvs doc <entry>` writes one Markdown page per class from the JSON [`tooling/meta-json-takes-a-program`](/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program "nvs meta --json <entry> emits that program's own declarations beside the Core registry, in the registry's own shape")
-emits. It ships in the binary because a user's project does not have this repository's `tools/reference.py`,
+emits. It ships in the binary because a user's project does not have this repository's `bun nv reference`,
 and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
 own ([`tooling/one-json-several-renderers`](/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers "nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content")), so replacing it later costs nothing.
 
@@ -230,7 +230,7 @@ ecosystem that does not exist yet, which is why it is kept cheap to replace.
 every renderer consumes it:
 
 ```
-                      ┌─ tools/reference.py  → docs/novis.md
+                      ┌─ nv reference        → docs/novis.md
                       ├─ nv render --website  → core.json → MDX
 nvs meta --json ──────┼─ nvs doc              → Markdown pages
                       └─ nvs agent            → the primer, the index, one card
@@ -472,7 +472,7 @@ the cards together, and a code is deleted from the list in the commit that gives
 
 Every claim the primer makes is proven against the compiler that ships with it: each example in it is
 run and must print what the primer says it prints, and each refusal it states must name a diagnostic
-code that compiler declares. `python tools/reference.py --primer --check` is that proof, and it is the
+code that compiler declares. `bun nv reference --primer --check` is that proof, and it is the
 harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
 someone who has nothing else.
 

@@ -25,5 +25,5 @@ pin a different one; never drop a flag to make it start.
 **The host verdict is never memoized.** The check carries `memoize = false`, so the sweep re-runs it
 whatever the tree hashes to. Every other check's inputs are tracked bytes and the compiler version, which
 is what makes a remembered verdict sound; this one also reads a downloaded editor build and an installed
-package tree that `tools/loop.py`'s walk prunes and never hashes, so a memo hit here would report a green
+package tree that `tools/nv/keys/tree.ts`'s walk prunes and never hashes, so a memo hit here would report a green
 editor run on a machine where no editor started.

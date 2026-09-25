@@ -1,5 +1,5 @@
 `nvs doc <entry>` writes one Markdown page per class from the JSON `rule:tooling/meta-json-takes-a-program`
-emits. It ships in the binary because a user's project does not have this repository's `tools/reference.py`,
+emits. It ships in the binary because a user's project does not have this repository's `bun nv reference`,
 and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
 own (`rule:tooling/one-json-several-renderers`), so replacing it later costs nothing.
 

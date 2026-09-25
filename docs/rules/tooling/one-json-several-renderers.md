@@ -2,7 +2,7 @@
 every renderer consumes it:
 
 ```
-                      ┌─ tools/reference.py  → docs/novis.md
+                      ┌─ nv reference        → docs/novis.md
                       ├─ nv render --website  → core.json → MDX
 nvs meta --json ──────┼─ nvs doc              → Markdown pages
                       └─ nvs agent            → the primer, the index, one card

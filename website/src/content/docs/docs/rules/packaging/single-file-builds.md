@@ -334,7 +334,7 @@ Every string is a fact the tree already states, read at build time and never wri
 linker, so the build gains no dependency and runs no resource compiler. The MSVC linker is the one that
 takes such a file, and both Windows release targets are MSVC; a GNU-targeted build links without the
 resource and is otherwise the same binary. The two `.ico` files under `crates/nvs-cli/assets/` are
-committed, and `python tools/exe-icons.py` cuts them again from the drawings when one changes. A
+committed, and `bun nv exe-icons` cuts them again from the drawings when one changes. A
 resource that cannot be written is a build warning and a binary without one, never a failed build.
 
 A program built with `nvs build --compile` is a copy of the host, so on Windows it carries this icon
@@ -471,7 +471,7 @@ the flag it was meant to describe goes unexplained.
 
 The reasoning is not lost, it moves down one line. An ordinary `//` comment between the doc comment
 and the item carries the citation, where `grep -rn 'rule:'` still finds it and
-`python tools/rules.py --citations` still resolves it. The `///` says what the flag does; the `//`
+`bun nv rules --citations` still resolves it. The `///` says what the flag does; the `//`
 says which rule decided that.
 
 **It also names no input Novis does not accept.** `nvs run`, `nvs check`, `nvs ast` and `nvs serve`

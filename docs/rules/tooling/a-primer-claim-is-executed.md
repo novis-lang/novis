@@ -1,6 +1,6 @@
 Every claim the primer makes is proven against the compiler that ships with it: each example in it is
 run and must print what the primer says it prints, and each refusal it states must name a diagnostic
-code that compiler declares. `python tools/reference.py --primer --check` is that proof, and it is the
+code that compiler declares. `bun nv reference --primer --check` is that proof, and it is the
 harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
 someone who has nothing else.
 
