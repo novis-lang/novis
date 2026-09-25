@@ -4,6 +4,8 @@ import {
   crlfFiles,
   goalCopies,
   numberedGoalFiles,
+  pythonCalls,
+  pythonToolSteps,
   report,
   runsPython,
   saysOldDirective,
@@ -59,6 +61,26 @@ describe("nv audit checks", () => {
     expect(toolSayingOld(`tools/${OLD}.py`, "")).toBe(`tools/${OLD}.py: its path`);
     expect(toolSayingOld("tools/a.ts", `x\n${OLD.toUpperCase()}\ny ${OLD}\n`)).toBe("tools/a.ts: 2 line(s)");
     expect(toolSayingOld("tools/a.ts", "proofs\n")).toBeNull();
+  });
+});
+
+describe("nv audit ci", () => {
+  test("a workflow line running a Python tool is an offender, a comment or setup line is not", () => {
+    const yml = [
+      "# Run `python tools/release.py --preview major` on a clone.",
+      "      - uses: actions/setup-python@abc # v7",
+      "        run: python tools/ci-changes.py",
+      "        run: |",
+      "          python3 tools/release.py --notes x",
+      "        run: bun nv lints --check",
+    ].join("\n");
+    expect(pythonToolSteps("ci.yml", yml)).toEqual(["ci.yml:3: run: python tools/ci-changes.py", "ci.yml:5: python3 tools/release.py --notes x"]);
+  });
+
+  test("a hook line calling Python outside a comment is an offender", () => {
+    const hook = ["#!/bin/sh", "# sh and awk, not python, on purpose.", "if ! command -v python >/dev/null; then", "bun nv loop --owed"].join("\n");
+    expect(pythonCalls("pre-push", hook)).toEqual(["pre-push:3: if ! command -v python >/dev/null; then"]);
+    expect(pythonCalls("commit-msg", "#!/bin/sh\n# not python\nawk '{print}'\n")).toEqual([]);
   });
 });
 

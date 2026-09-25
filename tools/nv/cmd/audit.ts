@@ -1,5 +1,5 @@
-// `bun nv audit goals | checks | eol`: what the cutover must leave behind, each as one yes-or-no over the
-// tracked tree (loop-goal.md § *Stage 9*). With no argument it runs all three.
+// `bun nv audit goals | checks | eol | ci`: what the cutover must leave behind, each as one yes-or-no
+// over the tree (the goal's § *Stage 9* and § *Stage 11*). With no argument it runs every audit.
 //
 //   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the
 //           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and a goal's `.toml` or
@@ -8,6 +8,8 @@
 //           feature proofs is in no check's name or `argv`, no directive line and no tracked file
 //           under `tools/`, by path or by text.
 //   eol     every tracked text file is LF in the index.
+//   ci      no workflow step runs `python tools/...`, no git hook calls Python outside a comment, and the
+//           website's own sync scripts are gone, because `bun nv render --website` writes their data.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
@@ -21,7 +23,7 @@ import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { goal, sideGoal } from "../schema/goal.ts";
 
-export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol]";
+export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol | ci]";
 
 const OLD_RE = new RegExp(OLD, "i");
 const DIRECTIVE_RE = new RegExp(`^\\s*(?://|#)\\s*${OLD}\\s*:`, "im");
@@ -142,7 +144,44 @@ async function auditEol(): Promise<Finding[]> {
   return [{ pass: "audit: every tracked text file is LF", fail: "tracked text file(s) are not LF", offenders: crlfFiles(await indexEol()) }];
 }
 
-const AUDITS: Record<string, () => Promise<Finding[]>> = { goals: auditGoals, checks: auditChecks, eol: auditEol };
+const WORKFLOWS = [".github/workflows/ci.yml", ".github/workflows/pages.yml", ".github/workflows/release.yml", ".github/workflows/release-promote.yml"];
+const HOOKS = ["tools/git-hooks/commit-msg", "tools/git-hooks/pre-push"];
+const WEBSITE_SYNCS = ["website/scripts/sync-rules.mjs", "website/scripts/sync-core.mjs"];
+
+/** The lines of a file that are not blank and not a `#` comment, each with its 1-based number. */
+function codeLines(text: string): { n: number; line: string }[] {
+  return text
+    .split(/\r?\n/)
+    .map((line, i) => ({ n: i + 1, line }))
+    .filter(({ line }) => line.trim() !== "" && !line.trimStart().startsWith("#"));
+}
+
+/** Every line of a workflow that runs a Python tool from `tools/`. */
+export function pythonToolSteps(path: string, text: string): string[] {
+  return codeLines(text)
+    .filter(({ line }) => /\bpython[\d.]*\s+tools\//.test(line))
+    .map(({ n, line }) => `${path}:${n}: ${line.trim()}`);
+}
+
+/** Every line of a hook that calls Python. */
+export function pythonCalls(path: string, text: string): string[] {
+  return codeLines(text)
+    .filter(({ line }) => /\bpython[\d.]*\b/.test(line))
+    .map(({ n, line }) => `${path}:${n}: ${line.trim()}`);
+}
+
+async function auditCi(): Promise<Finding[]> {
+  const steps = WORKFLOWS.flatMap((p) => pythonToolSteps(p, readText(p) ?? ""));
+  const hooks = HOOKS.flatMap((p) => pythonCalls(p, readText(p) ?? ""));
+  const syncs = WEBSITE_SYNCS.filter((p) => existsSync(join(ROOT, p))).map((p) => `${p}: still exists`);
+  return [
+    { pass: "audit: no workflow runs a Python tool", fail: "workflow step(s) run a Python tool", offenders: steps },
+    { pass: "audit: no git hook calls Python", fail: "git hook line(s) call Python", offenders: hooks },
+    { pass: "audit: the website reads its data from `bun nv render --website`", fail: "website sync script(s) still parse the data", offenders: syncs },
+  ];
+}
+
+const AUDITS: Record<string, () => Promise<Finding[]>> = { goals: auditGoals, checks: auditChecks, eol: auditEol, ci: auditCi };
 
 /** The lines a set of findings prints, and whether every one passed. */
 export function report(findings: Finding[]): { lines: string[]; ok: boolean } {
