@@ -39,7 +39,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { recordId, saveNvReads } from "../keys/checks.ts";
+import { recordId, roleOf, saveNvReads } from "../keys/checks.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readLog } from "../lib/reads.ts";
@@ -505,6 +505,18 @@ export function isFloor(c: Check, label: string): boolean {
 /** Whether `c` builds or measures the release profile, which the sweep runs last whatever its stage. */
 export function isRelease(c: Check): boolean {
   return (c.args ?? []).includes("--release") || measuresReleaseCli(c);
+}
+
+/** The roles of the checks that cost minutes: `keys/checks.ts`'s `roleOf`. */
+const HEAVY_ROLES = new Set(["fuzz", "tsan", "db-matrix"]);
+
+/**
+ * Whether `c` is heavy and waits for the floor gate: it builds or measures the release profile, runs fuzz,
+ * TSan or the database matrix, or is never memoized. Every other check runs in the sweep after the session
+ * whose change reached it.
+ */
+export function isHeavy(c: Check): boolean {
+  return c.memoize === false || isRelease(c) || HEAVY_ROLES.has(roleOf(c as unknown as Parameters<typeof roleOf>[0]));
 }
 
 /** Every check in the tiers the sweep runs, each tier by stage and in the plan's order within one. */

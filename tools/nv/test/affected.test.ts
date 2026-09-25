@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { before, changeOf, heavy } from "../cmd/affected.ts";
+import { before, changeOf } from "../cmd/affected.ts";
+import { isHeavy as heavy } from "../driver/accept.ts";
 import { Tree } from "../keys/tree.ts";
 
 describe("nv affected", () => {

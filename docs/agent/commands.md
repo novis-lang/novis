@@ -349,19 +349,19 @@ bun nv affected                   # which of them a change reaches, and the path
 ```
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
-runs the test binaries a change reaches and every `.nvst` case; the fuzz run, the valgrind sweep, the
-release-profile guards, the database matrix and the rest of the carried floor are the loop's, and
-inside a run they wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
+runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
+runs every acceptance check the change reached, carried or not. The heavy ones — the fuzz run, the
+valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
+memoized — wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
 goal is reached on. Nothing is dropped: a carried check is remembered against a hash of what it
 reads, so a change stales exactly the checks that read what it touched, and they stay stale until
 something runs them.
 
-**The sweep a goal is reached on names every red check, not the first.** While a goal is in progress
-a sweep stops at its first red, because the goal's later stages are red until they are built. The
-gate-open sweep that would reach the goal, landing a side goal, and `--settle` run past a red check
-instead, and the ledger's `goal check:` line is followed by one `also red:` line per other red check,
-which the pack prints. The goal-end gates (`nv verify --doc`, `bun nv owners --closes`) run after that
-sweep whether it is red or green.
+**Every sweep names every red check, not the first.** It runs past a red check, so a carried check
+that went red never keeps the goal's own checks from being judged, and the ledger's `goal check:` line is
+followed by one `also red:` line per other red check, which the pack prints. A build that fails still
+stops it, since nothing behind a build can run. The goal-end gates (`nv verify --doc`, `bun nv owners
+--closes`) run after the sweep that would reach the goal, whether it is red or green.
 
 **A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
 `--owed` reads it off the same memo and the same keys a sweep uses, and exits non-zero while there is

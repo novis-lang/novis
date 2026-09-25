@@ -69,10 +69,12 @@
 // overloaded, or the CLI failed is swept and run again inside the same turn, and one whose stream dropped
 // is rejoined with `claude --resume`: `driver/sweep.ts` says how and how often.
 //
-// The acceptance sweep behind it is the goal's own checks, with the carried floor and the release checks
-// held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in `.loop/accept-floor.json`). A scoped sweep that
-// is green with checks held runs again over the whole plan, collecting every red, since a goal is never
-// reached on a held floor. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
+// The acceptance sweep behind it is every check in the plan, carried or the goal's own, with the memo
+// answering each whose key did not move, so what runs is what the session's change reached. The heavy
+// checks (`accept.ts`'s `isHeavy`: the release profile, fuzz, TSan, the database matrix and the checks
+// never memoized) and the Linux legs are held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in
+// `.loop/accept-floor.json`). A scoped sweep that is green with checks held runs again over the whole
+// plan, collecting every red, since a goal is never reached on a held check. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
 // `data/chain.json`, brings up its services, and the run goes on; after the last goal the chain is complete.
@@ -127,7 +129,7 @@ import { Tree as ProcTree } from "../driver/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../driver/origin.ts";
-import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isRelease, owedChecks, tiers } from "../driver/accept.ts";
+import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
 import { type LegsOptions, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
@@ -145,11 +147,11 @@ const USAGE =
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
-/** Turns since the sweep last ran the carried floor and the release checks. */
+/** Turns since the sweep last ran the heavy checks and the Linux legs. */
 const FLOOR_GATE = ".loop/accept-floor.json";
 /**
- * One sweep in this many runs the carried floor and the release checks. A regression there waits at most
- * this many sessions to be named, and every sweep between costs the goal's own checks alone.
+ * One sweep in this many runs the heavy checks and the Linux legs. A regression only they see waits at
+ * most this many sessions to be named; every other check runs in the sweep after the change that reached it.
  */
 const FLOOR_GATE_EVERY = 10;
 
@@ -1139,15 +1141,18 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   if (typeof keyed === "string") return end("chain-error", keyed);
   const since = floorSince() + 1;
   let open = since >= FLOOR_GATE_EVERY;
-  // Stage 0 is the goal's own reopened work, so the gate holds the carried floor and never it.
-  const heldBack = open ? [] : all.filter((c) => isCarried(again.labelOf(c.stage)) || isRelease(c));
+  // Every check but a heavy one: the memo answers each whose key did not move, so what runs is what this
+  // session's change reached, carried or the goal's own, and what was owed before it.
+  const heldBack = open ? [] : all.filter(isHeavy);
   const scoped = all.filter((c) => !heldBack.includes(c));
-  step(`acceptance check: the goal's own checks${open ? ", the carried floor and the release checks" : ` (carried floor and release checks held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
+  step(`acceptance check: every check a change reached${open ? ", the heavy ones and the Linux legs with them" : ` (heavy checks and the Linux legs held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
   const checkedAt = performance.now();
   const progress = sweepProgress(again.labelOf, checkedAt);
   const onDone = (c: Check, ok: boolean) => results.set(c.id, ok);
   TICKER.set({ phase: "acceptance sweep", total: scoped.length, done: 0 });
-  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: false, legs: true, gateOpen: open, onDone, progress });
+  // Every red is collected: a carried check that went red must not keep the goal's own checks behind it
+  // from being judged.
+  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: true, legs: true, gateOpen: open, onDone, progress });
   let cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
   // Only a sweep that would reach the goal pays for the two goal-end gates. They ask about the goal's own
   // work, which the scoped sweep has just passed, so they run on the gate-open sweep red or green, and one

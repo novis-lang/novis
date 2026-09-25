@@ -34,8 +34,8 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Check as AcceptCheck, GreenMemo, isCarried, isRelease, plainCrateTest } from "../driver/accept.ts";
-import { type Unit, LEGS, checkName, loadRecords, roleOf, testTargets, units } from "../keys/checks.ts";
+import { type Check as AcceptCheck, GreenMemo, isCarried, isHeavy, plainCrateTest } from "../driver/accept.ts";
+import { type Unit, LEGS, checkName, loadRecords, testTargets, units } from "../keys/checks.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { type Part, keyOf } from "../keys/key.ts";
 import { partitionOf } from "../keys/partition.ts";
@@ -54,8 +54,6 @@ const GREEN = ".loop/accept-green.json";
 const SESSION_BASE = ".loop/session-start.json";
 /** The `.nvs` trees `nv verify`'s `nvs-fmt` step formats, and the one it leaves alone. */
 const NVS_FMT = { trees: ["tests/", "examples/"], skip: "tests/fmt/input/" };
-/** The roles of the checks that cost minutes and wait for the floor gate. */
-const HEAVY_ROLES = new Set(["fuzz", "tsan", "db-matrix"]);
 /** How many changed paths a unit's line names before it counts the rest. */
 const SHOWN = 3;
 
@@ -181,11 +179,6 @@ function reach(name: string, pre: Part[], after: Part[], changed: Set<string>): 
   return keyOf(name, pre) === keyOf(name, after) ? null : movedBy(pre, after, changed);
 }
 
-/** Whether `c` is heavy: the floor gate runs it, never a change's own verification. */
-export function heavy(c: AcceptCheck): boolean {
-  return c.memoize === false || isRelease(c) || HEAVY_ROLES.has(roleOf(c as never));
-}
-
 export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   const tree = await Tree.read();
   const { tree: pre, paths } = before(tree, change);
@@ -268,7 +261,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
     const inMemo = memo.answers(c, key);
     const byVerify = !inMemo && c.memoize !== false && verified(c);
     const carried = isCarried(label(c.stage));
-    if (by !== null) out.acceptance.checks.push({ id: c.id, name: checkName(u.check), by, green: inMemo || byVerify, carried, deferred: heavy(c), byVerify, key });
+    if (by !== null) out.acceptance.checks.push({ id: c.id, name: checkName(u.check), by, green: inMemo || byVerify, carried, deferred: isHeavy(c), byVerify, key });
     else if (!inMemo && !byVerify && carried && c.memoize !== false) out.acceptance.owed++;
   }
   tree.save();

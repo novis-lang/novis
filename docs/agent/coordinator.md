@@ -91,8 +91,8 @@ harness settings and nothing else.
     if the CLI exited non-zero             -> exponential backoff, retry; `cli-failed` after --max-retries
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance sweep over the live goal's plan: its record, data/goals/<slug>.json, with the
-      floor carried in (the floor gate is open one sweep in FLOOR_GATE_EVERY), then the WSL leg and
-      the valgrind sweep
+      floor carried in; every check a change reached runs, and the heavy ones, the WSL leg and the
+      valgrind sweep wait for the floor gate, open one sweep in FLOOR_GATE_EVERY
     run `bun nv disk --clean`'s sweep, in-process
       -> green with the floor gate open: the goal-end gates, `bun nv verify --doc`, and
          `bun nv owners --closes <slug>` with `bun nv playbook --closes <slug>`
@@ -233,8 +233,8 @@ is the one place the driver decides a person has had their turn.
 the next pack whatever happens, so a fresh session is given it first; `done-claim` holds the run when that
 session's own DONE fails on the check it was handed, or once a goal has spent its three of them.
 A retry that closed its check and fell to
-a different one gets another session, because the sweep stops at its first red check and a goal several
-checks short of green meets them one per sweep — each a new question, not the same one asked twice.
+a different one gets another session, because the retry is handed the first red check, and a goal several
+checks short of green meets them one per session — each a new question, not the same one asked twice.
 Measured on the day it was added, three of four such holds were one session's work.
 
 Three more things it does, none of which is obvious:
@@ -376,20 +376,18 @@ time one does. The sweep that declares a goal done consults it like any other: i
 checks whose inputs the goal's sessions changed, and for nothing else. `bun nv loop --goal-only
 --full` consults nothing and runs every check, by hand.
 
-**The carried floor runs one session in N, and the goal's own list every session.** The floor is every
-check of every walked goal, each once, under a stage titled `floor` — some seven hundred checks against
+**Every check a change reached runs in the sweep after it, and only the heavy ones wait.** The floor is
+every check of every walked goal, each once, under a stage titled `floor` — some thousand checks against
 the dozen the goal is working on — carried into the goal's plan as a view (`goalPlan` in
-`tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. It is
-nearly all of what a sweep costs while being almost none of what a session
-is told, because the pack names the goal's earliest red check and a floor regression is rare. So the
-driver holds the carried floor, on every leg and under valgrind, together with the release profile and
-its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
-that number's only home. A held floor is not a memo hit: a sweep that
-held anything reports `held` on its cost line, and a green one is run again, gate open, before the
-goal is declared reached — where each held check is answered from the memo or runs, by the rule
-above. Stage
-0 is never held: it is the goal's own reopened work, not something carried in. `--goal-only` runs
-with the gate open.
+`tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. The memo
+answers each check whose key did not move, so a sweep over the whole plan runs what the session's change
+reached, carried or the goal's own, and a floor regression is named in the session that caused it. The
+driver holds only the heavy checks (`isHeavy` in `tools/nv/driver/accept.ts`: the release profile and
+its cost guards, fuzz, TSan, the database matrix, and the checks never memoized) with the WSL leg and
+the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
+that number's only home. A held check is not a memo hit: a sweep that held anything reports `held` on
+its cost line, and a green one is run again, gate open, before the goal is declared reached — where each
+held check is answered from the memo or runs, by the rule above. `--goal-only` runs with the gate open.
 
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
 `tools/nv/lib/machine.ts` holds that policy and nothing else does: half the cores the work will actually see,
