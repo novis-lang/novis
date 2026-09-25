@@ -1,9 +1,11 @@
 {
   "lead": "A mechanical sweep over the `.nvst` corpus has to treat each `--SECTION--` as its own program.",
   "body": "A whole-file answer to \"is this name used elsewhere\" keeps a differential case's Novis half in the old spelling because its PHP `--ORACLE--` twin mentions the same `$i`, and licenses an edit in one section on the strength of a use in another. Split on `^--[A-Z]` and scope both the backward search for the declaration (a stacked run of declarations is the common shape, so not the previous line only) and the \"used elsewhere\" check to the enclosing section.",
-  "files": [],
+  "files": [
+    "crates/nvs-test/src/case.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/case.rs:--ORACLE--"
   }
 }

@@ -3,4 +3,4 @@
   still records `ExprInfo::New` for the `new`, and nothing for `$u->name`, so a `definition` or
   `hover` case on the member answers `none` while the same case on the class name passes. Write
   `var $u = new User();` in any case whose cursor is on a member.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0301]

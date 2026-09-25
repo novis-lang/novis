@@ -4,4 +4,4 @@
   ` at case.nvs:N` on the plaintext one, so a comment added anywhere above a
   write moves an expectation that had nothing to do with it. Write the prose
   first and take the numbers from the runner's own `actual:` block afterwards,
-  never the other way round. [until: reviewed 2026-09-09]
+  never the other way round. [until: gone crates/nvs-stdlib/src/log.rs:Core\Log::write]

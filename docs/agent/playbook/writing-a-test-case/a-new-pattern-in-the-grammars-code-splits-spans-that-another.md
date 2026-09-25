@@ -4,4 +4,4 @@
   number rule claims part of it, and the error names the text rather than the pattern that took it.
   Before adding a construct family, grep the other `*.test.ts` under `editors/vscode/test/grammar/` for a
   `span(` whose text holds a word the new pattern claims, and split that assertion into the pieces the
-  new rule leaves. [until: reviewed 2026-09-08]
+  new rule leaves. [until: gone editors/vscode/test/grammar/tokenize.ts:span]

@@ -2,4 +2,4 @@
   for.** `rule:statements/no-host-populated-variables` refuses every host-populated name, so the line
   carries `E0211` *as well as* whatever it was written to pin, and an `--EXPECTF-ERROR--` block written
   for one error a line silently needs two. Spell an argument list `$words` or `$parts` in a case; that
-  rule's own table is the reserved set. [until: reviewed 2026-09-16]
+  rule's own table is the reserved set. [until: gone crates/nvs-diagnostics/src/lib.rs:rule:statements/no-host-populated-variables]

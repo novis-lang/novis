@@ -7,7 +7,7 @@
     "crates/nvs-types/tests/core_members.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-types/tests/common/mod.rs:check_in_method"
   }
 }

@@ -4,4 +4,4 @@
   method named `label``, pointing at the inner interface for a member the outer guard proved. Read
   what the outer guard bought into a local before writing the second test, as
   `tests/conformance/lang/an-is-guard-narrows-to-an-interface.nvst` does.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/conformance/lang/an-is-guard-narrows-to-an-interface.nvst:Counted]

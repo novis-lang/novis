@@ -3,4 +3,4 @@
   at it** — one `regions` case over inline HTML cost seven more. The vocabulary is the corpus's own and
   nothing declares it (`crates/nvs-lsp/src/coverage.rs:56`), so a construct exists the moment one case
   reaches it. Run `target/debug/nvs.exe lsp-test --coverage tests/lsp/` before `cargo test -p nvs-lsp`:
-  the new column is a row of dots with one number in it. [until: reviewed 2026-09-11]
+  the new column is a row of dots with one number in it. [until: gone crates/nvs-lsp/src/coverage.rs:every_request_answers_every_construct]

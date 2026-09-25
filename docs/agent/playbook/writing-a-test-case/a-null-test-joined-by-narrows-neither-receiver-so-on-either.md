@@ -3,4 +3,4 @@
   while the same two tests written as two separate `if` blocks compile —
   `rule:expressions/nullable-conversion`'s narrowing reads one test per guarded branch and not a
   conjunction of them. Write one `if` per nullable receiver, or `?->` with `??` where the value is
-  only echoed. [until: reviewed 2026-09-19]
+  only echoed. [until: gone crates/nvs-diagnostics/src/lib.rs:E0459]

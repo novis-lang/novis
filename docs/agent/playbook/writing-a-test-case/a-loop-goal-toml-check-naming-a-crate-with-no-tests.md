@@ -3,4 +3,4 @@
   targets, so a new `crates/nvs-host/tests/limits.rs` can `use nvs_runtime::{Ctx, nvs_safepoint}`
   and drive compiled code with no `dev-dependencies` edit. The question is whether the crate can
   reach the thing the test asks about, never whether a test like it already lives there.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-host/tests/limits.rs:nvs_safepoint]

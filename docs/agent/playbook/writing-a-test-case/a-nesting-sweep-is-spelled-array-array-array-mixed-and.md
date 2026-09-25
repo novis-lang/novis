@@ -3,4 +3,4 @@
   over its own `array<mixed>` answer is `E0401`. Write one step over many shapes:
   `array<array<array<mixed>>> $rows` with `foreach ($rows as array<array<mixed>> $row)` makes
   nestings data, and `Core\Str::countOf($json, "[") == 1` asserts an answer holds no nested array.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::flatten]

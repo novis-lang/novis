@@ -3,4 +3,4 @@
   `asked` reaches it again through `endpoint`, so the `nvs.toml` the case just wrote is deleted
   before the reload re-reads it — and the failure arrives as `E0605: cannot read …nvs.toml` from
   inside the server's answer rather than from the case. Give the tree a name of its own
-  (`scratch("reload-live-tree")`) and leave the endpoint's to `asked`. [until: reviewed 2026-11-01]
+  (`scratch("reload-live-tree")`) and leave the endpoint's to `asked`. [until: gone crates/nvs-cli/src/ctl.rs:fn scratch]

@@ -1,6 +1,0 @@
-- **A new name pattern splits spans the other grammar suites assert on, and the failure names the
-  test helper rather than the grammar.** `tokenize.ts`'s `span()` throws `0 spans read exactly
-  "$total = "` the moment a variable rule lands, because every suite that asserted on a run of
-  uncoloured code now sees that run in pieces — one pattern moved assertions in four files. Before
-  adding a pattern to `#code`, grep the other `*.test.ts` for a span text holding a `$`, a `->` or a
-  name the new rule will claim. [until: reviewed 2026-09-08]

@@ -3,4 +3,4 @@
   unannotated position interns as `array<mixed>`, so its elements are `mixed` whatever was written
   inside it, and the binding is the first place that becomes a mismatch. Declare the subject first —
   `array<string> $names = [...]; foreach ($names as string $name)` — which is what the corpus already
-  does everywhere a `foreach` binding carries a type. [until: reviewed 2026-09-10]
+  does everywhere a `foreach` binding carries a type. [until: gone crates/nvs-diagnostics/src/lib.rs:E0401]

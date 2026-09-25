@@ -4,4 +4,4 @@
   — read as covered while pinning no member at all, and both
   `every_migration_member_row_names_a_registered_member` and its conformance twin passed over it
   vacuously. Grep a family's rows for `::` before believing the table has them pinned, and spell the
-  member into the cell in the slice that registers the class. [until: reviewed 2026-09-09]
+  member into the cell in the slice that registers the class. [until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs:migration_member_refs]

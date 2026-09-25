@@ -1,9 +1,11 @@
 {
   "lead": "A MySQL twin of a PostgreSQL case cannot reuse the query text, and the failure is a panic.",
   "body": "`mysql_one_value` reads a text column, and MySQL types `SLEEP()` and `CONNECTION_ID()` as integers, so the helper dies with `the statement answered Int(0), which is not text`. Wrap the expression in `CAST(… AS CHAR)`; MySQL answers a missing table with error `1146` where `to_regclass` answers `NULL`, so assert it separately as a `ServerError`.",
-  "files": [],
+  "files": [
+    "crates/nvs-db/tests/handshake.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-db/tests/handshake.rs:mysql_one_value"
   }
 }

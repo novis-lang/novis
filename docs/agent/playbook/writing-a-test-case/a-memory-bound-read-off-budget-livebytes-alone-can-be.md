@@ -3,4 +3,4 @@
   of bytes at any row count, so a case asserting only "the peak stayed under a bound" passes
   identically when the drain never ran or the counters are not maintained; `budget`'s module doc
   names the distinction. Assert that the churn grows with the input while the live peak does not,
-  two counters doing nothing cannot fake. [until: reviewed 2026-09-06]
+  two counters doing nothing cannot fake. [until: gone crates/nvs-runtime/src/budget.rs:allocated_bytes]

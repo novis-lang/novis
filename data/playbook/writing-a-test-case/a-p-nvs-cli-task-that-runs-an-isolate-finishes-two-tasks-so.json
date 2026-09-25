@@ -1,9 +1,11 @@
 {
   "lead": "A `-p nvs-cli` task that runs an isolate finishes *two* tasks, so `Scheduler::run().finished` comes back at twice the requests the arm spawned.",
   "body": "The isolate is a task of its own beside the request's, and an `assert_eq!(finished, requests)` then fails at exactly `2 ×` with nothing in the message about isolates to point at why. Count what the request itself did — an `AtomicUsize` the task bumps once its `Completion` reads `ok` — and leave `finished` to a case that is about the scheduler.",
-  "files": [],
+  "files": [
+    "crates/nvs-host/src/scheduler.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-09"
+    "kind": "gone",
+    "arg": "crates/nvs-host/src/scheduler.rs:pub finished"
   }
 }

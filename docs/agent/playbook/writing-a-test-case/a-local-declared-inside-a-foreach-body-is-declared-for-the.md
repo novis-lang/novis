@@ -4,4 +4,4 @@
   "first declared here" on the other loop, which reads as though a loop body were a scope and the
   two declarations were somehow the same one. Give each loop's subject its own name, or declare the
   local once above both loops and only assign inside them.
-  [until: reviewed 2026-09-12]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0406]

@@ -3,4 +3,4 @@
   top-level statements never inside one (`test-advance-refuses-without-a-fixed-clock.nvst` says so).
   A case can only watch `Core\Time::sleep` across a wall-clock second, asserting the biconditional
   *the answer moved exactly when the step did* rather than "unchanged" (flaky one run in thirty);
-  the step axis belongs in the module's own `#[cfg(test)] mod tests`. [until: reviewed 2026-09-06]
+  the step axis belongs in the module's own `#[cfg(test)] mod tests`. [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::advance]

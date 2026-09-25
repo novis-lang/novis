@@ -5,10 +5,11 @@
     "crates/",
     "tests/",
     "examples/",
-    "nvs.toml"
+    "nvs.toml",
+    "crates/nvs-test/src/case.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/case.rs:--FILE"
   }
 }

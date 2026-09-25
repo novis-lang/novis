@@ -3,4 +3,4 @@
   looks in `Snapshot::table` — the raw `toml::Table` a boot kept — so a case that filled only
   `config` gets an uncapped context that grants nothing, and the assertion that fails is about the
   ceiling rather than about the missing half. Fill both from the same written text, which is what
-  `crates/nvs-cli/src/serve.rs`'s `tree_of` does. [until: reviewed 2026-09-15]
+  `crates/nvs-cli/src/serve.rs`'s `tree_of` does. [until: gone crates/nvs-cli/src/serve.rs:nvs_config::Snapshot]

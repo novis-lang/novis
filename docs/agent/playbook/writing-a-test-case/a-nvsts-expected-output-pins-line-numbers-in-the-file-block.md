@@ -3,4 +3,4 @@
   comment lines into one shifted every `--> case.nvs:NN:CC` below the join, and cases whose expected
   output is program text survive the same join, which is what makes it look safe when spot-checked.
   The budget is lines, not bytes: rewrite the token in place and leave the break standing rather
-  than reflowing and re-recording. [until: reviewed 2026-09-06]
+  than reflowing and re-recording. [until: gone crates/nvs-test/src/case.rs:--EXPECTF-ERROR--]

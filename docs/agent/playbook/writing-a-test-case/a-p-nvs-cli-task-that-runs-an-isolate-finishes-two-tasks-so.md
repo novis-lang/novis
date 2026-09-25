@@ -3,4 +3,4 @@
   task of its own beside the request's, and an `assert_eq!(finished, requests)` then fails at
   exactly `2 ×` with nothing in the message about isolates to point at why. Count what the request
   itself did — an `AtomicUsize` the task bumps once its `Completion` reads `ok` — and leave
-  `finished` to a case that is about the scheduler. [until: reviewed 2026-09-09]
+  `finished` to a case that is about the scheduler. [until: gone crates/nvs-host/src/scheduler.rs:pub finished]

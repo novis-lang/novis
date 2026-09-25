@@ -3,4 +3,4 @@
   "\n"` writes `$name` and the separator before the throw, and the `catch` arm that prints the same
   prefix again produces a blessed `.out` reading `Hallbeck: Hallbeck: skipped, …` — which looks like
   a runtime bug and is not one. In an example or a case whose `try` calls something, bind the value
-  to a local inside the `try` and `echo` only once it exists. [until: reviewed 2026-09-19]
+  to a local inside the `try` and `echo` only once it exists. [until: gone crates/nvs-ir/src/ir.rs:echo]

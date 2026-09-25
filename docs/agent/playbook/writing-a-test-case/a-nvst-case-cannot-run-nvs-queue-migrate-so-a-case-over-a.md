@@ -3,4 +3,4 @@
   schema has no program-reachable form — `nvs_stdlib::queue::schema()` is Rust. Take the DDL from
   `nvs queue migrate --config examples/queue-sqlite.toml --dry-run` into the case's own `--FILE--`,
   and create `nvs_dead_jobs` beside `nvs_jobs`: `status` reads a receipt back from both.
-  [until: reviewed 2026-09-11]
+  [until: gone crates/nvs-stdlib/src/queue.rs:nvs_dead_jobs]

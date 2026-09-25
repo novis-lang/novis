@@ -1,9 +1,11 @@
 {
   "lead": "A multi-file `.nvst` case runs every file's statements, each in its own variable scope.",
   "body": "`--FILE <relative/path>--` repeats and writes another file into the case's directory, so a class in a second file is reachable and a bare `echo` at its file scope prints where the `require` is. A required file's `$x` is not the caller's (`rule:statements/a-required-file-shares-declarations-not-locals`), and an autoloaded file runs only its declarations.",
-  "files": [],
+  "files": [
+    "crates/nvs-test/src/case.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/case.rs:--FILE"
   }
 }

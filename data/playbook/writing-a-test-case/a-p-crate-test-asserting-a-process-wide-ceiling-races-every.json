@@ -1,9 +1,11 @@
 {
   "lead": "A `-p <crate>` test asserting a process-wide ceiling races every other test in the binary; make the count a parameter rather than serialise the tests.",
   "body": "A bound in one `static AtomicU64` is only assertable at a ceiling of one, so `Slot::take(1)` answers whichever other test held a connection at that instant. Add `take_from(count: &'static AtomicU64, ceiling)` with `take(ceiling)` delegating, and let the test own a `static COUNT`.",
-  "files": [],
+  "files": [
+    "crates/nvs-server/src/bounds.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-server/src/bounds.rs:take_from"
   }
 }

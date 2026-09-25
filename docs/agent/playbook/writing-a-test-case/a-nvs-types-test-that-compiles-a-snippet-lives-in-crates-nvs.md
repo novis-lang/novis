@@ -3,4 +3,4 @@
   questions and never sees a diagnostic, so an anchor there is for the wrong host.
   `crates/nvs-types/tests/common/mod.rs`'s `check_in_method`/`check_src` are the harness and
   `crates/nvs-types/tests/core_members.rs` owns the options-bag rules; `cargo test -p nvs-types`
-  runs both targets, so only the fixture decides. [until: reviewed 2026-09-06]
+  runs both targets, so only the fixture decides. [until: gone crates/nvs-types/tests/common/mod.rs:check_in_method]

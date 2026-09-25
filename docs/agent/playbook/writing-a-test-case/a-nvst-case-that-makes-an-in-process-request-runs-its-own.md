@@ -4,4 +4,4 @@
   above the call draws once in the parent and again in the child, and a link one of them signed never
   verifies for the other — the case then fails as though the member under test were broken. Write a
   fixed key (`Core\Bytes::fill(32, 65)`) for anything a case mints on one side of that call and checks
-  on the other. [until: reviewed 2026-09-10]
+  on the other. [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::request]

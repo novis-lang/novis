@@ -5,4 +5,4 @@
   either. Copy the section from
   `tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst`: a
   `[capabilities.db]` table, then the `[db.main]` block the case connects to.
-  [until: reviewed 2026-09-21]
+  [until: gone crates/nvs-stdlib/src/db/mod.rs:Core\Db::connect]

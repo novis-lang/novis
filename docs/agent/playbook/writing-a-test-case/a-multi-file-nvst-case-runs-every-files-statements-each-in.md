@@ -3,4 +3,4 @@
   in a second file is reachable and a bare `echo` at its file scope prints where the `require` is. A
   required file's `$x` is not the caller's
   (`rule:statements/a-required-file-shares-declarations-not-locals`), and an autoloaded file runs
-  only its declarations. [until: reviewed 2026-09-06]
+  only its declarations. [until: gone crates/nvs-test/src/case.rs:--FILE]

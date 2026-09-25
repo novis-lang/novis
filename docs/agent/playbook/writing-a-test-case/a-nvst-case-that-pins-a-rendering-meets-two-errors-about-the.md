@@ -3,4 +3,4 @@
   Core\Debug::render($v);` is `E0401`; and a rendered property name begins with `$`, so `"{\n $token
   => …"` is `E0301: $token is not declared`. Escape the property as `\$token`;
   `test-assert-matches-inline-never-holds-a-secret-property.nvst` carries the spelling.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/debug.rs:Core\Debug::render]

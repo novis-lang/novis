@@ -3,4 +3,4 @@
   takes its type from a declared target or a parameter and not from the other operand, while
   `rule:types/arithmetic` gives `decimal ⊕ float` no common type. Declare the constant as its own
   `decimal` binding, or write `as decimal`; an integer literal needs neither, since `decimal ⊕ int`
-  is a row of that table. [until: reviewed 2026-09-22]
+  is a row of that table. [until: gone crates/nvs-diagnostics/src/lib.rs:E0455]

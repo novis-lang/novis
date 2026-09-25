@@ -1,9 +1,11 @@
 {
   "lead": "A memory bound read off `budget::live_bytes` alone can be vacuous; `allocated_bytes` is the counter that shows it.",
   "body": "A stream measured with its reused buffer already allocated peaks at tens of bytes at any row count, so a case asserting only \"the peak stayed under a bound\" passes identically when the drain never ran or the counters are not maintained; `budget`'s module doc names the distinction. Assert that the churn grows with the input while the live peak does not, two counters doing nothing cannot fake.",
-  "files": [],
+  "files": [
+    "crates/nvs-runtime/src/budget.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/budget.rs:allocated_bytes"
   }
 }
