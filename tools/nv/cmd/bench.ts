@@ -90,6 +90,13 @@
 // failed case rather than a traceback. The serve leg's generator spends less of each request in the
 // client than Python's did, and that shows most on the faster peer, so a requests/sec figure from this
 // command does not continue a series the Python tool recorded.
+//
+// # What `bun nv bench-load` borrows
+//
+// The load leg (`tools/nv/cmd/bench-load.ts`) imports the binary lookup, the stale-build warning, the
+// free port, the server subprocess, the version probe and the record writer from here, and the proxied
+// leg (`tools/nv/cmd/bench-proxied.ts`) imports the FastCGI client and the closed-loop generator as
+// well, so each of them has one copy to keep correct.
 
 import { createServer, connect, type AddressInfo, type Socket } from "node:net";
 import { cpus, machine, release } from "node:os";
@@ -134,7 +141,7 @@ const PHP_MODES: Record<string, string[]> = {
 };
 
 /** A message the command stops on, printed alone to stderr with exit status 1. */
-class Fail extends Error {}
+export class Fail extends Error {}
 
 // ---------------------------------------------------------------------------------------------------
 // The command line.
@@ -261,7 +268,7 @@ function help(): string {
 // ---------------------------------------------------------------------------------------------------
 
 /** `format(x, ",.Nf")`: fixed digits with a comma between thousands. */
-function grouped(x: number, digits: number): string {
+export function grouped(x: number, digits: number): string {
   const s = fixed(x, digits);
   const [whole, frac] = s.split(".");
   const sign = whole!.startsWith("-") ? "-" : "";
@@ -272,10 +279,10 @@ function grouped(x: number, digits: number): string {
 const fmt = (value: number | null | undefined) => (value === null || value === undefined ? "-" : grouped(value, 1));
 const ratioText = (value: number | null | undefined) => (value === null || value === undefined ? "-" : `${fixed(value, 2)}x`);
 const listRepr = (items: string[]) => `[${items.map(pyRepr).join(", ")}]`;
-const round = (x: number, digits: number) => Number(fixed(x, digits));
+export const round = (x: number, digits: number) => Number(fixed(x, digits));
 
 /** `repr` of a byte string the way Python writes it. */
-function bytesRepr(b: Uint8Array): string {
+export function bytesRepr(b: Uint8Array): string {
   const has = (c: number) => b.includes(c);
   const q = has(0x27) && !has(0x22) ? '"' : "'";
   let body = "";
@@ -300,7 +307,7 @@ function pyDumps(v: unknown): string {
   return JSON.stringify(v ?? null);
 }
 
-function median(xs: number[]): number {
+export function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const mid = s.length >> 1;
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
@@ -310,19 +317,19 @@ function median(xs: number[]): number {
 const shownPath = (path: string) => normalize(path);
 
 /** `binary` relative to the repository when it is inside it, as the records have always named it. */
-function repoRelative(binary: string): string {
+export function repoRelative(binary: string): string {
   const full = resolve(binary);
   const r = relative(ROOT, full);
   return isAbsolute(binary) && !r.startsWith("..") && !isAbsolute(r) ? r : shownPath(binary);
 }
 
-function stamp(): string {
+export function stamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function host(): Record<string, unknown> {
+export function host(): Record<string, unknown> {
   const all = cpus();
   return { platform: `${process.platform}-${release()}-${machine()}`, processor: all[0]?.model ?? "", cpus: all.length };
 }
@@ -332,7 +339,7 @@ function host(): Record<string, unknown> {
 // ---------------------------------------------------------------------------------------------------
 
 /** The first line a program prints for its version, or `unknown`. */
-function version(executable: string, argv: string[]): string {
+export function version(executable: string, argv: string[]): string {
   try {
     const out = Bun.spawnSync([executable, ...argv], { cwd: ROOT, stdout: "pipe", stderr: "pipe", timeout: 30_000 });
     const text = out.stdout.toString().trim();
@@ -389,7 +396,7 @@ function measure(argv: string[], reps: number): Measured {
   return { failed: false, stdout: first.stdout, stderr: first.stderr, min_ms: Math.min(...samples), median_ms: median(samples), samples_ms: samples };
 }
 
-function findNvs(explicit: string | null, allowDebug: boolean): string {
+export function findNvs(explicit: string | null, allowDebug: boolean): string {
   const binary = explicit ?? join(ROOT, "target", "release", WINDOWS ? "nvs.exe" : "nvs");
   if (!existsSync(binary)) {
     throw new Fail(`no Novis binary at ${shownPath(binary)}\n  build one with \`cargo build --release\`, or point --nvs at the one you mean`);
@@ -404,7 +411,7 @@ function findNvs(explicit: string | null, allowDebug: boolean): string {
 }
 
 /** Nothing here builds. If the binary predates the sources, the number is about old code. */
-function warnIfStale(binary: string): void {
+export function warnIfStale(binary: string): void {
   let built: number;
   let newest = -Infinity;
   try {
@@ -930,7 +937,7 @@ function fcgiRecord(kind: number, body: Buffer): Buffer {
  * set, so the connection is reused where the SAPI honours it and reopened where it does not, and
  * `reconnects` counts the second case for `HttpConn`'s reason.
  */
-class FcgiConn implements Conn {
+export class FcgiConn implements Conn {
   reconnects = 0;
   private wire!: Wire;
   private readonly wireRequest: Buffer;
@@ -1007,7 +1014,7 @@ class FcgiConn implements Conn {
 }
 
 /** A port the OS has just said is free. Racy by nature, as every harness is. */
-function freePort(): Promise<number> {
+export function freePort(): Promise<number> {
   return new Promise((ok, fail) => {
     const probe = createServer();
     probe.once("error", fail);
@@ -1023,7 +1030,7 @@ function freePort(): Promise<number> {
  * line per request, and an undrained pipe wedges it at the OS buffer size, which reads as the peer
  * becoming slow halfway through a run.
  */
-class Server {
+export class Server {
   private log: string[] = [];
   private drained: Promise<unknown>;
 
@@ -1091,7 +1098,7 @@ class Server {
  * Closed loop -- each connection issues its next request the moment the previous answer is in hand.
  * The connections open before the clock starts.
  */
-async function hammer(open: () => Promise<Conn>, requests: number, concurrency: number): Promise<{ elapsed: number; body: Buffer; reopened: number }> {
+export async function hammer(open: () => Promise<Conn>, requests: number, concurrency: number): Promise<{ elapsed: number; body: Buffer; reopened: number }> {
   const share = Array.from({ length: concurrency }, (_, i) => Math.floor(requests / concurrency) + (i < requests % concurrency ? 1 : 0));
   const conns: Conn[] = [];
   for (const _ of share) conns.push(await open());
@@ -1254,7 +1261,7 @@ const pyTypeName = (v: unknown) =>
  * `benches/serve.json` is tracked, so a row there is a figure published by hand.
  * `docs/agent/commands.md` § *The server's throughput* is that split's home.
  */
-function writeServeRecord(path: string, record: Record<string, unknown>): void {
+export function writeServeRecord(path: string, record: Record<string, unknown>): void {
   const full = resolve(path);
   mkdirSync(dirname(full), { recursive: true });
   let history: unknown[] = [];

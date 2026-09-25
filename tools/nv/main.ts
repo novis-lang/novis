@@ -4,6 +4,8 @@
 import * as audit from "./cmd/audit.ts";
 import * as bg from "./cmd/bg.ts";
 import * as bench from "./cmd/bench.ts";
+import * as benchLoad from "./cmd/bench-load.ts";
+import * as benchProxied from "./cmd/bench-proxied.ts";
 import * as brief from "./cmd/brief.ts";
 import * as chain from "./cmd/chain.ts";
 import * as check from "./cmd/check.ts";
@@ -55,7 +57,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, migration, orient, origin, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bench, "bench-load": benchLoad, "bench-proxied": benchProxied, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, migration, orient, origin, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
