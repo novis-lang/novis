@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 996,
-    "shipped": 759,
-    "designed": 237,
-    "diverging": 586
+    "total": 1011,
+    "shipped": 773,
+    "designed": 238,
+    "diverging": 589
   },
   "topics": [
     {
@@ -12,10 +12,10 @@
       "url": "/docs/rules/programs/",
       "single": false,
       "counts": {
-        "total": 19,
-        "shipped": 13,
+        "total": 20,
+        "shipped": 14,
         "designed": 6,
-        "diverging": 7
+        "diverging": 8
       },
       "sections": [
         {
@@ -78,10 +78,10 @@
           "blurb": "How a name reaches the file that declares it — while compiling, with no loader running anywhere.",
           "url": "/docs/rules/programs/names-and-files/",
           "counts": {
-            "total": 8,
-            "shipped": 7,
+            "total": 9,
+            "shipped": 8,
             "designed": 1,
-            "diverging": 5
+            "diverging": 6
           },
           "rules": [
             {
@@ -91,6 +91,14 @@
               "status": "shipped",
               "href": "/docs/rules/programs/names-and-files/#implementing",
               "diverges": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`"
+            },
+            {
+              "id": "programs/implementing-with",
+              "slug": "implementing-with",
+              "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling",
+              "status": "shipped",
+              "href": "/docs/rules/programs/names-and-files/#implementing-with",
+              "diverges": "a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes"
             },
             {
               "id": "programs/compile-target",
@@ -119,7 +127,7 @@
             {
               "id": "programs/one-declaration-per-autoloaded-file",
               "slug": "one-declaration-per-autoloaded-file",
-              "title": "A file reached by autoload declares exactly one thing, named for the file",
+              "title": "A file reached by autoload declares exactly one thing, under the name the map finds it by",
               "status": "shipped",
               "href": "/docs/rules/programs/names-and-files/#one-declaration-per-autoloaded-file",
               "diverges": "PSR-4 imposes this by convention; here it is a diagnostic"
@@ -1222,10 +1230,10 @@
       "url": "/docs/rules/classes/",
       "single": false,
       "counts": {
-        "total": 38,
-        "shipped": 37,
+        "total": 39,
+        "shipped": 38,
         "designed": 1,
-        "diverging": 23
+        "diverging": 24
       },
       "sections": [
         {
@@ -1414,10 +1422,10 @@
           "blurb": "There is no `trait`: shared behaviour is a default method, and shared state is a field you delegate to.",
           "url": "/docs/rules/classes/interfaces-and-delegation/",
           "counts": {
-            "total": 5,
-            "shipped": 4,
+            "total": 6,
+            "shipped": 5,
             "designed": 1,
-            "diverging": 2
+            "diverging": 3
           },
           "rules": [
             {
@@ -1451,6 +1459,14 @@
               "status": "shipped",
               "href": "/docs/rules/classes/interfaces-and-delegation/#interface-private-methods",
               "diverges": null
+            },
+            {
+              "id": "classes/interfaces-declare-no-state",
+              "slug": "interfaces-declare-no-state",
+              "title": "An interface declares no property: one written there is `E0254`, and the value comes from a method or a constant",
+              "status": "shipped",
+              "href": "/docs/rules/classes/interfaces-and-delegation/#interfaces-declare-no-state",
+              "diverges": "8.4 admits a hooked property in an interface; Novis admits no property there at all"
             },
             {
               "id": "classes/delegation-by-field",
@@ -2236,9 +2252,9 @@
       "url": "/docs/rules/tooling/",
       "single": false,
       "counts": {
-        "total": 60,
+        "total": 62,
         "shipped": 38,
-        "designed": 22,
+        "designed": 24,
         "diverging": 40
       },
       "sections": [
@@ -2554,9 +2570,9 @@
           "blurb": "A doc comment is exactly `///`, and one JSON document is the machine-readable source every renderer consumes.",
           "url": "/docs/rules/tooling/doc-comments-and-metadata/",
           "counts": {
-            "total": 12,
+            "total": 14,
             "shipped": 6,
-            "designed": 6,
+            "designed": 8,
             "diverging": 6
           },
           "rules": [
@@ -2627,7 +2643,7 @@
             {
               "id": "tooling/an-agent-asks-the-binary",
               "slug": "an-agent-asks-the-binary",
-              "title": "`nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface",
+              "title": "`nvs agent` answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface",
               "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary",
               "diverges": null
@@ -2635,9 +2651,25 @@
             {
               "id": "tooling/the-index-is-one-line-per-member",
               "slug": "the-index-is-one-line-per-member",
-              "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on",
+              "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on, and one per chapter heading",
               "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#the-index-is-one-line-per-member",
+              "diverges": null
+            },
+            {
+              "id": "tooling/the-index-names-every-key-command-and-code",
+              "slug": "the-index-names-every-key-command-and-code",
+              "title": "`nvs agent index` carries one derived line per configuration key, command, flag and diagnostic code, and `find` reaches each by the name a user types",
+              "status": "designed",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#the-index-names-every-key-command-and-code",
+              "diverges": null
+            },
+            {
+              "id": "tooling/a-diagnostic-code-carries-its-card",
+              "slug": "a-diagnostic-code-carries-its-card",
+              "title": "Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once",
+              "status": "designed",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#a-diagnostic-code-carries-its-card",
               "diverges": null
             },
             {
@@ -2814,10 +2846,10 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 71,
-        "shipped": 11,
+        "total": 79,
+        "shipped": 19,
         "designed": 60,
-        "diverging": 23
+        "diverging": 24
       },
       "sections": [
         {
@@ -2904,10 +2936,10 @@
           "blurb": "Synchronous, one analysis thread, a closed request set, and diagnostics that stop at the first phase that failed.",
           "url": "/docs/rules/ide/the-language-server/",
           "counts": {
-            "total": 9,
-            "shipped": 2,
+            "total": 11,
+            "shipped": 4,
             "designed": 7,
-            "diverging": 1
+            "diverging": 2
           },
           "rules": [
             {
@@ -2933,6 +2965,22 @@
               "status": "designed",
               "href": "/docs/rules/ide/the-language-server/#an-open-document-is-its-own-entry-point",
               "diverges": null
+            },
+            {
+              "id": "ide/an-autoloaded-file-borrows-its-programs-map",
+              "slug": "an-autoloaded-file-borrows-its-programs-map",
+              "title": "A file a program autoloads or requires is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
+              "status": "shipped",
+              "href": "/docs/rules/ide/the-language-server/#an-autoloaded-file-borrows-its-programs-map",
+              "diverges": null
+            },
+            {
+              "id": "ide/the-stub-tree-is-where-core-is-declared",
+              "slug": "the-stub-tree-is-where-core-is-declared",
+              "title": "A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed",
+              "status": "shipped",
+              "href": "/docs/rules/ide/the-language-server/#the-stub-tree-is-where-core-is-declared",
+              "diverges": "PhpStorm ships a hand-maintained stub tree for PHP's built-ins; here the stubs are generated from the registry the runtime dispatches on, so a stub cannot say what the binary does not do"
             },
             {
               "id": "ide/the-request-set-is-closed",
@@ -2990,8 +3038,8 @@
           "blurb": "An action may only write text the compiler already determined — never a choice, never an alias, never a guess.",
           "url": "/docs/rules/ide/code-actions/",
           "counts": {
-            "total": 9,
-            "shipped": 0,
+            "total": 11,
+            "shipped": 2,
             "designed": 9,
             "diverging": 5
           },
@@ -3011,6 +3059,22 @@
               "status": "designed",
               "href": "/docs/rules/ide/code-actions/#a-quick-fix-is-a-diagnostics-own-suggestion",
               "diverges": "there is no inspection profile to tune; a fix exists only where a diagnostic already carries its replacement text, and running fixes on save is `editor.codeActionsOnSave`, never part of the formatter"
+            },
+            {
+              "id": "ide/an-undeclared-name-offers-its-import",
+              "slug": "an-undeclared-name-offers-its-import",
+              "title": "An unqualified name that resolves to nothing carries one `use` line per type it could have meant, and the editor offers each as a quick fix",
+              "status": "shipped",
+              "href": "/docs/rules/ide/code-actions/#an-undeclared-name-offers-its-import",
+              "diverges": null
+            },
+            {
+              "id": "ide/a-pasted-type-carries-its-use-line",
+              "slug": "a-pasted-type-carries-its-use-line",
+              "title": "A type name pasted from one file into another brings the `use` line that resolves it, read at copy time from the file it came from",
+              "status": "shipped",
+              "href": "/docs/rules/ide/code-actions/#a-pasted-type-carries-its-use-line",
+              "diverges": null
             },
             {
               "id": "ide/a-code-action-writes-only-what-is-already-determined",
@@ -3076,8 +3140,8 @@
           "blurb": "Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.",
           "url": "/docs/rules/ide/highlighting-and-completion/",
           "counts": {
-            "total": 11,
-            "shipped": 4,
+            "total": 14,
+            "shipped": 7,
             "designed": 7,
             "diverging": 6
           },
@@ -3144,6 +3208,30 @@
               "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered",
               "status": "shipped",
               "href": "/docs/rules/ide/highlighting-and-completion/#completion-is-asked-where-a-spelling-ends",
+              "diverges": null
+            },
+            {
+              "id": "ide/an-accepted-type-writes-what-follows-it",
+              "slug": "an-accepted-type-writes-what-follows-it",
+              "title": "Accepting a type writes `Name::` inside an expression and `Name()` after `new`, and the name alone wherever a type or a statement may start",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#an-accepted-type-writes-what-follows-it",
+              "diverges": null
+            },
+            {
+              "id": "ide/an-accepted-member-writes-its-call",
+              "slug": "an-accepted-member-writes-its-call",
+              "title": "Accepting a method writes `name()` with the cursor inside where it takes a parameter, and a property, constant, case or alias writes the name alone",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#an-accepted-member-writes-its-call",
+              "diverges": null
+            },
+            {
+              "id": "ide/a-completion-row-reads-as-a-declaration",
+              "slug": "a-completion-row-reads-as-a-declaration",
+              "title": "A completion row shows a member's signature after its name and its type at the right, a type its namespace, and the card is read on resolve for one item",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#a-completion-row-reads-as-a-declaration",
               "diverges": null
             },
             {
@@ -3434,8 +3522,8 @@
           "blurb": "What security means once a file is open rather than running: the process on the wire, the binary the client will trust, and a secret concealed on screen. None of it is a language guarantee.",
           "url": "/docs/rules/ide/security-in-the-editor/",
           "counts": {
-            "total": 9,
-            "shipped": 1,
+            "total": 10,
+            "shipped": 2,
             "designed": 8,
             "diverging": 0
           },
@@ -3454,6 +3542,14 @@
               "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
               "status": "designed",
               "href": "/docs/rules/ide/security-in-the-editor/#the-extension-refuses-a-binary-it-does-not-understand",
+              "diverges": null
+            },
+            {
+              "id": "ide/the-extension-runs-a-copy-of-the-binary",
+              "slug": "the-extension-runs-a-copy-of-the-binary",
+              "title": "Every process the extension starts runs from a verified copy of the binary that is never older than the build on disk, so the file the user named is never held",
+              "status": "shipped",
+              "href": "/docs/rules/ide/security-in-the-editor/#the-extension-runs-a-copy-of-the-binary",
               "diverges": null
             },
             {
@@ -3522,8 +3618,8 @@
       "url": "/docs/rules/testing/",
       "single": false,
       "counts": {
-        "total": 55,
-        "shipped": 42,
+        "total": 56,
+        "shipped": 43,
         "designed": 13,
         "diverging": 16
       },
@@ -3746,8 +3842,8 @@
           "blurb": "A feature is finished when it has a description, a test from both sides, three examples, a measured figure and an attack against it.",
           "url": "/docs/rules/testing/feature-proofs/",
           "counts": {
-            "total": 8,
-            "shipped": 8,
+            "total": 9,
+            "shipped": 9,
             "designed": 0,
             "diverging": 0
           },
@@ -3758,6 +3854,14 @@
               "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
               "status": "shipped",
               "href": "/docs/rules/testing/feature-proofs/#nvst-is-separate",
+              "diverges": null
+            },
+            {
+              "id": "testing/a-directory-of-programs-is-one-test-program",
+              "slug": "a-directory-of-programs-is-one-test-program",
+              "title": "A directory handed to `nvs test` that holds `.nvs` files is one program requiring every one of them in name order, and a file in it that requires the bootstrap gives it its `autoload` map",
+              "status": "shipped",
+              "href": "/docs/rules/testing/feature-proofs/#a-directory-of-programs-is-one-test-program",
               "diverges": null
             },
             {
@@ -3787,7 +3891,7 @@
             {
               "id": "testing/feature-proofs",
               "slug": "feature-proofs",
-              "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack",
+              "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure, an attack and its help in the binary",
               "status": "shipped",
               "href": "/docs/rules/testing/feature-proofs/#feature-proofs",
               "diverges": null
@@ -3967,7 +4071,7 @@
             {
               "id": "testing/member-perf-ledger",
               "slug": "member-perf-ledger",
-              "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves",
+              "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's code moves",
               "status": "shipped",
               "href": "/docs/rules/testing/measuring-performance/#member-perf-ledger",
               "diverges": null
@@ -7230,8 +7334,8 @@
       "url": "/docs/rules/http-server/",
       "single": false,
       "counts": {
-        "total": 80,
-        "shipped": 73,
+        "total": 81,
+        "shipped": 74,
         "designed": 7,
         "diverging": 64
       },
@@ -7242,8 +7346,8 @@
           "blurb": "What the server is and is not, how mounts expand at boot, and the valve that answers 503 before an isolate exists.",
           "url": "/docs/rules/http-server/listening-and-admission/",
           "counts": {
-            "total": 13,
-            "shipped": 12,
+            "total": 14,
+            "shipped": 13,
             "designed": 1,
             "diverging": 11
           },
@@ -7259,7 +7363,7 @@
             {
               "id": "http-server/the-server-block-is-boot-class",
               "slug": "the-server-block-is-boot-class",
-              "title": "The `[server]` block is `Boot`-class, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
+              "title": "Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#the-server-block-is-boot-class",
               "diverges": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool"
@@ -7267,7 +7371,7 @@
             {
               "id": "http-server/a-mount-table-expands-at-boot",
               "slug": "a-mount-table-expands-at-boot",
-              "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot",
+              "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#a-mount-table-expands-at-boot",
               "diverges": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path"
@@ -7278,6 +7382,14 @@
               "title": "A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block",
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#a-mount-carries-no-policy",
+              "diverges": null
+            },
+            {
+              "id": "http-server/the-served-file-is-optional",
+              "slug": "the-served-file-is-optional",
+              "title": "`nvs serve` needs no file over a written mount table, serves that table whole under the global configuration, and refuses a start that names nothing",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/listening-and-admission/#the-served-file-is-optional",
               "diverges": null
             },
             {
@@ -7331,7 +7443,7 @@
             {
               "id": "http-server/admission-is-arithmetic-not-a-number",
               "slug": "admission-is-arithmetic-not-a-number",
-              "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged once at boot",
+              "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged at boot and by every reload",
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#admission-is-arithmetic-not-a-number",
               "diverges": "`pm.max_children` is a free number and the out-of-memory killer enforces its product with memory; here the ceiling is derived from the budget, the configured number is clamped rather than trusted, and the overflow is a `503`"
@@ -8579,10 +8691,10 @@
             {
               "id": "config/an-edit-reaches-the-next-request-without-a-restart",
               "slug": "an-edit-reaches-the-next-request-without-a-restart",
-              "title": "An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart",
+              "title": "A source change reaches the next request in every mode: every file a program reached is checked in the background, and a change is compiled whole from a quiet tree before one pointer swap",
               "status": "shipped",
               "href": "/docs/rules/config/reloading-and-control/#an-edit-reaches-the-next-request-without-a-restart",
-              "diverges": "`opcache.validate_timestamps` shape, but the cache key is the file's content hash rather than its path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()`"
+              "diverges": "`opcache.validate_timestamps` shape, but the check runs in the background rather than in a request, the cache key is the program's content rather than a file's path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()` and no `validate_timestamps=0`"
             },
             {
               "id": "config/a-request-keeps-the-unit-it-resolved",
@@ -8689,7 +8801,7 @@
             {
               "id": "config/a-startup-default-is-never-flipped",
               "slug": "a-startup-default-is-never-flipped",
-              "title": "A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code",
+              "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
               "status": "designed",
               "href": "/docs/rules/config/run-modes/#a-startup-default-is-never-flipped",
               "diverges": null
@@ -8915,10 +9027,10 @@
             {
               "id": "config/opcache-revalidation-is-system-class",
               "slug": "opcache-revalidation-is-system-class",
-              "title": "`opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode",
+              "title": "`opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode",
               "status": "shipped",
               "href": "/docs/rules/config/stores-and-caches/#opcache-revalidation-is-system-class",
-              "diverges": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either"
+              "diverges": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either, and there is no value that turns checking off"
             },
             {
               "id": "config/opcache-file-cache-directives-are-system",
@@ -8946,9 +9058,9 @@
       "url": "/docs/rules/packaging/",
       "single": false,
       "counts": {
-        "total": 71,
-        "shipped": 33,
-        "designed": 38,
+        "total": 72,
+        "shipped": 35,
+        "designed": 37,
         "diverging": 42
       },
       "sections": [
@@ -8959,8 +9071,8 @@
           "url": "/docs/rules/packaging/the-artifact-cache/",
           "counts": {
             "total": 12,
-            "shipped": 8,
-            "designed": 4,
+            "shipped": 9,
+            "designed": 3,
             "diverging": 3
           },
           "rules": [
@@ -9048,7 +9160,7 @@
               "id": "packaging/autoload-probes-fold-into-the-cache-key",
               "slug": "autoload-probes-fold-into-the-cache-key",
               "title": "A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/packaging/the-artifact-cache/#autoload-probes-fold-into-the-cache-key",
               "diverges": "OPcache revalidates the files it compiled; here adding a file that shadows an already-resolved name, or a module nothing references yet, invalidates the unit although no hashed file changed"
             },
@@ -9068,8 +9180,8 @@
           "blurb": "A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph.",
           "url": "/docs/rules/packaging/single-file-builds/",
           "counts": {
-            "total": 14,
-            "shipped": 13,
+            "total": 15,
+            "shipped": 14,
             "designed": 1,
             "diverging": 7
           },
@@ -9144,6 +9256,14 @@
               "title": "`nvs --help` opens with the README's own title and the version, commit and commit date of the build answering",
               "status": "shipped",
               "href": "/docs/rules/packaging/single-file-builds/#the-banner-states-the-build",
+              "diverges": null
+            },
+            {
+              "id": "packaging/the-windows-binary-says-what-it-is",
+              "slug": "the-windows-binary-says-what-it-is",
+              "title": "`nvs.exe` carries the logo as its icon and the manifest's facts as its version information, and a debug build carries its own icon",
+              "status": "shipped",
+              "href": "/docs/rules/packaging/single-file-builds/#the-windows-binary-says-what-it-is",
               "diverges": null
             },
             {
@@ -9541,7 +9661,7 @@
             {
               "id": "packaging/the-installer-is-a-sink",
               "slug": "the-installer-is-a-sink",
-              "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line",
+              "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no password on a command line",
               "status": "shipped",
               "href": "/docs/rules/packaging/running-as-a-service/#the-installer-is-a-sink",
               "diverges": "`sc create` and a hand-written unit store whatever they are given; the installer refuses each of these by name with an `E063x` diagnostic and installs nothing"
@@ -9557,15 +9677,15 @@
             {
               "id": "packaging/a-service-runs-as-a-virtual-account",
               "slug": "a-service-runs-as-a-virtual-account",
-              "title": "A service's default identity is the per-service virtual account `NT SERVICE\\<name>`, and `LocalSystem` is never the default",
+              "title": "A service's default identity is the local system account, and `--account` names any other, the per-service virtual account included",
               "status": "designed",
               "href": "/docs/rules/packaging/running-as-a-service/#a-service-runs-as-a-virtual-account",
-              "diverges": "a hand-registered service usually runs as `LocalSystem`; here that must be written out as `--account SYSTEM`, and the default account has no password to rotate"
+              "diverges": "a hand-registered service runs as `LocalSystem`, and so does one installed here with no `--account`; the per-service virtual account and its grants are one `--account` away"
             },
             {
               "id": "packaging/a-service-answers-its-manager",
               "slug": "a-service-answers-its-manager",
-              "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
+              "title": "A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log",
               "status": "shipped",
               "href": "/docs/rules/packaging/running-as-a-service/#a-service-answers-its-manager",
               "diverges": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process"

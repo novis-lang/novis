@@ -1,9 +1,10 @@
 // Rendering: the files `bun nv render` writes from the records. A rendered file is committed, carries
 // the one generated marker, and is written with LF line ends whatever the platform, so `render
 // --check` compares like with like on every machine. A rendered file is never merged by hand: after
-// a conflict in one, it is rendered again.
+// a conflict in one, it is rendered again. A renderer that owns a directory also owns its deletions:
+// a file there that it no longer writes is stale.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "./paths.ts";
 
@@ -18,6 +19,39 @@ export interface Output {
 export interface Renderer {
   name: string;
   render(root: string): Output[] | Promise<Output[]>;
+  /**
+   * A directory whose every file is this renderer's, except the repo-relative names in `keep`
+   * under it. A file there that the render no longer writes is stale, and `bun nv render` deletes it.
+   */
+  owns?: { dir: string; keep: string[] };
+}
+
+/** Every file under each owned directory that is neither an output nor kept, repo-relative. */
+export function orphans(owned: { dir: string; keep: string[] }[], outputs: Output[], root: string = ROOT): string[] {
+  const written = new Set(outputs.map((o) => o.path));
+  const found: string[] = [];
+  const walk = (sub: string, own: { dir: string; keep: string[] }) => {
+    const full = join(root, sub);
+    if (!existsSync(full)) return;
+    for (const e of readdirSync(full, { withFileTypes: true })) {
+      const path = `${sub}/${e.name}`;
+      if (e.isDirectory()) walk(path, own);
+      else if (!written.has(path) && !own.keep.includes(path.slice(own.dir.length + 1))) found.push(path);
+    }
+  };
+  for (const own of owned) walk(own.dir, own);
+  return found.sort();
+}
+
+/** Deletes each of `paths`, and every directory under `dirs` the deletion leaves empty. */
+export function removeOrphans(paths: string[], dirs: string[], root: string = ROOT): void {
+  for (const path of paths) rmSync(join(root, path));
+  const sweep = (full: string, top: boolean) => {
+    if (!existsSync(full)) return;
+    for (const e of readdirSync(full, { withFileTypes: true })) if (e.isDirectory()) sweep(join(full, e.name), false);
+    if (!top && readdirSync(full).length === 0) rmdirSync(full);
+  };
+  for (const dir of dirs) sweep(join(root, dir), true);
 }
 
 /** `text` with LF line ends, no trailing whitespace on a line, and exactly one final newline. */

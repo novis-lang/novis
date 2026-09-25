@@ -29,6 +29,10 @@
 *.cmd     text eol=crlf
 *.ps1     text eol=crlf
 
+# Written by `bun nv render` from the records. A conflict in one is resolved by rendering it again.
+website/src/content/docs/docs/rules/*/**  linguist-generated
+website/src/data/rules.json               linguist-generated
+
 # Binary
 *.png     binary
 *.jpg     binary

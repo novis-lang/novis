@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { apply, fill, lf, markdown, MARKER } from "../lib/render.ts";
+import { isGenerated } from "../cmd/links.ts";
+import { ROOT } from "../lib/paths.ts";
+import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../lib/render.ts";
+import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -37,6 +40,31 @@ describe("render", () => {
     apply(outputs, { check: false, root: tmp.root });
     expect(readFileSync(join(tmp.root, "out/a.md"), "utf8")).toBe("new\n");
     expect(apply(outputs, { check: true, root: tmp.root }).stale).toEqual([]);
+  });
+
+  test("a file in an owned directory that no output writes is an orphan, unless it is kept", () => {
+    tmp = scratch();
+    tmp.put("site/index.mdx", "hub\n");
+    tmp.put("site/a/index.md", "a\n");
+    tmp.put("site/gone/old.md", "old\n");
+    const owned = [{ dir: "site", keep: ["index.mdx"] }];
+    const found = orphans(owned, [{ path: "site/a/index.md", text: "a" }], tmp.root);
+    expect(found).toEqual(["site/gone/old.md"]);
+    removeOrphans(found, ["site"], tmp.root);
+    expect(existsSync(join(tmp.root, "site/gone"))).toBe(false);
+    expect(existsSync(join(tmp.root, "site/index.mdx"))).toBe(true);
+  });
+
+  test("the website's rule pages are what the records render, and every one carries both markers", async () => {
+    const outputs = await renderWebsiteRules(ROOT);
+    const pages = outputs.filter((o) => o.path.startsWith(`${PAGES_DIR}/`));
+    expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) {
+      const head = page.text.split("\n", 4).join("\n");
+      expect(head).toContain(MARKER);
+      expect(isGenerated(page.text)).toBe(true);
+    }
+    expect(orphans([websiteRules.owns!], outputs)).toEqual([]);
   });
 
   test("two outputs for one path are an error", () => {
