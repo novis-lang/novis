@@ -1,0 +1,15 @@
+<?nvs
+// Shows the result for an infinity, and what happens when you divide by zero.
+
+// Any number fits into an infinity zero times. This prints 3.
+echo Core\Math::mod(3.0, Core\Math::INFINITY), "\n";
+
+// An infinity has no remainder. This prints NAN.
+echo Core\Math::mod(Core\Math::INFINITY, 2.0), "\n";
+
+// Dividing by zero throws an `ArithmeticError`.
+try {
+    echo Core\Math::mod(1.0, 0.0), "\n";
+} catch (ArithmeticError $error) {
+    echo "You cannot divide by zero.\n";
+}

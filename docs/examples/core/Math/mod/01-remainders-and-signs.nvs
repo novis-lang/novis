@@ -1,0 +1,12 @@
+<?nvs
+// Shows the remainder of a division, and the sign it has.
+
+// 2.0 fits into 7.5 three times, and 1.5 is left. This prints 1.5.
+echo Core\Math::mod(7.5, 2.0), "\n";
+
+// The result has the sign of the first value. This prints -1.5, then 1.5.
+echo Core\Math::mod(-7.5, 2.0), "\n";
+echo Core\Math::mod(7.5, -2.0), "\n";
+
+// 2.5 fits into 10.0 exactly, so nothing is left. This prints 0.
+echo Core\Math::mod(10.0, 2.5), "\n";

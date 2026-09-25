@@ -1,0 +1,19 @@
+<?nvs
+// Measures the remainder of two `float` values, as a program does to keep an angle or a time inside one cycle.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 0.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the first value this round is last round's result.
+            $total = Core\Math::mod($total + 7.25, 360.0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
