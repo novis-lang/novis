@@ -512,6 +512,12 @@ const RULEBOOK_GATES: Gate[] = [
       "a generated page no longer matches the fragments it is rendered from. `bun nv rules --render` " +
       "writes them, and editing a fragment without re-running it commits the old rendering beside the new rule.",
   },
+  {
+    args: ["render", "--check"],
+    why:
+      "a website page under `website/src/content/docs/` no longer matches the records it is rendered from. " +
+      "A rule fragment is rendered there as well as under docs/rules/, and `bun nv render` writes both halves.",
+  },
 ];
 const RECORD_GATES: Gate[] = [
   {
@@ -659,7 +665,7 @@ function validatePlaybook(s: Section): string[] {
     if (anchors(ROOT, b.body, until).length === 0) {
       errors.push(
         `${which} names no file in the tree. A trap is about a file: name it in backticks, as its path ` +
-          "from the repository root (`tools/session.py`, `crates/nvs-ir/src/lib.rs`, `Cargo.toml`). A rule " +
+          "from the repository root (`tools/nv/cmd/session.ts`, `crates/nvs-ir/src/lib.rs`, `Cargo.toml`). A rule " +
           "every agent needs whatever it edits is not a trap: it belongs in docs/agent/commands.md or docs/agent/conventions.md.",
       );
     }
