@@ -5,10 +5,10 @@
 // input longer than `maxInputLines` and a line longer than `maxLineChars` are cut, and the cut says how
 // much it hid; 0 removes a cap. The session's log holds every event whole either way.
 //
-// It also keeps the live block current: the context tokens, the tool call in flight, whether the session
-// is writing or thinking, and the slices it has committed.
+// It counts the session's context tokens for the line the driver prints when the session ends. The status
+// line reads the same events through `driver/status.ts`'s `Session`.
 
-import { C, TICKER, SLICES, ktok, say } from "./console.ts";
+import { C, ktok, say } from "./console.ts";
 
 export interface Caps {
   maxResultLines: number;
@@ -56,7 +56,6 @@ export class Renderer {
     const context = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"].reduce((n, k) => n + Number(usage[k] ?? 0), 0);
     if (context) this.context = context;
     if (usage.output_tokens) this.written.set(String(message.id ?? this.written.size), Number(usage.output_tokens));
-    TICKER.usage(this.tokens());
   }
 
   private wrapped(text: unknown, prefix: string, colour: string, maxLines: number): void {
@@ -94,18 +93,6 @@ export class Renderer {
     return parts.join("\n");
   }
 
-  /** `Edit tools/x.ts`, `Bash cargo build ...`: the tool and the one argument that says what it is about, for the status line. */
-  private static callTarget(block: Record<string, any>): string {
-    const name = String(block.name ?? "tool");
-    const args = block.input;
-    if (!args || typeof args !== "object") return name;
-    for (const key of ["file_path", "path", "pattern", "command", "prompt", "url", "notebook_path"]) {
-      const value = args[key];
-      if (typeof value === "string" && value.trim()) return `${name} ${value.trim().split("\n", 1)[0]!.slice(0, 60)}`;
-    }
-    return name;
-  }
-
   /** Every argument of a tool call. */
   private toolInput(input: unknown): void {
     if (!input || typeof input !== "object") return;
@@ -137,17 +124,13 @@ export class Renderer {
       this.count(e);
       for (const b of e.message?.content ?? []) {
         if (b.type === "text") {
-          TICKER.note("writing");
           this.said = String(b.text ?? "");
           this.wrapped(b.text, "   ", C.WHITE, 0);
         } else if (b.type === "thinking") {
-          TICKER.note("thinking");
           this.wrapped(b.thinking, "   . ", C.MAGENTA, this.caps.maxResultLines);
         } else if (b.type === "tool_use") {
           if (b.id) this.names.set(String(b.id), String(b.name));
           say(`   > ${b.name}`, C.CYAN);
-          TICKER.tool(Renderer.callTarget(b));
-          SLICES.poll();
           this.toolInput(b.input);
         }
       }

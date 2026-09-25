@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mmss, hms, sessionGoal } from "../driver/console.ts";
+import { TICKER, hms, mmss } from "../driver/console.ts";
 import { Tree } from "../driver/proctree.ts";
 import { DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 
@@ -62,9 +62,15 @@ describe("the console's helpers", () => {
     expect(hms(4 * 3600 + 52 * 60 + 11)).toBe("4h52m");
   });
 
-  test("the goal row opens on the item the pack picked", () => {
-    expect(sessionGoal("x\n-- YOUR ITEM (1 of 3), in full:\n\n- [ ] **Port the driver.** It runs.\n")).toBe("Port the driver.");
-    expect(sessionGoal("")).toBe("nv orient failed -- the session picks its own item");
+  test("between sessions the status line's last field is the driver's phase", () => {
+    TICKER.set({ phase: "acceptance sweep", total: 58, done: 0 });
+    for (let i = 0; i < 31; i++) TICKER.advance();
+    expect(TICKER.phase()).toBe("acceptance sweep 31/58");
+    TICKER.set({ phase: "usage wall" });
+    TICKER.set({ detail: `${hms(723)} left` });
+    expect(TICKER.phase()).toBe("usage wall, 12m03s left");
+    TICKER.set({ phase: "held" });
+    expect(TICKER.phase()).toBe("held");
   });
 });
 

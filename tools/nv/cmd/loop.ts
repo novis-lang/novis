@@ -48,9 +48,9 @@
 // with its numbering. A turn refuses a tree whose `.loop/running` names another run. With no
 // `NOVIS_LOOP_RUN`, nothing waits to start a next turn, so the turn is a run of one session.
 //
-// The console is `driver/console.ts`'s, the one `loop.py` painted: the session's transcript through
-// `driver/transcript.ts`, the driver's stamped steps, and the live block with the `r`, `s`, `p`, `h` and
-// `i` keys. `--max-result-lines` (60), `--max-input-lines` (40) and `--max-line-chars` (500) cap the
+// The console is `driver/console.ts`'s, in `loop.py`'s colours and layout: the session's transcript through
+// `driver/transcript.ts`, the driver's stamped steps, and the live block, whose status line is
+// `driver/status.ts`'s one-row `statusRow`, with the `g`, `r`, `s`, `p`, `h` and `i` keys under it. `--max-result-lines` (60), `--max-input-lines` (40) and `--max-line-chars` (500) cap the
 // transcript, `--full-output` removes the caps, and `--no-status` paints no live block. A Ctrl-C ends
 // the session, sweeps what it left into a wip commit and ends the run.
 //
@@ -87,9 +87,9 @@ import { ROOT } from "../lib/paths.ts";
 import type { RecordType } from "../lib/schema.ts";
 import { loadFile } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
-import { goalTable, memoResults, percent, Session, type Results } from "../driver/status.ts";
+import { goalTable, memoResults, Session, statusRow, type Results } from "../driver/status.ts";
 import { LIMIT, MAX_WALLS, type RateLimit, type Swept, Touched, backoff, markInterrupted, readLimit, rememberLimit, standingLimit, wallAfter } from "../driver/sweep.ts";
-import { C, CONSOLE, CONTROL, HALT, clock, LiveSession, PAUSE, RETRY, SAY, SLICES, STOP, TICKER, VERIFY, consoleMode, hms, holdPause, mmss, say, sessionGoal, step, verdict, wait } from "../driver/console.ts";
+import { C, CONSOLE, CONTROL, HALT, clock, LiveSession, PAUSE, RETRY, SAY, SLICES, STOP, TICKER, VERIFY, consoleMode, hms, holdPause, mmss, say, step, verdict, wait } from "../driver/console.ts";
 import { Tree as ProcTree } from "../driver/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
@@ -543,19 +543,6 @@ function finish(state: RunState, reason: string, done = false): number {
   return 0;
 }
 
-/** `docs/agent/goals/<slug>.md`'s title, without the `Loop goal N — ` its header opens with. */
-function goalHeading(md: string | null): string {
-  try {
-    const head = readFileSync(join(ROOT, md ?? ""), "utf8")
-      .split("\n")
-      .find((l) => l.startsWith("# "));
-    if (head !== undefined) return head.slice(2).trim().replace(/^(Loop goal \d+|Side goal)\s*[—-]\s*/, "");
-  } catch {
-    // As below.
-  }
-  return `${md ?? "the goal's prose"} has no heading`;
-}
-
 /**
  * Sleeps until the wall reopens, with a minute's margin for the server's clock, and `r` or `.loop/retry`
  * ends the wait at once. Returns "" when the run may go on, or the reason it ends: a stop, or a wall
@@ -572,7 +559,7 @@ async function waitWall(limit: RateLimit, maxWait: number): Promise<string> {
   }
   rememberLimit(limit);
   ledger(`       usage wall: ${limit.describe()}; waiting ${hms(left)}`);
-  TICKER.set({ phase: "waiting out the usage limit", detail: limit.describe() });
+  TICKER.set({ phase: "usage wall" });
   // A request older than this wall is not about it.
   rmSync(join(ROOT, RETRY), { force: true });
   step(`press r to retry now -- after switching accounts, say -- or s to stop the run. From another terminal: create ${RETRY} or ${STOP}`, C.CYAN);
@@ -586,7 +573,7 @@ async function waitWall(limit: RateLimit, maxWait: number): Promise<string> {
         rmSync(join(ROOT, LIMIT), { force: true });
         return "";
       }
-      await wait(Math.min(30, left), `usage window reopens ${limit.when()}`, () => CONTROL.pending());
+      await wait(left, () => CONTROL.pending());
       left = limit.left() + 60;
     }
   } finally {
@@ -699,10 +686,15 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
   if (typeof green === "object" && green !== null) for (const id of Object.keys(green)) results.set(id, true);
 
   const session = new Session(plan, results);
-  const heading = goalHeading(live.md);
-  const showGoal = () => TICKER.set({ loopGoal: `goal ${live.slug} ${live.num}/${total}${TICKER.sep}${percent(plan, results)}%${TICKER.sep}${heading}` });
-  showGoal();
-  const scope = `session ${state.served + 1}${Number.isFinite(f.maxSessions) ? `/${f.maxSessions}` : ""}`;
+  // The status line is the goal's row. Between sessions its last field is the driver's phase.
+  TICKER.row = (width) => {
+    if (ctx.live === null) session.phase(TICKER.phase());
+    return statusRow(plan, results, session, width);
+  };
+  CONTROL.onGoal = () => {
+    for (const row of goalTable({ plan, results, session, position: live.num, total, commits: SLICES.subjects(), width: TICKER.width() - 1, utf8: TICKER.utf8 })) say(row);
+  };
+  const scope = `${state.served + 1}${Number.isFinite(f.maxSessions) ? `/${f.maxSessions}` : ""}`;
   const exe = standIn() ?? [Bun.which("claude") ?? "claude"];
   const renderer = new Renderer(f, f.effort ?? "");
   const sweptBy = (swept: Swept) =>
@@ -741,22 +733,20 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
     rmSync(join(ROOT, RUNDIR, "status.txt"), { force: true });
     base = await head();
     SLICES.start(base);
-    TICKER.set({ scope, phase: "starting" });
-    say(`== session ${scope.slice("session ".length)}  ${clock()}`, C.CYAN);
+    say(`== session ${scope}  ${clock()}`, C.CYAN);
     step("building the orientation pack (bun nv orient)");
-    TICKER.set({ phase: "orienting", detail: "bun nv orient" });
+    TICKER.set({ phase: "orienting" });
     const orientedAt = performance.now();
     const oriented = await runProc([process.execPath, join(ROOT, "tools/nv/main.ts"), "orient"], { timeoutMs: 120_000 });
     const pack = oriented.code === 0 ? oriented.stdout : "";
     const spent = mmss((performance.now() - orientedAt) / 1000);
     if (pack) step(`orientation pack: ${Buffer.byteLength(pack).toLocaleString("en-US")} bytes in ${spent}`);
     else step(`orientation pack: nv orient failed after ${spent} -- the session will run it itself`, C.YELLOW);
-    SLICES.pick(sessionGoal(pack));
     const prompt = readFileSync(join(ROOT, PROMPT), "utf8");
 
     const effort = f.effort ? `, --effort ${f.effort}` : "";
     step(`launching ${exe.join(" ")} (--model ${f.model}${effort}, --permission-mode ${f.permissionMode})`);
-    TICKER.set({ phase: "launching", detail: `${exe.join(" ")} --model ${f.model}${effort}` });
+    TICKER.set({ phase: "launching" });
     session.begin(index);
     renderer.begin();
     touched.start();
@@ -773,7 +763,6 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
         latest = readLimit(e) ?? latest;
         touched.note(e);
         session.feed(e);
-        if (e.type === "system" && e.subtype === "init") TICKER.set({ phase: "working" });
         renderer.event(e);
       },
       { [WRITES_ENV]: touched.ledger },
@@ -789,6 +778,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
     ctx.live?.finish();
     ctx.live = null;
     CONTROL.detach();
+    TICKER.set({ phase: "closing the session" });
     consoleMode();
     const tokens = renderer.tokens();
     step(`session ${index} ended after ${mmss((performance.now() - startedAt) / 1000)}, claude exit ${launched.code}${tokens ? `, ${tokens}` : ""}`, C.CYAN);
@@ -813,7 +803,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
       const back = backoff(fails);
       step(`backing off ${mmss(back)} before retry ${fails + 1}`, C.YELLOW);
       TICKER.set({ phase: `backing off before retry ${fails + 1}` });
-      await wait(back, "claude exited non-zero");
+      await wait(back);
       continue;
     }
     break;
@@ -826,7 +816,6 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
   // A session that exits zero without wrapping, cut off by the harness or out of turns, leaves its
   // unfinished slice as surely as a crashed one, and one that wrapped leaves nothing and closes an earlier
   // interruption.
-  SLICES.finish();
   const swept = await markInterrupted(index, "it exited without wrapping", touched);
   if (swept.committed) step(`swept ${swept.paths} uncommitted path(s) into a wip commit -- the session ended without wrapping`, C.YELLOW);
   const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
@@ -851,21 +840,21 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
   const checkedAt = performance.now();
   const progress = sweepProgress(again.labelOf, checkedAt);
   const onDone = (c: Check, ok: boolean) => results.set(c.id, ok);
-  TICKER.set({ phase: "acceptance check", total: scoped.length, done: 0 });
+  TICKER.set({ phase: "acceptance sweep", total: scoped.length, done: 0 });
   let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: false, onDone, progress });
   let cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
   if (result.fail === "" && heldBack.length > 0) {
     step(`scoped sweep green with ${heldBack.length} check(s) held -- opening the floor gate over what this goal changed before the goal is reached`, C.CYAN);
     ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate)`);
     open = true;
-    TICKER.set({ phase: "acceptance check, floor gate open", total: all.length, done: 0 });
+    TICKER.set({ phase: "acceptance sweep, floor gate open", total: all.length, done: 0 });
     ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, keyed, { full: false, collect: true, onDone, progress }));
     cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
   }
   writeFileSync(join(ROOT, FLOOR_GATE), `${JSON.stringify({ since: open ? 0 : since })}\n`);
   step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
   ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
-  showGoal();
+  TICKER.set({ phase: "between sessions" });
   // The verdict on this session is the last thing that belongs in its log.
   CONSOLE.closeSession();
   if (result.fail === "") {
@@ -892,14 +881,10 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, byRespawn: b
 function sweepProgress(labelOf: (n: number) => string, begun: number): Progress {
   const at = () => `+${mmss((performance.now() - begun) / 1000).padStart(6)}`;
   return {
-    run: (what) => {
-      TICKER.set({ detail: what });
-      say(`   .. ${at()}  ${what}`, C.GRAY);
-    },
+    run: (what) => say(`   .. ${at()}  ${what}`, C.GRAY),
     trace: (c, answered) => {
-      const label = `${nameOf(c)} [${labelOf(c.stage)}]`;
-      TICKER.advance(label);
-      say(`   .. ${at()}  ${label}${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
+      TICKER.advance();
+      say(`   .. ${at()}  ${nameOf(c)} [${labelOf(c.stage)}]${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
     },
     note: (text) => say(`   .. ${" ".repeat(7)}  ${text}`, C.GRAY),
   };

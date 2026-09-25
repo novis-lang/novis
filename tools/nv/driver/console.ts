@@ -1,18 +1,15 @@
-// The driver's console, painted the way `tools/loop.py` painted it. The session's transcript and the
-// driver's own steps scroll up the terminal, and a live block of four rows stays under them:
+// The driver's console, in the colours and layout `tools/loop.py` used. The session's transcript and the
+// driver's own steps scroll up the terminal, and a live block of three rows stays under them:
 //
 //   ─────────────────────────────────────────────  a grey rule
-//     2 commits · <last subject> · goal <slug> 122/179 · 73% · <title>   the goal row, grey
-//   ⠋ session 3 · working · ctx 84.2k in / 6.1k out · 12 tool call(s) · Edit tools/x.ts · 4m12s
-//     [h] halt now · [i] type a prompt · [s] stop after this session · [p] hold after this session
+//   ⠋ goal tooling-overhaul/8 | 64% | 84.2kin/6.1kout | 42 tool calls | session 14 | Run the guard tests
+//     [g] goal table · [h] halt now · [i] type a prompt · [s] stop after this session · [p] hold after …
 //
-// The goal row names what the running session has committed so far (`SliceWatch`), or the item the pack
-// gave it until its first commit, then the goal and how many of its own checks are green. A row wider
-// than the terminal slides along under a window, holding at each end. The status line says where the run
-// is, what it is doing, the session's context in and out, its tool calls and the one in flight, what
-// `nv verify` is doing inside it, and how long this phase has run. The key row lists only the keys that
-// do something now, and is left out when stdin is not a console. The window title is the status line's
-// three fields that stay true for a while.
+// The status line's words are `driver/status.ts`'s `statusRow`, which `row` is set to; this module paints
+// it white behind a cyan spinner, cut at the terminal's width. Between two sessions its last field is the
+// driver's phase, `phase()`: `acceptance sweep 31/58`, `usage wall, 12m03s left`, `held`. The window
+// title is the same row. The key row lists only the keys that do something now, and is left out when
+// stdin is not a console.
 //
 // `say` erases the block, writes its line and paints the block again, and a ticker repaints it eight times
 // a second, so the spinner moves while the driver waits on a build or a session. Every line ends in CR LF
@@ -30,7 +27,8 @@
 //   - `h` freezes the running session and every process under it, and again lets it carry on
 //     (`.loop/halt`);
 //   - `i` freezes the session while a prompt is typed, and Enter sends the prompt to it as a user
-//     message (`.loop/say` sends that file's text).
+//     message (`.loop/say` sends that file's text);
+//   - `g` prints the goal as a table into the scrollback.
 // On Windows the keys are read with the C runtime's `_kbhit` and `_getwch`, which leave the console's
 // Ctrl-C as it is. Elsewhere stdin goes into raw mode, and a Ctrl-C byte calls the interrupt handler.
 //
@@ -42,6 +40,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, 
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import type { Tree } from "./proctree.ts";
+import { cut, keyRow } from "./status.ts";
 
 const WIN = process.platform === "win32";
 const OUT_TTY = process.stdout.isTTY === true;
@@ -186,28 +185,19 @@ class StatusLine {
   static readonly BRAILLE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
   static readonly ASCII = "|/-\\";
   static readonly INTERVAL = 120;
-  /** The goal row's scroll: one character every `SCROLL_STEP` frames, and `SCROLL_HOLD` frames of rest at either end. */
-  static readonly SCROLL_STEP = 2;
-  static readonly SCROLL_HOLD = 16;
   static readonly TITLE_ROOM = 120;
 
   enabled = false;
+  utf8 = false;
   frames = StatusLine.ASCII;
-  sep = " | ";
-  cut = "...";
   bar = "-";
   dash = " -- ";
-  loopGoal = "";
-  goal = "";
-  scope = "";
-  phase = "";
-  detail = "";
-  done = 0;
-  total = 0;
-  calls = 0;
-  tokens = "";
-  verifying = "";
-  since = now();
+  /** The status line's words at a width; `turn` sets it to the goal's `statusRow`. */
+  row: (width: number) => string = (width) => cut(this.phase(), width);
+  private phaseName = "";
+  private detail = "";
+  private done = 0;
+  private total = 0;
   private frame = 0;
   /** Rows the block holds on screen now; 0 when it is not drawn. */
   private rows = 0;
@@ -218,9 +208,8 @@ class StatusLine {
     // Unicode wherever the terminal takes it: every Windows console Bun writes to does, since Bun writes UTF-16.
     const locale = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG || "";
     if (WIN || /utf-?8/i.test(locale)) {
+      this.utf8 = true;
       this.frames = StatusLine.BRAILLE;
-      this.sep = " · ";
-      this.cut = "…";
       this.bar = "─";
       this.dash = " — ";
     }
@@ -232,7 +221,6 @@ class StatusLine {
     consoleMode();
     this.enabled = true;
     this.lastTitle = "";
-    this.since = now();
     this.timer = setInterval(() => this.tick(), StatusLine.INTERVAL);
   }
 
@@ -255,111 +243,51 @@ class StatusLine {
     this.draw();
   }
 
-  /** Updates any of the fields. A new `phase` restarts the clock and clears the detail and the counters. */
-  set(f: { phase?: string; detail?: string; scope?: string; total?: number; done?: number; calls?: number; goal?: string; loopGoal?: string }): void {
-    if (f.loopGoal !== undefined) this.loopGoal = f.loopGoal;
-    if (f.goal !== undefined) this.goal = f.goal;
-    if (f.scope !== undefined) this.scope = f.scope;
-    if (f.phase !== undefined && f.phase !== this.phase) {
-      this.phase = f.phase;
+  /** Sets the driver's phase. A new phase clears its detail and its count. */
+  set(f: { phase?: string; detail?: string; total?: number; done?: number }): void {
+    if (f.phase !== undefined && f.phase !== this.phaseName) {
+      this.phaseName = f.phase;
       this.detail = "";
-      this.tokens = "";
-      this.done = this.total = this.calls = 0;
-      this.since = now();
+      this.done = this.total = 0;
     }
     if (f.detail !== undefined) this.detail = f.detail;
     if (f.total !== undefined) this.total = f.total;
     if (f.done !== undefined) this.done = f.done;
-    if (f.calls !== undefined) this.calls = f.calls;
     this.draw();
   }
 
   /** One planned step of the phase is finished. */
-  advance(detail?: string): void {
+  advance(): void {
     this.done++;
-    if (detail !== undefined) this.detail = detail;
     this.draw();
   }
 
-  /** A session made a tool call: counted, never totalled. */
-  tool(name: string): void {
-    this.calls++;
-    this.note(name);
-  }
-
-  /** What the session is doing between tool calls, behind the running call count. */
-  note(text: string): void {
-    this.detail = (this.calls ? `${this.calls} tool call(s)${this.sep}` : "") + text;
-    this.draw();
-  }
-
-  /** The session's context tokens; painted by the next tick. */
-  usage(text: string): void {
-    this.tokens = text;
-  }
-
-  /** What `nv verify` is doing, or "" when it is not running; painted by the next tick. */
-  verify(text: string): void {
-    this.verifying = text;
+  /** The driver's phase as the status line's last field: `acceptance sweep 31/58`, `usage wall, 12m03s left`, `held`. */
+  phase(): string {
+    const head = this.total > 0 ? `${this.phaseName} ${Math.min(this.done, this.total)}/${this.total}` : this.phaseName;
+    return this.detail ? `${head}, ${this.detail}` : head;
   }
 
   width(): number {
     return process.stdout.columns ?? 100;
   }
 
-  private head(): string {
-    if (this.total <= 0) return this.phase;
-    const done = Math.min(this.done, this.total);
-    return `${this.phase} ${done}/${this.total} ${Math.floor((done * 100) / this.total)}%`.trim();
-  }
-
-  private compose(): string {
-    const s = CONTROL.session;
-    const halted = s && s.frozenFor.size > 0 ? `HALTED ${hms(now() - s.frozenAt)}` : "";
-    const parts = [halted, this.scope, this.head(), this.tokens, this.detail, this.verifying].filter(Boolean);
-    parts.push(mmss(now() - this.since));
-    let body = parts.join(this.sep).replace(/\n/g, " ");
-    // One column short: a line that exactly fills the terminal wraps, and a wrapped line is one the next erase half removes.
+  private statusLine(): string {
+    // One column short of the room: a line that exactly fills the terminal wraps, and the next erase half removes it.
     const room = Math.max(18, this.width() - 3);
-    if (body.length > room) body = body.slice(0, room - this.cut.length) + this.cut;
     const spin = this.frames[this.frame % this.frames.length]!;
-    return `${paint(spin, C.CYAN)} ${paint(body, C.WHITE)}`;
+    return `${paint(spin, C.CYAN)} ${paint(cut(this.row(room).replace(/\n/g, " "), room), C.WHITE)}`;
   }
 
   private divider(): string {
     return paint(this.bar.repeat(Math.max(18, this.width() - 1)), C.GRAY);
   }
 
-  private goalRow(): string {
-    let body = [this.goal || "(no session has been oriented yet)", this.loopGoal].filter(Boolean).join(this.sep).replace(/\n/g, " ");
-    const room = Math.max(18, this.width() - 3);
-    if (body.length > room) {
-      const start = this.scrollOffset(body.length - room);
-      body = body.slice(start, start + room);
-    }
-    return `  ${paint(body, C.GRAY)}`;
-  }
-
-  private scrollOffset(overflow: number): number {
-    const walk = overflow * StatusLine.SCROLL_STEP;
-    const cycle = 2 * (walk + StatusLine.SCROLL_HOLD);
-    let t = this.frame % cycle;
-    if (t < StatusLine.SCROLL_HOLD) return 0;
-    t -= StatusLine.SCROLL_HOLD;
-    if (t < walk) return Math.floor(t / StatusLine.SCROLL_STEP);
-    t -= walk;
-    if (t < StatusLine.SCROLL_HOLD) return overflow;
-    return overflow - Math.floor((t - StatusLine.SCROLL_HOLD) / StatusLine.SCROLL_STEP);
-  }
-
   private keys(): string {
-    if (CONTROL.typing !== null) {
-      // The typed text ends the row, so the terminal's cursor stands right after its last character.
-      const head = `Enter sends, Esc cancels${this.sep}prompt> `;
-      const room = Math.max(18, this.width() - 3 - head.length);
-      return `  ${paint(head + CONTROL.typing.slice(-room), C.YELLOW)}`;
-    }
-    const bits: string[] = [];
+    const room = Math.max(18, this.width() - 1);
+    // The typed text ends the row, so the terminal's cursor stands right after its last character.
+    if (CONTROL.typing !== null) return paint(keyRow([], CONTROL.typing, room, this.utf8), C.YELLOW);
+    const bits: string[] = ["[g] goal table"];
     const s = CONTROL.session;
     if (s && s.frozenFor.size > 0) bits.push(`[h] HALTED${this.dash}press h to carry on`);
     else if (s) bits.push("[h] halt now");
@@ -374,19 +302,15 @@ class StatusLine {
     if (CONTROL.held) bits.push(`[p] held${this.dash}press p to carry on`);
     else if (CONTROL.pauseBy) bits.push(`[p] holding after this session${this.dash}press p to cancel`);
     else bits.push("[p] hold after this session");
-    let body = bits.join(this.sep);
-    const room = Math.max(18, this.width() - 3);
-    if (body.length > room) body = body.slice(0, room - this.cut.length) + this.cut;
     const loud = CONTROL.stop || CONTROL.pauseBy !== "" || (s !== null && s.frozenFor.size > 0);
-    return `  ${paint(body, loud ? C.YELLOW : C.GRAY)}`;
+    return paint(keyRow(bits, null, room, this.utf8), loud ? C.YELLOW : C.GRAY);
   }
 
+  /** The window title: the status line itself. */
   private title(): string {
-    let body = [this.scope, this.head(), this.goal].filter(Boolean).join(this.sep);
-    // A title ends at the first BEL or ESC, so a control character in a commit subject is blanked.
-    body = body.replace(/[\x00-\x1f\x7f]/g, " ");
-    if (body.length > StatusLine.TITLE_ROOM) body = body.slice(0, StatusLine.TITLE_ROOM - this.cut.length) + this.cut;
-    return body ? `nvs loop${this.sep}${body}` : "nvs loop";
+    // A title ends at the first BEL or ESC, so a control character in a tool's description is blanked.
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: the control characters are what is blanked
+    return this.row(StatusLine.TITLE_ROOM).replace(/[\x00-\x1f\x7f]/g, " ");
   }
 
   /** The title's escape sequence, or "" when the title already says this. */
@@ -398,7 +322,7 @@ class StatusLine {
   }
 
   private height(): number {
-    return CONTROL.tty ? 4 : 3;
+    return CONTROL.tty ? 3 : 2;
   }
 
   /** The sequence that clears every row of the block and leaves the cursor at the start of the rule's row. */
@@ -426,7 +350,7 @@ class StatusLine {
     out += this.titleSeq();
     if (!this.rows) out += EOL.repeat(want - 1);
     out += `\x1b[${want - 1}A\r\x1b[2K${this.divider()}`;
-    for (const line of [this.goalRow(), this.compose(), ...(want > 3 ? [this.keys()] : [])]) out += `\x1b[B\r\x1b[2K${line}`;
+    for (const line of [this.statusLine(), ...(want > 2 ? [this.keys()] : [])]) out += `\x1b[B\r\x1b[2K${line}`;
     this.rows = want;
     return out;
   }
@@ -461,14 +385,14 @@ export function verdict(hand: boolean, text: string): void {
 }
 
 /** Sleeps `seconds`, with the status line counting down; `until` is looked at four times a second and ends the wait early. */
-export async function wait(seconds: number, label: string, until?: () => boolean): Promise<void> {
+export async function wait(seconds: number, until?: () => boolean): Promise<void> {
   const end = now() + seconds;
   for (;;) {
     const left = end - now();
     if (left <= 0) return;
     CONTROL.poll();
     if (until?.()) return;
-    TICKER.set({ detail: `${label}${TICKER.sep}${hms(left)} left` });
+    TICKER.set({ detail: `${hms(left)} left` });
     await Bun.sleep(Math.min(250, left * 1000));
   }
 }
@@ -568,6 +492,8 @@ class Control {
   tty = false;
   /** Called on a Ctrl-C that arrives as a character. */
   onInterrupt: () => void = () => process.kill(process.pid, "SIGINT");
+  /** Called on `g`: prints the goal table. */
+  onGoal: () => void = () => say("   [g] no goal is loaded yet", C.GRAY);
   private pauseSeen = 0;
   private sessionSeen = 0;
   private keysApi: KeysApi | null = null;
@@ -660,6 +586,7 @@ class Control {
           say("   [r] does nothing right now; it ends a usage or overload wait", C.GRAY);
         }
       } else if (key === "p") this.togglePause();
+      else if (key === "g") this.onGoal();
     }
     this.syncPause();
     this.syncSession();
@@ -901,13 +828,13 @@ export async function holdPause(ledger: (line: string) => void): Promise<string>
   const began = now();
   CONTROL.enterHold();
   step(`holding before the next session -- ${why}; ${CONTROL.pauseBy === "user" ? "press p to carry on" : `delete ${PAUSE}, or press p, to carry on`}`, C.YELLOW);
-  TICKER.set({ phase: "held", detail: why });
+  TICKER.set({ phase: "held" });
   try {
     for (;;) {
       CONTROL.poll();
       stop = CONTROL.stopReason();
       if (stop || !CONTROL.pauseReason()) break;
-      TICKER.set({ detail: `${why}${TICKER.sep}held ${hms(now() - began)}` });
+      TICKER.set({ detail: hms(now() - began) });
       await Bun.sleep(250);
     }
   } finally {
@@ -935,12 +862,10 @@ class VerifyWatch {
     this.armed = Date.now() / 1000;
     this.seen = "";
     this.next = 0;
-    TICKER.verify("");
   }
 
   disarm(): void {
     this.armed = 0;
-    TICKER.verify("");
   }
 
   poll(): void {
@@ -949,19 +874,14 @@ class VerifyWatch {
     if (t < this.next) return;
     this.next = t + VerifyWatch.EVERY;
     const entry = this.read();
-    if (entry === null || "finished" in entry || !("step" in entry)) {
-      TICKER.verify("");
-      return;
-    }
+    if (entry === null || "finished" in entry || !("step" in entry)) return;
     const key = `${entry.index}\0${entry.step}`;
-    if (key !== this.seen) {
-      this.seen = key;
-      const done = Array.isArray(entry.done) ? entry.done : [];
-      const last = done.at(-1);
-      const before = last ? `${last.name} ok ${mmss(Number(last.seconds))} -> ` : "";
-      say(`     ~ verify: ${before}${entry.step} (${entry.index}/${entry.total})`, C.GRAY);
-    }
-    TICKER.verify(`verify ${entry.step} ${entry.index}/${entry.total} ${mmss(Date.now() / 1000 - Number(entry.at ?? 0))}`);
+    if (key === this.seen) return;
+    this.seen = key;
+    const done = Array.isArray(entry.done) ? entry.done : [];
+    const last = done.at(-1);
+    const before = last ? `${last.name} ok ${mmss(Number(last.seconds))} -> ` : "";
+    say(`     ~ verify: ${before}${entry.step} (${entry.index}/${entry.total})`, C.GRAY);
   }
 
   private read(): Record<string, any> | null {
@@ -990,95 +910,29 @@ function git(...args: string[]): string {
   }
 }
 
-/**
- * The goal row's session half: what the running session has committed so far, read off HEAD on its tool
- * calls, or the item the pack gave it until the first commit lands.
- */
+/** Where the running session began, which its commits are counted from. */
 class SliceWatch {
-  /** Seconds between asks of git when HEAD cannot be read from `.git` directly. */
-  static readonly SLOW_EVERY = 15;
-  /** HEAD when the session started, which the ledger counts commits from. */
+  /** HEAD when the session started. */
   base = "";
-  private item = "";
-  private head = "";
-  private commits = 0;
-  private subject = "";
-  private nextSlow = 0;
 
-  /** A session is about to be oriented: the last one's slices are history. The base is also written to `.loop/session-start.json` for `nv session`. */
+  /** A session is about to start. Its base is also written to `.loop/session-start.json` for `nv session`. */
   start(base: string): void {
-    this.base = this.head = base;
-    this.item = "orienting -- no item picked yet";
-    this.commits = 0;
-    this.subject = "";
-    this.nextSlow = 0;
+    this.base = base;
     try {
       if (base) writeFileSync(abs(SESSION_BASE), `${JSON.stringify({ base })}\n`);
       else rmSync(abs(SESSION_BASE), { force: true });
     } catch {
       // A convenience; a run never fails over it.
     }
-    TICKER.set({ goal: this.row() });
   }
 
-  pick(item: string): void {
-    this.item = item;
-    TICKER.set({ goal: this.row() });
-  }
-
-  poll(): void {
-    const sha = this.sha();
-    if (!sha || sha === this.head) return;
-    this.head = sha;
-    const count = this.base ? git("rev-list", "--count", `${this.base}..${sha}`) : "";
-    this.commits = /^\d+$/.test(count) ? Number(count) : this.commits + 1;
-    this.subject = git("log", "-1", "--format=%s", sha);
-    TICKER.set({ goal: this.row() });
-  }
-
-  /** The session is over: one last look, and the count the ledger reports. */
-  finish(): number {
-    this.nextSlow = 0;
-    this.poll();
-    return this.commits;
-  }
-
-  row(): string {
-    if (!this.commits) return this.item;
-    const landed = `${this.commits} commit${this.commits === 1 ? "" : "s"}`;
-    return this.subject ? `${landed}${TICKER.sep}${this.subject}` : landed;
-  }
-
-  /** HEAD's sha from `.git` without spawning anything where that works, and from git, throttled, where it does not. */
-  private sha(): string {
-    try {
-      const head = readFileSync(join(ROOT, ".git", "HEAD"), "utf8").trim();
-      if (!head.startsWith("ref:")) return head;
-      const ref = join(ROOT, ".git", head.slice(4).trim());
-      if (existsSync(ref)) return readFileSync(ref, "utf8").trim();
-    } catch {
-      // A worktree's `.git` file, or a packed ref: ask git.
-    }
-    const t = now();
-    if (t < this.nextSlow) return "";
-    this.nextSlow = t + SliceWatch.SLOW_EVERY;
-    return git("rev-parse", "HEAD");
+  /** The subjects of the commits since the base, oldest first, which the goal table's last line names. */
+  subjects(): string[] {
+    if (!this.base) return [];
+    return git("log", "--reverse", "--format=%s", `${this.base}..HEAD`)
+      .split("\n")
+      .filter((l) => l !== "");
   }
 }
 
 export const SLICES = new SliceWatch();
-
-/** The item `nv orient` picked for the session, read back out of its pack. */
-export function sessionGoal(pack: string): string {
-  if (!pack) return "nv orient failed -- the session picks its own item";
-  const lines = pack.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (!/^-- YOUR ITEM \(\d+ of \d+\), in full:\s*$/.test(lines[i]!)) continue;
-    let first = (lines.slice(i + 1).find((ln) => ln.trim()) ?? "").trim();
-    first = first.replace(/^- \[[ xX]\]\s*/, "");
-    const bold = /^\*\*(.+?)\*\*/.exec(first);
-    return (bold ? bold[1]! : first) || "the pack's item has no text";
-  }
-  if (pack.includes("Every item in the group is ticked")) return "every item in the group is ticked -- the session picks from the handoff";
-  return "the pack names no item -- see the handoff's `## Next group`";
-}
