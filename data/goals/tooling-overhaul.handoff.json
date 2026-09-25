@@ -1,23 +1,19 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) has one piece left.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) exits 0. The only tracked `.py` files are the two launch shims, `tools/loop.py` and `tools/respawn.py`, and the Python twins under `benches/userland/`, which `bun nv bench` runs as a workload. The goal's § *Stage 12* says the driver's last turn deletes the two shims in its closing commit, so no session deletes them.\n\nThe parity command is gone with the last Python tool it compared. The `observed` key source now serves only the proofs groups (`tools/nv/keys/checks.ts`). The extension's icon font generator is deleted by the goal's standing decision, so `editors/vscode/media/novis-icons.woff` is now a committed binary with no generator in the tree. A port would need a font library, and a new dependency is out of scope.\n\nWhat is left is the decision record § *Stage 12* owes. No check enforced it, so Stage 12 now has a second check: a record under `docs/decisions/` names both `linguist-generated` and `smol-toml`. A gap record cannot hold a goal open, because `bun nv owners --check` refuses a gap owned by a goal.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
+  "state": "**Goal `tooling-overhaul`: every stage is on disk, Stage 12 included.** The cutover is on `main`. `main` stays frozen until the driver reaches the goal, and tag `pre-overhaul` is the rollback.\n\nADR 0221 (`docs/decisions/0221.md`) records the data model, the Bun runtime with `smol-toml` as its one dependency, and the generated-output rule. It creates `rule:tooling/the-repository-tools-are-one-bun-program`, `rule:tooling/a-repository-fact-is-one-json-record` and `rule:tooling/a-rendered-file-is-committed-and-never-edited`, the last three entries of `data/rules/tooling.json`, on a website page of their own. `.gitattributes` now marks the rulebook's rendered chapters, `docs/ground-rules.md` and `docs/divergences.md` `linguist-generated`.\n\nThe goal-end gates are green: `bun nv owners --closes tooling-overhaul` and `bun nv playbook --closes tooling-overhaul` name nothing, and `bun nv links` resolves every link. What remains is the driver's: its closing turn deletes the launch shims `tools/loop.py` and `tools/respawn.py` in its last commit, per the goal's § *Stage 12*, and no session deletes them.\n\n`bun nv decisions --check` reports 44 records without a plain-language summary, 0221 among them. It is not a gate; `bun nv decisions --gate` passes.",
   "next": {
-    "stage": 12,
-    "title": "no Python",
+    "stage": null,
+    "title": "Goal `core-math-1-3`, after the driver's closing turn",
     "files": [],
-    "note": "one file set: the new decision record and the rules it creates.",
+    "note": "one file set: whatever that goal's switch names.",
     "items": [
       {
         "done": false,
-        "text": "**Write the decision record for the data model, the runtime and the generated-output rule** (`docs/agent/goals/tooling-overhaul.md:152` is the data model, `docs/agent/goals/tooling-overhaul.md:679` the standing decisions it writes down). It claims the next free number (0221 at this commit; re-check first) as `data/decisions/NNNN.json` plus `docs/decisions/NNNN.md`, and creates its rules under `docs/rules/tooling/` in the same commit, per conventions.md § *A decision record*. It names `linguist-generated` and `smol-toml`, which is what the Stage 12 check in `data/goals/tooling-overhaul.json:17430` greps for. Then run `bun nv rules --render`."
-      },
-      {
-        "done": false,
-        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes tooling-overhaul` and `bun nv playbook --closes tooling-overhaul` (`tools/nv/cmd/owners.ts:1`), then `DONE`."
+        "text": "**The goal switch writes this handoff anew** once the driver's closing turn has run (`docs/agent/goals/tooling-overhaul.md:665`); the next goal is `core-math-1-3`. The restart is `bun nv loop`, by the user."
       }
     ]
   },
   "backlog": [
-    "`editors/vscode/media/novis-icons.woff` has no generator in the tree. Its last one is in `git log` for `editors/vscode/scripts/`, and a port waits on a font library being allowed (the goal's § *Standing decisions*).",
-    "conventions.md § *Citing a document* still says how a `.py` file's links are read, and only the shims are left. Trim it with the contract rewrite."
+    "Decision records without a summary: `bun nv decisions --work` lists them; `tools/nv/cmd/decisions.ts` owns the check.",
+    "`docs/novis.md` and `docs/decisions.md` are generated but not `linguist-generated`, and `bun nv reference` has no `--check` form: `tools/nv/cmd/reference.ts`."
   ]
 }
