@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a timer on a page shows only the whole seconds that have passed.
+
+class Timer {
+    // Returns the seconds as text, without the fractional part.
+    public static function label(float $seconds): string {
+        int $whole = Core\Math::truncate($seconds) as int;
+        return $whole . " s";
+    }
+}
+
+// This prints "0 s", "12 s" and "59 s". The timer never shows a second too early.
+array<float> $readings = [0.4, 12.87, 59.99];
+foreach ($readings as float $reading) {
+    echo Timer::label($reading), "\n";
+}
