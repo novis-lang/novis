@@ -4,4 +4,4 @@
   catch-all, so a green `cargo check --workspace --all-targets` says nothing about whether inference or
   lowering saw the node. Before the parser is taught to produce a new expression node, `grep -rn
   "ExprKind::<the sibling variant>"` over `crates/` is the list of places that must gain a deliberate
-  arm. [until: reviewed 2026-09-12]
+  arm. [until: gone crates/nvs-syntax/src/walk.rs:ExprKind::Markup]

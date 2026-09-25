@@ -3,4 +3,4 @@
   `mysql_common::packets::Column`, re-exported nowhere, so `fn read(column: &Column, …)` is
   unspellable in `nvs-cli` or `nvs-stdlib`. Decode inline in the row loop or behind a helper taking
   `nvs_db::MySqlScalar`, which is exported; match it by reference, and `to_string()` a
-  `Text`/`Bytes` that outlives the iteration, since it borrows the row. [until: reviewed 2026-09-06]
+  `Text`/`Bytes` that outlives the iteration, since it borrows the row. [until: gone crates/nvs-db/src/lib.rs:MySqlRows]

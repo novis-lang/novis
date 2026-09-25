@@ -3,4 +3,4 @@
   because `sum`/`product`/`average` answer the whole union whatever their subject's element type
   was, and `as int` over a union does not lower. A case that wants to feed a fold's answer back into
   the array writes the literal and asserts separately that the member answers it; rendering the
-  union is fine, since `echo` and `as string` both take it. [until: reviewed 2026-09-06]
+  union is fine, since `echo` and `as string` both take it. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::sum]

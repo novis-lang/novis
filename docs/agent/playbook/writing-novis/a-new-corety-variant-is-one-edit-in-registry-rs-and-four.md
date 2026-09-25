@@ -5,4 +5,4 @@
   `registry.rs` itself keep compiling and quietly answer wrong for the new spelling. Grep a rare
   variant (`CoreTy::SecretTaintedStr`) to get every arm in one call rather than chasing the compiler
   through them one at a time, and check the three `registry.rs` methods by hand.
-  [until: reviewed 2026-09-12]
+  [until: gone crates/nvs-stdlib/src/xml.rs:every_text_position_is_tainted]

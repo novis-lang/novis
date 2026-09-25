@@ -5,4 +5,4 @@
   load-bearing — it holds the tree rather than reading the `TREE` thread-local (a `TaskId` is unique
   only within its tree, and two schedulers on one thread is a shape most tests take), and the drain
   runs at the top of `run` as well as after every resume, or a wake issued between turns leaves the
-  parked task asleep with no error anywhere. [until: reviewed 2026-09-06]
+  parked task asleep with no error anywhere. [until: gone crates/nvs-host/src/lib.rs:Scheduler::wake]

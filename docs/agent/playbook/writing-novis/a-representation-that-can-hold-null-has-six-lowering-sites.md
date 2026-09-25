@@ -6,4 +6,4 @@
   so a row added to `lower_binary` is dead for the spelling every test writes and a null value
   compares unequal to `null` while `isset` answers correctly one line above. When a construct has a
   fast path keyed on one operand being a literal, the fast path is a separate site a grep for the
-  operator's own lowering will not find. [until: reviewed 2026-09-06]
+  operator's own lowering will not find. [until: gone crates/nvs-ir/src/lower/expr.rs:lower_isset_operand]

@@ -5,4 +5,4 @@
   re-entered `parse_catch`; `parse_ternary_else` is the same body over `parse_ternary`, for the else
   branch only, since the `then` branch is delimited by its own `:`. Any future level added above the
   ternary owes the same check, and a unit test in `crates/nvs-syntax/src/parser/tests/expr.rs` is
-  what catches it, not a `.nvst`. [until: reviewed 2026-09-06]
+  what catches it, not a `.nvst`. [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_assignment_inner]

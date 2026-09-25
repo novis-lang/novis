@@ -4,4 +4,4 @@
   of function` at the *call site* and never names the field on `Ctx` that outlives the call. Every
   caller passes a literal, so the repair is `&'static str` down the whole chain — check what a `Ctx`
   setter stores before threading a name through a reader that two members share.
-  [until: reviewed 2026-09-08]
+  [until: gone crates/nvs-stdlib/src/request.rs:claim_body]

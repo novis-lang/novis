@@ -3,4 +3,4 @@
   `set_routes`), but a `#[Test]` method runs in an isolate sharing only compiled code, so a match
   off `ctx.routes()` in a `Core` member answers `null` silently and looks like an empty table. Match
   on the side holding the compiled unit, and treat `ctx.routes()` in a helper that may run under
-  `nvs test` as a bug. [until: reviewed 2026-09-06]
+  `nvs test` as a bug. [until: gone crates/nvs-cli/src/main.rs:set_routes]

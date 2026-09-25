@@ -1,6 +1,0 @@
-- **A numbered gap in another module's `//!` list is a fact with two homes, and closing one does not
-  touch the file that cites it.** `crates/nvs-stdlib/src/queue.rs`'s gap 5 said what was left of it
-  was "[`crate::db`]'s gap 2 and not this module's to close", while that list had since grown a send
-  path for all five drivers — so the refusal an operator reads pointed at the wrong crate, and the
-  two sentences were each locally plausible. Read the cited gap's own list before writing a sentence
-  that defers to it; no test in either crate compares them. [until: reviewed 2026-09-07]

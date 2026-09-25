@@ -5,4 +5,4 @@
   second symbol, `nvs_core_router_link`, which does the work. For any member
   `rule:expressions/intrinsic-literals` prepares rather than folds, grep the crate for a sibling
   symbol before believing the body the row points at, or run four lines with `nvs run`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/router.rs:nvs_core_router_link]

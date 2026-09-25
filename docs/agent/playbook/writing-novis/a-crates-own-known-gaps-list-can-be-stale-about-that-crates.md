@@ -4,4 +4,4 @@
   said `= null` stayed refused for want of a representation that had landed underneath the paragraph
   — a `Known gaps` bullet is status, an ADR is a decision, and status goes stale silently. One
   scratch `.nvs` under `.agent-tmp/`, or one `grep` for the shape the paragraph calls impossible, is
-  the whole check. [until: reviewed 2026-09-06]
+  the whole check. [until: gone crates/nvs-types/src/layout.rs:own_properties]

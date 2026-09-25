@@ -4,4 +4,4 @@
   "expected the run to succeed" with no line number anywhere. Write a reader as
   `crate::instance::read_slot(args, &CLASS, AT, "member")`, which is the pair that borrows and
   retains, and read a crash with no diagnostic as a missing retain in the last member added.
-  [until: reviewed 2026-09-13]
+  [until: gone crates/nvs-stdlib/src/instance.rs:fn read_slot]

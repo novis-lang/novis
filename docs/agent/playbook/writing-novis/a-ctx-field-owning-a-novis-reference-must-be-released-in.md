@@ -2,4 +2,4 @@
   drop; the failure is a refcount underflow.** Rust runs `Drop::drop` before dropping fields, so a
   field still holding a reference when the sweep at the end of that body runs is released twice, and
   the panic names `refcount.get() - 1` and no field. Join the `set_*(Value::null())` lines already
-  in `Ctx::drop` for any new owning field. [until: reviewed 2026-09-06]
+  in `Ctx::drop` for any new owning field. [until: gone crates/nvs-runtime/src/ctx/mod.rs:impl Drop for Ctx]

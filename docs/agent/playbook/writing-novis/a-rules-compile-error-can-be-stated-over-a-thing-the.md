@@ -1,6 +1,0 @@
-- **A rule's compile error can be stated over a thing the compiler cannot see, and the corpus tells
-  you before the build does.** "`echo` and a typed writer on the same response is a compile error"
-  reads as a rule about a body, but `echo` is bound by context, so which sink a body writes to is a
-  run-time fact except in a `#[Route]` handler. Before implementing a rule stated over a run-time
-  noun, grep `tests/` for the members it names — a green case exercising the combination is the
-  scope you actually have. [until: reviewed 2026-09-06]

@@ -4,4 +4,4 @@
   `E0309` even though `crate::conformance` agrees the class inherits it. Do not repair that by trusting
   the roster the way line 1315 trusts `Core`: while the default body has no compiled function, the
   refusal is the safe answer and the alternative is a dispatch to nothing.
-  [until: reviewed 2026-09-08]
+  [until: gone crates/nvs-hir/src/members.rs:member_declared_rec]

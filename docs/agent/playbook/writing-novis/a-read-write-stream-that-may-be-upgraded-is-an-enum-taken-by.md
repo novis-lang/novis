@@ -3,4 +3,4 @@
   observe; `nvs_stdlib::mail::Session::secure` takes `self` and returns a new one instead. Any
   in-band upgrade owes the second half too: refuse, rather than clear, a non-empty read buffer,
   since bytes held from before the handshake replayed after it is the *NO STARTTLS* injection class.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/mail.rs:NvsTls::over]

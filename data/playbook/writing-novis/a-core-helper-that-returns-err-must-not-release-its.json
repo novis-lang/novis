@@ -1,9 +1,11 @@
 {
   "lead": "A `Core` helper that returns `Err` must not release its transferred argument; the double release aborts the process.",
   "body": "`spawn script`'s `args:` is `ArgOwnership::Transferred` and the value is still on the temporaries stack when `emit_fallible` builds the fault edge, so the landing block already releases it on every `Err` — an added `release()` is `thread caused non-unwinding panic. aborting.` inside `nvs_value_release`. `nvs_ir::lower::TemporaryKind`'s doc says it: `Transferred` is released on the error edge only, and that edge is the caller's.",
-  "files": [],
+  "files": [
+    "crates/nvs-ir/src/lower/mod.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-ir/src/lower/mod.rs:ArgOwnership::Transferred"
   }
 }

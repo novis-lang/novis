@@ -5,4 +5,4 @@
   re-raises on `Teardown::in_progress()`, `panic in a function that cannot unwind` naming the
   helper. `extern "C-unwind"` is not the fix, since the JIT frame below has no landing pads; a
   cancelled task dies by `rule:errors/propagation`'s return status at its next safepoint, which is
-  what `nvs_safepoint` gives `SafepointFlags::CANCEL`. [until: reviewed 2026-09-06]
+  what `nvs_safepoint` gives `SafepointFlags::CANCEL`. [until: gone crates/nvs-host/src/scheduler.rs:force_unwind]

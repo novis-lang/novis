@@ -3,4 +3,4 @@
   `constants` and no field roster, a fact stated only in `CoreTy::Instance`'s doc and in comments on
   other classes. Check that doc before believing a spec'd property spelling; the fix is a reader
   with parentheses, folded back into the rule and the spec line in the same commit.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/registry.rs:pub struct CoreClass]

@@ -4,4 +4,4 @@
   nothing will ever feed — a hang with no error anywhere, not a failed read. Anything that lets a
   request answer before it ends has to move the supply onto the connection with it, which is what
   `Streamed::supply` and the pump at the top of the drive loop are.
-  [until: reviewed 2026-09-11]
+  [until: gone crates/nvs-cli/src/serve.rs:Reply::Run]

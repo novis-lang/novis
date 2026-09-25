@@ -1,9 +1,11 @@
 {
   "lead": "A named-argument binding cannot be done at run time: neither `nvs_runtime::MethodRow` nor `nvs_types::ResolvedCall` carries parameter names.",
   "body": "Every existing site binds names to positions in `nvs_types::expr::calls` and lowers the result, so a feature binding a runtime map to a callee's parameters must record the names somewhere new and emit them from the lowering. And `nvs_runtime::abi::call` requires `arity` initialized values, so a call built with fewer is unsound rather than wrong.",
-  "files": [],
+  "files": [
+    "crates/nvs-runtime/src/object.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/object.rs:pub struct MethodRow"
   }
 }

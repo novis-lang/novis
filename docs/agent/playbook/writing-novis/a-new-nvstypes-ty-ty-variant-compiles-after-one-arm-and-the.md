@@ -4,4 +4,4 @@
   refusal, `check_expr`'s `wants_callable`, `generics`' two walks and
   `nvs_ir::lower::erase_checked_ty` each took their wildcard in silence. Grep the neighbour the new
   variant behaves like and decide every hit by hand before believing a green build.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-types/src/ty.rs:nvs_ir::lower::erase_checked_ty]

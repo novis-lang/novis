@@ -3,4 +3,4 @@
   outright, so the line after `suspend_current(Waiting::Parked)` runs only for a stack standing on a
   `nvs_runtime::HelperFrame`, which cannot be unwound and is resumed to die. Write both answers at
   every park site, and hold a `HelperFrame::enter()` guard across the park in a test asserting "the
-  wait answered its cancellation". [until: reviewed 2026-09-06]
+  wait answered its cancellation". [until: gone crates/nvs-runtime/src/abi.rs:HelperFrame]

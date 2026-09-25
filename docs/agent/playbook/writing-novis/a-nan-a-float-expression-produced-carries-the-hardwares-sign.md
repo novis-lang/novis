@@ -3,4 +3,4 @@
   positive on aarch64, so anything reading it — `f64::total_cmp` above all — answers one way on
   linux-x86_64 and the other on macos-aarch64 while each looks right on its own. Fold every `NaN` to
   one before ordering, as `nvs_stdlib::ordering::ordered` does, and never assert on a `NaN`'s sign.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-stdlib/src/ordering.rs:f64::total_cmp]

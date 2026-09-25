@@ -5,4 +5,4 @@
   CoreTy)` wrapper compiles clean while making `written()`, the nullable check and the enum-case
   check blind to what it wraps. Add a leaf instead, as `CoreTy::Text(Qual)` / `CoreTy::Blob(Qual)`
   are, and change only the sites that name the sibling leaf specifically
-  (`nvs_types::core_lib::lower` and one registry test). [until: reviewed 2026-09-06]
+  (`nvs_types::core_lib::lower` and one registry test). [until: gone crates/nvs-stdlib/src/registry.rs:collect_written]

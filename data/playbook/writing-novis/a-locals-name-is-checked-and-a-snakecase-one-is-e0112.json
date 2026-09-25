@@ -1,9 +1,11 @@
 {
   "lead": "A local's name is checked, and a snake_case one is `E0112`.",
   "body": "`int $words_n = …` is *\"local variable names must be camelCase, e.g. `wordsN`\"*, so a counter or table name costs a whole run of the case to learn what the name could have avoided. Write `$wordsN` from the first draft; a `.nvst` wants several near-identical names at once (one `catch` binding per clause, all function-scoped), which is where the underscore creeps in.",
-  "files": [],
+  "files": [
+    "crates/nvs-diagnostics/src/lib.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0112"
   }
 }

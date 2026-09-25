@@ -1,6 +1,0 @@
-- **A class is not generic at the `new` site.** `new Core\Task\Channel<int>(2)` is `E0441: this
-  target takes no type arguments` — the `<T>` positions are the built-in ones (`array<T>`,
-  `Iterator<T>`, `Core\Program::implementing<T>()`), not a user or `Core` class's constructor. A
-  container's element type is carried by the `foreach` binding (`foreach ($chan as int $v)`) and by
-  the declared type of what goes in, which is what `examples/channel.nvs` is written against.
-  [until: reviewed 2026-09-06]

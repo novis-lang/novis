@@ -3,4 +3,4 @@
   link` under `-D rustdoc::broken-intra-doc-links`, as are a link to a `#[cfg(test)]` item and a
   redundant explicit target, both woken by making a `mod` public — and the doc gate is not part of
   `bun nv verify`, so a green session leaves it red. Run `bun nv verify --doc`
-  once when a session writes a module doc that links across modules. [until: reviewed 2026-09-06]
+  once when a session writes a module doc that links across modules. [until: gone tools/nv/cmd/verify.ts:--doc]

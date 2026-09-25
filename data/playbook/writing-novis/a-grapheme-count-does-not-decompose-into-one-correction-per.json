@@ -1,9 +1,11 @@
 {
   "lead": "A grapheme count does not decompose into one correction per seam, and regional indicators are the whole of why.",
   "body": "A cached `Core\\Str::length` makes a concatenation want `left + right - (a cluster spans the join)`, right for every UAX #29 rule but GB12/GB13, which group a run of `Regional_Indicator`s into pairs: `\"🇩\" . \"🇩🇪\"` is two clusters where each side alone is one, and the parity that fixes two pieces is wrong for three. `nvs_runtime::graphemes::seam_joins` refuses the seam when a regional indicator sits on both sides and the caller leaves the count uncached; a cached aggregate over Unicode text may only be corrected locally for the rules that are local.",
-  "files": [],
+  "files": [
+    "crates/nvs-runtime/src/graphemes.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/graphemes.rs:Regional_Indicator"
   }
 }

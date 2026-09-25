@@ -3,4 +3,4 @@
   meaning in a duration`, then the checker reports the wreckage as `E0401: expected `decimal`, found
   `mixed`` — and none of them names the real problem. `rule:types/numeric-literal-placement` makes a
   numeric literal untyped until placed, so `decimal $d = 1.25;` is the whole spelling.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0007]

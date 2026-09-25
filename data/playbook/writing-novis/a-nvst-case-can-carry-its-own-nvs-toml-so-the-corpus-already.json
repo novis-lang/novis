@@ -7,7 +7,7 @@
     "nvs.toml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst:--FILE nvs.toml--"
   }
 }

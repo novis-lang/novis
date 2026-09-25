@@ -5,4 +5,4 @@
   sharing that slice. `crates/nvs-stdlib/tests/capability.rs`'s
   `an_open_file_is_an_object_and_never_a_resource` is the other: it sweeps every row for a
   `Core\IO\File` parameter, so such a member is green under `--lib` and red under
-  `--test capability`. [until: reviewed 2026-09-16]
+  `--test capability`. [until: gone crates/nvs-stdlib/tests/capability.rs:an_open_file_is_an_object_and_never_a_resource]

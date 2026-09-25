@@ -4,4 +4,4 @@
   the declared return — and the message says what is wrong rather than how to spell it. Write
   `return new static(…)`, which is what `Core\Db\Codec`'s and `Core\Json\Codec`'s `fromRow`/
   `fromJson` fixtures need whenever the case asserts that nothing was reported.
-  [until: reviewed 2026-09-15]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E0741]

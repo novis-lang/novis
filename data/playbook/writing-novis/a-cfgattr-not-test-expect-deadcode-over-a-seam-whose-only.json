@@ -1,9 +1,0 @@
-{
-  "lead": "A `#[cfg_attr(not(test), expect(dead_code, …))]` over a seam whose only callers are its own cases still fails `clippy --all-targets`.",
-  "body": "The attribute is gone in the test build, so every item the cases do not actually reach — a `Platform::host()` nothing asserts, an enum variant no fixture constructs — is reported there instead, one item at a time. Reach each of them from a case rather than widening the attribute: a variant nothing constructs is a decision nothing holds to.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-15"
-  }
-}

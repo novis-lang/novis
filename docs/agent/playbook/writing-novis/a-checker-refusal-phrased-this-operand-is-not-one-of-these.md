@@ -4,4 +4,4 @@
   Some(Numeric))` takes `None` as accepted — rightly, the deferral is what `mixed` is for — so `-$m`
   walked past the checker into `nvs-codegen`'s representation catch-all. Every such site owes a
   tagged answer in the runtime or a diagnostic naming `mixed` explicitly; running the shape in a
-  scratch `.agent-tmp/*.nvs` tells the two apart in one call. [until: reviewed 2026-09-06]
+  scratch `.agent-tmp/*.nvs` tells the two apart in one call. [until: gone crates/nvs-types/src/expr/operators.rs:reject_unary_arith_operand]

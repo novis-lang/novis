@@ -1,9 +1,0 @@
-{
-  "lead": "A `Core` member whose registry row returns a union answers `mixed` in arithmetic, so a bench that adds it to an `int` does not compile.",
-  "body": "`Core\\Arr::sum`'s `return_ty` is `CoreTy::Union(NUMBER)` — `int|float|decimal` — and the result does not narrow to the subject's element type, so `$total + Core\\Arr::sum($lines)` is `E0401: expected int, found mixed` over an `array<int>`. Write the cast the bench needs, `(Core\\Arr::sum($lines) as int)`, and expect the same shape from `??` over a `uint`-valued member: `Core\\Arr::max($widths) ?? 0` is `uint|int` and wants `?? (0 as uint)`.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-20"
-  }
-}

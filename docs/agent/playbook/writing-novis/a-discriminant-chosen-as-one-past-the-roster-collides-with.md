@@ -4,4 +4,4 @@
   `nvs_runtime::Tag` roster, so adding `Tag::Unset` made every `mixed` closure parameter demand a
   tag, and the failures named closure arguments rather than the tag. Both constants are `15` now,
   parked at the top of the nibble; `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` holds
-  three crates' copies of the number together. [until: reviewed 2026-09-06]
+  three crates' copies of the number together. [until: gone crates/nvs-codegen/src/ty.rs:the_any_nibble_denotes_no_tag_at_all]

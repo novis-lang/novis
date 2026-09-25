@@ -6,4 +6,4 @@
   `nvs_types::core_lib::qual_of` reads `Text`/`Blob` at the top level and inside a `Variadic` only,
   so `Array(&CoreTy::Text(Qual::Sink))` marks nothing — what refuses a tainted element is the
   ordinary argument check, because `array<tainted string>` is not `array<string>`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/script.rs:crate::instance::SHAPE_ROSTER]

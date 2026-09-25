@@ -4,4 +4,4 @@
   `E0282: type annotations needed`, and `nvs-cli` has no `hyper` dependency on purpose
   (`rule:packaging/a-c-dependency-answers-two-questions`). Annotate the parameter with
   `nvs_server`'s re-exported `Request` and `Incoming` rather than reordering the body.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-cli/src/serve.rs:table.select(&request]

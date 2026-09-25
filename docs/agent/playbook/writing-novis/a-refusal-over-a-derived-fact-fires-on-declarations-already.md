@@ -6,4 +6,4 @@
   its list is empty too and its frozen error count moved. Before adding a diagnostic whose condition
   is the absence of a result, grep the reject tree for a case that already makes that result absent,
   and model the outcome per item (kept / skipped / refused) rather than as an `Option`.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst:--EXPECTF-ERROR--]

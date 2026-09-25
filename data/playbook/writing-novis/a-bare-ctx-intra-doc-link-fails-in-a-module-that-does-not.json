@@ -1,9 +1,11 @@
 {
   "lead": "A bare `[`Ctx`]` intra-doc link fails in a module that does not `use` the type, and `nv verify` is not what tells you.",
   "body": "Siblings write `[`Ctx`](crate::Ctx)`; the bare form is `error: unresolved link` under `-D rustdoc::broken-intra-doc-links`, as are a link to a `#[cfg(test)]` item and a redundant explicit target, both woken by making a `mod` public — and the doc gate is not part of `bun nv verify`, so a green session leaves it red. Run `bun nv verify --doc` once when a session writes a module doc that links across modules.",
-  "files": [],
+  "files": [
+    "tools/nv/cmd/verify.ts"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/nv/cmd/verify.ts:--doc"
   }
 }

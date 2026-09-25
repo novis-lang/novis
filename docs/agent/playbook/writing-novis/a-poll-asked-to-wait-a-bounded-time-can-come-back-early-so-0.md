@@ -4,4 +4,4 @@
   straight into `Reactor::turn` abandons a lone sleeping task and the test hangs on an assert rather
   than the clock; `turn` retries until it has genuinely reached the earliest deadline
   (`crates/nvs-host/src/reactor.rs`). The giveaway that it is this and not a lost wake: the same
-  code with a second runnable task passes. [until: reviewed 2026-09-06]
+  code with a second runnable task passes. [until: gone crates/nvs-host/src/reactor.rs:run_until_idle]

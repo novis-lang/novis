@@ -3,4 +3,4 @@
   N]` — is refused, because a constant is copied at each use rather than referenced. The spelling
   that works is an inline const block in the repeat, `[const { … }; N]`, which is also a
   const-repeat of a non-`Copy` type and so still `const`-initializes the thread local.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-runtime/src/alloc.rs:[const {]

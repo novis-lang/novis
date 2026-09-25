@@ -4,4 +4,4 @@
   to be refused with `E0806`. Key any classification of that roster on the owner —
   `nvs_types::derive::hydrates_a_row` and `reads_a_peers_octets` — and pin a new member with a case
   whose type argument is a **class**, since every case on those members wrote an inline shape.
-  [until: reviewed 2026-09-16]
+  [until: gone crates/nvs-stdlib/src/db/mod.rs:WRITTEN_CLASS_MEMBERS]

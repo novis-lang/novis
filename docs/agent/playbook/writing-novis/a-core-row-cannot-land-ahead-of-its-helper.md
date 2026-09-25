@@ -4,4 +4,4 @@
   every row in `registry::CLASSES` for an address, and
   `crates/nvs-stdlib/tests/conformance_coverage.rs:52` wants a case writing the member's own call
   spelling. Land the row, its card, its `address()` arm, its helper and one case as one group, and
-  strike the ratchet line in the same edit. [until: reviewed 2026-12-01]
+  strike the ratchet line in the same edit. [until: gone crates/nvs-stdlib/src/lib.rs:every_registered_member_has_an_implementation_address]

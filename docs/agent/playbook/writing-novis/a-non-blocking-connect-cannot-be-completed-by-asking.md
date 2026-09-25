@@ -5,4 +5,4 @@
   on both platforms is `take_error` plus a zero-length write — `Ok(0)` when connected,
   `NotConnected`/`WouldBlock` in flight, the refusal itself on Linux — and
   `crates/nvs-host/src/net.rs`'s `finish_connecting` is the worked shape.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-host/src/net.rs:finish_connecting]

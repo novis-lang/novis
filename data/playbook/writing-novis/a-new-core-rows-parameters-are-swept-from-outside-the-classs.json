@@ -5,7 +5,7 @@
     "crates/nvs-stdlib/tests/capability.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-16"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/capability.rs:an_open_file_is_an_object_and_never_a_resource"
   }
 }

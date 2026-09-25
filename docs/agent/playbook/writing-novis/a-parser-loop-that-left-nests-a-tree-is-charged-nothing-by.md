@@ -3,4 +3,4 @@
   rather than by recursing, and the depth that matters is what the first recursive walk over the
   AST must survive, not the parser's own stack. A tier written outside `parse_left_assoc` charges
   one level per link and holds it to the end of the chain, as `parse_postfix`'s `chain_len` does.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_left_assoc]

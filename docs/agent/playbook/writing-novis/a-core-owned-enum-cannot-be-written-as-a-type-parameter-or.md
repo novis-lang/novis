@@ -1,5 +1,0 @@
-- **A `Core`-owned enum cannot be written as a type — parameter or `array<T>` element — and the
-  diagnostic prints the same name on both sides.** `function step(Core\Unit $u)` is `E0401: expected
-  `Core\Unit`, found `Core\Unit``, because `nvs_types::core_lib` interns the name as an enum type
-  and the annotation resolves to something else. A `.nvst` that steps by several units writes the
-  case literal at each `plus`/`minus` call site. [until: reviewed 2026-09-06]

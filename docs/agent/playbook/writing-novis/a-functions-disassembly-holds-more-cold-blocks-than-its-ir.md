@@ -5,4 +5,4 @@
   `--dump-asm` prices three other mechanisms. What separates hot from cold in the VCode text is one
   shape, `testX` immediately followed by `jnz labelA; j labelB`, which is how every status word is
   checked: walk the `blockN:` graph from the entry and never follow that `jnz`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-cli/src/main.rs:dump-asm]

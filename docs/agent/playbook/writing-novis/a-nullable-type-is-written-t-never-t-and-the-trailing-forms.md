@@ -3,4 +3,4 @@
   first and then six cascading `$step is not declared` lines, so the whole report reads as a missing
   declaration rather than as a misplaced `?`. Copy the spelling from a case that already uses one —
   `tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst:8` — rather
-  than working back from the diagnostic. [until: reviewed 2026-09-19]
+  than working back from the diagnostic. [until: gone tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst:?Throwable]

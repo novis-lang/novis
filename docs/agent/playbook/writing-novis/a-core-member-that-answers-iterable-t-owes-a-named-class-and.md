@@ -5,4 +5,4 @@
   `an_iterable_class_answers_the_iteration_protocol`). Such a class has one slot and no member of
   its own, which fails `a_class_with_slots_has_instance_members_and_the_reverse` until it is added
   to that test's `HANDLES` list — the failure names the class and not the rule; `Core\IO\Lines` is
-  the worked example and `crate::cursor::over` does the rest. [until: reviewed 2026-09-06]
+  the worked example and `crate::cursor::over` does the rest. [until: gone crates/nvs-stdlib/src/registry.rs:a_class_with_slots_has_instance_members_and_the_reverse]

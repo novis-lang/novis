@@ -6,4 +6,4 @@
   `misaligned pointer dereference` at `nvs-runtime/src/array.rs` with nothing pointing back at the
   callable. Write one case per *declaration* shape the callee can have, not per call site, reading
   `nvs_types::signatures::MethodSig`'s field list for what those shapes are.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-types/src/signatures.rs:MethodSig]

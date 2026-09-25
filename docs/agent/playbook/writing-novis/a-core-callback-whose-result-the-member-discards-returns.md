@@ -3,4 +3,4 @@
   `Ty::Void` *is* assignable to `mixed` in return position — so `mixed` takes a `fn (): void` body
   and a value-returning one alike, and still constrains the parameters. Write `CoreTy::Mixed` at any
   callback the member does not read back, and a concrete return only where it uses the answer.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-stdlib/src/registry.rs:CoreTy::Mixed]

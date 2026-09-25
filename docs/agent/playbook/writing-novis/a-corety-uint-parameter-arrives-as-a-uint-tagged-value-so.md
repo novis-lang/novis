@@ -1,7 +1,0 @@
-- **A `CoreTy::Uint` parameter arrives as a `uint`-tagged `Value`, so `as_int()` answers `None` and
-  the member dies at run time rather than at build time.** The failure is a `FATAL ... expected a
-  non-negative `uint` ..., got tag 3` from the argument guard a session writes as unreachable, which
-  reads like a caller error and is actually the accessor: a row's `Const::Uint` default is
-  materialised as a `uint`, not as an `int`. Use `Value::as_uint` for every `CoreTy::Uint` slot —
-  `crates/nvs-stdlib/src/compress.rs`'s `uint_of` is the shape — and reach for `as_int` only where
-  the row says `CoreTy::Int`. [until: reviewed 2026-09-09]

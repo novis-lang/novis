@@ -1,7 +1,0 @@
-- **A markup literal's "a brace before a non-`$` is text" does not make the whole braced run inert —
-  a bare `$name` inside that text still interpolates.**
-  `{Core\Html::join($nothing, "" as Core\Html\Markup)}` reads as one text segment and is three: the
-  text `{Core\Html::join(`, a simple-syntax interpolation of `$nothing`, and the rest — so an `array`
-  operand there is `E0707: no string form` at a line that looks like a static call. Put the call in a
-  local and write `{$local}`; the hole grammar is the double-quoted string's, **both** halves of it
-  (`rule:core-classes/html-literal`). [until: reviewed 2026-09-12]

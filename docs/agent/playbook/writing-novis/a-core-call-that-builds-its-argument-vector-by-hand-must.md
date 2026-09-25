@@ -6,4 +6,4 @@
   the half that gets dropped: run `MSYS_NO_PATHCONV=1 wsl.exe -- bash tools/leak-check.sh <fixture>`
   from the Bash tool, and pin it as `a_resolved_route_link_releases_its_params_array` does — require
   a `Release` of the argument's own `ValueId`, never a count of releases.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/tests.rs:a_resolved_route_link_releases_its_params_array]
