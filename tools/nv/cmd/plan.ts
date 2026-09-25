@@ -52,6 +52,58 @@ export function milestones(): Entry[] {
 }
 
 /** `'x'`, the way Python's `repr` prints a string with no quote in it. */
+/** One row of the plan's milestone table, as written: its four cells and its line. */
+export interface TableRow {
+  line: number;
+  carried: string;
+  id: string;
+  link: string;
+  builds: string;
+  loopDays: string;
+}
+
+/** A row of the milestone table: `| <carried by> | [M4](plan/m4.md) | <what it builds> | <loop-days> |`. */
+const TABLE_ROW = /^\|\s*([^|]*?)\s*\|\s*\[(M\d+[A-Z]?)\]\(([^)]*)\)\s*\|\s*(.*?)\s*\|\s*([^|]*?)\s*\|\s*$/;
+
+/** Every row of the milestone table in `text`, in the order written. */
+export function tableRows(text: string): TableRow[] {
+  const rows: TableRow[] = [];
+  text.split(/\r?\n/).forEach((line, i) => {
+    const m = TABLE_ROW.exec(line);
+    if (m) rows.push({ line: i + 1, carried: m[1]!, id: m[2]!, link: m[3]!, builds: m[4]!, loopDays: m[5]! });
+  });
+  return rows;
+}
+
+/** A milestone record's fields the table writes, and the goals on the chain that carry it. */
+export interface RowSource {
+  id: string;
+  title: string;
+  estimate?: string;
+  loopDays: string;
+  state: string;
+  backlog?: number;
+  carriers: string[];
+}
+
+/**
+ * The row the table owes a milestone. **Carried by** is `done` for a finished one, else the goals that
+ * carry it by slug (``goal `a` `` or ``goals `a`, `b` ``), else where it stands on its own: `ongoing` or
+ * `backlog N`. **What it builds** is the record's title with its estimate in brackets.
+ */
+export function expectedRow(s: RowSource): Omit<TableRow, "line"> {
+  const cited = s.carriers.map((g) => `\`${g}\``).join(", ");
+  const carried =
+    s.state === "done" ? "done" : s.carriers.length === 1 ? `goal ${cited}` : s.carriers.length > 1 ? `goals ${cited}` : s.backlog !== undefined ? `backlog ${s.backlog}` : s.state;
+  return {
+    carried,
+    id: s.id,
+    link: `plan/${s.id.toLowerCase()}.md`,
+    builds: s.estimate === undefined ? s.title : `${s.title} (${s.estimate})`,
+    loopDays: s.loopDays,
+  };
+}
+
 function repr(s: string): string {
   return s.includes("'") && !s.includes('"') ? `"${s}"` : `'${s}'`;
 }
@@ -341,7 +393,8 @@ function round0(x: number): string {
  * in brackets after it, must be its scope file's H1, and every `docs/plan/m*.md` must have a record. Its
  * `state` must agree with the chain: `done`
  * exactly when `pastState()` calls it complete, `open` with no `backlog` place while a chain goal carries
- * it, and `done`, `ongoing` or a `backlog` place while none does.
+ * it, and `done`, `ongoing` or a `backlog` place while none does. Last, every row of the plan's milestone
+ * table must be the row `expectedRow` builds from its record and the chain, in the records' order.
  */
 function check(): number {
   const problems: string[] = [];
@@ -436,6 +489,24 @@ function check(): number {
       (live ? `; live at goal \`${live.slug}\`` : "; nothing live"));
   } else {
     console.log("  chain: data/chain.json lists no goals, so no milestone's state is checked against it");
+  }
+
+  // The table is the records and the chain written out for a reader, so every cell of every row is
+  // compared with them, in the records' order.
+  const rows = tableRows(readFileSync(join(ROOT, PLAN), "utf8"));
+  const want = index.map((m) => {
+    const rec = records.get(m.id)!;
+    return expectedRow({ id: m.id, ...rec, carriers: goals.filter((g) => g.milestone === m.id).map((g) => g.slug) });
+  });
+  if (rows.map((r) => r.id).join(" ") !== want.map((w) => w.id).join(" ")) {
+    problems.push(`${PLAN}: the milestone table's rows are ${rows.map((r) => r.id).join(", ") || "none"}, and the records, in order, are ${want.map((w) => w.id).join(", ")}`);
+  } else {
+    rows.forEach((row, i) => {
+      const w = want[i]!;
+      for (const cell of ["carried", "link", "builds", "loopDays"] as const) {
+        if (row[cell] !== w[cell]) problems.push(`${PLAN}:${row.line}: ${row.id}'s ${cell === "carried" ? "Carried by" : cell === "builds" ? "What it builds" : cell === "loopDays" ? "Loop-days" : "link"} cell has drifted from its record and the chain\n      table:  ${row[cell] || "(empty)"}\n      wanted: ${w[cell]}`);
+      }
+    });
   }
 
   if (problems.length > 0) {

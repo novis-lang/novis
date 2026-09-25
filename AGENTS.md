@@ -333,7 +333,7 @@ Step 5 above, in detail:
   pre-push hook see the same live goal, and the driver moves it to the next goal when one is reached.
   A goal is its prose at `docs/agent/goals/<slug>.md` and its record at
   `data/goals/<slug>.json`, with a handoff record beside it until it is retired. A milestone is an **identity tag** one or more goals carry, and
-  the plan's `Carried by` cells are derived from it, so a milestone number says nothing about what
+  the plan's `Carried by` cells are checked against it, so a milestone number says nothing about what
   is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
   `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `bun nv orient` prints the live
   goal; `bun nv plan --check` gates it. **A side goal is off the chain**: its prose is under

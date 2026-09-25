@@ -77,14 +77,16 @@ Each milestone ends with something runnable and its own tests. Do not start the 
 one's verification passes.
 
 **A milestone's number is its identity, and the schedule is not in this table.** The schedule is
-[docs/agent/goals/](agent/goals/) — one entry per goal, in the order the driver walks
-them — and the **Carried by** cell names the goals that do a milestone's work. That cell is *derived*:
-the Python plan tool's `--sync` wrote it from the chain and has no `bun nv` port, and `bun nv plan --check` fails CI when the two disagree, so
-this table cannot drift away from what is actually being run. A milestone the program has walked past
-and **finished** says `done` instead, whatever carried it, because naming the goals then says where the
-work was rather than where it is; `bun nv plan --past` is what decides that, from two facts read
-off the tree — every goal carrying it has walked, and no register still tags an item to it — and `--check`
-refuses a `done` cell on a milestone it does not call complete. A milestone no goal carries and nothing
+`data/chain.json` — the goals in the order the driver walks them, each tagged with the milestone whose
+work it does — and a milestone's state is its record under `data/plan/milestones/`. The **Carried by**
+cell names the goals that do a milestone's work. Every cell of the table is written from those two, and
+`bun nv plan --check` compares each one with them and fails CI when one has drifted, so this table cannot
+drift away from what is actually being run. A
+milestone the program has walked past and **finished** says `done` instead, whatever carried it, because
+naming the goals then says where the work was rather than where it is; `bun nv plan --past` is what decides
+that, from two facts read off the tree — every goal carrying it has walked, and no register still tags an
+item to it — and `bun nv plan --check` refuses a milestone record that says `done` when it does not call
+it complete. A milestone no goal carries and nothing
 calls finished says where it stands on its own — `ongoing`, or `backlog N` for its place in the queue
 behind the chain — and those words are the whole vocabulary of the column. Rows are in **identity order**, because a table
 that is not the schedule has no business being sorted like one. Nothing is ever renumbered, because a
