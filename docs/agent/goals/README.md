@@ -1,9 +1,9 @@
 # The goal chain
 
-This directory **is** the schedule the unattended loop walks, and the table below is that order for the
-hand-written goals. Everything between `dossier` and `plain-comments` is one goal per group of features
-owing `rule:testing/feature-proofs`'s roster. Those goals were generated, and are now ordinary goals,
-edited by hand like any other; a goal whose record says `position: last` stays behind all of them, and
+This directory holds the prose of the goals the unattended loop walks, `data/chain.json` is their order,
+and the table below is that order for the hand-written goals. Everything between `dossier` and
+`plain-comments` is one goal per group of features owing `rule:testing/feature-proofs`'s roster. Those
+goals are ordinary goals, edited by hand like any other; a goal whose record says `position: last` stays behind all of them, and
 `bun nv chain --check` refuses an unpinned goal behind a pinned one.
 
 **Every goal states its own case, and this file does not restate it.** A goal's front matter names its
@@ -99,7 +99,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [gap-zero](gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
 | [dossier](dossier.md) | `rule:testing/feature-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | [tooling-overhaul](tooling-overhaul.md) | post-parity, two new records — `main` frozen until it is walked | `tools/` becomes `bun nv`, over typed records under `data/`; every check keyed on what it reads, the playbook triaged, the generated goals made ordinary, no Python left |
-| after `dossier` | `rule:testing/feature-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
+| the generated goals, `core-…`, `lang-…`, `types-…`, `tools-…` | `rule:testing/feature-proofs` | one group of features per goal, each an ordinary goal with its own `context` manifest, its prose under `docs/agent/goals/` and its record under `data/goals/` |
 | [limit-handler-reach](limit-handler-reach.md) | `rule:errors/on-limit` | `crates/nvs-runtime/src/abi.rs`, `ctx/hooks.rs`, `sequence.rs` — a resource `FATAL` raised inside a member's own loop runs the program's `onLimit` handler, as one raised in compiled code already does |
 | [core-class-cards](core-class-cards.md) | `rule:core-api/reference-card` | `crates/nvs-stdlib/src/registry.rs`, `tools/nv/cmd/class-cards.ts` — every `Core` class that landed before classes carried a card gains its `ClassDoc`, and the registry test's list of classes still owing one is emptied |
 | [plain-comments](plain-comments.md) | `rule:testing/feature-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `owes.all` in `data/proofs/policy.json` makes them owed |
@@ -108,16 +108,18 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 
 ## The chain contract
 
-**`data/chain.json` is the chain**: a list of goal slugs, and the order the driver walks is the order of
-that list. There is no second file saying what the order is, so **reordering the chain is editing that
-list** — and `bun nv chain` is how that is done, never by hand. `--new`, `--move` and `--remove` each
-edit that one file, and `--check` says whether every goal is one the driver can walk.
-`tools/nv/cmd/chain.ts`'s module doc is the tool's one home; this section is the contract it enforces.
+**`data/chain.json` is the chain**: `goals`, a list of goal slugs whose order is the order the driver
+walks, and `live`, the goal it works on. `live` is tracked in git, so every clone, CI and the pre-push
+hook see the same live goal, and every goal in front of it is walked. There is no second file saying
+what the order is, so **reordering the chain is editing that list** — and `bun nv chain` is how that is
+done, never by hand. `--new`, `--move` and `--remove` each edit `goals` in that one file and never
+`live`, which only the driver's goal switch moves; `--check` says whether every goal is one the driver
+can walk. `tools/nv/cmd/chain.ts`'s module doc is the tool's one home; this section is the contract it
+enforces.
 
 A goal the run has **not reached** may be inserted, edited or appended while the loop is running: every
 turn of the driver is a fresh process that reads the chain again. The live goal and every goal the run
-has walked are not rewritten, because every switch has already folded their checks into the next one's
-floor.
+has walked are not rewritten, because their checks are the floor of every goal behind them.
 
 **Prose names a goal by its slug** — goal `parses`, not goal 21. A number is a position, and it moves the
 moment anything is inserted in front of it. `bun nv chain --check` fails on prose that names a goal by
@@ -128,16 +130,17 @@ Each goal is three files, named for it:
 | File | Holds |
 |---|---|
 | `docs/agent/goals/<slug>.md` | front matter naming its milestone, the target, `## Why here`, the item list grouped by file set, the standing decisions |
-| `data/goals/<slug>.json` | the acceptance test as data, and the `context` a session reads — **its checks are emptied when the run leaves the goal**, which is what records the retirement |
-| `data/goals/<slug>.handoff.json` | the handoff the switch seeds, naming that goal's first group — deleted when the goal is retired |
+| `data/goals/<slug>.json` | the acceptance test as data, and the `context` a session reads — **a walked goal keeps its checks**, because they are the floor of every goal behind it |
+| `data/goals/<slug>.handoff.json` | the handoff, written with the goal to name its first group and rewritten by every session's wrap — deleted when the goal is retired |
 
 Four rules bind every one of them, and they are the reason the run can be left alone:
 
-1. **A goal's acceptance list is the next goal's floor, mechanically.** The goal switch copies every check
-   of the live goal's record into the next goal's record, under a stage whose title says `floor`, which
-   is how `tools/nv/driver/accept.ts` tells a carried check from the goal's own. Nothing is copied by
-   hand. By goal `server` the floor is five goals deep, which is the point —
-   the parity claim is only worth something if nothing under it was traded away to reach it.
+1. **A goal's acceptance list is the floor of every goal behind it, mechanically.** A goal's plan is its
+   record with every check of every walked goal carried in, each once, under a stage titled `floor`
+   (`goalPlan` in `tools/nv/lib/chain.ts`), which is how `tools/nv/driver/accept.ts` tells a carried
+   check from the goal's own. The floor is a view: nothing is copied, by hand or by the switch. The
+   floor is every goal deep, which is the point — the parity claim is only worth something if nothing
+   under it was traded away to reach it.
 2. **Every goal names the numbered ADRs it may open, and no session opens another.** The blanket "do not
    open a numbered ADR" rule that M4's goal carried does not survive this program: goals `concurrency` through `server` contain
    genuinely new designs — a reactor, a driver's wire I/O, a pool reset that is a security boundary — and
@@ -146,13 +149,12 @@ Four rules bind every one of them, and they are the reason the run can be left a
    slice of the goal that needs it. Anything not on that list is still decided-and-recorded, never
    `BLOCKED`, and never a new number.
 3. **A goal that cannot verify itself does not advance.** The driver runs the acceptance test; a session
-   claiming `DONE` against a red check stops the run, exactly as it does today.
-4. **A goal the run has left is retired, in the same commit as the switch.** Rule 1 makes the fold
-   cumulative — goal `core-depth`'s 80 checks are in goal `concurrency`'s file and in every file after
-   it — so a walked goal's own checks are a duplicate of a duplicate, and by goal `server` the
-   directory held 830K of floors no tool reads. Retiring a goal empties its record's `checks` once every
-   one of them is in the live goal's record, and deletes its handoff record. **The empty list is the
-   record**: a goal whose record has no checks is retired, so there is no flag beside it to say
+   claiming `DONE` against a red check gets a retry session handed that check, and a retry that fails
+   on the same check holds the run as `done-claim`.
+4. **A goal switch copies and retires nothing.** A walked goal keeps its checks, because rule 1 reads
+   them from its record. A goal whose record has no checks is retired: it counts as walked wherever it
+   sits, and its checks are no floor, so a goal is emptied only when its checks are already carried by
+   a goal the run has walked. **The empty list is the record**, so there is no flag beside it to say
    otherwise. **The prose and the rest of the record stay**, because they hold the prose that
    [the plan](../../implementation-plan.md) and the milestone files cite. `bun nv chain --check` refuses
    a retired goal at the live one or later in the chain — retiring is the claim that a goal's checks are
@@ -167,20 +169,16 @@ files, the same shapes and the same rules as a chain goal, with three difference
 - **No place in the chain.** Nothing walks to it, so `data/chain.json` does not name it: its `.md`
   opens `# Side goal — <title>`, and prose names it by its slug as it names any goal. `bun nv chain
   --check` refuses a side goal with checks that has no prose, no such H1 or no handoff record.
-- **It runs only when named**, typed in the main tree, and then it runs that goal and nothing else, in a
-  worktree of its own at `.agent-tmp/worktrees/side/<slug>` on branch `side/<slug>`. A chain run never
-  installs it. Several side runs and the chain run may run at once.
-- **It lands instead of switching.** When its list is green the side run rebases onto `main`, runs
-  `nv verify` and its whole list again, waits until `main` is clean and the chain run has reached a
-  session boundary, and fast-forwards `main`. Its checks join the installed goal's floor as it lands,
-  it is retired, and the worktree and branch are removed. Then the side run
-  ends.
+- **A person runs it by hand**, in a worktree of its own at `.agent-tmp/worktrees/side/<slug>` on
+  branch `side/<slug>`, and it runs that goal and nothing else. The driver has no side mode and never
+  runs one. A side goal and the chain run may run at once.
+- **It lands instead of switching.** When its list is green, the person running it rebases the branch
+  onto `main`, runs `nv verify` and the whole list again, and fast-forwards `main` while the chain run
+  holds between two sessions. The goal is retired and the worktree and branch are removed.
 
-Its list runs over **main's carried floor** as well as its own checks, so a side branch cannot land
-anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side session
-writes no plan section and never edits the chain run's files; the driver tells it so ahead of the
-prompt. `bun nv loop` has no side mode, so the mechanism, the handshake with the chain run and the
-landing order are not implemented, and no side goal can run until they are.
+Its list is checked over **main's carried floor** as well as its own checks, so a side branch cannot
+land anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side
+session writes no plan section and never edits the chain run's files.
 
 ## Starting the chain
 
@@ -193,18 +191,18 @@ Three steps.
    [loop-authoring.md](../loop-authoring.md) § 1 makes this step zero and § 9 says the numbers move. Set
    the slice budget from what it prints and **say which and why in the commit**. The 200k ceiling is not
    a number to re-derive; the *projection* is.
-3. `bun nv loop`, started by the launcher [coordinator.md](../coordinator.md) § *Files* describes.
+3. `bun nv loop`, typed by hand: it is the launcher [coordinator.md](../coordinator.md) § *Files*
+   describes.
 
-**The driver does the switching, including the first one.** On `GOAL REACHED` it folds the live goal's
-whole acceptance list into the next goal's record as its floor (rule 1), retires the goal it just left
-(rule 4), moves the chain pointer to the next goal and commits all of that as one switch before starting
-the next session. There is no flag for this and never a second chain: a run that stopped at each green
-goal to wait for a human would be the same run with five extra nights in it. `bun nv loop` does not
-switch yet: `tools/nv/cmd/loop.ts`'s module doc lists the chain switch among what it lacks.
-
-The pointer, `tools/nv/lib/state.ts`, names the installed goal, and it is what makes "exactly once per
-goal" a fact rather than an intention: a switch run twice would fold the floor in twice. If that state is
-ever lost, check the installed goal's record for a doubled floor before restarting.
+**The driver does the switching.** When a sweep with the floor gate open is green and both goal-end
+gates are green — the rustdoc gate `bun nv verify --doc`, and the owner gate `bun nv owners --closes
+<slug>` with `bun nv playbook --closes <slug>` — it moves `live` in `data/chain.json` to the next
+goal, commits that one file as ``docs(loop): the chain advances from `a` to `b` ``, preflights and
+brings up the new goal's `env.docker` services, and carries on with the next session. After the last
+goal it ends the run on `CHAIN COMPLETE`. There is no flag for this and never a second chain: a run
+that stopped at each green goal to wait for a human would be the same run with five extra nights in it.
+A red gate holds the goal open, and `bun nv orient` prints the finding from `.loop/doc-gate.json` or
+`.loop/owner-gate.json`.
 
 ## What stops the run
 
@@ -219,11 +217,13 @@ ever lost, check the installed goal's record for a doubled floor before restarti
   audit rather than a named hole beside it.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
-- **`--max-stalls` consecutive sessions move `HEAD` nowhere.**
-- **Goal `database`'s Docker preflight fails.** `rule:core-classes/db-one-api` verifies the drivers against real servers, so the driver
-  checks for a reachable daemon before the first session of that goal and stops the run naming it. A run
-  that grinds for six hours against a check that cannot pass is worse than one that stops in the first
-  minute.
+- **`--max-stalls` consecutive sessions move `HEAD` nowhere.** The run gets a repair session first,
+  and holds when that is spent.
+- **A goal's Docker preflight fails.** `rule:core-classes/db-one-api` verifies the drivers against real
+  servers, so the driver checks for a reachable daemon when a run starts on a goal with `env.docker`
+  and at the switch to one, and stops naming it (`chain-error`, which gets a repair session and then
+  holds). A run that grinds for six hours against a check that cannot pass is worse than one that stops
+  in the first minute.
 
 ## What no goal on this chain takes
 

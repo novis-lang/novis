@@ -113,16 +113,16 @@ a stage's `context` is what that stage needs on top of it:
 ]
 ```
 
-- **`bun nv orient` applies the stage `handoff.md`'s `## Next group` names**, and `--stage N` prices one the
-  run has not reached. A goal with no stage tables prints exactly the pack it printed before they existed,
-  which is what makes this safe to add to queued goals one at a time.
+- **`bun nv orient` applies the stage the handoff's `## Next group` names**, and `--stage N` prices one the
+  run has not reached. A goal whose stages carry no `context` prints its base pack, which is what makes
+  overlays safe to add to queued goals one at a time.
 - **An overlay only ever adds.** Its entries are appended to the base's, deduplicated. The saving comes
   from keeping the *base* small — from moving an entry down into a stage, never from deleting one — and
   the worst a wrong stage number can do is print the base pack.
 - **Narrowable: `rules`, `adrs`, `shapes`, `playbook`, `milestones`.** A stage's `context` takes the
-  other two fields as well, and neither belongs there: not `modules`, because the context sweep and
-  `bun nv goal context --add` write to the goal's own list and a stage-local copy would silently stop
-  receiving what a session edited; not `plan`, whose default is two fields every session reads.
+  other two fields as well, and neither belongs there: not `modules`, because `bun nv goal context
+  --add` writes to the goal's own list and a stage-local copy would silently stop receiving what a
+  session added; not `plan`, whose default is two fields every session reads.
 - **A stage is one number in both places.** A check's `stage` names one of the record's `stages`, and
   `bun nv chain --check` refuses a check whose stage the goal does not have.
 - **`bun nv chain --check` audits every stage's entries**, not the one in flight, so a selector that resolves
@@ -140,14 +140,11 @@ Three rules make it work:
 - **Every entry is a selector, never a copy.** `bun nv orient` slices the live file at session start, so a
   manifest cannot silently go stale the way a frozen context pack would. It can only go *wrong*, by naming
   something that no longer exists, and that prints as a loud warning.
-- **`modules` corrects itself between sessions.** The driver's context sweep appends any `crates/*/src/`
-  or `editors/*/src/` module the session's own commits touched that no pattern matched — never a crate
-  root or a test module. Widening is the only thing it can do, which is why it needs no supervision;
-  past a cap on one session's additions, or on the list's length, it refuses and prints instead, because
-  a manifest that has to grow that far was written for different work. `bun nv loop` does not run that
-  sweep yet — `tools/nv/cmd/loop.ts`'s module doc lists it among what the driver lacks — so a session
-  widens the list itself with `bun nv goal context --add <path>`. No other field sweeps: nothing on disk
-  records that a session needed a rule section and did not get it.
+- **A session widens `modules` itself.** The driver runs no context sweep, so a session that needed a
+  module the manifest did not name adds it with `bun nv goal context --add <path>`, and the next
+  session's pack prints it. Widening is the only thing that command can do, which is why it needs no
+  supervision. Every other field is widened by editing the record: nothing on disk records that a
+  session needed a rule section and did not get it.
 - **An absent field selects nothing, not everything.** A goal that forgets to name its modules gets a short
   pack and a warning, rather than the whole map. Failing closed is what keeps the block honest.
 - **`bun nv orient --audit` prints what the pack costs**, section by section. Look at it once,
@@ -219,9 +216,9 @@ Three failure modes worth naming, all of which have happened here:
   its stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
   reached with forty items tagged to it and none built. A gate over a register must ask what the
   goal's own tag cannot answer: `bun nv owners --closes <slug>` is red while any item names the goal.
-  The driver's owner gate asks it of every goal on the sweep that would reach it, whether or not the
-  goal's list does; `bun nv loop` does not run that gate yet (`tools/nv/cmd/loop.ts`'s module doc), so
-  a session runs it itself before it writes `DONE`.
+  The driver's owner gate asks it, with `bun nv playbook --closes <slug>`, of every goal on the sweep
+  that would reach it, whether or not the goal's list does, and a red gate holds the goal open; a
+  session runs both itself before it writes `DONE`.
 
 ## 4. The two halves, and what belongs in each
 
@@ -326,7 +323,8 @@ written: the union of the anchors is the `modules` list.
   where a goal switch cannot overwrite it. The handoff is state; a gap is not.
 - **Re-opening a standing decision.** That is what § 5 exists to prevent.
 - **Anything needing judgement about whether the goal is met.** The machine outranks the claim: the driver
-  runs the acceptance test itself and a session reporting `DONE` against a failing check stops the run.
+  runs the acceptance test itself, a session reporting `DONE` against a failing check gets a retry
+  session handed that check, and a retry whose `DONE` fails on the same check holds the run.
 
 ## 9. When the run ends
 

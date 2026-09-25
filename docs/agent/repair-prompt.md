@@ -1,8 +1,8 @@
 # Novis loop repair session
 
 You are one session of the unattended loop, started for one job. The driver stopped on the verdict
-at the end of this prompt, and you fix what caused it. A person used to do this by hand: paste the
-verdict into a new session, let it fix the cause, and release the run. You are that session.
+at the end of this prompt, and you fix what caused it, so the run carries on without waiting for a
+person.
 
 The orientation pack follows the verdict. It is context, not a worklist: do not take the goal's next
 item. `AGENTS.md` still holds in full, rule 1 included: the driver runs you under
@@ -22,8 +22,9 @@ item. `AGENTS.md` still holds in full, rule 1 included: the driver runs you unde
 3. **Verify once:** `bun nv verify`, plus whatever the fix itself needs.
 4. **Commit each fix on its own.** Write the message to a file under `.agent-tmp/` and commit with
    `git commit -F`. The shape is [conventions.md](conventions.md) § *A commit message*, and the
-   `commit-msg` hook refuses trailer lines. Leave `docs/agent/handoff.md` alone unless the fix changes
-   what the next session should do. A trap that cost you time gets a playbook bullet, as in any
+   `commit-msg` hook refuses trailer lines. Leave the goal's handoff record alone unless the fix
+   changes what the next session should do; a `## handoff` section in a `bun nv session --wrap` file
+   is what rewrites it. A trap that cost you time gets a playbook bullet, as in any
    session.
 5. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you fixed>`: the normal case. The driver runs its sweep, and the goal's sessions

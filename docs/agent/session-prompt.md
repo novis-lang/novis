@@ -15,15 +15,14 @@ a shell. The harness line saves permission prompts, and this mode has none to sa
 changes about them, and step 6.
 
 1. **Your orientation is already in this message — do not fetch it.** The driver piped
-   `bun nv orient` in ahead of this prompt, narrowed to the goal's `[context]` manifest in
-   `docs/agent/loop-goal.toml`. Re-running it spends three calls and about 20k of context on a pack you
+   `bun nv orient` in ahead of this prompt, narrowed to the `context` manifest in the goal's record,
+   `data/goals/<slug>.json`. Re-running it spends three calls and about 20k of context on a pack you
    already hold. If it is genuinely absent, run it once and say so in the handoff — that is a driver bug.
    `bun nv orient --full` is the unscoped map; reach for it only for something outside the goal —
-   then **widen the goal's `[context]` by the selector it was missing**. A module is added with `bun nv
-   goal context --add <path>`, which writes the goal's record and `docs/agent/loop-goal.toml` together;
-   any other field is edited in that toml. It is reloaded every session and widening it breaks nothing,
-   so a gap you only describe in the handoff is one the next session pays for again. `modules` is the
-   one you may skip: the driver sweeps it from the paths your own commits touched.
+   then **widen the goal's `context` by the selector it was missing**. A module is added with `bun nv
+   goal context --add <path>`, which writes it into the record's `context.modules`; any other field is
+   edited in the record with Edit. The manifest is reloaded every session and widening it breaks
+   nothing, so a gap you only describe in the handoff is one the next session pays for again.
 2. **Take your item, then keep taking slices from the group while both hold:** the next one touches
    files you have already loaded, and you are under 120k of context with the previous one committed.
    Past 120k, stop and say in the handoff where you stopped. The gate and its measurement are
@@ -39,11 +38,12 @@ changes about them, and step 6.
 5. **Commit one slice at a time**, staging each slice's own files.
 6. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you landed>` — the normal case.
-   - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met. Run `bun nv
+   - `DONE <what goal was reached>` — the live goal, `docs/agent/goals/<slug>.md`, is met. Run `bun nv
      verify --doc` first and fix every broken doc link it names, then `bun nv owners --closes
      <slug>` and `bun nv playbook --closes <slug>` and close or
      re-owner every gap they name: those are the gates a goal meets only at its end, and the driver
-     does not reach the goal while one is red. A tag is not a build.
+     does not reach the goal while one is red. A tag is not a build. A `DONE` the driver's sweep
+     refuses gets a retry session, and the retry is handed the check that failed.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
      can answer it, and carries on from the tree as it stands when they lift the hold.
@@ -53,7 +53,7 @@ session --template` would print for this tree; fill it in and apply it with `bun
 --wrap <file>`. It validates every section before writing a byte, writes the docs,
 and commits them with the slices — no second call, no `git add` by hand. **Then stop**: no second
 verification, no re-reading the orientation, no trimming a doc to a length. The driver runs the
-acceptance check itself, and stops after `--max-stalls` sessions without a commit.
+acceptance check itself, and holds the run after `--max-stalls` sessions without a commit.
 
 ## Context is the budget, and reading is where it goes
 
@@ -80,7 +80,7 @@ has read well before its window is full. `bun nv orient` starts you under 20k of
   by instruction. Not safe, ever: writing anything; reading a file you are about to edit; deciding a
   design question; judging whether a check passed; the wrap. The handoff and the code must rest on
   what **you** read — a subagent's summary is a pointer to verify, not evidence to commit. There is
-  no carve-out: the dossier tool's partition mode was the one, and it has no `bun nv` port.
+  no carve-out.
 - **When you have two or three independent searches, send them in one message.** They then run
   concurrently and cost you one round trip instead of three, which is the wall-clock half of the win;
   the context half you get either way. Independent means neither one's prompt depends on the other's
@@ -99,12 +99,14 @@ has read well before its window is full. `bun nv orient` starts you under 20k of
 `bun nv loop-stats` measures all of this from `.loop/logs/`, and `--attribute` says which reads
 put a session where it landed.
 
-## The handoff's shape — `docs/agent/handoff.md`
+## The handoff's shape
 
-Every future session reads this file in full, so it is a **bounded state file, not a changelog**.
+The handoff is the wrap file's `## handoff` section, which `bun nv session --wrap` writes into the live
+goal's handoff record, `data/goals/<slug>.handoff.json`, and `bun nv orient` prints back. Every future
+session reads it in full, so it is a **bounded state file, not a changelog**.
 
 - **Overwrite in place**, and describe where the work stands now, never the path taken.
-- **State only.** A fact that outlives ten sessions goes elsewhere: a trap in `playbook.md`, a decision
+- **State only.** A fact that outlives ten sessions goes elsewhere: a trap in the playbook, a decision
   in the rule's fragment under `docs/rules/` with a decision record for its reasoning, how something
   works in the crate's module doc.
 - **Point, don't restate** — name the `rule:` token, plan paragraph or module doc that owns a fact.
@@ -118,12 +120,12 @@ Every future session reads this file in full, so it is a **bounded state file, n
      touches, **repo-rooted in the item** — `crates/nvs-runtime/src/ctx/isolate.rs:116`, never a bare
      file name and never up in `## State` — because that is the only place `bun nv orient` reads them from
      to inline the code into the next pack, and `bun nv session --wrap` refuses an open item without one.
-     The stage number is read the same way, to pick the goal's `[context.stage.N]` overlay
+     The stage number is read the same way, to pick that stage's `context` overlay in the goal's record
      ([loop-authoring.md](loop-authoring.md) § 2); a group that names none gets the goal's base
      manifest, which is the wider pack and never a broken one.
-  3. `## Backlog` — up to 6 one-line items, each with its owning doc; trim the stale ones. A goal switch
-     overwrites the whole handoff, so what must survive one is a `# Known gaps` item in the module
-     doc that owes it, tagged `— owner:`.
+  3. `## Backlog` — up to 6 one-line items, each with its owning doc; trim the stale ones. The next
+     goal starts from its own handoff record, so what must survive a goal switch is a `# Known gaps`
+     item in the module doc that owes it, tagged `— owner:`.
 
-**If the pack did not print something you needed, say so in the handoff**, naming the `[context]` field
+**If the pack did not print something you needed, say so in the handoff**, naming the `context` field
 that was missing it. That manifest is maintained by the sessions that discover its gaps.

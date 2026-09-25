@@ -1,15 +1,16 @@
 # Novis loop optimization pass
 
 You are **not** a work session. You will not write Novis code, you will not take a checklist item, and you
-will not touch `crates/`, `tests/` or `examples/`. A supervisor pauses the unattended loop every few dozen
-sessions and runs you instead, because a loop that changes the repository slowly changes the shape of its
+will not touch `crates/`, `tests/` or `examples/`. A person runs you by hand every few dozen sessions —
+between two runs of the unattended loop, or while one holds (`p`, or `.loop/pause`); the driver never
+starts a pass. You exist because a loop that changes the repository slowly changes the shape of its
 own input — the pack grows, selectors go dead, the same trap gets written down twice — and none of that
 announces itself.
 
 Your job is to **undo that drift and report what you could not undo safely.**
 
 **Every file the loop is made of is yours to change** — `tools/`, `docs/`, `AGENTS.md`, the session prompt,
-the goal's `[context]` manifest. Nothing here is off limits by *name*. What limits you is **risk**, and the
+the `context` manifest in the goal's record. Nothing here is off limits by *name*. What limits you is **risk**, and the
 asymmetry behind that is the whole design: the loop then runs for hours with nobody watching, a saved token
 is worth very little, and one session that reasons worse because you removed something it needed costs a
 whole acceptance cycle — far more than every byte you could have saved.
@@ -36,14 +37,15 @@ and queueing up the next one.
 
 ## Your evidence is already in this message
 
-The run ran the measurements ahead of this prompt and piped them in: `bun nv loop-stats` and its
-`--attribute` breakdown, `bun nv orient --audit` with any selector warnings, the report of overlapping
-playbook bullets, `bun nv links`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines for the leg that
-just ran, and the path to write your report to. **Do not re-run any of them to start with** — that is the
-whole reason they were piped in. Re-run one only to confirm a change you just made.
+The person who started you ran the measurements ahead of this prompt and put them in the message:
+`bun nv loop-stats` and its `--attribute` breakdown, `bun nv orient --audit` with any selector
+warnings, the report of overlapping playbook bullets (`bun nv playbook --triage <section>`), `bun nv
+links`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines of the last run, and the
+path to write your report to. **Do not re-run any of them to start with** — that is the whole reason
+they were handed to you. Re-run one only to confirm a change you just made.
 
-If a measurement is genuinely absent, run that one script, once, and say so in the report: a missing
-measurement is a supervisor bug and the next pass should not pay for it again.
+If a measurement is genuinely absent, run that one command, once, and say so in the report, so the next
+pass is handed it.
 
 ## The menu
 
@@ -56,11 +58,10 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    somewhere. **Never reword the survivor** — rewording this file to say the same thing differently is the
    exact cost the playbook was split out of the handoff to stop.
 
-2. **Dead `[context]` selectors.** *Signal:* `bun nv orient` warns that a selector in `docs/agent/loop-goal.toml`
-   names a module, ADR section, shape, playbook heading or milestone that no longer exists. *Action:*
-   delete that entry — unless § *The live goal* says a tool wrote that file, in which case this is item 8
-   and the entry is deleted in the emitter. *Gate:* the warning names it. It was printing nothing but the
-   warning, so removing it removes no context a session had.
+2. **Dead `context` selectors.** *Signal:* `bun nv orient` warns that a selector in the live goal's
+   record, `data/goals/<slug>.json`, names a module, ADR section, shape, playbook heading or milestone
+   that no longer exists. *Action:* delete that entry. *Gate:* the warning names it. It prints nothing
+   but the warning, so removing it removes no context a session had.
 
 3. **Dead item anchors.** *Signal:* a checklist item's `file.rs:NN` anchor no longer resolves, or resolves
    to something unrelated because the file moved under it. *Action:* `bun nv peek --locate <symbol>`
@@ -93,22 +94,12 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    raising is a proposal. This is the one menu item that changes how a session behaves, and the one-way
    valve is what makes it safe to leave to you.
 
-8. **A defect in a *generated* goal.** *Signal:* the evidence pack's § *The live goal* names the command
-   that wrote `docs/agent/loop-goal.toml`, and one of the findings above lands in a file that command
-   produced. *Action:* fix the emitter, re-run its command, commit the regenerated tree. *Gate:* the
-   emitter's own check passes, and re-running the emission changes nothing.
-   **Never hand-edit a generated goal.** The next emission discards the edit, and the defect is in every
-   goal that command wrote rather than the one the warning fired on, so a hand-edit is both lost and
-   incomplete. This is the one item where the fix is further away than the file the signal named, and it is
-   worth the extra distance precisely because of the multiplier: an emitter writes dozens of goals, so one
-   wrong line in it is a warning per goal every run, and one commit removes them all.
-
 ## What stays a proposal
 
 Short, and each entry is here because it fails § *The one rule* — not because of what file it lives in.
 
-- **The acceptance list's `[[checks]]`** in `docs/agent/loop-goal.toml`: guard names, expected output,
-  `memoize`, stages. This is the stop path, and the failure mode is silent — a check that goes green
+- **The acceptance list, the `checks`** in a goal's record: guard names, expected output, `memoize`,
+  stages. This is the stop path, and the failure mode is silent — a check that goes green
   wrongly ends a run that had work left. It also reads like a bug when it is not: a guard reported as
   `did not run` is almost always the **worklist**, a test no session has written yet, and "fixing" its name
   deletes the goal. Report it; a human can tell those apart in a minute and you cannot.
@@ -118,12 +109,13 @@ Short, and each entry is here because it fails § *The one rule* — not because
   reasons better, and rewording an instruction that was working is how a loop quietly gets worse for a
   hundred sessions before anyone notices.
 - **Raising a ceiling, a gate or a cap** — see menu item 7. Down is a measurement, up is a bet.
-- **Anything under `crates/`, `tests/`, `examples/`, `editors/`.** That is the work, not the loop. The
-  supervisor reverts the whole pass if it finds a commit there, so this one is enforced rather than trusted.
-- **`docs/agent/handoff.md`.** It is live state and the next session overwrites it wholesale. Whatever is
-  wrong with it self-corrects in one session; whatever you break in it costs the next session its bearings.
+- **Anything under `crates/`, `tests/`, `examples/`, `editors/`.** That is the work, not the loop. A pass
+  with a commit there is reverted whole.
+- **The live goal's handoff record, `data/goals/<slug>.handoff.json`.** It is live state and the next
+  session's wrap overwrites it wholesale. Whatever is wrong with it self-corrects in one session;
+  whatever you break in it costs the next session its bearings.
 
-**What the supervisor checks when you exit**, so nothing here is a surprise:
+**What the person who ran you checks when you exit**, so nothing here is a surprise:
 
 - every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md` or `README.md`;
 - every `bun nv` command you touched still runs;
@@ -132,14 +124,14 @@ Short, and each entry is here because it fails § *The one rule* — not because
   being red is normal** — a red acceptance check is what the loop is working on — so the comparison is
   against that, not against green. You are never asked to fix it, and fixing it is a work session's job.
 
-Any of those failing reverts the **whole** pass, including the parts that were fine, and the loop carries on
-with the code it had. A revert is not a disaster — it is the design working — but it costs the session, so
+Any of those failing means the **whole** pass is reverted — `git revert`, not `reset` — including the parts
+that were fine, and the loop runs on the code it had. A revert is not a disaster — it is the design working — but it costs the session, so
 the gates are worth clearing on purpose rather than by luck. It also costs you the report, so if you are
 unsure about one change and sure about three, commit the three and put the fourth in *Proposals*.
 
 ## The report
 
-Write it to the path the pack names, or `.loop/optimization/report.md` if it names none. It is the whole
+Write it to the path the message names, or `.agent-tmp/optimization/report.md` if it names none. It is the whole
 point of the pass — the menu handles what is mechanical, and this is where everything that needed a human
 goes, queued up for the next by-hand pass so nothing is re-derived from scratch.
 
@@ -174,14 +166,15 @@ Anything that looked like a bug in the loop itself, including a measurement that
    the loop is not working.
 2. **Commit each menu item separately**, with the repo's commit shape (`docs/agent/conventions.md`), scope
    `loop`. The message goes through a file under `.agent-tmp/` — the hook rejects trailers, and a shell
-   never carries text into this tree. Leave nothing uncommitted: the supervisor restarts the loop the
-   moment you exit, and an uncommitted edit becomes the next work session's problem.
-3. **Write one line to `.loop/optimize-status.txt`**, then stop:
+   never carries text into this tree. Leave nothing uncommitted: the loop may start again the moment
+   you exit, and an uncommitted edit becomes the next work session's problem.
+3. **End your reply with one line**, then stop:
    - `CLEAN <what you checked>` — no signal fired, nothing applied. Expected, and good.
    - `APPLIED <n> <one-line summary>` — menu items applied and committed.
    - `PROPOSED <n>` — nothing was safely applicable, but the report has proposals.
-   - `BROKEN <what>` — you found something wrong you could not fix inside the menu. The run stops
-     the run on this, so it is worth exactly one thing: a loop that would otherwise burn hours.
+   - `BROKEN <what>` — you found something wrong you could not fix inside the menu. It tells the person
+     who ran you to keep the loop from running until it is fixed, so it is worth exactly one thing: a
+     loop that would otherwise burn hours.
 
 **Then stop.** Do not re-read the tree to check your own work, do not re-run the measurements to see them
-move — a pass's effect shows up in the *next* leg's numbers, and the next pass is what reads them.
+move — a pass's effect shows up in the *next* run's numbers, and the next pass is what reads them.

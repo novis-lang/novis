@@ -15,7 +15,7 @@ interface Props {
 
 const { id, kind } = Astro.props
 const found = findMember(id)
-if (!found) throw new Error(`ParamDocs: unknown member id "${id}" — run \`npm run sync:core\`?`)
+if (!found) throw new Error(`ParamDocs: unknown member id "${id}" — run \`npm run sync:render\`?`)
 const { member } = found
 
 const docFor = (name: string) => member.doc?.params?.find((p) => p.name === name)

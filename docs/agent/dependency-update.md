@@ -151,8 +151,9 @@ Write the migration note in the same commit as the warning, not at release time.
    `deny.toml`'s `advisories.ignore`.
 3. **`bun nv links`** if any doc moved.
 4. **Commit** — one per bump, classification in the message.
-5. **Overwrite `docs/agent/handoff.md`** per [AGENTS.md](../../AGENTS.md) § *Keep work small, commit your
-   work*, then show the user the report below.
+5. **Overwrite the live goal's handoff** per [AGENTS.md](../../AGENTS.md) § *Keep each slice small,
+   commit every one of them* — unless a loop is mid-goal, in which case leave that record to the loop —
+   then show the user the report below.
 6. **Stop.** No second `cargo` pass after the commit.
 
 ## The report
@@ -192,6 +193,5 @@ Needs you
   fixture by hand.
 - `wsl.exe` needs PowerShell and prefers a **script file**; a long inline `bash -lc "…"` mangles.
 - `cargo test --release -p nvs-abi-probe` takes over two minutes — background it.
-- `python`, not `python3`.
 - Another agent may be editing this repo concurrently: stage your own paths explicitly and check
   `git show --stat` after committing.

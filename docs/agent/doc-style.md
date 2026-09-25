@@ -62,9 +62,9 @@ a field or a file against a number, with the one exception stated below the tabl
 | One module's `//!` first sentence | one line — it is the map's entry for that file |
 | One Rust module | ~1,500 lines of code; past that, split it at a **spec-shaped** seam |
 | One function | ~250 lines; past that, an arm with a rule of its own becomes a call |
-| `handoff.md` | ~60 lines — state, not a changelog and not the playbook |
+| The live goal's handoff | ~60 lines — state, not a changelog and not the playbook |
 | One [playbook.md](playbook.md) bullet | three sentences, ~400 bytes, plus its `[until:]` trailer ([conventions.md](conventions.md) § *A playbook bullet*); the file itself has no target, because expiry prunes it |
-| A goal's `[context]` manifest | ~40 lines, and the pack it selects under 20k tokens |
+| A goal record's `context` manifest | ~40 lines, and the pack it selects under 20k tokens |
 
 **Spec-shaped** is the whole of the split rule: cut where a rule or a grammar layer already draws a
 line — `parser/{ty,expr,stmt,decl}`, `expr/{quals,operators,members}` — never at a line count, because a

@@ -21,7 +21,7 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run preview` | serve the built site locally |
 | `npm run sync` | the render and the two sync scripts, in order |
 | `npm run sync:render` | `bun nv render --website`: publish `../data/rules/` and `../docs/rules/` → `src/content/docs/docs/rules/**` + `src/data/rules.json`, and the spec + registry → `src/data/core.json` + the Core member pages |
-| `npm run sync:decisions` | re-render `../docs/decisions.toml` → `src/data/decisions.json` (the plain-language summary) |
+| `npm run sync:decisions` | `bun nv decisions --render`: the `summary` of every record under `../data/decisions/` → `src/data/decisions.json` (the plain-language summary) and `../docs/decisions.md` |
 | `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
 | `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
 

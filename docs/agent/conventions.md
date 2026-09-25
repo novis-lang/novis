@@ -630,6 +630,6 @@ file in the tree by its path from the repository root, and the wrap refuses one 
 
 What does **not** go in: the session's narrative (which stage, which check, what was tried first —
 `git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,
-`AGENTS.md`), or a trap whose whole subject is a stale comment in `loop-goal.toml` or a wrong claim in a
-handoff — fix the comment instead. `bun nv orient --traps <path>` before writing prints the traps
+`AGENTS.md`), or a trap whose whole subject is a stale line in a goal's record or prose or a wrong claim
+in a handoff — fix the line instead. `bun nv orient --traps <path>` before writing prints the traps
 already filed against that path.

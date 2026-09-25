@@ -9,7 +9,7 @@ fuzzing — is [docs/agent/commands.md](agent/commands.md).
 machine gets wrong. The rest is a Rust toolchain that installs itself.
 
 **Moving development to another machine is this file and nothing else.** Everything that decides what
-happens next is committed — the plan, the goal, `handoff.md` — so a clone plus the steps
+happens next is committed — the plan, the chain and its live goal, the goal's handoff record — so a clone plus the steps
 below lands the new machine where the old one stopped. § *What a clone does not carry* is the part that is
 not an install; § *Picking up where the last machine left off* is the order to do it all in.
 
@@ -29,7 +29,7 @@ reaches it over the 9p mount.
 | Need | Why | Check |
 |---|---|---|
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
-| Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
+| Python 3.11+ — **optional, for `bun nv bench` only** | The Python engine of the cross-language bench: `bun nv bench` runs the `.py` twin of every case under [benches/userland/](../benches/userland/). Nothing else in the tree runs Python. No third-party package is ever required. | `python --version` |
 | The `claude` CLI on `PATH` — **the unattended loop only** | `bun nv loop` spawns one `claude -p` per session and finds it with `Bun.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `nv verify` and `nv loop --goal-only` never do. | `bun -e "console.log(Bun.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `bun nv loop` cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
@@ -181,7 +181,7 @@ side's, above.
 ## What does not travel, and should not
 
 `.loop/`, `.agent-tmp/`, `target/` and `.nvs-cache/` are gitignored, and copying one to the new machine is
-worse than leaving it: `.loop/goal-green.json` remembers which expensive checks were green *for a given
+worse than leaving it: `.loop/accept-green.json` remembers which expensive checks were green *for a given
 tree and toolchain fingerprint*, and it re-earns itself on the first run. `.agent-tmp/` is scratch. A stale
 green is what costs a debugging session, so do not archive them "just in case".
 
@@ -192,8 +192,8 @@ bun nv verify                                            # build, fmt, test, the
 cargo run -q -p nvs-cli -- test tests/differential/       # must report 0 skipped
 ```
 
-The Linux leg — the valgrind sweep, driven through WSL on Windows — has no `bun nv` command yet:
-`tools/nv/driver/accept.ts`'s "Not here yet" list names it.
+The WSL leg and the valgrind sweep are the driver's: every `bun nv loop` sweep runs them once the native
+sweep is green (`tools/nv/driver/legs.ts`).
 
 From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
 the acceptance run must never go to the network:
@@ -215,8 +215,9 @@ Once those are green, in this order:
    a clean tree sitting at `origin/main` *is* the handover.
 2. **`bun nv orient --full`** — where the run and the work stand, one line per module, the rules, the
    shapes and the plan's fields. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
-3. `docs/agent/handoff.md` — where the work stands now, and the next group of slices with
-   the file set they share. It is overwritten each session, so it is state rather than history.
+3. The live goal's handoff, which `bun nv orient` prints from `data/goals/<slug>.handoff.json` —
+   where the work stands now, and the next group of slices with the file set they share. It is
+   overwritten each session, so it is state rather than history.
 4. `bun nv loop` if the unattended loop is what runs next; its design is
    [docs/agent/coordinator.md](agent/coordinator.md). It is the one thing here that needs a `claude` on
    `PATH` (§ *Every platform*), and the only step above will not have caught its absence.

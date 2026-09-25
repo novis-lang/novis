@@ -13,8 +13,8 @@ No prompt wording fixes this; a conversation cannot forget.
 
 So **the loop does not live in a conversation.** It lives in a driver process that starts one *fresh*
 `claude` session per iteration. Context resets to zero every time, so session 400 costs exactly what
-session 1 did. The loop's memory lives where it already lived: git history, `docs/agent/handoff.md`,
-`docs/implementation-plan.md`.
+session 1 did. The loop's memory lives on disk: git history, the live goal's handoff record
+`data/goals/<slug>.handoff.json`, `docs/implementation-plan.md`.
 
 Three things follow, and they are the whole design:
 
@@ -23,49 +23,47 @@ Three things follow, and they are the whole design:
 2. **Stop conditions are script, not judgment.** The driver decides when to stop, from observable facts —
    an acceptance command's exit code, whether `HEAD` advanced, a status line the session wrote to disk.
    Nothing on the stop path depends on a model's self-assessment.
-3. **The handoff file is bounded.** `docs/agent/handoff.md` is read in full by every future session, so it
-   is overwritten in place rather than appended to, and aims at about 60 lines. Its contract is in
-   `docs/agent/session-prompt.md`. That target is guidance for the session writing it — the driver does not
-   measure it, and never stops or complains over it.
+3. **The handoff is bounded.** The live goal's handoff record is read in full by every future session,
+   so the wrap overwrites it in place rather than appending to it, and it aims at about 60 lines. Its
+   contract is in `docs/agent/session-prompt.md`. That target is guidance for the session writing it —
+   the driver does not measure it, and never stops or complains over it.
 4. **State and knowledge are separate files.** The handoff is rewritten every session; `docs/agent/playbook.md`
-   is appended to a bullet at a time and otherwise left alone. They were one file until the permanent half
-   was two thirds of it, and every session paid to regenerate — and quietly reword — all of it.
+   is appended to a bullet at a time and otherwise left alone, so no session pays to regenerate — and
+   quietly reword — the permanent half.
 
 ## Files
 
-Nothing here is Claude-specific except the `claude` command the driver invokes. The prompt, the goal and
-the handoff are plain markdown; `.claude/` holds harness settings and nothing else.
+Nothing here is Claude-specific except the `claude` command the driver invokes. The prompt and a goal's
+prose are plain Markdown, a goal's record and handoff are JSON under `data/goals/`, and `.claude/` holds
+harness settings and nothing else.
 
 | File | Role |
 |---|---|
-| `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
+| `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the handoff's contract. |
 | `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
-| `data/chain.json` and `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. `data/chain.json` **is** the order, a list of slugs, and there is exactly one chain, read always and not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, and every walked goal's checks are the next one's floor. The goals README is the only home for all of that. |
+| `data/chain.json` and `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. `data/chain.json` **is** the order, its `goals` list of slugs, and names the goal the driver works on in `live`. There is exactly one chain, read always and not behind a flag — so on a reached goal the driver moves `live` on and the run advances instead of stopping, and every walked goal's checks are the next one's floor. The goals README is the only home for all of that. |
 | `docs/agent/goals/<slug>.md` | A goal's prose: its target, each stage's reasoning, and the decisions pre-authorized on the way there. |
-| `data/goals/<slug>.json` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
-| `tools/nv/cmd/orient.ts` | `bun nv orient`: the whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
+| `data/goals/<slug>.json` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `context` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
+| `data/goals/<slug>.handoff.json` | The live goal's state, rewritten by each session's wrap. |
+| `tools/nv/cmd/orient.ts` | `bun nv orient`: the whole of a session's step 1, narrowed by the goal's `context` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
 | `tools/nv/cmd/loop-stats.ts` | `bun nv loop-stats`: what the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
-| `tools/nv/cmd/loop.ts` | `bun nv loop`: the driver, and the run above it, with `tools/nv/driver/` beside it. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it; at that boundary it decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides, and the module doc names what of it `bun nv loop` does not do yet. |
+| `tools/nv/cmd/loop.ts` | `bun nv loop`: the driver, and the run above it, with `tools/nv/driver/` beside it. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it. § *The run* below is the only home for what a turn decides. |
 | `tools/nv/driver/proctree.ts` | A child process and everything it started, as one thing the driver can freeze, thaw and kill. What `h` is made of. |
-| the launcher | What starts `bun nv loop` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Today it is a Python script, which this goal's closing commit deletes, and `bun nv loop` has no successor for it yet: a turn with no `NOVIS_LOOP_RUN` in its environment is a run of one session. |
-| `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
-| `docs/agent/handoff.md` | Live state, rewritten by each session. |
+| `tools/nv/driver/respawn.ts` | The launcher: `bun nv loop` typed by hand, with no `NOVIS_LOOP_RUN` in its environment, starts `bun nv loop` again for every turn, and is the only process that lives as long as a run. It holds no loop logic: it names the run in each turn's environment and waits. |
+| `docs/agent/optimization-prompt.md` | The prompt for an optimization pass, which a person runs by hand; the driver runs none. It owns what a pass may change and what it may only propose. |
 | `docs/agent/playbook.md` | The traps a session paid for once: the contract here, one file per bullet under `docs/agent/playbook/`. Append-mostly, and outlives every session. |
 | `docs/agent/conventions.md` | The shape of everything the repo writes, so no session re-derives it from an existing example. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
 | `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `bun nv loop-stats` skips it. |
-| `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
-| `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `bun nv orient` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. A turn refuses a tree whose marker names another run. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
+| `.loop/running` | Held by the run for the whole of its length — **across turn boundaries** — and deleted on every exit. Anything else about to touch this tree checks it first: `bun nv orient` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. A turn refuses a tree whose marker names another run. |
 | `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on, a session still waiting for its verdict, and the verdict the next session repairs with the goal's count of repairs. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
-| `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
-| `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
-| `.loop/state.sqlite` | The chain pointer: the slug of the goal the run has installed, and nothing else. A goal switch writes it and copies no file, so a driver killed and restarted mid-switch finds the goal it left (`tools/nv/lib/state.ts`). |
+| `.loop/doc-gate.json`, `.loop/owner-gate.json` | The last verdict of each goal-end gate: the rustdoc gate `bun nv verify --doc`, and the owner gate `bun nv owners --closes <slug>` with `bun nv playbook --closes <slug>`. While one is red, `bun nv orient` prints its finding. |
 | `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths it swept, the paths it `left` for whoever else is working in this tree, and why. `bun nv orient` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves nothing of its own behind. |
 | `.loop/written.txt` | The tracked files the session's own tools reported writing, appended through [`written.ts`](../../tools/nv/lib/written.ts) and truncated before every session. It is half of how the sweep tells the session's work from a person's — the event stream names what `Write` and `Edit` touched, and this names what `bun nv splice` and `bun nv reference` touched behind a `Bash` call that mentions no path at all. |
 
@@ -74,6 +72,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 ## What the driver does, per iteration
 
     claim .loop/running, or refuse to start because another driver holds it
+    refuse to start with less free disk than --min-free-gb (`bun nv disk`'s policy by default)
     if .loop/stop exists                   -> stop
     if .loop/pause exists, or p was pressed -> hold here, writing `held:` into the file, until it
                                               is lifted; a stop during the hold still stops
@@ -83,46 +82,55 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
-    (before the first session of a leg: install the next goal on the chain if none is -- the
-     switch writes the pointer in .loop/state.sqlite and copies nothing, since the floor is every
-     walked goal's checks -- and bring up once any [docker] services the goal declares)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
-    if the result event blamed a 529       -> back off and re-run this session, forever -- not a failure,
-                                              not a stall, and not one of --max-sessions
-    if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
-    copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
+    if the result event blamed a 529       -> wait the overload out and re-run this session -- not a
+                                              failure, not a stall, and not a retry
+    if the stream dropped                  -> rejoin the session with `claude --resume`, up to 3 times,
+                                              without sweeping the tree
+    if the CLI exited non-zero             -> exponential backoff, retry; `cli-failed` after --max-retries
     read .loop/status.txt, diff HEAD, append one ledger line
-    run the acceptance test from the goal's record, data/goals/<slug>.json
-      -> passes, then `bun nv verify --doc`, and `bun nv owners --closes <slug>` with `bun nv playbook --closes`:
+    run the acceptance sweep over the live goal's plan: its record, data/goals/<slug>.json, with the
+      floor carried in (the floor gate is open one sweep in FLOOR_GATE_EVERY), then the WSL leg and
+      the valgrind sweep
+    run `bun nv disk --clean`'s sweep, in-process
+      -> green with the floor gate open: the goal-end gates, `bun nv verify --doc`, and
+         `bun nv owners --closes <slug>` with `bun nv playbook --closes <slug>`
                                               either red -> the goal stays open, the run carries on
-      -> passes, the chain has a next goal -> install it and keep going, stall streak reset
-      -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
-    if status is DONE but acceptance fails -> hold and say so (the session was wrong)
-    if status is BLOCKED                   -> hold, surfacing the decision
-    if HEAD did not move                   -> stall++; hold after --max-stalls consecutive stalls
+      -> both green, the chain has a next goal -> move `live` in data/chain.json to it, commit that file,
+                                              preflight and bring up its env.docker services, carry on
+      -> both green, the goal is the chain's last -> stop, CHAIN COMPLETE
+    if status is DONE but the sweep refuses -> a retry session handed the red check, at most 3 per goal;
+                                              `done-claim` when a retry's DONE fails on that same check
+    if status is BLOCKED                   -> `blocked`: hold, surfacing the decision
+    if HEAD did not move                   -> stall++; `stalled` after --max-stalls consecutive stalls
     otherwise                              -> next iteration
 
 The acceptance check running *before* the `DONE` check is deliberate: the machine outranks the claim.
 
-`tools/nv/cmd/loop.ts`'s module doc names the steps in this file that `bun nv loop` does not take yet —
-among them the chain switch, the goal-end gates, the repair and DONE-claim sessions and the
-optimization pass. Each is the design the driver owes, and a turn without it ends the run where the
-design would carry on.
+**The goal switch is the driver's, and it is one commit.** `live` is tracked in git, so every clone, CI
+and the pre-push hook see the same live goal; the switch rewrites that one field, commits
+`data/chain.json` as ``docs(loop): the chain advances from `a` to `b` ``, and copies and retires
+nothing, because a walked goal keeps its checks and the next goal's plan carries them in as its floor.
+`bun nv chain --new`, `--move` and `--remove` edit `goals` and never `live`.
+
+The driver does not run an optimization pass, does not run side goals, and does not copy a session's
+subagent transcripts anywhere: a pass is [optimization-prompt.md](optimization-prompt.md) run by a
+person, and a side goal is run by hand in its own worktree.
 
 **Every phase of that names itself on the console, stamped with the clock.** A session prints itself as
-it happens, but the driver's own half between two sessions — the subagent sweep, the acceptance test
-(build, fixtures, both suites, the WSL leg, valgrind), then `bun nv orient` and the CLI's own start-up for
-the next one — used to print nothing, so a run that was working looked hung for minutes behind the last
-session's status line. It now prints a `[HH:MM:SS]` line entering each phase and what the phase cost, and
-the acceptance test always runs verbose here, naming each check as it starts and each one that took a
+it happens, and the driver's own half between two sessions — the acceptance sweep (build, fixtures, both
+suites, the WSL leg, valgrind), the disk sweep, then `bun nv orient` and the CLI's own start-up for the
+next one — prints a `[HH:MM:SS]` line entering each phase and what the phase cost, so a run that is
+working never looks hung behind the last session's status line. The acceptance test always runs verbose
+here, naming each check as it starts and each one that took a
 second or more. The question "what is it doing right now" is answered by the last line on screen, which
 is the white one under the rule: the status line repaints in place at the bottom, and the grey rule above it is
 what separates the live line from the dead scrollback it would otherwise read as a paragraph with.
 
 **And all of it is on disk.** The console is for watching a run; `.loop/logs/<run>-console.log` is for
 reading one back — the same lines, stamped to the millisecond, plus the whole stdout and stderr of every
-subprocess. A check that took four minutes and then failed used to leave one ledger line and nothing else.
+subprocess, so a check that took four minutes and then failed leaves all of its output, not one ledger line.
 
 ### The usage wall
 
@@ -208,11 +216,11 @@ or deleting the file starts a fresh turn; `s` ends the run, and the hold the dri
 rather than being left to catch the next one. `--no-hold` restores ending, for a run nobody is watching.
 
 **A verdict a session can answer gets a repair session before it holds.** `stalled`, `done-claim`,
-`cli-failed`, `chain-error` and `side-conflict` do not wake anyone at first. The next turn's session opens
+`cli-failed` and `chain-error` do not wake anyone at first. The next turn's session opens
 on [repair-prompt.md](repair-prompt.md) with the verdict appended, instead of the session prompt, and is
 judged like any other session. It finds the cause, fixes it, commits and writes a status line, or writes
 `BLOCKED` when the fix needs the user's decision. The ledger marks it `repair session`. A goal gets
-`REPAIRS_PER_GOAL` of them, and a repairable verdict past that holds as above. So does one whose repair
+three of them (`REPAIRS_PER_GOAL`), and a repairable verdict past that holds as above. So does one whose repair
 session was never served, since a second repair would not be served either. `blocked` and `wall` always
 hold: the first is a session asking for a decision, and the second is the usage limit. The kinds above
 are the whole list, and this applies under `--no-hold` too, since nobody is asked.
@@ -223,7 +231,7 @@ is the one place the driver decides a person has had their turn.
 
 **A refused DONE claim gets a session before it gets a hand.** The sweep's `goal check:` line is in
 the next pack whatever happens, so a fresh session is given it first; `done-claim` holds the run when that
-session's own DONE fails on the check it was handed, or once a goal has spent a bounded number of them.
+session's own DONE fails on the check it was handed, or once a goal has spent its three of them.
 A retry that closed its check and fell to
 a different one gets another session, because the sweep stops at its first red check and a goal several
 checks short of green meets them one per sweep — each a new question, not the same one asked twice.
@@ -237,13 +245,11 @@ Three more things it does, none of which is obvious:
   wall, at the boundary before the next session, so a hold queued during a five-hour wait is honoured when
   the window reopens rather than slept through — and the agent that queued it waits that long for its
   `held:` line. `.loop/limit.json` is what says a wall is up.
-- **The run holds at its own boundary too, and the keys still work there.** The boundary behind a session
-  is not an idle moment: it is where an optimization pass may start, and a pass edits this tree exactly
-  the way a session does. The turn that served the session is the process that runs the boundary, so
-  `s`, `p` and `r` mean the same thing through a checkpoint — a full `nv verify` and then a whole
-  optimization session — as they do inside one. A hold arriving while the signals are being gathered is
-  answered before the pass starts, not after it, and an `s` still inside its cancel window when the turn
-  is about to end is waited out rather than lost with the process.
+- **The run holds at its own boundary too, and the keys still work there.** The turn that served the
+  session is the process that runs the boundary behind it — the acceptance sweep, the goal-end gates, a
+  goal switch — so `s`, `p` and `r` mean the same thing there as they do inside a session, and an `s`
+  still inside its cancel window when the turn is about to end is waited out rather than lost with the
+  process.
 
 Left behind by a hard kill, `.loop/pause` will hold the *next* run before its first session. That is
 visible — the status line says `held` and the console says why — and deleting the file is the whole fix.
@@ -274,37 +280,37 @@ Check kinds:
 | `exact` | `nvs run <file>` exits 0 and stdout is line-for-line equal to `want` |
 | `ordered` | each element of `want` appears in `stdout`/`stderr`, each after the one before it |
 | `contains` | named substrings appear on the named streams |
-| `min-bytes` | the named stream is at least `min_bytes` long (this is how `--dump-asm` is checked) |
-| `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0`, and `N >= min_passing` where that key is given — a check whose worklist is its `cases` list omits it |
+| `min-bytes` | the named stream is at least `minBytes` long (this is how `--dump-asm` is checked) |
+| `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0`, and `N >= minPassing` where that key is given — a check whose worklist is its `cases` list omits it |
 | `cargo-named` | `cargo test …` exits 0 **and** each named test actually ran — a suite that never ran the guard is green too |
 | `command` | an arbitrary `argv` exits as expected and its combined output holds `want`'s substrings in order. `{nvs}` in `argv` is the CLI the leg already built, so a subcommand check costs no second build |
 
-`exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design, and for a `command`
+`"exit": "nonzero"` inverts the exit expectation for the fixtures that fail by design, and for a `command`
 whose failure *is* the assertion — `nvs config check` over a file that must be refused.
 
-`cases = [...]` on an `nvs-suite` check is the `.nvst` twin of `cargo-named`, and exists for the same
+`cases` on an `nvs-suite` check is the `.nvst` twin of `cargo-named`, and exists for the same
 reason: each named case must be **on disk and not skipped**, because a suite is green when a case was
-never written, and `min_passing` cannot tell "the corpus grew" from "the corpus grew somewhere else". A
+never written, and `minPassing` cannot tell "the corpus grew" from "the corpus grew somewhere else". A
 `--ORACLE--` whose probe fails skips silently, and the `SKIP` line is the only place that shows.
-Unlike `min_passing`, which is a stopping condition and is held back to the end of the sweep, a missing
+Unlike `minPassing`, which is a stopping condition and is held back to the end of the sweep, a missing
 or skipped named case fails on the spot: it is one item's missing proof, not a count.
 
 **The list is checked against that schema when it is read, not when a check runs** (the goal
 record's type, `tools/nv/schema/goal.ts`, which is the schema's only home — the keys each kind takes are a table there, not prose
-here). A check missing a key the driver reads, carrying one it does not — `min_passsing` is a threshold
+here). A check missing a key the driver reads, carrying one it does not — `minPasssing` is a threshold
 that silently is not there — naming a fixture outside `files`, or written so it cannot fail is refused
-whole, naming the check and what is wrong with it. Both readers treat that exactly as they treat a TOML
-syntax error: at start-up the driver refuses to begin, and mid-run it keeps the last good spec and says so
+whole, naming the check and what is wrong with it. The driver treats that exactly as it treats a JSON
+syntax error: at start-up it refuses to begin, and mid-run it keeps the last good spec and says so
 in the ledger, because a run of 300 sessions must not end on one session's typo.
 
-The `exact`/`ordered`/`contains`/`min-bytes` checks run **once per leg**. On Windows there are two legs,
-native and WSL, because a JIT is exactly where a calling-convention divergence between two targets hides;
-the WSL leg runs only once the native one is fully green, so a broken iteration is cheap. On Linux the
-native leg already is that target, so there is one leg. The `cargo-*` checks run once, between the legs —
-except the ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up
-item is what the ledger names rather than a later stage's fixture.
-Then the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
-(in WSL on Windows, directly on Linux; skipped entirely where `valgrind` is not installed).
+The `exact`/`ordered`/`contains`/`min-bytes` checks run on the native leg. Once that sweep is green, on
+Windows a second leg, in WSL, runs them and every `nvs-suite` check again against a Linux build,
+because a JIT is exactly where a calling-convention divergence between two targets hides; then the
+valgrind sweep runs every fixture under `--leak-check=full` (in WSL on Windows, directly on Linux). Both
+run on every sweep, and each is remembered only when it is green on a sweep with the floor gate open
+(`tools/nv/driver/legs.ts`). The `cargo-*` checks run once — except the
+ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up item is
+what the ledger names rather than a later stage's fixture.
 
 **A `--release` check is the one exception to that order, and it is a scheduling decision.** `--release`
 is a different profile from everything else in the sweep, so nothing it needs is on disk when the run
@@ -319,13 +325,13 @@ What it costs is that a red guard is named after a red fixture rather than befor
 
 **A leg builds the CLI once and then invokes that binary**, rather than reaching for `cargo run` per
 fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to start the same process,
-and on the WSL leg every one of them crosses the `/mnt` mount. The `nvs-suite` checks run through the
+and on the WSL leg every one of them would cross the `/mnt` mount. The `nvs-suite` checks run through the
 same binary for the same reason.
 
 Two things are remembered. Within one run, an identical `args` list runs
 cargo once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second
 run cannot answer differently. Across runs, **every check's green verdict** is remembered in
-`.loop/goal-green.json` against a content hash of **the partitions of the tree its kind reads** and
+`.loop/accept-green.json` against a content hash of **the partitions of the tree its kind reads** and
 of its own spec. A partition is a set of paths cut by what reads them, not by directory: `crates` is
 what the binary is built from — the sources, build scripts and manifests, plus the files they embed
 from elsewhere, the two license texts, `tools/data/php-builtins.txt`, `docs/reference/`, one spec
@@ -341,7 +347,7 @@ the fixtures and `tests`; a `.nvst` suite on that
 plus the case tree its directory is in; an `{nvs}` command on that plus every case tree; a crate's
 tests, which read source as text, walk `tests/` whole and read the goals and the editor's manifest
 at run time, key on `crates` as bytes plus all of those, `crate-tests`, `goals` and `editors`; a
-Python tool, which may read anything, keys on the whole tree. The few checks that cost minutes and
+`bun nv` tool command, which may read anything, keys on the whole tree. The few checks that cost minutes and
 read a short, known list — the fuzz run, the ThreadSanitizer run, the database matrix, the release
 cost guards — are named one by one with the set each was read to have. So a session that edits the
 plan, a rule, the playbook or a decision stales no cargo check, one that edits a crate's test
@@ -355,13 +361,12 @@ in `tools/nv/keys/partition.ts` are the one home of which paths a partition hold
 `tools/nv/keys/checks.ts` of which set a check gets. Narrowing one is
 a claim to be shown, never a tuning knob. What no partition holds is a service's state — the
 database a `queue migrate` check reaches — which is not something a session changes in the tree,
-and which `bun nv loop --goal-only --full` sees exactly as every sweep used to.
+and which `bun nv loop --goal-only --full` always runs against.
 
-The two files the wrap rewrites every session — the handoff and a goal's `.handoff.md` — count
-toward their own partition by name alone and toward a `state` partition by content, which only the
-whole-tree set holds. That is what lets a session that wrote nothing but its handoff skip the floor,
-and it is why a tool command is re-run every session: `bun nv chain --check`, `bun nv plan` and
-`bun nv playbook` read the handoff.
+The file the wrap rewrites every session — the live goal's handoff record under `data/goals/` — is
+in no partition but `other`, which only the whole-tree set holds. That is what lets a session that
+wrote nothing but its handoff skip the floor, and it is why a tool command is re-run every session:
+`bun nv chain --check`, `bun nv plan` and `bun nv playbook` read the handoff.
 
 **The memo is what scopes the sweep a goal is reached on.** A verdict is filed under the check's own
 spec — less its `stage`, which the fold relabels — and the bytes it read, and the file outlives the
@@ -369,13 +374,13 @@ session, the run and the goal switch. So a verdict stands for as long as no sess
 the check reads, however many sessions or goals ago it was filed, and a check runs again the first
 time one does. The sweep that declares a goal done consults it like any other: it pays for the
 checks whose inputs the goal's sessions changed, and for nothing else. `bun nv loop --goal-only
---full` consults nothing and runs every check, by hand. When both consumers of the
-Linux binary are green, the WSL build is skipped with them — never one without the other, or the
-sweep would silently fall back to a platform with no valgrind on it.
+--full` consults nothing and runs every check, by hand.
 
-**The carried floor runs one session in N, and the goal's own list every session.** The floor is the
-previous goal's whole list relabelled `1 floor` — some seven hundred checks against the dozen the goal
-is working on — and it is nearly all of what a sweep costs while being almost none of what a session
+**The carried floor runs one session in N, and the goal's own list every session.** The floor is every
+check of every walked goal, each once, under a stage titled `floor` — some seven hundred checks against
+the dozen the goal is working on — carried into the goal's plan as a view (`goalPlan` in
+`tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. It is
+nearly all of what a sweep costs while being almost none of what a session
 is told, because the pack names the goal's earliest red check and a floor regression is rare. So the
 driver holds the carried floor, on every leg and under valgrind, together with the release profile and
 its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
@@ -399,7 +404,7 @@ abi-probe **cost-class** guards are the opposite and still run last, alone, on a
 
 Every check is timed, and the driver writes a `goal cost:` line to the ledger each iteration naming the
 wall clock and the three slowest checks. The headline is wall clock rather than the sum of the timers,
-which stopped being the same number when the sweep went parallel. An acceptance test nobody has ever
+because the sweep runs checks in parallel. An acceptance test nobody has ever
 timed is one nobody can tune.
 
 Inspect it without running it: `bun nv loop --list`, narrowed by `--stage`, `--name` or `--feature`.
@@ -421,12 +426,13 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 `bun nv loop-stats --run <stamp>` prices one against another), `--permission-mode`, `--max-sessions`
 (uncapped by default), `--max-stalls`, `--max-retries`,
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
-`--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`
-(with `--full`, consulting no memo), `--list`, `--no-status`.
+`--min-free-gb` (the free disk below which a run refuses to start; `bun nv disk`'s policy by default),
+`--no-hold` (end the run wherever it would hold), `--full-output` (echo every tool call's full input
+and result, no truncation anywhere), `--goal-only` (with `--full`, consulting no memo), `--list`,
+`--no-status`.
 
-A **side goal** runs beside the chain run or without one, in a worktree of its own, and lands on `main`
-when green; [goals/README.md](goals/README.md) § *Side goals* is what one is. `bun nv loop` has no side
-mode yet, so no side goal can run until one is written.
+A **side goal** is run by hand, in a worktree of its own, and lands on `main` when green;
+[goals/README.md](goals/README.md) § *Side goals* is what one is. `bun nv loop` has no side mode.
 
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
@@ -476,18 +482,17 @@ not the unattended one every measurement over the ledger assumes.
   the file deleted. The agent reads the message at its next step, inside the same run — no restart, no
   lost tool call. It works because a session is started with `--input-format stream-json`, its prompt
   and pack going down stdin as the first message, and the driver closes stdin on the `result` event,
-  which is what lets such a session exit. `--plain-input` starts sessions the old way, prompt on argv,
-  for a CLI that stops taking streamed input; `h` still works there and `i` does not. The text is kept
-  in the session's log as a `loop_prompt` event.
+  which is what lets such a session exit. The text is kept in the session's log as a `loop_prompt`
+  event.
 
 ## The run
 
 **A run is a sequence of turns, and a turn is a process.** One turn is one `bun nv loop`: it serves
 one session, runs the acceptance check that judges it, does whatever the boundary behind it holds — a
-hold, a look for drift, an optimization pass — and exits asking to be started again. The launcher starts
-it again, with every flag exactly as you typed it, so there is no second parser and no list of flags to
-keep in step. What a run sets up once — an installed goal, a Docker daemon, the goal's containers — is
-files and services, not a process's.
+hold, the goal-end gates, a goal switch, the disk sweep — and exits asking to be started again. The
+launcher starts it again, with every flag exactly as you typed it, so there is no second parser and no
+list of flags to keep in step. What a run sets up — the live goal in `data/chain.json`, a Docker
+daemon, the goal's containers — is files and services, not a process's.
 
 - **Nothing in the loop goes stale.** `bun nv orient` is a subprocess, `session-prompt.md` is re-read and
   the goal's record is re-loaded every session, and since every turn is a fresh process, so is the
@@ -496,9 +501,9 @@ files and services, not a process's.
 - **A session that changed the driver is judged by the next turn.** The sweep behind a session runs in
   the process that loaded the driver before the session started. A session that changed
   `tools/nv/cmd/loop.ts` or a module it imports would be judged by the code it replaced, and a fix to
-  the driver's own verdict would fail as if it had not landed. So that turn ends with `rejudge` and does
-  not run the sweep, and the next turn serves no session: it judges the waiting one from
-  `.loop/run.json`. `bun nv loop` has no `rejudge` turn yet.
+  the driver's own verdict would fail as if it had not landed. So that turn does not run the sweep,
+  and the next turn serves no session: it judges the waiting one, which `.loop/run.json`'s `judge`
+  names.
 - **The launcher runs nothing, and that is the constraint the rest follows from.** It is the one process
   that outlives a session, so anything it did would be code read once per run, done by a process that
   does not read the keys. It starts the turn, waits, and starts another when the turn exits with `75`
@@ -507,62 +512,35 @@ files and services, not a process's.
   to be started again five times in five seconds each ends it too.
 - **Nothing about a run is kept in a process.** `.loop/run.json` is what a turn leaves for the next;
   `.loop/running` is held across all of them, because it is what `bun nv orient` and `bun nv disk` ask,
-  and a marker dropped between two sessions would say no loop was running exactly where a pass edits
-  the tree. The launcher names the run in each turn's environment as `NOVIS_LOOP_RUN`, which is how a
+  and a marker dropped between two sessions would say no loop was running while the boundary is still
+  writing the tree. The launcher names the run in each turn's environment as `NOVIS_LOOP_RUN`, which is how a
   turn tells its own run's marker from somebody else's; a session's environment has the name taken out
   again, so a `bun nv loop` typed *by* a session is still refused.
 
-**Another turn follows two verdicts**: `served` — the session ran and nothing ended the run — and
-`rejudge`, a session the next turn has to judge. A repairable verdict with a repair left is followed by
-one too, per § *Holding the tree*. The
-verdicts a person can answer hold the run, per § *Holding the tree*; every other kind ends it, including
-the ones that look recoverable. A usage window that never reopened is a reason a person should look, and
-a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run, and
-`.loop/pause` holds it between two sessions as well as through a checkpoint.
+**Another turn follows these verdicts**: `served` — the session ran and nothing ended the run — a
+session the next turn has to judge, a reached goal with a next one on the chain, and a repairable
+verdict with a repair left, per § *Holding the tree*. The verdicts a person can answer hold the run,
+per § *Holding the tree*; every other kind ends it, including the ones that look recoverable. A usage
+window that never reopened is a reason a person should look, and a run that retried it would turn one
+bad hour into eight. `.loop/stop` and Ctrl-C end the run, and `.loop/pause` holds it between two
+sessions.
 
 **The console belongs to the one turn alive.** Stdin and the bottom rows are inherited by the turn and
 never touched by the launcher — two readers on one console take each other's keypresses. `s`, `p` and `r`
-therefore mean the same thing during a checkpoint, which can be a full `nv verify` followed by a whole
-optimization session, as they do inside a work session.
+therefore mean the same thing during the boundary behind a session as they do inside it.
 
-**A run's logs share one stamp.** `<run>-console.log` is the whole run, checkpoints included, and
-`<run>-NNNN.log` its sessions, so `bun nv loop-stats --run <stamp>` prices a run and the log retention
-in `bun nv disk` keeps whole ones.
+**A run's logs share one stamp.** `<run>-console.log` is the whole run and `<run>-NNNN.log` its
+sessions, so `bun nv loop-stats --run <stamp>` prices a run and the log retention in `bun nv disk`
+keeps whole ones. `bun nv disk --clean`'s sweep runs in-process after every session's acceptance
+sweep, so a long run does not fill the disk.
 
-### When it spends a session on the loop itself
+### The loop's own machinery is a person's to change
 
-Every `--probe-every` sessions (10) it *looks*, and at `--optimize-every` (25) the count alone makes a
-pass due; it runs a pass only if something has actually drifted.
-The distinction is what makes the cadence safe to be wrong about — **looking is four subprocesses, a pass
-is a session** — so the number is set by the pack slope (25 sessions is ~23 KB of growth at the measured
-rate) against the ~4% of the run a pass costs, and not much rests on it. The signals, any one of which is
-enough: a selector `bun nv orient` warns about, a near-duplicate `bun nv playbook --triage` finds, a
-playbook bullet naming a path that is gone, a dead link, or `bun nv orient` failing outright. A pack that grew 20 KB since the
-last pass triggers one early, no sooner than `--min-pass-gap` (15) sessions after the last.
-
-Every checkpoint writes one `## run checkpoint` line to `.loop/log.md`, whichever way it went:
-*clean* (nothing fired), *carried* (something fired, the count is not up yet, and the signals are named),
-or *DEFERRED* (the pass is due but the working tree is not clean — somebody is editing by hand, which the
-loop allows, and a pass over their edits would mix them into its revert range). A deferral keeps the
-count rather than resetting it: the question is asked again after the very next session, so the pass runs
-at the first clean boundary instead of 25 sessions later. A pass that ran writes
-`## optimization pass … -- <verdict>` as well. A served session is counted the moment it is served, so a
-Ctrl-C during the acceptance check behind it does not lose it to the cadence. The line and the numbers
-are the evidence that the cadence fired; there is no other.
-
-The pass gets the measurements piped in on stdin, exactly as a work session gets its orientation pack and
-for the same measured reason: a result that size costs more fetched than piped. It chooses among findings
-it was handed rather than deciding what to go and look at.
-
-### What happens when the pass gets it wrong
-
-This is the one place in the loop where an agent edits the machinery that will drive the next several hours
-unattended, so what follows a pass is not a review — it is four exit codes and a `git revert` on any of
-them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` or `CONTRIBUTING.md`;
-`bun nv orient` must still produce a pack; `bun nv loop --list` must still read the acceptance list; and a pass that
-touched `tools/` must leave `nv verify` green. A failure reverts the whole pass — `revert`, not `reset`, so
-the history still shows what was undone — and the loop carries on with the code it had. `--no-optimize`
-turns the pass off and keeps the restarts; `--optimize-only` runs one against the tree as it stands.
+The driver never spends a session on itself. An optimization pass —
+[optimization-prompt.md](optimization-prompt.md), with the measurements `bun nv loop-stats` prints — is
+started by a person, between runs or while the run holds, and its commits are judged the way any
+change to `tools/` is: `bun nv orient` must still produce a pack, `bun nv loop --list` must still read
+the acceptance list, and `nv verify` must be green.
 
 ## Setting a new goal
 
@@ -574,7 +552,7 @@ order, and how to write the item list so groups fall out of it. Read it before r
 
 One is still fine for a **short** run — a dozen sessions, where you want to watch and intervene. Use the
 same `docs/agent/session-prompt.md` as the subagent prompt, one subagent at a time (they share one working
-tree and one handoff file; concurrent sessions race). Keep the coordinator's own context small: never
+tree and one handoff record; concurrent sessions race). Keep the coordinator's own context small: never
 re-read a diff, never re-derive the plan, never second-guess verified work. But stop at ~100k and restart —
 and understand that restarting is not a workaround for the context problem, it *is* the driver design,
 just done by hand.
@@ -583,11 +561,11 @@ just done by hand.
 that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry`, one in `nvs_stdlib`'s
 `symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
 the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
-The chain run itself is still **one working tree and one handoff file**. A second lane is a **side goal**:
-A side run is one goal in a git worktree of its own, with its own handoff, landed on `main` unattended
-once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract). `bun nv loop` has
-no side mode, so no side goal can run until one is written. What a side run does not do is split the chain: a side goal
-is written by hand for work that can run beside the chain, and the chain still walks one goal at a time.
+The chain run itself is still **one working tree and one handoff record**. A second lane is a **side
+goal**: one goal in a git worktree of its own, with its own handoff record, run by hand and landed on
+`main` once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract). `bun nv
+loop` has no side mode. What a side goal does not do is split the chain: it is written by hand for work
+that can run beside the chain, and the chain still walks one goal at a time.
 
 **Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a
 session's clock is fixed cost — orientation before the first edit, then verify, docs and commit after the
@@ -596,9 +574,9 @@ last one — which argues for putting several related slices in one session. But
 it has already read. So the available saving is reading less per session, not doing more, and step 2's cap
 is one slice with a conditional second.
 
-**Reading less is now a mechanism rather than an instruction.** `bun nv orient` prints a session's whole
-step 1 out of the goal's own `[context]` manifest, so the unscoped orientation — the full map, every guard
-test, four whole agent docs — is no longer what a session pays to start. What a goal narrows to is decided
+**Reading less is a mechanism rather than an instruction.** `bun nv orient` prints a session's whole
+step 1 out of the goal's own `context` manifest, so a session does not pay for the unscoped
+orientation — the full map, every guard test, four whole agent docs — to start. What a goal narrows to is decided
 once, when the goal is written ([loop-authoring.md](loop-authoring.md) § 2), from the previous run's
 `bun nv loop-stats --attribute` rather than from taste. Re-measure before believing any ratio in this file.
 
@@ -608,7 +586,7 @@ has already been 4, then 2, then 1 within a single afternoon as better evidence 
 why the script exists and the sentence does not.
 [loop-authoring.md](loop-authoring.md) § *Measure first* makes running it step zero of any new goal.
 
-Parallel lanes are the *second* lever, and side goals are the form they took: a worktree and a handoff per
-lane, and an unattended merge that waits for the chain run's session boundary. They do not care about the
-context ceiling, since each lane is its own session; what they spend is a second checkout and a second
-`target/` for as long as the side run lives.
+Parallel lanes are the *second* lever, and side goals are their form: a worktree and a handoff record
+per lane, each run by hand and merged when green. They do not care about the context ceiling, since
+each lane is its own session; what they spend is a second checkout and a second `target/` for as long
+as the side goal's worktree lives.

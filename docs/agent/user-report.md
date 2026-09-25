@@ -110,14 +110,15 @@ fragment, so the next report of the same thing is answered by `bun nv brief --wh
 ## 5. Decide where the work goes
 
 **Fix now, in this session,** when the item fits under the context ceiling (AGENTS.md § *Session
-workflow*), does not touch files the running goal is changing — its `[context]` manifest and
+workflow*), does not touch files the running goal is changing — its `context` manifest and
 `git status` say which — and does not need a decision record that reaches across several crates.
 
 Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
 
 - **A side goal** when it depends on no unfinished chain goal and shares no file set with the goals
   ahead of it ([goals/README.md](goals/README.md) § *Side goals*). This is the default for a report,
-  because it lands without waiting for the chain.
+  because it lands without waiting for the chain. The driver does not run side goals: a person runs
+  one by hand in its own worktree, so say that the report waits for that run.
 - **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, placed with
   `bun nv chain --new <slug> --after <goal>` right behind the goal it depends on.
 
@@ -135,7 +136,7 @@ The proofs are the same as for any change:
   write it, because the loop may take one concurrently.
 
 The loop may be committing on `main` while you work: stage only your own files, and never touch
-`docs/agent/handoff.md`.
+the live goal's handoff record, `data/goals/<slug>.handoff.json`.
 
 ## 7. Before every commit: the neutral-name check
 

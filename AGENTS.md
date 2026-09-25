@@ -277,7 +277,7 @@ Every session runs the same five steps, in this order, and **stops**:
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
-   if a trap cost you time, and `docs/agent/handoff.md` overwritten with where the work stands now. The
+   if a trap cost you time, and the live goal's handoff overwritten with where the work stands now. The
    handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, a rule, or
    a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
    you are the only one holding the context to decide it cheaply, and `bun nv peek --locate` turns
@@ -302,7 +302,8 @@ Step 5 above, in detail:
 
 - Always commit your work before you exit, and never leave a slice uncommitted. You don't need to review
   the history first — stage each slice's own files, and let the last commit sweep whatever is left.
-- The handoff is `docs/agent/handoff.md`: **overwrite it**, never append, so it describes where the work
+- The handoff is the live goal's record `data/goals/<slug>.handoff.json`, written by the wrap file's
+  `## handoff` section: **overwrite it**, never append, so it describes where the work
   stands now rather than the path taken to get here. Its shape is in
   [docs/agent/session-prompt.md](docs/agent/session-prompt.md). Then show the user the same prompt in chat.
 - **The playbook is the opposite file.** [docs/agent/playbook.md](docs/agent/playbook.md) holds traps,
@@ -327,15 +328,18 @@ Step 5 above, in detail:
   --show M8` prints a milestone and `--show M8:verify` its acceptance paragraph, and a `## milestone: M8`
   section in a `bun nv session --wrap` file rewrites one.
 - **The schedule is the chain, not the milestone table.**
-  `data/chain.json` *is* the chain: a list of goal slugs, and the order the loop walks is the order
-  of that list. A goal is its prose at `docs/agent/goals/<slug>.md` and its record at
+  `data/chain.json` *is* the chain: `goals`, a list of goal slugs whose order is the order the loop
+  walks, and `live`, the goal the driver works on. `live` is tracked, so every clone, CI and the
+  pre-push hook see the same live goal, and the driver moves it to the next goal when one is reached.
+  A goal is its prose at `docs/agent/goals/<slug>.md` and its record at
   `data/goals/<slug>.json`, with a handoff record beside it until it is retired. A milestone is an **identity tag** one or more goals carry, and
   the plan's `Carried by` cells are derived from it, so a milestone number says nothing about what
   is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
   `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `bun nv orient` prints the live
   goal; `bun nv plan --check` gates it. **A side goal is off the chain**: its prose is under
-  `docs/agent/goals/side/` and its record under `data/goals/side/`, it runs in a worktree of its own
-  and it lands on `main` when green — [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
+  `docs/agent/goals/side/` and its record under `data/goals/side/`, a person runs it by hand in a
+  worktree of its own, and it lands on `main` when green —
+  [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
 - **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
   in a code comment, in a commit message, in an owner column, **and in what a tool prints**. A
   number is fine as a *position* beside a total (`29 of 43`), which is what it is; what is never
@@ -344,5 +348,5 @@ Step 5 above, in detail:
   never moves. `bun nv chain --check` fails on prose that names a goal by its number.
 - **Reordering the chain is editing `data/chain.json`, and `bun nv chain` is what does it.**
   `--new <slug>`, `--move <slug>` and `--remove <slug>` each take one place — `--after <goal>`,
-  `--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file and nothing
-  else. A goal's record and prose are written by hand around it.
+  `--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file's `goals` and
+  nothing else, never `live`. A goal's record and prose are written by hand around it.

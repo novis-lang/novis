@@ -14,7 +14,7 @@ interface Props {
 
 const { id } = Astro.props
 const found = findMember(id)
-if (!found) throw new Error(`MethodDescription: unknown member id "${id}" — run \`npm run sync:core\`?`)
+if (!found) throw new Error(`MethodDescription: unknown member id "${id}" — run \`npm run sync:render\`?`)
 const { member } = found
 
 const parts: string[] = []

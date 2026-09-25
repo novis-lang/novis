@@ -39,7 +39,7 @@ Every one of these was learned by nearly violating it. They are not preferences.
 
 **1. A record number is a public identifier, and a record is frozen — merging is never right.** The
 records are cited about three thousand times from `crates/`, plus `tests/`, `docs/spec/`, `docs/plan/`
-and `docs/agent/loop-goal.toml`, and every rule's `because` names them. `grep -rhoE '\b0[01][0-9]{2}\b'
+and the goal records under `data/goals/`, and every rule's `because` names them. `grep -rhoE '\b0[01][0-9]{2}\b'
 crates/ | sort | uniq -c | sort -rn` prints the weight: 0007 alone is cited 400+ times. A merge retires
 a number and invalidates every one of those references. An earlier pass evaluated five merge
 candidates that read as obviously mergeable — 0029+0030, and the four rejected-PHP-spelling records
@@ -50,8 +50,8 @@ something new — what is currently true is the rule's fragment under `docs/rule
 **2. A section number is a public identifier too — never renumber one.** `0007 § 3`, `0066 § 3a` and
 `0009 § 1` are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
 live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by
-`bun nv migration` — and from the `[context]` manifest in `docs/agent/loop-goal.toml` that the
-running loop reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
+`bun nv migration` — and from the `context` manifest in the live goal's record that the running loop
+reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
 Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check
 catches the citations that are already wrong, not the ones a renumber would create.
 
@@ -93,8 +93,8 @@ by hand: if a fact can be derived from the files, derive it.
 
 - **Never answers an open question.** A fork waiting on a measurement waits for whoever takes the
   measurement. What a pass *may* do is narrow a status field to what is actually open.
-- **Never touches `docs/agent/loop-goal.md`, `loop-goal.toml`, `handoff.md`, or the plan's status
-  block.** Those are the running loop's state.
+- **Never touches the live goal's prose, record or handoff record, `data/chain.json`, or the plan's
+  status block.** Those are the running loop's state.
 - **Never renumbers a record or a section.** Constraints 1 and 2.
 - **Never edits a generated file.** `docs/ground-rules.md`, `docs/divergences.md` and
   `docs/rules/<topic>.md` are written by `bun nv rules --render`; an edit there is lost on the
@@ -131,5 +131,5 @@ Read for these directly; there is no check for any of them.
    `tools/nv/cmd/records.ts`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
    once, there; a rule it cannot enforce is documented here.
 3. Commit with line counts before and after in the message.
-4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite `handoff.md` — unless
-   a loop is mid-goal, in which case say so in chat and leave that file to the loop.
+4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite the live goal's handoff — unless
+   a loop is mid-goal, in which case say so in chat and leave that record to the loop.

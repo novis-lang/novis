@@ -719,8 +719,8 @@ jobs:
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
   # where the refcount and COW protocols compiled code manipulates by raw
-  # pointer actually run. Nothing here overlaps the valgrind sweep in
-  # `tools/loop.py` — that runs the `examples/` fixtures end to end through the
+  # pointer actually run. Nothing here overlaps the valgrind sweep of
+  # `bun nv loop` — that runs the `examples/` fixtures end to end through the
   # release binary, and never runs a crate's own tests.
   #
   # `nvs-codegen` and `nvs-stdlib` link `nvs-runtime` as an ordinary dependency,

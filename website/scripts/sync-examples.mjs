@@ -2,7 +2,7 @@
  * `npm run sync:examples` — copy the repository's example tree into the site.
  *
  * The examples live in `../docs/examples/` and not here, because the same sweep that tests a
- * feature writes them: `python tools/dossier.py` audits, runs and blesses them, and ADR 0134 is
+ * feature writes them: `bun nv proofs` audits, runs and blesses them, and ADR 0134 is
  * why they exist at all. `../docs/examples/README.md` owns what an example is.
  *
  * So `website/examples/` is a **tool-owned mirror** — the same rule the ADR pages already follow.

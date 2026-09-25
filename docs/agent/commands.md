@@ -446,9 +446,8 @@ That order is also why **one wrap writes the docs and commits them**: the handof
 are on disk before the first commit is staged, so a `## commit:` may name them in the same file that writes
 them. A wrap that writes a doc and has no `## commit:` at all is refused; one whose commits simply do not
 name a path it wrote appends that path to the last commit and reports it. Neither is a nicety — measured
-over one 19-session run, **9 sessions closed with a hand-rolled `git add docs/agent/handoff.md
-docs/agent/playbook.md docs/implementation-plan.md && git commit`** after this tool had already written all
-three, which is about two and a half calls each of exactly the hand-rolled git the wrap exists to remove.
+over one 19-session run, **9 sessions closed with a hand-rolled `git add` of the handoff, the playbook
+and the plan `&& git commit`** after this tool had already written all three, which is about two and a half calls each of exactly the hand-rolled git the wrap exists to remove.
 
 Why it exists: measured over a run, the tail of a session — first `nv verify` to last commit — was **33 of
 98 tool calls**, and since context peaks by then those turns carried **42% of the session's whole token
@@ -597,13 +596,13 @@ bun nv disk --clean                   # reclaim it
 bun nv disk --clean -n                # say what --clean would delete; delete nothing
 ```
 
-**The loop runs `--clean` itself, after every session's acceptance check** — between sessions, when
-nothing is building and the build is warm. Every session rather than every goal, because a goal is days
-of sessions and a day of builds is what filled the disk once. Nothing about it touches the session
-path. By hand it refuses while `.loop/running` exists, because a person cannot see whether a session is
-mid-build. The driver's one other disk call is a free-space check that refuses to start a run below
-10 GB. That refusal is the point — a run that fills the disk dies inside a session with the tree
-half-edited, which is how one run went.
+**The loop runs `--clean`'s sweep itself, in-process, after every session's acceptance sweep** —
+between sessions, when nothing is building and the build is warm. Every session rather than every goal,
+because a goal is days of sessions and a day of builds fills the disk. Nothing about it touches the
+session path. By hand it refuses while `.loop/running` exists, because a person cannot see whether a
+session is mid-build. The driver's one other disk call is a free-space check that refuses to start a
+run below `--min-free-gb`, whose default is `MIN_FREE_GB` in `tools/nv/cmd/disk.ts`. That refusal is
+the point — a run that fills the disk dies inside a session with the tree half-edited.
 
 What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
 that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for

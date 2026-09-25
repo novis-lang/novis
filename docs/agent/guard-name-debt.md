@@ -1,8 +1,8 @@
 # Guard-name debt
 
-`kind = "cargo-named"` in `loop-goal.toml` is a **substring match against the test
-names `cargo test` actually runs**. A name that matches nothing reports `did not run`, and
-`Goal.check()` returns at the first failure — so one stale name hides every check behind it.
+A `cargo-named` check in a goal's record, `data/goals/<slug>.json`, is a **substring match against
+the test names `cargo test` actually runs**. A name that matches nothing reports `did not run`, and the
+acceptance sweep stops at the first red check — so one stale name hides every check behind it.
 
 That is not hypothetical. `a_spaceship_answers_minus_one_zero_or_one_for_a_scalar` blocked the
 acceptance test at check 6 of 60 for 65 consecutive sessions: the fixtures, both `.nvst` suites, the
@@ -16,7 +16,7 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
   cargo test -p $p -- --list; done
 ```
 
-then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
+then substring-match every entry of a check's `tests` in the goal's record against that roster. Measured
 at `e0c9f3e`, **54 of 156 named guard tests matched nothing cargo would run.** All
 fifty-four were reconciled, one ticked line each, and the ticked lines were then deleted in place:
 `git log -S <name> -- docs/agent/guard-name-debt.md` holds every one of them with what it became.
@@ -27,7 +27,7 @@ What outlives them is the part below — why a name goes stale, and what each ca
 Three causes, and they want different fixes. Do not assume the first one.
 
 1. **The work landed under a different name.** The commonest. A session writes the test, names it
-   the way [conventions.md](conventions.md) asks, and never reconciles `loop-goal.toml`. Confirmed
+   the way [conventions.md](conventions.md) asks, and never reconciles the goal's record. Confirmed
    examples: `an_instanceof_narrows_its_operand` is
    [narrowing.rs:145](../../crates/nvs-types/tests/narrowing.rs#L145)
    `an_is_test_over_a_written_class_narrows_its_subject`; `a_literal_comparison_narrows_its_operand` is
@@ -41,12 +41,12 @@ Three causes, and they want different fixes. Do not assume the first one.
    `each_test_with_is_a_row_folded_in_parameter_order`;
    `an_abandoned_generator_resumes_to_unwind` is
    `an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside`.
-   **Fix: rewrite the name in `loop-goal.toml`.** Nothing else.
+   **Fix: rewrite the name in the goal's record.** Nothing else.
 2. **The check names a Rust test for work that got pinned in a `.nvst` case instead.** The commonest
    *fix*, and `nvs-stdlib (the assertion roster)` was its cleanest case: `crates/nvs-stdlib/tests/`
    holds no assertion test file at all because `rule:testing/assertions-are-typed`, `rule:testing/failure-ledger` and `rule:testing/report-formats` are pinned by conformance
    cases, so all three names moved and the block itself went. **Fix: decide which tree owns the
-   check, and move it** — a `kind = "nvs-suite"` entry, or a Rust test written to match. A block
+   check, and move it** — an `nvs-suite` check, or a Rust test written to match. A block
    whose every name moves is deleted rather than left empty.
 3. **The test is genuinely unwritten.** `every_refusal_is_a_diagnostic_or_decided` was the
    load-bearing one: Stage 8's "no refusal left" guard, red on its merits while `bun nv
@@ -54,19 +54,19 @@ Three causes, and they want different fixes. Do not assume the first one.
    [refusals.rs](../../crates/nvs-ir/tests/refusals.rs), which runs `bun nv holes` over the tree rather
    than carrying a second recognizer. **Fix: write it.**
 
-A session that lands a guard test **reconciles its name here and in `loop-goal.toml` in the same
+A session that lands a guard test **reconciles its name here and in the goal's record in the same
 slice**. That is the only thing that keeps this file from growing back.
 
 ## Names owed on purpose are cause 3, and deliberately so
 
-`loop-goal.toml`'s Stage 00 blocks named one test that **did not exist yet**, so
+A goal's Stage 00 checks named one test that **did not exist yet**, so
 the acceptance test failed at the first check holding it and reached nothing behind it. That is the same
 *symptom* as the fifty-four and it is not the same *bug*, so do not "reconcile" one of them:
 
 | | the fifty-four | a name owed on purpose |
 |---|---|---|
 | the work | landed | not started |
-| the fix | rewrite the name in `loop-goal.toml` | write the test |
+| the fix | rewrite the name in the goal's record | write the test |
 | renaming it to something green | restores a check that was already true | hides an open hole |
 
 **One is outstanding:**
