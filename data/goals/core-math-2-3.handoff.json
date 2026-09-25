@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-math-2-3` is met: all thirteen members in its `--only` list carry every feature proof, and `bun nv proofs --verify --only …` prints `nothing owed`, `0 failed`, `0 failed`.\n`Core\\Math::fromBase` and `format` were the last two. Each has `about.md`, three examples, an attack, a bench and a `covers:` Rust test in `crates/nvs-stdlib/src/math.rs`'s test module, and each card is rewritten in the plain voice.\nThe `format` attack found a bug: a negative value that rounds to zero was written `-0` (`-0.4`, `-0.0`, `-0.004` at two decimals), where `number_format` writes `0`. It is fixed in `nvs_core_math_format` and pinned by `tests/differential/core/math-format-writes-no-sign-for-a-value-that-rounds-to-zero.nvst`.\n`format(1.005, {decimals: 2})` is `1.00` where PHP writes `1.01`. That is not a bug: `tests/conformance/core/math-format-and-round-agree-wherever-both-name-the-same-precision.nvst` pins it, and `about.md` tells the reader to use a `decimal` when the digits must be exact.\nEvery Math perf record was re-measured after `math.rs` last moved; a later edit to that file makes them stale again and `bun nv proofs --record-perf --only <ids>` re-records them.\n`format`'s bench counts 5 allocations per call, so it declares no `// bench: allocations` line.",
+  "state": "Goal `core-math-2-3` is met, and so is the floor it carries. `bun nv proofs --verify --only` over all 26 `Core\\Math` members prints `nothing owed`, `0 failed`, `0 failed`.\nThe `format` fix in `crates/nvs-stdlib/src/math.rs` had made the perf records of the thirteen `core-math-1-3` members stale, which turned floor check `dossier-core-math-1-3` red. Those records are re-measured in `docs/perf/members.ndjson`.\n`bun nv verify`, `bun nv verify --doc`, `bun nv owners --closes core-math-2-3` and `bun nv playbook --closes core-math-2-3` are all green.\nOne known gap stays open and is not this goal's to close: `nvs-stdlib/math-abs-result-is-the-whole-union`, marked on `docs/examples/core/Math/abs/03-showing-a-balance-in-words.nvs`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -8,15 +8,11 @@
     "items": [
       {
         "done": true,
-        "text": "**`Core\\Math::fromBase`** — every proof on disk (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/math.rs:1078`. `crates/nvs-stdlib/src/math.rs:2024`"
-      },
-      {
-        "done": true,
-        "text": "**`Core\\Math::format`** — every proof on disk, and the zero-sign fix (`rule:testing/a-failing-proof-is-fixed-or-recorded`); card at `crates/nvs-stdlib/src/math.rs:1110`. `crates/nvs-stdlib/src/math.rs:2075`"
+        "text": "**Every member in the goal's list carries every proof, and the floor is green** — `crates/nvs-stdlib/src/math.rs:1`"
       }
     ]
   },
   "backlog": [
-    "`format`'s 5 allocations per call may be more than the one result string needs; worth a look when a goal owns `Core\\Math`'s performance (`docs/perf/members.ndjson`)."
+    "Any later edit to `crates/nvs-stdlib/src/math.rs` stales every Math perf record. Re-record all 26 members with `bun nv proofs --record-perf --only …` (playbook, Running things)."
   ]
 }

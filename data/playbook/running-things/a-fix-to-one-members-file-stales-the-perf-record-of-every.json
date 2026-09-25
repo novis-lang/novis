@@ -1,0 +1,12 @@
+{
+  "lead": "A fix to one member's file stales the perf record of every member in that file, and the red check is a floor this goal never touched.",
+  "body": "A perf record is keyed to the implementing file's last commit, so the `format` fix in `crates/nvs-stdlib/src/math.rs` turned the earlier goal's floor check red on `perf: stale` for thirteen members nobody edited. After any edit to a `Core` member's file, run `bun nv proofs --record-perf --only` over *every* member that file implements, not just the one you changed, before you write the wrap.",
+  "files": [
+    "crates/nvs-stdlib/src/math.rs",
+    "tools/nv/proofs/collect.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/collect.ts:changed since it was last measured"
+  }
+}
