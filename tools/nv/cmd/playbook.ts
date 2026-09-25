@@ -436,6 +436,10 @@ const DELIBERATE_STALE = new Map<string, string>([
     "Tooling > a tool's prose citing\ntests/vectors.rs", // check-links:subject
     "the suffix `bun nv links` wrongly resolves to; the file is crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the relation between them is the trap",
   ],
+  [
+    "Tooling > a playbook bullet\ndocs/rules/_index.json", // check-links:subject
+    "the file the rules importer still reads after it was deleted; that it is gone is the trap, and the bullet retires with the importer's read of it",
+  ],
 ]);
 
 /**
