@@ -1,0 +1,21 @@
+<?nvs
+// Measures turning a sine into an angle, as a program does when it finds how
+// steep a ramp or a road is.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the sine used this round depends on last round's total.
+            float $sine = Core\Math::sin($total);
+            $total = $total + Core\Math::asin($sine);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

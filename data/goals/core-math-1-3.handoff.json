@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs` and `Core\\Math::acos` have every feature proof on disk: `about.md`, three examples, one attack, one bench with a recorded figure, a Rust `#[test]` with a `covers:` marker in `crates/nvs-stdlib/src/math.rs`'s test module, and help. `Core\\Math` now has its class card (`CARD`, above `CLASS`), so the class-card part of help is done for every member of the class.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union`. `abs` is typed `int|float|decimal` whatever it is given, so `decimal $owed = Core\\Math::abs($x)` does not compile. The attack and the bench convert with `as int`. The fix needs a bounded type variable, which is a design question (M10).\nMember cards are being rewritten in plain words as each member is taken (`ABS_DOC`, `ACOS_DOC` done). Do the same for each card you take.\nThe pack's acceptance failure (`[12 no Python]`) was stale. `bun nv audit python` prints what that check wants.",
+  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs`, `acos`, `acosh` and `asin` have every feature proof on disk: `about.md`, three examples, one attack, one bench with a recorded figure, a Rust `#[test]` with a `covers:` marker in `crates/nvs-stdlib/src/math.rs`'s test module, and help. `Core\\Math` has its class card, so the class-card part of help is done for every member of the class.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union`. `abs` is typed `int|float|decimal` whatever it is given, so `decimal $owed = Core\\Math::abs($x)` does not compile. The fix needs a bounded type variable, which is a design question (M10).\nMember cards are rewritten in plain words as each member is taken (`ABS_DOC`, `ACOS_DOC`, `ACOSH_DOC`, `ASIN_DOC` done). Do the same for each card you take.\n`Core\\Math::round` takes its precision as an option: `Core\\Math::round($x, {precision: 1})`, never a second plain argument.\nThe floor's `proofs: Core\\Html` check is green again: its five bench figures were re-measured after `html.rs` changed. The WSL leg's copy now carries `tests/db/ca.crt` (`tools/nv/driver/mirror.ts`'s `CARRIED`), so `examples/program.nvs` runs there again.",
   "next": {
     "stage": 2,
     "title": "the dossier, Core\\Math (1/3)",
@@ -8,25 +8,23 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::acosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:343`"
+        "text": "**`Core\\Math::asinh`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:334`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::asin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:271`"
+        "text": "**`Core\\Math::atan`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:289`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::asinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:334`"
+        "text": "**`Core\\Math::atan2`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:298`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::atan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:289`"
+        "text": "**`Core\\Math::atanh`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:352`"
       }
     ]
   },
   "backlog": [
-    "The rest of this goal's list: `atan2`, `atanh`, `cbrt`, `ceil`, `clamp`, `cos`, `cosh` (`bun nv loop --list` stage 2).",
-    "`Core\\Math::abs`'s result type is the whole union — `data/gaps/nvs-stdlib/math-abs-result-is-the-whole-union.json`, owner M10.",
-    "Record the bench after the last `math.rs` edit of the session. Any later edit to the file, `fmt` included, makes every figure measured before it stale."
+    "`abs`'s result type is the whole union — gap `nvs-stdlib/math-abs-result-is-the-whole-union`, owned by M10's bounded type variables."
   ]
 }

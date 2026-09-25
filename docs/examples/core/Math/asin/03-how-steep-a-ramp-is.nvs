@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a building planner checks whether a wheelchair ramp is too steep,
+// from the length of the ramp and the height it climbs.
+
+class Ramp {
+    // Returns the angle of the ramp, in degrees, with one decimal place.
+    public static function angle(float $length, float $height): float {
+        // The height divided by the length is the sine of the ramp's angle.
+        float $radians = Core\Math::asin($height / $length);
+        return Core\Math::round(Core\Math::toDegrees($radians), {precision: 1});
+    }
+}
+
+// A ramp 6 metres long climbs half a metre. This prints 4.8.
+echo Ramp::angle(6.0, 0.5), "\n";
+
+// A ramp half as long climbs the same height. This prints 9.6.
+echo Ramp::angle(3.0, 0.5), "\n";
+
+// Many building rules allow at most 4.8 degrees. This prints "too steep".
+echo Ramp::angle(3.0, 0.5) > 4.8 ? "too steep" : "allowed", "\n";

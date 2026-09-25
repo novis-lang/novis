@@ -852,13 +852,13 @@ const TAN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::asin`'s reference card — `rule:core-api/reference-card`.
 const ASIN_DOC: MethodDoc = MethodDoc {
-    short: "The arc sine — the angle in radians whose sine is `$n` — as `asin` does.",
+    short: "Returns the angle, in radians, whose sine is `$n`. This is the arc sine.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A sine, in `[-1, 1]`.",
+        desc: "A sine: a number from `-1.0` to `1.0`.",
         shape: &[],
     }],
-    ret: "An angle in `[-PI / 2, PI / 2]`; `NaN` for a `$n` outside `[-1, 1]`.",
+    ret: "An angle from `-PI / 2` to `PI / 2`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.",
     errors: &[],
 };
 
@@ -959,13 +959,13 @@ const ASINH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::acosh`'s reference card — `rule:core-api/reference-card`.
 const ACOSH_DOC: MethodDoc = MethodDoc {
-    short: "The inverse hyperbolic cosine of `$n`, as `acosh` does.",
+    short: "Returns the number whose hyperbolic cosine is `$n`. This is the inverse hyperbolic cosine.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A hyperbolic cosine, at least `1.0`.",
+        desc: "A hyperbolic cosine: a number that is `1.0` or more.",
         shape: &[],
     }],
-    ret: "The non-negative value whose `cosh` is `$n`; `NaN` for a `$n` below `1.0`.",
+    ret: "A number that is `0.0` or more. A `$n` below `1.0` gives `NaN`.",
     errors: &[],
 };
 
@@ -2607,6 +2607,57 @@ mod tests {
             f64::NAN,
         ] {
             assert!(acos(outside).is_nan(), "{outside} has no angle");
+        }
+    }
+
+    /// `acosh` answers from `1` up, `0` at `1` itself, a finite value at
+    /// `f64::MAX` where `x + sqrt(x² - 1)` would overflow, and `NaN` one step
+    /// below `1` — never a throw.
+    // covers: Core\Math::acosh
+    #[test]
+    fn acosh_answers_from_one_up_stays_finite_at_the_largest_float_and_nan_below_one() {
+        let acosh = |n: f64| float_result(nvs_core_math_acosh, &[Value::float(n)]);
+        assert_eq!(acosh(1.0), 0.0);
+        assert!((acosh(3.0f64.cosh()) - 3.0).abs() < 1e-12, "undoes cosh");
+        let largest = acosh(f64::MAX);
+        assert!(
+            largest.is_finite() && (largest - 710.475_860_073_943_9).abs() < 1e-9,
+            "{largest}"
+        );
+        assert_eq!(acosh(f64::INFINITY), f64::INFINITY);
+        for below in [
+            1.0f64.next_down(),
+            0.0,
+            -0.0,
+            -1.0,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(
+                acosh(below).is_nan(),
+                "{below} has no inverse hyperbolic cosine"
+            );
+        }
+    }
+
+    /// `asin` answers on the closed range `[-1, 1]`, ends included, keeps the
+    /// sign of a zero, and answers `NaN` one step past either end — never a throw.
+    // covers: Core\Math::asin
+    #[test]
+    fn asin_answers_on_its_closed_range_keeps_a_zeros_sign_and_nan_one_step_outside_it() {
+        let asin = |n: f64| float_result(nvs_core_math_asin, &[Value::float(n)]);
+        assert_eq!(asin(1.0), std::f64::consts::FRAC_PI_2);
+        assert_eq!(asin(-1.0), -std::f64::consts::FRAC_PI_2);
+        assert_eq!(asin(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(asin(-0.0).to_bits(), (-0.0f64).to_bits());
+        for outside in [
+            1.0f64.next_up(),
+            (-1.0f64).next_down(),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(asin(outside).is_nan(), "{outside} has no angle");
         }
     }
 }

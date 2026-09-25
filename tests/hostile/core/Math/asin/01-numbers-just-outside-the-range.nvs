@@ -1,0 +1,30 @@
+<?nvs
+// Attack: `Core\Math::asin` is given numbers just outside its range, numbers
+// that are not ordinary, and a million calls in a loop. It should return `NaN`
+// where no angle exists, and the program should run to its last line.
+
+// 1. The smallest steps past each end of the range.
+echo Core\Math::asin(1.0000000000000002), "\n";
+echo Core\Math::asin(-1.0000000000000002), "\n";
+
+// 2. The ends of the range themselves, and the numbers just inside them.
+echo Core\Math::asin(1.0), "\n";
+echo Core\Math::asin(-1.0), "\n";
+echo Core\Math::asin(0.9999999999999999), "\n";
+
+// 3. Values that are not ordinary numbers.
+echo Core\Math::asin(Core\Math::NAN), "\n";
+echo Core\Math::asin(Core\Math::INFINITY), "\n";
+echo Core\Math::asin(-Core\Math::INFINITY), "\n";
+echo Core\Math::asin(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::asin(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::asin(-0.0), "\n";
+
+// 4. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::sin(Core\Math::asin($value));
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";

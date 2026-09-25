@@ -9259,13 +9259,13 @@ The tangent of an angle in radians, as `tan` does.
 Core\Math::asin(float $n): float
 ```
 
-The arc sine — the angle in radians whose sine is `$n` — as `asin` does.
+Returns the angle, in radians, whose sine is `$n`. This is the arc sine.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A sine, in `[-1, 1]`. |
+| `$n` | `float` | A sine: a number from `-1.0` to `1.0`. |
 
-**Returns** `float` — An angle in `[-PI / 2, PI / 2]`; `NaN` for a `$n` outside `[-1, 1]`.
+**Returns** `float` — An angle from `-PI / 2` to `PI / 2`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.
 
 <a id="core-core-math-acos"></a>
 #### `Core\Math::acos`
@@ -9380,13 +9380,13 @@ The inverse hyperbolic sine of `$n`, as `asinh` does.
 Core\Math::acosh(float $n): float
 ```
 
-The inverse hyperbolic cosine of `$n`, as `acosh` does.
+Returns the number whose hyperbolic cosine is `$n`. This is the inverse hyperbolic cosine.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A hyperbolic cosine, at least `1.0`. |
+| `$n` | `float` | A hyperbolic cosine: a number that is `1.0` or more. |
 
-**Returns** `float` — The non-negative value whose `cosh` is `$n`; `NaN` for a `$n` below `1.0`.
+**Returns** `float` — A number that is `0.0` or more. A `$n` below `1.0` gives `NaN`.
 
 <a id="core-core-math-atanh"></a>
 #### `Core\Math::atanh`
