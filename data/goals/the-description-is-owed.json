@@ -6,7 +6,7 @@
     "modules": [
       "docs/examples/README.md",
       "data/proofs/policy.json",
-      "tools/dossier.py"
+      "tools/nv/cmd/proofs.ts"
     ],
     "rules": [
       "testing/feature-proofs",

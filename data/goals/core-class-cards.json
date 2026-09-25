@@ -10,9 +10,9 @@
       "crates/nvs-stdlib/src/json.rs",
       "crates/nvs-cli/src/agent.rs",
       "crates/nvs-diagnostics/src/lib.rs",
-      "tools/dossier.py",
-      "tools/data/dossier-policy.toml",
-      "tools/data/help-backlog.toml"
+      "tools/nv/cmd/proofs.ts",
+      "data/proofs/policy.json",
+      "data/proofs/help-backlog.json"
     ],
     "rules": [
       "core-api/reference-card",

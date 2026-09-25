@@ -10,7 +10,7 @@
       },
       {
         "done": false,
-        "text": "`python tools/dossier.py --owed`, and write or rewrite each description it names."
+        "text": "`bun nv proofs --owed`, and write or rewrite each description it names."
       }
     ]
   },

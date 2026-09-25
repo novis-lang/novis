@@ -77,10 +77,10 @@ test does. Then drain the list in file order, one band per session. The stage is
 language or tool heading (its section shows code), and every goal from `core-http-response-and-1-more`
 on has written it for its own features. What is left is the backlog and the three kinds still off:
 
-- Drain `tools/data/help-backlog.toml`: write each listed feature's help and delete the line. A
+- Drain `data/proofs/help-backlog.json`: write each listed feature's help and delete its entry. A
   feature whose class stage 2 has carded already passes, and is deleted without more work.
 - Give an exception and an interface a card, as the enum's, and switch `help` on for both in
-  `POLICY`.
+  `POLICY` (`tools/nv/proofs/collect.ts`).
 - Once stage 3 has landed, set a directive's help from its index entry and switch `help` on for it.
 
 The stage is green when `bun nv proofs --gate` says the whole roster owes nothing and the
@@ -90,7 +90,7 @@ help backlog is empty.
 
 - **Stage 2 comes first.** The class cards are part of what *Help* reads for a `Core` class, so stage
   5 cannot pass before stage 2 has.
-- **The backlog only shrinks.** Nothing is added to `tools/data/help-backlog.toml`: a feature that
+- **The backlog only shrinks.** Nothing is added to `data/proofs/help-backlog.json`: a feature that
   lands owes its help at once.
 - **A code card is for the person who met the error.** What the error means and how to fix it, in one
   to three sentences, plus a wrong-then-right example only where the sentences leave the reader

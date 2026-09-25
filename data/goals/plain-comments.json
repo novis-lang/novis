@@ -9,7 +9,7 @@
       "tests/hostile/README.md",
       "benches/members/README.md",
       "data/proofs/policy.json",
-      "tools/dossier.py"
+      "tools/nv/cmd/proofs.ts"
     ],
     "rules": [
       "testing/feature-proofs",

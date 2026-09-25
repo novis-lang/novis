@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `mode-startup-switches` — an unwritten `dispatch` and `static` follow the mode a\nconfiguration names — has just started; nothing of it has landed yet.** It runs in its own worktree\nunder `loop.py --side mode-startup-switches`, over main's carried floor, and lands on `main` when it\nis green.\n\nThe design is the user's and the rule's. The goal file's § *Standing decisions* answers every call a\nsession meets, and no session re-decides one. § *What is on disk today, measured* is the starting\npoint.",
+  "state": "**Side goal `mode-startup-switches` — an unwritten `dispatch` and `static` follow the mode a\nconfiguration names — has just started; nothing of it has landed yet.** A person runs it by hand in its own\nworktree, over main's carried floor, and it lands on `main` when it is green.\n\nThe design is the user's and the rule's. The goal file's § *Standing decisions* answers every call a\nsession meets, and no session re-decides one. § *What is on disk today, measured* is the starting\npoint.",
   "next": {
     "stage": 2,
     "title": "the switches follow the mode",
@@ -28,7 +28,7 @@
     ]
   },
   "backlog": [
-    "**Stage 3: the template, the server chapter and the rule say it**, and `dossier.py --id` names any proof still owed.",
+    "**Stage 3: the template, the server chapter and the rule say it**, and `bun nv proofs --id` names any proof still owed.",
     "When the last check goes green the side run lands itself on `main`."
   ]
 }

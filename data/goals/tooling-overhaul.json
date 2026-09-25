@@ -88,7 +88,7 @@
   ],
   "context": {
     "modules": [
-      "tools/loop.py",
+      "tools/nv/cmd/loop.ts",
       "tools/nv/cmd/orient.ts",
       "tools/nv/cmd/session.ts",
       "tools/nv/cmd/verify.ts",
@@ -167,7 +167,7 @@
     {
       "number": 7,
       "title": "proofs",
-      "summary": "Replaces `dossier.py` with `bun nv proofs`, and a comment no longer stales a perf figure.",
+      "summary": "Replaces the Python feature-proof tool with `bun nv proofs`, and a comment no longer stales a perf figure.",
       "context": {
         "shapes": [
           "A rule fragment",
@@ -7286,7 +7286,7 @@
       "id": "owners-py-walks-every-known-gaps-block-and-answers",
       "kind": "command",
       "stage": 1,
-      "name": "owners.py walks every Known gaps block and answers",
+      "name": "nv owners walks every Known gaps block and answers",
       "argv": [
         "bun",
         "nv",
@@ -11243,7 +11243,7 @@
       "id": "plan-py-the-index-and-the-chain-still-agree",
       "kind": "command",
       "stage": 1,
-      "name": "plan.py: the index and the chain still agree",
+      "name": "nv plan: the index and the chain still agree",
       "argv": [
         "bun",
         "nv",
@@ -11391,7 +11391,7 @@
       "id": "brief-py-routes-a-gap-question-to-the-register",
       "kind": "command",
       "stage": 1,
-      "name": "brief.py routes a gap question to the register",
+      "name": "nv brief routes a gap question to the register",
       "argv": [
         "bun",
         "nv",
@@ -14991,7 +14991,7 @@
       "id": "plan-py-every-cell-agrees-with-the-chain-done-included",
       "kind": "command",
       "stage": 1,
-      "name": "plan.py: every cell agrees with the chain, done included",
+      "name": "nv plan: every cell agrees with the chain, done included",
       "argv": [
         "bun",
         "nv",
@@ -15021,7 +15021,7 @@
       "id": "plan-py-the-index-and-the-grown-chain-still-agree",
       "kind": "command",
       "stage": 1,
-      "name": "plan.py: the index and the grown chain still agree",
+      "name": "nv plan: the index and the grown chain still agree",
       "argv": [
         "bun",
         "nv",

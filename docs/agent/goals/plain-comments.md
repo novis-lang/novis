@@ -18,8 +18,8 @@ Behind every generated goal, because those goals are still writing the programs 
 sweep in the middle of them would be run again at the end. They carry the rule in their brief and
 check their own files with `--comments`, so what is left for this goal is what landed before the
 rule did and what slipped past a brief. In front of `ci-green`, because that goal proves the tree
-the run ends on, and this one still changes it. Both say `position: last`, so `--emit-goals` keeps
-both behind whatever it appends, in this order.
+the run ends on, and this one still changes it. Both say `position: last`, so `bun nv chain --check`
+refuses any goal placed behind them that does not say it too.
 
 The gate is switched on here and not earlier for one reason: every walked dossier goal's `--verify`
 is carried as floor, and most landed programs miss the bounds today, so a gate in front of the sweep

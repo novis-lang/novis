@@ -37,7 +37,7 @@
     ]
   },
   "backlog": [
-    "**Stage 3: the loop lowers and the editor shows the type** — `crates/nvs-ir/src/lower/mod.rs:@binding_ty`, `crates/nvs-ir/src/lower/control.rs:@lower_foreach`, `crates/nvs-lsp/src/hints.rs`, and every other reader of `ForeachBinding::ty` (`python tools/peek.py --locate ForeachBinding` lists them). Shares no file with Stage 2 beyond `ast.rs`, so it is its own session.",
+    "**Stage 3: the loop lowers and the editor shows the type** — `crates/nvs-ir/src/lower/mod.rs:@binding_ty`, `crates/nvs-ir/src/lower/control.rs:@lower_foreach`, `crates/nvs-lsp/src/hints.rs`, and every other reader of `ForeachBinding::ty` (`bun nv peek --locate ForeachBinding` lists them). Shares no file with Stage 2 beyond `ast.rs`, so it is its own session.",
     "**Stage 4: the feature proofs, and everything already on disk** — the new example and attack step, then the documents Stage 0 lists, the three features' `about.md` and examples, the regenerated `docs/novis.md`, and the closing search. Prose and programs only; no crate is open.",
     "When this goal's last check goes green the driver takes goal `ci-green`."
   ]

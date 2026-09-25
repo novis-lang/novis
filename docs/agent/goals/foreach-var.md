@@ -22,9 +22,9 @@ first), so `var` takes a type that is already in hand. Nothing after it waits on
 
 It sits behind goal `plain-comments` because it writes new programs under `docs/examples/` and
 `tests/hostile/`, and that goal's gate is what holds their comments to `AGENTS.md` § *Text an end
-user reads* from the first write. It says `position: last` for the reason that goal does:
-`--emit-goals` keeps the pinned tail behind whatever it appends, and a goal without the pin sitting
-behind one with it is what `bun nv chain --check` refuses. In front of goal `ci-green`,
+user reads* from the first write. It says `position: last` for the reason that goal does: the pinned
+goals form the chain's tail, and a goal without the pin sitting behind one with it is what `bun nv
+chain --check` refuses. In front of goal `ci-green`,
 because that goal proves the tree the run ends on and this one still changes it.
 
 ## Stage 0 — the catch-up
