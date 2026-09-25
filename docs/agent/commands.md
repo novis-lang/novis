@@ -353,8 +353,8 @@ fail over it.
 ## What is owed, and where it is collected
 
 ```sh
-python tools/loop.py --owed       # the carried checks no memo answers for this tree; runs nothing
-python tools/loop.py --settle     # run those, and only those
+bun nv loop --owed                # the carried checks no memo answers for this tree; runs nothing
+bun nv loop --settle              # run those, and only those
 python tools/impact.py --explain crates/nvs-lsp/src/lib.rs   # which test binaries an edit re-runs
 ```
 

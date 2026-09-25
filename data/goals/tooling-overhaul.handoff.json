@@ -1,36 +1,30 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit ci` exists (`tools/nv/cmd/audit.ts`, `auditCi`). It exits 1 and names three kinds of offender: 10 workflow steps that still run `python tools/lints.py` or `python tools/release.py`, 4 lines of `tools/git-hooks/pre-push`, and the two website sync scripts. That is the red Stage 11 check. It is an open item and not a regression.\n\n`.github/workflows/ci.yml` runs Bun in every job whose tool has a `bun nv` port: `changes`, `database`, `migration-table`, `reference` and `docs`. The docs job also runs `bun nv check` and `bun nv render --check`, and it installs Python for `release.py --check` alone. Every replacement command passed locally before the change.\n\n**`tools/git-hooks/pre-push` refuses every push today.** It runs `python tools/loop.py --owed`, `tools/loop.py` forwards to `bun nv loop`, and `bun nv loop` has no `--owed`, so `parseTurn` returns null and the hook exits 2. `--settle` is missing in the same way.\n\n`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
+  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv loop --owed` and `bun nv loop --settle` exist (`tools/nv/cmd/loop.ts`, `owed` and `settle`; the filter is `owedChecks` in `tools/nv/driver/accept.ts`). A carried check is a stage whose label says `floor`; stage 0 is not carried, as in the old `is_carried`. `tools/git-hooks/pre-push` calls them, so a push is judged again instead of refused outright. `--owed` names hundreds of checks on a tree with uncommitted `tools/nv/` edits, because most carried keys read that tree.\n\n`bun nv audit ci` still exits 1 and is the red Stage 11 check, an open item and not a regression. It names 10 workflow steps that run `python tools/lints.py` or `python tools/release.py`, and the two website sync scripts. No git hook calls Python any more.\n\n`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
   "next": {
     "stage": 11,
-    "title": "the git hooks and the owed ledger",
-    "files": [
-      "tools/nv/cmd/loop.ts",
-      "tools/git-hooks/pre-push",
-      "docs/setup.md"
-    ],
+    "title": "the last Python steps in CI",
+    "files": [],
+    "note": "-- one file set: `tools/lints.py`, `tools/release.py`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/release-promote.yml`.",
     "items": [
       {
         "done": false,
-        "text": "**Port `--owed` and `--settle` into `bun nv loop`** — the dispatch is at `tools/nv/cmd/loop.ts:637`, and the turn flags `parseTurn` at `tools/nv/cmd/loop.ts:409` must not swallow them. The old behaviour is `git show pre-overhaul:tools/loop.py`: `owed()` at its line 4333 (the carried checks no memo answers for the tree, exit 1 when any), and `--settle` at its line 6400 (goal-only, settle-only, collect). The memo reader is `memoResults` at `tools/nv/cmd/loop.ts:227`. Add a unit test in `tools/nv/test/`."
+        "text": "**Port `lints` to `bun nv lints`** -- `tools/lints.py:1` is 250 lines. Then `.github/workflows/ci.yml:409` runs `bun nv lints --check`, and that job drops `setup-python` if nothing else in it needs Python. Add a unit test in `tools/nv/test/`."
       },
       {
         "done": false,
-        "text": "**Port the git hooks** — `tools/git-hooks/pre-push:39` calls `bun nv loop --owed` and checks for `bun` rather than `python` at `tools/git-hooks/pre-push:34`. `tools/git-hooks/commit-msg:1` already passes the audit, since it mentions Python only in comments. `docs/setup.md:1` says Bun is installed and `bun install` runs after a clone."
+        "text": "**Port `release` to `bun nv release`** -- `tools/release.py:1` is 685 lines: `--check`, `--notes`, `--apply`, `--package`, `--docker-tags`. Then `.github/workflows/ci.yml:594`, every `release.py` step in `.github/workflows/release.yml:140` and `.github/workflows/release-promote.yml:98` run it, and their `setup-python` steps go. This one may need a session to itself."
       },
       {
         "done": false,
-        "text": "**Port `lints` and `release` to `bun nv`** — `tools/lints.py:1` and `tools/release.py:1`. Then the last Python steps go: `.github/workflows/ci.yml:409`, `.github/workflows/ci.yml:594` (drop that job's `setup-python` with it), every `release.py` step in `.github/workflows/release.yml:140` and `.github/workflows/release-promote.yml:98`, and their `setup-python` steps."
-      },
-      {
-        "done": false,
-        "text": "**Delete the website sync scripts** — `website/scripts/sync-rules.mjs:1` and `website/scripts/sync-core.mjs:1`. Their data comes from `bun nv render --website`. Stage 11's bullets at `docs/agent/goals/tooling-overhaul.md:645` are the list."
+        "text": "**Delete the website sync scripts** -- `website/scripts/sync-rules.mjs:1` and `website/scripts/sync-core.mjs:1`. Their data comes from `bun nv render --website`. `website/package.json:1` and `website/config/rule-sections.mjs:1` still name them. Stage 11's bullets at `docs/agent/goals/tooling-overhaul.md:645` are the list."
       }
     ]
   },
   "backlog": [
-    "`bun nv loop-stats --guard` — Stage 11's second check, not reached yet (`docs/agent/goals/tooling-overhaul.md:634`).",
+    "`bun nv loop-stats --guard` -- Stage 11's second check, not reached yet (`docs/agent/goals/tooling-overhaul.md:634`).",
     "The website's `tmLanguage` is rendered from the editor's grammar (`docs/agent/goals/tooling-overhaul.md:648`).",
     "Stage 10's \"ported to `bun nv`\" list at `docs/agent/goals/tooling-overhaul.md:629` still has unported tools: `lints`, `release`, `loop-stats`, `machine`, `observe`, `proctree`, `relink` and others. Stage 12's `audit python` fails until they are ported.",
-    "`tools/playbook.py`'s module doc lists the `reviewed` kind; it is deleted in Stage 12."
+    "`tools/playbook.py`'s module doc lists the `reviewed` kind; it is deleted in Stage 12.",
+    "`data/goals/tooling-overhaul.handoff.json` held its em dashes double-encoded (UTF-8 read as cp1252) before this wrap; worth checking whether `session.py --wrap` writes them that way."
   ]
 }

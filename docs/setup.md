@@ -156,7 +156,7 @@ third if anyone will work in this tree interactively.
    | Hook | Refuses | Cleared by |
    |---|---|---|
    | `commit-msg` | a commit message carrying an attribution trailer — [docs/agent/conventions.md](agent/conventions.md) § *A commit message* | deleting the lines it names |
-   | `pre-push` | a push while a carried check is not green over the tree, or while tracked files have uncommitted changes | `python tools/loop.py --settle`, which runs what is owed and only that; `python tools/loop.py --owed` names it and runs nothing |
+   | `pre-push` | a push while a carried check is not green over the tree, or while tracked files have uncommitted changes | `bun nv loop --settle`, which runs what is owed and only that; `bun nv loop --owed` names it and runs nothing |
 
    The second exists because verification runs what a change can reach and defers the checks that
    cost minutes; [docs/agent/commands.md](agent/commands.md) § *What is owed, and where it is collected*
