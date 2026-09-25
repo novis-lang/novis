@@ -11,11 +11,13 @@
 //   eol     every tracked text file is LF in the index.
 //   ci      no workflow step runs `python tools/...`, no git hook calls Python outside a comment, and the
 //           website's own sync scripts are gone, because `bun nv render --website` writes their data.
-//   python  no `.py` file is tracked but the two launch shims and the Python twins under
-//           `benches/userland/`, which are a bench engine's workload rather than a tool. No tracked
-//           Markdown names a Python tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`.
-//           Decision records, `CHANGELOG.md` and the prose of every goal the chain has reached are
-//           history, and are not read.
+//   python  no `.py` file is tracked but the Python twins under `benches/userland/`, which are a bench
+//           engine's workload rather than a tool. No document that describes the present names a Python
+//           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a home the cutover
+//           deleted (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/`
+//           does either. What describes the past is not read: decision records and their records under
+//           `data/decisions/`, `CHANGELOG.md`, the prose of every goal the chain has reached, and the
+//           records of every goal it has walked.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
@@ -187,29 +189,60 @@ async function auditCi(): Promise<Finding[]> {
   ];
 }
 
-/** The two `.py` files the running loop still needs; its closing commit deletes both. */
-const SHIMS = ["tools/respawn.py", "tools/loop.py"];
 /** The Python column of the cross-language bench: `bun nv bench` runs these as a peer engine's workload. */
 const PY_WORKLOAD = "benches/userland/";
 /** Documents that are history: frozen records, and a changelog written from `git log`. */
 const HISTORY = ["docs/decisions/", "CHANGELOG.md"];
+/** Records that are history: a decision's record is as frozen as its prose. */
+const RECORD_HISTORY = ["data/decisions/"];
+/** Scratch, never a document. */
+const SCRATCH = ".agent-tmp/";
 
-/** Tracked `.py` files that are neither a launch shim nor a bench workload. */
+/** Tracked `.py` files that are not a bench workload. */
 export function strayPython(paths: string[]): string[] {
-  return paths.filter((p) => p.endsWith(".py") && !SHIMS.includes(p) && !p.startsWith(PY_WORKLOAD));
+  return paths.filter((p) => p.endsWith(".py") && !p.startsWith(PY_WORKLOAD));
 }
 
 /**
+ * The names of Python tools whose port took another name, so no `nv` subcommand carries theirs: the
+ * feature-proof tool is `bun nv proofs`, `check-links` is `bun nv links` and `guard-read` is `bun nv guard`.
+ */
+export const RENAMED_TOOLS = [OLD, "check-links", "guard-read"];
+
+/**
+ * The homes the cutover deleted, each as a pattern over a citation of it: the driver's copies of the live
+ * goal, the handoff file, the decision and rule indexes, the TOML data under `tools/data/`, the generated
+ * goals' directory and a goal file named by its position, the website's sync scripts and their npm
+ * names, and the Python driver's memo. Each is gone, so a line naming one describes the past.
+ */
+export const LEGACY: RegExp[] = [
+  /\bloop-goal\.(?:md|toml)\b/,
+  /(?<![\w.-])handoff\.md\b/,
+  /\bdocs\/decisions\.toml\b/,
+  /\bdocs\/rules\/_index\.json\b/,
+  /\btools\/data\/[\w-]+\.toml\b/,
+  new RegExp(`\\bdocs/agent/goals/(?:${OLD}/|\\d+-[a-z])`),
+  /\bwebsite\/scripts\/sync-(?:core|rules)\.mjs\b/,
+  /\bsync:(?:core|rules)\b/,
+  /\bgoal-green\.json\b/,
+];
+
+/**
  * What names a Python tool: any `tools/<x>.py` path, or a bare `<x>.py` when `<x>` is a tool's name.
- * A tool's name is its `nv` subcommand's, since each port kept the name of the tool it replaced, or
- * a `tools/*.py` still tracked.
+ * A tool's name is its `nv` subcommand's, since each port kept the name of the tool it replaced, one of
+ * `RENAMED_TOOLS`, or a `tools/*.py` still tracked.
  */
 export function toolNameRe(names: string[]): RegExp {
   const bare = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return new RegExp(`tools/[\\w/-]+\\.py\\b${bare ? `|(?<![\\w/.-])(?:${bare})\\.py\\b` : ""}`);
 }
 
-/** A document naming a Python tool, as `path:<first line>: N line(s)`, or null when it names none. */
+/** What a present-tense document or record may not say: a Python tool by `toolNameRe`'s rule, or any `LEGACY` home. */
+export function pastRe(names: string[]): RegExp {
+  return new RegExp([toolNameRe(names).source, ...LEGACY.map((r) => r.source)].join("|"));
+}
+
+/** A document naming a Python tool or a deleted home, as `path:<first line>: N line(s)`, or null when it names none. */
 export function docNamingPython(path: string, text: string, re: RegExp): string | null {
   const hits = text
     .split(/\r?\n/)
@@ -224,9 +257,21 @@ export function docNamingPython(path: string, text: string, re: RegExp): string 
  */
 export function currentDocs(paths: string[], reached: Set<string>): string[] {
   return paths.filter((p) => {
-    if (!p.endsWith(".md") || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
+    if (!p.endsWith(".md") || p.startsWith(SCRATCH) || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
     const m = /^docs\/agent\/goals\/([a-z0-9-]+)\.md$/.exec(p);
     return !(m && reached.has(m[1]!));
+  });
+}
+
+/**
+ * The tracked records under `data/` that describe the present: all but the decisions' and every walked
+ * goal's record and handoff record. The live goal's records are read, since they are its state now.
+ */
+export function currentRecords(paths: string[], walked: Set<string>): string[] {
+  return paths.filter((p) => {
+    if (!p.startsWith("data/") || !p.endsWith(".json") || RECORD_HISTORY.some((h) => p.startsWith(h))) return false;
+    const m = /^data\/goals\/([a-z0-9-]+)(?:\.handoff)?\.json$/.exec(p);
+    return !(m && walked.has(m[1]!));
   });
 }
 
@@ -234,14 +279,18 @@ async function auditPython(): Promise<Finding[]> {
   const paths = await tracked();
   const goals = chainGoals();
   const live = liveGoal(goals);
-  const reached = new Set([...walkedGoals(goals, live).keys(), ...(live ? [live.slug] : [])]);
+  const walked = new Set(walkedGoals(goals, live).keys());
+  const reached = new Set([...walked, ...(live ? [live.slug] : [])]);
   const names = new Set(readdirSync(join(ROOT, "tools/nv/cmd")).filter((f) => f.endsWith(".ts")).map((f) => f.slice(0, -3)));
+  for (const n of RENAMED_TOOLS) names.add(n);
   for (const p of paths) if (/^tools\/[\w-]+\.py$/.test(p)) names.add(p.slice(6, -3));
-  const re = toolNameRe([...names]);
+  const re = pastRe([...names]);
   const docs = currentDocs(paths, reached).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
+  const records = currentRecords(paths, walked).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
   return [
-    { pass: "audit: no Python file is tracked beyond the launch shims", fail: "Python file(s) are tracked beyond the launch shims", offenders: strayPython(paths) },
-    { pass: "audit: no document names a Python tool", fail: "document(s) name a Python tool", offenders: docs },
+    { pass: "audit: no Python file is tracked beyond the bench's workload", fail: "Python file(s) are tracked beyond the bench's workload", offenders: strayPython(paths) },
+    { pass: "audit: no document names a Python tool or a deleted home", fail: "document(s) name a Python tool or a deleted home", offenders: docs },
+    { pass: "audit: no record names a Python tool or a deleted home", fail: "record(s) name a Python tool or a deleted home", offenders: records },
   ];
 }
 

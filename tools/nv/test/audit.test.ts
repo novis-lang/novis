@@ -3,11 +3,14 @@ import {
   checksSayingOld,
   crlfFiles,
   currentDocs,
+  currentRecords,
   docNamingPython,
   goalCopies,
   numberedGoalFiles,
+  pastRe,
   pythonCalls,
   pythonToolSteps,
+  RENAMED_TOOLS,
   report,
   runsPython,
   saysOldDirective,
@@ -69,9 +72,73 @@ describe("nv audit checks", () => {
 });
 
 describe("nv audit python", () => {
-  test("only the launch shims and the bench's Python twins may stay", () => {
+  test("only the bench's Python twins may stay", () => {
     const paths = ["tools/loop.py", "tools/respawn.py", "benches/userland/01-arith-loop.py", "tools/peek.py", "editors/vscode/scripts/mkwoff.py", "tools/nv/main.ts"];
-    expect(strayPython(paths)).toEqual(["tools/peek.py", "editors/vscode/scripts/mkwoff.py"]);
+    expect(strayPython(paths)).toEqual(["tools/loop.py", "tools/respawn.py", "tools/peek.py", "editors/vscode/scripts/mkwoff.py"]);
+  });
+
+  test("a deleted home is a citation as a link, in backticks or as plain text", () => {
+    const re = pastRe(["peek", ...RENAMED_TOOLS]);
+    const cited = [
+      "The handoff is [docs/agent/handoff.md](docs/agent/handoff.md).",
+      "Overwrite `handoff.md` at the end.",
+      "the checks in docs/agent/loop-goal.toml",
+      "`loop-goal.md` § *Standing decisions*",
+      "re-render `../docs/decisions.toml`",
+      "`tools/nv/import/rules.ts` reads docs/rules/_index.json",
+      "edit `tools/data/help-backlog.toml`",
+      `under \`docs/agent/goals/${OLD}/\``,
+      "docs/agent/goals/12-parses.md",
+      "website/scripts/sync-core.mjs",
+      "run `npm run sync:core`?",
+      "`.loop/goal-green.json` remembers",
+      `\`${OLD}.py --run hostile\``,
+    ];
+    for (const line of cited) expect(docNamingPython("x.md", line, re)).toBe("x.md:1: 1 line(s)");
+  });
+
+  test("a live home that only resembles a deleted one is not a citation", () => {
+    const re = pastRe(["peek"]);
+    const fine = [
+      "data/goals/parses.handoff.json",
+      "docs/agent/goals/side/restart-free.handoff.md is not written",
+      "the playbook bullet a-loop-goal-toml-check-naming-a-test",
+      "docs/decisions/0221.md",
+      "npm run sync:render",
+      "`.loop/accept-green.json` remembers",
+      "tools/nv/import/rules.ts:_index.json",
+      "docs/agent/goals/core-math-1-3.md",
+    ];
+    for (const line of fine) expect(docNamingPython("x.md", line, re)).toBeNull();
+  });
+
+  test("the renamed tools' old names are Python tools too", () => {
+    const re = pastRe([...RENAMED_TOOLS]);
+    expect(docNamingPython("x.md", "`check-links.py` is the gate\n`guard-read.py` blocks it\n", re)).toBe("x.md:1: 2 line(s)");
+    expect(docNamingPython("x.md", "`bun nv links` is the gate\n", re)).toBeNull();
+  });
+
+  test("a record under data/ is read unless it is a decision's or a walked goal's", () => {
+    const paths = [
+      "data/chain.json",
+      "data/decisions/0221.json",
+      "data/goals/webcrypto.json",
+      "data/goals/webcrypto.handoff.json",
+      "data/goals/tooling-overhaul.json",
+      "data/goals/tooling-overhaul.handoff.json",
+      "data/goals/side/restart-free.json",
+      "data/playbook/tooling/a-bullet.json",
+      "docs/agent/coordinator.md",
+      "data/proofs/help-backlog.json",
+    ];
+    expect(currentRecords(paths, new Set(["webcrypto"]))).toEqual([
+      "data/chain.json",
+      "data/goals/tooling-overhaul.json",
+      "data/goals/tooling-overhaul.handoff.json",
+      "data/goals/side/restart-free.json",
+      "data/playbook/tooling/a-bullet.json",
+      "data/proofs/help-backlog.json",
+    ]);
   });
 
   test("a tool path or a known tool's bare name is a mention, a bench file or a longer name is not", () => {
@@ -98,6 +165,7 @@ describe("nv audit python", () => {
       "docs/agent/goals/ci-green.md",
       "docs/agent/goals/side/restart-free.md",
       "tools/nv/cmd/audit.ts",
+      ".agent-tmp/notes.md",
     ];
     expect(currentDocs(paths, new Set(["webcrypto", "tooling-overhaul"]))).toEqual([
       "AGENTS.md",
