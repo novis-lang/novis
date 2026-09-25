@@ -383,10 +383,23 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
   }
 }
 
-/** Every fixture and suite the sweep reached, against the Linux build: every red, as one line. */
+/**
+ * Every fixture and suite the sweep reached, against the Linux build: every red, as one line. Checks that
+ * name one command line share one run, as they do in the sweep, and each judges its own `want` or cases
+ * against it.
+ */
 async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: string): Promise<string> {
   const leg = { afUnix: true };
   const fails: { c: Check; fail: string }[] = [];
+  const runs = new Map<string, Outcome>();
+  const shared = async (line: string, what: string): Promise<Outcome> => {
+    const seen = runs.get(line);
+    if (seen !== undefined) return seen;
+    o.onRun?.(what);
+    const r = await s.shell("wsl", line, TIMEOUT_MS);
+    runs.set(line, r);
+    return r;
+  };
   for (const c of o.programs) {
     const label = `wsl ${c.file} [${o.label(c.stage)}]`;
     if (c.needs !== undefined) {
@@ -402,16 +415,14 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
     }
     if (!PROGRAM_KINDS.has(c.kind)) continue;
     const args = [...(c.args ?? []), c.file ?? ""];
-    o.onRun?.(`wsl ${c.file}`);
-    const r = await s.shell("wsl", `cd ${q(repo)} && ${q(binary)} run ${args.map(q).join(" ")}`, TIMEOUT_MS);
+    const r = await shared(`cd ${q(repo)} && ${q(binary)} run ${args.map(q).join(" ")}`, `wsl ${c.file}`);
     const fail = judgeProgram(c, r, label);
     if (fail !== "") fails.push({ c, fail });
   }
   for (const c of o.suites) {
     const label = `wsl ${c.name ?? c.id} [${o.label(c.stage)}]`;
     const args = c.args ?? [];
-    o.onRun?.(`wsl nvs ${args.join(" ")}`);
-    const r = await s.shell("wsl", `cd ${q(repo)} && ${q(binary)} ${args.map(q).join(" ")}`, TIMEOUT_MS);
+    const r = await shared(`cd ${q(repo)} && ${q(binary)} ${args.map(q).join(" ")}`, `wsl nvs ${args.join(" ")}`);
     const v = judgeTests(c, r, label, (rel) => existsSync(join(ROOT, rel)));
     if (v.fail !== "") fails.push({ c, fail: v.fail });
   }

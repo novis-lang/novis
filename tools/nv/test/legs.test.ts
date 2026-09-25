@@ -127,6 +127,16 @@ describe("linuxLegs", () => {
     expect(await linuxLegs(options(f))).toBe("wsl conformance [3]: 2 case(s) failed");
   });
 
+  test("checks that name one command line share one run on the WSL leg, and each judges it", async () => {
+    const f = fake((line) => (line.endsWith("test tests/conformance") ? { code: 0, out: "10 passed, 2 failed\n", err: "" } : undefined));
+    const other: Check = { ...suite, id: "suite conformance again", stage: 1, name: "conformance again" };
+    const got = await linuxLegs(options(f, { programs: [program("examples/a.nvs"), program("examples/a.nvs", 1, { id: "run a again" })], suites: [suite, other] }));
+    expect(f.lines.filter((l) => l.endsWith("test tests/conformance"))).toHaveLength(1);
+    expect(f.lines.filter((l) => l.endsWith(" run examples/a.nvs") && !l.includes("valgrind"))).toHaveLength(1);
+    expect(got.split("\n")[0]).toBe("wsl conformance again [1 floor]: 2 case(s) failed");
+    expect(got).toContain("in stage order: conformance [3]");
+  });
+
   test("two leaking fixtures give the `(and 1 more: ...)` line, in the plan's order", async () => {
     const leak = { code: 97, out: "", err: "==1== 8 bytes in 1 blocks are definitely lost\n" };
     const f = fake((line) => (line.includes("valgrind") ? leak : undefined));
