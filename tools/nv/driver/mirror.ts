@@ -20,6 +20,11 @@
 // File modes come from the real index, which seeds the scratch one the first time, so a script is
 // executable in the copy when git says it is. Line endings are the same on both sides: `.gitattributes`
 // checks everything out as LF.
+//
+// The one exception to "nothing git ignores" is `CARRIED`: an ignored file the repository's own
+// configuration names, which every program run from the root reads before it starts. Those are copied
+// over the mount after the clean, when the working tree has them, so the copy fails exactly when the
+// checkout would.
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -34,6 +39,29 @@ const REF = "refs/nv/tree";
 
 /** The first sync packs the whole tree; every later one is a few objects. */
 const TIMEOUT_MS = 600 * 1000;
+
+/**
+ * Ignored files the copy carries anyway. `nvs.toml`'s `[db]` blocks name `tests/db/ca.crt` as their
+ * `tls_ca_file`, and it is exported from the database containers rather than committed, so without it
+ * every WSL fixture stops at `E0605` before its program is read.
+ */
+export const CARRIED = ["tests/db/ca.crt"];
+
+/** A Windows path as the distro sees it: `D:\mwl` is `/mnt/d/mwl`. */
+export function wslPath(windowsPath: string): string {
+  const flat = windowsPath.replaceAll("\\", "/");
+  const m = /^([A-Za-z]):(\/.*)?$/.exec(flat);
+  if (m === null) return flat;
+  return `/mnt/${m[1]!.toLowerCase()}${(m[2] ?? "").replace(/\/+$/, "")}`;
+}
+
+/** The `bash` line that copies each `CARRIED` file `root` has into the copy's working directory. */
+export function carryLine(root: string): string {
+  const lines = CARRIED.filter((f) => existsSync(join(root, f))).map(
+    (f) => `mkdir -p ${q(dirname(f))} && cp ${q(`${wslPath(root)}/${f}`)} ${q(f)}`,
+  );
+  return lines.map((l) => ` && ${l}`).join("");
+}
 
 /** The copy of the checkout the distro reaches at `repo`, beside the leg's target directory. */
 export function mirrorPath(targetDir: string, repo: string): string {
@@ -102,7 +130,7 @@ async function sync(mirror: string, root: string): Promise<string> {
   const held = await inWsl(`mkdir -p ${m} && cd ${m} && { [ -d .git ] || git init -q; } && { git rev-parse -q --verify ${REF} || true; }`);
   if (held.code !== 0) return `the copy at ${mirror}: ${held.err}`;
   const old = held.out;
-  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx`;
+  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx${carryLine(root)}`;
   if (old === snap.tree) {
     const r = await inWsl(`cd ${m} && ${tidy}`);
     return r.code === 0 ? "" : `the copy at ${mirror}: ${r.err}`;

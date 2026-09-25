@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { type Check, GreenMemo, type Outcome } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { type LegName, type LegsOptions, type LegsSeams, legSpec, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
-import { mirrorPath } from "../driver/mirror.ts";
+import { CARRIED, carryLine, mirrorPath } from "../driver/mirror.ts";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 const label = (n: number) => (n === 1 ? "1 floor" : String(n));
 
@@ -273,6 +275,21 @@ describe("the leg helpers", () => {
     expect(mirrorPath("/var/tmp/nvs-target-wsl", "/mnt/d/mwl/.agent-tmp/worktrees/x")).toBe(
       "/var/tmp/nvs-target-wsl-src/mnt-d-mwl-.agent-tmp-worktrees-x",
     );
+  });
+
+  test("carryLine copies an ignored file the configuration names, and only when the checkout has it", () => {
+    const root = join(ROOT, ".agent-tmp", "legs-test-carry");
+    try {
+      mkdirSync(join(root, "tests", "db"), { recursive: true });
+      expect(carryLine(root)).toBe("");
+      writeFileSync(join(root, "tests", "db", "ca.crt"), "x");
+      expect(carryLine(root)).toBe(
+        ` && mkdir -p tests/db && cp ${wslPath(root)}/tests/db/ca.crt tests/db/ca.crt`,
+      );
+      expect(CARRIED).toContain("tests/db/ca.crt");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("q quotes a word only when bash would split or expand it", () => {

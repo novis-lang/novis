@@ -52,7 +52,9 @@ import * as machine from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { type Check, type GreenMemo, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
-import { mirrorPath, q, syncMirror } from "./mirror.ts";
+import { mirrorPath, q, syncMirror, wslPath } from "./mirror.ts";
+
+export { wslPath };
 import { type Origin, DELAY_MS, HOST, PORT, holdOrigin } from "./origin.ts";
 
 export { q };
@@ -125,14 +127,6 @@ export const LEG_NEEDS: Record<string, (leg: { afUnix: boolean }) => boolean> = 
 /** The memo's stand-in for a whole leg: an id, remembered like a check. */
 export function legSpec(leg: LegName): Check {
   return { id: leg, kind: "leg", stage: 0 };
-}
-
-/** `ROOT` as the distro sees it: `D:\mwl` is `/mnt/d/mwl`. */
-export function wslPath(windowsPath: string): string {
-  const flat = windowsPath.replaceAll("\\", "/");
-  const m = /^([A-Za-z]):(\/.*)?$/.exec(flat);
-  if (m === null) return flat;
-  return `/mnt/${m[1]!.toLowerCase()}${(m[2] ?? "").replace(/\/+$/, "")}`;
 }
 
 /** The valgrind line for one fixture, run from the repository root where `repo` names it. */
