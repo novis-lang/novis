@@ -1,5 +1,6 @@
-// `bun nv audit goals | checks | eol | ci`: what the cutover must leave behind, each as one yes-or-no
-// over the tree (the goal's § *Stage 9* and § *Stage 11*). With no argument it runs every audit.
+// `bun nv audit goals | checks | eol | ci | python`: what the cutover must leave behind, each as one
+// yes-or-no over the tree (the goal's § *Stage 9*, § *Stage 11* and § *Stage 12*). With no argument it
+// runs every audit.
 //
 //   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the
 //           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and a goal's `.toml` or
@@ -10,20 +11,26 @@
 //   eol     every tracked text file is LF in the index.
 //   ci      no workflow step runs `python tools/...`, no git hook calls Python outside a comment, and the
 //           website's own sync scripts are gone, because `bun nv render --website` writes their data.
+//   python  no `.py` file is tracked but the two launch shims and the Python twins under
+//           `benches/userland/`, which are a bench engine's workload rather than a tool. No tracked
+//           Markdown names a Python tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`.
+//           Decision records, `CHANGELOG.md` and the prose of every goal the chain has reached are
+//           history, and are not read.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { OLD } from "../import/lib.ts";
+import { chainGoals, liveGoal, walkedGoals } from "../lib/chain.ts";
 import { indexEol, tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { goal, sideGoal } from "../schema/goal.ts";
 
-export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol | ci]";
+export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol | ci | python]";
 
 const OLD_RE = new RegExp(OLD, "i");
 const DIRECTIVE_RE = new RegExp(`^\\s*(?://|#)\\s*${OLD}\\s*:`, "im");
@@ -180,7 +187,65 @@ async function auditCi(): Promise<Finding[]> {
   ];
 }
 
-const AUDITS: Record<string, () => Promise<Finding[]>> = { goals: auditGoals, checks: auditChecks, eol: auditEol, ci: auditCi };
+/** The two `.py` files the running loop still needs; its closing commit deletes both. */
+const SHIMS = ["tools/respawn.py", "tools/loop.py"];
+/** The Python column of the cross-language bench: `bun nv bench` runs these as a peer engine's workload. */
+const PY_WORKLOAD = "benches/userland/";
+/** Documents that are history: frozen records, and a changelog written from `git log`. */
+const HISTORY = ["docs/decisions/", "CHANGELOG.md"];
+
+/** Tracked `.py` files that are neither a launch shim nor a bench workload. */
+export function strayPython(paths: string[]): string[] {
+  return paths.filter((p) => p.endsWith(".py") && !SHIMS.includes(p) && !p.startsWith(PY_WORKLOAD));
+}
+
+/**
+ * What names a Python tool: any `tools/<x>.py` path, or a bare `<x>.py` when `<x>` is a tool's name.
+ * A tool's name is its `nv` subcommand's, since each port kept the name of the tool it replaced, or
+ * a `tools/*.py` still tracked.
+ */
+export function toolNameRe(names: string[]): RegExp {
+  const bare = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return new RegExp(`tools/[\\w/-]+\\.py\\b${bare ? `|(?<![\\w/.-])(?:${bare})\\.py\\b` : ""}`);
+}
+
+/** A document naming a Python tool, as `path:<first line>: N line(s)`, or null when it names none. */
+export function docNamingPython(path: string, text: string, re: RegExp): string | null {
+  const hits = text
+    .split(/\r?\n/)
+    .map((l, i) => (re.test(l) ? i + 1 : 0))
+    .filter((n) => n > 0);
+  return hits.length > 0 ? `${path}:${hits[0]}: ${hits.length} line(s)` : null;
+}
+
+/**
+ * The tracked Markdown a reader follows today: everything but history and the prose of a goal the chain
+ * has reached. That prose is history too, and the live goal's own names the tools it deletes.
+ */
+export function currentDocs(paths: string[], reached: Set<string>): string[] {
+  return paths.filter((p) => {
+    if (!p.endsWith(".md") || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
+    const m = /^docs\/agent\/goals\/([a-z0-9-]+)\.md$/.exec(p);
+    return !(m && reached.has(m[1]!));
+  });
+}
+
+async function auditPython(): Promise<Finding[]> {
+  const paths = await tracked();
+  const goals = chainGoals();
+  const live = liveGoal(goals);
+  const reached = new Set([...walkedGoals(goals, live).keys(), ...(live ? [live.slug] : [])]);
+  const names = new Set(readdirSync(join(ROOT, "tools/nv/cmd")).filter((f) => f.endsWith(".ts")).map((f) => f.slice(0, -3)));
+  for (const p of paths) if (/^tools\/[\w-]+\.py$/.test(p)) names.add(p.slice(6, -3));
+  const re = toolNameRe([...names]);
+  const docs = currentDocs(paths, reached).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
+  return [
+    { pass: "audit: no Python file is tracked beyond the launch shims", fail: "Python file(s) are tracked beyond the launch shims", offenders: strayPython(paths) },
+    { pass: "audit: no document names a Python tool", fail: "document(s) name a Python tool", offenders: docs },
+  ];
+}
+
+const AUDITS: Record<string, () => Promise<Finding[]>> = { goals: auditGoals, checks: auditChecks, eol: auditEol, ci: auditCi, python: auditPython };
 
 /** The lines a set of findings prints, and whether every one passed. */
 export function report(findings: Finding[]): { lines: string[]; ok: boolean } {

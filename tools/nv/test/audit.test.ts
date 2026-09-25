@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   checksSayingOld,
   crlfFiles,
+  currentDocs,
+  docNamingPython,
   goalCopies,
   numberedGoalFiles,
   pythonCalls,
@@ -9,6 +11,8 @@ import {
   report,
   runsPython,
   saysOldDirective,
+  strayPython,
+  toolNameRe,
   toolSayingOld,
 } from "../cmd/audit.ts";
 import { parseEol } from "../lib/git.ts";
@@ -61,6 +65,45 @@ describe("nv audit checks", () => {
     expect(toolSayingOld(`tools/${OLD}.py`, "")).toBe(`tools/${OLD}.py: its path`);
     expect(toolSayingOld("tools/a.ts", `x\n${OLD.toUpperCase()}\ny ${OLD}\n`)).toBe("tools/a.ts: 2 line(s)");
     expect(toolSayingOld("tools/a.ts", "proofs\n")).toBeNull();
+  });
+});
+
+describe("nv audit python", () => {
+  test("only the launch shims and the bench's Python twins may stay", () => {
+    const paths = ["tools/loop.py", "tools/respawn.py", "benches/userland/01-arith-loop.py", "tools/peek.py", "editors/vscode/scripts/mkwoff.py", "tools/nv/main.ts"];
+    expect(strayPython(paths)).toEqual(["tools/peek.py", "editors/vscode/scripts/mkwoff.py"]);
+  });
+
+  test("a tool path or a known tool's bare name is a mention, a bench file or a longer name is not", () => {
+    const re = toolNameRe(["peek", "session"]);
+    const text = [
+      "Read with `python tools/peek.py A.rs:1-9`.",
+      "`session.py --wrap` applies it.",
+      "`tools/check-links.py` is the gate.",
+      "`00-baseline.py` is a bench twin.",
+      "`mypeek.py` and `benches/peek.py` are other files.",
+      "Read with `bun nv peek`.",
+    ].join("\n");
+    expect(docNamingPython("docs/x.md", text, re)).toBe("docs/x.md:1: 3 line(s)");
+    expect(docNamingPython("docs/y.md", "bun nv session --wrap\n", re)).toBeNull();
+  });
+
+  test("history and the prose of a reached goal are not read", () => {
+    const paths = [
+      "AGENTS.md",
+      "CHANGELOG.md",
+      "docs/decisions/0179.md",
+      "docs/agent/goals/webcrypto.md",
+      "docs/agent/goals/tooling-overhaul.md",
+      "docs/agent/goals/ci-green.md",
+      "docs/agent/goals/side/restart-free.md",
+      "tools/nv/cmd/audit.ts",
+    ];
+    expect(currentDocs(paths, new Set(["webcrypto", "tooling-overhaul"]))).toEqual([
+      "AGENTS.md",
+      "docs/agent/goals/ci-green.md",
+      "docs/agent/goals/side/restart-free.md",
+    ]);
   });
 });
 
