@@ -10,6 +10,13 @@
 // own disk, which `tools/nv/driver/mirror.ts` brings up to date before each build. The build may start
 // early with `startWslBuild`, beside the cargo tier, and `linuxLegs` then waits for it.
 //
+// That sync deletes every ignored file in the copy, so a file a `setup` check writes, such as a fixture's
+// SQLite database, is gone after it. The leg therefore runs the goal's `setup` checks itself, with the
+// Linux build in place of `{nvs}` and inside the copy, before any fixture and before the valgrind sweep. A
+// `setup` check that names no `{nvs}` has nothing to run in the distro, and is skipped with a trace line.
+// A red one is reported like a red fixture. Copying the Windows file over instead would carry the Windows
+// run's rows into the Linux one.
+//
 // **The valgrind sweep** runs each fixture in the plan's file list under `valgrind --leak-check=full`
 // over the Linux build: inside WSL on Windows, directly on Linux. It runs a fixture the sweep reached,
 // minus `env.valgrind.skip`, with no arguments, as `nvs run <file>`. `examples/limits.nvs` runs with
@@ -51,7 +58,7 @@ import { join } from "node:path";
 import * as machine from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { type Check, type GreenMemo, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
+import { type Check, type GreenMemo, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeCommand, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
 import { mirrorPath, q, syncMirror, wslPath } from "./mirror.ts";
 
 export { wslPath };
@@ -69,6 +76,8 @@ export interface LegsOptions {
   programs: Check[];
   /** The `nvs-suite` checks the sweep reached. */
   suites: Check[];
+  /** The `setup` checks the sweep reached, which the WSL leg runs again inside its copy. */
+  setups: Check[];
   /** The plan's fixture list and valgrind skip list (goal record `files`, `env.valgrind.skip`). */
   files: string[];
   valgrindSkip: string[];
@@ -297,7 +306,7 @@ async function buildWsl(s: LegsSeams, targetDir: string): Promise<string> {
  * build and nothing after it: the fixtures and the sweep reach the same database servers the cargo tier's
  * tests do, so they wait for `linuxLegs`.
  */
-export function startWslBuild(o: Omit<LegsOptions, "suites" | "files" | "valgrindSkip" | "label">): boolean {
+export function startWslBuild(o: Omit<LegsOptions, "suites" | "setups" | "files" | "valgrindSkip" | "label">): boolean {
   const s = seamsOf(o);
   if (!o.gateOpen || o.programs.length === 0 || o.wslTarget === null || s.platform !== "win32" || !s.hasWsl()) return false;
   if (answered(o, "wsl leg") && answered(o, "valgrind sweep")) return false;
@@ -369,9 +378,12 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
   say(origin.line);
   try {
     const reds: string[] = [];
-    if (legGreen) say("wsl fixtures green on these inputs -- not run");
-    else {
-      const line = await wslFixtures(o, s, repo, binary);
+    const setupFails = await wslSetup(o, s, repo, binary);
+    if (legGreen) {
+      say("wsl fixtures green on these inputs -- not run");
+      if (setupFails.length > 0) reds.push(programFailLine(setupFails, o.label));
+    } else {
+      const line = await wslFixtures(o, s, repo, binary, setupFails);
       if (line !== "") reds.push(line);
       else if (o.gateOpen) o.memo.remember(legSpec("wsl leg"), o.key("wsl leg"));
     }
@@ -386,14 +398,33 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
   }
 }
 
-/**
- * Every fixture and suite the sweep reached, against the Linux build: every red, as one line. Checks that
- * name one command line share one run, as they do in the sweep, and each judges its own `want` or cases
- * against it.
- */
-async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: string): Promise<string> {
-  const leg = { afUnix: true };
+/** The goal's `setup` checks, run inside the copy with the Linux build: each red one, judged as the sweep judges it. */
+async function wslSetup(o: LegsOptions, s: LegsSeams, repo: string, binary: string): Promise<{ c: Check; fail: string }[]> {
   const fails: { c: Check; fail: string }[] = [];
+  for (const c of o.setups) {
+    const label = `wsl ${c.name ?? c.id} [${o.label(c.stage)}]`;
+    const argv = c.argv ?? [];
+    if (!argv.includes("{nvs}")) {
+      o.onRun?.(`${label} -- skipped: it does not run nvs`);
+      continue;
+    }
+    const line = argv.map((a) => (a === "{nvs}" ? q(binary) : q(a))).join(" ");
+    o.onRun?.(`wsl setup: ${argv.join(" ")}`);
+    const r = await s.shell("wsl", `cd ${q(`${repo}/${c.cwd ?? "."}`)} && ${line}`, TIMEOUT_MS);
+    const fail = judgeCommand(c, r, label);
+    if (fail !== "") fails.push({ c, fail });
+  }
+  return fails;
+}
+
+/**
+ * Every fixture and suite the sweep reached, against the Linux build: every red, as one line, after any
+ * red `setup` check handed in. Checks that name one command line share one run, as they do in the sweep,
+ * and each judges its own `want` or cases against it.
+ */
+async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: string, setupFails: { c: Check; fail: string }[]): Promise<string> {
+  const leg = { afUnix: true };
+  const fails: { c: Check; fail: string }[] = [...setupFails];
   const runs = new Map<string, Outcome>();
   const shared = async (line: string, what: string): Promise<Outcome> => {
     const seen = runs.get(line);

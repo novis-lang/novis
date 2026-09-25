@@ -407,6 +407,7 @@ async function sweepOver(
   const legs: LegsOptions = {
     programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
     suites: checks.filter((c) => c.kind === "nvs-suite"),
+    setups: checks.filter((c) => c.setup === true),
     files: goal.files,
     valgrindSkip: goal.env.valgrind?.skip ?? [],
     wslTarget: goal.env.wsl?.targetDir ?? null,

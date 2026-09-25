@@ -65,6 +65,7 @@ function options(f: Fake, over: Partial<LegsOptions> = {}): LegsOptions {
   return {
     programs: [program("examples/a.nvs"), program("examples/b.nvs")],
     suites: [suite],
+    setups: [],
     files: ["examples/a.nvs", "examples/b.nvs", "examples/c.nvs"],
     valgrindSkip: [],
     wslTarget: "/var/tmp/nvs-target-wsl",
@@ -144,6 +145,37 @@ describe("linuxLegs", () => {
   test("a red suite on the WSL leg is reported", async () => {
     const f = fake((line) => (line.endsWith("test tests/conformance") ? { code: 0, out: "10 passed, 2 failed\n", err: "" } : undefined));
     expect(await linuxLegs(options(f))).toBe("wsl conformance [3]: 2 case(s) failed");
+  });
+
+  const migrate: Check = {
+    id: "migrate",
+    kind: "command",
+    stage: 1,
+    name: "migrate",
+    argv: ["{nvs}", "queue", "migrate", "--config", "examples/q.toml"],
+    setup: true,
+  };
+
+  test("the WSL leg runs each setup check inside its copy, with its own build, before any fixture", async () => {
+    const f = fake();
+    const bunSetup: Check = { ...migrate, id: "bun setup", name: "bun setup", argv: ["bun", "nv", "x"] };
+    expect(await linuxLegs(options(f, { setups: [migrate, bunSetup] }))).toBe("");
+    const runs = f.lines.filter((l) => !l.includes("cargo build") && !l.includes("valgrind"));
+    expect(runs[0]).toBe(`cd ${q(`${MIRROR}/.`)} && ${q("/var/tmp/nvs-target-wsl/debug/nvs")} queue migrate --config examples/q.toml`);
+    expect(runs[1]).toContain(" run examples/a.nvs");
+    expect(f.lines.some((l) => l.includes("bun"))).toBe(false);
+    expect(f.said).toContain("wsl bun setup [1 floor] -- skipped: it does not run nvs");
+  });
+
+  test("a red setup check on the WSL leg is reported first, and runs even when the fixtures are remembered", async () => {
+    const red = (line: string) => (line.includes("queue migrate") ? { code: 1, out: "", err: "error: no such database\n" } : undefined);
+    const f = fake(red);
+    const got = await linuxLegs(options(f, { setups: [migrate] }));
+    expect(got.split("\n")[0]).toContain("wsl migrate [1 floor]");
+    const memo = new GreenMemo();
+    memo.remember(legSpec("wsl leg"), "key-wsl leg");
+    const g = fake(red);
+    expect(await linuxLegs(options(g, { setups: [migrate], memo }))).toContain("wsl migrate [1 floor]");
   });
 
   test("checks that name one command line share one run on the WSL leg, and each judges it", async () => {
