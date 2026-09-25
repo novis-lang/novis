@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1014,
-    "shipped": 776,
+    "total": 1015,
+    "shipped": 777,
     "designed": 238,
     "diverging": 589
   },
@@ -2252,8 +2252,8 @@
       "url": "/docs/rules/tooling/",
       "single": false,
       "counts": {
-        "total": 65,
-        "shipped": 41,
+        "total": 66,
+        "shipped": 42,
         "designed": 24,
         "diverging": 40
       },
@@ -2844,8 +2844,8 @@
           "blurb": "One Bun program, one JSON record per fact under `data/`, and generated files that are committed and never edited.",
           "url": "/docs/rules/tooling/the-repository-tools/",
           "counts": {
-            "total": 3,
-            "shipped": 3,
+            "total": 4,
+            "shipped": 4,
             "designed": 0,
             "diverging": 0
           },
@@ -2872,6 +2872,14 @@
               "title": "A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again",
               "status": "shipped",
               "href": "/docs/rules/tooling/the-repository-tools/#a-rendered-file-is-committed-and-never-edited",
+              "diverges": null
+            },
+            {
+              "id": "tooling/the-chain-names-its-live-goal",
+              "slug": "the-chain-names-its-live-goal",
+              "title": "The chain record names the live goal, and a goal's floor is every walked goal's checks, carried in as a view",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/the-repository-tools/#the-chain-names-its-live-goal",
               "diverges": null
             }
           ]

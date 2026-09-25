@@ -1,0 +1,9 @@
+{
+  "title": "the loop's live goal is a committed field of `data/chain.json`, and a goal's floor is a view over the goals it has walked",
+  "status": "accepted",
+  "scope": "where the loop's live goal is kept, how the driver moves it, and what a goal's floor is. It changes\nnothing a Novis program or the `nvs` binary does, and nothing about what a check runs.",
+  "dependsOn": [
+    "0221"
+  ],
+  "validatedBy": "`tools/nv/test/chain.test.ts` for the view and the pointer, `bun nv chain --check` and `bun nv check`\nfor the record, and a rehearsed run in which a reached goal made the next one live in its own commit."
+}

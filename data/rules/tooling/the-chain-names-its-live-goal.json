@@ -1,0 +1,15 @@
+{
+  "title": "The chain record names the live goal, and a goal's floor is every walked goal's checks, carried in as a view",
+  "status": "shipped",
+  "because": [
+    "0222"
+  ],
+  "seeAlso": [
+    "tooling/a-repository-fact-is-one-json-record"
+  ],
+  "guardedBy": [
+    "tools/nv/lib/chain.ts",
+    "tools/nv/test/chain.test.ts",
+    "tools/nv/cmd/loop.ts"
+  ]
+}
