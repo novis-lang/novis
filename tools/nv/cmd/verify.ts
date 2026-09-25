@@ -363,7 +363,7 @@ class Reach {
     private readonly ctx: Ctx,
     readonly graph: Graph,
   ) {
-    this.records = loadRecords(graph, null);
+    this.records = loadRecords(graph, false);
     this.units = new Map(units(this.records).filter((u) => u.role === "binary").map((u) => [u.name, u]));
     this.recorded = readObject(READS);
   }

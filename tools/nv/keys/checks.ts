@@ -1,5 +1,5 @@
 // Every unit a key answers for, and what each one reads: the test binaries `verify` runs, and each
-// `[[check]]` in the loop's goal file. A unit returns `Part[]` over a tree, so `nv why` prints it and
+// check in the live goal's plan, its record with the floor carried in (`lib/chain.ts`'s `goalPlan`). A unit returns `Part[]` over a tree, so `nv why` prints it and
 // `nv impact --probe` compares it before and after an edit, and neither has a copy of the rule.
 //
 // A unit's `source` says where its verdict is kept and how narrow its key is:
@@ -32,12 +32,8 @@
 // A probe names units by `<role>: <name>`, and `roleOf` says what a check's role is.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { parse as parseToml } from "smol-toml";
-import { liveGoal } from "../lib/chain.ts";
-import { ROOT, abs } from "../lib/paths.ts";
-import { loadFile } from "../lib/store.ts";
-import { goal as goalType } from "../schema/goal.ts";
+import { goalPlan, liveGoal } from "../lib/chain.ts";
+import { abs } from "../lib/paths.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
@@ -50,7 +46,7 @@ export type Source = "verify record" | "binary key" | "observed" | "package key"
  * `<role>: <name>`. */
 export type Role = "binary" | "leg" | "program" | "suite" | "test" | "nvs" | "editor" | "vsix" | "fuzz" | "tsan" | "db-matrix" | "nv" | "grep" | "other";
 
-/** One `[[check]]` table, as the goal file writes it. */
+/** One check, as a goal record writes it. */
 export type Check = { kind: string } & Record<string, unknown>;
 
 export interface Unit {
@@ -75,7 +71,6 @@ export interface Records {
   proofReads: Map<string, string[]>;
 }
 
-export const GOAL = "docs/agent/loop-goal.toml";
 const READS = ".agent-tmp/impact-reads.json";
 const WIDE = "tools/data/impact-wide.txt";
 /** Each proofs group's example and attack directories and bench file, which `nv proofs` writes. */
@@ -108,24 +103,16 @@ function readJson(rel: string): unknown {
   }
 }
 
-/**
- * The live goal's checks. While the Python driver runs, `docs/agent/loop-goal.toml` is the list it runs;
- * once that file is gone, the record under `data/goals/` that the driver's pointer names is. A goal with no
- * record reads no checks.
- */
-function goalChecks(goal: string): Check[] {
-  if (goal !== GOAL || existsSync(join(ROOT, goal))) {
-    return ((parseToml(readFileSync(join(ROOT, goal), "utf8")) as { check?: Check[] }).check ?? []);
-  }
+/** The live goal's plan's checks, in plan order; none when no goal is live or it has no record. */
+function liveChecks(): Check[] {
   const live = liveGoal();
-  if (live === null) return [];
-  return (loadFile(goalType, `data/goals/${live.slug}.json`).value?.checks ?? []) as Check[];
+  return live === null ? [] : ((goalPlan(live.slug)?.checks ?? []) as Check[]);
 }
 
-/** The records on disk. A missing one reads as empty, which only ever widens a key. A `goal` of `null`
- * reads no checks, for a caller that keys only the test binaries. */
-export function loadRecords(graph: Graph, goal: string | null = GOAL): Records {
-  const doc = { check: goal === null ? [] : goalChecks(goal) };
+/** The records on disk. A missing one reads as empty, which only ever widens a key. `live` false reads
+ * no checks, for a caller that keys only the test binaries. */
+export function loadRecords(graph: Graph, live = true): Records {
+  const doc = { check: live ? liveChecks() : [] };
   const reads = new Map<string, string[]>();
   const got = readJson(READS);
   if (got && typeof got === "object") {
@@ -258,7 +245,7 @@ function program(tier: "card" | "shipped"): Build {
 
 // ---- the units -------------------------------------------------------------------------------------
 
-/** Every unit: the test binaries, the legs, then each check in the goal file's order. */
+/** Every unit: the test binaries, the legs, then each check in the live plan's order. */
 export function units(r: Records): Unit[] {
   const out: Unit[] = [];
   const binaries = new Map<string, string>();

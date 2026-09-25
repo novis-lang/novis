@@ -27,7 +27,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { chainGoals, liveGoal } from "../lib/chain.ts";
+import { chainGoals, goalPlan, liveGoal } from "../lib/chain.ts";
 import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -1702,7 +1702,8 @@ export async function run(args: string[]): Promise<number> {
     }
   }
 
-  await runMarker(src, g);
+  // The failing check may be one the floor carried in, so it is looked for in the plan the driver ran.
+  await runMarker(src, src.side ? g : ((goalPlan(src.slug) as unknown as GoalValue | null) ?? g));
   const item = runState(src, h, opts.item);
   runAnchors(src, item);
   runStandingDecisions(src);
