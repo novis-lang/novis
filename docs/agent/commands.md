@@ -652,9 +652,11 @@ Novis's own crates out, which was three quarters of what remained. A panic locat
 still name file and line, so every `debug_assert` and the runtime's owner-stamp check report as they
 did; a session that needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
 
-Four things live outside this repository and `bun nv disk` reports them without ever deleting them — another
+Five things live outside this repository and `bun nv disk` reports them without ever deleting them — another
 tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the
-valgrind leg's and the WSL leg's own target directories, each a full one; deleting either frees ext4 space
+valgrind leg's and the WSL leg's own target directories, each a full one, and `/var/tmp/nvs-target-wsl-src`
+holds the WSL leg's copy of each checkout, which the next leg makes again, rebuilding the workspace's own
+crates after it; deleting any frees ext4 space
 but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then compact it,
 if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forever.
 `~/.cargo/registry/src` is re-extracted on demand and safe to delete.
@@ -667,12 +669,18 @@ both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a comm
 distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
-**Build over the `/mnt` mount; do not clone into the distro to "fix" it.** Per file operation 9p is
-50–100× slower, but the base is too small to show: the workspace is 1,412 files, 190 of them `.rs`,
-dependencies compile out of `~/.cargo` on ext4 either way, and the target directory is already off the
-mount. Measured on this workspace — a cold `cargo build -p nvs-cli` is 31.6s from the mount against 32.2s
-from an ext4 copy of the same tree, a no-op rebuild is 0.31s, and one touched file rebuilds in 0.75s. A
-synced Linux-side clone buys under a second per acceptance check and costs a stale-copy failure mode.
+**The WSL leg runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount.** Every
+file operation on that 9p mount is a round trip to Windows. A build barely shows it, since dependencies
+compile out of `~/.cargo` and the target directory is off the mount. A fixture does: `nvs run` from the
+repository root resolves every `[[app]]` root in `nvs.toml` before the program starts, and that took 1.5s
+per fixture over the mount against 0.02s from ext4, and a `tests/conformance/` run reads every case file
+on top. `tools/nv/driver/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
+to the working tree before every WSL build, so a stale copy is not a failure mode. The sync is git's own:
+a tree taken through a scratch index, and a pack of only what changed sent into the distro as one stream,
+so no per-file question crosses the mount. An unchanged tree syncs in about 0.4s and the first sync takes
+a few seconds. rsync is the wrong tool for it: it stats every file over the mount, and a no-change pass
+over the tree ran for minutes. A command you run by hand over `/mnt` still works and pays the per-file
+cost.
 
 **Both Linux target directories are under `/var/tmp`, and that is not cosmetic.** `D /tmp` in the distro's
 `tmpfiles.d` clears `/tmp` at every boot; WSL stops the VM as soon as the last process exits and boots

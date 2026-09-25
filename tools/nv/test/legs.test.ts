@@ -2,8 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { type Check, GreenMemo, type Outcome } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { type LegName, type LegsOptions, type LegsSeams, legSpec, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
+import { mirrorPath } from "../driver/mirror.ts";
 
 const label = (n: number) => (n === 1 ? "1 floor" : String(n));
+
+/** The copy of this checkout the WSL leg builds and runs from, for the target directory `options` names. */
+const MIRROR = mirrorPath("/var/tmp/nvs-target-wsl", wslPath(ROOT));
 
 function program(file: string, stage = 5, extra: Partial<Check> = {}): Check {
   return { id: `run ${file}`, kind: "exact", stage, file, want: ["ok"], ...extra };
@@ -16,12 +20,15 @@ interface Fake {
   said: string[];
   origins: number;
   closed: number;
+  /** Every copy synced, in order, and the repository each origin was started from. */
+  synced: string[];
+  originRepos: string[];
   seams: Partial<LegsSeams>;
 }
 
 /** A WSL machine whose every process is `answer(line)`; green unless told otherwise. */
 function fake(answer: (line: string) => Outcome | undefined = () => undefined, platform: NodeJS.Platform = "win32"): Fake {
-  const f: Fake = { lines: [], said: [], origins: 0, closed: 0, seams: {} };
+  const f: Fake = { lines: [], said: [], origins: 0, closed: 0, synced: [], originRepos: [], seams: {} };
   let clock = 0;
   f.seams = {
     platform,
@@ -35,8 +42,13 @@ function fake(answer: (line: string) => Outcome | undefined = () => undefined, p
       if (line.includes("nvs-suite") || line.endsWith("test tests/conformance")) return { code: 0, out: "12 passed, 0 failed\n", err: "" };
       return { code: 0, out: "ok\n", err: "" };
     },
-    origin: async () => {
+    sync: async (mirror) => {
+      f.synced.push(mirror);
+      return "";
+    },
+    origin: async (_where, _binary, repo) => {
       f.origins++;
+      f.originRepos.push(repo);
       return { line: "wsl origin: listening", close: () => void f.closed++ };
     },
     profile: () => ({ cores: 4 }),
@@ -73,8 +85,12 @@ describe("linuxLegs", () => {
     const f = fake();
     const o = options(f);
     expect(await linuxLegs(o)).toBe("");
-    expect(builds(f)).toEqual([`cd ${q(wslPath(ROOT))} && CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --quiet`]);
+    expect(f.synced).toEqual([MIRROR]);
+    expect(builds(f)).toEqual([`cd ${q(MIRROR)} && CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --quiet`]);
     expect(f.lines.filter((l) => l.includes(" run ") && !l.includes("valgrind"))).toHaveLength(2);
+    // Every fixture and valgrind run is in the copy; only the origin, whose program is written here, is on the mount.
+    expect(f.lines.every((l) => l.startsWith(`cd ${q(MIRROR)} && `))).toBe(true);
+    expect(f.originRepos).toEqual([wslPath(ROOT)]);
     expect(f.lines.some((l) => l.endsWith("/var/tmp/nvs-target-wsl/debug/nvs test tests/conformance"))).toBe(true);
     expect(valgrindRuns(f)).toHaveLength(2);
     expect(f.origins).toBe(1);
@@ -96,6 +112,7 @@ describe("linuxLegs", () => {
     const memo = new GreenMemo({ "wsl leg": "key-wsl leg", "valgrind sweep": "key-valgrind sweep" });
     expect(await linuxLegs(options(f, { memo }))).toBe("");
     expect(f.lines).toEqual([]);
+    expect(f.synced).toEqual([]);
     expect(f.origins).toBe(0);
     // `full` consults no memo.
     expect(await linuxLegs(options(f, { memo, full: true }))).toBe("");
@@ -229,10 +246,19 @@ describe("linuxLegs", () => {
     const f = fake();
     const o = options(f);
     expect(startWslBuild(o)).toBe(true);
-    expect(builds(f)).toHaveLength(1);
     expect(await linuxLegs(o)).toBe("");
+    expect(f.synced).toHaveLength(1);
     expect(builds(f)).toHaveLength(1);
     expect(startWslBuild(options(fake(), { gateOpen: false }))).toBe(false);
+  });
+
+  test("a copy that cannot be synced is red, and nothing is built or run from it", async () => {
+    const f = fake();
+    f.seams.sync = async () => "git add -A: fatal: unable to write new index file";
+    const got = await linuxLegs(options(f));
+    expect(got).toBe("the wsl copy of the tree could not be synced -- git add -A: fatal: unable to write new index file");
+    expect(f.lines).toEqual([]);
+    expect(f.origins).toBe(0);
   });
 });
 
@@ -240,6 +266,13 @@ describe("the leg helpers", () => {
   test("wslPath maps a Windows drive path to its mount", () => {
     expect(wslPath("D:\\mwl")).toBe("/mnt/d/mwl");
     expect(wslPath("C:/Users/x/repo/")).toBe("/mnt/c/Users/x/repo");
+  });
+
+  test("mirrorPath gives each checkout its own copy beside the target directory", () => {
+    expect(mirrorPath("/var/tmp/nvs-target-wsl", "/mnt/d/mwl")).toBe("/var/tmp/nvs-target-wsl-src/mnt-d-mwl");
+    expect(mirrorPath("/var/tmp/nvs-target-wsl", "/mnt/d/mwl/.agent-tmp/worktrees/x")).toBe(
+      "/var/tmp/nvs-target-wsl-src/mnt-d-mwl-.agent-tmp-worktrees-x",
+    );
   });
 
   test("q quotes a word only when bash would split or expand it", () => {

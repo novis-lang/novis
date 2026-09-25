@@ -100,6 +100,12 @@ const ELSEWHERE: [string, string, string, string][] = [
     "wsl.exe -- rm -rf /var/tmp/nvs-target-wsl    # the next leg pays a 32s cold build",
   ],
   [
+    "WSL leg tree copies",
+    "{tmp}/nvs-target-wsl-src",
+    "the WSL leg's copy of each checkout, which it builds and runs from",
+    "wsl.exe -- rm -rf /var/tmp/nvs-target-wsl-src    # the next leg copies the tree again and rebuilds the workspace crates",
+  ],
+  [
     "harness transcripts",
     "{home}/.claude/projects",
     "one JSONL per session, kept forever by the harness",

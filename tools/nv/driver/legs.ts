@@ -6,8 +6,9 @@
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
 // Linux build. A JIT is where a calling-convention divergence hides, and this leg is what finds one. The
 // build is `cargo build --quiet` over the whole workspace through `bash -lc`, so cargo comes from the
-// distro's login `PATH`. The repository is the same tree, reached at `/mnt/<drive>/<path>`. The build
-// may start early with `startWslBuild`, beside the cargo tier, and `linuxLegs` then waits for it.
+// distro's login `PATH`. The build and every fixture run from a copy of the working tree on the distro's
+// own disk, which `tools/nv/driver/mirror.ts` brings up to date before each build. The build may start
+// early with `startWslBuild`, beside the cargo tier, and `linuxLegs` then waits for it.
 //
 // **The valgrind sweep** runs each fixture in the plan's file list under `valgrind --leak-check=full`
 // over the Linux build: inside WSL on Windows, directly on Linux. It runs a fixture the sweep reached,
@@ -51,7 +52,10 @@ import * as machine from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { type Check, type GreenMemo, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
+import { mirrorPath, q, syncMirror } from "./mirror.ts";
 import { type Origin, DELAY_MS, HOST, PORT, holdOrigin } from "./origin.ts";
+
+export { q };
 
 export type LegName = "wsl leg" | "valgrind sweep";
 
@@ -91,6 +95,8 @@ export interface LegsSeams {
   hasValgrind(): boolean;
   /** One `bash -lc` line where the leg runs. A process that cannot start comes back as exit -1. */
   shell(where: Where, line: string, timeoutMs: number): Promise<Outcome>;
+  /** Brings the distro's copy of the tree at `mirror` to the working tree: "" when it did, else why not. */
+  sync(mirror: string): Promise<string>;
   /** The origin on 127.0.0.1:8099 where the leg runs, up until `close`. `binary` is the leg's own CLI. */
   origin(where: Where, binary: string, repo: string): Promise<Origin>;
   /** The machine's facts for a context, probing through `runner` (the sample runs `sample` once). */
@@ -127,12 +133,6 @@ export function wslPath(windowsPath: string): string {
   const m = /^([A-Za-z]):(\/.*)?$/.exec(flat);
   if (m === null) return flat;
   return `/mnt/${m[1]!.toLowerCase()}${(m[2] ?? "").replace(/\/+$/, "")}`;
-}
-
-/** `word` as one `bash` word: as it is when it needs no quoting, else single-quoted. */
-export function q(word: string): string {
-  if (word !== "" && /^[A-Za-z0-9_./=:,@%+-]+$/.test(word)) return word;
-  return `'${word.replaceAll("'", `'\\''`)}'`;
 }
 
 /** The valgrind line for one fixture, run from the repository root where `repo` names it. */
@@ -264,6 +264,7 @@ const REAL: LegsSeams = {
   hasWsl: () => Bun.which("wsl.exe") !== null,
   hasValgrind: () => Bun.which("valgrind") !== null,
   shell: (where, line, timeoutMs) => capture(argvFor(where, line), timeoutMs),
+  sync: (mirror) => syncMirror(mirror),
   origin: (where, binary, repo) => (where === "wsl" ? wslOrigin(binary, repo) : holdOrigin()),
   profile: (context, runner, sample) => machine.profile(context, { probe: () => machine.posixProbe(runner, sample) }),
   jobs: (context, ceiling) => machine.jobs(context, { ceiling, envs: ["NVS_VALGRIND_JOBS"] }),
@@ -284,8 +285,15 @@ function answered(o: Pick<LegsOptions, "memo" | "key" | "full">, leg: LegName): 
   return !o.full && o.memo.answers(legSpec(leg), o.key(leg));
 }
 
-async function buildWsl(s: LegsSeams, repo: string, targetDir: string): Promise<string> {
-  const r = await s.shell("wsl", wslBuildLine(repo, targetDir), TIMEOUT_MS);
+/** The copy of this checkout the WSL leg builds and runs from, for a target directory. */
+function wslRepo(targetDir: string): string {
+  return mirrorPath(targetDir, wslPath(ROOT));
+}
+
+async function buildWsl(s: LegsSeams, targetDir: string): Promise<string> {
+  const synced = await s.sync(wslRepo(targetDir));
+  if (synced !== "") return `the wsl copy of the tree could not be synced -- ${synced}`;
+  const r = await s.shell("wsl", wslBuildLine(wslRepo(targetDir), targetDir), TIMEOUT_MS);
   return r.code === 0 ? "" : `the wsl build failed -- ${firstErrLine(r)}`;
 }
 
@@ -301,7 +309,7 @@ export function startWslBuild(o: Omit<LegsOptions, "suites" | "files" | "valgrin
   if (answered(o, "wsl leg") && answered(o, "valgrind sweep")) return false;
   if (inflight.has(o.wslTarget)) return true;
   o.onRun?.("wsl build started in the background");
-  inflight.set(o.wslTarget, buildWsl(s, wslPath(ROOT), o.wslTarget));
+  inflight.set(o.wslTarget, buildWsl(s, o.wslTarget));
   return true;
 }
 
@@ -354,15 +362,16 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
     return "";
   }
 
-  const repo = wslPath(ROOT);
+  const repo = wslRepo(o.wslTarget);
   const binary = `${o.wslTarget}/debug/nvs`;
   say("wsl build");
   const pending = inflight.get(o.wslTarget);
   inflight.delete(o.wslTarget);
-  const buildFail = await (pending ?? buildWsl(s, repo, o.wslTarget));
+  const buildFail = await (pending ?? buildWsl(s, o.wslTarget));
   if (buildFail !== "") return buildFail;
 
-  const origin = await s.origin("wsl", binary, repo);
+  // The origin's program is written into this checkout, so it runs from the mount, not from the copy.
+  const origin = await s.origin("wsl", binary, wslPath(ROOT));
   say(origin.line);
   try {
     const reds: string[] = [];
