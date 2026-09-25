@@ -1,12 +1,19 @@
-import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../driver/launch.ts";
 import { ROOT } from "../lib/paths.ts";
 
+const made: string[] = [];
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
 const scratch = () => {
   mkdirSync(join(ROOT, ".agent-tmp"), { recursive: true });
-  return mkdtempSync(join(ROOT, ".agent-tmp", "launch-"));
+  const dir = mkdtempSync(join(ROOT, ".agent-tmp", "launch-"));
+  made.push(dir);
+  return dir;
 };
 
 describe("claudeArgs", () => {

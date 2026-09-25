@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import {
@@ -272,12 +272,16 @@ describe("the whole sweep", () => {
 
   test("the memo keeps only the checks still in the plan", () => {
     const dir = mkdtempSync(join(ROOT, ".agent-tmp", "memo-"));
-    const memo = new GreenMemo({ gone: "k" });
-    memo.remember(check({ id: "kept" }), "k2");
-    memo.save(join(dir, "green.json"), new Set(["kept"]));
-    expect(JSON.parse(readFileSync(join(dir, "green.json"), "utf8"))).toEqual({ green: { kept: "k2" } });
-    expect(GreenMemo.load(join(dir, "green.json")).answers(check({ id: "kept" }), "k2")).toBe(true);
-    expect(GreenMemo.load(join(dir, "absent.json")).answers(check({ id: "kept" }), "k2")).toBe(false);
+    try {
+      const memo = new GreenMemo({ gone: "k" });
+      memo.remember(check({ id: "kept" }), "k2");
+      memo.save(join(dir, "green.json"), new Set(["kept"]));
+      expect(JSON.parse(readFileSync(join(dir, "green.json"), "utf8"))).toEqual({ green: { kept: "k2" } });
+      expect(GreenMemo.load(join(dir, "green.json")).answers(check({ id: "kept" }), "k2")).toBe(true);
+      expect(GreenMemo.load(join(dir, "absent.json")).answers(check({ id: "kept" }), "k2")).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "../lib/proc.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -20,9 +20,15 @@ import {
   wallAfter,
 } from "../driver/sweep.ts";
 
+const made: string[] = [];
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
 const scratch = () => {
   mkdirSync(join(ROOT, ".agent-tmp"), { recursive: true });
   const dir = mkdtempSync(join(ROOT, ".agent-tmp", "sweep-"));
+  made.push(dir);
   mkdirSync(join(dir, ".loop"), { recursive: true });
   return dir;
 };
