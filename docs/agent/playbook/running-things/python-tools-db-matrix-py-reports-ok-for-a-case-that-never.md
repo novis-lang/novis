@@ -3,4 +3,4 @@
   `NVS_DB_MATRIX_DRIVER` unset, a gate misspelled, `framed()` where `postgres()` was meant — and the
   tool runs `cargo test -q`, so a skip and a real assertion print the same `ok`, and wall clock says
   nothing either. Confirm once by breaking the case's own assertion and re-running the tool: a leg
-  naming your case in its `FAILED` line ran it, then revert. [until: reviewed 2026-09-06]
+  naming your case in its `FAILED` line ran it, then revert. [until: gone tools/db-matrix.py:NVS_DB_MATRIX_DRIVER]

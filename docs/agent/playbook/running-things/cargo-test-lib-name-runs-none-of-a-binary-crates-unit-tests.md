@@ -2,4 +2,4 @@
   the `nvs` bin target, so a `--lib` filter reports `0 passed` and `136 filtered out` with no hint
   that the target holding the test was never built. Filter with `cargo test --bins <name>` for
   anything under `crates/nvs-cli/src/`, and read the `filtered out` count beside the `0 passed`
-  rather than the `ok`. [until: reviewed 2026-09-15]
+  rather than the `ok`. [until: gone crates/nvs-cli/Cargo.toml:[[bin]

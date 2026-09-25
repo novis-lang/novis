@@ -4,4 +4,4 @@
   binds, prints `origin: serving …`, exits 0, and `examples/http.nvs` fails with the same
   `connecting to 127.0.0.1:8099 failed` line the no-origin case gives. Hold the pipe open — `tail -f
   /dev/null | python -u tools/origin.py` — or run it in the foreground of its own call.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/origin.py:stdin reaches EOF]

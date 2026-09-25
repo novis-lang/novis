@@ -4,4 +4,4 @@
   does the same: the parser's guard counts stack frames, and a left-associative chain is a loop that
   charges it none. Run a hostile case or an example against both binaries before committing it;
   `dossier.py` takes release first and will only ever have judged that one.
-  [until: reviewed 2026-09-07]
+  [until: gone crates/nvs-syntax/src/parser/mod.rs:enter_recursive]

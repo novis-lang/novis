@@ -5,7 +5,7 @@
     "tests/db/compose.yaml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tests/db/compose.yaml:mariadb:11.4"
   }
 }

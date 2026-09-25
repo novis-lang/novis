@@ -1,6 +1,0 @@
-- **A red `nvs-suite` check reports the *suite's* aggregate, so a one-case failure reads as the case
-  the check names.** `[2 the deadlock]` came back `exit 1 -- 1897 passed, 1 failed` over
-  `tests/conformance/`, which says nothing about which of the 1898 failed, while the named case
-  passed 8 runs and the whole suite passed 3, one under a concurrent `cargo build --tests`. Re-run
-  `target/debug/nvs.exe test tests/conformance/` and read the failing case's own name before
-  believing the check's. [until: reviewed 2026-10-14]

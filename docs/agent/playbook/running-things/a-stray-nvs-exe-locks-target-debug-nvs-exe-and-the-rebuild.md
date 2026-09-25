@@ -4,4 +4,4 @@
   of otherwise ordinary output — and the *old* binary stays on disk, so the next run tests the code
   you just changed away. `tasklist //FI "IMAGENAME eq nvs.exe"` before trusting a rebuild that
   disagrees with your edit, `taskkill //F //IM nvs.exe` to clear it, and check the mtime rather than
-  the exit status. [until: reviewed 2026-09-08]
+  the exit status. [until: gone tools/nv/cmd/verify.ts:const NVS]

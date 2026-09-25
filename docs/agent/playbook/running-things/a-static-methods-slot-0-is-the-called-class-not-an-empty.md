@@ -4,4 +4,4 @@
   `rule:statements/static-is-a-member-modifier`'s late static binding puts a `ClassDesc` there,
   `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and `Value::class_desc` is the
   encoding. An instance method's slot 0 is the receiver, so the trap shows only the first time
-  native code calls a `static` one. [until: reviewed 2026-09-06]
+  native code calls a `static` one. [until: gone crates/nvs-runtime/src/value.rs:pub fn class_desc]

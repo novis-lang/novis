@@ -2,4 +2,4 @@
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is `args:
   [3]`. A variadic tail is one argument, whatever the call writes, and an instance member's receiver
   is argument slot 0 and is not in `params`, so `plus(Duration)` is `args: [2]`. A mismatch is an
-  index-out-of-bounds panic at the first call. [until: reviewed 2026-09-06]
+  index-out-of-bounds panic at the first call. [until: gone crates/nvs-runtime/src/abi.rs:macro_rules! nvs_helper]

@@ -1,5 +1,0 @@
-- **An `[[app]]` block in the root `nvs.toml` whose `root` names a directory that does not exist yet
-  breaks every program under that file with `E0605`.** The configuration refuses a key that matches
-  nothing, so writing the grant for a proof tree before its first file exists makes the examples you
-  are about to run fail on the config, not on themselves. Create the directory's first file before
-  (or in the same step as) the block that grants it. [until: reviewed 2026-09-23]

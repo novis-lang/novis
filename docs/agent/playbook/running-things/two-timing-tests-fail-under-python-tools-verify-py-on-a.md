@@ -4,4 +4,4 @@
   the second one reported 204.1 ms against a 200 ms ceiling — and `test` runs every binary side by
   side. Read the two lines `nv verify` prints under such a failure: it re-runs the binary alone and
   says so, and neither test is anything a stdlib or docs session touched.
-  [until: reviewed 2026-09-20]
+  [until: gone crates/nvs-lsp/tests/latency.rs:a_warm_index_answers_within_the_reanalysis_bound]

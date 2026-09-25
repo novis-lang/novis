@@ -3,4 +3,4 @@
   with a number; `cargo build --release -p nvs-cli` once is the fix, and `bench.py`'s header says
   why the harness refuses to build anything itself. A release binary older than `crates/` still
   measures — the staleness warning goes to stderr and the check stays green — so a start-up
-  regression can hide behind a binary nobody rebuilt. [until: reviewed 2026-09-06]
+  regression can hide behind a binary nobody rebuilt. [until: gone tools/bench.py:--warm-start]

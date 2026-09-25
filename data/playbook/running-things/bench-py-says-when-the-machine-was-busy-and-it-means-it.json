@@ -1,9 +1,11 @@
 {
   "lead": "`bench.py` says when the machine was busy, and it means it.",
   "body": "A sweep whose min and median differ by more than a quarter on `00-baseline` prints a note, and since the baseline is subtracted from every row, that run's ratios are all shifted. Re-run before quoting, and do not reason about a small row move from a sweep carrying that note.",
-  "files": [],
+  "files": [
+    "tools/bench.py"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/bench.py:00-baseline"
   }
 }

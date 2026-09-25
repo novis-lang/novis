@@ -3,4 +3,4 @@
   it forwards, so `D:\mwl\target\debug\nvs.exe` reaches `scripts/host.mjs` as
   `mwltargetdebugnvs.exe`, which `resolve` takes as relative to `editors/vscode`. Reproduce the
   driver's check with forward slashes — `--nvs D:/mwl/target/debug/nvs.exe` — and read the status
-  item's detail in the failure before believing the tree. [until: reviewed 2026-12-22]
+  item's detail in the failure before believing the tree. [until: gone editors/vscode/scripts/host.mjs:--nvs]

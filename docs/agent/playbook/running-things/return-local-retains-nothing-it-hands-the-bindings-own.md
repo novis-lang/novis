@@ -4,4 +4,4 @@
   returning it hands the caller a value with no owner, and `nvs run` prints the right answer and
   exits 127. A `return`/`release_all_locals` exemption keyed on a name has to be re-read whenever a
   new binding representation enters `Env`; an exit 127 is worth `git stash`-ing before you assume it
-  is yours. [until: reviewed 2026-09-06]
+  is yours. [until: gone crates/nvs-ir/src/lower/mod.rs:release_all_locals]

@@ -1,6 +1,0 @@
-- **A probe program under `.agent-tmp/` gets no `fs` grant from an `nvs.toml` beside it.** A
-  `[capabilities.fs]` file next to the probe left `Core\IO::temporaryDir` refused, because the
-  grants that apply come from the repository's root `nvs.toml` and its `[[app]]` blocks. Copy the
-  probe into a proof tree the root file already grants (`docs/examples/core/IO-File/` has
-  `read = true, write = true`), run it there, and delete it at once.
-  [until: reviewed 2026-09-23]

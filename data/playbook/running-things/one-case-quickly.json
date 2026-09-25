@@ -1,9 +1,0 @@
-{
-  "lead": "One case, quickly:",
-  "body": "`nvs test tests/conformance/core/str-case-members.nvst`, or `nvs test tests/ --filter str-` over the tree.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

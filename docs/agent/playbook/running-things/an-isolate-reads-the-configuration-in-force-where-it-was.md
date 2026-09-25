@@ -4,4 +4,4 @@
   parent matched. A block's sub-tables need no plumbing: `crate::snapshot`'s per-app fold merges
   every other key of the block onto the global table, so grep for the field on
   `nvs_config::tree::App` before assuming a block cannot carry a table — `deny_unknown_fields` is
-  all that refuses it. [until: reviewed 2026-09-06]
+  all that refuses it. [until: gone crates/nvs-config/src/tree.rs:pub struct App]

@@ -1,9 +1,0 @@
-{
-  "lead": "A wall-clock regression in `nvs run` can sit entirely outside the code that caused it; one `Instant::now()` per phase in a *release* build says so.",
-  "body": "Outside timing narrows to \"somewhere in the cache path\" and no further; the cost was `nvs_config::trust::check` on the cache directory, paid twice because `cache::from_config` runs for the compile and again for `script::Compiler`'s resolver. Instrument before the third external measurement.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

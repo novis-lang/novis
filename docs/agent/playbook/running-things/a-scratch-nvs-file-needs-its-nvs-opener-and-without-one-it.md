@@ -4,4 +4,4 @@
   `nvs-ir`'s control-flow slice listing every statement it does lower, which reads as "`echo` is
   unsupported". Check that the output is the program's answer and not the program, or copy the first
   line from `examples/targets.nvs`; the `.nvst` harness supplies the tag inside `--FILE--`.
-  [until: reviewed 2026-09-06]
+  [until: gone examples/targets.nvs:<?nvs]

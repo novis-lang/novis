@@ -4,4 +4,4 @@
   repository is reached. Keep architecture-dependent code to constants and pure functions a
   host-independent unit test can still exercise — `crates/nvs-cli/src/cache.rs`'s aarch64 relocation
   writers are the shape — and leave the cfg itself to the CI matrix.
-  [until: reviewed 2026-09-17]
+  [until: gone crates/nvs-cli/src/cache.rs:HOST_ARCH]

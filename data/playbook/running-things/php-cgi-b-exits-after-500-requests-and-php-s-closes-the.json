@@ -5,7 +5,7 @@
     "tools/bench.py"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/bench.py:PHP_FCGI_MAX_REQUESTS"
   }
 }

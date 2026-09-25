@@ -4,4 +4,4 @@
   times faster than the real path with a stack of its own, and only the second is the boundary a
   program crosses. `benches/abi-probe/shared/isolate.rs` is the shape: build the scheduler and task
   outside the clock, time inside the task body, and hand criterion a batch through `iter_custom`.
-  [until: reviewed 2026-09-06]
+  [until: gone benches/abi-probe/shared/isolate.rs:Wake::current()]

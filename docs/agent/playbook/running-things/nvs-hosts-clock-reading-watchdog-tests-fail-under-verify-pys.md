@@ -5,4 +5,4 @@
   binary competes for, and `the_watchdog_reports_a_wedged_worker_without_a_heartbeat` allows a
   heartbeat a 250 ms wall-clock margin the same load eats, so which of the three fails varies per run.
   Read the failing name before looking for your own change in it; a rerun only moves it, and it stops
-  the gate before the `.nvst` trees and clippy have run at all. [until: reviewed 2026-09-18]
+  the gate before the `.nvst` trees and clippy have run at all. [until: gone crates/nvs-host/src/watchdog.rs:a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing]

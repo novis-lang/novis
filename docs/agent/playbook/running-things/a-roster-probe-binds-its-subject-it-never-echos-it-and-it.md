@@ -3,4 +3,4 @@
   row rather than the operator's; `mixed $x = $a & $a;` asks the question meant. The checker reports
   every diagnostic in a file at once while lowering panics on the first shape that gets that far, so
   put the shapes you expect refused in one file and the ones you expect to lower in another.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-ir/src/lower/expr.rs:concat_operand]

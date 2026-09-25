@@ -1,9 +1,0 @@
-{
-  "lead": "`Value::as_str_bytes` and `Value::as_text` make the *same* tag check, so a `from_utf8` after the first can never catch anything.",
-  "body": "Both go through `Value::str_ptr`, which answers for `Tag::Str` alone, so a `bytes` argument reaches neither, and a defence a later rule made unreachable reads exactly like a live one. Grep for the tag a defence claims to catch before trusting it; `allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the source scan that keeps the pair out now.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

@@ -1,7 +1,0 @@
-- **An `[[app]]` block in the root `nvs.toml` whose `entry` names a file that is not on disk breaks
-  every program in the tree, not only that one.** The whole configuration is resolved before
-  anything runs, so a grant written for a proof program that does not exist yet answers `E0605:
-  cannot read …` for whatever example you were actually running. A `--bless` of three examples then
-  reports three failures whose message names a file you have not written. Write the `.nvs` files
-  first and the `[[app]]` blocks after them, and let the grants ride in the commit that adds the
-  last program they name. [until: reviewed 2026-09-21]

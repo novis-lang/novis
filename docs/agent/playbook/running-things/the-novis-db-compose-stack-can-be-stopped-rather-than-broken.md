@@ -3,4 +3,4 @@
   [db.main] ... did not open`, about the first service `nvs.toml` tries. `docker ps -a --format
   "{{.Names}}\t{{.Status}}"` shows it: every container `Exited (255)` at one timestamp is a host
   restart, and `docker compose -f tests/db/compose.yaml up -d` restores it.
-  [until: reviewed 2026-09-06]
+  [until: gone tests/db/compose.yaml:novis-db]

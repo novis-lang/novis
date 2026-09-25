@@ -4,4 +4,4 @@
   and still exits 0, which reads as a clean leak check on a fixture that never ran. Run the
   identical line through the PowerShell tool, or put `MSYS_NO_PATHCONV=1` in front of it; any
   absolute POSIX path handed to a Windows `.exe` through Git Bash is a candidate.
-  [until: reviewed 2026-09-06]
+  [until: gone tools/leak-check.sh:/var/tmp/nvs-linux]

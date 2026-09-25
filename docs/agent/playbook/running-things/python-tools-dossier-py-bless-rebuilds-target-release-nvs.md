@@ -1,7 +1,0 @@
-- **`python tools/dossier.py --bless` rebuilds `target/release/nvs.exe` before it runs anything,
-  whenever a build input is newer than that binary, and a `#[test]` added to a crate is one.** A
-  session that blesses one member's examples, then writes its Rust proof, then blesses the next
-  member's pays that four-minute build twice, and the call prints nothing at all while it waits.
-  Write every Rust edit of the group first, then bless every example of the group in one call — the
-  same ordering `--record-perf` wants, since it rebuilds on the same condition.
-  [until: reviewed 2026-09-21]

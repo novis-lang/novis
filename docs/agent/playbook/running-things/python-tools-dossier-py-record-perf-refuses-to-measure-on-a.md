@@ -1,6 +1,0 @@
-- **`python tools/dossier.py --record-perf` refuses to measure on a busy machine, and the answer is
-  to run it again.** Its calibration prices one iteration by timing an empty program against a unit
-  one, so when something else holds the CPU the unit's fastest run lands below the floor's and it
-  raises `the calibration did not measure anything` — the bench is not what is wrong. Re-run it: three
-  refusals in a row are ordinary on this box, and changing `--reps` is not what makes the next one
-  land. [until: reviewed 2026-09-19]

@@ -4,4 +4,4 @@
   deliberate, documented, once-per-process leak reads like something to accept, but the sweep is
   all-or-nothing and a gate with one known-red fixture is a gate nobody reads — a `Box::leak` that
   only widens a borrow to `&'static` has a scoped form, `nvs_runtime::script::scoped`, so reach for
-  that before a suppression. [until: reviewed 2026-09-06]
+  that before a suppression. [until: gone crates/nvs-runtime/src/script.rs:pub fn scoped]
