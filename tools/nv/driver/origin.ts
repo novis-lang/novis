@@ -1,7 +1,7 @@
 // The local origin `examples/http.nvs` talks to: `http://127.0.0.1:8099`, one route, one answer, each held
 // `DELAY_MS` before it goes out. The example names that address rather than discovering it, so the sweep
 // holds this listener up around its checks, in its own process, and closes it when they are done. Run by
-// hand with `bun tools/nv/driver/origin.ts` to work on the example; it serves until the process is stopped.
+// hand with `bun nv origin` to work on the example; it serves until the process is stopped.
 //
 // **The hold is what makes the example's last line deterministic.** The example asks the same URL for an
 // answer inside 1ms, and the point it makes is that the budget, not the server, ends the call. An origin
@@ -81,5 +81,3 @@ export async function holdOrigin(host = HOST, port = PORT, delayMs = DELAY_MS): 
     return { line: `origin: cannot bind ${host}:${port} -- ${e instanceof Error ? e.message : String(e)}`, close() {} };
   }
 }
-
-if (import.meta.main) console.log((await holdOrigin()).line);
