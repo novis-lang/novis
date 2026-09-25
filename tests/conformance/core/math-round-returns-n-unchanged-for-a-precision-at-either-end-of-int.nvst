@@ -1,0 +1,21 @@
+--TEST--
+`Core\Math::round` returns `$n` unchanged for a precision past 22 on either side, up to both ends of `int`, and rounds at 22 and -22 themselves
+--FILE--
+<?nvs
+// A precision of `INT_MIN` once overflowed when its size was taken, so both
+// ends of `int` are asked for, beside the last precisions that still round.
+echo Core\Math::round(1.5, {precision: Core\Math::INT_MIN}), "\n";
+echo Core\Math::round(1.5, {precision: Core\Math::INT_MAX}), "\n";
+echo Core\Math::round(1.5, {precision: -23}), "\n";
+echo Core\Math::round(1.5, {precision: 23}), "\n";
+echo Core\Math::round(1.5, {precision: -22}), "\n";
+echo Core\Math::round(1.5, {precision: 22}), "\n";
+echo Core\Math::round(1.5e22, {precision: -22}), "\n";
+--EXPECT--
+1.5
+1.5
+1.5
+1.5
+0
+1.5
+2.0E+22

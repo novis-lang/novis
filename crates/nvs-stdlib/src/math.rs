@@ -468,13 +468,12 @@ const SIGN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::min`'s reference card — `rule:core-api/reference-card`.
 const MIN_DOC: MethodDoc = MethodDoc {
-    short: "The smaller of two values under their natural order, as `min` does with two scalar \
-            arguments; the array form is `Core\\Arr::min`.",
+    short: "Returns the smaller of two values. This replaces PHP's `min` with two values. For \
+            the smallest value in an array, use `Core\\Arr::min`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "One value, of a type with a natural order: a number, a string, a `bool` or \
-                   `null`.",
+            desc: "One value: a number, a string, a `bool` or `null`.",
             shape: &[],
         },
         ParamDoc {
@@ -483,10 +482,11 @@ const MIN_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Whichever compares smaller; `$a` on a tie, where PHP's `min` answers `$b`.",
+    ret: "The smaller value. When the two are equal, the result is `$a`. `NaN` is smaller than \
+          every other `float`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the pair has no natural order — an object, an array, or two values of \
+        desc: "When the two values cannot be compared: an object, an array, or two values of \
                different kinds.",
     }],
 };
@@ -588,30 +588,30 @@ const TRUNCATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::round`'s reference card — `rule:core-api/reference-card`.
 const ROUND_DOC: MethodDoc = MethodDoc {
-    short: "`$n` rounded to `precision` decimal places, with the tie rule named as a \
-            `Core\\RoundMode` case, as `round` and its four `PHP_ROUND_*` constants do.",
+    short: "Rounds `$n` to a number of decimal places. This replaces PHP's `round`. The `mode` \
+            option chooses the result for a value exactly halfway between two results.",
     params: &[
         ParamDoc {
             name: "n",
-            desc: "The value to round.",
+            desc: "The number to round.",
             shape: &[],
         },
         ParamDoc {
             name: "precision",
-            desc: "Decimal places to keep; zero rounds to an integer and a negative count rounds \
-                   to tens, hundreds and up, PHP's `round($n, -2)`.",
+            desc: "How many decimal places to keep. The default is `0`, which rounds to a whole \
+                   number. `-2` rounds to hundreds.",
             shape: &[],
         },
         ParamDoc {
             name: "mode",
-            desc: "Which neighbour a value between two goes to, `RoundMode::HalfUp` — half away \
-                   from zero — unless said otherwise.",
+            desc: "A `Core\\RoundMode` case. The default is `RoundMode::HalfUp`, which rounds a \
+                   half away from zero.",
             shape: &[],
         },
     ],
-    ret: "The nearest `float` to the rounded value; `$n` unchanged when it is `NaN` or an \
-          infinity, when `precision` is past `±22`, or when `$n` is already past `2 ** 53` at that \
-          precision and has no fraction left to decide.",
+    ret: "The rounded `float`. `NaN` and the infinities are returned unchanged. `$n` is also \
+          returned unchanged when `precision` is above `22` or below `-22`, or when \
+          `$n * 10 ** precision` is `2 ** 53` or more.",
     errors: &[],
 };
 
@@ -642,26 +642,25 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::mod`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
-    short: "The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; \
-            integer modulo is the `%` operator, so this member is the `float` case only.",
+    short: "Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has \
+            the sign of `$a`. This replaces PHP's `fmod`. For whole numbers, use the `%` operator.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The dividend.",
+            desc: "The number to divide.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The divisor, which may not be zero.",
+            desc: "The number to divide by. It may not be zero.",
             shape: &[],
         },
     ],
-    ret: "`$a - $b * truncate($a / $b)`, carrying `$a`'s sign; `NaN` when `$a` is an infinity, and \
-          `$a` unchanged when `$b` is one.",
+    ret: "The remainder. `mod(7.5, 2.0)` is `1.5`, and `mod(-7.5, 2.0)` is `-1.5`. When `$a` is \
+          an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$b` is zero — a division by zero, which throws here rather than answering \
-               `NaN` as `fmod` does.",
+        desc: "When `$b` is zero. PHP's `fmod` returns `NaN` here.",
     }],
 };
 
@@ -2282,7 +2281,7 @@ fn round_to(value: f64, precision: i64, mode: RoundMode) -> f64 {
     /// answer rather than the value would.
     const MAX_EXACT_EXPONENT: i64 = 22;
 
-    if !value.is_finite() || precision.abs() > MAX_EXACT_EXPONENT {
+    if !value.is_finite() || !(-MAX_EXACT_EXPONENT..=MAX_EXACT_EXPONENT).contains(&precision) {
         return value;
     }
     let scale = 10f64.powi(precision as i32);
@@ -2537,6 +2536,45 @@ mod tests {
             ),
             1300.0
         );
+    }
+
+    /// `round` breaks an exact tie by its mode at any precision, keeps a
+    /// negative zero, rounds a decimal that only looks like a tie by its stored
+    /// value, and returns `$n` unchanged where there is nothing left to round.
+    // covers: Core\Math::round
+    #[test]
+    fn round_breaks_a_tie_by_mode_at_a_precision_and_leaves_what_it_cannot_round() {
+        let round = |n: f64, precision: i64, mode: i64| {
+            float_result(
+                nvs_core_math_round,
+                &[Value::float(n), Value::int(precision), Value::int(mode)],
+            )
+        };
+        let half_up = 0;
+        let half_even = 2;
+        assert_eq!(round(2.5, 0, half_up), 3.0);
+        assert_eq!(round(-2.5, 0, half_up), -3.0);
+        assert_eq!(round(2.4999, 0, half_up), 2.0);
+        assert_eq!(round(-0.4, 0, half_up).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(round(0.125, 2, half_up), 0.13);
+        assert_eq!(round(0.125, 2, half_even), 0.12);
+        assert_eq!(round(1.23456, 2, half_up), 1.23);
+        assert_eq!(round(1249.0, -2, half_up), 1200.0);
+        assert_eq!(
+            round(-1.005, 2, half_up),
+            -1.0,
+            "-1.005 is stored above the tie"
+        );
+
+        assert!(round(f64::NAN, 2, half_up).is_nan());
+        assert_eq!(round(f64::INFINITY, 2, half_up), f64::INFINITY);
+        assert_eq!(round(f64::NEG_INFINITY, -2, half_up), f64::NEG_INFINITY);
+        assert_eq!(round(1.23456, 22, half_up), 1.23456);
+        assert_eq!(round(1.23456, 23, half_up), 1.23456);
+        assert_eq!(round(1.5, -23, half_up), 1.5);
+        assert_eq!(round(1.5, i64::MIN, half_up), 1.5);
+        assert_eq!(round(1e300, 2, half_up), 1e300);
+        assert_eq!(round(f64::MAX, 0, half_up), f64::MAX);
     }
 
     /// The grouping walk, at every length a three-digit group can end on.
@@ -3134,6 +3172,54 @@ mod tests {
         assert!(message.contains("does not fit"), "{message}");
     }
 
+    /// `mod` keeps the sign of `$a` whatever the sign of `$b`, answers `NaN`
+    /// for an infinite `$a` or a `NaN` on either side, answers `$a` for an
+    /// infinite `$b`, and throws for a zero divisor of either sign.
+    // covers: Core\Math::mod
+    #[test]
+    fn mod_keeps_the_sign_of_a_and_throws_for_a_zero_divisor_of_either_sign() {
+        let modulo =
+            |a: f64, b: f64| float_result(nvs_core_math_mod, &[Value::float(a), Value::float(b)]);
+        assert_eq!(modulo(7.5, 2.0), 1.5);
+        assert_eq!(modulo(-7.5, 2.0), -1.5);
+        assert_eq!(modulo(7.5, -2.0), 1.5);
+        assert_eq!(modulo(-7.5, -2.0), -1.5);
+        assert_eq!(modulo(0.1, 1.0), 0.1);
+        assert_eq!(modulo(5.0, 2.5).to_bits(), 0.0f64.to_bits());
+        assert_eq!(modulo(-5.0, 2.5).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(modulo(3.0, f64::INFINITY), 3.0);
+        assert_eq!(modulo(-3.0, f64::NEG_INFINITY), -3.0);
+        let far = modulo(f64::MAX, 7.0);
+        assert!((0.0..7.0).contains(&far), "{far}");
+        for (a, b) in [
+            (f64::INFINITY, 2.0),
+            (f64::NEG_INFINITY, 2.0),
+            (f64::NAN, 2.0),
+            (2.0, f64::NAN),
+        ] {
+            assert!(modulo(a, b).is_nan(), "{a} mod {b}");
+        }
+
+        for a in [1.0, 0.0, f64::INFINITY, f64::NAN] {
+            for zero in [0.0, -0.0] {
+                let mut ctx = Ctx::buffered();
+                assert!(
+                    call(
+                        nvs_core_math_mod,
+                        &mut ctx,
+                        &[Value::float(a), Value::float(zero)]
+                    )
+                    .is_err()
+                );
+                let message = ctx.take_pending().expect("the error is pending");
+                assert!(
+                    message.contains("Core\\Math::mod was given a zero divisor"),
+                    "{message}"
+                );
+            }
+        }
+    }
+
     /// `isFinite` is `true` for both zeros, both far ends of `float` and the
     /// smallest subnormal, and `false` for both infinities and `NaN`; with
     /// `isNan` it tells all three kinds of `float` apart.
@@ -3328,6 +3414,59 @@ mod tests {
             assert!(call(nvs_core_math_max, &mut ctx, &refused).is_err());
             let message = ctx.take_pending().expect("the refusal is pending");
             assert!(message.contains("Core\\Math::max"), "{message}");
+        }
+    }
+
+    /// `min` answers `$a` when the two compare equal, even across `int` and
+    /// `float`, puts `NaN` below every float and `-0.0` below `0.0`, and throws
+    /// naming itself for a pair with no order.
+    // covers: Core\Math::min
+    #[test]
+    fn min_returns_a_on_a_tie_orders_floats_totally_and_throws_for_an_unordered_pair() {
+        let min = |a: Value, b: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_min, &mut ctx, &[a, b]).expect("an ordered pair has an answer")
+        };
+        for (a, b) in [(3, 7), (7, 3), (-7, -3), (i64::MIN, i64::MAX)] {
+            assert_eq!(min(Value::int(a), Value::int(b)).as_int(), Some(a.min(b)));
+        }
+        assert_eq!(
+            min(Value::int(1), Value::float(1.0)).as_int(),
+            Some(1),
+            "a tie is $a"
+        );
+        assert_eq!(min(Value::float(1.0), Value::int(1)).as_float(), Some(1.0));
+        assert_eq!(min(Value::int(2), Value::float(1.5)).as_float(), Some(1.5));
+
+        let min_float = |a: f64, b: f64| min(Value::float(a), Value::float(b)).as_float();
+        assert!(
+            min_float(f64::NAN, 0.0).is_some_and(f64::is_nan),
+            "NaN is below 0.0"
+        );
+        assert!(min_float(0.0, f64::NAN).is_some_and(f64::is_nan));
+        assert!(min_float(f64::NAN, f64::NEG_INFINITY).is_some_and(f64::is_nan));
+        assert_eq!(
+            min_float(-0.0, 0.0).map(f64::to_bits),
+            Some((-0.0f64).to_bits())
+        );
+        assert_eq!(
+            min_float(0.0, -0.0).map(f64::to_bits),
+            Some((-0.0f64).to_bits())
+        );
+        assert_eq!(
+            min_float(-f64::MAX, f64::NEG_INFINITY),
+            Some(f64::NEG_INFINITY)
+        );
+        assert_eq!(min_float(f64::INFINITY, f64::MAX), Some(f64::MAX));
+
+        for refused in [
+            [Value::int(1), Value::bool(true)],
+            [Value::float(0.5), Value::null()],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_min, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::min"), "{message}");
         }
     }
 
