@@ -1,28 +1,29 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 94 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\n`AGENTS.md`, `docs/agent/commands.md`, `docs/agent/conventions.md` and `docs/agent/coordinator.md` now name only `bun nv` commands. `coordinator.md` points at `tools/nv/cmd/loop.ts`'s module doc for the steps `bun nv loop` does not take yet, and says plainly that it has no side mode, no `rejudge` turn and no successor for the Python launcher (`tools/respawn.py`). `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes, and `tools/nv/keys/checks.ts` keys a Python gate on `tools/observe.py`'s record until `observe.py` goes.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check, and its output is the list still to clear: 5 `.py` files (`tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py`) and 92 documents. Two calls it makes, which the user may overrule: the Python twins under `benches/userland/` are not tools, because `bun nv bench` runs them as the Python engine's workload, so they stay; and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\n`AGENTS.md`, `docs/agent/commands.md`, `conventions.md`, `coordinator.md`, `loop-authoring.md` and `docs/agent/goals/README.md` now name only `bun nv` commands. Where `bun nv loop` still lacks a Python step (the chain switch, the context sweep, the owner gate, side mode), each of them points at `tools/nv/cmd/loop.ts:68`'s \"Not here yet\" list rather than naming the Python tool. `loop-authoring.md` no longer lists a `spec` context field, because `tools/nv/schema/goal.ts:11` has none. `tools/nv/cmd/parity.ts` stays until `tools/disk.py` goes, and `tools/nv/keys/checks.ts` keys a Python gate on `tools/observe.py`'s record until `observe.py` goes.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
   "next": {
     "stage": 12,
     "title": "no Python",
     "files": [],
-    "note": "one file set: the `bun nv audit python` document list under `docs/agent/`, biggest first.",
+    "note": "one file set: the `bun nv audit python` document list under `docs/agent/` and `docs/setup.md`, biggest first.",
     "items": [
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/loop-authoring.md:10` (32 lines) to name the `bun nv` ports.** The chain is `data/chain.json`, goal files are slug-named, and a goal's record is `data/goals/<slug>.json`, which replaced `loop-goal.toml` (both `loop-goal.*` files are gone). `docs/agent/coordinator.md:44` is the model: it names each port and points at `tools/nv/cmd/loop.ts:68`'s \"Not here yet\" list for what the driver lacks."
+        "text": "**Rewrite `docs/agent/doc-cleanup.md:6` (17 lines) to name the `bun nv` ports.** Each `tools/<x>.py` becomes the `bun nv <x>` that `ls tools/nv/cmd/` shows; a tool with no port is described by what it did, with no path. `docs/agent/loop-authoring.md:10` is the model for a port that does less than the Python did."
       },
       {
         "done": false,
-        "text": "**Rewrite `docs/agent/goals/README.md:6` (19 lines).** Its § *Side goals* still names `python tools/loop.py --side`. `tools/nv/cmd/loop.ts:1` has no side mode, so say that, as `docs/agent/coordinator.md` does."
+        "text": "**Then `docs/agent/user-report.md:80` (9 lines), `docs/agent/doc-style.md:7` (9 lines) and `docs/setup.md:33` (6 lines)**, the same way."
       },
       {
         "done": false,
-        "text": "**Then `docs/agent/doc-cleanup.md:6`, `docs/agent/user-report.md:80`, `docs/agent/doc-style.md:7` and `docs/setup.md:33`**, and after them the rest of `bun nv audit python`'s list under `docs/agent/` (`tools/nv/cmd/audit.ts:233`)."
+        "text": "**Then `docs/agent/optimization-prompt.md:39` (7), `docs/agent/playbook.md:6` (4), `docs/agent/dependency-update.md:29` (4), `docs/agent/carried-refusals.md:6` (3), `docs/agent/session-prompt.md:9` (3), `docs/agent/grounding.md:6` and `docs/agent/repair-prompt.md:16`.**"
       }
     ]
   },
   "backlog": [
-    "**The launcher has no port.** Stage 8's file set names `tools/nv/cmd/respawn.ts`, and it does not exist. `tools/nv/cmd/loop.ts` says that a turn with no `NOVIS_LOOP_RUN` is a run of one session, so once the closing commit deletes `tools/respawn.py`, `bun nv loop` is not an unattended run. That is Stage 8's work, and it has to land before the goal's end — `docs/agent/goals/tooling-overhaul.md` § Stage 8.",
-    "The steps the TS driver has not ported (chain switch, goal-end gates, repair/DONE-claim sessions, optimization pass, `rejudge`, side mode) are listed in `tools/nv/cmd/loop.ts`'s module doc, except `rejudge` and side mode, which it does not name.",
-    "The five `.py` files: `tools/disk.py` (with `tools/nv/cmd/parity.ts`), `tools/observe.py` (with its gate in `tools/nv/keys/checks.ts`), `tools/proctree.py`, `tools/written.py`, `editors/vscode/scripts/mkwoff.py` — `docs/agent/goals/tooling-overhaul.md` § Stage 12."
+    "About 45 playbook bullets under `docs/agent/playbook/tooling/` name `peek.py`, `splice.py`, `session.py` or `loop-goal.toml`. Rewrite each one, or delete it if the trap no longer applies to the `bun nv` port. This is its own group, and `bun nv playbook --triage tooling` shows what deciding each one needs.",
+    "The prose of goals the chain has not reached names Python tools: `docs/agent/goals/ci-green.md:21`, `core-class-cards.md:30`, `foreach-var.md:27`, `limit-handler-reach.md:29`, `plain-comments.md:30`, `the-description-is-owed.md:26`, and the two side goals under `docs/agent/goals/side/`.",
+    "Outside `docs/agent/`: `CONTRIBUTING.md:12` and the bench READMEs `benches/members/README.md:11`, `benches/proxied/README.md:81`, `benches/userland/README.md:107`, plus the rest of the audit's list.",
+    "The 5 `.py` files: port or delete each. `tools/disk.py` and `tools/observe.py` unblock `parity.ts` and `keys/checks.ts` (see § State)."
   ]
 }

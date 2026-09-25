@@ -1,10 +1,10 @@
 # The goal chain
 
 This directory **is** the schedule the unattended loop walks, and the table below is that order for the
-hand-written goals. Everything between `dossier` and `plain-comments` is generated — one goal per group of
-features owing `rule:testing/feature-proofs`'s roster, written onto this same chain by
-`python tools/dossier.py --emit-goals`, which keeps a goal whose front matter says `position: last`
-behind what it appends.
+hand-written goals. Everything between `dossier` and `plain-comments` is one goal per group of features
+owing `rule:testing/feature-proofs`'s roster. Those goals were generated, and are now ordinary goals,
+edited by hand like any other; a goal whose record says `position: last` stays behind all of them, and
+`bun nv chain --check` refuses an unpinned goal behind a pinned one.
 
 **Every goal states its own case, and this file does not restate it.** A goal's front matter names its
 milestone, its opening says what it builds, and its `## Why here` is why it sits where it does, against the
@@ -16,7 +16,7 @@ rules over them, and what stops the run.
 
 ## Why the work is cut into goals
 
-A goal is a finite contained group of work, and the `[context]` manifest is what keeps a session under the
+A goal is a finite contained group of work, and its record's `context` is what keeps a session under the
 200k ceiling. One goal spanning `nvs-syntax` through a TDS driver would need a manifest naming every
 module in the workspace, and every byte of it is charged to every session — including the ones that never
 open a driver. One manifest per goal, each naming the six-to-fifteen modules that goal touches, is the
@@ -54,7 +54,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [formats](formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
 | [encoder-cycles](encoder-cycles.md) | M8, no ADR slot — [0164](../../decisions/0164.md) is already accepted | `nvs-stdlib` |
 | [record-origin](record-origin.md) | M8, no ADR slot — [0165](../../decisions/0165.md) is already accepted | `nvs-render`, `nvs-runtime`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen` |
-| [agent-surface](agent-surface.md) | M10, no ADR slot — [0167](../../decisions/0167.md) is already accepted | `nvs-cli`, `nvs-hir`, `nvs-runtime`, and `tools/reference.py` — the surface a coding agent reads the language through |
+| [agent-surface](agent-surface.md) | M10, no ADR slot — [0167](../../decisions/0167.md) is already accepted | `nvs-cli`, `nvs-hir`, `nvs-runtime`, and `tools/nv/cmd/reference.ts` — the surface a coding agent reads the language through |
 | [xml-tree](xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s change | `nvs-stdlib`, `nvs-diagnostics` |
 | [gap-owners](gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [unowned-sweep](unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
@@ -78,8 +78,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [process-cache](process-cache.md) | M8, one ADR slot — the process tier, a lifetime on every tier, and a secret cached only sealed | `nvs-stdlib`, `nvs-config`, `nvs-cli` — the first state the cores share, and where a token lives between requests |
 | [outbound-proxy](outbound-proxy.md) | M8, one ADR slot — a forward proxy the operator configures, and what the address policy keeps and loses through it | `nvs-stdlib`'s transport, `nvs-config` — a CONNECT tunnel that keeps the pin by default |
 | [websocket-client](websocket-client.md) | M8, one ADR slot — an outbound WebSocket opened through the client's own door, bounded, and closed with the task that opened it | `nvs-stdlib`'s transport and `Core\Socket\Message`, `nvs-config` — `tungstenite`'s client half over the parking stream, no new dependency |
-| [plan-truth](plan-truth.md) | post-parity, no ADR — the gap program's catch-up | `docs/plan/`, the plan index, module docs, `tools/plan.py` — every document says what the tree does before anything is derived from it |
-| [gap-register](gap-register.md) | post-parity, no ADR — a process gate | `tools/owners.py`, `tools/plan.py`, the ratchet test — one register over every place a gap is written, and a future milestone is the only deferral |
+| [plan-truth](plan-truth.md) | post-parity, no ADR — the gap program's catch-up | `docs/plan/`, the plan index, module docs, `tools/nv/cmd/plan.ts` — every document says what the tree does before anything is derived from it |
+| [gap-register](gap-register.md) | post-parity, no ADR — a process gate | `tools/nv/cmd/owners.ts`, `tools/nv/cmd/plan.ts`, the ratchet test — one register over every place a gap is written, and a future milestone is the only deferral |
 | [m4-refusals](m4-refusals.md) | M4, no ADR slot | `nvs-ir`, `nvs-types` — every shape the checker admits lowers, or a diagnostic naming its rule refuses it |
 | [m5-proofs](m5-proofs.md) | M5 | `nvs-host`, `nvs-runtime`, `benches/`, CI — the scheduler's claims proven at the scale M5 promised them |
 | [m4b-editor](m4b-editor.md) | M4B, one ADR slot — the host tier runs locally and in CI | `editors/vscode`, CI — the extension tested in a real editor host and packaged by CI |
@@ -92,7 +92,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [core-class-tests](core-class-tests.md) | post-parity, at most one ADR — only if the checker needs a `Core` class's identity in a shape the registry does not already answer | `nvs-types`, `nvs-ir`, `nvs-stdlib`'s descriptor table — `instanceof` and `as` name a `Core` class, so a `mixed` narrows to the one it holds |
 | [tds-bytes](tds-bytes.md) | post-parity, no ADR — ADR 0067 §§ 1 and 9 state both halves | `nvs-db`'s TDS encoder — a bound value carries its form, a binary marker is declared `varbinary`, and the plan cache tells the two declarations apart on the comparison it already makes |
 | [cache-shared-dial](cache-shared-dial.md) | post-parity, no ADR — four rule fragments state every half | `nvs-config`'s secret registry, `nvs-stdlib`'s Redis client, `nvs-host`'s TLS client — `[cache.shared]` gains a credential pair and a database index, and `rediss://` is a third transport arm |
-| [decided-closures](decided-closures.md) | post-parity, at most one ADR — the prepared-pattern channel, built once for `cldr.rs` and `time.rs` | every crate with a `Decided:` gap — the 40 goal `unowned-closures` tagged and did not build, and the 8 owed to M1, M6, M7 and M8, each built to its sentence, struck as a bound, or deferred honestly; the gate is `owners.py --closes`, which a tag cannot meet |
+| [decided-closures](decided-closures.md) | post-parity, at most one ADR — the prepared-pattern channel, built once for `cldr.rs` and `time.rs` | every crate with a `Decided:` gap — the 40 goal `unowned-closures` tagged and did not build, and the 8 owed to M1, M6, M7 and M8, each built to its sentence, struck as a bound, or deferred honestly; the gate is `bun nv owners --closes`, which a tag cannot meet |
 | [one-type-test](one-type-test.md) | post-parity, one ADR — the record that ends every comparison with PHP on `is` and `instanceof`, written first | `nvs-syntax`, `nvs-types`, `nvs-diagnostics`, `nvs-ir`, `nvs-codegen`, `nvs-runtime`, `nvs-stdlib`, `nvs-lsp`, `nvs-fmt` — `instanceof` is refused naming `is`, `$x is $cls` is the dynamic class test, and the word survives only in the refusal and the divergence |
 | [test-doubles](test-doubles.md) | post-parity, no ADR — ADR 0079 §§ 10, 11 and 16 decided it | `nvs-types`, `nvs-diagnostics`, `nvs-stdlib`, `nvs-runtime`, `nvs-ir` — `Core\Test::double<T>` and `partial<T>` are a shape of closures checked against an interface and *are* a `T`; `assertCalled`/`assertNeverCalled` read the record against a compile-checked method reference; `assertCompletes` runs under the test's clock |
 | [bigint](bigint.md) | post-parity, no ADR — ADR 0054 § 5 decided it | `nvs-stdlib` — `Core\BigInt` over `num-bigint`, a `Core`-owned immutable instance, `Stringable` and `Comparable`, the class that replaces `gmp` and `bcpowmod` |
@@ -108,37 +108,35 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 
 ## The chain contract
 
-**This directory is the chain.** A goal is `N-<slug>.md` plus, until it is retired, a sibling `.toml`
-and `.handoff.md`; the numbers run `1..N` with no gaps, and the order the driver walks is that number.
-There is no second file saying what the order is, so **reordering the chain is renaming files** — and
-`python tools/chain.py` is how that is done, never by hand. It scaffolds the three files below,
-renumbers everything a move or an insert displaces, refuses an edit behind the live goal, and
-`--check` says whether every goal is one the driver can walk. [commands.md](../commands.md) is the
-tool's one home; this section is the contract it enforces.
+**`data/chain.json` is the chain**: a list of goal slugs, and the order the driver walks is the order of
+that list. There is no second file saying what the order is, so **reordering the chain is editing that
+list** — and `bun nv chain` is how that is done, never by hand. `--new`, `--move` and `--remove` each
+edit that one file, and `--check` says whether every goal is one the driver can walk.
+`tools/nv/cmd/chain.ts`'s module doc is the tool's one home; this section is the contract it enforces.
 
-A goal the run has **not reached** may be inserted, edited or appended while the loop is running:
-`Chain.refresh()` (`tools/loop.py:3337`) re-reads the directory whenever a goal goes green and adopts
-whatever is past the one it stands on. What it refuses is a rewrite at or behind the live goal, because
-every switch has already folded that goal's checks into the next one's floor.
+A goal the run has **not reached** may be inserted, edited or appended while the loop is running: every
+turn of the driver is a fresh process that reads the chain again. The live goal and every goal the run
+has walked are not rewritten, because every switch has already folded their checks into the next one's
+floor.
 
-Because a number is a position, **prose names a goal by its slug** — goal `parses`, not goal 21. The
-only text carrying a number is the goal's own two file headers and a link target, which is a filename;
-`chain.py` rewrites both when it renames, and `--check` fails on any other one.
-[AGENTS.md](../../../AGENTS.md) § *The schedule is the chain* is that rule's home.
+**Prose names a goal by its slug** — goal `parses`, not goal 21. A number is a position, and it moves the
+moment anything is inserted in front of it. `bun nv chain --check` fails on prose that names a goal by
+its number. [AGENTS.md](../../../AGENTS.md) § *The schedule is the chain* is that rule's home.
 
 Each goal is three files, named for it:
 
 | File | Holds |
 |---|---|
-| `N-<slug>.md` | front matter naming its milestone, the target, `## Why here`, the item list grouped by file set, the standing decisions |
-| `N-<slug>.toml` | the acceptance test as data, and the `[context]` manifest — **deleted when the run leaves the goal**, which is what records the retirement |
-| `N-<slug>.handoff.md` | the handoff the switch seeds, naming that goal's first group — deleted with it |
+| `docs/agent/goals/<slug>.md` | front matter naming its milestone, the target, `## Why here`, the item list grouped by file set, the standing decisions |
+| `data/goals/<slug>.json` | the acceptance test as data, and the `context` a session reads — **its checks are emptied when the run leaves the goal**, which is what records the retirement |
+| `data/goals/<slug>.handoff.json` | the handoff the switch seeds, naming that goal's first group — deleted when the goal is retired |
 
 Four rules bind every one of them, and they are the reason the run can be left alone:
 
-1. **A goal's acceptance list is the next goal's floor, mechanically.** `tools/goal-switch.py` copies every
-   `[[check]]` out of the live `loop-goal.toml` into the next goal's own marker line, relabelled to the
-   floor stage. Nothing is copied by hand. By goal `server` the floor is five goals deep, which is the point —
+1. **A goal's acceptance list is the next goal's floor, mechanically.** The goal switch copies every check
+   of the live goal's record into the next goal's record, under a stage whose title says `floor`, which
+   is how `tools/nv/driver/accept.ts` tells a carried check from the goal's own. Nothing is copied by
+   hand. By goal `server` the floor is five goals deep, which is the point —
    the parity claim is only worth something if nothing under it was traded away to reach it.
 2. **Every goal names the numbered ADRs it may open, and no session opens another.** The blanket "do not
    open a numbered ADR" rule that M4's goal carried does not survive this program: goals `concurrency` through `server` contain
@@ -151,32 +149,31 @@ Four rules bind every one of them, and they are the reason the run can be left a
    claiming `DONE` against a red check stops the run, exactly as it does today.
 4. **A goal the run has left is retired, in the same commit as the switch.** Rule 1 makes the fold
    cumulative — goal `core-depth`'s 80 checks are in goal `concurrency`'s file and in every file after
-   it — so a walked goal's own `.toml` is a duplicate of a duplicate, and by goal `server` the
-   directory held 830K of floors no tool reads. `chain.py --retire N` proves every one of that goal's
-   checks is in the live `loop-goal.toml`, then deletes its `.toml` and its `.handoff.md`. **That
-   deletion is the record**: retirement is the `.toml` being gone, so there is no flag beside it to
-   say otherwise. **The `.md` stays**, because it holds the number that fixes the goal's position and
-   the prose that [the plan](../../implementation-plan.md) and the milestone files cite. The proof is
-   not `--force`-able, and a retired goal at or after the live one is refused by `loop.py` at
-   start-up — retiring is the claim that a goal's checks are already somebody's floor, and that claim
-   is false anywhere but behind the run.
+   it — so a walked goal's own checks are a duplicate of a duplicate, and by goal `server` the
+   directory held 830K of floors no tool reads. Retiring a goal empties its record's `checks` once every
+   one of them is in the live goal's record, and deletes its handoff record. **The empty list is the
+   record**: a goal whose record has no checks is retired, so there is no flag beside it to say
+   otherwise. **The prose and the rest of the record stay**, because they hold the prose that
+   [the plan](../../implementation-plan.md) and the milestone files cite. `bun nv chain --check` refuses
+   a retired goal at the live one or later in the chain — retiring is the claim that a goal's checks are
+   already somebody's floor, and that claim is false anywhere but among the goals the run has walked.
 
 ## Side goals
 
-**A side goal is a goal the chain never walks.** It is `side/<slug>.md` plus, until it is retired, a
-sibling `<slug>.toml` and `<slug>.handoff.md`: the same three files, the same shapes and the same rules
-as a chain goal, with three differences.
+**A side goal is a goal the chain never walks.** It is `docs/agent/goals/side/<slug>.md` and
+`data/goals/side/<slug>.json` plus, until it is retired, its handoff record beside that: the same three
+files, the same shapes and the same rules as a chain goal, with three differences.
 
-- **No number.** Nothing walks to it, so it has no position: its `.md` opens `# Side goal — <title>`,
-  and prose names it by its slug as it names any goal. A numbered file under `side/` is refused by
-  `chain.py --check`, because the chain would never reach it.
-- **It runs only when named.** `python tools/loop.py --side <slug>`, typed in the main tree, runs that
-  goal and nothing else, in a worktree of its own at `.agent-tmp/worktrees/side/<slug>` on branch
-  `side/<slug>`. A chain run never installs it. Several side runs and the chain run may run at once.
+- **No place in the chain.** Nothing walks to it, so `data/chain.json` does not name it: its `.md`
+  opens `# Side goal — <title>`, and prose names it by its slug as it names any goal. `bun nv chain
+  --check` refuses a side goal with checks that has no prose, no such H1 or no handoff record.
+- **It runs only when named**, typed in the main tree, and then it runs that goal and nothing else, in a
+  worktree of its own at `.agent-tmp/worktrees/side/<slug>` on branch `side/<slug>`. A chain run never
+  installs it. Several side runs and the chain run may run at once.
 - **It lands instead of switching.** When its list is green the side run rebases onto `main`, runs
   `nv verify` and its whole list again, waits until `main` is clean and the chain run has reached a
   session boundary, and fast-forwards `main`. Its checks join the installed goal's floor as it lands,
-  its `.toml` and `.handoff.md` are retired, and the worktree and branch are removed. Then the side run
+  it is retired, and the worktree and branch are removed. Then the side run
   ends.
 
 Its list runs over **main's carried floor** as well as its own checks, so a side branch cannot land
@@ -189,35 +186,33 @@ landing order are not implemented, and no side goal can run until they are.
 
 Three steps.
 
-1. Confirm the goal the repository is currently running is green: `python tools/loop.py --goal-only`.
-   Whatever that goal is becomes goal `core-depth`'s floor, so this is not a formality — it is the moment the floor
-   is decided.
-2. `python tools/loop-stats.py` and `python tools/loop-stats.py --attribute`.
+1. Confirm the goal the repository is currently running is green: `bun nv loop --goal-only`.
+   Whatever that goal is becomes the next goal's floor, so this is not a formality — it is the moment the
+   floor is decided.
+2. `bun nv loop-stats` and `bun nv loop-stats --attribute`.
    [loop-authoring.md](../loop-authoring.md) § 1 makes this step zero and § 9 says the numbers move. Set
    the slice budget from what it prints and **say which and why in the commit**. The 200k ceiling is not
    a number to re-derive; the *projection* is.
-3. `python tools/loop.py`.
+3. `bun nv loop`, started by the launcher [coordinator.md](../coordinator.md) § *Files* describes.
 
-**The driver does the switching, including the first one.** It runs `tools/goal-switch.py` against the
-entry it is about to install — which folds the live goal's whole acceptance list in as that entry's floor
-— copies the three files into `docs/agent/loop-goal.md`/`.toml` and `docs/agent/handoff.md`, retires the
-entry it just left (rule 4), and commits all of that as one switch before starting the session. On
-`GOAL REACHED` it does the same for the next entry and keeps going. There is no flag for this and never
-a second chain: a run that stopped at each green goal to wait for a human would be the same run with five
-extra nights in it.
+**The driver does the switching, including the first one.** On `GOAL REACHED` it folds the live goal's
+whole acceptance list into the next goal's record as its floor (rule 1), retires the goal it just left
+(rule 4), moves the chain pointer to the next goal and commits all of that as one switch before starting
+the next session. There is no flag for this and never a second chain: a run that stopped at each green
+goal to wait for a human would be the same run with five extra nights in it. `bun nv loop` does not
+switch yet: `tools/nv/cmd/loop.ts`'s module doc lists the chain switch among what it lacks.
 
-`.loop/chain.json` records which entry is installed, and it is what makes "exactly once per entry" a fact
-rather than an intention: **`goal-switch.py` is not idempotent** — it inserts at a marker it leaves in
-place, so running it twice inserts the floor twice. If you ever delete that state file, check the entry's
-TOML for a doubled floor before restarting.
+The pointer, `tools/nv/lib/state.ts`, names the installed goal, and it is what makes "exactly once per
+goal" a fact rather than an intention: a switch run twice would fold the floor in twice. If that state is
+ever lost, check the installed goal's record for a doubled floor before restarting.
 
 ## What stops the run
 
 - **The last goal goes green** — goal `ci-green`, behind the last *generated* one, which is every group on
-  `rule:testing/feature-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
+  `rule:testing/feature-proofs`'s roster owing nothing, `bun nv proofs --gate` exiting 0 over the whole language.
   The parity program's own gate — goals `core-depth` through `server`, PHP core feature parity — is
   still that goal's final check:
-  `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1167
+  `bun nv migration` reporting 100% classified — every one of the oracle build's **1167
   functions and 255 types** accounted for, every `member` row registered, every one of them cased. The
   inventory grew from 925 when the oracle build gained `mysqli`, `pgsql`, `sqlite3`, `fileinfo` and
   `zip`: the APIs `rule:core-classes/db-one-api`, `Core\Zip` and `Core\Mime` replace are now inside the
