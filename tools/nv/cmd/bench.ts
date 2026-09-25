@@ -82,14 +82,13 @@
 // reported. `--record PATH` appends the run, both peers and the caveats that applied, to a JSON array
 // (`writeServeRecord`).
 //
-// # Where this differs from `tools/bench.py`
+// # Records
 //
-// A record's `host` names the machine the way Bun does rather than Python's `platform` module, a float
-// with no fraction is written `12` rather than `12.0`, and the default `--python` is the `python` on
-// `PATH` rather than the interpreter that ran the script. An engine whose executable cannot start is a
-// failed case rather than a traceback. The serve leg's generator spends less of each request in the
-// client than Python's did, and that shows most on the faster peer, so a requests/sec figure from this
-// command does not continue a series the Python tool recorded.
+// A record's `host` names the machine the way Bun does, a float with no fraction is written `12`, and
+// the default `--python` is the `python` on `PATH`. An engine whose executable cannot start is a failed
+// case. A record file may also hold older runs taken by a Python client that spent more of each request
+// in the client, most visibly on the faster peer, so a requests/sec figure from this command does not
+// continue those runs' series.
 //
 // # What `bun nv bench-load` borrows
 //

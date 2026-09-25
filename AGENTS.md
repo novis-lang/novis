@@ -82,7 +82,7 @@ which are whole where they stand.
    it runs anything. An edit those tools cannot express goes through `bun nv splice`.
 2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status. Independent
    calls may go out together in one message, but measured sessions never do it, so use the two tools that
-   batch for you instead. **Read with `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`** — as
+   batch for you instead. **Read with `bun nv peek A.rs:120-160 B.rs:@sym C.md:"## 4"`** — as
    many targets as you have questions, one call, and `--locate <symbol> ...` for `file:line` anchors
    alone. **Write a run of three or more edits with `bun nv splice --patch <file>`** — one patch,
    any number of files, all of it or none of it.
@@ -276,7 +276,7 @@ Every session runs the same five steps, in this order, and **stops**:
    if a trap cost you time, and `docs/agent/handoff.md` overwritten with where the work stands now. The
    handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, a rule, or
    a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
-   you are the only one holding the context to decide it cheaply, and `python tools/peek.py --locate` turns
+   you are the only one holding the context to decide it cheaply, and `bun nv peek --locate` turns
    its `file.rs:NN` anchors into one call.
 5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
    still reads a slice at a time. Then you are done.

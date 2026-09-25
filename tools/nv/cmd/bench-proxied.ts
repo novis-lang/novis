@@ -21,10 +21,8 @@
 // compete for the same cores and neither number would be worth writing down. The teardown is in a
 // `finally`, so an interrupted run does not leave a stack holding a CPU budget.
 //
-// # Where this differs from `tools/bench-proxied.py`
-//
-// A record's `host` names the machine the way `bun nv bench` does rather than Python's `platform`
-// module, and arm 4's `generator` is `nv bench`, the client that now drives it.
+// A record's `host` names the machine the way `bun nv bench` does, and arm 4's `generator` is
+// `nv bench`, the client that drives it.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";

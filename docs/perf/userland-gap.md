@@ -1,7 +1,7 @@
 # Why a userland case is slower than PHP, and what closes it
 
 [`benches/userland/README.md`](../../benches/userland/README.md) owns what a case is.
-[`tools/bench.py`](../../tools/bench.py) owns how it is measured.
+[`bun nv bench`](../../tools/nv/cmd/bench.ts) owns how it is measured.
 `rule:testing/perf-two-mechanisms` owns why the ratio is a secondary
 figure and the instruction count is the headline. **This file owns the one thing none of those
 does: why a given number is what it is, and which piece of work moves it.**

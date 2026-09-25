@@ -1,7 +1,7 @@
 - **A framed `crates/nvs-stdlib/tests/queue.rs` case runs under one filtered `cargo test`, but
-  `NVS_DB_MATRIX_CA` must be an absolute path.** The six variables are the ones `tools/db-matrix.py`
-  sets, their values are in `tests/db/compose.yaml`, and the anchor comes out with `docker compose
-  -f tests/db/compose.yaml cp mysql:/certs/ca.crt <abs path>`. A *relative* path resolves against
-  the crate directory, so the first case panics inside `open` with a bare `NotFound` and every later
-  one reports `Once instance has previously been poisoned`, which reads as a broken fixture.
-  [until: gone crates/nvs-db/src/matrix.rs:NVS_DB_MATRIX_CA]
+  `NVS_DB_MATRIX_CA` must be an absolute path.** The six variables are the ones
+  `tools/nv/cmd/db-matrix.ts` sets, their values are in `tests/db/compose.yaml`, and the anchor comes
+  out with `docker compose -f tests/db/compose.yaml cp mysql:/certs/ca.crt <abs path>`. A *relative*
+  path resolves against the crate directory, so the first case panics inside `open` with a bare
+  `NotFound` and every later one reports `Once instance has previously been poisoned`, which reads
+  as a broken fixture. [until: gone crates/nvs-db/src/matrix.rs:NVS_DB_MATRIX_CA]

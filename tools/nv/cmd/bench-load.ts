@@ -19,7 +19,7 @@
 // * `bun nv bench --serve-vs-fpm` compares against PHP on this box with no proxy. It is goal `server`'s
 //   acceptance check, it must keep working where there is no Docker and no `wrk`, and its generator is
 //   written into that command so it needs nothing built.
-// * `tools/bench-proxied.py` puts nginx in front of both peers in containers, which is the only
+// * `bun nv bench-proxied` puts nginx in front of both peers in containers, which is the only
 //   deployment either has.
 // * **This one has no peer at all.** It asks what this machine's server saturates at, and -- the part
 //   neither other leg can answer -- whether every response was the answer to the request that asked for
@@ -55,11 +55,8 @@
 //   for a run that wants to be sure.
 //
 // A run that could not open what it asked for reports `client_limited` and the operating system's own
-// error, so a client ceiling is never recorded as the server's.
-//
-// # Where this differs from `tools/bench-load.py`
-//
-// A record's `host` names the machine the way `bun nv bench` does rather than Python's `platform` module.
+// error, so a client ceiling is never recorded as the server's. A record's `host` names the machine
+// the way `bun nv bench` does.
 
 import { existsSync, statSync } from "node:fs";
 import { cpus } from "node:os";

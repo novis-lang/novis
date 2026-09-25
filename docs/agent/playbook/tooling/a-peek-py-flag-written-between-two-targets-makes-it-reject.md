@@ -1,5 +1,0 @@
-- **A `peek.py` flag written *between* two targets makes it reject every target after it.**
-  `peek.py A.rs:10-20 --context 4 B.rs:re:pat` fails with `unrecognized arguments: B.rs:re:pat`,
-  because argparse cannot split one variadic positional list around an option — the same call with
-  the flag last reads all of them. Write every target first and every flag at the end, which is how
-  the tool's own usage line spells it. [until: gone tools/peek.py:argparse]

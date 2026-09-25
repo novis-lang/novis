@@ -1,8 +1,5 @@
-- **`peek.py --locate` takes symbol names only and answers one line per file, so a name two `impl`
-  blocks in one file share resolves silently to the first one.** `--locate set_peer
-  crates/nvs-runtime/src/ctx/inbound.rs` reports `Inbound::set_peer` at `:600` and never
-  `InboundSpec::set_peer` at `:1227`, and it reads the path as a second *symbol* — printing
-  `NOT FOUND` for it rather than scoping the search — while a `file.rs:@Type::method` target answers
-  "no definition or mention" for a method that is right there. For a name a file carries twice, one
-  `grep -n 'fn <name>' <file>` names both and is the only form that does.
-  [until: gone tools/peek.py:--locate]
+- **`bun nv peek --locate` answers one line per file, so a name two `impl` blocks in one file share
+  resolves silently to the first one.** `--locate set_peer` reports
+  `crates/nvs-runtime/src/ctx/inbound.rs:623` and never the second `set_peer` in that same file. For
+  a name a file carries twice, one `grep -n 'fn <name>' <file>` names both and is the only form that
+  does. [until: gone tools/nv/cmd/peek.ts:--locate]

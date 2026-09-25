@@ -168,7 +168,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # The database matrix, against real servers rather than mocks, which is what
   # `rule:core-classes/db-one-api`'s *Verification* section asks for.
-  # `tests/db/compose.yaml` holds the servers, `tools/db-matrix.py` brings them
+  # `tests/db/compose.yaml` holds the servers, `bun nv db-matrix` brings them
   # up and reads their ports and credentials back out of that file, and one
   # `cargo test` process per driver makes "which server failed" that process's
   # exit status. The three drivers with a Unix-domain transport then answer the

@@ -9,9 +9,9 @@
 //
 // Nothing is truncated silently. A target that produced nothing says so on its own line, a whole file
 // over `--max-lines` is refused with its size, and the footer says what the call printed. The footer
-// also carries advice read from a per-session ledger, `.agent-tmp/peek-ledger.json`, which
-// `tools/peek.py` shares: a file fetched `REFETCH_NOTE_AT` times is pointed at `--outline`, and a run
-// of `SOLO_NOTE_AT` one-target calls is told that one call takes many targets. The advice never
+// also carries advice read from a per-session ledger, `.agent-tmp/peek-ledger.json`: a file fetched
+// `REFETCH_NOTE_AT` times is pointed at `--outline`, and a run of `SOLO_NOTE_AT` one-target calls is
+// told that one call takes many targets. The advice never
 // changes the exit status, and a ledger that cannot be read or written is no advice.
 
 import { Glob } from "bun";
@@ -96,7 +96,7 @@ const RULE_TARGET = /^`?rule:([a-z0-9][a-z0-9-]*)(?:\/([a-z0-9][a-z0-9-]*))?`?$/
 const out: string[] = [];
 const say = (line = "") => out.push(line);
 
-/** The length Python gives `s`: code points, not UTF-16 units, so the footer's count matches `peek.py`'s. */
+/** The length of `s` in code points, not UTF-16 units, which is what the footer's count is in. */
 function len(s: string): number {
   let n = s.length;
   for (let i = 0; i < s.length; i++) {

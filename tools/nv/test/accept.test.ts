@@ -61,7 +61,6 @@ test("plainCrateTest names a bare crate test or one with one --test", () => {
 });
 
 test("measuresReleaseCli is a bench command", () => {
-  expect(measuresReleaseCli(check({ argv: ["python", "tools/bench.py", "--guard"] }))).toBe(true);
   expect(measuresReleaseCli(check({ argv: ["bun", "nv", "bench", "--guard"] }))).toBe(true);
   expect(measuresReleaseCli(check({ argv: ["bun", "nv", "proofs", "--bench"] }))).toBe(false);
 });

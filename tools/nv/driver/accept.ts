@@ -132,7 +132,7 @@ export function plainCrateTest(args: string[]): [string, string | null] | null {
 /** Whether `c` reads `target/release/nvs`, which only a bench measures and nothing else here builds. */
 export function measuresReleaseCli(c: Check): boolean {
   const argv = c.argv ?? [];
-  return c.kind === "command" && (argv.some((a) => a.includes("bench.py")) || (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench"));
+  return c.kind === "command" && argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench";
 }
 
 /** A fixture's verdict from its run, "" when green. */

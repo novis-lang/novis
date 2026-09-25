@@ -1,6 +1,6 @@
 - **A before/after measurement is worth a `git stash`, and the base half is what makes it an A/B
-  rather than two readings** — stash, `cargo build --release -p nvs-cli`, `bench.py <cases> --reps
-  9`, pop, rebuild. The base run should reproduce the ledger's own sweep row for row; without it a
-  small move is indistinguishable from a quiet machine. Budget two release rebuilds and the harness
-  re-printing every stashed file it has seen, twice; a `git worktree` avoids the re-print and pays a
-  full cold build, which is worse. [until: gone tools/bench.py:--reps]
+  rather than two readings** — stash, `cargo build --release -p nvs-cli`, `bun nv bench <cases>
+  --reps 9`, pop, rebuild. The base run should reproduce the ledger's own sweep row for row; without
+  it a small move is indistinguishable from a quiet machine. Budget two release rebuilds and the
+  harness re-printing every stashed file it has seen, twice; a `git worktree` avoids the re-print and
+  pays a full cold build, which is worse. [until: gone tools/nv/cmd/bench.ts:--reps]
