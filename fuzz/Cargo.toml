@@ -57,3 +57,10 @@ bench = false
 
 [profile.release]
 debug = 1
+
+# A separate workspace reads no `[patch]` table but its own, so the root one's
+# rows are repeated here. Without them `nvs-stdlib` builds against the published
+# `html5ever`, which does not have the fields `crates/nvs-stdlib/src/html.rs`
+# sets. `crates/nvs-runtime/tests/manifest_policy.rs` checks the two agree.
+[patch.crates-io]
+html5ever = { path = "../vendor/html5ever" }

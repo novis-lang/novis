@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-math-1-3` is reached: `bun nv proofs --verify --only` over its thirteen `Core\\Math` members (`abs` to `cosh`) says nothing owed, 0 failed.\n`abs`'s example 03 still carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\nThe WSL floor check `wsl examples/queue-sqlite.nvs` was red because the WSL leg got no `setup` checks when the floor gate was shut. Both setup checks are `memoize: false` and so heavy, and the scoped sweep held them back.\n`tools/nv/cmd/loop.ts`'s `sweepOver` now hands the leg every `setup` check of the goal. By hand in the WSL copy, `nvs queue migrate --config examples/queue-sqlite.toml` and then the fixture both pass.\n`bun nv verify --doc`, `bun nv owners --closes core-math-1-3` and `bun nv playbook --closes core-math-1-3` were green when the goal was first claimed.",
+  "state": "Goal `core-math-1-3` is reached: `bun nv proofs --verify --only` over its thirteen `Core\\Math` members (`abs` to `cosh`) says nothing owed, 0 failed.\n`abs`'s example 03 still carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\nThe floor check `the-prefix-fuzz-target-finds-no-panic-in-five-minutes` was red because `fuzz/` is its own workspace and did not repeat the root `[patch.crates-io]` row, so `nvs-stdlib` built against the published `html5ever`.\n`fuzz/Cargo.toml` now carries the row, `fuzz/Cargo.lock` resolves `html5ever` to `vendor/`, and `crates/nvs-runtime/tests/manifest_policy.rs`'s `every_workspace_that_builds_our_crates_carries_the_root_patch_table` fails when the two tables disagree.\n`bun nv owners --closes core-math-1-3` and `bun nv playbook --closes core-math-1-3` are green.",
   "next": {
     "stage": 2,
     "title": "the dossier, Core\\Math (1/3)",
@@ -8,11 +8,11 @@
     "items": [
       {
         "done": true,
-        "text": "**The WSL leg runs every `setup` check of the goal**, not only the ones the scoped sweep reached. `tools/nv/cmd/loop.ts:410`"
+        "text": "**The prefix fuzz target builds against the patched `html5ever`** — `fuzz/Cargo.toml:66`, guarded by `crates/nvs-runtime/tests/manifest_policy.rs:442`."
       }
     ]
   },
   "backlog": [
-    "`abs`'s result-is-the-whole-union gap is M10's (`data/gaps/nvs-stdlib/`)."
+    "`abs`'s whole-union result type waits on a bounded type variable — `data/gaps/nvs-stdlib/math-abs-result-is-the-whole-union.json`, M10."
   ]
 }

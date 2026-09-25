@@ -406,3 +406,81 @@ fn the_workspace_has_no_async_runtime() {
         reached.join("\n  ")
     );
 }
+
+/// A manifest's `[patch.crates-io]` rows, each as its crate name and the
+/// directory its `path` resolves to.
+fn patched(path: &Path, code: &[(PathBuf, usize, String)]) -> BTreeSet<(String, PathBuf)> {
+    let dir = path.parent().unwrap_or(Path::new("."));
+    let mut section = "";
+    let mut rows = BTreeSet::new();
+    for (file, _, line) in code.iter().filter(|(file, _, _)| file == path) {
+        if line.starts_with('[') {
+            section = line.as_str();
+            continue;
+        }
+        if section != "[patch.crates-io]" {
+            continue;
+        }
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
+        let target = value
+            .split("path")
+            .nth(1)
+            .and_then(|rest| rest.split('"').nth(1))
+            .unwrap_or_else(|| {
+                panic!("{}: `{line}` is a patch row with no `path`", file.display())
+            });
+        let resolved = fs::canonicalize(dir.join(target))
+            .unwrap_or_else(|err| panic!("{}: `{target}`: {err}", file.display()));
+        rows.insert((name.trim().to_string(), resolved));
+    }
+    rows
+}
+
+#[test]
+fn every_workspace_that_builds_our_crates_carries_the_root_patch_table() {
+    // Cargo reads the `[patch]` table of the workspace being built and no
+    // other, so `fuzz/` building `nvs-stdlib` against the published
+    // `html5ever` compiles nothing that `crates/nvs-stdlib/src/html.rs` sets on
+    // the patched one. The build fails, or worse, a patch that only changes
+    // behaviour is silently absent from what the fuzzer runs.
+    let code = manifest_code();
+    let root = nvs_repo::path("Cargo.toml");
+    let wanted = patched(&root, &code);
+    assert!(
+        !wanted.is_empty(),
+        "the workspace manifest has no `[patch.crates-io]` rows, so this test checks nothing"
+    );
+
+    let manifests: BTreeSet<&PathBuf> = code.iter().map(|(path, _, _)| path).collect();
+    let mut checked = 0;
+    for path in manifests {
+        let lines = code.iter().filter(|(file, _, _)| file == path);
+        let own_workspace = lines.clone().any(|(_, _, line)| line == "[workspace]");
+        let builds_ours = lines
+            .clone()
+            .any(|(_, _, line)| line.contains("path") && line.contains("crates/nvs-"));
+        if *path == root || !own_workspace || !builds_ours {
+            continue;
+        }
+        checked += 1;
+        let missing: Vec<String> = wanted
+            .difference(&patched(path, &code))
+            .map(|(name, dir)| format!("{name} = {}", dir.display()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "{} is its own workspace and builds this repository's crates, but its \
+             `[patch.crates-io]` table lacks the root one's rows:\n  {}\nCopy each row, with its \
+             `path` written relative to that manifest.",
+            path.display(),
+            missing.join("\n  ")
+        );
+    }
+    assert!(
+        checked > 0,
+        "no separate workspace builds this repository's crates, so this test checks nothing. \
+         `fuzz/` is one; if it moved, the walk above stopped finding it."
+    );
+}
