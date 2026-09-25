@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { type Check, GreenMemo, type Outcome } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { type LegName, type LegsOptions, type LegsSeams, legSpec, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
-import { CARRIED, carryLine, mirrorPath } from "../driver/mirror.ts";
+import { CARRIED, carryLine, mirrorPath, targetLine } from "../driver/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -290,6 +290,11 @@ describe("the leg helpers", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  test("targetLine links the copy's target to the target directory the copy sits beside", () => {
+    const mirror = mirrorPath("/var/tmp/nvs-target-wsl", "/mnt/d/mwl");
+    expect(targetLine(mirror)).toBe(" && ln -sfn /var/tmp/nvs-target-wsl target");
   });
 
   test("q quotes a word only when bash would split or expand it", () => {

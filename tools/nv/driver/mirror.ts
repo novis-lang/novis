@@ -21,10 +21,11 @@
 // executable in the copy when git says it is. Line endings are the same on both sides: `.gitattributes`
 // checks everything out as LF.
 //
-// The one exception to "nothing git ignores" is `CARRIED`: an ignored file the repository's own
-// configuration names, which every program run from the root reads before it starts. Those are copied
-// over the mount after the clean, when the working tree has them, so the copy fails exactly when the
-// checkout would.
+// Two exceptions to "nothing git ignores" are written after the clean. `CARRIED` is an ignored file the
+// repository's own configuration names, which every program run from the root reads before it starts;
+// each is copied over the mount when the working tree has it, so the copy fails exactly when the checkout
+// would. And `target` is a link to the leg's own target directory, so a fixture that runs
+// `target/debug/nvs` runs the Linux build.
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -61,6 +62,17 @@ export function carryLine(root: string): string {
     (f) => `mkdir -p ${q(dirname(f))} && cp ${q(`${wslPath(root)}/${f}`)} ${q(f)}`,
   );
   return lines.map((l) => ` && ${l}`).join("");
+}
+
+/**
+ * The `bash` line that links the copy's `target` to the leg's target directory, which `mirrorPath` put the
+ * copy beside. A fixture that runs this repository's own binary names it as `target/debug/nvs`, and
+ * `nvs.toml` grants it by that path, so without the link the grant names nothing that exists and the
+ * fixture stops at a capability error.
+ */
+export function targetLine(mirror: string): string {
+  const targetDir = mirror.slice(0, mirror.lastIndexOf("/")).replace(/-src$/, "");
+  return ` && ln -sfn ${q(targetDir)} target`;
 }
 
 /** The copy of the checkout the distro reaches at `repo`, beside the leg's target directory. */
@@ -130,7 +142,7 @@ async function sync(mirror: string, root: string): Promise<string> {
   const held = await inWsl(`mkdir -p ${m} && cd ${m} && { [ -d .git ] || git init -q; } && { git rev-parse -q --verify ${REF} || true; }`);
   if (held.code !== 0) return `the copy at ${mirror}: ${held.err}`;
   const old = held.out;
-  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx${carryLine(root)}`;
+  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx${carryLine(root)}${targetLine(mirror)}`;
   if (old === snap.tree) {
     const r = await inWsl(`cd ${m} && ${tidy}`);
     return r.code === 0 ? "" : `the copy at ${mirror}: ${r.err}`;
