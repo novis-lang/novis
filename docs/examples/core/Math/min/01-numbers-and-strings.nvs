@@ -1,0 +1,15 @@
+<?nvs
+// Shows the smaller of two numbers, and the smaller of two strings.
+
+// This prints 3, in either order.
+echo Core\Math::min(3, 7), "\n";
+echo Core\Math::min(7, 3), "\n";
+
+// This prints 2.25.
+echo Core\Math::min(2.25, 2.5), "\n";
+
+// -10 is smaller than -1. This prints -10.
+echo Core\Math::min(-10, -1), "\n";
+
+// Strings are compared by their characters. This prints "apple".
+echo Core\Math::min("apple", "pear"), "\n";

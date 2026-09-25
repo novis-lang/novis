@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `Core\Math::min` is given the far ends of each type, values that cannot be
+// compared, a very long string and a million calls. Each bad call should throw an error
+// that the program catches, and the program should run to its end.
+
+class Box
+{
+}
+
+// 1. The biggest and smallest numbers, in both orders.
+echo Core\Math::min(Core\Math::INT_MIN, Core\Math::INT_MAX), "\n";
+echo Core\Math::min(Core\Math::INT_MAX, Core\Math::INT_MIN), "\n";
+echo Core\Math::min(Core\Math::FLOAT_MAX, -Core\Math::FLOAT_MAX), "\n";
+
+// 2. Values that are not ordinary numbers.
+echo Core\Math::min(Core\Math::NAN, -Core\Math::INFINITY), "\n";
+echo Core\Math::min(Core\Math::INFINITY, Core\Math::NAN), "\n";
+echo Core\Math::min(0.0, -0.0), "\n";
+echo Core\Math::isNan(Core\Math::min(Core\Math::NAN, Core\Math::NAN)) ? "NaN\n" : "a number\n";
+
+// 3. A string of one million characters beside a longer one that starts the same way.
+string $long = Core\Str::repeat('a', 1000000);
+echo Core\Str::length(Core\Math::min($long . 'a', $long)), "\n";
+echo Core\Str::length(Core\Math::min('b', $long)), "\n";
+
+// 4. Values that cannot be compared: an array, an object, a string, `null` and a `bool`
+// beside a number. Each call throws an error.
+array<mixed> $values = [[1, 2], new Box(), '5', null, true];
+foreach ($values as mixed $value) {
+    try {
+        mixed $number = 5;
+        echo Core\Math::min($number, $value), "\n";
+    } catch (RuntimeError $e) {
+        echo "no order\n";
+    }
+}
+
+// 5. A million calls. Each result feeds the next one, and `% 1000` keeps it below 1000.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = Core\Math::min($total + 7, $round + 3) % 1000;
+    $round = $round + 1;
+}
+echo $total, "\n";

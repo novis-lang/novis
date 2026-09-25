@@ -1,0 +1,19 @@
+<?nvs
+// Measures the smaller of two whole numbers, as a program does to keep a value under a limit.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the first value this round depends on last round's total.
+            $total = $total + Core\Math::min($total % 7 + 1, 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
