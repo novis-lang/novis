@@ -746,9 +746,14 @@ function validateCommit(s: Section): string[] {
     errors.push(`\`## commit:\` line ${s.line} -- subject is ${len} chars, ${len - SUBJECT_MAX} over the ${SUBJECT_MAX} limit: ${pyRepr(subject)}`);
   }
   for (const path of s.arg.split(/\s+/).filter(Boolean)) {
-    if (!existsSync(join(ROOT, path)) && !path.includes("*")) errors.push(`\`## commit:\` line ${s.line} -- no such path: ${path}`);
+    if (!existsSync(join(ROOT, path)) && !path.includes("*") && !trackedAtHead(path)) errors.push(`\`## commit:\` line ${s.line} -- no such path: ${path}`);
   }
   return errors;
+}
+
+/** Is `path` in `HEAD`? A slice that deletes a file names it in its `## commit:`, and `git add --` stages the deletion. */
+function trackedAtHead(path: string): boolean {
+  return Bun.spawnSync(["git", "cat-file", "-e", `HEAD:${path}`], { cwd: ROOT, stdout: "ignore", stderr: "ignore" }).exitCode === 0;
 }
 
 /** Where a section's body lands, which is where its links resolve from; null for a body that is not a file. */
