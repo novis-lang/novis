@@ -78,7 +78,7 @@ describe("record types", () => {
     write(goal, "stray", { ...TOOLS, stages: [TOOLS.stages[0]!, { number: 4, title: "the records" }], checks: [...TOOLS.checks, { ...TOOLS.checks[0]!, stage: 7 }] }, tmp.root);
     write(gap, "nvs-cli/unowned", { module: "crates/nvs-cli/src/runner.rs", title: "No owner.", text: "Open." }, tmp.root);
     write(topic, "testing", { title: "Testing", order: 90, rules: [] }, tmp.root);
-    write(playbookBullet, "gone/a-bullet", { lead: "A.", body: "B.", files: [], until: { kind: "reviewed", arg: "2026-09-24" } }, tmp.root);
+    write(playbookBullet, "gone/a-bullet", { lead: "A.", body: "B.", files: [], until: { kind: "exists", arg: "tools/x.py" } }, tmp.root);
     index.refresh();
     const messages = index.check().map((f) => `${f.path}: ${f.message}`);
     const stray = pathOf(goal, "stray");
@@ -90,6 +90,7 @@ describe("record types", () => {
       `${stray}: a stage says what it does: stage 4 (the records) has no summary`,
       `${stray}: every goal is in the chain: stray is not in data/chain.json`,
       `${pathOf(playbookBullet, "gone/a-bullet")}: a bullet is in a section: no section gone`,
+      `${pathOf(playbookBullet, "gone/a-bullet")}: a bullet names a file: names no file`,
       `${pathOf(rule, "testing/feature-proofs")}: a rule is in its topic's list: testing/feature-proofs is not in its topic's rules`,
     ]);
   });

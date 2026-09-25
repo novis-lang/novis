@@ -47,11 +47,9 @@ const GOAL_TOML = "docs/agent/loop-goal.toml";
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 
 /** The trailer every bullet ends with. `tools/playbook.py`'s module doc is its syntax's one home. */
-export const EXPIRY = /\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*\]\s*$/;
+export const EXPIRY = /\[until:\s*(test|exists|gone|rule)\s+([^\]]+?)\s*\]\s*$/;
 /** Anything that looks like a trailer and did not parse as one, so a typo is a finding. */
 const EXPIRY_LIKE = /\[until:[^\]]*\]?\s*$/;
-/** How old a `reviewed` date may be before the bullet is owed a re-read. */
-const REVIEW_DAYS = 14;
 
 /** The other append-mostly files, and which of their blocks must declare: by section heading and first line. */
 const DECLARING: [string, (head: string, first: string) => boolean][] = [
@@ -132,27 +130,13 @@ async function testNames(root: string): Promise<Set<string>> {
   return new Set(done.stdout.split("\n").filter((l) => l.startsWith("fn ")).map((l) => l.slice(3).trim()));
 }
 
-/** Days from the calendar day `from` to the calendar day `to`, both read in local time. */
-function daysBetween(from: Date, to: Date): number {
-  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  return Math.round((day(to) - day(from)) / 86_400_000);
-}
 
 /**
  * Whether a declared condition holds on `today`, and a word on why: true when the block has expired,
  * false when it stands, and null when the declaration cannot be evaluated, which is a finding rather
  * than a guess either way.
  */
-export function holds(root: string, kind: string, arg: string, today: Date, tests: ReadonlySet<string>): [boolean | null, string] {
-  if (kind === "reviewed") {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(arg);
-    const when = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
-    if (!when || when.getMonth() !== Number(m![2]) - 1 || when.getDate() !== Number(m![3])) return [null, `\`${arg}\` is not a YYYY-MM-DD date`];
-    const age = daysBetween(when, today);
-    if (age < 0) return [false, `dated ${-age} days ahead -- owed a re-read, since no one read it then`];
-    if (age > REVIEW_DAYS) return [false, `reviewed ${age} days ago -- owed a re-read`];
-    return [false, `reviewed ${age} days ago`];
-  }
+export function holds(root: string, kind: string, arg: string, _today: Date, tests: ReadonlySet<string>): [boolean | null, string] {
   if (kind === "test") {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(arg)) return [null, `\`${arg}\` is not a test function name`];
     const there = tests.has(arg);
@@ -242,16 +226,14 @@ function ownedRows(text: string): { line: number; gap: string; owner: string }[]
 const ownerSlug = (cell: string) => cell.trim().replace(/^`+|`+$/g, "");
 
 /**
- * Over every declaring file: the blocks whose condition holds, the `reviewed` ones owed a re-read, the
- * ones that declare nothing or declare it wrongly, how many declare anything, and `CARRIED_GAPS`'s
- * § *Owned* rows whose owner goal has walked.
+ * Over every declaring file: the blocks whose condition holds, the ones that declare nothing or declare
+ * it wrongly, how many declare anything, and `CARRIED_GAPS`'s § *Owned* rows whose owner goal has walked.
  */
 export async function expiryReport(
   root: string = ROOT,
   today: Date = new Date(),
-): Promise<{ expired: Expired[]; owed: Expired[]; bad: Finding[]; rows: Finding[]; declared: number }> {
+): Promise<{ expired: Expired[]; bad: Finding[]; rows: Finding[]; declared: number }> {
   const expired: Expired[] = [];
-  const owed: Expired[] = [];
   const bad: Finding[] = [];
   const rows: Finding[] = [];
   let declared = 0;
@@ -275,7 +257,7 @@ export async function expiryReport(
         if (wrapped(b.body)) {
           bad.push({ ...where, why: "the trailer is broken across two lines, so its argument holds a newline no path, needle, name or date can -- put the whole `[until: ...]` on one line, past the wrap column if need be" });
         } else if (EXPIRY_LIKE.test(b.body)) {
-          bad.push({ ...where, why: "the trailer does not parse -- it is `[until: <kind> <arg>]`, kind one of test, exists, gone, rule, reviewed" });
+          bad.push({ ...where, why: "the trailer does not parse -- it is `[until: <kind> <arg>]`, kind one of test, exists, gone, rule" });
         } else if (must(b.section, b.first)) {
           bad.push({ ...where, why: "no `[until: ...]` trailer" });
         }
@@ -285,10 +267,9 @@ export async function expiryReport(
       const entry: Expired = { ...b, ...where, kind: decl.kind, arg: decl.arg, why };
       if (ok === null) bad.push({ ...where, why });
       else if (ok) expired.push(entry);
-      else if (decl.kind === "reviewed" && why.includes("owed")) owed.push(entry);
     }
   }
-  return { expired, owed, bad, rows, declared };
+  return { expired, bad, rows, declared };
 }
 
 /** `selectors` less every one that reached a bullet in `before` and reaches none in `after`, and those that went. */
@@ -462,15 +443,19 @@ async function runCheck(root: string = ROOT): Promise<number> {
   const bytes = (s: string) => Buffer.byteLength(s, "utf8");
   console.log(`${PLAYBOOK_DIR}/: ${every.reduce((n, b) => n + bytes(b.text), 0)} bytes, ${every.length} bullets\n`);
 
-  const { expired, owed, bad, rows, declared } = await expiryReport(root);
+  const { expired, bad, rows, declared } = await expiryReport(root);
   console.log("== BULLETS WHOSE RETIREMENT CONDITION HOLDS  (delete them: `bun nv playbook --retire`)");
   for (const e of expired) console.log(`  ${e.file}:${e.line}  ${e.lead}\n      [until: ${e.kind} ${e.arg}]  -- ${e.why}`);
   if (!expired.length) console.log(`  none -- every one of the ${declared} declared condition(s) still stands`);
   else console.log(`\n  ${expired.length} bullet(s). Each is mechanically dead: the thing it waited for is on disk,\n  or the thing it was about is gone. \`git log -S\` keeps the text; the file need not.`);
 
-  console.log(`\n== BULLETS OWED A RE-READ  (\`reviewed\` more than ${REVIEW_DAYS} days ago, or dated ahead)`);
-  for (const e of owed) console.log(`  ${e.file}:${e.line}  ${e.lead}  -- ${e.why}`);
-  console.log(owed.length ? `\n  ${owed.length} bullet(s). Read each; still true bumps its date, no longer true deletes it.` : "  none");
+  console.log("\n== BULLET RECORDS THE GATE REFUSES  (each names a file that exists or that its `gone` names, and a kind the tree decides)");
+  const refused = load(playbookBullet, root)
+    .filter((b) => !decided(b.value as BulletValue, root))
+    .map((b) => b.id)
+    .sort();
+  for (const id of refused) console.log(`  ${id}  -- \`bun nv playbook --triage ${id.split("/")[0]}\` says what it owes`);
+  if (!refused.length) console.log("  none");
 
   console.log("\n== CARRIED-GAPS ROWS WHOSE OWNER WENT GREEN WITHOUT CLOSING THEM");
   for (const r of rows) console.log(`  ${r.file}:${r.line}  ${r.lead}  -- ${r.why}`);
@@ -549,7 +534,12 @@ async function runCheck(root: string = ROOT): Promise<number> {
   if (bad.length) {
     console.log(`\n  !! ${bad.length} bullet(s) declare nothing that retires them, or declare it in a form this\n  tool cannot read. A bullet without a trailer is one the file can never let go of.`);
   }
-  return unresolved || bad.length ? 1 : 0;
+  if (refused.length) {
+    console.log(`\n  !! ${refused.length} bullet record(s) above fail the gate: a trap names a file, and ends when the\n  tree says so. Decide each one with \`bun nv playbook --triage <section>\`.`);
+  }
+  if (unresolved || bad.length || refused.length) return 1;
+  console.log("\nplaybook: every bullet names a file and declares a condition the tree decides");
+  return 0;
 }
 
 /**
@@ -594,8 +584,9 @@ function trailerPath(until: Until): string | null {
 }
 
 /**
- * Whether a bullet meets the gate Stage 10's schema will hold every bullet to: it names a file, each
- * file it names exists or is the one its `gone` trailer names, and its trailer is one the tree decides.
+ * Whether a bullet meets the gate `--check` holds every bullet to: it names a file, each file it names
+ * exists or is the one its `gone` trailer names, and its trailer is one the tree decides. The schema
+ * holds the first and the last; only this reads the disk for the middle one.
  */
 export function decided(v: BulletValue, root: string = ROOT): boolean {
   if (!MECHANICAL.has(v.until.kind) || !v.files.length) return false;

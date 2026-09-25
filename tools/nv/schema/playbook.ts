@@ -22,7 +22,7 @@ export const playbookBullet = defineRecord({
     /** The repo-rooted files the trap is about, which a goal's manifest selects it by. */
     files: s.array(s.string()),
     until: s.object({
-      kind: s.enum("test", "exists", "gone", "rule", "reviewed"),
+      kind: s.enum("test", "exists", "gone", "rule"),
       arg: s.string(),
     }),
   }),
@@ -32,6 +32,11 @@ export const playbookBullet = defineRecord({
       name: "a bullet is in a section",
       sql: `SELECT path, 'no section ' || substr(id, 1, instr(id, '/') - 1) AS detail FROM playbook_bullet
             WHERE substr(id, 1, instr(id, '/') - 1) NOT IN (SELECT id FROM playbook_section)`,
+    },
+    {
+      name: "a bullet names a file",
+      sql: `SELECT path, 'names no file' AS detail FROM playbook_bullet
+            WHERE id NOT IN (SELECT owner FROM playbook_bullet__files)`,
     },
   ],
 });

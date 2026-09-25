@@ -20,11 +20,9 @@ describe("nv playbook holds", () => {
     expect(holds(tmp.root, "gone", "tools/*.py", TODAY, new Set())[0]).toBeNull();
   });
 
-  test("a reviewed date is never expired, and is owed a re-read when old or ahead", () => {
-    expect(holds(tmp.root, "reviewed", "2026-09-20", TODAY, new Set())).toEqual([false, "reviewed 4 days ago"]);
-    expect(holds(tmp.root, "reviewed", "2026-09-01", TODAY, new Set())).toEqual([false, "reviewed 23 days ago -- owed a re-read"]);
-    expect(holds(tmp.root, "reviewed", "2026-09-25", TODAY, new Set())[1]).toStartWith("dated 1 days ahead");
-    expect(holds(tmp.root, "reviewed", "2026-02-30", TODAY, new Set())[0]).toBeNull();
+  test("a reviewed date is no condition the tree decides", () => {
+    expect(holds(tmp.root, "reviewed", "2026-09-20", TODAY, new Set())).toEqual([null, "unknown kind 'reviewed'"]);
+    expect(declaration("- a trap [until: reviewed 2026-09-20]")).toBeNull();
   });
 
   test("test and rule", () => {
@@ -52,8 +50,8 @@ describe("nv playbook triage", () => {
   write(playbookSection, "open", { title: "Open", order: 1 }, tmp.root);
   write(playbookSection, "closed", { title: "Closed", order: 2 }, tmp.root);
   const about = "About `tools/a.py` and its `needle_word`.";
-  write(playbookBullet, "open/a-trap", { lead: "A trap.", body: about, files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
-  write(playbookBullet, "open/bare", { lead: "Bare.", body: "Names nothing at all.", files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
+  write(playbookBullet, "open/a-trap", { lead: "A trap.", body: about, files: [], until: { kind: "test", arg: "a_missing_test" } }, tmp.root);
+  write(playbookBullet, "open/bare", { lead: "Bare.", body: "Names nothing at all.", files: [], until: { kind: "test", arg: "a_missing_test" } }, tmp.root);
   write(playbookBullet, "closed/done", { lead: "Done.", body: about, files: ["tools/a.py"], until: { kind: "gone", arg: "tools/a.py:needle_word" } }, tmp.root);
   // A generated goal carries no checks, and its manifest still has to find the bullet.
   tmp.put("data/goals/live.json", JSON.stringify({ context: { playbook: ["Open > a trap"] } }));
@@ -62,7 +60,7 @@ describe("nv playbook triage", () => {
     const said: string[] = [];
     expect(await triage("open", tmp.root, (l) => said.push(l))).toBe(0);
     const out = said.join("\n");
-    expect(out).toContain("== open/a-trap  [until: reviewed 2026-09-06]  OWES A DECISION  LIVE MANIFEST");
+    expect(out).toContain("== open/a-trap  [until: test a_missing_test]  OWES A DECISION  LIVE MANIFEST");
     expect(out).toContain("  file   tools/a.py  (not in its files)");
     expect(out).toContain("  propose [until: gone tools/a.py:needle_word]");
     expect(out).toContain("  near   closed/done");

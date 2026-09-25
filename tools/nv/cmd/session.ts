@@ -630,29 +630,6 @@ function sectionDir(heading: string): string | null {
   return hit ? `${PLAYBOOK_DIR}/${hit.id}` : null;
 }
 
-/** Why a new bullet may not end with `[until: reviewed <date>]`: nothing retires that kind, so it is for a trap no mechanical kind fits. */
-function reviewedRefusals(which: string, body: string, until: { kind: string; arg: string }): string[] {
-  if (until.kind !== "reviewed") return [];
-  const out: string[] = [];
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(until.arg) ? new Date(`${until.arg}T00:00:00`) : null;
-  if (day === null || Number.isNaN(day.getTime())) {
-    out.push(`${which} -- \`${until.arg}\` is not a YYYY-MM-DD date.`);
-  } else {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (day > today) out.push(`${which} is dated ${until.arg}, which is after today. A \`reviewed\` date is the day the bullet was read: write today's date.`);
-  }
-  const files = anchors(ROOT, body, until);
-  if (files.length) {
-    out.push(
-      `${which} names \`${files[0]}\` and ends with \`[until: reviewed ...]\`. A trap about a path ` +
-        `ends when that path changes, so declare that instead: \`[until: gone ${files[0]}:<a ` +
-        "word the trap depends on>]`, `[until: exists <path>]` for a fix that is not there " +
-        "yet, or `[until: test <fn>]` for a hole a test will close.",
-    );
-  }
-  return out;
-}
 
 /** What a `## playbook:` section refuses, bullet by bullet, then the selectors its lead-ins would collide with. */
 function validatePlaybook(s: Section): string[] {
@@ -674,9 +651,10 @@ function validatePlaybook(s: Section): string[] {
           "needle, name or date can, so nothing ever retires the bullet. Keep the whole `[until: ...]` on one line.",
       );
     } else if (until === null) {
-      errors.push(`${which} declares nothing that retires it. End it with \`[until: <kind> <arg>]\`; the five kinds are in tools/playbook.py's module doc.`);
-    } else {
-      errors.push(...reviewedRefusals(which, b.body, until));
+      errors.push(
+        `${which} declares nothing the tree can retire it by. End it with \`[until: <kind> <arg>]\`, kind one of ` +
+          "`gone <path>:<word>`, `exists <path>`, `test <fn>` or `rule <topic>/<rule>`; tools/playbook.py's module doc says what each tests.",
+      );
     }
     if (anchors(ROOT, b.body, until).length === 0) {
       errors.push(

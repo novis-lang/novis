@@ -215,7 +215,7 @@ export function registers(found: Gap[]): Register[] {
     { name: "guard-name-debt.md", where: GUARD_DEBT, owners: entryLines(GUARD_DEBT, /^- \[/),
       what: "a guard test `loop-goal.toml` names and the tree does not hold yet" },
     { name: "playbook until", where: "data/playbook/",
-      owners: load(playbookBullet).filter((b) => b.value.until.kind !== "reviewed").map(() => ""),
+      owners: load(playbookBullet).map(() => ""),
       what: "a trap whose `until` names the state of the tree that retires it" },
   ];
 }

@@ -16,7 +16,7 @@ const TOOL = "tools/playbook.py";
 const TREE_DIRS = ["crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "fuzz/", ".github/"];
 const PATH_TRIM = /(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'"]+)$/;
 const BRACES = /^([^{}]*)\{([^{}]+)\}([^{}]*)$/;
-const EXPIRY = /\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*\]\s*$/;
+const EXPIRY = /\[until:\s*(test|exists|gone|rule)\s+([^\]]+?)\s*\]\s*$/;
 
 function isFile(root: string, path: string): boolean {
   try {
