@@ -95,6 +95,10 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   nearly constant, which is not a bug, while growing faster than declared is. This is the one
   wall-clock check that holds on any machine, because both numbers came from the same one seconds
   apart, and it is the only one that sees inside a Rust member.
+- **`// requires: unix`** — the bench opens a Unix-domain socket, which this build has only on
+  Unix, so `--record-perf` leaves it out on Windows. The ledger is measured on Windows, so such a
+  member's perf proof is a `skip` entry in `data/proofs/policy.json` naming that reason, and the
+  bench on disk is what a Unix sweep measures.
 
 ## What the numbers mean
 

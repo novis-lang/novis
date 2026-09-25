@@ -52,6 +52,15 @@ const BUILDS = {
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
+/** `// requires: unix`: the program opens a Unix-domain socket, and this build has that transport only on Unix. */
+const UNIX_RE = /^(?:\/\/|#)\s*requires:\s*unix\b/m;
+
+/** Why a program is not run on this host, or null when it is. A skip is never remembered as green. */
+export function skipReason(source: string): string | null {
+  if (UNIMPL_RE.test(source)) return "marked `requires: unimplemented`";
+  if (UNIX_RE.test(source) && process.platform === "win32") return "marked `requires: unix`, and this host is Windows";
+  return null;
+}
 /** `// hostile: timeout-ms 4000`. */
 const TIMEOUT_RE = /(?:\/\/|#)\s*hostile:\s*timeout-ms\s+([0-9]+)/;
 /** `// hostile: expect-refusal`: this attack passes when the compiler refuses it. */
@@ -162,7 +171,8 @@ function declaredExit(source: string): number {
 /** An example passes when it ends with the status it declares and prints exactly its `.out`. */
 async function runExample(nvs: string, path: string): Promise<[Verdict, string]> {
   const source = read(path);
-  if (UNIMPL_RE.test(source)) return ["skip", "marked `requires: unimplemented`"];
+  const skip = skipReason(source);
+  if (skip) return ["skip", skip];
   const out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS);
   if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`];
   const want = declaredExit(source);
@@ -186,6 +196,13 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
   const lines: string[] = [];
   let failed = false;
   for (const path of paths) {
+    const skip = skipReason(read(path));
+    if (skip) {
+      // What a skipped program prints here is not what it prints where it runs.
+      lines.push(`  FAIL  ${path} is ${skip}: bless it on a host that runs it`);
+      failed = true;
+      continue;
+    }
     const out = await spawnProof([nvs, "run", path], path, 120_000);
     if (out.code !== declaredExit(read(path))) {
       lines.push(`  FAIL  ${path} exited ${out.code}:`, "        " + out.stderr.trim().replace(/\r?\n/g, "\n        "));
@@ -224,7 +241,8 @@ export function hostileLimitMs(source: string): number {
  */
 async function runHostile(nvs: string, path: string, valgrind: boolean): Promise<[Verdict, string]> {
   const source = read(path);
-  if (UNIMPL_RE.test(source)) return ["skip", "marked `requires: unimplemented`"];
+  const skip = skipReason(source);
+  if (skip) return ["skip", skip];
   let limit = hostileLimitMs(source);
   let argv = [nvs, "run", path];
   if (valgrind) {

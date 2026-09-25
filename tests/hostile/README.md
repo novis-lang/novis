@@ -112,6 +112,7 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // hostile: ends-early          the last step ends the program, and that ending is the attack
     // proof: gap <gap id>          it breaks something; the gap record says what, not this file
     // requires: unimplemented      skip: the feature does not run yet
+    // requires: unix               skip on Windows: it opens a Unix-domain socket
 
 A case runs with nothing on its standard input. A sibling `<name>.in` is sent to it instead, byte
 for byte, so an attack on a member that reads input can deliver bytes no `.nvs` file can spell —

@@ -20,7 +20,7 @@ import { abs } from "../lib/paths.ts";
 import { fixed, general } from "../lib/py.ts";
 import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Policy, type Proofs, type Skips } from "./collect.ts";
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
-import { spawnProof } from "./run.ts";
+import { skipReason, spawnProof } from "./run.ts";
 
 export const PERF_REPORT = "docs/perf/members.md";
 const CALIBRATION = "benches/members/_calibration";
@@ -181,10 +181,11 @@ const rjust = (s: string, n: number) => " ".repeat(Math.max(0, n - s.length)) + 
 /**
  * `--record-perf`: measures and appends. By default only what has no current figure, so running it at the
  * end of a slice re-measures what that slice changed and nothing else. `force` re-measures everything in
- * scope, for when the question is the machine and not the code. Returns the exit status.
+ * scope, for when the question is the machine and not the code. A bench this host does not run, by its
+ * `requires:` line, is left out as though it were not on disk. Returns the exit status.
  */
 export async function recordPerf(out: string[], nvs: string, entries: Entry[], proofs: Map<string, Proofs>, policy: Policy, skips: Skips, opts: RecordOptions): Promise<number> {
-  let todo = entries.filter((e) => existsSync(abs(benchFile(e))));
+  let todo = entries.filter((e) => existsSync(abs(benchFile(e))) && skipReason(read(benchFile(e))) === null);
   if (!opts.force) {
     todo = todo.filter((e) => "perf" in owed(e, proofs.get(e.id)!, policy, skips));
     if (todo.length === 0) {
