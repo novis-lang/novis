@@ -876,21 +876,22 @@ const ACOS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::atan`'s reference card — `rule:core-api/reference-card`.
 const ATAN_DOC: MethodDoc = MethodDoc {
-    short: "The arc tangent — the angle in radians whose tangent is `$n` — as `atan` does; for a \
-            pair of coordinates, `atan2` keeps the quadrant.",
+    short: "Returns the angle, in radians, whose tangent is `$n`. This is the arc tangent. For a \
+            point, use `Core\\Math::atan2`, which takes both coordinates.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A tangent, any `float`.",
+        desc: "A tangent: any number.",
         shape: &[],
     }],
-    ret: "An angle in `(-PI / 2, PI / 2)`, reaching either end for an infinite `$n`.",
+    ret: "An angle between `-PI / 2` and `PI / 2`, in radians. An infinite `$n` gives exactly \
+          `PI / 2` or `-PI / 2`.",
     errors: &[],
 };
 
 /// `Core\Math::atan2`'s reference card — `rule:core-api/reference-card`.
 const ATAN2_DOC: MethodDoc = MethodDoc {
-    short: "The angle of the point `($x, $y)` from the positive x-axis, in radians, as `atan2` \
-            does — `$y` first, as in PHP and in C.",
+    short: "Returns the angle of the point (`$x`, `$y`), in radians, measured from the positive \
+            x-axis. `$y` comes first.",
     params: &[
         ParamDoc {
             name: "y",
@@ -903,8 +904,8 @@ const ATAN2_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "An angle in `[-PI, PI]`, in the quadrant the two signs choose; `atan2(0.0, 0.0)` is \
-          `0.0` rather than `NaN`.",
+    ret: "An angle from `-PI` to `PI`, in radians. A point above the x-axis gives a positive \
+          angle, and a point below it gives a negative one. The point (0, 0) gives `0.0`.",
     errors: &[],
 };
 
@@ -947,13 +948,13 @@ const TANH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::asinh`'s reference card — `rule:core-api/reference-card`.
 const ASINH_DOC: MethodDoc = MethodDoc {
-    short: "The inverse hyperbolic sine of `$n`, as `asinh` does.",
+    short: "Returns the inverse hyperbolic sine of `$n`. It undoes `Core\\Math::sinh`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A hyperbolic sine, any `float`.",
+        desc: "Any number.",
         shape: &[],
     }],
-    ret: "The value whose `sinh` is `$n`, carrying `$n`'s sign.",
+    ret: "The number whose hyperbolic sine is `$n`. It has the same sign as `$n`. `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -2659,5 +2660,77 @@ mod tests {
         ] {
             assert!(asin(outside).is_nan(), "{outside} has no angle");
         }
+    }
+
+    /// `asinh` answers for every float: a zero keeps its sign, `-n` answers
+    /// exactly `-asinh(n)`, `±f64::MAX` stays finite where `x + sqrt(x² + 1)`
+    /// would overflow, the smallest floats answer themselves, and an infinity
+    /// answers an infinity — never a throw.
+    // covers: Core\Math::asinh
+    #[test]
+    fn asinh_answers_every_float_keeps_its_sign_and_stays_finite_at_the_largest() {
+        let asinh = |n: f64| float_result(nvs_core_math_asinh, &[Value::float(n)]);
+        assert_eq!(asinh(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(asinh(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert!((asinh(2.0f64.sinh()) - 2.0).abs() < 1e-12, "undoes sinh");
+        for n in [0.5, 3.0, 1e10, f64::MAX] {
+            assert_eq!(asinh(-n), -asinh(n), "odd at {n}");
+        }
+        let largest = asinh(f64::MAX);
+        assert!(
+            largest.is_finite() && (largest - 710.475_860_073_943_9).abs() < 1e-9,
+            "{largest}"
+        );
+        assert_eq!(asinh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert_eq!(asinh(f64::from_bits(1)), f64::from_bits(1));
+        assert_eq!(asinh(f64::INFINITY), f64::INFINITY);
+        assert_eq!(asinh(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(asinh(f64::NAN).is_nan());
+    }
+
+    /// `atan` answers for every float: `±PI / 2` exactly at either infinity and
+    /// at `±f64::MAX`, whose distance from the end is far below one step of a
+    /// float, a zero with its sign kept, and `-n` exactly `-atan(n)` — never a
+    /// throw.
+    // covers: Core\Math::atan
+    #[test]
+    fn atan_answers_every_float_reaches_its_ends_only_at_infinity_and_keeps_its_sign() {
+        use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+        let atan = |n: f64| float_result(nvs_core_math_atan, &[Value::float(n)]);
+        assert_eq!(atan(1.0), FRAC_PI_4);
+        assert_eq!(atan(f64::INFINITY), FRAC_PI_2);
+        assert_eq!(atan(f64::NEG_INFINITY), -FRAC_PI_2);
+        assert_eq!(atan(f64::MAX), FRAC_PI_2);
+        assert_eq!(atan(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(atan(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(atan(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for n in [0.5, 3.0, 1e10, f64::MAX] {
+            assert_eq!(atan(-n), -atan(n), "odd at {n}");
+        }
+        assert!(atan(f64::NAN).is_nan());
+    }
+
+    /// `atan2` takes `$y` first and answers the quadrant both signs choose,
+    /// `±PI` on the negative x-axis by the sign of a zero `$y`, `0` at the
+    /// origin, and a finite angle for coordinates at the ends of the range —
+    /// never a throw.
+    // covers: Core\Math::atan2
+    #[test]
+    fn atan2_takes_y_first_answers_every_quadrant_and_zero_at_the_origin() {
+        use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+        let atan2 =
+            |y: f64, x: f64| float_result(nvs_core_math_atan2, &[Value::float(y), Value::float(x)]);
+        assert_eq!(atan2(1.0, 0.0), FRAC_PI_2, "y first");
+        assert_eq!(atan2(1.0, 1.0), FRAC_PI_4);
+        assert!((atan2(1.0, -1.0) - 3.0 * FRAC_PI_4).abs() < 1e-15);
+        assert!((atan2(-1.0, -1.0) + 3.0 * FRAC_PI_4).abs() < 1e-15);
+        assert_eq!(atan2(-1.0, 1.0), -FRAC_PI_4);
+        assert_eq!(atan2(0.0, -1.0), PI);
+        assert_eq!(atan2(-0.0, -1.0), -PI);
+        assert_eq!(atan2(0.0, 0.0), 0.0);
+        assert_eq!(atan2(f64::MAX, f64::MIN_POSITIVE), FRAC_PI_2);
+        assert_eq!(atan2(f64::MIN_POSITIVE, f64::MAX), 0.0);
+        assert_eq!(atan2(f64::INFINITY, f64::INFINITY), FRAC_PI_4);
+        assert!(atan2(f64::NAN, 1.0).is_nan() && atan2(1.0, f64::NAN).is_nan());
     }
 }
