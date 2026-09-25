@@ -5,12 +5,12 @@
 // milestones — and last the next free numbers and the closing block with the wrap skeleton. Every
 // part is sliced out of its live file when the pack is built, so nothing in it is a copy.
 //
-// The goal and its handoff are records. The goal's `context` is the base selection, and the stage
-// the handoff's next group names adds its own `context` on top: an overlay only ever adds, so a
-// stage that forgot an entry prints what the base prints. While the Python writers still keep
-// `docs/agent/loop-goal.toml`, `docs/agent/handoff.md`, the plan's status block and
-// `docs/agent/playbook/` current, each of those records is read through its importer from that file,
-// so the pack is never older than the tree. The goal's position is `N of M` in `data/chain.json`.
+// The goal and its handoff are records, `data/goals/<slug>.json` and `<slug>.handoff.json`, under
+// `data/goals/side/` for a side goal, and the standing decisions are read from the goal's prose. The
+// goal's `context` is the base selection, and the stage the handoff's next group names adds its own
+// `context` on top: an overlay only ever adds, so a stage that forgot an entry prints what the base
+// prints. A failing acceptance check is found among the record's checks by the label the ledger
+// quotes. The goal's position is `N of M` in `data/chain.json`.
 //
 // The pack exists to save a session turns, not bytes: the item's anchors are printed inline because
 // each one replaces a `peek` call, and the traps are narrowed to the item's own paths because a trap
@@ -33,8 +33,6 @@ import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { fill, pyRepr } from "../lib/py.ts";
 import { load } from "../lib/store.ts";
-import { goalValue, handoffValue } from "../import/goals.ts";
-import type { Unread } from "../import/lib.ts";
 import { plan as planImporter } from "../import/plan.ts";
 import { playbook as playbookImporter } from "../import/playbook.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -47,7 +45,6 @@ import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
 export const summary = "the loop session's orientation pack, narrowed to the live goal: nv orient [--audit] [--item N] [--stage N] [--full] [--goal SLUG] | --traps <path>...";
 
-const LIVE = { md: "docs/agent/loop-goal.md", toml: "docs/agent/loop-goal.toml", handoff: "docs/agent/handoff.md" };
 const SIDE_ENV = "NOVIS_SIDE_GOAL";
 const PLAYBOOK = "docs/agent/playbook";
 const CONVENTIONS = "docs/agent/conventions.md";
@@ -130,6 +127,17 @@ interface Context {
 export interface GoalValue {
   context: Context;
   stages: { number: number; title: string; summary?: string; context?: Context }[];
+  checks?: RecordCheck[];
+}
+
+/** The fields of an acceptance check the pack names it by and prints. */
+interface RecordCheck {
+  id: string;
+  stage: number;
+  kind: string;
+  name?: string;
+  file?: string;
+  [field: string]: unknown;
 }
 
 interface HandoffValue {
@@ -148,11 +156,11 @@ interface HandoffValue {
 /** Where the goal this pack is for is read from. */
 interface Sources {
   slug: string;
-  /** The goal's own prose, which the importer reads stage summaries from. */
+  /** The goal's own prose, which the pack prints the standing decisions from. */
   md: string;
-  /** The prose the pack prints the standing decisions from. */
-  print: string;
-  toml: string;
+  /** The goal's record. */
+  record: string;
+  /** The goal's handoff record. */
   handoff: string;
   side: boolean;
   /** `N of M` on the chain, or null for a side goal. */
@@ -201,9 +209,9 @@ function read(path: string): string {
   }
 }
 
-/** The command that runs tool `name`: its `nv` subcommand once one exists, the Python tool until then. */
+/** The command that runs tool `name`. */
 function tool(name: string): string {
-  return existsSync(join(ROOT, "tools", "nv", "cmd", `${name}.ts`)) ? `bun nv ${name}` : `python tools/${name}.py`;
+  return `bun nv ${name}`;
 }
 
 async function git(...args: string[]): Promise<string> {
@@ -294,43 +302,28 @@ function stripFrontmatter(text: string): string {
 function sources(goalFlag: string | null): Sources | null {
   const side = (process.env[SIDE_ENV] ?? "").trim();
   if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(side) && existsSync(join(ROOT, "docs/agent/goals/side", `${side}.md`))) {
-    const stem = `docs/agent/goals/side/${side}`;
-    return { slug: side, md: `${stem}.md`, print: `${stem}.md`, toml: `${stem}.toml`, handoff: `${stem}.handoff.md`, side: true, position: null };
+    return { slug: side, md: `docs/agent/goals/side/${side}.md`, record: `data/goals/side/${side}.json`, handoff: `data/goals/side/${side}.handoff.json`, side: true, position: null };
   }
   const goals = chainGoals();
-  const live = liveGoal(goals);
-  if (!live) return null;
-  const position = (slug: string) => {
-    const at = goals.findIndex((g) => g.slug === slug);
-    return at < 0 ? null : `${at + 1} of ${goals.length}`;
-  };
+  const slug = goalFlag ?? liveGoal(goals)?.slug;
+  if (slug === undefined) return null;
+  const at = goals.findIndex((g) => g.slug === slug);
   return {
-    slug: goalFlag ?? live.slug,
-    md: live.md ?? LIVE.md,
-    print: LIVE.md,
-    toml: LIVE.toml,
-    handoff: LIVE.handoff,
+    slug,
+    md: goals[at]?.md ?? `docs/agent/goals/${slug}.md`,
+    record: `data/goals/${slug}.json`,
+    handoff: `data/goals/${slug}.handoff.json`,
     side: false,
-    position: position(goalFlag ?? live.slug),
+    position: at < 0 ? null : `${at + 1} of ${goals.length}`,
   };
 }
 
-/** The goal record: read from the live acceptance list while the driver keeps it, else the stored one. */
-function goalRecord(src: Sources, fromLive: boolean, unread: Unread[]): GoalValue | null {
-  if (fromLive && existsSync(join(ROOT, src.toml))) {
-    const v = goalValue(ROOT, { slug: src.slug, md: src.md, toml: src.toml, handoff: null }, unread);
-    if (v) return v as unknown as GoalValue;
-  }
+function goalRecord(src: Sources): GoalValue | null {
   const stored = load<any>(src.side ? sideGoalType : goalType).find((g) => g.id === src.slug);
   return stored ? (stored.value as GoalValue) : null;
 }
 
-/** The handoff record: read from the live handoff while the sessions write it, else the stored one. */
-function handoffRecord(src: Sources, unread: Unread[]): HandoffValue | null {
-  if (existsSync(join(ROOT, src.handoff))) {
-    const v = handoffValue(ROOT, src.handoff, src.slug, unread);
-    if (v) return v as unknown as HandoffValue;
-  }
+function handoffRecord(src: Sources): HandoffValue | null {
   const stored = load<any>(src.side ? sideHandoffType : handoffType).find((h) => h.id === src.slug);
   return stored ? (stored.value as HandoffValue) : null;
 }
@@ -395,7 +388,9 @@ function lastAcceptance(): [string, string] | null {
       continue;
     }
     const body = line.trim();
-    if (body.startsWith("goal cost:")) cost = true;
+    // A scoped sweep that came back green is followed by the sweep over the whole plan, whose own
+    // `goal cost:` line is the verdict; the scoped one says only that the second sweep started.
+    if (body.startsWith("goal cost:") && !body.includes("(scoped; opening the floor gate)")) cost = true;
     else if (body.startsWith("goal check:")) fail = body.slice("goal check:".length).trim();
     else if (fail && (body.startsWith("also red:") || body.startsWith("(and "))) fail += "\n" + body;
     if (cost && session) found = [session, fail];
@@ -429,104 +424,72 @@ function gateFailure(path: string): [string, string] | null {
   return [String(s.session ?? "").trim() || "an earlier session", failed];
 }
 
-interface CheckBlock {
-  fields: Map<string, string>;
-  top: number;
-  last: number;
-  lines: string[];
-}
-
-/** Every `[[check]]` in an acceptance list, with the comment header written above it. */
-function checkBlocks(text: string): CheckBlock[] {
-  const lines = text.split("\n");
-  const blocks: CheckBlock[] = [];
-  lines.forEach((ln, i) => {
-    if (ln.trim() !== "[[check]]") return;
-    let stop = lines.findIndex((l, j) => j > i && l.startsWith("["));
-    if (stop < 0) stop = lines.length;
-    let last = stop - 1;
-    while (last > i && (!lines[last]!.trim() || lines[last]!.trimStart().startsWith("#"))) last--;
-    let top = i;
-    let h = i - 1;
-    while (h >= 0 && !lines[h]!.trim()) h--;
-    while (h >= 0 && lines[h]!.trimStart().startsWith("#")) [top, h] = [h, h - 1];
-    const fields = new Map<string, string>();
-    for (const body of lines.slice(i, last + 1)) {
-      const f = /^(name|file|stage) = "(.*)"\s*$/.exec(body);
-      if (f && !fields.has(f[1]!)) fields.set(f[1]!, f[2]!);
-    }
-    blocks.push({ fields, top, last, lines: lines.slice(top, last + 1) });
-  });
-  return blocks;
-}
-
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** The block(s) whose label the ledger's `goal check:` line opens with, matched exactly. */
-function locateCheck(toml: string, fail: string): CheckBlock[] {
-  const text = read(toml);
-  if (!fail || !text) return [];
-  return checkBlocks(text).filter((b) => {
-    const stage = b.fields.get("stage") ?? "?";
-    const name = b.fields.get("name");
-    const file = b.fields.get("file");
-    if (name !== undefined) return fail.startsWith(`${name} [${stage}]: `);
-    if (file !== undefined) return new RegExp(`^\\S+ ${escapeRe(file)} \\[${escapeRe(stage)}\\]: `).test(fail);
-    return false;
+/** A stage's label as the ledger writes it: its number and title. */
+function stageLabel(goal: GoalValue, n: number): string {
+  const s = goal.stages.find((x) => x.number === n);
+  return s ? `${s.number} ${s.title}` : String(n);
+}
+
+/**
+ * The check(s) the ledger's `goal check:` line opens with. The driver labels a check by its name, its
+ * file or its id, then its stage label in brackets, so each of those is tried.
+ */
+export function locateCheck(goal: GoalValue, fail: string): RecordCheck[] {
+  if (!fail) return [];
+  return (goal.checks ?? []).filter((c) => {
+    const label = stageLabel(goal, c.stage);
+    return [c.name, c.file, c.id].some((n) => typeof n === "string" && fail.startsWith(`${n} [${label}]`));
   });
 }
 
-function emitCheckBlock(toml: string, fail: string): void {
-  const hits = locateCheck(toml, fail);
-  if (hits.length === 0) return;
-  if (hits.length > 1) {
-    const shown = hits.slice(0, 4);
-    const where = shown.map((b) => `'${toml}:${b.top + 1}-${b.last + 1}'`).join(" ");
-    const more = hits.length === shown.length ? "" : ` (of ${hits.length}; the rest carry it too)`;
-    emit();
-    emit(`${hits.length} checks carry that exact label, so which of them failed does not follow`);
-    emit(`from the ledger line. \`${tool("peek")} ${where}\`${more}`);
-    emit("prints them in one call -- the one naming what failed above is yours.");
-    return;
-  }
-  const b = hits[0]!;
-  const anchor = `${toml}:${b.top + 1}-${b.last + 1}`;
-  emit();
-  emit(`That check is ${anchor}, and it is printed here in full -- it is what this`);
-  emit("session exists to turn green, so do not go and find it. Any comment above the");
-  emit("`[[check]]` line is the stage's own header, and says what the whole stage is for:");
-  emit();
-  for (const line of b.lines.slice(0, CHECK_BLOCK_LINES)) emit(line.trim() ? `  ${line}` : "");
-  if (b.lines.length > CHECK_BLOCK_LINES) {
-    emit(`  ... ${b.lines.length - CHECK_BLOCK_LINES} more line(s) -- \`${tool("peek")} '${anchor}'\` for the whole block.`);
-  }
-  emitStageSiblings(toml, b);
+/** A check as the pack prints it: its fields as JSON, one per line, capped at `max` lines. */
+function checkLines(c: RecordCheck, max: number): string[] {
+  const lines = JSON.stringify(c, null, 2).split("\n");
+  return lines.length <= max ? lines : [...lines.slice(0, max), `... ${lines.length - max} more line(s)`];
 }
 
-/** The rest of the failing check's stage, one block each: what closing the stage means. */
-function emitStageSiblings(toml: string, hit: CheckBlock): void {
-  const stage = hit.fields.get("stage") ?? "";
-  if (!stage || stage.toLowerCase().includes("floor") || stage.startsWith("0")) return;
-  const siblings = checkBlocks(read(toml)).filter((b) => (b.fields.get("stage") ?? "") === stage && b.top !== hit.top);
+function emitCheckBlock(src: Sources, goal: GoalValue, fail: string): void {
+  const hits = locateCheck(goal, fail);
+  if (hits.length === 0) return;
+  if (hits.length > 1) {
+    emit();
+    emit(`${hits.length} checks carry that exact label, so which of them failed does not follow`);
+    emit(`from the ledger line: ${hits.map((c) => `\`${c.id}\``).join(", ")} in ${src.record}.`);
+    emit("The one naming what failed above is yours.");
+    return;
+  }
+  const c = hits[0]!;
+  emit();
+  emit(`That check is \`${c.id}\` in ${src.record}, and it is printed here in full -- it is`);
+  emit("what this session exists to turn green, so do not go and find it:");
+  emit();
+  for (const line of checkLines(c, CHECK_BLOCK_LINES)) emit(`  ${line}`);
+  emitStageSiblings(goal, c);
+}
+
+/** The rest of the failing check's stage: what closing the stage means. */
+function emitStageSiblings(goal: GoalValue, hit: RecordCheck): void {
+  const label = stageLabel(goal, hit.stage);
+  if (hit.stage === 0 || label.toLowerCase().includes("floor")) return;
+  const siblings = (goal.checks ?? []).filter((c) => c.stage === hit.stage && c.id !== hit.id);
   if (siblings.length === 0) return;
   emit();
-  emit(`The rest of stage ${pyRepr(stage)} -- ${siblings.length} more check(s). The stage goes green`);
+  emit(`The rest of stage ${pyRepr(label)} -- ${siblings.length} more check(s). The stage goes green`);
   emit("only when these do too, so they are what closing the one above actually means:");
-  for (const b of siblings.slice(0, STAGE_SIBLINGS)) {
+  for (const c of siblings.slice(0, STAGE_SIBLINGS)) {
     emit();
-    emit(`  -- ${toml}:${b.top + 1}`);
-    const body = b.lines.filter((ln) => !ln.trimStart().startsWith("#"));
-    for (const line of body.slice(0, SIBLING_BLOCK_LINES)) emit(line.trim() ? `  ${line}` : "");
-    if (body.length > SIBLING_BLOCK_LINES) emit(`  ... ${body.length - SIBLING_BLOCK_LINES} more line(s)`);
+    for (const line of checkLines(c, SIBLING_BLOCK_LINES)) emit(`  ${line}`);
   }
   if (siblings.length > STAGE_SIBLINGS) emit(`  ... and ${siblings.length - STAGE_SIBLINGS} more check(s) in this stage.`);
 }
 
 // ------------------------------------------------------------------------- sections
 
-async function runMarker(src: Sources): Promise<void> {
+async function runMarker(src: Sources, goal: GoalValue): Promise<void> {
   section("RUN", "git, .loop/running, .loop/interrupted.json, .loop/log.md and the failing check itself");
   if (existsSync(join(ROOT, RUNNING))) {
     emit("A LOOP DRIVER HOLDS THIS TREE. Its sessions edit these files on nearly every");
@@ -574,7 +537,7 @@ async function runMarker(src: Sources): Promise<void> {
     } else {
       emit(`THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session ${session}:`);
       for (const ln of fail.split("\n")) emit(`  ${ln}`);
-      emit("The run ends only when every check in loop-goal.toml passes, and nothing else");
+      emit("The run ends only when every check in the goal's record passes, and nothing else");
       emit("shows a session this one -- the driver writes it to the ledger and moves on.");
       emit("The first line is the EARLIEST-STAGE failing check, so it is the one that can be");
       emit("closed without three other stages landing first. On the sweep a goal is reached");
@@ -591,7 +554,7 @@ async function runMarker(src: Sources): Promise<void> {
       emit("  * A check that USED TO PASS is a regression and outranks new work outright.");
       emit("The ledger in .loop/log.md says which: the same line repeating session after");
       emit("session is the first kind, and it is not an alarm.");
-      emitCheckBlock(src.toml, fail);
+      emitCheckBlock(src, goal, fail);
     }
   }
   const doc = gateFailure(DOCGATE);
@@ -715,15 +678,15 @@ function runAnchors(src: Sources, item: string): void {
 }
 
 function runStandingDecisions(src: Sources): void {
-  const text = read(src.print);
+  const text = read(src.md);
   if (!text) {
-    warn(`${src.print} is missing -- the loop has no stated goal`);
+    warn(`${src.md} is missing -- the goal has no prose`);
     return;
   }
-  section("THE GOAL'S STANDING DECISIONS", `${src.print} (pre-authorized, never re-opened)`);
+  section("THE GOAL'S STANDING DECISIONS", `${src.md} (pre-authorized, never re-opened)`);
   const block = sectionOpening(text, "standing decisions");
   if (block) emit(block);
-  else warn(`${src.print} has no \`## Standing decisions\` section -- loop-authoring.md § 4`);
+  else warn(`${src.md} has no \`## Standing decisions\` section -- loop-authoring.md § 4`);
 }
 
 interface BookRule {
@@ -1375,8 +1338,8 @@ function runMilestones(m: Manifest): void {
   }
   emit();
   emit("`Mn` is the whole milestone; `Mn:lead` and `Mn:verify` are the two paragraphs that");
-  emit(`usually answer the question. \`${tool("plan")} --amend Mn --from <file>\` rewrites`);
-  emit(`one, and \`${tool("session")} --wrap\` takes a \`## milestone: Mn\` section for the same thing.`);
+  emit(`usually answer the question. A \`## milestone: Mn\` section in \`${tool("session")} --wrap\``);
+  emit("rewrites one.");
 }
 
 /** The next free diagnostic code in each band, and the next free decision number. */
@@ -1494,8 +1457,9 @@ async function runClosing(): Promise<void> {
   emit("driver builds it after every acceptance check. Run it. Do not `ls` it first, and");
   emit("rebuild only once you have changed Rust yourself.");
   emit();
-  emit("If this pack did not print something you needed, that is a gap in [context] in");
-  emit("docs/agent/loop-goal.toml. Say which field was missing it, in the handoff.");
+  emit("If this pack did not print something you needed, that is a gap in the goal record's");
+  emit("`context`. Say which field was missing it, in the handoff; `bun nv goal context --add");
+  emit("<path>` adds a module.");
   if (template) {
     emit();
     emit(`THE WRAP SKELETON -- \`${session} --template\` for this tree, so you do not call it.`);
@@ -1707,16 +1671,15 @@ export async function run(args: string[]): Promise<number> {
 
   const src = sources(opts.goal);
   if (src === null) {
-    process.stdout.write(`nv orient: no goal is installed at ${LIVE.md}, so there is no goal to narrow to.\n\`bun nv brief --where <keyword>\` routes a topic to the file that owns it.\n`);
+    process.stdout.write(`nv orient: data/chain.json names no live goal on the chain, so there is no goal to narrow to.\n\`bun nv brief --where <keyword>\` routes a topic to the file that owns it.\n`);
     return 2;
   }
-  const unread: Unread[] = [];
-  const g = goalRecord(src, opts.goal === null, unread);
+  const g = goalRecord(src);
   if (g === null) {
     process.stdout.write(`nv orient: goal ${src.slug} has no record, so there is no goal to narrow to.\n\`bun nv brief --where <keyword>\` routes a topic to the file that owns it.\n`);
     return 2;
   }
-  const h = handoffRecord(src, unread);
+  const h = handoffRecord(src);
   const stage = opts.stage ?? h?.next.stage ?? null;
   const m = manifest(g, opts.full ? null : stage);
   if (opts.full) m.modules = ["crates/**", "editors/**"];
@@ -1739,7 +1702,7 @@ export async function run(args: string[]): Promise<number> {
     }
   }
 
-  await runMarker(src);
+  await runMarker(src, g);
   const item = runState(src, h, opts.item);
   runAnchors(src, item);
   runStandingDecisions(src);
@@ -1754,8 +1717,7 @@ export async function run(args: string[]): Promise<number> {
   await runClosing();
   closeLedger();
 
-  if (!m.present) warn(`${src.toml} has no [context] block at all, so nothing could be selected. docs/agent/loop-authoring.md § 2 has the field list.`);
-  for (const u of unread) warn(`${u.path}: ${u.reason}`);
+  if (!m.present) warn(`${src.record} has no \`context\` at all, so nothing could be selected. docs/agent/loop-authoring.md § 2 has the field list.`);
 
   let body = out.join("\n").replace(/^\n+/, "");
   if (opts.audit) body += "\n" + audit().join("\n");

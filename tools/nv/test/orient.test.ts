@@ -1,5 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import { type GoalValue, manifestFindings } from "../cmd/orient.ts";
+import { type GoalValue, locateCheck, manifestFindings } from "../cmd/orient.ts";
+
+describe("locateCheck", () => {
+  const g: GoalValue = {
+    context: {},
+    stages: [
+      { number: 1, title: "the floor" },
+      { number: 3, title: "the parser" },
+    ],
+    checks: [
+      { id: "named", stage: 3, kind: "command", name: "the parser reads a file" },
+      { id: "fixture", stage: 3, kind: "program", file: "tests/x.nvs" },
+      { id: "bare", stage: 1, kind: "command" },
+      { id: "twin", stage: 1, kind: "command", name: "the parser reads a file" },
+    ],
+  };
+  test("the ledger's label finds the check by its name, its file or its id, inside its own stage", () => {
+    expect(locateCheck(g, "the parser reads a file [3 the parser]: exit 1 -- no").map((c) => c.id)).toEqual(["named"]);
+    expect(locateCheck(g, "tests/x.nvs [3 the parser]: exit 2").map((c) => c.id)).toEqual(["fixture"]);
+    expect(locateCheck(g, "bare [1 the floor]: exit 1").map((c) => c.id)).toEqual(["bare"]);
+    expect(locateCheck(g, "the parser reads a file [1 the floor]: exit 1").map((c) => c.id)).toEqual(["twin"]);
+    expect(locateCheck(g, "")).toEqual([]);
+    expect(locateCheck(g, "something else [3 the parser]: exit 1")).toEqual([]);
+  });
+});
 
 function goal(context: GoalValue["context"], stages: GoalValue["stages"] = []): GoalValue {
   return { context, stages };
