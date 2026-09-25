@@ -1,25 +1,31 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv render --website` writes all of the website's generated data. `website-rules` writes the rulebook. `website-core` (`tools/nv/renderers/website-core.ts`) writes `website/src/data/core.json` and the Core stub pages. It reads the member tables from the `spec_core_members` record and the class prose (summary, `Enums:`, `Constants:`, bullet rosters, headings) from `docs/spec/01-core-library.md`. It reads the registry from `nvs meta --json`, with no Rust text scan, and the corrections from `website/config/spec-overrides.mjs`. It needs a built binary, so it is in `WEBSITE_RENDERERS` only, not in the `RENDERERS` that CI's docs job checks. A draft page is the renderer's, and `Owned.mine` in `tools/nv/lib/render.ts` makes only a draft page an orphan. `website/scripts/sync-core.mjs` and `website/scripts/lib/` are deleted.\n\nThe Stage 11 check `CI, the website and the git hooks run bun…` passes: `bun nv audit ci` prints both of its `want` lines. The other Stage 11 check, `bun nv loop-stats --guard`, is still red. This is an open item, not a regression: `loop-stats` is not ported yet.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. `bun nv audit ci` prints both of its `want` lines. `bun nv loop-stats` (`tools/nv/cmd/loop-stats.ts`) is the port of `tools/loop-stats.py`, with every report: the default one (per session, constants, head, drift, projection, group curve), `--attribute`, `--calibrate [--write]` and `--json`. It adds `--guard`: the guard's denials per rule and per session, read from `hook error: guard: <rule>:` tool results. A rule is flagged `RISING` when the later half of the sessions since its first denial counts more than the earlier half. The port also recognises `bun nv peek`, `nv orient` and `data/goals/`, which the Python tool misses. So its attribution differs from the Python tool's by a few percent, and its constants match exactly.\n\n`tools/loop-stats.py` is still on disk, and so are its citations (`AGENTS.md`, `docs/agent/*.md`). The same holds for every other Python tool ported so far. Deleting them and repointing the citations is Stage 12's work (`no Python`). `tool(\"loop-stats\")` in `tools/nv/cmd/orient.ts` already resolves to `bun nv loop-stats`, because the command file exists.",
   "next": {
     "stage": 11,
-    "title": "`bun nv loop-stats`, with `--guard`",
+    "title": "the small unported tools",
     "files": [],
-    "note": "one file set: `tools/loop-stats.py`, a new `tools/nv/cmd/loop-stats.ts`, `tools/nv/main.ts`.",
+    "note": "one file set: `tools/nv/main.ts` and one new `tools/nv/cmd/<name>.ts` for each Python tool below. Each is under 200 lines, so read it whole.",
     "items": [
       {
         "done": false,
-        "text": "**Port `tools/loop-stats.py` to `bun nv loop-stats`** -- `tools/loop-stats.py:830` (`main`) and `tools/loop-stats.py:249` (`read_session`) are the seams. The script is 1079 lines, so read it by region. Port the report the loop's docs quote first: the head, the drift and the `--attribute` report. The goal's Stage 11 bullet `nv loop-stats --guard` owns this."
+        "text": "**Port `tools/relink.py` to `bun nv relink`**: `tools/relink.py:1`, registered in `tools/nv/main.ts:55`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this."
       },
       {
         "done": false,
-        "text": "**Add `--guard`** -- count the guard's denials per session and per rule, from the `guard: <rule>:` reasons in `.loop/logs/`. The check wants the line `guard denials by rule`. The seam is `tools/loop-stats.py:249`."
+        "text": "**Port `tools/exe-icons.py` to `bun nv exe-icons`**: `tools/exe-icons.py:1`. Same bullet."
+      },
+      {
+        "done": false,
+        "text": "**Port `tools/origin.py` to `bun nv origin`**: `tools/origin.py:1`. `tools/written.py:1` may already be covered by `tools/nv/lib/written.ts`. Check that before porting it."
+      },
+      {
+        "done": false,
+        "text": "**Port `tools/observe.py` and `tools/proctree.py`**: `tools/observe.py:1`, `tools/proctree.py:1`. Same bullet."
       }
     ]
   },
   "backlog": [
-    "Port the rest of the Stage 11 tool list to `bun nv`: `bench-load`, `bench-proxied`, `machine`, `observe`, `proctree`, `relink`, `exe-icons`, `origin`, `written`, `webcrypto-vectors.mjs`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this.",
-    "The website's `tmLanguage` is rendered from the editor's grammar, or a reason in the grammar's record says why both stay. The goal's Stage 11 bullet `The website.` owns this.",
-    "`nv verify` does not run `bun nv render --check`, so a rule edit that leaves the website pages stale fails only in CI. The playbook bullet `Editing a rule fragment leaves the website's copy of it stale` covers this.",
-    "`tools/check-links.py:73` still says `npm run sync:rules`. Stage 12 deletes the file."
+    "`tools/machine.py` (349 lines), `tools/bench-load.py` (314), `tools/bench-proxied.py` (579) and `tools/webcrypto-vectors.mjs` (1030) are the rest of Stage 11's port list. Each one is a group of its own. Owner: the goal's Stage 11 bullet.",
+    "Stage 12 deletes `tools/loop-stats.py` and every other ported Python tool, and repoints their citations to `bun nv`. Owner: `docs/agent/goals/tooling-overhaul.md` § Stage 12."
   ]
 }
