@@ -5,7 +5,7 @@
   "context": {
     "modules": [
       "crates/nvs-stdlib/src/registry.rs",
-      "tools/class-cards.py",
+      "tools/nv/cmd/class-cards.ts",
       "crates/nvs-lsp/src/card.rs",
       "crates/nvs-stdlib/src/json.rs",
       "crates/nvs-cli/src/agent.rs",

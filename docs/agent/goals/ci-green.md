@@ -40,7 +40,7 @@ traded.
 
 **Does:** Gets a green `ci.yml` run on `main` for the code `HEAD` holds.
 
-`python tools/ci-green.py` must say the latest `ci.yml` run on `main` completed with `success` and ran
+`bun nv ci-green` must say the latest `ci.yml` run on `main` completed with `success` and ran
 the code `HEAD` holds: the run's commit is an ancestor of `HEAD`, and nothing has changed since but
 the bookkeeping a session writes — that tool's module doc is the home of which paths those are, and
 of why equality with `HEAD` is not what it asks. The loop never pushes, so such a run exists only

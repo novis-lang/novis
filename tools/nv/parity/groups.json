@@ -58,16 +58,6 @@
       ["--bogus"]
     ]
   },
-  "ci-green": {
-    "python": ["python", "tools/ci-green.py"],
-    "nv": ["bun", "tools/nv/main.ts", "ci-green"],
-    "cases": [[]]
-  },
-  "class-cards": {
-    "python": ["python", "tools/class-cards.py"],
-    "nv": ["bun", "tools/nv/main.ts", "class-cards"],
-    "cases": [[], ["--check"], ["x", "--check", "y"]]
-  },
   "db-matrix": {
     "python": ["python", "tools/db-matrix.py"],
     "nv": ["bun", "tools/nv/main.ts", "db-matrix"],
@@ -170,17 +160,6 @@
       ["--item", "900"],
       ["--item", "7"],
       ["--json"]
-    ]
-  },
-  "layout": {
-    "python": ["python", "tools/layout.py"],
-    "nv": ["bun", "tools/nv/main.ts", "layout"],
-    "cases": [
-      [],
-      ["--check"],
-      ["--rows"],
-      ["--check", "--rows"],
-      ["--bogus"]
     ]
   },
   "links": {

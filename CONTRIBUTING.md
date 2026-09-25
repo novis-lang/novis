@@ -122,17 +122,17 @@ toolchain and finish in about a second together. They are CI's `docs` job, and a
 this file is checked by them and by nothing else:
 
 ```sh
-python tools/check-links.py    # every markdown link resolves, with matching case
-python tools/layout.py         # the layout listing below still describes the tree
-python tools/records.py --check    # a record's field set, heading order, and the derived counters
-python tools/plan.py --check   # every milestone row agrees with the file it names
+bun nv links             # every markdown link resolves, with matching case
+bun nv layout            # the layout listing below still describes the tree
+bun nv records --check   # a record's field set, heading order, and the derived counters
+bun nv plan --check      # every milestone row agrees with the file it names
 ```
 
 [docs/agent/commands.md](docs/agent/commands.md) is the full set of tools this repo is driven by.
 
 ### Repository layout
 
-**Every row below is on disk today**, and `python tools/layout.py --check` is the gate that keeps that
+**Every row below is on disk today**, and `bun nv layout --check` is the gate that keeps that
 true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
 has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
 means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
@@ -140,7 +140,7 @@ workspace has *not* built yet — the extension loader, the formatter, the langu
 converter, the package manager — is scheduled in [docs/implementation-plan.md](docs/implementation-plan.md)
 and named nowhere else, because a second copy of a schedule is how this section last went stale.
 
-<!-- layout:begin  python tools/layout.py --check gates this listing; see that file's docstring -->
+<!-- layout:begin  bun nv layout --check gates this listing; see tools/nv/cmd/layout.ts -->
 ```
 crates/             the Cargo workspace
   nvs-diagnostics   spans, source maps, the one diagnostic record

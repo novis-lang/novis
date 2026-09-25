@@ -315,7 +315,7 @@ that decides it. The argument is § *Why `test` runs only the binaries a change 
 the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `nv verify` runs none of them.** `rules.py --check`,
-`rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
+`rules.py --render --check`, `bun nv links`, `bun nv layout`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `bun nv release --check` are CI's `docs` job — no Rust toolchain, about a
 second together — and `session.py --wrap` runs **six families** of them in-process, so a wrap cannot
 commit what it just broke: the link half and the live goal's `[context]` manifest always, the tests the
@@ -343,10 +343,10 @@ driver's acceptance sweep then reports against a session that is already gone. T
 in a quarter of a second and the last `## commit:` carries it. A tree with no debug binary cannot answer
 the question, and the wrap refuses there rather than committing a guess.
 
-`layout.py` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
+`bun nv layout` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
 every row names something on disk, every crate, bench package and tracked top-level directory has a row,
 and an `[audited unsafe]` marker matches the crate's own `[lints]`. So **a slice that adds or removes a
-crate owes that file one line**, and `python tools/layout.py --rows` drafts it from the crate's own `//!`
+crate owes that file one line**, and `bun nv layout --rows` drafts it from the crate's own `//!`
 opening sentence. Nothing else in the tree notices a new crate: that block is prose, and a build cannot
 fail over it.
 

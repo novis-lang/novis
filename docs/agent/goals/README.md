@@ -101,10 +101,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [tooling-overhaul](tooling-overhaul.md) | post-parity, two new records — `main` frozen until it is walked | `tools/` becomes `bun nv`, over typed records under `data/`; every check keyed on what it reads, the playbook triaged, the generated goals made ordinary, no Python left |
 | after `dossier` | `rule:testing/feature-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 | [limit-handler-reach](limit-handler-reach.md) | `rule:errors/on-limit` | `crates/nvs-runtime/src/abi.rs`, `ctx/hooks.rs`, `sequence.rs` — a resource `FATAL` raised inside a member's own loop runs the program's `onLimit` handler, as one raised in compiled code already does |
-| [core-class-cards](core-class-cards.md) | `rule:core-api/reference-card` | `crates/nvs-stdlib/src/registry.rs`, `tools/class-cards.py` — every `Core` class that landed before classes carried a card gains its `ClassDoc`, and the registry test's list of classes still owing one is emptied |
+| [core-class-cards](core-class-cards.md) | `rule:core-api/reference-card` | `crates/nvs-stdlib/src/registry.rs`, `tools/nv/cmd/class-cards.ts` — every `Core` class that landed before classes carried a card gains its `ClassDoc`, and the registry test's list of classes still owing one is emptied |
 | [plain-comments](plain-comments.md) | `rule:testing/feature-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `owes.all` in `data/proofs/policy.json` makes them owed |
 | [foreach-var](foreach-var.md) | `rule:types/var-inference`, one new record — `position: last` | `crates/nvs-syntax/src/parser/stmt.rs`, `nvs-types/src/locals.rs`, `nvs-ir/src/lower/mod.rs`, `docs/reference/lang/` — a `foreach` binding may write `var` wherever a local may, and the reference, the rules and the examples already on disk say so |
-| [ci-green](ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [ci-green](ci-green.md) | post-parity, no ADR — `position: last` | `tools/nv/cmd/ci-green.ts`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
 

@@ -4,13 +4,13 @@
     "stage": 2,
     "title": "the run exists, and it is this commit's",
     "files": [
-      "tools/ci-green.py",
+      "tools/nv/cmd/ci-green.ts",
       "tools/ci-changes.py"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Ask the check** — `tools/ci-green.py:@main` says which of the three it is: no green run, a green run for older code (a `BLOCKED` asking for the push, naming the commit), or green."
+        "text": "**Ask the check** — `tools/nv/cmd/ci-green.ts:@run` says which of the three it is: no green run, a green run for older code (a `BLOCKED` asking for the push, naming the commit), or green."
       },
       {
         "done": false,

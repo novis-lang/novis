@@ -5,7 +5,7 @@
   "files": [],
   "context": {
     "modules": [
-      "tools/ci-green.py",
+      "tools/nv/cmd/ci-green.ts",
       "tools/ci-changes.py"
     ],
     "rules": [

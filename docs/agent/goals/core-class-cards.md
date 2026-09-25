@@ -33,7 +33,7 @@ Goal `limit-handler-reach`'s whole acceptance list, carried in verbatim by `tool
 
 **Does:** Gives every `Core` class its own reference card.
 
-`python tools/class-cards.py` prints the classes still owing a card, read off the one list. For each:
+`bun nv class-cards` prints the classes still owing a card, read off the one list. For each:
 write a `ClassDoc` const in the class's own module, directly above its `CLASS` row (`/// `Core\X`'s own
 card — `rule:core-api/reference-card`.`), set the row's `doc: Some(&CLASS_DOC)`, and delete the class's
 name from `CLASSES_STILL_OWING_A_CARD`. `cargo test --lib every_registry_row_carries_a_reference_card`
