@@ -78,7 +78,7 @@ down, and only then brings up the other.
 | 1 | `oha` → nginx → php-fpm | `oha` | PHP as it ships |
 | 2 | `oha` → nginx → `nvs serve` | `oha` | Novis as it ships |
 | 3 | `oha` → `nvs serve` | `oha` | what nginx costs us |
-| 4 | fcgi → php-fpm | `bench.py`'s FastCGI client | what nginx and the bridge cost PHP |
+| 4 | fcgi → php-fpm | `bun nv bench`'s FastCGI client | what nginx and the bridge cost PHP |
 
 **`oha` and not our own generator**, unlike the other leg: M7's *Verify* names `wrk`/`oha` by name,
 and `bun nv bench` substitutes a hand-rolled one only because neither is installed on the Windows

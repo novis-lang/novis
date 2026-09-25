@@ -9,7 +9,7 @@ tree.
 > **Status: pre-alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
 > runs the conformance trees, `nvs serve` answers HTTP. Nothing is released — the version is `0.0.1`
 > with no tag behind it — and nothing is stable. Work runs as a chain of numbered goals rather than as
-> a march through milestones; `python tools/brief.py` prints the live one.
+> a march through milestones; `bun nv orient --full` prints the live one.
 
 ## Where to take what you have
 
@@ -87,8 +87,8 @@ right and the other is a bug — fix it rather than reconciling it in your head.
 everything else:
 
 ```sh
-python tools/brief.py                  # the plan's status, one line per module, the guard tests
-python tools/brief.py --where <word>   # which file owns a topic
+bun nv orient --full           # where the work stands, one line per module, the rules
+bun nv brief --where <word>    # which file owns a topic
 ```
 
 ### Building
@@ -184,10 +184,10 @@ docs/
   agent/            how agents work here: loop, goals, prompts, conventions, live handoff
   plan/             one file per milestone, plus the frozen pre-M0 design
   spec/             the normative language reference
-  reference/        the chapters `tools/reference.py` generates `docs/novis.md` from
+  reference/        the chapters `bun nv reference` generates `docs/novis.md` from
   perf/             recorded benchmark figures
   examples/         worked `Core` examples
-.github/            CI: three platforms, miri, asan and fuzz legs, and a Python-only docs job
+.github/            CI: three platforms, miri, asan and fuzz legs, and a Bun-only docs job
 .claude/            Claude Code settings, and the pointer file to AGENTS.md
 ```
 <!-- layout:end -->

@@ -104,9 +104,9 @@ Novis is always the **release** binary: `bun nv bench` refuses a `target/debug/`
 debug build measures its own assertions. Nothing in this suite builds anything — the binary on disk is the
 binary that runs, and the harness warns when it is older than the newest file under `crates/`.
 
-**Python is the interpreter running `bench.py`** unless `--python` names another, and it is passed no
-flags: there is no second CPython mode the way there is a second PHP one, and CPython is what a tool is
-actually run under — a PyPy column was considered and rejected in ADR 0100's *Alternatives rejected*.
+**Python is the interpreter running each `.py` twin** unless `--python` names another, and it is passed
+no flags: there is no second CPython mode the way there is a second PHP one, and CPython is what a Python
+program is actually run under — a PyPy column was considered and rejected in ADR 0100's *Alternatives rejected*.
 Expect Python to win the cases where its loop is really a call into C (`sorted`, `sum`, a comprehension,
 `in` over a list) and to lose the ones that are a real interpreted loop. That split is the honest shape of
 the comparison and neither half should be quoted without the other.

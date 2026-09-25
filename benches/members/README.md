@@ -8,15 +8,14 @@ and [`benches/abi-probe/`](../abi-probe/) owns the guards that fail a build. Thi
 answer two questions: *we changed something — what did it cost?*, and *is this member doing more
 than it should?* — the second on the very first run, before there is anything to compare against.
 
-`python tools/dossier.py --record-perf` measures them and appends to
+`bun nv proofs --record-perf` measures them and appends to
 [`docs/perf/members.ndjson`](../../docs/perf/members.ndjson); `--perf-report` renders
 [`docs/perf/members.md`](../../docs/perf/members.md) from it. This file owns what a bench **is**.
 
 ## Where a bench goes
 
 `benches/members/<the feature's path>.nvs` — one file, not a directory, because a feature has one
-figure: `benches/members/core/Str/length.nvs`. `python tools/dossier.py --id '<feature>'` prints the
-path.
+figure: `benches/members/core/Str/length.nvs`. `bun nv proofs --id '<feature>'` prints the path.
 
 ## What a bench is
 
@@ -135,11 +134,8 @@ new ledger.
 
 ## When a figure is re-measured
 
-Only when the implementation moves. Every record carries a hash of the implementing file's text
-with its trailing `mod tests` cut off, and `python tools/dossier.py --gate` accepts a figure while
-that hash still matches. Change a member's body in `crates/nvs-stdlib/src/str.rs` and every
-`Core\Str` figure goes stale at once; add a test to the same file, or change anything else, and
-nothing is re-measured. The text rather than the commit, because a dossier session splices its
-Rust tests into the implementing file before it measures, and a figure keyed on the commit would go
-stale at the very commit that lands it. That is what keeps a sweep over hundreds of features
-affordable enough to actually run.
+Only when the implementation's code moves. Every record carries `bun nv proofs --impl-hash` of the
+implementing file, and `bun nv proofs --gate` accepts a figure while that hash still matches. Change
+a member's body in `crates/nvs-stdlib/src/str.rs` and every `Core\Str` figure goes stale at once;
+add a test or a comment to the same file and nothing is re-measured. What the hash reads, and why
+the code rather than the commit, is `rule:testing/member-perf-ledger`.
