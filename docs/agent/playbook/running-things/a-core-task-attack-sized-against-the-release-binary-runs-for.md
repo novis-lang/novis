@@ -4,4 +4,4 @@
   sketched, then took 17s and past 120s as a hostile case, because `dossier.py --run hostile` drives
   `target/debug/nvs.exe`. Time a new task-tree attack with `time target/debug/nvs.exe run <file>`
   before declaring its `timeout-ms`, and size the steps so the whole case lands near two seconds —
-  the sweep runs 170 of them. [until: reviewed 2026-10-19]
+  the sweep runs 170 of them. [until: gone crates/nvs-stdlib/src/task.rs:Core\Task::all]

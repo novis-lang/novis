@@ -1,6 +1,0 @@
-- **A `cargo build --release -p nvs-cli` piped into `tail` reports `tail`'s clean exit, so a link
-  that failed because another process holds `target/release/nvs.exe` reads as a green build.** An
-  editor running `nvs lsp` out of this tree holds that exact file; this session's build printed
-  nothing, exited 0, left the binary at its old timestamp, and the `--bless` after it spent the
-  relink anyway. Run a release build with no pipe, and check the binary's timestamp moved.
-  [until: reviewed 2026-09-20]

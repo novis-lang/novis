@@ -3,4 +3,4 @@
   `Lowering::aliasing_read` recurses into the base and answers `false` for these shapes. A consumer
   must not retain such a read a second time: every retain decision in `nvs-ir` goes through
   `aliasing_read`, and a new one that reaches for the syntactic `is_aliasing_read` instead is how
-  the double-retain gets back in. [until: reviewed 2026-09-06]
+  the double-retain gets back in. [until: gone crates/nvs-ir/src/lower/expr.rs:Lowering::aliasing_read]

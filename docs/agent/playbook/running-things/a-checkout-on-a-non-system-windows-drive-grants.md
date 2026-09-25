@@ -4,4 +4,4 @@
   through `Files::trust` stops with `E0607`. The fix is on the machine and needs the user's say-so —
   `icacls <path> /inheritance:d` then `icacls <path> /remove:g "<the account>"` for `nvs.toml` and
   the checkout root, account names being localized; a scratch tree under `%TEMP%` passes as it is.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-diagnostics/src/lib.rs:rule:config/ownership-is-the-trust-boundary]

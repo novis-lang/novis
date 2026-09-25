@@ -1,6 +1,0 @@
-- **A `loop-goal.toml` fixture check whose frozen `want` belongs to a later stage fails until that
-  stage lands, and reads as a regression.** `tools/loop.py` stops each sweep at its first failure,
-  sorted by stage, so one such fixture can hide every check behind it; `.loop/log.md`'s `goal cost:
-  Ns over N check(s)` is the line that says the sweep was cut short. Read the `[[check]]` block's
-  `stage` before believing the banner, and never rewrite the fixture to print the frozen strings —
-  the output is frozen and the source is not. [until: reviewed 2026-09-06]

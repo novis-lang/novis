@@ -3,4 +3,4 @@
   9`, pop, rebuild. The base run should reproduce the ledger's own sweep row for row; without it a
   small move is indistinguishable from a quiet machine. Budget two release rebuilds and the harness
   re-printing every stashed file it has seen, twice; a `git worktree` avoids the re-print and pays a
-  full cold build, which is worse. [until: reviewed 2026-09-06]
+  full cold build, which is worse. [until: gone tools/bench.py:--reps]

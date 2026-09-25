@@ -5,4 +5,4 @@
   exhaustive. Land the grant first (the variant, its `[capabilities.<family>]` struct in
   `nvs_config::tree`, and the `ALL`/`name`/`grant`/`grant_mut` arms), then the row, whose
   `crate::<module>::NAME` is still private if that class had no rows before.
-  [until: reviewed 2026-09-10]
+  [until: gone crates/nvs-stdlib/src/registry.rs:nvs_config::Cap]

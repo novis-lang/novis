@@ -4,4 +4,4 @@
   under the `Core\Request` prefix that answer an unqualified type — it is the gate that catches a
   member handing a peer's bytes back unmarked — so a row answering `mixed` lands in it and the
   assertion reads "closed at eight". Add the row to the set and rewrite the count and the sentence
-  naming `query` and `post` as the known hole. [until: reviewed 2026-09-08]
+  naming `query` and `post` as the known hole. [until: gone crates/nvs-types/src/core_lib.rs:every_request_member_returning_outside_data_returns_it_tainted]

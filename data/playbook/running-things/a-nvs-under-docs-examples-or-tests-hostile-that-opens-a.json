@@ -7,7 +7,7 @@
     "nvs.toml"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-19"
+    "kind": "gone",
+    "arg": "nvs.toml:db.connect"
   }
 }

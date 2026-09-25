@@ -4,4 +4,4 @@
   and one `RuntimeError` on stderr, so an `exact` check reads as "stdout was [], wanted [...]" with
   nothing pointing at the config. `grep -n 'entry = "examples' nvs.toml` lists the existing
   `[[app]]` blocks; copy the neighbouring one with the narrowest grant, in the same slice as the
-  fixture. [until: reviewed 2026-09-06]
+  fixture. [until: gone nvs.toml:entry]

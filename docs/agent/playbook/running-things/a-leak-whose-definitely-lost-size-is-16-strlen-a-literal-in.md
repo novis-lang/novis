@@ -3,4 +3,4 @@
   confirmation. Most such edges are closed by `nvs_ir::lower::Lowering`'s owned-temporaries stack,
   so a probe that `catch`es a throw from a `Core` member taking a `string` is a fair leak check.
   What is still open is named in that field's own doc comment, plus the producers that release
-  inline — a normalized subscript key, a `match` subject. [until: reviewed 2026-09-06]
+  inline — a normalized subscript key, a `match` subject. [until: gone crates/nvs-ir/src/lower/mod.rs:string]

@@ -4,4 +4,4 @@
   `crates/nvs-stdlib/tests/queue.rs` (`push`, `push_keyed`, `push_marked`) and
   `crates/nvs-stdlib/tests/queue_sqlite.rs` (`push_in_two`), so a wider insert meets a narrower table — which fails the case suite locally and
   the matrix against a real server. Grep `nvs_jobs` across `crates/` and `tests/` before running
-  anything, and add the slot to every list that grep names. [until: reviewed 2026-09-15]
+  anything, and add the slot to every list that grep names. [until: gone crates/nvs-stdlib/tests/queue.rs:push_marked]

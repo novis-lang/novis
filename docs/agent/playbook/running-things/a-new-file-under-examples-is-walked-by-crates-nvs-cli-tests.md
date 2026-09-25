@@ -3,4 +3,4 @@
   `|>` fails both, because the parser substitutes the left side into a call written to its right, and
   the panic prints a JSON node rather than saying which property broke. Run `cargo test
   --test ast` when an example's tree will not follow its source, and hand that file the walk's
-  `in_source_order = false`. [until: reviewed 2026-09-07]
+  `in_source_order = false`. [until: gone crates/nvs-cli/tests/ast.rs:examples]

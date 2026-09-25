@@ -3,4 +3,4 @@
   context with. The COW-correct read/write of a slot holding an array is
   `identity_store::borrow`/`edit`/`replace`, generic over `(receiver, index, class, member)` despite
   the module's name; `instance::set_slot` is the raw write and `instance::slot` the borrowed read.
-  `Core\Hash\Stream` is the worked example. [until: reviewed 2026-09-06]
+  `Core\Hash\Stream` is the worked example. [until: gone crates/nvs-stdlib/src/hash.rs:identity_store::borrow]

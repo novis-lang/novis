@@ -4,4 +4,4 @@
   row. A row answering `CoreTy::TaintedStr` fails `nvs_types::core_lib`'s
   `a_verified_signature_does_not_launder_its_claims`, the closed set of members whose answer is
   qualified `tainted`; widening it is the point, but the edit is in `crates/nvs-types`, which `-p
-  nvs-stdlib` never compiles. [until: reviewed 2026-09-06]
+  nvs-stdlib` never compiles. [until: gone crates/nvs-stdlib/src/registry.rs:no_registry_card_cites_an_adr]

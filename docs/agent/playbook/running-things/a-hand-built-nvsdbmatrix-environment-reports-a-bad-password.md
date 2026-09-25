@@ -3,4 +3,4 @@
   and every later case panics at `crates/nvs-stdlib/tests/queue.rs:394` naming neither the server nor
   the case that failed. Drive the suite with `python tools/db-matrix.py --driver <name>`, which
   exports the whole group; by hand, the password is `tests/db/compose.yaml`'s `POSTGRES_PASSWORD` and
-  not the user name. [until: reviewed 2026-09-10]
+  not the user name. [until: gone tools/db-matrix.py:--driver]

@@ -1,9 +1,11 @@
 {
   "lead": "A `Core` instance's slots hold only values Novis already holds, so a member wanting native mutable state has to accumulate instead",
   "body": "— there is no destructor to free a `sha2::Sha256` context with. The COW-correct read/write of a slot holding an array is `identity_store::borrow`/`edit`/`replace`, generic over `(receiver, index, class, member)` despite the module's name; `instance::set_slot` is the raw write and `instance::slot` the borrowed read. `Core\\Hash\\Stream` is the worked example.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/hash.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/hash.rs:identity_store::borrow"
   }
 }

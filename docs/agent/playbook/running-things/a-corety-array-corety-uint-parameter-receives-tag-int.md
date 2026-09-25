@@ -3,4 +3,4 @@
   written `[97, 98]` type-checks against `array<uint>` and stays int-tagged into the helper; a
   scalar `uint` parameter has no such problem because the call site materializes the literal at the
   declared type. Read both tags (`str.rs`'s `code_point`), and probe the literal spelling in a
-  scratch `.nvs` before writing the case. [until: reviewed 2026-09-06]
+  scratch `.nvs` before writing the case. [until: gone crates/nvs-stdlib/src/str.rs:code_point]

@@ -8,7 +8,7 @@
     "tests/"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-15"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/queue.rs:push_marked"
   }
 }

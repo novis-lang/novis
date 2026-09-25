@@ -6,7 +6,7 @@
     "crates/nvs-cli/tests/ast.rs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-07"
+    "kind": "gone",
+    "arg": "crates/nvs-cli/tests/ast.rs:examples"
   }
 }

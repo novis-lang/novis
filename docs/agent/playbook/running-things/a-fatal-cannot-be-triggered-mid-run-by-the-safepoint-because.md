@@ -4,4 +4,4 @@
   soft tier answers a catchable `Recursion` long before the floor. What is reachable from source
   after locals are live is a `Fault::fatal` from `nvs-stdlib` — `Core\Arr::countBy` over an
   `array<float>` is one — so reach for that when a test needs a fatal at a chosen point.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-codegen/tests/throwing.rs:a_fatal_is_never_caught]

@@ -3,4 +3,4 @@
   written by hand and nothing derives it from the fixture; behind that, `nvs_host::tls::anchors()`
   is a compiled-in root store, `config_over` in `tls.rs` is the seam a configured bundle would plug
   into, and `tests/db/compose.yaml` owns the certificates. Run the fixture once with the built
-  `target/debug/nvs.exe` rather than reasoning about any of them. [until: reviewed 2026-09-06]
+  `target/debug/nvs.exe` rather than reasoning about any of them. [until: gone crates/nvs-host/src/tls.rs:config_over]

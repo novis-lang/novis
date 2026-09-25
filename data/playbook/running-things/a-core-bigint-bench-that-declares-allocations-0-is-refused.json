@@ -6,7 +6,7 @@
     "docs/perf/members.ndjson"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-20"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/bigint.rs:fn operand"
   }
 }

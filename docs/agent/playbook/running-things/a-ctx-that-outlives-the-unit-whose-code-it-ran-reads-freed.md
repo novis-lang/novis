@@ -4,4 +4,4 @@
   `ctx.pending()` reads freed memory — a wrong message, or a *misaligned pointer dereference* inside
   `nvs_runtime::object::drop_one`, intermittently. `nvs_codegen::Unit::install_in` is the one
   spelling: call it before running any of a unit's code, whether or not you care about `catch`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-runtime/src/object.rs:ClassDesc]

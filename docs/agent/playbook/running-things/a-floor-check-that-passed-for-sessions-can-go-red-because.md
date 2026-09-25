@@ -4,4 +4,4 @@
   failure is two lines below it: `[db.main]` at `127.0.0.1:15432` refusing the connection. Run
   `docker ps` before reading a green-yesterday check as a regression, and `docker compose -f
   tests/db/compose.yaml up -d --wait postgres redis` brings the two servers back.
-  [until: reviewed 2026-09-13]
+  [until: gone tests/db/compose.yaml:POSTGRES_PASSWORD]

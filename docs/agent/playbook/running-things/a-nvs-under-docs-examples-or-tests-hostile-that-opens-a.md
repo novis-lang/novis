@@ -3,4 +3,4 @@
   entry path and the `root = "."` block carries none, and a block naming a path not yet on disk
   stops *every* program in the tree with `E0605`. Point it at `[db.schema]` — in-memory SQLite, no
   container — and grant `connect` alone, which is enough to `create table`.
-  [until: reviewed 2026-09-19]
+  [until: gone nvs.toml:db.connect]

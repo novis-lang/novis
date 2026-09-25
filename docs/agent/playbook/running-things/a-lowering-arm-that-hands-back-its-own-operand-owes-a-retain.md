@@ -4,4 +4,4 @@
   only trips the allocator once the process does enough afterwards. `Lowering::convert`'s free `from
   == to` row carries the rule, so a new arm returning its operand repeats its
   `aliasing_read`/`emit_retain` pair; do not copy `lower_class_reference`, which owes none because a
-  descriptor is immortal. [until: reviewed 2026-09-06]
+  descriptor is immortal. [until: gone crates/nvs-ir/src/lower/convert.rs:lower_class_reference]
