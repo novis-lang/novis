@@ -94,8 +94,9 @@ full, the first worker pauses. If it is empty, the second one waits.
 a program somebody skims for fifteen seconds and then writes their own version of.
 
 - **Small and self-contained.** One file, no framework, no setup, runs with `nvs run <file>`. If it
-  needs a database or a socket it is the wrong example for the website; find the version of the same
-  idea that needs neither.
+  needs a database or a server off this machine it is the wrong example for the website; find the
+  version of the same idea that needs neither. A socket the example opens on loopback itself is
+  fine, with the grant beside it (§ *A grant the examples need*).
 - **A feature about another file carries that file in a subdirectory.** `require` and `autoload`
   cannot be shown in one file, so the companion goes under the example's own directory — `parts/`,
   `app/`, `packages/`. It has to be a *subdirectory*: the sweep counts `*.nvs` at the directory's
@@ -153,6 +154,16 @@ at once. An example that shows reading input puts that input beside it, under it
 `.in` in place of `.nvs`: `01-count-the-lines-of-the-input.in`. `--bless` and the sweep then send
 the file to the program's standard input, byte for byte, and the website shows it beside the
 example. `tests/hostile/` and `benches/members/` read a `.in` file the same way.
+
+## A grant the examples need — `nvs.toml`
+
+An example runs from the repository root under its `nvs.toml`, which grants no capability. A
+feature that cannot be reached without one — a socket bound on `127.0.0.1` — puts the smallest
+configuration that grants it in the feature's own directory, and `--bless` and the sweep then run
+every example there with `--config` naming that file alone. It is the one other file a feature
+directory holds, and the reader sees it beside the examples: loopback only, never an address off
+this machine, so an example still runs with no network. A directory under `tests/hostile/` reads its
+own the same way, and `benches/members/` reads one per class directory.
 
 ## `// proof: exit 1`
 

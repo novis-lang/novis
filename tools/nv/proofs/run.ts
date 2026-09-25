@@ -120,9 +120,15 @@ export interface Ran {
 const sibling = (proof: string, suffix: string) => proof.replace(/\.nvs$/, suffix);
 
 /** One run of a proof program from the repository root. A proof with a `<name>.in` beside it reads that
- * file as its standard input, and every other proof reads nothing, so no proof ever waits on a terminal. */
+ * file as its standard input, and every other proof reads nothing, so no proof ever waits on a terminal.
+ * A proof whose directory holds an `nvs.toml` runs under that file alone, handed over as `--config`
+ * after `run`, so a feature that needs a grant carries it where its reader sees it; every other proof
+ * runs under the repository root's. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number): Promise<Ran> {
   const feed = abs(sibling(proof, ".in"));
+  const config = `${dirname(proof)}/nvs.toml`;
+  const at = argv.indexOf("run");
+  if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
@@ -271,11 +277,11 @@ function judgeGap(path: string, verdict: Verdict, why: string): [Verdict, string
   return ["known", `${title} (gap ${id})`];
 }
 
-/** What a green verdict on `proof` is remembered against: its bytes, and its `.out` and `.in` when present. */
+/** What a green verdict on `proof` is remembered against: its bytes, its `.out` and `.in` when present,
+ * and the `nvs.toml` beside it that `spawnProof` runs it under. */
 function proofDigest(proof: string): string {
   const chunks: (string | Uint8Array)[] = [readFileSync(abs(proof))];
-  for (const suffix of [".out", ".in"]) {
-    const s = abs(sibling(proof, suffix));
+  for (const s of [abs(sibling(proof, ".out")), abs(sibling(proof, ".in")), abs(`${dirname(proof)}/nvs.toml`)]) {
     chunks.push(existsSync(s) ? readFileSync(s) : "");
   }
   return digest(...chunks);
