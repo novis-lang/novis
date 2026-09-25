@@ -1,19 +1,27 @@
 {
-  "state": "Goal `core-metrics-and-4-more`, stage of per-member feature proofs. `Core\\Metrics::gauge` and\n`Core\\Metrics::increment` carry every proof: description, three examples, an attack, a bench with a\nperf record, and a Rust test driving the member through its helper symbol. `Core\\Metrics` has its\nclass card. `Core\\Metrics::observe` already has its Rust test\n(`observe_counts_every_observation_and_sums_them`) and owes its description, examples, attack and\nbench. Every `Core\\Metrics` write allocates 8 times a call; that is gap\n`nvs-stdlib/a-metrics-write-allocates-on-every-call` (owner M12), and each metrics bench carries its\n`// proof: gap` marker. Nothing is blocked.",
+  "state": "Goal `core-metrics-and-4-more`, stage 2, per-member feature proofs. `Core\\Metrics` is done: all three\nmembers carry every proof, and `bun nv proofs --verify --group 'Core\\Metrics'` passes. `Core\\Mime` is\ndone too: `detect` and `mediaType` carry every proof, the class has its card, and each member's Rust\ntest has its `covers:` marker. Its group check passes. `Core\\Net`, `Core\\Net\\Datagram` and\n`Core\\Net\\Datagram\\Message` still owe every proof, and none of the three classes has a card. Every\n`Core\\Metrics` write allocates 8 times a call; that is gap\n`nvs-stdlib/a-metrics-write-allocates-on-every-call` (owner M12), and each metrics bench carries its\n`// proof: gap` marker. Nothing is blocked.",
   "next": {
-    "stage": null,
-    "title": "Stage: per-member feature proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/metrics.rs` and the `core/Metrics/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, the `CLASSES_STILL_OWING_A_CARD` list in `crates/nvs-stdlib/src/registry.rs`, and the `core/Net/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Metrics::observe`** — owes about, examples, hostile, perf (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/metrics.rs:168`. The `gauge` and `increment` directories are the model to copy the shape of. Its bench declares `allocations 0` and carries `// proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call`. In an attack, a step that makes many new series fills the series limit, and every later *new* name is then dropped silently, so a kind or label refusal must be asked for before that step."
+        "text": "**`Core\\Net`'s class card** — `rule:core-api/reference-card`. Add a `ClassDoc` above `crates/nvs-stdlib/src/net.rs:199` and delete `Core\\Net` from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5189`. `crates/nvs-stdlib/src/mime.rs`'s `CARD` is the shape."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Net::connect` and `Core\\Net::listen`** — owe about, examples, hostile, perf and a Rust `covers:` marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/net.rs:199`. Read the existing `#[cfg(test)]` module in `crates/nvs-stdlib/src/net.rs` first: a test there that already drives the member only needs its marker. An example needs a peer in the same program, so check what the conformance cases that call `Core\\Net::listen(` do before writing one."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Net::connectLocal`, `Core\\Net::listenLocal` and `Core\\Net::bindDatagram`** — the same proofs. `crates/nvs-stdlib/src/net.rs:258`."
       }
     ]
   },
   "backlog": [
-    "The metrics write path allocates on every call, including twice per served request through `Registry::request` — gap `nvs-stdlib/a-metrics-write-allocates-on-every-call`, owner M12.",
-    "A name built at run time skips the `[a-z][a-z0-9_]*` grammar and is stored as written (an empty name, a line break), so what the exporter prints for it is not checked here — `crates/nvs-stdlib/src/metrics.rs` `validate_name` doc; not checked against the exporter."
+    "`Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe every proof and a class card each, after `Core\\Net` — `crates/nvs-stdlib/src/net.rs:692` and `crates/nvs-stdlib/src/net.rs:870`.",
+    "Reading a `bytes` element from an `array<bytes>` allocates 2 times a read (measured with `nvs run --count`, not checked in the source). If that is a copy and not a reference, it is a latency cost on the request path; owner not decided."
   ]
 }
