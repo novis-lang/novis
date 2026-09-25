@@ -71,7 +71,7 @@ const PROMOTED_WHOLE = 20;
  * The traps for reading a failing acceptance check. They print whole when the driver's verdict names
  * a check that should already pass, and as one line otherwise, whatever the manifest names.
  */
-const TRIAGE = "Tooling > a loop-goal.toml*";
+const TRIAGE = "Tooling > a goal record's*";
 
 /** A `path:line` anchor in a checklist item, which the pack expands into a window of the file. */
 export const ANCHOR_RE = /\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors)\/[\w./-]+\.\w+):(\d+)\b/g;

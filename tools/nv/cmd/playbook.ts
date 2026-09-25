@@ -26,15 +26,14 @@
 // the file and its record under `data/playbook/`. In the other files the block's lines go.
 //
 // Pruning the manifests is what keeps a retirement from halting the loop: a goal names its bullets by
-// lead-in in its `[context] playbook`, `nv chain --check` refuses a selector that reaches nothing, and
-// that check is on every goal's floor. So each selector that reached a bullet before the retirement and
-// reaches nothing after it is dropped from every live goal's `.toml`, from `docs/agent/loop-goal.toml`,
-// and from every live goal's record. A selector that still reaches another bullet stays, and so does one
-// that already reached nothing, which is `nv chain --check`'s finding for a reader.
+// lead-in in its record's `context.playbook`, `nv chain --check` refuses a selector that reaches nothing,
+// and that check is on every goal's floor. So each selector that reached a bullet before the retirement
+// and reaches nothing after it is dropped from every live goal's record. A selector that still reaches
+// another bullet stays, and so does one that already reached nothing, which is `nv chain --check`'s
+// finding for a reader.
 
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseToml } from "smol-toml";
 import { list } from "../import/lib.ts";
 import { namedPaths, playbook as playbookImporter } from "../import/playbook.ts";
 import { chainGoals } from "../lib/chain.ts";
@@ -50,8 +49,6 @@ import { allBullets, normalize, playbookBook, sliceBullets, titleMatches, type B
 export const summary = "the playbook: nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run] | --triage <section>";
 
 const PLAYBOOK_DIR = "docs/agent/playbook";
-const GOALS_DIR = "docs/agent/goals";
-const GOAL_TOML = "docs/agent/loop-goal.toml";
 /**
  * The index of gaps a goal owns. The file is deleted, and `--check` and `--closes` still read its
  * § *Owned* rows out of this path, so an index rebuilt here is gated from its first row.
@@ -69,10 +66,6 @@ const DECLARING: [string, (head: string, first: string) => boolean][] = [
   [CARRIED_GAPS, (head) => head === "Unowned"],
   ["docs/agent/carried-refusals.md", (_head, first) => /^9\d\d\. /.test(first)],
 ];
-
-/** One `playbook = [ ... ]` entry on a line of its own, a trailing comma and comment allowed. */
-const SELECTOR_LINE = /^\s*('[^']*'|"(?:[^"\\]|\\.)*")\s*,?\s*(?:#.*)?$/;
-const LIST_OPEN = /^\s*playbook\s*=\s*\[\s*(?:#.*)?$/;
 
 export interface Block {
   section: string;
@@ -297,75 +290,10 @@ function prune(selectors: string[], before: BookSection[], after: BookSection[])
   return { keep, went };
 }
 
-/**
- * A goal `.toml` with every `playbook` list entry that went dropped, or null when none did or when
- * dropping them leaves the file unreadable. A comment run left with nothing under it before the closing
- * `]` goes with its lines. Inline lists are not read: the goal files write each entry on a line of its own.
- */
-function pruneToml(text: string, before: BookSection[], after: BookSection[], say: (line: string) => void, rel: string): { text: string; went: string[] } | null {
-  const keep: string[] = [];
-  const went: string[] = [];
-  let inList = false;
-  let commentsSinceKept = 0;
-  let lastWent = false;
-  for (const line of text.split("\n")) {
-    if (!inList) {
-      keep.push(line);
-      inList = LIST_OPEN.test(line);
-      commentsSinceKept = 0;
-      lastWent = false;
-      continue;
-    }
-    const stripped = line.trim();
-    if (stripped === "]") {
-      if (lastWent && commentsSinceKept) keep.splice(keep.length - commentsSinceKept, commentsSinceKept);
-      keep.push(line);
-      inList = false;
-      continue;
-    }
-    const m = SELECTOR_LINE.exec(line);
-    if (!m) {
-      keep.push(line);
-      if (stripped.startsWith("#")) commentsSinceKept++;
-      continue;
-    }
-    const selector = (parseToml(`x = ${m[1]}`) as { x: string }).x;
-    if (prune([selector], before, after).went.length) {
-      went.push(selector);
-      lastWent = true;
-      continue;
-    }
-    keep.push(line);
-    commentsSinceKept = 0;
-    lastWent = false;
-  }
-  if (!went.length) return null;
-  const out = keep.join("\n");
-  try {
-    parseToml(out);
-  } catch (err) {
-    say(`  keep    ${rel}  -- dropping ${went.length} selector(s) leaves it unreadable (${(err as Error).message.split("\n")[0]}); left for a hand`);
-    return null;
-  }
-  return { text: out, went };
-}
-
-/** Drops each selector that went from every live goal's manifest; returns the files changed, repo-relative. */
+/** Drops each selector that went from every live goal's record; returns the files changed, repo-relative. */
 function pruneManifests(root: string, before: BookSection[], after: BookSection[], dry: boolean, say: (line: string) => void): { files: string[]; dropped: number } {
   const files: string[] = [];
   let dropped = 0;
-  const tomls = list(root, GOALS_DIR)
-    .filter((n) => n.endsWith(".toml"))
-    .map((n) => `${GOALS_DIR}/${n}`);
-  if (existsSync(join(root, GOAL_TOML))) tomls.push(GOAL_TOML);
-  for (const rel of tomls) {
-    const got = pruneToml(readFileSync(join(root, rel), "utf8").replace(/\r\n/g, "\n"), before, after, say, rel);
-    if (!got) continue;
-    for (const sel of got.went) say(`  drop    ${rel}  ${JSON.stringify(sel)}  -- named only a bullet retired above`);
-    dropped += got.went.length;
-    if (!dry) writeFileSync(join(root, rel), got.text);
-    files.push(rel);
-  }
   for (const g of load(goalType, root)) {
     if (g.value.checks.length === 0) continue;
     const value = structuredClone(g.value);
@@ -377,6 +305,7 @@ function pruneManifests(root: string, before: BookSection[], after: BookSection[
       c!.playbook = got.keep;
     }
     if (!went) continue;
+    dropped += went;
     say(`  drop    ${g.path}  ${went} selector(s)  -- named only a bullet retired above`);
     if (!dry) writeRecord(goalType, g.id, value, root);
     files.push(g.path);

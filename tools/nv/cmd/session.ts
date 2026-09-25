@@ -46,7 +46,7 @@ const PLAN = "docs/implementation-plan.md";
 const PLAYBOOK_DIR = "docs/agent/playbook";
 /** Where the driver leaves the commit the running session opened on. Absent outside the loop. */
 const SESSION_BASE = ".loop/session-start.json";
-/** Set to a side goal's slug in every process of a side run; `tools/goals.py`'s `SIDE_ENV`. */
+/** Set to a side goal's slug in every process of a side run, which is started by hand. */
 const SIDE_ENV = "NOVIS_SIDE_GOAL";
 const HANDOFF_REQUIRED = ["## State", "## Next group", "## Backlog"];
 const HANDOFF_TARGET_LINES = 60;
@@ -200,13 +200,17 @@ export function parseEdits(body: string): { pairs: [string, string][]; errors: s
 
 // ------------------------------------------------------------------------------ the tree
 
-/** The side goal this process belongs to, or null in a chain run; `tools/goals.py`'s `side_goal`. */
+/** The side goal this process belongs to, or null in a chain run. */
 function sideGoal(): string | null {
   const slug = (process.env[SIDE_ENV] ?? "").trim();
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return null;
   return existsSync(join(ROOT, "docs", "agent", "goals", "side", `${slug}.md`)) ? slug : null;
 }
 
+/**
+ * Where a handoff's links resolve from. The handoff is a record, and its Markdown body is written as if it
+ * stood beside the goal docs it cites, so this names that place, not a file on disk.
+ */
 function handoffPath(side: string | null): string {
   return side ? `docs/agent/goals/side/${side}.handoff.md` : "docs/agent/handoff.md";
 }
@@ -645,7 +649,7 @@ function validatePlaybook(s: Section): string[] {
     } else if (until === null) {
       errors.push(
         `${which} declares nothing the tree can retire it by. End it with \`[until: <kind> <arg>]\`, kind one of ` +
-          "`gone <path>:<word>`, `exists <path>`, `test <fn>` or `rule <topic>/<rule>`; tools/playbook.py's module doc says what each tests.",
+          "`gone <path>:<word>`, `exists <path>`, `test <fn>` or `rule <topic>/<rule>`; tools/nv/cmd/playbook.ts's module doc says what each tests.",
       );
     }
     if (anchors(ROOT, b.body, until).length === 0) {
@@ -764,7 +768,7 @@ function maskCode(line: string): string {
   return line.replace(/`[^`]*`/g, (m) => " ".repeat(m.length));
 }
 
-/** A bullet's bold lead-in, or its opening characters when it has none: `tools/orient.py`'s `bullets`. */
+/** A bullet's bold lead-in, or its opening characters when it has none. */
 function leadOf(body: string): string {
   const first = body.split("\n").find((l) => l.startsWith("- "));
   if (first === undefined) return body;

@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { blocks, declaration, expiryReport, holds, retire, triage } from "../cmd/playbook.ts";
-import { write } from "../lib/store.ts";
+import { load, write } from "../lib/store.ts";
+import { goal } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { scratch } from "./scratch.ts";
 
@@ -87,7 +88,8 @@ describe("nv playbook retire", () => {
     tmp.put("docs/agent/playbook/tooling/live.md", "- **A live trap.** About `tools/playbook.py`. [until: gone tools/playbook.py]\n");
     write(playbookBullet, "tooling/dead", { lead: "A dead trap.", body: "About `tools/playbook.py`.", files: ["tools/playbook.py"], until: { kind: "exists", arg: "tools/playbook.py" } }, tmp.root);
     tmp.put("docs/agent/guard-name-debt.md", "# Debt\n\n- [ ] one [until: exists tools/playbook.py]\n\n- [ ] two [until: gone tools/playbook.py]\n");
-    tmp.put("docs/agent/loop-goal.toml", "[context]\nplaybook = [\n  'Tooling > a live',\n  # the dead one\n  'Tooling > a dead',\n]\n");
+    const live = { title: "g", milestone: null, files: [], context: { playbook: ["Tooling > a live", "Tooling > a dead"] }, stages: [{ number: 1, title: "t" }], env: {} };
+    write(goal, "g", { ...live, checks: [{ id: "c", kind: "command", stage: 1, argv: ["x"] }] }, tmp.root);
 
     const { expired, bad } = await expiryReport(tmp.root, TODAY);
     expect(bad).toEqual([]);
@@ -95,11 +97,11 @@ describe("nv playbook retire", () => {
 
     const said: string[] = [];
     const changed = retire(expired, false, tmp.root, (l) => said.push(l));
-    expect(changed).toEqual(["docs/agent/playbook/tooling/dead.md", "data/playbook/tooling/dead.json", "docs/agent/guard-name-debt.md", "docs/agent/loop-goal.toml"]);
+    expect(changed).toEqual(["docs/agent/playbook/tooling/dead.md", "data/playbook/tooling/dead.json", "docs/agent/guard-name-debt.md", "data/goals/g.json"]);
     expect(existsSync(join(tmp.root, "docs/agent/playbook/tooling/dead.md"))).toBe(false);
     expect(existsSync(join(tmp.root, "data/playbook/tooling/dead.json"))).toBe(false);
     expect(readFileSync(join(tmp.root, "docs/agent/guard-name-debt.md"), "utf8")).toBe("# Debt\n\n- [ ] two [until: gone tools/playbook.py]\n");
-    expect(readFileSync(join(tmp.root, "docs/agent/loop-goal.toml"), "utf8")).toBe("[context]\nplaybook = [\n  'Tooling > a live',\n]\n");
+    expect(load(goal, tmp.root).find((g) => g.id === "g")!.value.context.playbook).toEqual(["Tooling > a live"]);
     expect(said.at(-1)).toBe("nv playbook: deleted 2 bullet(s) across 2 file(s) and pruned 1 manifest(s) of the selectors that named nothing else.");
     tmp.cleanup();
   });

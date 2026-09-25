@@ -426,7 +426,8 @@ export async function run(args: string[]): Promise<number> {
     byFile(show, (s) => `    :${s.line}  ${head(s.message, 110)}`);
     if (unattributed && show.length > 0) {
       console.log("\nEach is a hole nobody scheduled or a decision nobody wrote down. Both are the");
-      console.log("goal's business before the code is -- loop-goal.md § What \"no holes\" means.");
+      console.log("goal's business before the code is -- an item in the live goal's prose, or one in");
+      console.log(`${CARRIED_MD}.`);
     }
     return 0;
   }
