@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a list of search results finds how many pages it needs.
+
+class Pages {
+    // A page that is only partly full still counts as a page.
+    public static function count(float $results, float $perPage): float {
+        return Core\Math::ceil($results / $perPage);
+    }
+}
+
+// 47 results, 10 on each page. The last page has 7 results. This prints 5.
+echo Pages::count(47.0, 10.0), "\n";
+
+// 40 results fill exactly 4 pages. This prints 4.
+echo Pages::count(40.0, 10.0), "\n";
+
+// One result still needs one page. This prints 1.
+echo Pages::count(1.0, 10.0), "\n";

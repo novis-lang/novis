@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `Core\Math::ceil` rounds a number up to the next whole number.
+
+// Any fraction rounds up. This prints 5.
+echo Core\Math::ceil(4.1), "\n";
+
+// A very small fraction rounds up too. This prints 5.
+echo Core\Math::ceil(4.0001), "\n";
+
+// A whole number stays the same. This prints 4.
+echo Core\Math::ceil(4.0), "\n";
