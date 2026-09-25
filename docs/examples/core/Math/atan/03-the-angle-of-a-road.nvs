@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a cycling app turns the gradient on a road sign into the angle of the road.
+// A gradient of 8% means the road climbs 8 metres over 100 metres.
+
+class Road {
+    // Returns the angle of the road, in degrees, with one decimal place.
+    public static function angle(float $percent): float {
+        // The climb divided by the distance is the tangent of the road's angle.
+        float $radians = Core\Math::atan($percent / 100.0);
+        return Core\Math::round(Core\Math::toDegrees($radians), {precision: 1});
+    }
+}
+
+// This prints 4.6.
+echo Road::angle(8.0), "\n";
+
+// A steep mountain road. This prints 6.8.
+echo Road::angle(12.0), "\n";
+
+// A gradient of 100% is an angle of 45 degrees. This prints 45.
+echo Road::angle(100.0), "\n";
