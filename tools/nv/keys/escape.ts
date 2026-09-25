@@ -12,15 +12,75 @@
 // - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
 //   `.parent()`, `.ancestors()` or `.pop()`.
 //
-// Read off `scan`, so a comment is never matched and a literal never splits. A literal rustc opens
-// itself (`include_str!`, `#[path]`) is in the dep-info already and is not a way out.
+// Read off `scan` below, a lexer that separates comments and literals from code, so a comment is never
+// matched and a literal never splits. A literal rustc opens itself (`include_str!`, `#[path]`) is in the
+// dep-info already and is not a way out.
 
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { scan } from "./scan.ts";
 
 export const WIDE_LIST = "tools/data/impact-wide.txt";
+
+const TOKEN =
+  /(?<doc>\/\/(?:\/(?!\/)|!)[^\n]*)|(?<line>\/\/[^\n]*)|(?<block>\/\*)|(?<raw>(?<![A-Za-z0-9_])(?:b|c)?r(?<hashes>#*)"[\s\S]*?"\k<hashes>)|(?<str>(?:(?<![A-Za-z0-9_])(?:b|c))?"(?:\\[\s\S]|[^"\\])*")|(?<chr>(?:(?<![A-Za-z0-9_])b)?'(?:\\(?:u\{[^}\n]*\}|x[0-9a-fA-F]{2}|[^\n])|[^\\'\n])')/g;
+const NEST = /\/\*|\*\//g;
+const WORD = "[\\p{L}\\p{N}_]";
+const NOT_WORD = "[^\\p{L}\\p{N}_]";
+const GLUE = new RegExp(
+  `(?<=${WORD}) (?=${NOT_WORD})|(?<=${NOT_WORD}) (?=${WORD})|(?<=[()\\[\\]{},;\\x01\\x02]) | (?=[()\\[\\]{},;\\x01\\x02])`,
+  "gu",
+);
+const DOC_RUN = /\x01(?: ?\x01)+/g;
+
+/** A `.rs` file's code with layout and comments removed, `\x01` for a run of doc comments and `\x02`
+ * for each literal, and the literals in order. */
+function scan(text: string): { code: string; literals: string[] } {
+  const code: string[] = [];
+  const literals: string[] = [];
+  let pos = 0;
+  for (;;) {
+    TOKEN.lastIndex = pos;
+    const m = TOKEN.exec(text);
+    if (m === null) {
+      code.push(text.slice(pos));
+      break;
+    }
+    code.push(text.slice(pos, m.index));
+    let end = m.index + m[0].length;
+    const g = m.groups!;
+    if (g.block !== undefined) {
+      // Block comments nest, which no regular expression follows. An unclosed one runs to the end
+      // of the file, as it does for rustc.
+      let depth = 1;
+      let at = end;
+      while (depth > 0) {
+        NEST.lastIndex = at;
+        const n = NEST.exec(text);
+        if (n === null) {
+          at = text.length;
+          break;
+        }
+        depth += n[0] === "/*" ? 1 : -1;
+        at = n.index + 2;
+      }
+      end = at;
+      const body = text.slice(m.index, end);
+      const isDoc = body.startsWith("/*!") || (body.startsWith("/**") && !body.startsWith("/***") && !body.startsWith("/**/"));
+      code.push(isDoc ? " \x01 " : " ");
+    } else if (g.doc !== undefined) {
+      code.push(" \x01 ");
+    } else if (g.line !== undefined) {
+      code.push(" ");
+    } else {
+      literals.push(m[0]);
+      code.push("\x02");
+    }
+    pos = end;
+  }
+  const flat = code.join("").replace(/\s+/g, " ").trim().replace(GLUE, "");
+  return { code: flat.replace(DOC_RUN, "\x01"), literals };
+}
 
 const SPAWN = /Command::new\(/g;
 /** `Command::new(env!("CARGO_BIN_EXE_..."))`: the package's own binary, compiled from what the key holds. */

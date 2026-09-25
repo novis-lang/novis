@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { run } from "../lib/proc.ts";
 import { NOT_INPUTS, ROOT, abs } from "../lib/paths.ts";
-import { type Analysis, type Tier, SCANNER, analyse, digest } from "./scan.ts";
+import { type Analysis, type Tier, SCANNER, analyseAll, digest } from "./scan.ts";
 
 const MEMO = join(ROOT, ".agent-tmp", "nv-key-tiers.json");
 
@@ -152,13 +152,22 @@ export class Tree {
   analysis(rel: string): Analysis {
     const raw = this.raw(rel);
     this.shared.used.add(raw);
-    let got = this.shared.memo[raw];
-    if (!got) {
-      got = analyse(this.text(rel));
-      this.shared.memo[raw] = got;
-      this.shared.memoDirty = true;
+    if (!this.shared.memo[raw]) this.scanMissing(rel);
+    return this.shared.memo[raw]!;
+  }
+
+  /** Scans `rel` and every other `.rs` file of this tree the memo has no analysis for, in one run of
+   * the scanner, since starting it costs more than scanning a file. */
+  private scanMissing(rel: string): void {
+    const todo = new Map<string, string>();
+    for (const f of [rel, ...this.files]) {
+      if (!f.endsWith(".rs") || !this.has(f)) continue;
+      const raw = this.raw(f);
+      if (!this.shared.memo[raw] && !todo.has(raw)) todo.set(raw, f);
     }
-    return got;
+    const got = analyseAll([...todo.values()].map((f) => this.text(f)));
+    [...todo.keys()].forEach((raw, i) => (this.shared.memo[raw] = got[i]!));
+    this.shared.memoDirty = true;
   }
 
   /** A file's digest at `tier`. Anything but a `.rs` file is its bytes at every tier. */

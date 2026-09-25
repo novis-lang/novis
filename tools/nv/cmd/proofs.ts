@@ -37,7 +37,7 @@ import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHash, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { bless, namedBinary, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
@@ -394,7 +394,8 @@ export async function run(args: string[]): Promise<number> {
   // What a perf record's `impl_hash` is for each file, one `<hash> <path>` line each: the same
   // `implHash` a figure's currency is judged by, so a person can check a record by hand.
   if (hashed !== null) {
-    for (const path of hashed) out.push(`${implHash(path) || "-"} ${path}`);
+    const hashes = implHashes(hashed);
+    for (const path of hashed) out.push(`${hashes.get(path) || "-"} ${path}`);
     return flush(0);
   }
   const measures = flags.has("--record-perf");

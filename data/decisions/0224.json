@@ -1,0 +1,10 @@
+{
+  "title": "the build keys read Rust source off the syntax tree `syn` parses, and the `card` tier leaves out a class's link to its card",
+  "status": "accepted",
+  "scope": "how `bun nv`'s build keys and the perf ledger's `impl_hash` read a `.rs` file: which program reads it, and\nwhat the `shipped` and `card` tiers leave out. It does not change which tier a check keys on, or what\nthe partitions are.",
+  "dependsOn": [
+    "0221",
+    "0220"
+  ],
+  "validatedBy": "`tools/nv/test/keys.test.ts`, which also checks the scanner's card types against the registry's."
+}

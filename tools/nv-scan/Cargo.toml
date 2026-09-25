@@ -1,0 +1,15 @@
+[package]
+name = "nv-scan"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "What `bun nv`'s build keys read from a Rust file, off the syntax tree `syn` parses."
+
+# Not a member of the root workspace: `bun nv` builds and runs it by itself, and no build key reads it.
+[workspace]
+
+[dependencies]
+proc-macro2 = "=1.0.107"
+quote = "=1.0.47"
+sha2 = "=0.10.9"
+syn = { version = "=2.0.119", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit", "visit-mut"] }

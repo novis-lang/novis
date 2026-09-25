@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { OTHER, STATE, partitionOf } from "../keys/partition.ts";
+import { readFileSync } from "node:fs";
+import { abs } from "../lib/paths.ts";
 import { analyse } from "../keys/scan.ts";
 
 describe("partitionOf", () => {
@@ -64,6 +66,35 @@ describe("the tiers", () => {
 
   test("a const that is not a card moves the card tier", () => {
     expect(moved(BASE, BASE.replace("LIMIT: usize = 4", "LIMIT: usize = 5"))).toEqual(["docs", "code", "shipped", "card"]);
+  });
+
+  test("linking a class to its new card moves every tier but card", () => {
+    const bare = `use crate::registry::{CoreClass, MethodDoc};\npub const CLASS: CoreClass = CoreClass { name: "A", doc: None };\n`;
+    const carded = `use crate::registry::{ClassDoc, CoreClass, MethodDoc,};\n/// The card.\nconst CARD: ClassDoc = ClassDoc { short: "A class." };\npub const CLASS: CoreClass = CoreClass { name: "A", doc: Some(&CARD) };\n`;
+    expect(moved(bare, carded)).toEqual(["docs", "code", "shipped"]);
+  });
+
+  test("a link to something that is not one of the file's cards moves the card tier", () => {
+    const bare = `pub const CLASS: CoreClass = CoreClass { doc: None };\n`;
+    expect(moved(bare, bare.replace("doc: None", "doc: Some(&OTHER)"))).toContain("card");
+  });
+
+  test("code any build without `cfg(test)` shuts off is not shipped, and code one might keep is", () => {
+    const f = (cfg: string, n: number) => `#[cfg(${cfg})]\nfn helper() -> i32 { ${n} }\npub fn one() -> i32 { 1 }\n`;
+    expect(moved(f("all(test, unix)", 1), f("all(test, unix)", 2))).toEqual(["docs", "code"]);
+    expect(moved(f("not(not(test))", 1), f("not(not(test))", 2))).toEqual(["docs", "code"]);
+    expect(moved(f("any(test, unix)", 1), f("any(test, unix)", 2))).toEqual(["docs", "code", "shipped", "card"]);
+  });
+
+  test("a file the parser cannot read is its text in every tier", () => {
+    expect(moved("fn f( {", "fn f(  {")).toEqual(["docs", "code", "shipped", "card"]);
+  });
+
+  test("the scanner's card types are the registry's", () => {
+    const registry = readFileSync(abs("crates/nvs-stdlib/src/registry.rs"), "utf8");
+    const declared = [...registry.matchAll(/^pub struct (\w+Doc)\b/gm)].map((m) => m[1]!).sort();
+    const listed = readFileSync(abs("tools/nv-scan/src/main.rs"), "utf8").match(/const CARD_TYPES: &\[&str\] = &\[([^\]]*)\]/)![1]!;
+    expect([...listed.matchAll(/"(\w+)"/g)].map((m) => m[1]!).sort()).toEqual(declared);
   });
 
   test("tokens that layout would join never share a key", () => {

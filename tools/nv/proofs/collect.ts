@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { cpus, machine as osMachine } from "node:os";
 import { join } from "node:path";
-import { analyse, digest } from "../keys/scan.ts";
+import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
@@ -290,19 +290,32 @@ export function ledgerRecords(): Map<string, Record<string, unknown>[]> {
 const sha12 = (text: string) => createHash("sha1").update(text, "utf8").digest("hex").slice(0, 12);
 
 /**
- * What a perf figure is current against: the implementing file's `card` tier from `analyse`, which is
- * its tokens without comments, layout, inline test modules or the initialisers of card constants. A file
- * that is not Rust, such as a reference chapter, is its text with its line endings made `\n`. Empty when
- * there is no such file.
+ * What a perf figure is current against: the implementing file's `card` tier, which is its tokens
+ * without comments, layout, test code or reference cards (`keys/scan.ts`). A file that is not Rust,
+ * such as a reference chapter, is its text with its line endings made `\n`. Empty when there is no
+ * such file.
  */
 export function implHash(path: string): string {
-  try {
-    if (!statSync(abs(path)).isFile()) return "";
-  } catch {
-    return "";
+  return implHashes([path]).get(path)!;
+}
+
+/** `implHash` of each path, with every Rust file among them read by one run of the scanner. */
+export function implHashes(paths: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const rust: string[] = [];
+  for (const path of new Set(paths)) {
+    let file = false;
+    try {
+      file = statSync(abs(path)).isFile();
+    } catch {
+      // A path with nothing behind it hashes to "".
+    }
+    if (!file) out.set(path, "");
+    else if (path.endsWith(".rs")) rust.push(path);
+    else out.set(path, digest(read(path)));
   }
-  const text = read(path);
-  return path.endsWith(".rs") ? analyse(text).card : digest(text);
+  analyseAll(rust.map(read)).forEach((a, i) => out.set(rust[i]!, a.card));
+  return out;
 }
 
 /** Python's `json.dumps(..., sort_keys=True)` of a flat object, which the fingerprint's id hashes. */
@@ -347,11 +360,8 @@ export function collect(entries: Entry[]): Map<string, Proofs> {
   const calls = scanCalls();
   const perf = ledgerRecords();
   const me = fingerprint().id;
-  const hashes = new Map<string, string>();
-  const hashOf = (path: string) => {
-    if (!hashes.has(path)) hashes.set(path, implHash(path));
-    return hashes.get(path)!;
-  };
+  const hashes = implHashes(entries.map(implFile).filter((f) => f !== ""));
+  const hashOf = (path: string) => hashes.get(path) ?? "";
   const out = new Map<string, Proofs>();
   for (const e of entries) {
     const marked = markers.get(e.id) ?? [];
