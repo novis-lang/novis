@@ -1,18 +1,27 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. `bun nv machine` (`tools/nv/cmd/machine.ts`) replaces `tools/machine.py`. The width policy, the probes and the `.loop/machine.json` cache live in `tools/nv/lib/machine.ts`. `bun nv try` now takes its width from that module (`jobs(\"local\", …)`), the way `try.py` did. Its table matches the Python tool's output line for line, and `tools/nv/test/machine.test.ts` covers the policy, the probe reader, staleness and the cache. `posixProbe` and `remember` are ported, but nothing in TS calls them yet. The valgrind sweep and the WSL leg are still the Python driver's (`tools/nv/cmd/loop.ts:404`).\n\nThe one port left from the Stage 11 list is `webcrypto-vectors.mjs`. `observe`, `proctree` and `written` are deleted by Stage 12, as the goal's Stage 11 bullet says. Stage 12's work (`no Python`) is deleting the ported `.py` files and repointing their citations. That includes `docs/agent/commands.md` § *How wide anything runs* and `docs/agent/coordinator.md`'s sweep paragraph, which still name `tools/machine.py`.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11's port list is done.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv webcrypto-vectors` (`tools/nv/cmd/webcrypto-vectors.ts`) replaces `tools/webcrypto-vectors.mjs`, which is deleted. `--check` exits 0 against `crates/nvs-stdlib/tests/vectors/webcrypto.json`. A rewrite changed only the file's `about` lines, so every vector byte, the kept ES256/PS256 signatures included, is what Node wrote. X25519 agreement goes through `node:crypto`'s `diffieHellman`, and `browserJwk` writes a public JWK in Node's member order. The file's header comment says why for both. The rule fragment `core-classes/crypto-interop-tier`, `crates/nvs-stdlib/src/tests/vectors.rs` and `crates/nvs-stdlib/src/crypto.rs` now cite the command. Decision record 0179 and goal `webcrypto`'s prose still name the `.mjs`, and they stay that way because they are history.\n\nThe driver's floor sweep after session 0109 reported one failed conformance case. The full tree passed 2340 of 2340 twice this session, so that failure was flaky, and no case was changed.\n\nStage 12 (`no Python`) is next. Its check runs `bun nv audit python`, which does not exist yet (`nv audit: no audit named python`). The valgrind sweep and the WSL leg are still the Python driver's (`tools/nv/cmd/loop.ts:404`).",
   "next": {
-    "stage": 11,
-    "title": "the last port",
-    "files": [],
-    "note": "one file set: `tools/nv/main.ts` and a new `tools/nv/cmd/webcrypto-vectors.ts`.",
+    "stage": 12,
+    "title": "no Python",
+    "files": [
+      "tools/nv/cmd/audit.ts",
+      "docs/agent/commands.md",
+      "docs/agent/coordinator.md"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Port `tools/webcrypto-vectors.mjs` to `bun nv webcrypto-vectors`**: `tools/webcrypto-vectors.mjs:1`, registered in `tools/nv/main.ts:60`. It is long, so read it in regions. Under Bun it fails today at `agree` (`tools/webcrypto-vectors.mjs:170`), because Bun's `crypto.subtle` has no X25519. The playbook's X25519 bullet gives the way through. Done means `bun nv webcrypto-vectors --check` exits 0 against `crates/nvs-stdlib/tests/vectors/webcrypto.json`. The `jws` keep-if-it-still-verifies path means a rewrite must not re-randomize ES256/PS256. Repoint the file's own `Written by` line and `crates/nvs-stdlib/src/tests/vectors.rs:4`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this."
+        "text": "**Add `bun nv audit python`**, which prints `audit: no Python file is tracked beyond the launch shims` and `audit: no document names a Python tool` when both hold, and names each offender otherwise. The launch shims are `tools/respawn.py` and `tools/loop.py`. The goal's Stage 12 bullet `Every tracked .py file is deleted, except two` specifies it (`docs/agent/goals/tooling-overhaul.md:663`). Register it beside `goals`/`checks`/`eol`/`ci` at `tools/nv/cmd/audit.ts:183`. Decide first what counts as \"names a Python tool\": `python tools/<x>.py` and `` `tools/<x>.py` ``, outside `docs/decisions/` and retired goal prose, which are history."
+      },
+      {
+        "done": false,
+        "text": "**Delete the ported `.py` tools and repoint their citations**, starting with `tools/machine.py`: `docs/agent/commands.md:633` (§ *How wide anything runs*, lines 636–641) and `docs/agent/coordinator.md:387`. Once the audit exists, its output is the list to work through."
       }
     ]
   },
   "backlog": [
-    "Stage 12 (`no Python`): delete every ported `.py`, repoint its citations, and delete `observe`, `proctree` and `written` — the goal's Stage 12 bullets own it."
+    "`posixProbe` and `remember` in `tools/nv/lib/machine.ts` are ported but nothing in TS calls them yet. The valgrind sweep and the WSL leg that need them still run in the Python driver (`tools/nv/cmd/loop.ts:404`).",
+    "Stage 12's decision records: one for the data model, the runtime and the generated-output rule, and one for Stage 7's perf-currency change if Stage 7 did not write it (`docs/agent/goals/tooling-overhaul.md:676`).",
+    "Stage 12 deletes `observe`, `proctree` and `written`, as the goal's Stage 11 bullet says."
   ]
 }
