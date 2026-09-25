@@ -55,7 +55,8 @@ describe("nv playbook triage", () => {
   write(playbookBullet, "open/a-trap", { lead: "A trap.", body: about, files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
   write(playbookBullet, "open/bare", { lead: "Bare.", body: "Names nothing at all.", files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
   write(playbookBullet, "closed/done", { lead: "Done.", body: about, files: ["tools/a.py"], until: { kind: "gone", arg: "tools/a.py:needle_word" } }, tmp.root);
-  tmp.put("data/goals/live.json", JSON.stringify({ checks: [{}], context: { playbook: ["Open > a trap"] } }));
+  // A generated goal carries no checks, and its manifest still has to find the bullet.
+  tmp.put("data/goals/live.json", JSON.stringify({ context: { playbook: ["Open > a trap"] } }));
 
   test("a section owing decisions gets a proposal, the manifest mark, its near-duplicates and the count", async () => {
     const said: string[] = [];

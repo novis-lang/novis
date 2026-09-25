@@ -701,7 +701,7 @@ function reached(selector: string, sections: { id: string; title: string }[], bu
 /**
  * `--triage <section>`: for each bullet of `data/playbook/<section>/`, everything deciding it takes --
  * its text, the files it names and what a bare name among them most likely means, a proposed `gone`
- * trailer on a backticked word its file holds today, whether a live goal's manifest reaches it, and
+ * trailer on a backticked word its file holds today, whether any goal's manifest reaches it, and
  * its near-duplicates across the whole playbook. It writes nothing, and exits 1 on an unknown section.
  */
 export async function triage(section: string, root: string = ROOT, say: (line: string) => void = console.log): Promise<number> {
@@ -714,8 +714,9 @@ export async function triage(section: string, root: string = ROOT, say: (line: s
   const mine = every.filter((b) => b.id.startsWith(`${section}/`)).sort((a, b) => (a.id < b.id ? -1 : 1));
   const index = await treeIndex(root);
   const live = new Set<string>();
+  // Every goal on the chain, not only the ones with checks: `nv chain --check` refuses a selector
+  // any of them names that no bullet answers, so deleting such a bullet turns the chain red.
   for (const g of load(goalType, root)) {
-    if (!g.value.checks?.length) continue;
     const ctx = [g.value.context, ...(g.value.stages ?? []).map((s) => s.context)];
     for (const sel of ctx.flatMap((c) => c?.playbook ?? [])) for (const id of reached(sel, sections, every)) live.add(id);
   }
