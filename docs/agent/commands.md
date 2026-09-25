@@ -1,8 +1,8 @@
 # Commands — how this repository is driven
 
 Everything an agent runs, and the two rules about *how* to run it that have cost real sessions real time.
-[AGENTS.md](../../AGENTS.md) points here rather than keeping a copy; `python tools/orient.py` prints the
-short form of the two rules at the top of every loop session.
+[AGENTS.md](../../AGENTS.md) points here rather than keeping a copy; `bun nv orient` prints the short
+form of the two rules at the top of every loop session.
 
 ## A shell never carries file content into the tree
 
@@ -22,20 +22,20 @@ A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better
 retry rather than a silent wrong edit.
 
 **What you read is the budget, so read a big file in the region you need.** A loop session must finish
-under a fixed **200k** of context, and `python tools/orient.py` is built to start it at well under 20k. One
+under a fixed **200k** of context, and `bun nv orient` is built to start it at well under 20k. One
 `cat` of a 1,100-line module spends a tenth of the remaining budget in a single call. So: whole file when
 it is small (roughly under 400 lines, or when you will touch most of it), otherwise `grep -n` for the
 anchor and read the region around it. This is the one place turn economy and context economy pull against
 each other, and context is the constraint that degrades the work rather than merely slowing it.
-`python tools/loop-stats.py` prints where the last sessions actually landed, and
-`python tools/loop-stats.py --attribute` prints which *reads* put them there.
+`bun nv loop-stats` prints where the last sessions actually landed, and
+`bun nv loop-stats --attribute` prints which *reads* put them there.
 
-Use a shell for what it is for — `cargo`, `git`, `python tools/orient.py`, `wsl.exe`. When one of those
+Use a shell for what it is for — `cargo`, `git`, `bun nv`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
-**An Edit the tool cannot express — and any run of three or more edits — goes through `python
-bun nv splice --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
+**An Edit the tool cannot express — and any run of three or more edits — goes through `bun nv
+splice --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
 is not there) with the Write tool: a `--- <path>` line, then that file's blocks between `<<<<<<< OLD` /
 `=======` / `>>>>>>> NEW` markers, then the next `--- <path>`, for as many files as the edit spans. It
 refuses anything but exactly one match per block, and **the whole patch applies or none of it does**, so a
@@ -48,89 +48,56 @@ backslashes and apostrophes this repository's Rust and prose are full of. The ex
 patch costs a Write plus a call, so it only wins from three. Past that it wins by a lot: measured over a
 33-session run, 10.3 turns a session went on `Edit` calls issued **back to back with nothing read between
 them**, in runs of up to 17, and each of those runs was one decision the model had already made, spent one
-round trip at a time. That is the same saving `peek.py` takes on the read side, for the same reason.
+round trip at a time. That is the same saving `bun nv peek` takes on the read side, for the same reason.
 
-**The plan's status block is edited with `python tools/plan.py --set "<field>" --from <file>`**, not by
-hand — locating a field's exact bytes and splicing them was the single most expensive repeated action a
-session performed.
+**The plan's status block is written by the wrap, never by hand.** `bun nv session --wrap`'s
+`## plan: <Field>` section replaces a field whole, and `## plan-edit: <Field>` replaces one fragment of
+it. Locating a field's exact bytes and splicing them by hand was the single most expensive repeated
+action a session performed. `bun nv plan --get <Field>` prints a field's current text.
 
-**A goal's playbook selection is chosen with `python tools/playbook.py`, not by reading the file.**
-`--goal` ranks every bullet against the goal's own `[context] modules` and prints a paste-ready
-`playbook = [...]`; `--match <paths>` does the same for one session's file set. Two flags are the pruning
-signals an append-mostly file has beyond the `[until: ...]` trailer every bullet ends with -- the syntax is
-`playbook.py`'s module doc; `--check` tests the trailers and `--retire` deletes the bullets whose condition
-holds. `--check` also reports a bullet naming a path that has left the tree,
-and `--dupes` reports a bullet that already says what another bullet says — one trap had been written down
-six times, by six sessions, in six wordings, before anything could see it. Neither appends to the playbook, and `--retire` only ever removes —
-the bullet, and every goal manifest's `playbook` line that resolved to that bullet alone, so the floor's
-`chain.py --check` never meets a selector reaching nothing: appending a bullet is `session.py`'s
+**The plan is an index and one file per milestone**, and `bun nv plan` reads both. `--show M8` prints
+one milestone, `--show M8:verify` its acceptance paragraph alone, `--past` the milestones the program is
+behind, and `--stale` the sentences that defer work to a goal the chain has already walked. The roster
+and the status block are records under `data/plan/`, a milestone's scope is prose under `docs/plan/`,
+and a wrap's `## milestone: M8` section rewrites one. `--check` reports the status fields' sizes and
+fails when a milestone record disagrees with its scope file or with the chain. Nothing adds a field or a
+milestone — both are decisions, not forms — and nothing refuses over a length.
+
+**A playbook bullet is read with `bun nv playbook`, not by listing the directory.** `--show <selector>`
+prints one bullet, or a whole section, as `bun nv orient` prints it. Every bullet ends with an
+`[until: ...]` trailer, and `tools/nv/cmd/playbook.ts`'s module doc is the one home of its kinds.
+`--check` tests the trailers, reports a bullet naming a path that has left the tree and sizes each
+section; `--retire` deletes the bullets whose condition holds. `--retire` only ever removes — the
+bullet, and every goal manifest's `playbook` line that reached that bullet alone, so the floor's
+`bun nv chain --check` never meets a selector reaching nothing. Appending a bullet is the wrap's
 `## playbook:` section and stays there.
 
-`--check` **exits non-zero on exactly one of the things it prints**: a selector that does not resolve to
-exactly one bullet. `orient.py` fetches a trap by that string, so a shared lead-in is a bullet the loop
-cannot deliver to the session whose goal named it, and neither end reports anything. The stale paths and
-the sizes beside it stay reports — a quoted path is often gone *because* the trap was closed. CI's `docs`
-job runs it for the one finding.
+`--check` **exits non-zero on a gating finding**, and the one that matters is a selector that does not
+resolve to exactly one bullet. `bun nv orient` fetches a trap by that string, so a shared lead-in is a
+bullet the loop cannot deliver to the session whose goal named it, and neither end reports anything. The
+stale paths beside it stay reports — a quoted path is often gone *because* the trap was closed. CI's
+`docs` job runs it.
 
-**The plan is an index and one file per milestone**, and `plan.py` is the only thing that needs to know
-which is which: `--show M8` prints one milestone, `--show M8:verify` its acceptance paragraph alone, and
-`--amend M8 --from <file>` rewrites one. `--check` prices the status block against the aim the plan's own
-comment states and reports an index row that has drifted from the file it names. It refuses to *add* a
-field or a milestone — both are decisions, not forms — and it never refuses over a length.
-
-**It does refuse over a structure**, which is what makes it a CI gate: a table row that does not parse, a
-row naming a file that is not there, a title drifted from its H1, a milestone file no row names, a
-milestone with no `**Verify:**`. An unparseable row used to be *skipped*, so a milestone simply left the
-roster and every reader downstream saw the shorter table as the truth. The title cell is derived — the
-milestone file's H1 is its one home — so **`python tools/plan.py --sync` writes that column** rather than
-a reader picking whichever of the two copies looked right; it touches nothing else, since Order and
-Loop-days are the index's own data, and it refuses on a table it cannot read whole.
-
-The rulebook is the same arrangement one tree over: `python tools/rules.py --render` writes
+The rulebook is the same arrangement one tree over: `bun nv rules --render` writes
 `docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` from the topic JSON and the
-fragments, which own every line, and `--check` reports a rendered copy that has drifted. The decision
-records under `docs/decisions/` are frozen and derive nothing by hand: `python tools/records.py --check` is
-their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern `docs/novis.md`
-already established below — derive the machine-derivable half, and let a `--check` fail when the
-committed copy stops agreeing with it.
+fragments, which own every line, and `--render --check` reports a rendered copy that has drifted. The
+decision records under `docs/decisions/` are frozen and derive nothing by hand: `bun nv records --check`
+is their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern
+`docs/novis.md` already established below — derive the machine-derivable half, and let a `--check` fail
+when the committed copy stops agreeing with it.
 
-**The chain is edited with `python tools/chain.py`, never by hand.** `docs/agent/goals/` *is* the order
-the driver walks — a goal is `N-<slug>.md` plus a sibling `.toml` and `.handoff.md`, the numbers run
-`1..N` with no gaps, and walking the chain is sorting on the number. So **inserting or moving a goal
-renames files**, and it is never one file: `--new <slug> --after N` scaffolds the three — with the
-predecessor's `playbook`, `plan`, `[valgrind]`, `[wsl]` and `[docker]` blocks copied forward *as text*,
-so their comments survive, and everything that is this goal's own substance left as marked `TODO` — and
-renumbers every goal from the landing position on so `1..N` still holds. `--move N --to M`
-(or `--after`, `--before`, `--next`) and `--remove N --delete-files` are the same operation, the second
-closing the hole its number leaves. `--set N --milestone`, `--retitle N --to <slug>` and `--renumber`
-are the rest; no flag at all lists the order with where the run stands, and `--check` is the gate.
+**The chain is `data/chain.json`, a list of slugs, and `bun nv chain` edits it.** A goal's position is
+its place in that list, printed as `N of M`, so moving a goal renames no file and writes no number.
+`--new <slug>`, `--move <slug>` and `--remove <slug>` each take a place — `--after <goal>`,
+`--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file and nothing else. A
+goal's record under `data/goals/` and its prose under `docs/agent/goals/` are written by hand around it.
 
-**What survives a renumber is what is not written as a number.** Prose names a goal by its slug
-(AGENTS.md, *The schedule is the chain*), so the only text a move rewrites is the goal's own two file
-headers and the link targets that are filenames. `--check` reports any `goal 29` written into prose,
-because the day one exists is the day a renumber starts lying about it.
-
-**`--retire N` is what a walked goal ends as, and the driver runs it at every switch.** The fold is
-cumulative — goal `core-depth`'s checks are in goal `concurrency`'s file and in every file after it —
-so once the run has left a goal, its own `.toml` is a copy of a copy, and six of them were 830K that no
-tool reads and every `grep` over `docs/` hits eight times. This deletes that `.toml` and its
-`.handoff.md`, and **that deletion is the whole record**: retirement is the `.toml` being gone, so a
-flag and the disk can no longer disagree about it. The `.md` stays, because it holds the goal's number
-and the prose the plan cites. It refuses unless **every** `[[check]]` of that goal is in the live
-`loop-goal.toml`, matched on `(kind, name)` so a floor a session legitimately edited still counts — and
-that proof, unlike the position guard, is not `--force`-able.
-
-Every mutation is a **text splice**: half of that file is the prose saying why the order is what it is,
-and a `tomllib` round-trip would delete all of it. `--check` re-renders the file it just read and reports
-it if that ever stops being byte-identical, alongside the two failures that are otherwise silent — a goal
-TOML with no `goal-switch` marker line (which makes the switch *into* that goal refuse, stopping the run)
-and one with no `files`/`[valgrind] skip` key for the floor to be unioned into.
-
-One thing it refuses: **a goal at or before the live one**, whether it is the thing being edited or the
-place something is landing. `goal-switch.py` has already folded each walked goal's checks into the one
-after it, so moving, renumbering or removing anything back there invalidates a floor that is already
-built, and nothing downstream notices. `--force` is there for a tree where the run is over or was never
-started.
+**`--check` is whether the driver can walk the chain**, and it is on every goal's floor and in CI's
+`docs` job. It fails on what would stop the run when the chain reaches it: a goal record the chain does
+not name, a goal with no prose, a record that fails its schema, a retired goal at or behind the
+installed one, a `context` naming a shape or a bullet that is not there. It also fails on prose that
+names a goal by its number, because a number is a position and moves. `tools/nv/cmd/chain.ts`'s module
+doc is the whole list.
 
 ## One shell call runs one command, and its exit status is the last one's
 
@@ -154,16 +121,16 @@ message is a saving taken whether or not either call was expensive.
 paragraph above, which every one of those sessions had in its context, and including runs of 52 and 57
 consecutive `grep`/`sed` calls. A later 33-session run measured the same 1.00 calls per message. A rule
 that loses 3,647 times is not a rule anyone is going to start following, so both sides of the work have a
-tool instead: `bun nv splice` for a run of edits, and `tools/peek.py`, which takes as many targets as
+tool instead: `bun nv splice` for a run of edits, and `bun nv peek`, which takes as many targets as
 you have questions and answers them in one call:
 
 ```sh
-python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \
-                     crates/nvs-types/src/expr/members.rs:@public_property_names \
-                     rule:types/conversion \
-                     docs/decisions/0036.md:"### 4" \
-                     "crates/nvs-runtime/src/*.rs:re:slot_get"
-python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
+bun nv peek crates/nvs-ir/src/lower/expr.rs:3065-3120 \
+            crates/nvs-types/src/expr/members.rs:@public_property_names \
+            rule:types/conversion \
+            docs/decisions/0036.md:"### 4" \
+            "crates/nvs-runtime/src/*.rs:re:slot_get"
+bun nv peek --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```
 
 Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (which prints the matching line alone —
@@ -175,39 +142,39 @@ path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchor
 **A `rule:` citation is a target on its own** — `rule:types/conversion`, backticks and all if you
 pasted it out of a doc comment — and it answers with that rule's fragment, which is the rule. The
 token is the path (`docs/rules/types/conversion.md`), so nothing is looked up and the miss names
-`rules.py --list`. There are about 18,500 of these tokens in the tree, which makes id-to-text the
+`bun nv rules --list`. There are about 18,500 of these tokens in the tree, which makes id-to-text the
 most frequent lookup there is here; batch it beside the code you were reading anyway rather than
 translating it by hand.
 
-**And when you do not know the file yet, read its seams before its lines.** `python tools/peek.py
+**And when you do not know the file yet, read its seams before its lines.** `bun nv peek
 --outline <path>` prints one line per `fn`/`struct`/`enum`/`trait`/`impl`, with where it starts and how
 far it runs; every line of it is a `:@name` target that then lands first time. This is what the re-fetch
 number argues for: **56% of a session's read calls fetch a file the session had already opened** — 24.6
 calls a session across only 20.3 distinct files — and since the two hottest files in this repository are
 5,044 and 5,720 lines, "read it whole" was never the alternative. An outline of `lower/mod.rs` is 2.8 KB
-against the file's 276 KB. `peek.py` counts a session's fetches per file and names the flag once you have
-reached into the same one three times.
+against the file's 276 KB. `bun nv peek` counts a session's fetches per file and says so once you have
+reached into the same one repeatedly.
 
-**The 400-line floor is enforced on both sides.** `peek.py` refuses a bare `path` over `--max-lines` —
-400, which is AGENTS.md rule 3's "whole file under ~400 lines", and `nv peek` holds the same number.
+**The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
+`--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines".
 The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
 `.claude/settings.json` for `Read`, `Bash` and `PowerShell`. It denies a raw command where a tool or a rule
 in this file covers it: a whole `Read`, `cat`, `Get-Content` or `sed -n` of a tracked file over that same
 400 lines, and the other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:`
 and names the call to make instead, and anything the guard cannot read is allowed. Claude Code is the only
-harness that reads `.claude/`; every other one gets the floor from `peek.py` alone.
+harness that reads `.claude/`; every other one gets the floor from `bun nv peek` alone.
 
 ## A debug cargo command never takes `-p`
 
 `cargo build`, `cargo test` and `cargo clippy --all-targets -- -D warnings` — bare, at the root — are
-the three shapes `nv verify` runs and `disk.py`'s `LIVE_QUERIES` keep. Warm, each is a fingerprint
+the three shapes `nv verify` runs and `bun nv disk`'s `LIVE_QUERIES` keep. Warm, each is a fingerprint
 scan of a few seconds, so there is nothing to save by narrowing the build. There is a lot to lose:
 cargo resolves features over the packages named on the command line, so `cargo test -p nvs-types`
 gives `serde`, `sha2`, `base64` and their like a feature set the workspace build does not, every
 workspace crate downstream takes a new metadata hash, and cargo writes a second copy of all of them
 beside the first — rlibs, every test binary with its PDB, and one incremental cache per copy.
 `cargo build --bin nvs` does the same to every workspace library through the LTO plan. Nothing
-removes a copy: cargo has no garbage collector on stable, and `disk.py` keeps anything younger than
+removes a copy: cargo has no garbage collector on stable, and `bun nv disk` keeps anything younger than
 its grace. When this was found, nine copies of one day's builds held 120 GB of `target/`.
 
 So a debug build is one of the three shapes, and a narrowing goes on what *runs*. Under `cargo test`
@@ -221,9 +188,9 @@ cargo test --lib a_filter                              # every crate's unit test
 ```
 
 `--release -p nvs-abi-probe` and `--release -p nvs-cli` are the cost guards' own profile, which
-nothing else builds and `disk.py` never sweeps; they stay as they are. `tools/loop.py` keeps the same
-rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs that
-crate's binaries off one shared `cargo test --no-run`, and the CLI prebuild is a bare `cargo build`.
+nothing else builds and `bun nv disk` never sweeps; they stay as they are. The loop driver keeps the
+same rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs
+that crate's binaries off one shared `cargo test --no-run` (`tools/nv/driver/accept.ts`).
 
 ## Verifying
 
@@ -255,7 +222,7 @@ it, write the wrap file — which is prose you already know and cannot fail — 
 bun nv verify --start
 <Write the wrap file>
 bun nv verify --wait
-python tools/session.py --wrap .agent-tmp/wrap.md
+bun nv session --wrap .agent-tmp/wrap.md
 ```
 
 It is the same verification: the same steps in the same order, the same green cache, the same exit status.
@@ -271,17 +238,17 @@ output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
-**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `tools/loop.py` runs it only on
+**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `bun nv loop` runs it only on
 the acceptance sweep that would reach a goal, holding the goal open while it is red. A goal in progress
 may carry broken doc links; the session that writes `DONE` runs `--doc` and fixes them, and a red gate
 arrives in the next pack under *THE RUSTDOC GATE IS RED*. The whole argument is § *Why `doc` runs
-when a goal ends rather than as a step* in `git show pre-overhaul:tools/verify.py`.
+when a goal ends rather than as a step* in the old `verify` tool's module doc, at tag `pre-overhaul`.
 
 `fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
 sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
 summary line names every file it rewrote, and its exit status is held to the end so a parse error is
-still reported by `build`. The measurement is § *Why `fmt` formats, and runs first* in
-`git show pre-overhaul:tools/verify.py`.
+still reported by `build`. The measurement is § *Why `fmt` formats, and runs first* in the same
+module doc at tag `pre-overhaul`.
 
 **A step whose inputs have not changed is not run again**, and that is decided a step at a time. Each step
 is green against a key over what *it* reads, so documentation reaches no step, a reformatted `.nvs` under
@@ -293,40 +260,41 @@ the `nvs` binary is built without it. That is not a check being skipped:
 the step's inputs are identical in every respect it can observe. A step is recorded the moment it is
 green, so a run that goes red at `test` keeps the verdicts before it; an entry expires after an hour,
 `--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. The argument is
-§ *Why a step whose inputs did not change is not run* in `git show pre-overhaul:tools/verify.py`,
+§ *Why a step whose inputs did not change is not run* in that module doc at tag `pre-overhaul`,
 and `tools/nv/keys/steps.ts` is the table.
 
-**Inside `test`, a binary whose inputs have not changed is not run either.** `tools/impact.py` keys
+**Inside `test`, a binary whose inputs have not changed is not run either.** `tools/nv/keys/checks.ts` keys
 each test binary on what *it* reads: its own package as bytes, the workspace packages it is compiled
 against with comments and layout removed, and what it opens while it runs when it says so through
 `nvs_repo`. An edit to `nvs-lsp` therefore runs the binaries of `nvs-lsp` and `nvs-cli` and answers
 the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line each printed when it
 was green, so the step's counts stay the workspace's. The record also keeps every `test <name> ...`
 line, and the loop's acceptance sweep reads it: a test binary whose key matches is answered from
-`nv verify`'s run and not run a second time (`tools/loop.py`'s `verify_green`). Every doubt resolves wide — a binary whose
-sources leave their package some other way, or whose dep-info cannot be found, keeps the whole-tree
-key. `python tools/impact.py` lists which binaries are narrow and why the others are not,
-`--explain <path>...` says what an edit to a path re-runs, and `--graph` prints the package graph
-that decides it. The argument is § *Why `test` runs only the binaries a change reaches* in
-`git show pre-overhaul:tools/verify.py`.
+`nv verify`'s run and not run a second time. Every doubt resolves wide — a binary whose sources leave
+their package some other way, or whose dep-info cannot be found, keeps the whole-tree key.
+`bun nv verify --keys` prints each binary with its key and whether that key is wide,
+`tools/data/impact-wide.txt` says why each wide one is, and `bun nv why "<name>"` prints what one key
+is read from. The argument is § *Why `test` runs only the binaries a change reaches* in the old
+`verify` tool's module doc at tag `pre-overhaul`.
 
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
 `tests/` and `examples/`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and
 the fix was always the same command and the whole run again.
 
-**The docs gates are not in that list and `nv verify` runs none of them.** `rules.py --check`,
-`rules.py --render --check`, `bun nv links`, `bun nv layout`, `records.py --check`, `plan.py --check`,
-`playbook.py --check` and `bun nv release --check` are CI's `docs` job — no Rust toolchain, about a
-second together — and `session.py --wrap` runs **six families** of them in-process, so a wrap cannot
-commit what it just broke: the link half and the live goal's `[context]` manifest always, the tests the
-goal's `cargo-named` checks name on a DONE claim, and then the rulebook (`rules.py`), the records
-(`records.py`) and the migration table (`check-migration.py`, which is CI's too) — each only when the
+**The docs gates are not in that list and `nv verify` runs none of them.** `bun nv rules --check`,
+`bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv records --check`,
+`bun nv plan --check`, `bun nv chain --check`, `bun nv playbook --check` and `bun nv release --check`
+are CI's `docs` job — no Rust toolchain — and `bun nv session --wrap` runs **six families** of them
+in-process, so a wrap cannot commit what it just broke: the link half and the live goal's `[context]`
+manifest always, the tests the goal's `cargo-named` checks name on a DONE claim, and then the rulebook
+(`bun nv rules`), the records (`bun nv records`) and the migration table (`bun nv migration`, which is
+CI's too) — each only when the
 session has edited the tree that feeds it, `docs/rules/`, `docs/decisions/` and `docs/spec/`. That
 trigger is the difference between the first three gates and the other three. A dead link is a per-file
 fact, so the link gate can ask HEAD which findings are inherited; a rulebook, record or migration finding
 is a property of the whole set, so the conservative equivalent is to ask whether this session touched
 that tree at all — including a rename, which is what makes a citation elsewhere go dead. The manifest
-gate is the reading `chain.py --check` gives the driver's floor — a `playbook` selector that reaches no
+gate is the reading `bun nv chain --check` gives the driver's floor — a `playbook` selector that reaches no
 bullet, a `shapes` heading that is not there — taken before the commit rather than after the session is
 gone, because that floor check halting a DONE claim is a hand the run waits for; a wrap that retires a
 bullet prunes the lines that named it, so whatever the gate finds is this session's. The named-test gate
@@ -334,7 +302,7 @@ is there for the same hand: a `cargo-named` check is only its `tests` names, a f
 test runs nothing and exits 0, and the release-profile ones sit behind the floor gate in every scoped
 run — so a test written under a near miss of the toml's name is green for the whole goal and surfaces
 once, in the sweep that confirms the DONE claim. The wrap refuses a DONE whose named tests are not
-`fn`s in the tree, with the same reading `playbook.py`'s `[until: test]` trailer uses.
+`fn`s in the tree, with the same reading `bun nv playbook`'s `[until: test]` trailer uses.
 
 **`docs/novis.md` is the fifth thing a wrap settles, and it is a write rather than a gate.** The
 reference is generated from the binary, the chapters under `docs/reference/` and the migration table's
@@ -355,13 +323,13 @@ fail over it.
 ```sh
 bun nv loop --owed                # the carried checks no memo answers for this tree; runs nothing
 bun nv loop --settle              # run those, and only those
-python tools/impact.py --explain crates/nvs-lsp/src/lib.rs   # which test binaries an edit re-runs
+bun nv why "<check name>"         # what one check's key is read from
 ```
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
 runs the test binaries a change reaches and every `.nvst` case; the fuzz run, the valgrind sweep, the
 release-profile guards, the database matrix and the rest of the carried floor are the loop's, and
-inside a run they wait for the floor gate (`tools/loop.py`'s `FLOOR_GATE_EVERY`) and for the sweep a
+inside a run they wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
 goal is reached on. Nothing is dropped: a carried check is remembered against a hash of what it
 reads, so a change stales exactly the checks that read what it touched, and they stay stale until
 something runs them.
@@ -370,10 +338,8 @@ something runs them.
 a sweep stops at its first red, because the goal's later stages are red until they are built. The
 gate-open sweep that would reach the goal, landing a side goal, and `--settle` run past a red check
 instead, and the ledger's `goal check:` line is followed by one `also red:` line per other red check,
-which the pack prints. The goal-end gates (`nv verify --doc`, `owners.py --closes`) run after that
-sweep whether it is red or green. A gate-open sweep also runs a sample of the checks the memo already
-answers, to test the memo (`tools/loop.py`'s `audits` and `AUDIT_EVERY`); a red one is a `SELECTOR
-MISS`.
+which the pack prints. The goal-end gates (`nv verify --doc`, `bun nv owners --closes`) run after that
+sweep whether it is red or green.
 
 **A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
 `--owed` reads it off the same memo and the same keys a sweep uses, and exits non-zero while there is
@@ -382,32 +348,29 @@ carried floor alone. The goal's own checks are never counted — they are red un
 — and neither is a check that says `memoize = false`. A worktree's merge into `main` settles first for
 the same reason.
 
-**What a key holds is decided three ways, and each falls back to the whole tree.** A `cargo test -p
-<crate>` check is keyed on that crate's test binaries (`tools/impact.py`). A Python gate is keyed on
-what `tools/observe.py` last saw it open, list and start, plus the set of paths in the tree, which
-stands for every test of whether a path exists. Everything else is keyed on the partitions
-`tools/loop.py`'s `reads_of` names. A binary that leaves its package without `nvs_repo`, a gate that
-starts a process nobody can answer for and a check in a form nothing recognises all keep the wide key
-they had.
+**What a key holds is decided by what the check is, and every doubt falls back to the whole tree.**
+`tools/nv/keys/checks.ts`'s module doc is the table: a test check is keyed on the test binaries it
+runs, a check that builds or runs a program on what that program is built from and opens, a proofs
+group on what `bun nv proofs` last recorded for it, and a check whose reads are directories it names on
+those. A binary that leaves its package without `nvs_repo` and a check in a form nothing recognises
+keep the whole-tree key. `bun nv why "<check name>"` prints what one key is read from, and
+`bun nv impact --probe` holds every key to the synthetic edits in `data/impact-probes.json`.
 
-## The user-facing reference, and its proof
+## The user-facing reference
 
 ```sh
-python tools/reference.py                 # regenerate docs/novis.md from the binary + docs/reference/, run every example
-python tools/reference.py --check         # is the committed docs/novis.md current? (CI)
-python tools/reference.py --examples-only --only 20-types   # one chapter's examples while writing it
-python tools/reference.py --primer --check   # prove `nvs agent primer`: its examples run, its refusal codes exist
-python tools/proof.py --run               # hand novis.md to a blind `claude -p` reader, judge what it writes
-python tools/proof.py --prepare           # the same run directory and PROMPT.md, for any other reader
-python tools/proof.py --judge             # score the latest run; report.md beside the tasks
+bun nv reference                          # regenerate docs/novis.md from the binary + docs/reference/, run every example
+bun nv reference --check                  # is the committed docs/novis.md current? (CI)
+bun nv reference --examples-only --only 20-types   # one chapter's examples while writing it
+bun nv reference --primer                 # prove `nvs agent primer`: its examples run, its refusal codes exist
 ```
 
 `docs/novis.md` is the one file a language user, a search engine or a language model reads, and it
 is **generated**: Part B and the tables inside chapters come from `nvs meta --json`, the prose from
-one chapter per topic under `docs/reference/`. `nv verify` runs `reference.py` as a step after the
+one chapter per topic under `docs/reference/`. `nv verify` runs `bun nv reference` as a step after the
 case trees, so the file follows the registry on every green run and a chapter example the binary no
 longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
-and the rules; `proof.py`'s module doc is what a failed task means.
+and the rules.
 
 ## Trying a snippet against PHP
 
@@ -442,11 +405,11 @@ finding, not an error.
 ## Finishing a session: steps 4 and 5 in one call
 
 ```sh
-python tools/session.py --template                   # the format, with this tree's answers in it
-<Write one wrap file>                                # the whole tail as data
-python tools/session.py --wrap .agent-tmp/wrap.md    # apply it, or refuse and change nothing
-python tools/session.py --check                      # what steps 4-5 still owe, off the tree
-python tools/session.py --wrap .agent-tmp/wrap.md --dry-run   # say what it would do
+bun nv session --template                   # the format, with this tree's answers in it
+<Write one wrap file>                       # the whole tail as data
+bun nv session --wrap .agent-tmp/wrap.md    # apply it, or refuse and change nothing
+bun nv session --check                      # what steps 4-5 still owe, off the tree
+bun nv session --wrap .agent-tmp/wrap.md --dry-run   # say what it would do
 ```
 
 The first three are the tail. `--template` is the call to make: it carries every count the tree has moved
@@ -456,24 +419,25 @@ over one 19-session run. `--check` and `--dry-run` are the interactive pair, not
 validates everything before writing a byte, so a dry run buys the same refusal one call earlier.
 
 The wrap file is markdown whose `## ` headings are instructions: `## plan: <Field>` rewrites one status
-field, `## playbook: <Heading>` appends a bullet, `## handoff` replaces the handoff, `## commit: <paths>`
+field and `## plan-edit: <Field>` one fragment of it, `## milestone: <id>` rewrites a milestone's scope,
+`## playbook: <Heading>` appends a bullet, `## handoff` replaces the handoff, `## commit: <paths>`
 stages those paths and commits with that message — one section per slice, in order — and `## status` is
-the loop's one line. `python tools/session.py --help` is the format in full.
+the loop's one line. `bun nv session --help` is the format in full.
 
-It is applied in a fixed order — plan, playbook, handoff, commits, status — so the docs are on disk before
+It is applied in a fixed order — plan, milestones, playbook, handoff, commits, status — so the docs are on disk before
 anything is staged, and **nothing is applied unless every section validates**: an unknown plan field, a
 commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or an open item in it
-without a repo-rooted `crates/.../file.rs:NN` anchor (a bare `file.rs:NN` is refused too — `orient.py`
+without a repo-rooted `crates/.../file.rs:NN` anchor (a bare `file.rs:NN` is refused too — `bun nv orient`
 expands only the rooted form, and only from the item), a status line that does not start
 `CONTINUE`/`DONE`/`BLOCKED`, a dead link — in a body the wrap is about to write, or anywhere in the tree
 where it resolved at HEAD and no longer does — a `rule:` citation in a body that names no rule, which
 is how a placeholder id reaches `git log` and turns the goal's rulebook floor red, and a goal named by
-its number rather than its slug, which turns `chain.py --check` red for every session after and which in
+its number rather than its slug, which turns `bun nv chain --check` red for every session after and which in
 a commit message nothing afterwards can even find — all refuse the whole
 file and write nothing. A
 half-finished tail is the one failure mode worth designing out.
 
-The link half is `check-links.py`, which is CI's `docs` job and which `nv verify` does not run, so a
+The link half is `bun nv links`, which is CI's `docs` job and which `nv verify` does not run, so a
 green verification says nothing about links. It is whole-tree rather than diff-scoped because the way
 links die here is a **rename**: the file moves and every citation of it goes dead, in files the session
 never opened. A link that was already dead at HEAD is reported and refuses nothing.
@@ -511,17 +475,17 @@ bun nv release --preview minor     # the exact version and notes a dispatch woul
 `bun nv release --check` is the gate CI's `docs` job runs: the workspace version, the
 `[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
 
-`session.py` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
+`bun nv session` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
 simply reports itself skipped when there is no `.loop/` directory.
 
 ## Benchmarking against PHP
 
 ```sh
-python tools/bench.py                    # 20 userland cases, Novis and PHP side by side
-python tools/bench.py 05 regex           # only the cases whose name contains these
-python tools/bench.py --check            # do the two halves still agree? (no timing)
-python tools/bench.py --php-mode default # PHP as installed, rather than with opcache+JIT
-python tools/bench.py --json docs/perf/userland.ndjson   # append one record per case
+bun nv bench                             # the userland cases, Novis, PHP, Python and Bun side by side
+bun nv bench 05 regex                    # only the cases whose name contains these
+bun nv bench --check                     # do the engines still agree? (no timing)
+bun nv bench --php-mode default          # PHP as installed, rather than with opcache+JIT
+bun nv bench --json docs/perf/userland.ndjson   # append one record per case
 ```
 
 `benches/userland/` holds twenty pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
@@ -541,19 +505,19 @@ runnable form.
 ## The server's throughput, in three legs that are not one series
 
 ```sh
-python tools/bench.py --serve-vs-fpm --record benches/serve.json      # Windows-native, no proxy
-python tools/bench.py --serve-vs-fpm --record benches/results/serve.json  # what the loop's sweep runs
-python tools/bench-proxied.py --record benches/serve-proxied.json     # nginx in front of both, in Docker
-python tools/bench-proxied.py --arm deployed --backend-cpus 8         # PHP's pool against our one core
-python tools/bench-proxied.py --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
-python tools/bench-proxied.py --down                                  # tear both stacks down
-python tools/bench-load.py --record benches/serve-load.json           # saturation, every answer verified
-python tools/bench-load.py --concurrency 1,16,256 --seconds 30        # exactly these widths, longer points
-python tools/bench-load.py --in-flight 0                              # the sweep without the 10k leg
+bun nv bench --serve-vs-fpm --record benches/serve.json          # Windows-native, no proxy
+bun nv bench --serve-vs-fpm --record benches/results/serve.json  # what the loop's sweep runs
+bun nv bench-proxied --record benches/serve-proxied.json         # nginx in front of both, in Docker
+bun nv bench-proxied --arm deployed --backend-cpus 8             # PHP's pool against our one core
+bun nv bench-proxied --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
+bun nv bench-proxied --down                                      # tear both stacks down
+bun nv bench-load --record benches/serve-load.json               # saturation, every answer verified
+bun nv bench-load --concurrency 1,16,256 --seconds 30            # exactly these widths, longer points
+bun nv bench-load --in-flight 0                                  # the sweep without the 10k leg
 ```
 
 **Three legs, three artifacts, and no arithmetic between them.** The first runs on this box with no
-containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `bench.py`, and
+containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `tools/nv/cmd/bench.ts`, and
 is goal `server`'s acceptance check — so it must keep working where there is no Docker and no `wrk`. The second
 is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
 front of both peers because that is the only deployment either has, two compose files brought up one at a
@@ -561,7 +525,7 @@ time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually 
 differ in every dimension, so the two files are separate and a row from one is never a baseline for the
 other.
 
-**The third has no peer, and asks the question neither other leg can answer.** `tools/bench-load.py`
+**The third has no peer, and asks the question neither other leg can answer.** `bun nv bench-load`
 walks a concurrency sweep derived from the machine's core count, then puts ten thousand requests in
 flight at once, and **verifies that every answer belonged to the request that asked for it** — the
 other two drive `hello.nvs`, whose answers are byte-identical, so a response delivered to the wrong
@@ -577,70 +541,42 @@ the same leg every iteration and points `--record` at `benches/results/`, which 
 because the sweep runs *after* the session's commits: a row appended to a tracked file there is a change
 no slice owns, so nothing stages it and it stays in the working tree for good.
 
-`tools/bench.py`'s `## The serve-versus-FPM leg`, that README, and `tools/bench-load.py`'s `## What
-this leg is` are the three homes; none restates another, and this block is only the commands.
+`tools/nv/cmd/bench.ts`'s `# The serve-versus-FPM leg`, that README, and `tools/nv/cmd/bench-load.ts`'s
+`# What this leg is, and why it is a third one` are the three homes; none restates another, and this
+block is only the commands.
 
-## What a feature still owes, and the loop that pays it
+## What a feature still owes
 
 ```sh
-python tools/dossier.py                          # the audit: every group, four columns, thinnest first
-python tools/dossier.py --id 'Core\Str::length'  # one feature: what it has, what it owes, where each goes
-python tools/dossier.py --owed                   # only what is missing, as a worklist
-python tools/dossier.py --run examples           # run every example, diff against its `.out`
-python tools/dossier.py --run hostile            # run every attack; the runtime must survive it
-python tools/dossier.py --bless <file.nvs>       # create an example's `.out` from what it prints
-python tools/dossier.py --record-perf --group G  # measure, append to docs/perf/members.ndjson
-python tools/dossier.py --no-perf …              # any of the above, with the perf proof switched off
-python tools/dossier.py --emit-goals             # append the loop that produces what is owed to the chain
-python tools/dossier.py --emit-goals --dry-run   # ... and say what that would change, writing nothing
-python tools/dossier.py --partition --group G    # cut a group into worker briefs, or refuse
-python tools/dossier.py --brief 'Core\Str::at'   # one feature's brief, as a worker is handed it
-python tools/dossier.py --findings [--clear]     # what the workers hit, collated for one batch fix
+bun nv proofs                          # the audit: one line per group, how many features have each proof
+bun nv proofs --id 'Core\Str::length'  # one feature: what it has, what it owes
+bun nv proofs --owed                   # only what is missing, as a worklist
+bun nv proofs --run --group 'Core\Str' # run every example and attack in scope, and report what failed
+bun nv proofs --verify --group G       # the owed gate, then the run, for each scope in one pass
+bun nv proofs --bless <file.nvs>       # write an example's `.out` from what it prints
+bun nv proofs --comments <path>        # judge a program's comments against the plain-comment bounds
+bun nv proofs --record-perf --group G  # measure, append to docs/perf/members.ndjson
+bun nv proofs --no-perf …              # any of the above, with the perf proof switched off
 ```
 
 `rule:testing/feature-proofs` is which proofs a feature owes, and why;
 each tree's README owns what a file in it is ([examples](../examples/README.md),
-[attacks](../../tests/hostile/README.md), [benches](../../benches/members/README.md)); `--help` owns the
-rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
-adding to a list when a feature lands.
-
-`--emit-goals` writes one goal per group under `docs/agent/goals/dossier/` and **appends them to
-`docs/agent/goals/`** — the one chain, always, because that is the only file `loop.py` walks
-and an emission anywhere else would be a chain nothing reads. **Deciding to run it is the user's**, like
-`doc-cleanup.md` and `dependency-update.md`, for the same reason: it decides what several hundred
-sessions will do next. The user made that decision, and [goal `dossier`](goals/dossier.md) is
-what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
-on the end of the chain the driver is already walking and the run continues into them without a restart.
-`Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by slug and by
-claim — a goal already on the chain keeps its number, and a feature some generated goal already gates on
-is never given a second one — so goal `dossier`'s check re-runs it under `--dry-run` and passes only on
-*nothing appended*.
-
-Re-running it is how the chain stays current: a group that owes nothing is left out, a goal the run has
-walked is left alone, and only the goals for features no goal claims are appended from the chain's end. A
-generated goal is `N-<slug>` under `goals/dossier/` like any other entry, and `chain.py` renumbers it with
-the rest.
-
-`--partition` is the one place in this repository where a session hands **writing** to subagents. The rule
-in [session-prompt.md](session-prompt.md) — a subagent searches and never writes — holds everywhere else,
-and the carve-out is this program alone because dossier work is the one shape that earns it: the examples,
-the attack and the bench are attributed by a path derived from the feature's own id, so two workers cannot name the
-same file, nothing in the goal is a design decision, and `--verify --group` judges the result
-mechanically. The tool asserts the first of those on every run rather than trusting it, and writes nothing
-when two lanes collide. `tools/dossier.py`'s § *Running one group's features at once* owns the protocol,
-`FANOUT_WORKERS` owns the width and how it was measured, and an emitted goal's own prose repeats neither.
+[attacks](../../tests/hostile/README.md), [benches](../../benches/members/README.md));
+`tools/nv/cmd/proofs.ts`'s module doc owns the rest. **The roster is derived from `nvs meta --json` and
+the reference chapters** (`tools/nv/proofs/roster.ts`), so nothing needs adding to a list when a
+feature lands.
 
 ## How wide anything runs
 
 ```sh
 bun nv machine                        # what this box is, and the widths it implies
 bun nv machine --refresh              # forget the cached facts and probe again
-NVS_VALGRIND_JOBS=2 python tools/loop.py --goal-only   # override one run's sweep width
+NVS_VALGRIND_JOBS=2 bun nv loop --goal-only   # override one run's sweep width
 ```
 
 **One policy, in `tools/nv/lib/machine.ts`, and no caller has its own:** half the cores the work will actually
 see, floor two, capped by how many items there are and by free memory. Half and not more because the
-machine is not idle — `loop.py` overlaps the release build with the valgrind sweep deliberately, and that
+machine is not idle — the loop overlaps the release build with the valgrind sweep deliberately, and that
 build is the longer pole.
 
 The facts it needs are a property of the box, so they are probed **once** and cached in
@@ -656,9 +592,9 @@ blocks back in the order you asked for them.
 ## Disk
 
 ```sh
-python tools/disk.py                  # what is on disk, what is reclaimable, what is free
-python tools/disk.py --clean          # reclaim it
-python tools/disk.py --clean -n       # say what --clean would delete; delete nothing
+bun nv disk                           # what is on disk, what is reclaimable, what is free
+bun nv disk --clean                   # reclaim it
+bun nv disk --clean -n                # say what --clean would delete; delete nothing
 ```
 
 **The loop runs `--clean` itself, after every session's acceptance check** — between sessions, when
@@ -695,7 +631,7 @@ Novis's own crates out, which was three quarters of what remained. A panic locat
 still name file and line, so every `debug_assert` and the runtime's owner-stamp check report as they
 did; a session that needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
 
-Four things live outside this repository and `disk.py` reports them without ever deleting them — another
+Four things live outside this repository and `bun nv disk` reports them without ever deleting them — another
 tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the
 valgrind leg's and the WSL leg's own target directories, each a full one; deleting either frees ext4 space
 but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then compact it,
@@ -762,7 +698,7 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
 inside a loop.
 
-That script and `loop.py`'s own sweep both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
+That script and the loop's own valgrind sweep both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
 whose header is the one home for what it hides: two contexts inside `ring`'s AEAD assembly, which memcheck
 reports on every TLS connection a fixture opens and which are not leaks of any kind. A fixture goes red on
 that assembly rather than on anything Novis wrote as soon as it runs long enough for its queue worker to
