@@ -16,7 +16,8 @@
 //   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
 // - `observed`: a check over what it was last seen to read. A proofs group, the unit `proofs: <group>` for
 //   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, the
-//   `nv proofs` modules, what the roster and the audit read for every group, and the example, attack
+//   `nv proofs` modules, what the roster and the audit read for every group, the markers and calls it
+//   scans in the case trees and the crates' tests (`proofs/markers.ts`), and the example, attack
 //   and bench paths `nv proofs` last recorded for that group. A check that names groups is the union of
 //   its groups. Any other `bun nv` check keys on the modules its command loads (`modules.ts`) and on
 //   what its processes read, tested, listed and started when the sweep last ran it (`lib/reads.ts`);
@@ -39,10 +40,11 @@ import { dirname } from "node:path";
 import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { abs } from "../lib/paths.ts";
 import type { Reads } from "../lib/reads.ts";
+import { CALL_ROOTS, MARKER_ROOTS, callsIn, markersIn } from "../proofs/markers.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { NV_MANIFESTS, commandModules } from "./modules.ts";
-import { OTHER, PARTITIONS, partitionOf, wrapWritten } from "./partition.ts";
+import { OTHER, PARTITIONS, STATE, partitionOf, wrapWritten } from "./partition.ts";
 import { TIERS, digest } from "./scan.ts";
 import type { Tree } from "./tree.ts";
 
@@ -229,12 +231,14 @@ function partition(tree: Tree, name: string): Part[] {
 }
 
 /** One part for a file, or for every file under a directory; a path with none is `absent`. The
- * root, `.`, is every file in the tree. */
+ * root, `.`, is every file in the tree. A directory leaves out the `state` files under it, which a
+ * wrap rewrites every session: a reader of one names it. */
 function path(tree: Tree, top: string): Part[] {
   if (top === ".") top = "";
   return cached(tree, `path\0${top}`, () => {
-    if (top === "") return [{ label: "./", partition: OTHER, tier: "raw", digest: digest("", ...tree.files.map((f) => `${f}\x01${tree.raw(f)}`)) }];
-    const files = tree.under(top);
+    const kept = (f: string) => f === top || partitionOf(f) !== STATE;
+    if (top === "") return [{ label: "./", partition: OTHER, tier: "raw", digest: digest("", ...tree.files.filter(kept).map((f) => `${f}\x01${tree.raw(f)}`)) }];
+    const files = tree.under(top).filter(kept);
     const label = files.length === 1 && files[0] === top ? top : `${top}/`;
     return [{ label, partition: partitionOf(top + (label.endsWith("/") ? "/" : "")), tier: "raw", digest: digest(top, ...(files.length ? files.map((f) => `${f}\x01${tree.raw(f)}`) : ["absent"])) }];
   });
@@ -336,9 +340,36 @@ export function proofGroups(c: Check): string[] | undefined {
 /** What `nv proofs` reads for every group besides its own modules: the policy, the help backlog and
  * the perf ledger. */
 const PROOF_INPUTS = ["data/proofs", "docs/perf/members.ndjson"];
-/** The partitions it reads for every group: the roster's chapters and spec, the registry and its tables,
- * and each `covers:` marker and plain call in the case trees and in `crates/`. */
-const PROOF_PARTITIONS = ["crates", "crate-tests", "docs", "conformance", "differential"];
+/** The partitions it reads whole for every group: the roster's chapters and spec, and the registry and
+ * its tables. */
+const PROOF_PARTITIONS = ["crates", "docs"];
+
+/** Each file's scan, by path and raw digest, so a second tree over an unchanged file reads it once. */
+const scans = new Map<string, string>();
+
+/** What `nv proofs` reads out of the case trees and the crates' Rust files, from the scanner it uses
+ * (`proofs/markers.ts`): one part per tree, over each file's `covers:` markers and, in a case tree, its
+ * calls. The rest of a file is not in it, so an edit that moves no marker and no call moves no key. */
+function proofScan(tree: Tree): Part[] {
+  return cached(tree, "proof-scan", () =>
+    MARKER_ROOTS.map(([root, ext]) => {
+      const calls = CALL_ROOTS.includes(root);
+      const lines: string[] = [];
+      for (const f of tree.under(root)) {
+        if (!f.endsWith(ext) || f.split("/").includes("target")) continue;
+        const at = `${f}\x01${tree.raw(f)}`;
+        let got = scans.get(at);
+        if (got === undefined) {
+          const text = tree.text(f);
+          got = [...markersIn(f, text).map(([name, label]) => `${name}\x02${label}`), ...(calls ? callsIn(text) : [])].join("\x03");
+          scans.set(at, got);
+        }
+        if (got !== "") lines.push(`${f}\x01${got}`);
+      }
+      return { label: `<proof scan>${root}/`, partition: partitionOf(`${root}/`), tier: "raw" as const, digest: digest(root, ...lines) };
+    }),
+  );
+}
 
 /** A proofs group's parts: the proof binary, what every group reads, and the group's own paths. A group
  * with no record keys on everything until it has run once. */
@@ -349,6 +380,7 @@ function proofParts(tree: Tree, r: Records, group: string): Part[] {
     build(tree, r.graph, program("shipped")),
     nvProgram(tree, "proofs"),
     ...PROOF_PARTITIONS.map((p) => partition(tree, p)),
+    proofScan(tree),
     ...[...PROOF_INPUTS, ...own].map((p) => path(tree, p)),
   );
 }

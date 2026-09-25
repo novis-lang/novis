@@ -83,8 +83,28 @@ describe("the units a key answers for", () => {
     expect(isWide(unit(new Map()).parts(tree))).toBe(true);
     const labels = unit(new Map([["lang:types", ["docs/examples/lang/types", "tests/hostile/lang/types"]]])).parts(tree).map((p) => p.label);
     expect(labels).toContain("docs/examples/lang/types/");
-    expect(labels).toContain("<conformance>");
+    expect(labels).toContain("<proof scan>tests/conformance/");
+    expect(labels).not.toContain("<conformance>");
     expect(labels).not.toContain("<hostile>");
+  });
+
+  test("a proofs group keys on the markers and calls in the test trees, not on the tests' bodies", async () => {
+    const check: Check = { kind: "command", name: "g", argv: ["bun", "nv", "proofs", "--verify", "--group", "lang:types"] };
+    const unit = units({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), proofReads: new Map([["lang:types", []]]), nvReads: new Map() }).find((u) => u.name === "proofs: lang:types")!;
+    const tree = await Tree.read();
+    const key = (t: Tree) => keyOf("g", unit.parts(t));
+    expect(key(tree.edited({ "crates/nvs-host/tests/zz_probe.rs": "#[test]\nfn probe() {}\n" }))).toBe(key(tree));
+    expect(key(tree.edited({ "tests/conformance/zz-probe.nvst": "echo 1;\n" }))).toBe(key(tree));
+    expect(key(tree.edited({ "crates/nvs-host/tests/zz_probe.rs": "// covers: Core\\Arr::all\n#[test]\nfn probe() {}\n" }))).not.toBe(key(tree));
+    expect(key(tree.edited({ "tests/conformance/zz-probe.nvst": "Core\\Arr::all([], fn($x) => true);\n" }))).not.toBe(key(tree));
+  });
+
+  test("a directory a binary reads leaves out the handoff under it", async () => {
+    const tree = await Tree.read();
+    const binary = units({ graph, checks: [], reads: new Map([["nvs-host lib nvs_host", ["data/goals"]]]), wide: new Set<string>(), proofReads: new Map(), nvReads: new Map() }).find((u) => u.name === "nvs-host lib nvs_host")!;
+    const key = (t: Tree) => keyOf("b", binary.parts(t));
+    expect(key(tree.edited({ "data/goals/zz-probe.handoff.json": "{}" }))).toBe(key(tree));
+    expect(key(tree.edited({ "data/goals/zz-probe.json": "{}" }))).not.toBe(key(tree));
   });
 
   test("a `bun nv` check keys on what it last read, and on everything until it has run", async () => {

@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
+import { CALL_ROOTS, callsIn, MARKER_ROOTS, markersIn } from "./markers.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
@@ -191,9 +192,6 @@ export interface Proofs {
   gaps: string[];
 }
 
-/** `// covers: A, B`, in a `.nvst`, a `.nvs` or above a Rust `#[test]`. `#` lets it sit in TOML too. */
-const COVERS_RE = /(?:\/\/|#)\s*covers:\s*(.+)/g;
-
 /** Every file under a repo-relative directory whose name ends `ext`, skipping any `target` directory. */
 export function walk(dir: string, ext: string): string[] {
   const out: string[] = [];
@@ -214,49 +212,27 @@ export function walk(dir: string, ext: string): string[] {
   return out;
 }
 
-const names = (text: string) => text.split(",").map((p) => p.trim().replace(/^[`"']+|[`"']+$/g, "")).filter(Boolean);
-
-/**
- * Every `covers:` marker in the two case trees and `crates/`, as feature id -> the files carrying it. A
- * Rust marker is labelled with the `#[test] fn` under it. The example, attack and bench trees are
- * attributed by path, so a marker in one is never read.
- */
+/** Every `covers:` marker `markersIn` finds under `MARKER_ROOTS`, as feature id -> the tests carrying it. */
 function scanMarkers(): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  const roots: [string, string][] = [["tests/conformance", ".nvst"], ["tests/differential", ".nvst"], ["crates", ".rs"]];
-  for (const [base, ext] of roots) {
+  for (const [base, ext] of MARKER_ROOTS) {
     for (const path of walk(base, ext)) {
-      const text = read(path);
-      if (!text.includes("covers:")) continue;
-      for (const m of text.matchAll(COVERS_RE)) {
-        let label = path;
-        if (ext === ".rs") {
-          const end = m.index! + m[0].length;
-          const fn = /\bfn\s+([a-zA-Z_][a-zA-Z0-9_]*)/.exec(text.slice(end, end + 400));
-          if (fn) label = `${label}::${fn[1]}`;
-        }
-        for (const name of names(m[1]!)) {
-          if (!found.has(name)) found.set(name, []);
-          found.get(name)!.push(label);
-        }
+      for (const [name, label] of markersIn(path, read(path))) {
+        if (!found.has(name)) found.set(name, []);
+        found.get(name)!.push(label);
       }
     }
   }
   return found;
 }
 
-/**
- * Which cases call which member as `Class::member(`, keyed `static:<class tail>::<member>`. Only that
- * written form is credited: `->member(` cannot be tied to a class without a type checker, so an instance
- * member is attributed by its `covers:` marker instead.
- */
+/** Which cases under `CALL_ROOTS` call which member, as `callsIn` keys it. An instance member is
+ * attributed by its `covers:` marker instead. */
 function scanCalls(): Map<string, string[]> {
-  const re = /(?:Core\\)?([A-Za-z_][A-Za-z0-9_\\]*)::([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
   const out = new Map<string, string[]>();
-  for (const base of ["tests/conformance", "tests/differential"]) {
+  for (const base of CALL_ROOTS) {
     for (const path of walk(base, ".nvst")) {
-      for (const m of read(path).matchAll(re)) {
-        const key = `static:${m[1]!.split("\\").pop()}::${m[2]}`;
+      for (const key of callsIn(read(path))) {
         if (!out.has(key)) out.set(key, []);
         out.get(key)!.push(path);
       }

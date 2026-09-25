@@ -203,6 +203,35 @@
       ]
     },
     {
+      "name": "crate-test-body",
+      "what": "a comment at the end of an integration test: its binary re-runs, and no proofs group does, since `nv proofs` reads only the markers there",
+      "edit": {
+        "path": "crates/nvs-runtime/tests/manifest_policy.rs",
+        "insert": "\n// probe\n"
+      },
+      "rerun": [
+        "^binary: nvs-runtime test manifest_policy$"
+      ],
+      "keep": [
+        "^nv: proofs: \\S+$"
+      ]
+    },
+    {
+      "name": "crate-test-marker",
+      "what": "a `covers:` marker above a new test at the end of an integration test: the proofs groups re-run",
+      "edit": {
+        "path": "crates/nvs-runtime/tests/manifest_policy.rs",
+        "insert": "\n// covers: Core\\Arr::all\n#[test]\nfn probe() {}\n"
+      },
+      "rerun": [
+        "^binary: nvs-runtime test manifest_policy$",
+        "^nv: proofs: Core\\\\Arr "
+      ],
+      "keep": [
+        "^leg: "
+      ]
+    },
+    {
       "name": "editor",
       "what": "a space in the extension's `package.json`",
       "edit": {
