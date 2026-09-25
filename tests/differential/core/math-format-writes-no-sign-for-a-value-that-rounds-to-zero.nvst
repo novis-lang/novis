@@ -1,0 +1,42 @@
+--TEST--
+Core\Math::format writes no `-` for a negative value that rounds to zero, `-0.0` included, as number_format does — on the `float`, `decimal` and `int` arms alike
+--FILE--
+<?nvs
+// Each row is negative before rounding and zero after it. `number_format`
+// writes these as "0" and "0.00". A sign on a zero would say the value is
+// below zero, and it is not.
+echo Core\Math::format(-0.4), " ",
+     Core\Math::format(-0.0), " ",
+     Core\Math::format(-0.0, {decimals: 2}), " ",
+     Core\Math::format(-0.004, {decimals: 2}), " ",
+     Core\Math::format(-0.4999999999999999), "\n";
+
+// The rows just past the bound keep their sign: they round away from zero.
+echo Core\Math::format(-0.5), " ",
+     Core\Math::format(-0.005, {decimals: 2}), " ",
+     Core\Math::format(-0.004, {decimals: 3}), "\n";
+
+// The `decimal` arm rounds its own digits, and it drops the sign the same way.
+decimal $small = -0.004;
+decimal $half = -0.005;
+echo Core\Math::format($small, {decimals: 2}), " ",
+     Core\Math::format($half, {decimals: 2}), "\n";
+
+// The `int` arm never rounds, so only a real zero is written without a sign.
+echo Core\Math::format(0, {decimals: 2}), " ", Core\Math::format(-1, {decimals: 2}), "\n";
+--ORACLE--
+<?php
+echo number_format(-0.4), " ",
+     number_format(-0.0), " ",
+     number_format(-0.0, 2), " ",
+     number_format(-0.004, 2), " ",
+     number_format(-0.4999999999999999), "\n";
+
+echo number_format(-0.5), " ",
+     number_format(-0.005, 2), " ",
+     number_format(-0.004, 3), "\n";
+
+echo number_format(-0.004, 2), " ",
+     number_format(-0.005, 2), "\n";
+
+echo number_format(0, 2), " ", number_format(-1, 2), "\n";

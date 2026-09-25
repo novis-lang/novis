@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-math-2-3`: `Core\\Math::exp`, `fdiv`, `floor`, `gcd`, `hypot`, `intDiv`, `isFinite`, `isNan`, `lcm`, `log` and `max` carry every feature proof — `about.md`, three examples, an attack, a bench and a `covers:` Rust test in `crates/nvs-stdlib/src/math.rs`'s test module — and their reference cards are rewritten in the plain voice.\nTwo members of the goal's `--only` list still owe proofs: `format` and `fromBase`.\nThe test module's helpers are `float_result` (a float member), `int_pair` (two `int`s, `Ok` or the thrown message), `bool_result` (one `float` in, a `bool` out) and `text_result`; a member with an options block takes each option as one more positional `Value` in the argument slice.\nA rewritten card reaches `docs/novis.md` only after `cargo build` and `bun nv reference`; a perf figure goes stale when a member's code moves and is re-recorded with `bun nv proofs --record-perf --only <ids>`.\n`Core\\Math::max` and `min` are `T, T`: an `int` beside a `float` does not compile (`E0401`), so a mixed pair reaches the runtime ordering only through two `mixed` variables.\nThe driver's red `every_workspace_that_builds_our_crates_carries_the_root_patch_table` predates commit `a0910add7` and passes at HEAD.\nNo proof found a bug in these eleven; `log`'s member doc named a wrong inexact ratio and now names `log(1000.0, {base: 10.0})`.",
+  "state": "Goal `core-math-2-3` is met: all thirteen members in its `--only` list carry every feature proof, and `bun nv proofs --verify --only …` prints `nothing owed`, `0 failed`, `0 failed`.\n`Core\\Math::fromBase` and `format` were the last two. Each has `about.md`, three examples, an attack, a bench and a `covers:` Rust test in `crates/nvs-stdlib/src/math.rs`'s test module, and each card is rewritten in the plain voice.\nThe `format` attack found a bug: a negative value that rounds to zero was written `-0` (`-0.4`, `-0.0`, `-0.004` at two decimals), where `number_format` writes `0`. It is fixed in `nvs_core_math_format` and pinned by `tests/differential/core/math-format-writes-no-sign-for-a-value-that-rounds-to-zero.nvst`.\n`format(1.005, {decimals: 2})` is `1.00` where PHP writes `1.01`. That is not a bug: `tests/conformance/core/math-format-and-round-agree-wherever-both-name-the-same-precision.nvst` pins it, and `about.md` tells the reader to use a `decimal` when the digits must be exact.\nEvery Math perf record was re-measured after `math.rs` last moved; a later edit to that file makes them stale again and `bun nv proofs --record-perf --only <ids>` re-records them.\n`format`'s bench counts 5 allocations per call, so it declares no `// bench: allocations` line.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (registry rows, cards, the members and the test module), plus each member's new directories under `docs/examples/core/Math/`, `tests/hostile/core/Math/` and `benches/members/core/Math/`. Both parse or build a string, so their benches will allocate; read the result before declaring `// bench: allocations`.",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` and each member's directories under `docs/examples/core/Math/`, `tests/hostile/core/Math/` and `benches/members/core/Math/`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Math::fromBase`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/math.rs:1078`. `crates/nvs-stdlib/src/math.rs:2024`"
+        "done": true,
+        "text": "**`Core\\Math::fromBase`** — every proof on disk (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/math.rs:1078`. `crates/nvs-stdlib/src/math.rs:2024`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Math::format`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/math.rs:1110`. `crates/nvs-stdlib/src/math.rs:2075`"
+        "done": true,
+        "text": "**`Core\\Math::format`** — every proof on disk, and the zero-sign fix (`rule:testing/a-failing-proof-is-fixed-or-recorded`); card at `crates/nvs-stdlib/src/math.rs:1110`. `crates/nvs-stdlib/src/math.rs:2075`"
       }
     ]
   },
   "backlog": [
-    "When `format` and `fromBase` land, the goal is met: run the `DONE` gates in the session prompt's step 6."
+    "`format`'s 5 allocations per call may be more than the one result string needs; worth a look when a goal owns `Core\\Math`'s performance (`docs/perf/members.ndjson`)."
   ]
 }

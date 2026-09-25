@@ -9488,16 +9488,16 @@ Core\Math::toBase(int $n, uint $base): string
 Core\Math::fromBase(string $s, uint $base): int
 ```
 
-The integer `$s` spells in `$base`, case-insensitive above nine, as `bindec`, `hexdec`, `octdec` and the reading half of `base_convert` do — but every digit must belong to the base, where all four of PHP's silently skip one that does not.
+Reads a number written in base `$base` and returns it as an `int`. This replaces PHP's `bindec`, `hexdec`, `octdec` and `base_convert`. Every character must be a digit of the base. PHP skips a character that is not.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The digit string, with an optional leading `-` and no prefix, whitespace or grouping. |
-| `$base` | `uint` | The radix, from `2` to `36` — the digits and the Latin letters. |
+| `$s` | `string` (neutral) | The digits. A leading `-` is allowed. A prefix such as `0x`, spaces and separators are not allowed. Letters can be upper or lower case. |
+| `$base` | `uint` | The base, from `2` to `36`. Digits above `9` are the letters `a` to `z`. |
 
-**Returns** `int` — The `int` written, the exact inverse of `toBase`, leading `-` included.
+**Returns** `int` — The number as an `int`. `Core\Math::toBase` writes it back.
 
-**Throws** `RuntimeError` — When `$base` is outside `2` to `36`, when `$s` has no digits, or when a character of `$s` is not a digit of `$base`.; `ArithmeticError` — When the value does not fit an `int`.
+**Throws** `RuntimeError` — When `$base` is outside `2` to `36`, when `$s` has no digits, or when a character of `$s` is not a digit of the base.; `ArithmeticError` — When the number is too large for an `int`.
 
 <a id="core-core-math-format"></a>
 #### `Core\Math::format`
@@ -9506,18 +9506,18 @@ The integer `$s` spells in `$base`, case-insensitive above nine, as `bindec`, `h
 Core\Math::format(int|float|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string
 ```
 
-`$n` written for a reader, with a fixed count of decimals and separators the caller names, as `number_format` does — except that grouping is off unless asked for, since Novis has no ambient locale.
+Writes a number as text for a person to read, with a fixed number of decimals. This replaces PHP's `number_format`. The digits are not grouped unless you give a `groupSeparator`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `int\|float\|decimal` | The number to write: an `int`, a finite `float` or a `decimal`. |
-| `{decimals: …}` | `uint` (default `0`) | How many fractional digits to write, at most `100`; `0` unless said otherwise, which writes no decimal separator at all. |
-| `{decimalSeparator: …}` | `string` (default `"."`) | The text between the integer and fractional digits, `.` unless said otherwise, copied into the result verbatim. |
-| `{groupSeparator: …}` | `string` (default `""`) | The text between each group of three integer digits, counted from the right; empty unless said otherwise, so no grouping happens by default. |
+| `$n` | `int\|float\|decimal` | The number to write: an `int`, a `float` or a `decimal`. |
+| `{decimals: …}` | `uint` (default `0`) | How many digits to write after the decimal separator, from `0` to `100`. The default is `0`, which writes no decimal separator. |
+| `{decimalSeparator: …}` | `string` (default `"."`) | The text between the whole part and the decimals. The default is `.`. |
+| `{groupSeparator: …}` | `string` (default `""`) | The text between each group of three digits, counted from the right. The default is empty, so the digits are not grouped. |
 
-**Returns** `string` — The digit string, rounded half away from zero at `decimals` places as `number_format` rounds — exactly for a `decimal` — with a leading `-` for a negative `$n`.
+**Returns** `string` — The text. The number is rounded to `decimals` places, and a half is rounded away from zero. A negative number starts with `-`. A number that rounds to zero has no `-`.
 
-**Throws** `RuntimeError` — When `$n` is an infinity or `NaN`, which have no digits, or when `decimals` is past `100`.; `ArithmeticError` — When `$n` is a `uint` past `INT_MAX`.
+**Throws** `RuntimeError` — When `$n` is `INFINITY`, `-INFINITY` or `NaN`, or when `decimals` is more than `100`.; `ArithmeticError` — When `$n` is a `uint` larger than `Core\Math::INT_MAX`.
 
 <a id="core-core-decimal"></a>
 ### `Core\Decimal`

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to write a number with a fixed number of decimals.
+
+// With no options, the number is rounded to a whole number. This prints 3.
+echo Core\Math::format(2.5), "\n";
+
+// `decimals` sets how many digits come after the `.`. This prints 3.14.
+echo Core\Math::format(3.14159, {decimals: 2}), "\n";
+
+// Missing decimals are filled with zeros. This prints 42.000.
+echo Core\Math::format(42, {decimals: 3}), "\n";
+
+// A negative number that rounds to zero has no `-`. This prints 0.00.
+echo Core\Math::format(-0.001, {decimals: 2}), "\n";

@@ -1076,77 +1076,76 @@ const TO_BASE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::fromBase`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE_DOC: MethodDoc = MethodDoc {
-    short: "The integer `$s` spells in `$base`, case-insensitive above nine, as `bindec`, \
-            `hexdec`, `octdec` and the reading half of `base_convert` do — but every digit must \
-            belong to the base, where all four of PHP's silently skip one that does not.",
+    short: "Reads a number written in base `$base` and returns it as an `int`. This replaces \
+            PHP's `bindec`, `hexdec`, `octdec` and `base_convert`. Every character must be a \
+            digit of the base. PHP skips a character that is not.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The digit string, with an optional leading `-` and no prefix, whitespace or \
-                   grouping.",
+            desc: "The digits. A leading `-` is allowed. A prefix such as `0x`, spaces and \
+                   separators are not allowed. Letters can be upper or lower case.",
             shape: &[],
         },
         ParamDoc {
             name: "base",
-            desc: "The radix, from `2` to `36` — the digits and the Latin letters.",
+            desc: "The base, from `2` to `36`. Digits above `9` are the letters `a` to `z`.",
             shape: &[],
         },
     ],
-    ret: "The `int` written, the exact inverse of `toBase`, leading `-` included.",
+    ret: "The number as an `int`. `Core\\Math::toBase` writes it back.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "When `$base` is outside `2` to `36`, when `$s` has no digits, or when a \
-                   character of `$s` is not a digit of `$base`.",
+                   character of `$s` is not a digit of the base.",
         },
         ErrorDoc {
             error: "ArithmeticError",
-            desc: "When the value does not fit an `int`.",
+            desc: "When the number is too large for an `int`.",
         },
     ],
 };
 
 /// `Core\Math::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "`$n` written for a reader, with a fixed count of decimals and separators the caller \
-            names, as `number_format` does — except that grouping is off unless asked for, since \
-            Novis has no ambient locale.",
+    short: "Writes a number as text for a person to read, with a fixed number of decimals. This \
+            replaces PHP's `number_format`. The digits are not grouped unless you give a \
+            `groupSeparator`.",
     params: &[
         ParamDoc {
             name: "n",
-            desc: "The number to write: an `int`, a finite `float` or a `decimal`.",
+            desc: "The number to write: an `int`, a `float` or a `decimal`.",
             shape: &[],
         },
         ParamDoc {
             name: "decimals",
-            desc: "How many fractional digits to write, at most `100`; `0` unless said \
-                   otherwise, which writes no decimal separator at all.",
+            desc: "How many digits to write after the decimal separator, from `0` to `100`. The \
+                   default is `0`, which writes no decimal separator.",
             shape: &[],
         },
         ParamDoc {
             name: "decimalSeparator",
-            desc: "The text between the integer and fractional digits, `.` unless said \
-                   otherwise, copied into the result verbatim.",
+            desc: "The text between the whole part and the decimals. The default is `.`.",
             shape: &[],
         },
         ParamDoc {
             name: "groupSeparator",
-            desc: "The text between each group of three integer digits, counted from the right; \
-                   empty unless said otherwise, so no grouping happens by default.",
+            desc: "The text between each group of three digits, counted from the right. The \
+                   default is empty, so the digits are not grouped.",
             shape: &[],
         },
     ],
-    ret: "The digit string, rounded half away from zero at `decimals` places as `number_format` \
-          rounds — exactly for a `decimal` — with a leading `-` for a negative `$n`.",
+    ret: "The text. The number is rounded to `decimals` places, and a half is rounded away from \
+          zero. A negative number starts with `-`. A number that rounds to zero has no `-`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "When `$n` is an infinity or `NaN`, which have no digits, or when `decimals` \
-                   is past `100`.",
+            desc: "When `$n` is `INFINITY`, `-INFINITY` or `NaN`, or when `decimals` is more \
+                   than `100`.",
         },
         ErrorDoc {
             error: "ArithmeticError",
-            desc: "When `$n` is a `uint` past `INT_MAX`.",
+            desc: "When `$n` is a `uint` larger than `Core\\Math::INT_MAX`.",
         },
     ],
 };
@@ -2085,8 +2084,11 @@ nvs_runtime::nvs_helper! {
         }
         let decimals = usize::try_from(decimals).expect("a value at or under the cap is small");
         let (sign, integer, fraction) = digits_of(number, decimals)?;
+        // A value that rounds to zero, `-0.0` included, is written without a
+        // sign, as `number_format` writes it: `-0.4` is `"0"`.
+        let is_zero = integer.bytes().chain(fraction.bytes()).all(|b| b == b'0');
         let mut out = Vec::new();
-        if sign {
+        if sign && !is_zero {
             out.push(b'-');
         }
         group_into(&integer, group_separator, &mut out);
@@ -3327,5 +3329,157 @@ mod tests {
             let message = ctx.take_pending().expect("the refusal is pending");
             assert!(message.contains("Core\\Math::max"), "{message}");
         }
+    }
+
+    /// `fromBase` reads either letter case, reaches both ends of `int` and no
+    /// further, and throws for a digit outside the base, an empty or bare-sign
+    /// string and a base outside `2` to `36` — the characters PHP's `hexdec`
+    /// skips without a word.
+    // covers: Core\Math::fromBase
+    #[test]
+    fn from_base_reads_both_ends_of_int_and_throws_for_every_character_php_skips() {
+        let from_base = |text: &str, base: u64| {
+            let mut ctx = Ctx::buffered();
+            let arg = Value::str(NvsStr::new(text.as_bytes()));
+            let result = call(nvs_core_math_from_base, &mut ctx, &[arg, Value::uint(base)]);
+            #[expect(
+                unsafe_code,
+                reason = "the argument carries the one reference this test owns"
+            )]
+            unsafe {
+                arg.release();
+            }
+            match result {
+                Ok(value) => Ok(value.as_int().expect("an int result")),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        assert_eq!(from_base("ff", 16), Ok(255));
+        assert_eq!(from_base("FF", 16), Ok(255));
+        assert_eq!(from_base("-1a", 16), Ok(-26));
+        assert_eq!(from_base("0", 2), Ok(0));
+        assert_eq!(from_base("-0", 2), Ok(0));
+        assert_eq!(from_base("zz", 36), Ok(36 * 36 - 1));
+        assert_eq!(from_base("7fffffffffffffff", 16), Ok(i64::MAX));
+        assert_eq!(from_base("-8000000000000000", 16), Ok(i64::MIN));
+        assert_eq!(from_base(&"0".repeat(10_000), 2), Ok(0));
+
+        for too_large in ["8000000000000000", "-8000000000000001", "ffffffffffffffff0"] {
+            let message = from_base(too_large, 16).expect_err("past `int`");
+            assert!(message.contains("does not fit"), "{too_large}: {message}");
+        }
+        let message = from_base(&"z".repeat(10_000), 36).expect_err("far past `int`");
+        assert!(message.contains("does not fit"), "{message}");
+
+        for unread in ["beefy", "0xff", " 1", "1 ", "+1", "--1", "1-", "é"] {
+            let message = from_base(unread, 16).expect_err("not a base-16 number");
+            assert!(
+                message.contains("has no digit for it"),
+                "{unread}: {message}"
+            );
+        }
+        for empty in ["", "-"] {
+            let message = from_base(empty, 10).expect_err("no digits");
+            assert!(message.contains("no digits"), "{empty:?}: {message}");
+        }
+        for base in [0, 1, 37, u64::MAX] {
+            let message = from_base("1", base).expect_err("no such base");
+            assert!(
+                message.contains("a base runs from 2 to 36"),
+                "{base}: {message}"
+            );
+        }
+    }
+
+    /// `format` rounds half away from zero, groups from the right, copies both
+    /// separators verbatim, writes no sign on a value that rounds to zero, and
+    /// throws for a value with no digits and for a decimal count past the cap.
+    // covers: Core\Math::format
+    #[test]
+    fn format_rounds_away_from_zero_groups_from_the_right_and_signs_no_zero() {
+        let format = |n: Value, decimals: u64, point: &str, group: &str| {
+            let args = [
+                n,
+                Value::uint(decimals),
+                Value::str(NvsStr::new(point.as_bytes())),
+                Value::str(NvsStr::new(group.as_bytes())),
+            ];
+            let mut ctx = Ctx::buffered();
+            let result = match call(nvs_core_math_format, &mut ctx, &args) {
+                Ok(value) => {
+                    let written =
+                        String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
+                            .expect("`rule:types/bytes` makes a string UTF-8");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the result carries the one reference this test owns"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    Ok(written)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the two separators carry the one reference this test owns"
+            )]
+            unsafe {
+                args[2].release();
+                args[3].release();
+            }
+            result
+        };
+        let plain = |n: f64, decimals: u64| format(Value::float(n), decimals, ".", "");
+        let ok = |s: &str| Ok(s.to_owned());
+
+        assert_eq!(plain(2.5, 0), ok("3"));
+        assert_eq!(plain(-2.5, 0), ok("-3"));
+        assert_eq!(plain(0.125, 2), ok("0.13"));
+        assert_eq!(plain(-0.125, 2), ok("-0.13"));
+        assert_eq!(plain(1.23456, 3), ok("1.235"));
+        assert_eq!(
+            format(Value::float(1_234_567.891), 2, ",", "."),
+            ok("1.234.567,89")
+        );
+        assert_eq!(
+            format(Value::int(i64::MIN), 0, ".", ","),
+            ok("-9,223,372,036,854,775,808")
+        );
+        assert_eq!(format(Value::int(-42), 1, "::", ""), ok("-42::0"));
+        assert_eq!(format(Value::int(999), 0, ".", ","), ok("999"));
+        assert_eq!(format(Value::int(1000), 0, ".", ","), ok("1,000"));
+
+        for (n, decimals, written) in [
+            (-0.4, 0, "0"),
+            (-0.0, 0, "0"),
+            (-0.0, 2, "0.00"),
+            (-0.004, 2, "0.00"),
+        ] {
+            assert_eq!(plain(n, decimals), ok(written), "{n} at {decimals}");
+        }
+        assert_eq!(
+            plain(-0.5, 0),
+            ok("-1"),
+            "a tie rounds away from zero, so it keeps its sign"
+        );
+        assert_eq!(plain(-0.004, 3), ok("-0.004"));
+
+        assert_eq!(plain(1.5, MAX_DECIMALS).map(|s| s.len()), Ok(102));
+        let message = plain(1.5, MAX_DECIMALS + 1).expect_err("past the cap");
+        assert!(message.contains("past its cap"), "{message}");
+        for no_digits in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let message = plain(no_digits, 0).expect_err("no digits");
+            assert!(message.contains("no digits"), "{no_digits}: {message}");
+        }
+        let message = format(Value::uint(u64::MAX), 0, ".", "").expect_err("past `int`");
+        assert!(message.contains("past `int`'s largest value"), "{message}");
     }
 }
