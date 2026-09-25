@@ -486,6 +486,23 @@ export class GreenMemo {
   }
 }
 
+/**
+ * A check the goal switch carried in from the goals before: a stage whose label says `floor`. Stage 0 is
+ * a floor to `isFloor` but is this goal's own reopened work, so it is not carried.
+ */
+export function isCarried(label: string): boolean {
+  return label.toLowerCase().includes("floor");
+}
+
+/**
+ * The carried checks the memo does not answer for their keys: what `nv loop --owed` names and `--settle`
+ * runs. The goal's own checks are left out, since they stay red until the goal is reached, and so is a
+ * check with `memoize = false`, which no memo answers and every open floor gate runs.
+ */
+export function owedChecks(checks: Check[], label: (n: number) => string, memo: GreenMemo, key: (c: Check) => string | null): Check[] {
+  return checks.filter((c) => isCarried(label(c.stage)) &&c.memoize !== false && !memo.answers(c, key(c)));
+}
+
 export interface AcceptanceOptions {
   label: (n: number) => string;
   /** What runs and judges one check: a `Sweep`, or a stand-in under test. */

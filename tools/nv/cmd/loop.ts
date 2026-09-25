@@ -33,6 +33,13 @@
 // passes ends on `GREEN` instead, since it has not asked the whole plan. A check's key is `nv why`'s,
 // taken over the tree as the sweep begins.
 //
+// `bun nv loop --owed` names the carried checks, the stages whose label says `floor`, that the memo does
+// not answer for the tree as it stands, and runs nothing. A change made outside a run stales the checks
+// that read what it touched, and `tools/git-hooks/pre-push` refuses a push while this names one. The
+// goal's own checks and a `memoize = false` check are never owed. `bun nv loop --settle` is the sweep over
+// the carried checks alone, memo consulted and every red collected, so it runs what `--owed` names and
+// ends on `SETTLED` or `NOT GREEN`.
+//
 // `bun nv loop` with none of those modes is one turn of the driver: one session, its acceptance sweep and
 // its ledger lines in `.loop/log.md`, then exit 75, which asks `tools/respawn.py` for the next turn. It
 // takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions`,
@@ -57,8 +64,9 @@
 // retries that cost no attempt, rejoining a dropped stream with `--resume`, the hold and the keys, the repair and DONE-claim sessions, the doc and owner gates at a goal's end,
 // the checkpoint's optimization pass, and the disk and context sweeps.
 //
-// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` and
-// `--goal-only` exit 0 when every check they reached is green and 1 when one is not. Each exits 2 on a
+// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run`,
+// `--goal-only` and `--settle` exit 0 when every check they reached is green and 1 when one is not, and
+// `--owed` exits 1 while it names a check. Each exits 2 on a
 // bad argument or when there is no live goal to read. A turn exits 75 when the run goes on and 0 when it
 // ends.
 
@@ -78,13 +86,13 @@ import { goalTable, memoResults, Session, statusRow, title, type Results } from 
 import { MAX_WALLS, type RateLimit, type Swept, Touched, backoff, hms, markInterrupted, readLimit, standingLimit, waitOutLimit, wallAfter } from "../driver/sweep.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../driver/origin.ts";
-import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isFloor, isRelease, tiers } from "../driver/accept.ts";
+import { type AcceptanceResult, type Check, GreenMemo, Sweep, acceptance, isCarried, isFloor, isRelease, owedChecks, tiers } from "../driver/accept.ts";
 import { checkName, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 /** The Python driver's acceptance list, the plan until the cutover deletes it. */
 const LEGACY = "docs/agent/loop-goal.toml";
@@ -97,7 +105,7 @@ const GREEN = ".loop/accept-green.json";
 type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 
 const USAGE =
-  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] |--list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] |--list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -397,6 +405,51 @@ async function goalOnly(filters: Filters): Promise<number> {
   return 0;
 }
 
+/** `--owed`: names the carried checks the memo does not answer for the tree as it stands, and runs nothing. */
+async function owed(): Promise<number> {
+  const found = selected({});
+  if (found === null) return 2;
+  const { goal, labelOf } = found;
+  const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
+  const keyed = await checkKeys(goal, carried);
+  if (typeof keyed === "string") {
+    console.log(`owed: ${keyed}, so every carried check is owed`);
+    return 1;
+  }
+  const memo = GreenMemo.load(join(ROOT, GREEN));
+  const names = owedChecks(carried, labelOf, memo, (c) => keyed.keys.get(c.id) ?? null).map(nameOf);
+  if (names.length === 0) {
+    console.log("owed: nothing -- every carried check is green over this tree");
+    return 0;
+  }
+  const more = names.length > 6 ? `, +${names.length - 6} more` : "";
+  console.log(`owed: ${names.length} carried check(s) are not green over this tree: ${names.slice(0, 6).join(", ")}${more}`);
+  console.log("      `bun nv loop --settle` runs them, and only them");
+  return 1;
+}
+
+/** `--settle`: the carried checks alone, memo consulted and every red collected, so it runs what `--owed` names. */
+async function settle(): Promise<number> {
+  const found = selected({});
+  if (found === null) return 2;
+  const { goal, labelOf } = found;
+  const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
+  const keyed = await checkKeys(goal, carried);
+  if (typeof keyed === "string") {
+    console.error(`nv loop: ${keyed}`);
+    return 2;
+  }
+  console.log(`running the carried floor, ${carried.length} ${carried.length === 1 ? "check" : "checks"} (collecting every red)`);
+  const { result, secs } = await sweepOver(goal, carried, labelOf, keyed, { full: false, collect: true });
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${carried.length}`);
+  if (result.fail !== "") {
+    console.log(`NOT GREEN: ${result.fail}`);
+    return 1;
+  }
+  console.log("SETTLED: every carried check is green over this tree");
+  return 0;
+}
+
 interface TurnFlags extends LaunchOptions {
   maxSessions: number;
   maxStalls: number;
@@ -636,6 +689,8 @@ async function turn(f: TurnFlags): Promise<number> {
 
 export async function run(args: string[]): Promise<number> {
   if (args.length === 1 && args[0] === "--goal") return goalView();
+  if (args.length === 1 && args[0] === "--owed") return owed();
+  if (args.length === 1 && args[0] === "--settle") return settle();
   const mode = args[0];
   if (mode === undefined || !["--list", "--run", "--goal-only"].includes(mode)) {
     const flags = parseTurn(args);

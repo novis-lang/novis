@@ -14,6 +14,7 @@ import {
   judgeTests,
   measuresReleaseCli,
   orderedIn,
+  owedChecks,
   plainCrateTest,
   programFailLine,
   stdoutLines,
@@ -202,6 +203,14 @@ describe("the whole sweep", () => {
     const again = fake([]);
     await acceptance(odd, opts(again, memo, { key: (c: Check) => (c.id === "keyless" ? null : "k") }));
     expect(again.ran).toEqual(["short", "live", "keyless"]);
+  });
+
+  test("owed is the carried checks the memo does not answer, less stage 0, the goal's own and memoize = false", () => {
+    const live = check({ id: "live", stage: 1, memoize: false });
+    const memo = new GreenMemo({ over: "k-over", setup: "old", cmd3: "k-cmd3" });
+    const owed = owedChecks([...plan, live], label, memo, (c: Check) => `k-${c.id}`);
+    expect(owed.map((c) => c.id)).toEqual(["floor-fix", "setup"]);
+    expect(owedChecks(plan, label, memo, () => null).map((c) => c.id)).toEqual(["over", "floor-fix", "setup"]);
   });
 
   test("the memo keeps only the checks still in the plan", () => {
