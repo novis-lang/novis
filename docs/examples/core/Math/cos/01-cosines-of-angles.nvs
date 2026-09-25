@@ -1,0 +1,12 @@
+<?nvs
+// Shows the cosines of a few angles in radians.
+
+// The cosine of 0 is 1. This prints 1.
+echo Core\Math::cos(0.0), "\n";
+
+// `Core\Math::PI` radians is half a circle. This prints -1.
+echo Core\Math::cos(Core\Math::PI), "\n";
+
+// A negative angle has the same cosine as the positive one. Both lines print 0.54030230586814.
+echo Core\Math::cos(1.0), "\n";
+echo Core\Math::cos(-1.0), "\n";
