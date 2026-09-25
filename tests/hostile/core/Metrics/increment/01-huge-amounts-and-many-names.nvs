@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `Core\Metrics::increment` adds the largest `uint` many times, gets names that break the
+// naming rule, and gets more new names than a server keeps. The program should run to its end.
+
+// 1. The largest `uint`, added three times to one counter. The total cannot grow past it.
+uint $i = 0;
+while ($i < 3) {
+    Core\Metrics::increment('huge_total', { by: 18446744073709551615 });
+    $i = $i + 1;
+}
+echo "huge amounts added\n";
+
+// 2. Names built while the program runs, so the compiler cannot check them.
+array<string> $names = ['', "a\nb 1", 'Upper_Case', Core\Str::repeat('n', 1000000)];
+foreach ($names as string $name) {
+    try {
+        Core\Metrics::increment($name);
+    } catch (LogicError $e) {
+        echo "refused\n";
+    }
+}
+echo "odd names added\n";
+
+// 3. The same name with a different label name each time. Only the first label name is allowed.
+$i = 0;
+uint $refused = 0;
+while ($i < 1000) {
+    try {
+        Core\Metrics::increment('mixed_total', { labels: ['label_' . ($i as string) => 'x'] });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+// This prints 999.
+echo $refused, "\n";
+
+// 4. Two hundred thousand new names. A server keeps a limited number, and each name past it is dropped.
+$i = 0;
+while ($i < 200000) {
+    Core\Metrics::increment('event_' . ($i as string) . '_total');
+    $i = $i + 1;
+}
+echo "many names added\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to count an event each time it happens.
+
+array<string> $emails = ["ana@example.com", "ben@example.com", "chen@example.com"];
+
+foreach ($emails as string $email) {
+    echo "welcome, ", $email, "\n";
+    // Each call adds one to the counter `signups_total`. After the loop it is 3.
+    Core\Metrics::increment("signups_total");
+}
