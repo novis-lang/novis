@@ -6,6 +6,7 @@
 //     bun nv playbook --check                 expiry, stale paths, selectors, section sizes; 1 on a gating finding
 //     bun nv playbook --closes <slug>         1 while a carried-gaps § Owned row names that goal
 //     bun nv playbook --retire [--dry-run]
+//     bun nv playbook --triage <section>      what deciding each bullet of `data/playbook/<section>/` needs; writes nothing
 //
 // Four files declare what retires their blocks: every playbook fragment under `docs/agent/playbook/`,
 // and `DECLARING`'s three append-mostly files. `expiryReport` evaluates each block's trailer against the
@@ -32,9 +33,9 @@ import { pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
-import { allBullets, playbookBook, sliceBullets, type BookSection } from "./orient.ts";
+import { allBullets, normalize, playbookBook, sliceBullets, titleMatches, type BookSection } from "./orient.ts";
 
-export const summary = "the playbook: nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run]";
+export const summary = "the playbook: nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run] | --triage <section>";
 
 const PLAYBOOK_DIR = "docs/agent/playbook";
 const GOALS_DIR = "docs/agent/goals";
@@ -569,7 +570,220 @@ function runCloses(slug: string, root: string = ROOT): number {
   return 1;
 }
 
-const USAGE = "usage: bun nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run]";
+// ------------------------------------------------------------------------- --triage
+
+type Until = { kind: string; arg: string };
+type BulletValue = { lead: string; body: string; files: string[]; until: Until };
+
+/** The kinds a decided bullet may end with: each one is a condition the tree answers. */
+const MECHANICAL = new Set(["gone", "exists", "test", "rule"]);
+
+/** The shortest backticked word a `gone` proposal is made on, since a shorter one is in nearly every file. */
+const MIN_WORD = 6;
+
+/** More tracked files of one name than this, and none beside the bullet's other paths, is no guess at all. */
+const GUESS_AMONG = 3;
+
+/** The Jaccard overlap of two bullets' words at which they are printed as near-duplicates. */
+const NEAR = 0.3;
+
+/** The path a `gone` or `exists` trailer names, or null. */
+function trailerPath(until: Until): string | null {
+  if (until.kind !== "gone" && until.kind !== "exists") return null;
+  return until.arg.split(":")[0]!.trim().replace(/\\/g, "/") || null;
+}
+
+/**
+ * Whether a bullet meets the gate Stage 10's schema will hold every bullet to: it names a file, each
+ * file it names exists or is the one its `gone` trailer names, and its trailer is one the tree decides.
+ */
+export function decided(v: BulletValue, root: string = ROOT): boolean {
+  if (!MECHANICAL.has(v.until.kind) || !v.files.length) return false;
+  const named = v.until.kind === "gone" ? trailerPath(v.until) : null;
+  return v.files.every((f) => f === named || existsSync(join(root, f)));
+}
+
+/** What `resolveTerm` looks a name up in: every tracked path, and the files declaring each Rust `fn`. */
+export interface TreeIndex {
+  tracked: readonly string[];
+  fns: ReadonlyMap<string, readonly string[]>;
+}
+
+/** The index over the tree at `root`, from two `git` calls. */
+async function treeIndex(root: string): Promise<TreeIndex> {
+  const tracked = (await runProc(["git", "ls-files"], { cwd: root, timeoutMs: 60_000 })).stdout.split("\n").filter(Boolean);
+  const fns = new Map<string, string[]>();
+  const found = await runProc(["git", "grep", "-o", "-E", "\\bfn [A-Za-z_][A-Za-z0-9_]*", "--", "*.rs"], { cwd: root, timeoutMs: 60_000 });
+  for (const line of found.stdout.split("\n")) {
+    const m = /^(.+?):fn (\w+)$/.exec(line);
+    if (m) fns.set(m[2]!, [...(fns.get(m[2]!) ?? []), m[1]!]);
+  }
+  return { tracked, fns };
+}
+
+/** The first of `candidates` on disk, as a resolution. */
+function firstOnDisk(root: string, candidates: string[]): { path: string; of: number } | null {
+  const p = candidates.find((c) => existsSync(join(root, c)));
+  return p ? { path: p, of: 1 } : null;
+}
+
+/**
+ * What a term a bullet writes in backticks most likely means in the tree: itself when it is a path, a
+ * crate's directory for a crate name, the deepest module file a Rust path or a `Core` class reaches,
+ * the diagnostics crate for a code, the file declaring a Rust `fn`, and the tracked file a bare file
+ * name, a partial path or a case's name ends. Among several, one under a directory another resolved
+ * path of the same bullet shares wins, and otherwise the shortest, unless there are more than
+ * `GUESS_AMONG` of them, when the name means none.
+ */
+export function resolveTerm(term: string, index: TreeIndex, near: readonly string[], root: string = ROOT): { path: string; of: number } | null {
+  const t = term.trim().replace(/[.,;:)]+$/, "").replace(/\(\)$/, "");
+  if (!t || /[\s*<>]/.test(t)) return null;
+  if (/^nvs[-_][a-z0-9_-]+$/.test(t)) return firstOnDisk(root, [`crates/${t.replaceAll("_", "-")}`]);
+  if (/^[EW]\d{4}$/.test(t)) return firstOnDisk(root, ["crates/nvs-diagnostics/src/lib.rs"]);
+  const rust = /^(nvs_[a-z0-9_]+)((?:::[A-Za-z0-9_]+)*)$/.exec(t);
+  const core = /^\\?Core((?:\\[A-Za-z0-9]+)+)(?:::\w+)?$/.exec(t);
+  if (rust || core) {
+    const base = rust ? `crates/${rust[1]!.replaceAll("_", "-")}/src` : "crates/nvs-stdlib/src";
+    const snake = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+    const segs = rust ? rust[2]!.split("::").filter(Boolean) : core![1]!.split("\\").filter(Boolean).map(snake);
+    for (let n = segs.length; n > 0; n--) {
+      const stem = `${base}/${segs.slice(0, n).join("/")}`;
+      const hit = firstOnDisk(root, [`${stem}.rs`, `${stem}/mod.rs`]);
+      if (hit) return hit;
+    }
+    return rust ? firstOnDisk(root, [`${base}/lib.rs`, `${base}/main.rs`]) : null;
+  }
+  let hits: string[];
+  // A one-word `fn` name such as `compare` is declared all over the tree and means none of them.
+  if (/^[A-Za-z_]\w*_\w*$/.test(t) && index.fns.has(t)) hits = [...new Set(index.fns.get(t))];
+  else if (/\.[A-Za-z]{1,5}$/.test(t)) {
+    if (t.includes("/") && existsSync(join(root, t))) return { path: t, of: 1 };
+    hits = index.tracked.filter((p) => p === t || p.endsWith(`/${t}`));
+  } else if (/^[a-z0-9]+(?:-[a-z0-9_]+){3,}$/.test(t)) {
+    hits = index.tracked.filter((p) => /\.nvst?$/.test(p) && p.slice(p.lastIndexOf("/") + 1).replace(/\.nvst?$/, "") === t);
+  } else return null;
+  if (!hits.length) return null;
+  const dir = (p: string) => p.slice(0, p.lastIndexOf("/") + 1);
+  const shared = hits.filter((h) => near.some((n) => n.startsWith(dir(h)) || h.startsWith(n.endsWith("/") ? n : `${n}/`)));
+  if (!shared.length && hits.length > GUESS_AMONG) return null;
+  const pool = shared.length ? shared : hits;
+  return { path: [...pool].sort((a, b) => a.length - b.length || (a < b ? -1 : 1))[0]!, of: hits.length };
+}
+
+/** A bullet's words for the near-duplicate measure: lower case, four letters or more. */
+function words(text: string): Set<string> {
+  return new Set(text.toLowerCase().match(/[a-z][a-z0-9_]{3,}/g) ?? []);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  let both = 0;
+  for (const w of a) if (b.has(w)) both++;
+  return both / (a.size + b.size - both || 1);
+}
+
+/** Every bullet id a `[context] playbook` selector reaches, read the way `sliceBullets` reads it. */
+function reached(selector: string, sections: { id: string; title: string }[], bullets: { id: string; lead: string }[]): string[] {
+  const gt = selector.indexOf(">");
+  let head = (gt < 0 ? selector : selector.slice(0, gt)).trim();
+  let lead = gt < 0 ? "" : selector.slice(gt + 1).trim();
+  const sectionOf = (h: string) => sections.find((s) => titleMatches(s.title, normalize(h)));
+  if (!lead) {
+    const whole = sectionOf(head);
+    if (whole) return bullets.filter((b) => b.id.startsWith(`${whole.id}/`)).map((b) => b.id);
+    [lead, head] = [head, ""];
+  }
+  const within = head ? sectionOf(head) : undefined;
+  if (head && !within) return [];
+  const key = normalize(lead);
+  return bullets.filter((b) => (!within || b.id.startsWith(`${within.id}/`)) && normalize(b.lead).startsWith(key)).map((b) => b.id);
+}
+
+/**
+ * `--triage <section>`: for each bullet of `data/playbook/<section>/`, everything deciding it takes --
+ * its text, the files it names and what a bare name among them most likely means, a proposed `gone`
+ * trailer on a backticked word its file holds today, whether a live goal's manifest reaches it, and
+ * its near-duplicates across the whole playbook. It writes nothing, and exits 1 on an unknown section.
+ */
+export async function triage(section: string, root: string = ROOT, say: (line: string) => void = console.log): Promise<number> {
+  const sections = load(playbookSection, root).map((s) => ({ id: s.id, title: s.value.title }));
+  if (!sections.some((s) => s.id === section)) {
+    say(`nv playbook: no section \`${section}\` -- it is one of ${sections.map((s) => s.id).sort().join(", ")}`);
+    return 1;
+  }
+  const every = load(playbookBullet, root).map((b) => ({ id: b.id, ...(b.value as BulletValue) }));
+  const mine = every.filter((b) => b.id.startsWith(`${section}/`)).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const index = await treeIndex(root);
+  const live = new Set<string>();
+  for (const g of load(goalType, root)) {
+    if (!g.value.checks?.length) continue;
+    const ctx = [g.value.context, ...(g.value.stages ?? []).map((s) => s.context)];
+    for (const sel of ctx.flatMap((c) => c?.playbook ?? [])) for (const id of reached(sel, sections, every)) live.add(id);
+  }
+  const bag = new Map(every.map((b) => [b.id, words(`${b.lead} ${b.body}`)]));
+  const readText = (p: string) => {
+    try {
+      return statSync(join(root, p)).isFile() ? readFileSync(join(root, p), "utf8") : null;
+    } catch {
+      return null;
+    }
+  };
+
+  let owed = 0;
+  for (const b of mine) {
+    const done = decided(b, root);
+    if (!done) owed++;
+    const flags = [done ? "DECIDED" : "OWES A DECISION", ...(live.has(b.id) ? ["LIVE MANIFEST"] : [])];
+    say(`== ${b.id}  [until: ${b.until.kind} ${b.until.arg}]  ${flags.join("  ")}`);
+    say(`  - **${b.lead}**${b.body ? ` ${b.body}` : ""}`);
+
+    const spans = [...`${b.lead} ${b.body}`.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]!);
+    const paths = [...new Set([...b.files, ...namedPaths(`${b.lead} ${b.body}`), ...(trailerPath(b.until) ? [trailerPath(b.until)!] : [])])];
+    for (const p of paths) say(`  file   ${p}${existsSync(join(root, p)) ? "" : "  (not in the tree)"}${b.files.includes(p) ? "" : "  (not in its files)"}`);
+    // Two passes, so a name several files declare is placed beside the ones only one file does.
+    const terms = [...new Set(spans)].filter((t) => !paths.includes(t));
+    const sure = terms.map((t) => resolveTerm(t, index, paths, root)).filter((r) => r?.of === 1).map((r) => r!.path);
+    const meant: string[] = [];
+    for (const term of terms) {
+      const r = resolveTerm(term, index, [...paths, ...sure], root);
+      if (!r || paths.includes(r.path) || meant.includes(r.path)) continue;
+      meant.push(r.path);
+      say(`  means  \`${term}\` -> ${r.path}${r.of > 1 ? `  (1 of ${r.of} tracked files of that name)` : ""}`);
+    }
+
+    if (!done) {
+      // An identifier is the likeliest subject of the trap, and a source file outlives a generated page.
+      const rank = (p: string, w: string) => (/^[A-Za-z_][\w:\\]*$/.test(w) ? 2000 : 0) + (p.endsWith(".md") ? 0 : 1000) + w.length;
+      let best: { path: string; word: string; score: number } | null = null;
+      for (const p of [...paths, ...meant]) {
+        const text = readText(p);
+        if (text === null) continue;
+        for (const w of spans) {
+          if (w.length < MIN_WORD || w.includes("]") || paths.includes(w) || !text.includes(w)) continue;
+          if (!best || rank(p, w) > best.score) best = { path: p, word: w, score: rank(p, w) };
+        }
+      }
+      say(best ? `  propose [until: gone ${best.path}:${best.word}]` : "  NO NAMED WORD IN ITS FILE");
+    }
+
+    const mineWords = bag.get(b.id)!;
+    const dups = every
+      .filter((o) => o.id !== b.id)
+      .map((o) => ({ id: o.id, score: jaccard(mineWords, bag.get(o.id)!) }))
+      .filter((o) => o.score >= NEAR)
+      .sort((x, y) => y.score - x.score)
+      .slice(0, 3);
+    for (const d of dups) say(`  near   ${d.id}  (${d.score.toFixed(2)})`);
+    say("");
+  }
+  say(
+    owed
+      ? `triage: ${section}: ${mine.length} bullet(s), ${owed} still owe a decision`
+      : `triage: ${section}: every bullet names a file and declares a condition the tree decides`,
+  );
+  return 0;
+}
+
+const USAGE = "usage: bun nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run] | --triage <section>";
 
 export async function run(args: string[]): Promise<number> {
   if (args[0] === "--show" && args.length === 2) {
@@ -583,6 +797,7 @@ export async function run(args: string[]): Promise<number> {
   }
   if (args[0] === "--check" && args.length === 1) return runCheck();
   if (args[0] === "--closes" && args.length === 2) return runCloses(args[1]!);
+  if (args[0] === "--triage" && args.length === 2) return triage(args[1]!);
   const dry = args.includes("--dry-run");
   if (!args.includes("--retire") || args.some((a) => a !== "--retire" && a !== "--dry-run")) {
     console.log(`${USAGE}\n\n${summary}`);

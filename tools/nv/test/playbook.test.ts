@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { blocks, declaration, expiryReport, holds, retire } from "../cmd/playbook.ts";
+import { blocks, declaration, expiryReport, holds, retire, triage } from "../cmd/playbook.ts";
 import { write } from "../lib/store.ts";
-import { playbookBullet } from "../schema/playbook.ts";
+import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { scratch } from "./scratch.ts";
 
 const TODAY = new Date(2026, 8, 24);
@@ -43,6 +43,39 @@ describe("nv playbook blocks", () => {
     ]);
     expect(declaration(found[0]!.body)).toEqual({ kind: "gone", arg: "x" });
     expect(declaration("- a trailer [until: gone tools/x.py:a\nneedle]")).toBeNull();
+  });
+});
+
+describe("nv playbook triage", () => {
+  const tmp = scratch();
+  tmp.put("tools/a.py", "def needle_word(): pass\n");
+  write(playbookSection, "open", { title: "Open", order: 1 }, tmp.root);
+  write(playbookSection, "closed", { title: "Closed", order: 2 }, tmp.root);
+  const about = "About `tools/a.py` and its `needle_word`.";
+  write(playbookBullet, "open/a-trap", { lead: "A trap.", body: about, files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
+  write(playbookBullet, "open/bare", { lead: "Bare.", body: "Names nothing at all.", files: [], until: { kind: "reviewed", arg: "2026-09-06" } }, tmp.root);
+  write(playbookBullet, "closed/done", { lead: "Done.", body: about, files: ["tools/a.py"], until: { kind: "gone", arg: "tools/a.py:needle_word" } }, tmp.root);
+  tmp.put("data/goals/live.json", JSON.stringify({ checks: [{}], context: { playbook: ["Open > a trap"] } }));
+
+  test("a section owing decisions gets a proposal, the manifest mark, its near-duplicates and the count", async () => {
+    const said: string[] = [];
+    expect(await triage("open", tmp.root, (l) => said.push(l))).toBe(0);
+    const out = said.join("\n");
+    expect(out).toContain("== open/a-trap  [until: reviewed 2026-09-06]  OWES A DECISION  LIVE MANIFEST");
+    expect(out).toContain("  file   tools/a.py  (not in its files)");
+    expect(out).toContain("  propose [until: gone tools/a.py:needle_word]");
+    expect(out).toContain("  near   closed/done");
+    expect(out).toMatch(/== open\/bare .*OWES A DECISION\n.*\n  NO NAMED WORD IN ITS FILE/);
+    expect(said.at(-1)).toBe("triage: open: 2 bullet(s), 2 still owe a decision");
+  });
+
+  test("a decided section says so, and an unknown one exits 1", async () => {
+    const said: string[] = [];
+    expect(await triage("closed", tmp.root, (l) => said.push(l))).toBe(0);
+    expect(said.join("\n")).not.toContain("propose");
+    expect(said.at(-1)).toBe("triage: closed: every bullet names a file and declares a condition the tree decides");
+    expect(await triage("nope", tmp.root, () => {})).toBe(1);
+    tmp.cleanup();
   });
 });
 

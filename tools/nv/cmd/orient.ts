@@ -253,7 +253,7 @@ export function normalize(title: string): string {
   return t.replace(/\s+/g, " ").trim();
 }
 
-function titleMatches(title: string, key: string): boolean {
+export function titleMatches(title: string, key: string): boolean {
   const norm = normalize(title);
   return norm === key || norm.startsWith(key + " ") || norm.startsWith(key + ".");
 }
