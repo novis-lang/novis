@@ -60,7 +60,7 @@ docs are on disk before anything is staged.
 
     The body, if there is one.
 
-    ## commit: docs/implementation-plan.md docs/agent/handoff.md
+    ## commit: docs/implementation-plan.md docs/agent/handoff.md check-links:retired
     docs(agent): the second slice's own commit
 
     ## status
@@ -403,7 +403,7 @@ def written_paths(sections: list[Section]) -> list[str]:
     """The tracked files this wrap's doc sections write, in application order, deduplicated.
 
     Measured over one 19-session run, **9 sessions closed with a hand-rolled `git add
-    docs/agent/handoff.md docs/agent/playbook.md docs/implementation-plan.md && git commit`**
+    docs/agent/handoff.md docs/agent/playbook.md docs/implementation-plan.md && git commit`**  # check-links:retired
     after this tool had already written all three -- about two and a half calls each, at the
     point in a session where a call is most expensive, and exactly the hand-rolled git the wrap
     exists to remove. The cause is a chicken-and-egg that is not real: the docs look like they

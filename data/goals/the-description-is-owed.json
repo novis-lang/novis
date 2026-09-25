@@ -53,10 +53,11 @@
       "id": "dossier-the-description-is-owed-and-the-whole-roster-owes",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: the description is owed and the whole roster owes nothing",
+      "name": "proofs: the description is owed and the whole roster owes nothing",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--gate"
       ],
       "want": [

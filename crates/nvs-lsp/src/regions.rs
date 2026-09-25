@@ -93,17 +93,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A markup literal's body is not a region.** ``html`…` ``
-//!    (`rule:core-classes/html-literal`) is markup written in expression
-//!    position, and the rule names it a region on the same terms. The lexer
-//!    frames one — [`TokenKind::MarkupOpen`] to [`TokenKind::MarkupClose`] — so
-//!    what is left is one more arm of the filter below, which reports
-//!    [`TokenKind::InlineHtml`] alone, rather than a second mechanism, with
-//!    the literal's two kinds of hole cut out of the region the way a
-//!    `<?nvs` block is: [`TokenKind::ComplexInterpOpen`] to
-//!    [`TokenKind::ComplexInterpClose`] and [`TokenKind::MarkupEchoOpen`] to
-//!    [`TokenKind::MarkupEchoClose`].
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/regions.rs` lists them.
 
 use lsp_types::TextDocumentIdentifier;
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, SourceMap, Span};

@@ -53,10 +53,11 @@
       "id": "dossier-core-regex",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Regex",
+      "name": "proofs: Core\\Regex",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Regex"
@@ -71,10 +72,11 @@
       "id": "dossier-core-regex-match",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Regex\\Match",
+      "name": "proofs: Core\\Regex\\Match",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Regex\\Match"

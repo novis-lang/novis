@@ -103,7 +103,7 @@ SOURCE_EXTS = (".rs", ".nvs", ".nvst")
 MENTION_EXTS = (".py",)
 
 #: The top-level directories a mention is anchored to. Anchoring is what makes this cheap and
-#: exact: a bare `docs/agent/handoff.md` in a tool's prose is unambiguous, while an unanchored
+#: exact: a bare `docs/agent/handoff.md` in a tool's prose is unambiguous, while an unanchored  # check-links:retired
 #: `mod.rs` or `README.md` would match a hundred files and mean none of them.
 MENTION_TOPS = ("docs", "crates", "tools", "tests", "benches", "examples", "editors", "fuzz",
                 "website")

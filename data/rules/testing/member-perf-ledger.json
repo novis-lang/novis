@@ -15,6 +15,6 @@
   "guardedBy": [
     "docs/perf/members.ndjson",
     "tools/nv/proofs/collect.ts",
-    "tools/dossier.py"
+    "tools/nv/cmd/proofs.ts"
   ]
 }

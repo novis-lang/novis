@@ -54,10 +54,11 @@
       "id": "dossier-core-validate",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Validate",
+      "name": "proofs: Core\\Validate",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Validate"
@@ -72,10 +73,11 @@
       "id": "dossier-core-xml",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Xml",
+      "name": "proofs: Core\\Xml",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Xml"

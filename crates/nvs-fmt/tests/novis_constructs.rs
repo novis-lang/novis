@@ -198,7 +198,7 @@ fn a_class_scoped_type_alias_has_one_layout() {
     // are among them: a type is a node to nobody in
     // `crates/nvs-syntax/src/walk.rs`, so the `{` of a shape written in type
     // position is outside the one-space rule the object literal below is
-    // inside, which is the crate's own known gap 5 and is the same at file
+    // inside, which is the crate's own known gap `nvs-fmt/comma-separated-list-whose-closing-delimiter` and is the same at file
     // scope. The blank line each author left is theirs, here as everywhere
     // (known gap 1).
     let mangled = "\

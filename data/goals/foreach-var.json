@@ -171,10 +171,11 @@
       "id": "dossier-the-whole-roster-owes-nothing-with-the-var-binding-s",
       "kind": "command",
       "stage": 4,
-      "name": "dossier: the whole roster owes nothing with the `var` binding's proofs in it",
+      "name": "proofs: the whole roster owes nothing with the `var` binding's proofs in it",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--gate"
       ],
       "want": [
@@ -185,10 +186,11 @@
       "id": "dossier-the-programs-this-goal-added-carry-comments-inside",
       "kind": "command",
       "stage": 4,
-      "name": "dossier: the programs this goal added carry comments inside the plain-comment bounds",
+      "name": "proofs: the programs this goal added carry comments inside the plain-comment bounds",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--comments",
         "docs/examples/lang/statements/foreach",
         "tests/hostile/lang/iteration/what-foreach-walks"

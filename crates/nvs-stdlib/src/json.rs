@@ -243,17 +243,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The decoder still recurses on the native stack, and a debug build runs
-//!    out of it before [`DEPTH_CEILING`].** [`read`] is a `serde` visitor, one
-//!    Rust frame per nesting level, and nothing compares the stack it has left
-//!    with [`nvs_runtime::Ctx::stack_bounds`]. A release build decodes a
-//!    document at the ceiling even from a task already at its stack's soft
-//!    limit; a debug build overflows the task's `nvs_host::TASK_STACK_SIZE` at
-//!    about 800 levels and takes the process down. `a_document_at_the_ceiling_decodes`
-//!    does not see it, because a test thread's stack is twice a task's. The
-//!    encoder's heap stack is the shape a fix takes; a check against the armed
-//!    floor that throws is the smaller one.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/json.rs` lists them.
 
 use std::fmt;
 

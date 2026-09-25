@@ -53,10 +53,11 @@
       "id": "dossier-core-uuid",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Uuid",
+      "name": "proofs: Core\\Uuid",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Uuid"

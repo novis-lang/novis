@@ -231,26 +231,6 @@
       "why": "A **Depends on:** field that is only links is stored as its record numbers, so the period the prose closes the list with is not kept, and `--graph` prints the links alone."
     }
   ],
-  "proofs": [
-    {
-      "side": "python",
-      "pattern": "^dos{2}ier( gate| comments)?:",
-      "replace": "nv proofs$1:",
-      "why": "A message names the program that printed it, and the Python proof tool's name leaves the tree."
-    },
-    {
-      "side": "python",
-      "pattern": "bun nv dos{2}ier",
-      "replace": "bun nv proofs",
-      "why": "The command a line tells the reader to run is `nv proofs`, which replaces the Python proof tool under a new name."
-    },
-    {
-      "side": "nv",
-      "pattern": "^   replaces PHP: .*\\n",
-      "replace": "",
-      "why": "The Python proof tool's `php_twins` reads the spec's signature cell where it means the Replaces cell, so it never finds a twin. `nv proofs` reads the Replaces cell."
-    }
-  ],
   "chain": [
     {
       "side": "python",

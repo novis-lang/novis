@@ -53,10 +53,11 @@
       "id": "dossier-core-zip",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Zip",
+      "name": "proofs: Core\\Zip",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Zip"

@@ -53,10 +53,11 @@
       "id": "dossier-core-path",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Path",
+      "name": "proofs: Core\\Path",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Path"

@@ -197,60 +197,7 @@
 //!
 //! ## Known gaps
 //!
-//! Each is a hole in what is built rather than in what was decided, and each is
-//! named at the item it blocks:
-//!
-//! 8. **`nvs_safepoint` clears `DEBUG_BREAK` and acts on nothing.** The flag is
-//!    dropped where `CPU_LIMIT` and `CANCEL` become [`FATAL`], since `nvs dap` —
-//!    the adapter a stopped frame would be handed to — does not exist.
-//!    — owner: M10
-//! 9. **An enum case that reached a `mixed` is judged in a condition by the
-//!    integer behind it.** A case backed by `0` is falsy there, while the same
-//!    case under its own declared type is truthy, so the two spellings of one
-//!    value disagree — the one thing `rule:expressions/truthy-table`'s rows are
-//!    written to prevent. `rule:enums/truthiness` makes every case truthy and
-//!    `rule:enums/representation` spends no tag on an enum, so by the time
-//!    [`helpers::value_truthy`] is handed the value there is nothing left to
-//!    tell it from an `int`; that function's doc says the same from the other
-//!    side. Closing it means spending the reserved tag, which overturns a rule
-//!    and is an ADR rather than a slice. What it costs today is a ported
-//!    `if ($status)` whose enum arrived through an `array<mixed>` or an erased
-//!    parameter taking the branch PHP never took.
-//!    — owner: M10
-//! 10. **A call through a `callable` builds its argument slots in a heap
-//!     vector.** [`call_closure`] collects the closure and the trimmed
-//!     arguments into a `Vec` per invocation, so every callback costs one
-//!     allocation of one `Value` per slot where a compiled call writes the
-//!     same slots into a stack frame.
-//!     `benches/members/lang/expressions/calls.nvs` measures it as 32 bytes a
-//!     round against a declared `allocations 0`. Closing it is an inline
-//!     representation for a call site's arguments, which is the optimising
-//!     tier's work and not a slice's.
-//!     — owner: M12
-//! 11. **A closure call passes no call probe.** `rule:testing/debug-probes`
-//!     puts an entry and an exit probe at every call site, and codegen emits
-//!     them from `nvs_codegen`'s invoke path alone; a call through a
-//!     `callable` is a helper call to [`closure::nvs_call_closure`], so
-//!     [`nvs_probe_call_enter`] never fires for it. A trace and a profile
-//!     therefore attribute a callback's work to whatever called it, and
-//!     `nvs run --count` reports fewer calls than the program made. Closing it
-//!     means deciding what a call site with no compile-time callee name
-//!     reports as its label, and re-measuring every recorded figure whose
-//!     bench calls a closure.
-//!     — owner: M10
-//! 12. **The memory-limit `FATAL` names a reading that is not the breach.**
-//!     [`ctx::Ctx::over_memory_limit`] is true as soon as
-//!     [`budget::refused`] is set, and the message
-//!     [`ctx::Ctx::memory_breach`] builds then prints `memory_used()` — the
-//!     live reading at the poll, taken after the refused allocation is gone. A
-//!     program holding a 134,217,728-character text is refused its next
-//!     doubling and reports `18825 bytes held against a ceiling of 268435456`,
-//!     which is the one sentence an operator reads to decide whether to raise
-//!     `[limits] memory` or to fix the program. Why the surviving reading is
-//!     that small is not checked. Closing it means the budget recording what it
-//!     refused and how much was held when it did, so the sentence can name the
-//!     allocation instead of the aftermath.
-//!     — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-runtime/src/lib.rs` lists them.
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an

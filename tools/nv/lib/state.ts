@@ -57,13 +57,11 @@ export function legacyPointer(root: string = ROOT): string | null {
     return null;
   }
   if (typeof num !== "number" || !Number.isInteger(num) || num <= 0) return null;
-  for (const sub of ["docs/agent/goals/dossier", "docs/agent/goals"]) {
-    const dir = join(root, sub);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
-      const m = /^(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
-      if (m && Number(m[1]) === num) return m[2]!;
-    }
+  const dir = join(root, "docs/agent/goals");
+  if (!existsSync(dir)) return null;
+  for (const name of readdirSync(dir)) {
+    const m = /^(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
+    if (m && Number(m[1]) === num) return m[2]!;
   }
   return null;
 }

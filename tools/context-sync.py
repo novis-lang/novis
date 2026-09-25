@@ -5,7 +5,7 @@
     python tools/context-sync.py --since <sha> --dry-run
     python tools/context-sync.py --goal <toml> --since <sha>
 
-`orient.py` builds a session's whole map out of `[context] modules` in `docs/agent/loop-goal.toml`,
+`orient.py` builds a session's whole map out of `[context] modules` in `docs/agent/loop-goal.toml`,  # check-links:retired
 and `playbook.py --goal` ranks the trap bullets against the same list. A goal is written before its
 work is done, so the list names the files the author expected -- and a session that lands in one the
 author did not expect gets no map line for it, no `//!` summary, and bullets ranked against a file

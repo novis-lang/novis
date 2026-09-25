@@ -53,10 +53,11 @@
       "id": "dossier-core-xml-node",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Xml\\Node",
+      "name": "proofs: Core\\Xml\\Node",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Xml\\Node"
@@ -71,10 +72,11 @@
       "id": "dossier-core-xml-reader",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Xml\\Reader",
+      "name": "proofs: Core\\Xml\\Reader",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Xml\\Reader"

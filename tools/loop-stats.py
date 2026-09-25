@@ -121,7 +121,7 @@ def call_text(call):
 
 BUCKETS = (
     ("goal", ("docs/agent/goals/", "loop-goal")),
-    ("orientation", ("orient.py", "brief.py", "docs/agent/handoff.md", "docs/agent/playbook",
+    ("orientation", ("orient.py", "brief.py", "docs/agent/handoff.md", "docs/agent/playbook",  # check-links:retired
                      "docs/agent/conventions.md", "AGENTS.md", "CLAUDE.md")),
     ("process docs", ("docs/agent/",)),
     ("adr", ("docs/adr/", "docs/decisions/")),
@@ -553,7 +553,7 @@ def render_attribution(sessions):
     orientation = merged.get("orientation", 0) / total
     adr = merged.get("adr", 0) / total
     discovery = merged.get("discovery", 0) / total
-    print("\n   What each share argues for, in docs/agent/loop-goal.toml's [context] block:")
+    print("\n   What each share argues for, in docs/agent/loop-goal.toml's [context] block:")  # check-links:retired
     print(f"   orientation {orientation:>4.0%}  -- if this is large, the pack itself is too wide:")
     print("                     narrow `modules`, `playbook` and `shapes`, and check")
     print("                     `python tools/orient.py --audit` for which section carries it.")

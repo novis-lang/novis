@@ -1,6 +1,6 @@
 # The decision summary pass
 
-How to bring [docs/decisions.toml](../decisions.toml) — the plain-language summary of every decision
+How to bring `docs/decisions.toml` — the plain-language summary of every decision
 Novis has taken — back level with the decision records. Fire it the way
 [doc-cleanup.md](doc-cleanup.md) is fired: the **user** asks for it, or `python
 tools/decisions.py --check` has accumulated findings between passes.

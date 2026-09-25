@@ -26,44 +26,7 @@
 //!
 //! ## Known gaps
 //!
-//! Each of these is a row of § 1 whose source exists but does not reach this
-//! module, and each is *absent* from the document rather than guessed at:
-//!
-//! 1. **A response body that is an object.** The declared return type is on the
-//!    row and [`responses`] renders it, but only through [`schema`] — so a
-//!    handler answering with a *class* gets the empty schema, because the fields
-//!    of one are `rule:core-classes/derive-attribute`'s codec
-//!    and the codec is not on the row. It is that roster and not the class's
-//!    declared properties: a property map holds the private ones too, and a
-//!    document that published those would be leaking exactly what
-//!    `#[Json\Derive]` exists to decide. Carrying that roster on the row is
-//!    M10's, with the rest of a document a strict validator accepts
-//!    (`docs/plan/m10.md`); [`schema`] renders it then with no change here.
-//!    — owner: M10
-//! 2. **Request body schemas**, for the same reason and one more: which
-//!    parameter *is* the body is a question the row does not answer either.
-//!    Both are the same widening of the row, so they land together.
-//!    — owner: M10
-//! 3. **`components.securitySchemes`.** § 2's `security` names reach the
-//!    operation ([`operation`] writes them), but *what* a named scheme is —
-//!    bearer, an API key, OAuth2 and its flows — is nowhere in the tree:
-//!    nothing in this compiler or in `nvs.toml` declares one, which is the same
-//!    absence `nvs_types::routes`' `check_api` records for the half of § 2's
-//!    scheme rule it cannot ask. So the document names schemes it does not
-//!    define, and a strict validator says so. Writing a guessed definition
-//!    would be the emitter stating a fact about deployment that no one wrote,
-//!    which is the one thing `rule:routing/api-document-is-generated-from-the-route-table` is against; the component object lands
-//!    here, with no change to [`operation`], on the day a scheme has a home.
-//!    M10 is where it gets one, because a scheme has to be *declared* where the
-//!    row can carry it rather than in a deployment the compiler never reads.
-//!    — owner: M10
-//! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
-//!    nothing in the program declares one, so it is a fixed `0.0.0`. A version
-//!    is what a program is *published* as, so it arrives with the manifest that
-//!    publishes one — M15's `package.toml` (`docs/plan/m15.md`) — rather than
-//!    from a deployment key this module would be quoting back at whoever wrote
-//!    it.
-//!    — owner: M15
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/openapi.rs` lists them.
 
 use std::collections::BTreeMap;
 

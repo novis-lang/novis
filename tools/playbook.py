@@ -179,7 +179,7 @@ TREE_DIRS = ("crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "f
 #: A path in prose collects punctuation and a locator. Strip both before asking the disk. The
 #: locator is any of `peek.py`'s target forms -- `:120-160`, `:120+30`, `:@sym`, `:re:pattern` --
 #: because a bullet quoting one of those is naming a file that IS in the tree: `--check` reported
-#: `docs/agent/loop-goal.toml:re:a_named_connection_is_memoized` as a missing path for as long as
+#: `docs/agent/loop-goal.toml:re:a_named_connection_is_memoized` as a missing path for as long as check-links:retired
 #: it only knew about `:\d+`, and an optimization pass paid to re-derive that it was not.
 PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 
@@ -245,7 +245,7 @@ DUPES_FLOOR = 0.22
 #: than ignored.
 DELIBERATE_DISTINCT: dict[tuple[str, str], str] = {
     ("Tooling > a loop-goal.toml check can name a test in",
-     "Tooling > docs/agent/loop-goal.toml and"):
+     "Tooling > docs/agent/loop-goal.toml and"):  # check-links:retired
         "the first is a misfiled check whose `args` is wrong; the second is the goals/ copy-back "
         "drift. The first ends by citing the second as its follow-up step, and that citation is "
         "the whole overlap.",
@@ -726,7 +726,7 @@ def prune_manifests(before: str, after: str, dry: bool) -> list[tuple[str, str]]
     stays too. A comment run left with nothing under it before the closing `]` goes with its
     lines, so a manifest never ends in a comment about bullets it no longer names.
 
-    `docs/agent/loop-goal.toml` is swept with the goals: it is the live goal's installed copy,
+    `docs/agent/loop-goal.toml` is swept with the goals: it is the live goal's installed copy,  # check-links:retired
     the one `orient.py` builds the pack from and the driver runs the sweep from, and a session
     edits it in place, so it can name a selector the goal's own file no longer does."""
     import tomllib

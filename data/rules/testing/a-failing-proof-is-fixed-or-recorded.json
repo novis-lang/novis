@@ -10,6 +10,6 @@
     "testing/one-slice-is-one-feature"
   ],
   "guardedBy": [
-    "tools/dossier.py"
+    "tools/nv/cmd/proofs.ts"
   ]
 }

@@ -138,32 +138,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Deeply nested markup costs time in the square of its depth.** Fifty
-//!    thousand nested `<div>` tags take about five seconds in [`parse`] on a
-//!    release build and a hundred thousand take about twenty, so a body of
-//!    half a megabyte holds a core for as long as its CPU limit allows. The
-//!    time is spent while parsing — `Core\Html::parse` alone shows it, and
-//!    [`nvs_core_html_sanitize`] inherits it — which points at the scope
-//!    checks WHATWG's tree builder makes over the stack of open elements on
-//!    every start tag; whether `html5ever` or [`Sink`] spends it is not
-//!    checked. Browsers bound this with a cap on tree depth, and choosing
-//!    that cap, and what a document past it becomes, is a decision about
-//!    `rule:core-classes/html-parsing`'s output rather than a change to this
-//!    module. `tests/hostile/core/Html/sanitize/02-markup-nested-a-hundred-thousand-deep.nvs`
-//!    and `tests/hostile/core/Html/parse/02-markup-nested-a-hundred-thousand-deep.nvs`
-//!    are the attacks that show it, and both are marked as this gap.
-//!    — owner: M12
-//! 2. **An element with many attributes costs time in the square of their
-//!    count.** One tag with a hundred thousand attributes takes about twenty
-//!    seconds in [`parse`] on a release build. `html5ever`'s tokenizer compares
-//!    every new attribute name with every earlier one on the same tag, to drop
-//!    a duplicate, and [`Sink`] never sees the tag until that is done. Bounding
-//!    it here means capping the attributes a tag may carry, and choosing that
-//!    cap is the same kind of decision as item 1's.
-//!    `tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs`
-//!    and `tests/hostile/core/Html/sanitize/03-a-tag-with-two-hundred-thousand-attributes.nvs`
-//!    are marked as this gap.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/html.rs` lists them.
 
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};

@@ -53,10 +53,11 @@
       "id": "dossier-core-reflect-enuminfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\EnumInfo",
+      "name": "proofs: Core\\Reflect\\EnumInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\EnumInfo"
@@ -71,10 +72,11 @@
       "id": "dossier-core-reflect-methodinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\MethodInfo",
+      "name": "proofs: Core\\Reflect\\MethodInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\MethodInfo"
@@ -89,10 +91,11 @@
       "id": "dossier-core-reflect-parameterinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\ParameterInfo",
+      "name": "proofs: Core\\Reflect\\ParameterInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\ParameterInfo"
@@ -107,10 +110,11 @@
       "id": "dossier-core-reflect-propertyinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\PropertyInfo",
+      "name": "proofs: Core\\Reflect\\PropertyInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\PropertyInfo"

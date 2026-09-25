@@ -288,34 +288,6 @@
       ["--check"]
     ]
   },
-  "proofs": {
-    "python": ["python", "tools/\u0064ossier.py"],
-    "nv": ["bun", "tools/nv/main.ts", "proofs"],
-    "cases": [
-      [],
-      ["--no-perf"],
-      ["--owed"],
-      ["--owed", "--limit", "0"],
-      ["--owed", "--no-perf", "--limit", "5"],
-      ["--gaps"],
-      ["--gate"],
-      ["--json"],
-      ["--id", "Core\\Str::length"],
-      ["--id", "Core\\Html::parse"],
-      ["--id", "Core\\Time\\DateTime::endOf"],
-      ["--id", "directive:queue.max_attempts"],
-      ["--id", "lang:errors/try-catch-finally"],
-      ["--id", "Core\\Json\\Value"],
-      ["--group", "Core\\Str", "--owed"],
-      ["--group", "Core\\Str", "--gate"],
-      ["--group", "types:enum", "--json"],
-      ["--group", "nowhere"],
-      ["--only", "Core\\Str::length", "Core\\Str::at", "--gate"],
-      ["--only", "Core\\Str::length", "--json"],
-      ["--comments", "tests/hostile/lang/types", "docs/examples/core/Str"],
-      ["--comments", "docs/examples/core/Str/length/01-basics.nvs"]
-    ]
-  },
   "records": {
     "python": ["python", "tools/records.py"],
     "nv": ["bun", "tools/nv/main.ts", "records"],

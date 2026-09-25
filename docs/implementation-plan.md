@@ -42,15 +42,12 @@
 > the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **[the goals directory](agent/goals/) is the list of what is open**, in the order
-> the loop walks it, and `python tools/brief.py` prints where it currently stands — this field
-> restates neither. Most of what is open is now generated: `docs/agent/goals/dossier/` holds one
-> goal per group of features owing `rule:testing/feature-proofs`'s artefacts, written by `python
-> tools/dossier.py --emit-goals` and re-emitted rather than hand-edited. A goal switch carries a
-> closed goal's `[[check]]` blocks forward as the live goal's floor, so what is closed is what
-> passes today: the parity program's six goals and every goal after them the chain has already
-> walked. What a crate still owes is its own module doc's `# Known gaps`; the corpus and bench
-> figures are `python tools/disk.py`'s and the perf notes'.
+> **Open now:** **`data/chain.json` is the list of what is open**, in the order the loop walks it,
+> and each goal is its prose at `docs/agent/goals/<slug>.md` plus its record under `data/goals/` —
+> this field restates neither. A goal switch carries a closed goal's checks forward as the live
+> goal's floor, so what is closed is what passes today. What a feature still owes of
+> `rule:testing/feature-proofs` is `bun nv proofs --owed`, and what a crate still owes is a gap
+> record under `data/gaps/` naming its owner.
 >
 > **Blocking:** Nothing holds the run. One thing waits on the user and gates only the chain's last
 > goal: GitHub starts no CI job while the account's payments fail, and goal `ci-green` needs `main`
@@ -148,12 +145,12 @@ and the server sits on all of them.
 
 | Loop goal | Milestone | Lands |
 |---|---|---|
-| [core-depth](agent/goals/1-core-depth.md) | M4S tail | `Core` §§ 1–13 depth, `autoload`, the compile-time attribute passes, OpenAPI |
-| [concurrency](agent/goals/2-concurrency.md) | M5 | the reactor and its parking streams, the scheduler, `spawn`/`await`, `Core\Task`, isolates, `Core\Serialize` |
-| [governance](agent/goals/3-governance.md) | M6 | the config tree, capability enforcement, limits, the artifact cache, `nvs build --compile` |
-| [core-part-ii](agent/goals/4-core-part-ii.md) | M8, non-database | `Core\IO`, crypto, `Process`, `Cli`, `Cache`, `RateLimit`, `Log`, `Http\Client`, `Reflect` |
-| [database](agent/goals/5-database.md) | M8, database | `Core\Db`, five drivers, the pool, the type map, `Core\Queue` |
-| [server](agent/goals/6-server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
+| [core-depth](agent/goals/core-depth.md) | M4S tail | `Core` §§ 1–13 depth, `autoload`, the compile-time attribute passes, OpenAPI |
+| [concurrency](agent/goals/concurrency.md) | M5 | the reactor and its parking streams, the scheduler, `spawn`/`await`, `Core\Task`, isolates, `Core\Serialize` |
+| [governance](agent/goals/governance.md) | M6 | the config tree, capability enforcement, limits, the artifact cache, `nvs build --compile` |
+| [core-part-ii](agent/goals/core-part-ii.md) | M8, non-database | `Core\IO`, crypto, `Process`, `Cli`, `Cache`, `RateLimit`, `Log`, `Http\Client`, `Reflect` |
+| [database](agent/goals/database.md) | M8, database | `Core\Db`, five drivers, the pool, the type map, `Core\Queue` |
+| [server](agent/goals/server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
 
 **The program's own stop condition is `python tools/check-migration.py` reporting 100% classified** —
 every one of the oracle build's **1167 functions and 255 types** accounted for as a `member`, `language`

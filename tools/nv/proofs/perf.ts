@@ -15,7 +15,6 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { parse as parseToml } from "smol-toml";
 import { dirty, head, lastCommit } from "../lib/git.ts";
 import { abs } from "../lib/paths.ts";
 import { fixed, general } from "../lib/py.ts";
@@ -25,7 +24,7 @@ import { spawnProof } from "./run.ts";
 
 export const PERF_REPORT = "docs/perf/members.md";
 const CALIBRATION = "benches/members/_calibration";
-const POLICY_FILE = "tools/data/dossier-policy.toml";
+const POLICY_FILE = "data/proofs/policy.json";
 
 /** `// bench: iterations 200000` inside a bench program. */
 const ITER_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
@@ -278,14 +277,14 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   return failed ? 1 : 0;
 }
 
-/** `[report]` in the policy file, over its defaults. `outlier_factor` is how far above its group's median
+/** `report` in the policy file, over its defaults. `outlierFactor` is how far above its group's median
  * a `units` figure sits before the report lists it. `ceiling` is a `units` figure per declared complexity,
  * past which a feature is listed whatever its neighbours cost. Both are advisory and never a gate. */
 function reportPolicy(): { outlierFactor: number; ceiling: Record<string, number> } {
   const policy = { outlierFactor: 5, ceiling: {} as Record<string, number> };
   if (!existsSync(abs(POLICY_FILE))) return policy;
-  const table = (parseToml(read(POLICY_FILE)).report ?? {}) as Record<string, unknown>;
-  if ("outlier_factor" in table) policy.outlierFactor = Number(table.outlier_factor);
+  const table = (JSON.parse(read(POLICY_FILE)).report ?? {}) as Record<string, unknown>;
+  if ("outlierFactor" in table) policy.outlierFactor = Number(table.outlierFactor);
   for (const [k, v] of Object.entries((table.ceiling ?? {}) as Record<string, unknown>)) policy.ceiling[k] = Number(v);
   return policy;
 }
@@ -407,7 +406,7 @@ export function perfReport(out: string[]): number {
     "## Candidates",
     "",
     `Advisory, never a gate: a \`units\` figure more than ${general(report.outlierFactor)}x its`,
-    "group's median on this machine, a figure past the ceiling `tools/data/dossier-policy.toml`",
+    "group's median on this machine, a figure past the ceiling `data/proofs/policy.json`",
     "sets for its declared complexity, or a bench recorded as `known-gap`. A row here is where",
     "a person with a profiler looks first; it is not a verdict.",
     "",

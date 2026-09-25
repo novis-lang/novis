@@ -35,16 +35,14 @@ export function h1Of(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(FRONT, "").replace(/^\n+/, "").split("\n", 1)[0]!.trim();
 }
 
-/** slug -> its prose file, named `<slug>.md` or `N-<slug>.md`, in the goals directory or its `dossier/`. */
+/** slug -> its prose file, `<slug>.md` in the goals directory. */
 function proseFiles(root: string): Map<string, string> {
   const out = new Map<string, string>();
-  for (const sub of [`${GOALS}/dossier`, GOALS]) {
-    const dir = join(root, sub);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
-      const m = /^(?:\d+-)?([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
-      if (m && name !== "README.md") out.set(m[1]!, `${sub}/${name}`);
-    }
+  const dir = join(root, GOALS);
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    const m = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/.exec(name);
+    if (m) out.set(m[1]!, `${GOALS}/${name}`);
   }
   return out;
 }

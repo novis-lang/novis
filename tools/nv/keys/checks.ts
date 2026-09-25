@@ -328,7 +328,7 @@ export function proofGroups(c: Check): string[] | undefined {
 
 /** What `nv proofs` reads for every group: its own code and runtime, the policy, the help backlog and
  * the perf ledger. */
-const PROOF_INPUTS = ["tools/nv", "package.json", "bun.lock", "tools/data/dossier-policy.toml", "tools/data/help-backlog.toml", "docs/perf/members.ndjson"];
+const PROOF_INPUTS = ["tools/nv", "package.json", "bun.lock", "data/proofs", "docs/perf/members.ndjson"];
 /** The partitions it reads for every group: the roster's chapters and spec, the registry and its tables,
  * and each `covers:` marker and plain call in the case trees and in `crates/`. */
 const PROOF_PARTITIONS = ["crates", "crate-tests", "docs", "conformance", "differential"];

@@ -157,8 +157,8 @@
         "insert": "\n# probe\n"
       },
       "rerun": [
-        "^gate: the chain still walks$",
-        "^gate: every entry is still one the driver can walk$"
+        "^nv: the chain still walks$",
+        "^nv: every entry is still one the driver can walk$"
       ],
       "keep": [
         "^leg: ",
@@ -178,12 +178,12 @@
         "create": "echo 1;\n"
       },
       "rerun": [
-        "^gate: dossier: Core\\\\Arr ",
-        "^gate: dossier: every program this goal writes or rewrites carries comments",
-        "^gate: dossier: every generated goal is walkable"
+        "^nv: proofs: Core\\\\Arr ",
+        "^nv: proofs: every program this goal writes or rewrites carries comments",
+        "^nv: chain: every goal is walkable and its manifest resolves"
       ],
       "keep": [
-        "^gate: dossier: (?!Core\\\\Arr )"
+        "^nv: proofs: (?!Core\\\\Arr )"
       ]
     },
     {

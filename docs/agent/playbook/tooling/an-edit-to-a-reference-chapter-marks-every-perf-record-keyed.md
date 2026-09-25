@@ -1,5 +1,0 @@
-- **An edit to a reference chapter marks every perf record keyed to that file stale, so a bench
-  measured before the edit is owed again.** `dossier.py` keys a figure to the text of the file the
-  feature is implemented at, and for a language feature that file is the chapter, not a crate. Make
-  every chapter edit first and run `--record-perf` last, or pay the release build twice.
-  [until: gone tools/dossier.py:stale]

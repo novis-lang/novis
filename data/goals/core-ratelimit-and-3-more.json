@@ -54,10 +54,11 @@
       "id": "dossier-core-ratelimit",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\RateLimit",
+      "name": "proofs: Core\\RateLimit",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\RateLimit"
@@ -72,10 +73,11 @@
       "id": "dossier-core-ratelimit-decision",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\RateLimit\\Decision",
+      "name": "proofs: Core\\RateLimit\\Decision",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\RateLimit\\Decision"
@@ -90,10 +92,11 @@
       "id": "dossier-core-reflect",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect",
+      "name": "proofs: Core\\Reflect",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect"
@@ -108,10 +111,11 @@
       "id": "dossier-core-reflect-attributeinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\AttributeInfo",
+      "name": "proofs: Core\\Reflect\\AttributeInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\AttributeInfo"

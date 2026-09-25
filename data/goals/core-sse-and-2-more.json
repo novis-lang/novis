@@ -54,10 +54,11 @@
       "id": "dossier-core-sse",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Sse",
+      "name": "proofs: Core\\Sse",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Sse"
@@ -72,10 +73,11 @@
       "id": "dossier-core-sse-message",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Sse\\Message",
+      "name": "proofs: Core\\Sse\\Message",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Sse\\Message"
@@ -90,10 +92,11 @@
       "id": "dossier-core-storage",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Storage",
+      "name": "proofs: Core\\Storage",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Storage"

@@ -44,8 +44,9 @@
       "stage": 2,
       "name": "the latest CI run on main succeeded for the code HEAD holds",
       "argv": [
-        "python",
-        "tools/ci-green.py"
+        "bun",
+        "nv",
+        "ci-green"
       ],
       "want": [
         "the latest ci.yml run on main succeeded, and it ran the code HEAD holds"

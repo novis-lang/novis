@@ -10,6 +10,6 @@
     "testing/proof-attribution"
   ],
   "guardedBy": [
-    "tools/dossier.py"
+    "tools/nv/cmd/proofs.ts"
   ]
 }

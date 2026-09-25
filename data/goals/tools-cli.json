@@ -53,10 +53,11 @@
       "id": "dossier-tools-cli",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:cli",
+      "name": "proofs: tools:cli",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:cli"

@@ -15,6 +15,6 @@
   ],
   "guardedBy": [
     ".github/workflows/ci.yml",
-    "tools/gen-attribution.py"
+    "tools/nv/cmd/gen-attribution.ts"
   ]
 }

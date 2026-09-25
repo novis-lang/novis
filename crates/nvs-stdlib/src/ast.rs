@@ -86,26 +86,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A node's column is counted from the start of its line, once per node,
-//!    so source carrying its work on one long line costs time in the square of
-//!    that line's length.** [`instance_of`] asks
-//!    [`nvs_syntax::walk::Located::position`] for every node it builds, and
-//!    that reaches `nvs_diagnostics::SourceFile::line_col_in`, whose column is
-//!    the `char` count of the text between the line's start and the node
-//!    (`crates/nvs-diagnostics/src/source.rs:131`). One such question is what a
-//!    diagnostic costs and is the right shape for it; one per node of a whole
-//!    tree is O(nodes × line length), which is why the same statements parse in
-//!    a fraction of the time written one per line and why `nvs ast` over the
-//!    one-line file stays linear — the grammar is not what is quadratic here.
-//!    The fix is a batch question in `nvs-diagnostics`, which
-//!    `rule:ide/positions-have-one-home` makes the only home position
-//!    arithmetic may have: one ordered sweep answering every offset a tree
-//!    names, rather than one scan per offset. That is a decision about that
-//!    crate's public surface rather than a change to this module, which is why
-//!    it is recorded here instead of fixed beside the attack that found it.
-//!    `tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs`
-//!    is that attack, and it is marked as this gap.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/ast.rs` lists them.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 

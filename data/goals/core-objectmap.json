@@ -53,10 +53,11 @@
       "id": "dossier-core-objectmap",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\ObjectMap",
+      "name": "proofs: Core\\ObjectMap",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\ObjectMap"

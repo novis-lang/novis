@@ -10,7 +10,7 @@
     "testing/ci-lanes"
   ],
   "guardedBy": [
-    "tools/gen-attribution.py",
+    "tools/nv/cmd/gen-attribution.ts",
     ".github/workflows/ci.yml"
   ]
 }

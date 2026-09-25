@@ -53,10 +53,11 @@
       "id": "dossier-tools-config",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:config",
+      "name": "proofs: tools:config",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:config"

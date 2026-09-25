@@ -82,17 +82,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **§ 2's parallelism is not built: the isolates are made and joined one
-//!    at a time.** `docs/decisions/0079.md:158` makes an isolate per test
-//!    *and* the suite parallel, and that record's milestone table carries
-//!    both to M5 (`docs/decisions/0079.md:872`). Only the second half is
-//!    open, and it is a scheduling question rather than an isolation one:
-//!    every test already runs in an isolate of its own. It is answered where a
-//!    suite run stops being one run — M10's `--coverage` and `--mutate`
-//!    (`docs/plan/m10.md`), which repeat it — with
-//!    `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s two bounds
-//!    over a task group, and a decision about a case that reads the terminal.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/runner.rs` lists them.
 //!
 //! # What a constructor, a fixture and class order do
 //!

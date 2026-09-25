@@ -53,10 +53,11 @@
       "id": "dossier-tools-agents",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:agents",
+      "name": "proofs: tools:agents",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:agents"

@@ -70,13 +70,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A span has no window.** [`crate::trace::Span`] carries no timestamps
-//!    because [`nvs_runtime::TraceEvent`] carries none: when a call entered and
-//!    left is the timeline sink's, and the shared epoch that would put a
-//!    monotonic reading on the wall clock is M10's. Every span is encoded as an
-//!    instant at the moment its request handed the spans over, so a trace lands
-//!    in the right place on a collector's clock and shows no duration.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-server/src/otlp.rs` lists them.
 
 use std::collections::VecDeque;
 use std::fmt;

@@ -53,10 +53,11 @@
       "id": "dossier-tools-php-differences",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:php-differences",
+      "name": "proofs: tools:php-differences",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:php-differences"

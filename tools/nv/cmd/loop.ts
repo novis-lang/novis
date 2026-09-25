@@ -7,7 +7,7 @@
 // Three filters narrow it, and a check is printed when it matches every one given:
 //   - `--stage <label>` — the stage's number, or the start of its label `8 the driver` or of its title;
 //   - `--name <text>` — text inside the check's name, case-insensitive;
-//   - `--feature <id>` — a proofs check over that feature: its name is `proofs: <id>` or `dossier: <id>`,
+//   - `--feature <id>` — a proofs check over that feature: its name is `proofs: <id>`,
 //     with or without a `(1/3)` part, or its `argv` passes `<id>` to `--group` or `--id`.
 // A check with no name of its own is named by its `file`, so `--name` reaches a fixture's check too.
 //
@@ -150,7 +150,7 @@ function stageMatches(label: string, number: number, want: string): boolean {
 }
 
 function featureMatches(c: Check, id: string): boolean {
-  const named = /^(?:proofs|dossier): (.+?)(?: \(\d+\/\d+\))?$/.exec(c.name ?? "");
+  const named = /^proofs: (.+?)(?: \(\d+\/\d+\))?$/.exec(c.name ?? "");
   if (named?.[1] === id) return true;
   const argv = c.argv ?? [];
   return argv.some((a, i) => (a === "--group" || a === "--id") && argv[i + 1] === id);

@@ -49,7 +49,7 @@ GOALS = ROOT / "docs" / "agent" / "goals"
 SIDE = GOALS / "side"
 #: Set to a side goal's slug in every process of a side run -- the driver, its sessions and every
 #: tool they start -- so each of them reads that goal's files where a chain run reads the installed
-#: `docs/agent/loop-goal.*` and `docs/agent/handoff.md`. `side_goal` is its one reader.
+#: `docs/agent/loop-goal.*` and `docs/agent/handoff.md`. `side_goal` is its one reader. check-links:retired
 SIDE_ENV = "NOVIS_SIDE_GOAL"
 #: `restart-free.md` -> "restart-free". A dot is not a slug character, so `<slug>.handoff.md` never
 #: matches and a side goal is discovered by exactly one file, as a chain goal is.
@@ -61,7 +61,7 @@ SIDE_RE = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 #: position, so an entry inserted ahead of the live goal changes no number the driver is holding.
 STATE = ROOT / ".loop" / "chain.json"
 
-#: `29-xml-tree.md` -> (29, "xml-tree"). The `.handoff.md` and `.toml` siblings are found from the
+#: `xml-tree.md` -> (29, "xml-tree"). The `.handoff.md` and `.toml` siblings are found from the
 #: stem rather than matched, so a goal is discovered by exactly one file.
 NAME_RE = re.compile(r"^(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 
@@ -173,7 +173,7 @@ class Goal:
 def load():
     """Every goal on disk, in the order the driver walks them.
 
-    Sorted on the number and never on the filename: `10-program-id.md` sorts before `9-temp-sweep.md`
+    Sorted on the number and never on the filename: `program-id.md` sorts before `temp-sweep.md`
     as text, which is the bug that made a directory listing useless for reading the order off.
     """
     found = []

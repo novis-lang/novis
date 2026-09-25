@@ -8,7 +8,7 @@ a two-line checklist item, because a goal is a *finite contained group of work*:
 the whole repository, and every byte it does not need is charged to the 200k ceiling anyway.
 
 So this script prints the same kinds of thing, selected by the goal's own `[context]` manifest in
-`docs/agent/loop-goal.toml`:
+`docs/agent/loop-goal.toml`:  # check-links:retired
 
     the run marker and the next free numbers        always
     the failing acceptance check, in full           always -- when the ledger names one
@@ -1761,7 +1761,7 @@ def run_closing() -> None:
     emit("rebuild only once you have changed Rust yourself.")
     emit()
     emit("If this pack did not print something you needed, that is a gap in [context] in")
-    emit("docs/agent/loop-goal.toml. Say which field was missing it, in the handoff.")
+    emit("docs/agent/loop-goal.toml. Say which field was missing it, in the handoff.")  # check-links:retired
     if template:
         emit()
         emit("THE WRAP SKELETON -- `session.py --template` for this tree, so you do not call it.")

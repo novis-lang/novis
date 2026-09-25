@@ -57,9 +57,7 @@
 //!
 //! ## Known gap
 //!
-//! * § 6's `.nvsx` entries are not embedded yet — Tier 1 extensions do not
-//!   load at all today, so there is nothing for the flat list to carry.
-//!   — owner: M9
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/bundle.rs` lists them.
 
 use std::collections::HashSet;
 use std::fs;

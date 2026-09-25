@@ -53,10 +53,11 @@
       "id": "dossier-core-xml-writer",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Xml\\Writer",
+      "name": "proofs: Core\\Xml\\Writer",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Xml\\Writer"

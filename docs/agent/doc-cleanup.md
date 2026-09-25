@@ -131,5 +131,5 @@ Read for these directly; there is no check for any of them.
    `tools/records.py`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
    once, there; a rule it cannot enforce is documented here.
 3. Commit with line counts before and after in the message.
-4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite [handoff.md](handoff.md) — unless
+4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite `handoff.md` — unless
    a loop is mid-goal, in which case say so in chat and leave that file to the loop.

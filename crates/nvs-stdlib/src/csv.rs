@@ -181,21 +181,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`parse` pays its whole setup on every call, and its ledger row is two
-//!    orders of magnitude above `format`'s over the same table.** The cost is
-//!    fixed per call rather than per byte — parsing an empty document costs
-//!    what parsing a two-record one costs — and the only per-call work of that
-//!    size is the DFA `csv_core::ReaderBuilder::build` constructs above the
-//!    read loop. The figures are the ledger's, in `docs/perf/members.ndjson`
-//!    under `rule:testing/member-perf-ledger`, measured by
-//!    `benches/members/core/Csv/parse.nvs` and `format.nvs`. A program that
-//!    parses one upload pays it once and cannot see it; one that parses a
-//!    document per row of a report pays it per row, and `rows` — which builds
-//!    one reader for a whole file — is the member that already avoids it. The
-//!    fix is a reader cached per dialect and reset per call, which is a
-//!    decision about what a native member may hold between calls rather than an
-//!    edit to this one.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/csv.rs` lists them.
 
 use std::io::Read;
 

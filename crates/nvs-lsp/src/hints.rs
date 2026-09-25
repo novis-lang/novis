@@ -61,13 +61,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A call the checker recorded as anything but
-//!    `nvs_types::ExprInfo::Call` gets no parameter hints.** A `new`, a call
-//!    through a `callable` signature and an erased call on a `mixed` receiver
-//!    each record a different variant, and only one of those carries
-//!    `param_names` at all. Widening is a table question rather than a walk
-//!    one.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/hints.rs` lists them.
 
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};

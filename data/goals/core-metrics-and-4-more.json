@@ -55,10 +55,11 @@
       "id": "dossier-core-metrics",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Metrics",
+      "name": "proofs: Core\\Metrics",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Metrics"
@@ -73,10 +74,11 @@
       "id": "dossier-core-mime",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Mime",
+      "name": "proofs: Core\\Mime",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Mime"
@@ -91,10 +93,11 @@
       "id": "dossier-core-net",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Net",
+      "name": "proofs: Core\\Net",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Net"
@@ -109,10 +112,11 @@
       "id": "dossier-core-net-datagram",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Net\\Datagram",
+      "name": "proofs: Core\\Net\\Datagram",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Net\\Datagram"
@@ -127,10 +131,11 @@
       "id": "dossier-core-net-datagram-message",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Net\\Datagram\\Message",
+      "name": "proofs: Core\\Net\\Datagram\\Message",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Net\\Datagram\\Message"

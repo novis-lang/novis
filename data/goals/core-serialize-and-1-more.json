@@ -52,10 +52,11 @@
       "id": "dossier-core-serialize",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Serialize",
+      "name": "proofs: Core\\Serialize",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Serialize"
@@ -70,10 +71,11 @@
       "id": "dossier-core-server",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Server",
+      "name": "proofs: Core\\Server",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Server"

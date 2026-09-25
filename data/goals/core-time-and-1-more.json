@@ -53,10 +53,11 @@
       "id": "dossier-core-time",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time",
+      "name": "proofs: Core\\Time",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time"
@@ -71,10 +72,11 @@
       "id": "dossier-core-time-date",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time\\Date",
+      "name": "proofs: Core\\Time\\Date",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time\\Date"

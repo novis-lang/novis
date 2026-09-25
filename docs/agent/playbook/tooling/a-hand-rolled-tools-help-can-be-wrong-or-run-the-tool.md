@@ -1,6 +1,0 @@
-- **A hand-rolled tool's `--help` can be wrong or run the tool instead, and `loop.py` reads a
-  non-zero exit on it as a broken script.** The argparse tools print their flags for free, while a
-  hand-rolled parser can omit a flag or ignore `--help` and run its full inventory, hiding what the
-  script takes from any session that asks. `loop.py`'s `tools_still_load` probes every changed
-  `tools/*.py` with `--help`, so a new hand-rolled tool must print its docstring's flag block and
-  exit 0. [until: gone tools/loop.py:tools_still_load]

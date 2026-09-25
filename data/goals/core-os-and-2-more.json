@@ -55,10 +55,11 @@
       "id": "dossier-core-os",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Os",
+      "name": "proofs: Core\\Os",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Os"
@@ -73,10 +74,11 @@
       "id": "dossier-core-out",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Out",
+      "name": "proofs: Core\\Out",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Out"
@@ -91,10 +93,11 @@
       "id": "dossier-core-password",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Password",
+      "name": "proofs: Core\\Password",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Password"

@@ -50,7 +50,7 @@ bundled executable runs identically to `nvs run` against the same source" -- ask
 translation, and the executable is right there to ask instead.
 
 `--expect LINE` is the one place this file judges, and it exists because
-`docs/agent/loop-goal.toml`'s acceptance check needs a verdict rather than a report: every `LINE`
+`docs/agent/loop-goal.toml`'s acceptance check needs a verdict rather than a report: every `LINE`  # check-links:retired
 given must appear in the bundle's own output, and the exit status is 1 when one does not.
 """
 

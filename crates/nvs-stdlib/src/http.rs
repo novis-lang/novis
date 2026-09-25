@@ -113,14 +113,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`Core\Http\TlsInfo::expiry` is a fatal for a peer whose `notAfter` is
-//!    `99991231235959Z`.** RFC 5280 § 4.1.2.5 names exactly that date for a
-//!    certificate with no end, and `Core\Time\Instant` ends before it, so
-//!    [`nvs_core_http_tls_info_expiry`] has no instant to return. Whether it
-//!    returns the last instant or an error a program can catch is a design call
-//!    no record makes yet; `Core\Test::tlsSession` cannot build such a leaf, so
-//!    only a peer, or a Rust test with an `rcgen` leaf, reaches it.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/http.rs` lists them.
 
 mod pool;
 pub(crate) mod socket;

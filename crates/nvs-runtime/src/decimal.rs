@@ -42,12 +42,7 @@
 //!
 //! # Known gaps
 //!
-//! * **Nothing inlines.** That ADR expects `+`, `-` and comparison at equal
-//!   scale to become i128 instructions in the emitted code; today every
-//!   operator is an out-of-line helper call. That is a latency question
-//!   (priority 3) to close in the backend, not a semantic one — the results
-//!   are identical either way.
-//!   — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-runtime/src/decimal.rs` lists them.
 
 use std::cmp::Ordering;
 

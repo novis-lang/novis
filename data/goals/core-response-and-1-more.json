@@ -53,10 +53,11 @@
       "id": "dossier-core-response",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Response",
+      "name": "proofs: Core\\Response",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Response"
@@ -71,10 +72,11 @@
       "id": "dossier-core-response-stream",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Response\\Stream",
+      "name": "proofs: Core\\Response\\Stream",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Response\\Stream"

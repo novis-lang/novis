@@ -53,10 +53,11 @@
       "id": "dossier-core-router",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Router",
+      "name": "proofs: Core\\Router",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Router"
@@ -71,10 +72,11 @@
       "id": "dossier-core-router-match",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Router\\Match",
+      "name": "proofs: Core\\Router\\Match",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Router\\Match"
@@ -89,10 +91,11 @@
       "id": "dossier-core-script",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Script",
+      "name": "proofs: Core\\Script",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Script"
@@ -107,10 +110,11 @@
       "id": "dossier-core-script-exitreport",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Script\\ExitReport",
+      "name": "proofs: Core\\Script\\ExitReport",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Script\\ExitReport"
@@ -125,10 +129,11 @@
       "id": "dossier-core-secret",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Secret",
+      "name": "proofs: Core\\Secret",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Secret"

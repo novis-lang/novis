@@ -5,7 +5,7 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 // `rule:tooling/commands-are-compiled`'s command table is built while compiling, and its reader —
 // `Core\Command::help(?string $name): Cli\Text` — is goal `core-part-ii`'s, because a
 // terminal is not reachable before capabilities exist
-// (docs/agent/goals/1-core-depth.md item 6). So this case asks the question
+// (docs/agent/goals/core-depth.md item 6). So this case asks the question
 // that *is* answerable today, and it is the one that section's promise rests
 // on: **nobody writes usage text**, which is only true if every word of it is
 // already in the declaration. `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval reads those payloads

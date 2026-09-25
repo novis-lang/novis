@@ -16,7 +16,7 @@ The list is derived, never copied. Three live sources:
     updating a list. Both halves of the recognizer are load-bearing and the comment on `CONSTRUCT`
     below says why neither alone is.
 
-*   **The goal's item list**, read out of `docs/agent/loop-goal.md`, and **the carried ones**, read
+*   **The goal's item list**, read out of `docs/agent/loop-goal.md`, and **the carried ones**, read  # check-links:retired
     out of `docs/agent/carried-refusals.md` -- the holes an earlier milestone left, which no current
     goal can claim and which a goal switch would otherwise orphan. Every numbered item carries its
     `crates/…/file.rs:NN` anchors, so a site is attributed to the item whose anchors sit in the same

@@ -518,7 +518,7 @@ marked `~`: it is the machine, not the code.
 ## Candidates
 
 Advisory, never a gate: a `units` figure more than 5x its
-group's median on this machine, a figure past the ceiling `tools/data/dossier-policy.toml`
+group's median on this machine, a figure past the ceiling `data/proofs/policy.json`
 sets for its declared complexity, or a bench recorded as `known-gap`. A row here is where
 a person with a profiler looks first; it is not a verdict.
 

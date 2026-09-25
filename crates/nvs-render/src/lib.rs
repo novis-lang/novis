@@ -36,17 +36,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A `#[Test]` result is not a producer**, so § 22's three output
-//!    formats are the runner's own printing rather than one record rendered
-//!    three ways. `docs/decisions/0079.md:871` lands § 22 itself; the producer
-//!    is M10's, which makes the identical move for a compiler diagnostic
-//!    (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`) and lands
-//!    the surfaces that want a record rather than a printing — the editor's
-//!    Test Explorer, the coverage exporters, `nvs test --bench`.
-//!    — owner: M10
-//! 2. **A compiler diagnostic is not a producer**, which
-//!    `docs/decisions/0092.md:439` schedules rather than defers.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-render/src/lib.rs` lists them.
 //!
 //! # § 5's four transformations, and why they are the model's
 //!

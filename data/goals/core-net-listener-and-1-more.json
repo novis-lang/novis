@@ -53,10 +53,11 @@
       "id": "dossier-core-net-listener",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Net\\Listener",
+      "name": "proofs: Core\\Net\\Listener",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Net\\Listener"
@@ -71,10 +72,11 @@
       "id": "dossier-core-net-stream",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Net\\Stream",
+      "name": "proofs: Core\\Net\\Stream",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Net\\Stream"

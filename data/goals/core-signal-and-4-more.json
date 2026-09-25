@@ -56,10 +56,11 @@
       "id": "dossier-core-signal",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Signal",
+      "name": "proofs: Core\\Signal",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Signal"
@@ -74,10 +75,11 @@
       "id": "dossier-core-signature",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Signature",
+      "name": "proofs: Core\\Signature",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Signature"
@@ -92,10 +94,11 @@
       "id": "dossier-core-signedcookie",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\SignedCookie",
+      "name": "proofs: Core\\SignedCookie",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\SignedCookie"
@@ -110,10 +113,11 @@
       "id": "dossier-core-socket",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Socket",
+      "name": "proofs: Core\\Socket",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Socket"
@@ -128,10 +132,11 @@
       "id": "dossier-core-socket-message",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Socket\\Message",
+      "name": "proofs: Core\\Socket\\Message",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Socket\\Message"

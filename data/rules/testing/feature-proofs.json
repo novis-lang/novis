@@ -15,7 +15,7 @@
     "testing/one-slice-is-one-feature"
   ],
   "guardedBy": [
-    "tools/dossier.py",
-    "tools/data/dossier-policy.toml"
+    "tools/nv/cmd/proofs.ts",
+    "data/proofs/policy.json"
   ]
 }

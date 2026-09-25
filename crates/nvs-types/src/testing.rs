@@ -140,17 +140,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An `abstract` `#[Test]` method is accepted.** [`check_method_shape`]
-//!    refuses four declaration shapes and a method with no body is none of
-//!    them, so an `abstract` `#[Test]` compiles. The runner then finds nothing
-//!    to call, and `nvs_runtime`'s dispatch raises its `internal error` fault
-//!    in place of the test: a program with no unsafe construct in it reaching
-//!    a branch written as unreachable. `rule:testing/test-attribute`
-//!    enumerates the refusals, so adding a fifth is a decision of its own
-//!    rather than a fix to that function's wording.
-//!    `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs`
-//!    is the proof that carries it.
-//!    — owner: M10
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-types/src/testing.rs` lists them.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;

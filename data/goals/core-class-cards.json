@@ -116,8 +116,9 @@
       "stage": 2,
       "name": "no Core class still owes a card",
       "argv": [
-        "python",
-        "tools/class-cards.py",
+        "bun",
+        "nv",
+        "class-cards",
         "--check"
       ],
       "want": [
@@ -157,10 +158,11 @@
       "id": "dossier-help-is-owed-the-whole-roster-owes-nothing-and-the",
       "kind": "command",
       "stage": 5,
-      "name": "dossier: help is owed, the whole roster owes nothing, and the help backlog is empty",
+      "name": "proofs: help is owed, the whole roster owes nothing, and the help backlog is empty",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--gate"
       ],
       "want": [

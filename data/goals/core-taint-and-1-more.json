@@ -54,10 +54,11 @@
       "id": "dossier-core-taint",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Taint",
+      "name": "proofs: Core\\Taint",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Taint"
@@ -72,10 +73,11 @@
       "id": "dossier-core-task",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Task",
+      "name": "proofs: Core\\Task",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Task"

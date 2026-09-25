@@ -308,7 +308,7 @@
       ]
     },
     "markup-literal": {
-      "comment": "``html`…` `` (rule:core-classes/html-literal), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap 1), and when it becomes one the HTML services follow that answer rather than this pattern.",
+      "comment": "``html`…` `` (rule:core-classes/html-literal), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/markup-literals-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
       "name": "string.quoted.other.markup.nvs",
       "begin": "(html`)",
       "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },

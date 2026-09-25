@@ -89,8 +89,9 @@
       "stage": 3,
       "name": "the template still spells every key with a note saying what unset does",
       "argv": [
-        "python",
-        "tools/directives.py",
+        "bun",
+        "nv",
+        "directives",
         "--check-template"
       ],
       "want": [

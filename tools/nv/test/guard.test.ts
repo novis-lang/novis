@@ -7,9 +7,8 @@ import { run } from "../lib/proc.ts";
 /** A tracked file over `nv peek`'s line limit, and a tracked one under it. */
 const LONG = "tools/nv/cmd/peek.ts";
 const SMALL = "package.json";
-/** `goal-grep` matches these paths by name and never opens them, so neither file need exist. */
+/** `goal-grep` matches this path by name and never opens it, so the file need not exist. */
 const RECORD = "data/goals/tooling-overhaul.json";
-const LEGACY = "docs/agent/loop-goal.toml";
 
 const event = (tool: Tool, input: Record<string, unknown>) => ({ tool_name: tool, tool_input: input, cwd: ROOT });
 const bash = (command: string) => decide(event("Bash", { command }));
@@ -43,7 +42,6 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     deny: [
       ["Bash", { command: `rg -n '"stage": 8' ${RECORD}` }],
       ["PowerShell", { command: `Select-String -Path ${RECORD.replace(/\//g, "\\")} -Pattern guard` }],
-      ["Bash", { command: `grep -n 'stage = "8' ${LEGACY}` }],
     ],
     allow: [
       ["Bash", { command: "grep -n guard data/goals/tooling-overhaul.handoff.json" }],

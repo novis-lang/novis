@@ -53,10 +53,11 @@
       "id": "dossier-tools-server",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:server",
+      "name": "proofs: tools:server",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:server"

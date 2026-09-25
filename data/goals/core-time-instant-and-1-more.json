@@ -53,10 +53,11 @@
       "id": "dossier-core-time-instant",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time\\Instant",
+      "name": "proofs: Core\\Time\\Instant",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time\\Instant"
@@ -71,10 +72,11 @@
       "id": "dossier-core-time-timeofday",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time\\TimeOfDay",
+      "name": "proofs: Core\\Time\\TimeOfDay",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time\\TimeOfDay"

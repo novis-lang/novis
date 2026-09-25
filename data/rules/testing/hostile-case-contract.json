@@ -11,6 +11,6 @@
   ],
   "guardedBy": [
     "tests/hostile/README.md",
-    "tools/dossier.py"
+    "tools/nv/cmd/proofs.ts"
   ]
 }

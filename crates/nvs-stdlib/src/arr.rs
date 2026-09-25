@@ -73,56 +73,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A callback that reshapes the subject reshapes what the walk is
-//!    reading.** Every member here borrows its subject ([`crate`]'s *Arguments
-//!    are borrowed, never consumed*), so a subject reached through a static or
-//!    instance property has no second reference while the member holds it: a
-//!    predicate appending to that property appends under the cursor, and
-//!    [`nvs_core_arr_filter`] over it walks the entries it is adding until the
-//!    request's memory limit. PHP's `array_filter` walks its own copy and
-//!    ends, and Novis's own `foreach` holds a reference for the loop's length
-//!    so the body's write copies first. The fix is one retained reference for
-//!    the length of the walk in every member that calls back into Novis code,
-//!    which prices a refcount pair onto every one of those calls and is a
-//!    decision about the helper convention rather than about one member.
-//!    `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs`
-//!    step 4 is the attack, and it passes: the ending is the memory ceiling
-//!    rather than a crash.
-//!    — owner: M11
-//!
-//! 2. **A walk builds its callback's key argument whether the callback takes
-//!    one or not, and over a list that is an allocation per entry.**
-//!    [`find_slot`] and its siblings pass `&[value, key]` to
-//!    [`nvs_runtime::call_closure`] unconditionally, so a predicate declaring
-//!    only `($value)` still pays for the key beside it. Over a string-keyed
-//!    array the key is the stored [`NvsStr`] and cloning it is a refcount
-//!    pair; over a list it is the position rendered to text, which allocates.
-//!    `benches/members/core/Arr/find.nvs` counts 10 allocations per operation
-//!    over its four-entry list, and the same program over a four-entry
-//!    string-keyed array counts 4. The fix is reading the closure's declared
-//!    arity off `CLOSURE_ARITY_SLOT` before the call, which is a decision
-//!    about what every callback member passes rather than about one member.
-//!    — owner: M12
-//!
-//! 3. **A key argument is copied onto the heap before it is looked up.**
-//!    [`key_bytes`] answers a `Vec<u8>`, so `hasKey`, `get`, `set` and every
-//!    other member reading a key allocates one buffer per call even when the
-//!    argument is already a [`NvsStr`] whose bytes could be borrowed for the
-//!    length of the lookup. `benches/members/core/Arr/hasKey.nvs` counts one
-//!    allocation per operation, and the member neither walks nor calls back.
-//!    The fix is a borrowing return type, which every caller's ownership has
-//!    to be read against, and each of their ledger rows re-measured.
-//!    — owner: M12
-//!
-//! 4. **A member that builds an array grows its storage as it appends, with
-//!    the entry count already in hand.** [`NvsArray`] offers `new` and no way
-//!    to reserve, so [`nvs_core_arr_keys`] over a three-entry subject counts
-//!    four allocations for three keys that are clones of the stored ones, and
-//!    the members that build a larger result — `filter` at 16, `mapKeys` at
-//!    25, `groupBy` at 41 — carry the same growth inside their own figures.
-//!    The fix is a capacity constructor on the runtime's array, which every
-//!    building member is then read against one at a time.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/arr.rs` lists them.
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 

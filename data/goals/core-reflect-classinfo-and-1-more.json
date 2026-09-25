@@ -53,10 +53,11 @@
       "id": "dossier-core-reflect-classinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\ClassInfo",
+      "name": "proofs: Core\\Reflect\\ClassInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\ClassInfo"
@@ -71,10 +72,11 @@
       "id": "dossier-core-reflect-constantinfo",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Reflect\\ConstantInfo",
+      "name": "proofs: Core\\Reflect\\ConstantInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Reflect\\ConstantInfo"

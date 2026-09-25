@@ -51,10 +51,11 @@
       "id": "dossier-every-example-attack-and-bench-carries-comments",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: every example, attack and bench carries comments inside the plain-comment bounds",
+      "name": "proofs: every example, attack and bench carries comments inside the plain-comment bounds",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--comments",
         "docs/examples",
         "tests/hostile",
@@ -68,10 +69,11 @@
       "id": "dossier-plain-comments-are-owed-and-the-whole-roster-owes",
       "kind": "command",
       "stage": 3,
-      "name": "dossier: plain comments are owed and the whole roster owes nothing",
+      "name": "proofs: plain comments are owed and the whole roster owes nothing",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--gate"
       ],
       "want": [

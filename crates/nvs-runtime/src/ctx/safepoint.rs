@@ -460,7 +460,7 @@ pub(super) struct TreeShare {
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
 /// Every flag but one acts: `DEBUG_BREAK` is cleared and ignored, which is the
-/// crate docs' known gap 8 and waits on `nvs dap`.
+/// crate docs' known gap `nvs-runtime/nvs-safepoint-clears-debug-break-and` and waits on `nvs dap`.
 ///
 /// # Safety
 ///
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn a_debug_break_request_is_cleared_rather_than_acted_on() {
-        // The one flag the poll still drops — the crate docs' known gap 8,
+        // The one flag the poll still drops — the crate docs' known gap `nvs-runtime/nvs-safepoint-clears-debug-break-and`,
         // waiting on `nvs dap`. Its neighbour `COLLECT` is answered now, and
         // `crate::object`'s tests are where that is shown.
         let mut ctx = Ctx::buffered();

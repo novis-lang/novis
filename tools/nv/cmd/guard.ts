@@ -313,8 +313,8 @@ function wholeReads(words: string[], ps: boolean): string[] | null {
 const PROOF_DIRS = ["docs/examples/", "tests/hostile/", "benches/members/"];
 const LOOP_WORD = /^(?:for|while|until|foreach|foreach-object|xargs)(?![\w-])|^%$/i;
 const SEARCHERS = new Set(["grep", "egrep", "rg", "sed", "awk", "select-string", "sls", "findstr"]);
-/** A file that holds a goal's checks: its record, and the Python driver's copy of the live goal's checks. */
-const GOAL_CHECKS = [/(?:^|\/)data\/goals\/[a-z0-9]+(?:-[a-z0-9]+)*\.json$/, /(?:^|\/)docs\/agent\/loop-goal\.toml$/];
+/** A goal's record, the file that holds its checks. */
+const GOAL_CHECKS = [/(?:^|\/)data\/goals\/[a-z0-9]+(?:-[a-z0-9]+)*\.json$/];
 const WRITERS = new Set(["set-content", "out-file", "add-content"]);
 const WRITER_PATH = /^-(path|filepath|literalpath)$/i;
 const WRITER_VALUE = /^-(value|encoding|inputobject|width)$/i;

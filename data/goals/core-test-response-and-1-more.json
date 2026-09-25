@@ -53,10 +53,11 @@
       "id": "dossier-core-test-response",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Test\\Response",
+      "name": "proofs: Core\\Test\\Response",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Test\\Response"
@@ -71,10 +72,11 @@
       "id": "dossier-core-test-sentrequest",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Test\\SentRequest",
+      "name": "proofs: Core\\Test\\SentRequest",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Test\\SentRequest"

@@ -447,7 +447,7 @@ refuses the wrap rather than reaching CI.
 arrived in.** `git log` keeps the arrival order, so nothing is lost by not writing it twice, and a
 reader who opens a chapter at the top meets the thing being declared before anything that constrains it.
 
-[`docs/rules/_index.json`](../rules/_index.json) is where a chapter's place is written, and its `order`
+`docs/rules/_index.json` is where a chapter's place is written, and its `order`
 values sit ten apart so a new topic slots in without renumbering its neighbours. The five bands, in the
 order the generated pages walk them:
 

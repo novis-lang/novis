@@ -53,10 +53,11 @@
       "id": "dossier-tools-install",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: tools:install",
+      "name": "proofs: tools:install",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "tools:install"

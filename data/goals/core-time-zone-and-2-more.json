@@ -55,10 +55,11 @@
       "id": "dossier-core-time-zone",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time\\Zone",
+      "name": "proofs: Core\\Time\\Zone",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time\\Zone"
@@ -73,10 +74,11 @@
       "id": "dossier-core-topic",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Topic",
+      "name": "proofs: Core\\Topic",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Topic"
@@ -91,10 +93,11 @@
       "id": "dossier-core-totp",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Totp",
+      "name": "proofs: Core\\Totp",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Totp"

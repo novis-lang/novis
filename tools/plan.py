@@ -327,7 +327,7 @@ def schedule_cell(slugs):
 
 
 def live_goal():
-    """The chain entry `docs/agent/loop-goal.md` is currently a copy of, or None.
+    """The chain entry `docs/agent/loop-goal.md` is currently a copy of, or None.  # check-links:retired
 
     Matched on the H1, which `goal-switch.py` copies verbatim: the live file carries no id to read
     and the H1 is the one thing the copy and its source are guaranteed to share. `.loop/chain.json`
@@ -854,7 +854,7 @@ def walked_goals():
 
     Two facts say a goal has walked and they agree: it sits in front of the live goal, or its
     `.toml` is gone, which is exactly what retiring one deletes. The union is taken so that a
-    checkout whose `docs/agent/loop-goal.md` names nothing in the chain -- one that has never run
+    checkout whose `docs/agent/loop-goal.md` names nothing in the chain -- one that has never run  # check-links:retired
     the loop -- still lints against the retired half rather than against nothing."""
     live = live_goal()
     return {

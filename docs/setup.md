@@ -9,7 +9,7 @@ fuzzing — is [docs/agent/commands.md](agent/commands.md).
 machine gets wrong. The rest is a Rust toolchain that installs itself.
 
 **Moving development to another machine is this file and nothing else.** Everything that decides what
-happens next is committed — the plan, the goal, [handoff.md](agent/handoff.md) — so a clone plus the steps
+happens next is committed — the plan, the goal, `handoff.md` — so a clone plus the steps
 below lands the new machine where the old one stopped. § *What a clone does not carry* is the part that is
 not an install; § *Picking up where the last machine left off* is the order to do it all in.
 
@@ -213,7 +213,7 @@ Once those are green, in this order:
    a clean tree sitting at `origin/main` *is* the handover.
 2. **`python tools/brief.py`** — the plan's status, one line per milestone and per module, the guard tests,
    what is on disk. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
-3. [docs/agent/handoff.md](agent/handoff.md) — where the work stands now, and the next group of slices with
+3. `docs/agent/handoff.md` — where the work stands now, and the next group of slices with
    the file set they share. It is overwritten each session, so it is state rather than history.
 4. `python tools/loop.py` if the unattended loop is what runs next; its design is
    [docs/agent/coordinator.md](agent/coordinator.md). It is the one thing here that needs a `claude` on

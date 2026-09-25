@@ -426,10 +426,11 @@
       "id": "dossier-the-running-server-section-owes-no-proof",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: the running-server section owes no proof",
+      "name": "proofs: the running-server section owes no proof",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--gate",
         "--only",
         "tools:server/what-reaches-a-running-server"
@@ -442,10 +443,11 @@
       "id": "dossier-every-program-this-goal-writes-or-rewrites-carries",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: every program this goal writes or rewrites carries comments inside the plain-comment bounds",
+      "name": "proofs: every program this goal writes or rewrites carries comments inside the plain-comment bounds",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--comments",
         "docs/examples/config/cache-shared",
         "docs/examples/config/io-temp_root",
@@ -2056,8 +2058,9 @@
       "stage": 1,
       "name": "check-migration at 33%",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "33"
       ],
@@ -2348,8 +2351,9 @@
       "stage": 1,
       "name": "check-migration at 34%",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "34"
       ],
@@ -2544,8 +2548,9 @@
       "stage": 1,
       "name": "the CLI's own start work stays under 6ms",
       "argv": [
-        "python",
-        "tools/bench.py",
+        "bun",
+        "nv",
+        "bench",
         "--warm-start",
         "--max-work-ms",
         "6"
@@ -2610,8 +2615,9 @@
       "stage": 1,
       "name": "nvs build --compile produces a runnable binary",
       "argv": [
-        "python",
-        "tools/try.py",
+        "bun",
+        "nv",
+        "try",
         "--bundle",
         "examples/hello.nvs",
         "--expect",
@@ -2674,8 +2680,9 @@
       "stage": 1,
       "name": "check-migration at 36%",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "36"
       ],
@@ -3236,8 +3243,9 @@
       "stage": 1,
       "name": "the C-dependency ledger is unchanged",
       "argv": [
-        "python",
-        "tools/gen-attribution.py",
+        "bun",
+        "nv",
+        "gen-attribution",
         "--check-c-deps"
       ],
       "want": [
@@ -3287,8 +3295,9 @@
       "stage": 1,
       "name": "check-migration at 74%",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "74"
       ],
@@ -3539,8 +3548,9 @@
       "stage": 1,
       "name": "the five-driver matrix",
       "argv": [
-        "python",
-        "tools/db-matrix.py",
+        "bun",
+        "nv",
+        "db-matrix",
         "--all"
       ],
       "want": [
@@ -3764,8 +3774,9 @@
       "stage": 1,
       "name": "check-migration at 94%",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "94"
       ],
@@ -4453,8 +4464,9 @@
       "stage": 1,
       "name": "throughput against PHP 8.5 + FPM + opcache, recorded",
       "argv": [
-        "python",
-        "tools/bench.py",
+        "bun",
+        "nv",
+        "bench",
         "--serve-vs-fpm",
         "--record",
         "benches/results/serve.json"
@@ -4502,8 +4514,9 @@
       "stage": 1,
       "name": "check-migration at 100% -- PARITY",
       "argv": [
-        "python",
-        "tools/check-migration.py",
+        "bun",
+        "nv",
+        "migration",
         "--min",
         "100"
       ],
@@ -4548,8 +4561,9 @@
       "stage": 1,
       "name": "the durable gap list exists and every entry names an owner",
       "argv": [
-        "python",
-        "tools/chain.py",
+        "bun",
+        "nv",
+        "chain",
         "--check"
       ]
     },
@@ -5403,8 +5417,9 @@
       "stage": 1,
       "name": "the one-file reference still regenerates from the binary",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--check"
       ]
     },
@@ -5650,8 +5665,9 @@
       "stage": 1,
       "name": "the pipeline operator owes no proof",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--only",
         "lang:expressions/the-pipeline-operator",
         "--gate"
@@ -5804,8 +5820,9 @@
       "stage": 1,
       "name": "the two editor tool headings owe no proof",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--only",
         "tools:editor/nvs-lsp",
         "tools:editor/nvs-lsp-test",
@@ -5868,8 +5885,9 @@
       "stage": 1,
       "name": "the extension heading owes no proof",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--only",
         "tools:editor/the-vs-code-extension",
         "--gate"
@@ -6865,8 +6883,9 @@
       "stage": 1,
       "name": "the rulebook validates, and the rule this goal ships is no longer designed",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -6876,8 +6895,9 @@
       "stage": 1,
       "name": "every generated chapter is current with the fragment and its topic entry",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--render",
         "--check"
       ]
@@ -6888,8 +6908,9 @@
       "stage": 1,
       "name": "the record and the rulebook still agree on what this decision created",
       "argv": [
-        "python",
-        "tools/decisions.py",
+        "bun",
+        "nv",
+        "decisions",
         "--gate"
       ]
     },
@@ -6972,8 +6993,9 @@
       "stage": 1,
       "name": "the rulebook validates, and neither rule this goal ships is still designed",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -6983,8 +7005,9 @@
       "stage": 1,
       "name": "every generated chapter is current with the fragments and their topic entries",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--render",
         "--check"
       ]
@@ -6995,8 +7018,9 @@
       "stage": 1,
       "name": "the rulebook validates, so no rule audited in stage 0 was left in a state that contradicts it",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -7072,8 +7096,9 @@
       "stage": 1,
       "name": "every refusal the primer states is refused, and every example in it runs and prints what it says",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--primer",
         "--check"
       ]
@@ -7158,8 +7183,9 @@
       "stage": 1,
       "name": "a cold-start walk -- primer, find, show, check -- returns a resolving answer at every step",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--agent-walk"
       ]
     },
@@ -7169,8 +7195,9 @@
       "stage": 1,
       "name": "the rulebook validates, and none of this goal's four rules is still designed",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -7265,8 +7292,9 @@
       "stage": 1,
       "name": "owners.py walks every Known gaps block and answers",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--json"
       ]
     },
@@ -7276,8 +7304,9 @@
       "stage": 1,
       "name": "the gate: every gap item names an owner the chain or the plan knows",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check"
       ]
     },
@@ -7287,8 +7316,9 @@
       "stage": 1,
       "name": "the unowned list is the scheduling questions and nothing else",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--unowned"
       ]
     },
@@ -7298,8 +7328,9 @@
       "stage": 1,
       "name": "no untagged gap item survives anywhere in crates/",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check",
         "--untagged-is-an-error"
       ]
@@ -7310,8 +7341,9 @@
       "stage": 1,
       "name": "every `unowned` tag has a reason bullet behind it",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check",
         "--reasons"
       ]
@@ -7322,8 +7354,9 @@
       "stage": 1,
       "name": "the chain still walks, and every goal a tag names is on it",
       "argv": [
-        "python",
-        "tools/chain.py",
+        "bun",
+        "nv",
+        "chain",
         "--check"
       ]
     },
@@ -7345,8 +7378,9 @@
       "stage": 1,
       "name": "the orientation pack names the unowned count",
       "argv": [
-        "python",
-        "tools/brief.py",
+        "bun",
+        "nv",
+        "brief",
         "--where",
         "unowned"
       ]
@@ -7455,8 +7489,9 @@
       "stage": 1,
       "name": "the unowned list holds only the open decision it should",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--unowned",
         "--check"
       ]
@@ -7722,8 +7757,9 @@
       "stage": 1,
       "name": "the `is` operator has a reference heading and a precedence row",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--check"
       ]
     },
@@ -7894,8 +7930,9 @@
       "stage": 1,
       "name": "the two members have reference entries and the grant has a documented block",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--check"
       ]
     },
@@ -8023,8 +8060,9 @@
       "stage": 1,
       "name": "the SQLite leg runs the queue suites, with no container at all",
       "argv": [
-        "python",
-        "tools/db-matrix.py",
+        "bun",
+        "nv",
+        "db-matrix",
         "--driver",
         "sqlite"
       ],
@@ -8683,8 +8721,9 @@
       "stage": 1,
       "name": "the rulebook validates, including the fragment this goal adds",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -8694,8 +8733,9 @@
       "stage": 1,
       "name": "every record this goal opened is complete and cited",
       "argv": [
-        "python",
-        "tools/decisions.py",
+        "bun",
+        "nv",
+        "decisions",
         "--gate"
       ]
     },
@@ -8705,8 +8745,9 @@
       "stage": 1,
       "name": "the directive roster derives from the tree, and both spellings of a reader count",
       "argv": [
-        "python",
-        "tools/directives.py",
+        "bun",
+        "nv",
+        "directives",
         "--check"
       ]
     },
@@ -8716,8 +8757,9 @@
       "stage": 1,
       "name": "a key read only through a flat dotted lookup is not reported unread",
       "argv": [
-        "python",
-        "tools/directives.py",
+        "bun",
+        "nv",
+        "directives",
         "--explain",
         "storage.<name>.root"
       ]
@@ -8758,8 +8800,9 @@
       "stage": 1,
       "name": "the generated file holds every key the tree parses, exactly once, and nothing it does not",
       "argv": [
-        "python",
-        "tools/directives.py",
+        "bun",
+        "nv",
+        "directives",
         "--check-template"
       ]
     },
@@ -8834,8 +8877,9 @@
       "stage": 1,
       "name": "no document in the tree still cites this goal's subject by ADR number",
       "argv": [
-        "python",
-        "tools/check-links.py"
+        "bun",
+        "nv",
+        "links"
       ]
     },
     {
@@ -9099,8 +9143,9 @@
       "stage": 1,
       "name": "the rulebook validates, including the fragments this goal edits",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -9110,8 +9155,9 @@
       "stage": 1,
       "name": "the generated reference carries the new members and classes",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--check"
       ]
     },
@@ -9276,8 +9322,9 @@
       "stage": 1,
       "name": "no document in the tree still says three endings",
       "argv": [
-        "python",
-        "tools/check-links.py"
+        "bun",
+        "nv",
+        "links"
       ]
     },
     {
@@ -9286,8 +9333,9 @@
       "stage": 1,
       "name": "the generated reference carries the new member and its report case",
       "argv": [
-        "python",
-        "tools/reference.py",
+        "bun",
+        "nv",
+        "reference",
         "--check"
       ]
     },
@@ -9546,8 +9594,9 @@
       "stage": 1,
       "name": "the formatter's rules are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "tooling/fmt-is-one-canonical-style"
       ],
@@ -9601,8 +9650,9 @@
       "stage": 1,
       "name": "the rule is renamed for what it now says, and shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "ide/a-template-region-gets-the-editors-services-and-formatter"
       ],
@@ -9616,8 +9666,9 @@
       "stage": 1,
       "name": "the interop tier is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/crypto-interop-tier"
       ],
@@ -9631,8 +9682,9 @@
       "stage": 1,
       "name": "the JWE subset is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/jwe-compact-subset"
       ],
@@ -9646,8 +9698,9 @@
       "stage": 1,
       "name": "the JWS subset is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/jws-issued-subset"
       ],
@@ -9830,8 +9883,9 @@
       "stage": 1,
       "name": "the interop tier is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/crypto-interop-tier"
       ],
@@ -9845,8 +9899,9 @@
       "stage": 1,
       "name": "the JWE subset is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/jwe-compact-subset"
       ],
@@ -9860,8 +9915,9 @@
       "stage": 1,
       "name": "the JWS subset is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/jws-issued-subset"
       ],
@@ -9875,8 +9931,9 @@
       "stage": 1,
       "name": "one body per outbound request is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-request-carries-one-body"
       ],
@@ -9890,8 +9947,9 @@
       "stage": 1,
       "name": "a streamed reply's bound is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"
       ],
@@ -9905,8 +9963,9 @@
       "stage": 1,
       "name": "the pinned per-core pool is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"
       ],
@@ -9920,8 +9979,9 @@
       "stage": 1,
       "name": "a cross-origin redirect dropping credentials is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-cross-origin-redirect-drops-credentials"
       ],
@@ -9935,8 +9995,9 @@
       "stage": 1,
       "name": "an outbound call answered from a table is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "testing/an-outbound-call-is-answered-from-a-table"
       ],
@@ -9950,8 +10011,9 @@
       "stage": 1,
       "name": "the operator's client trust roots are a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/the-client-trust-roots-are-the-operators"
       ],
@@ -9965,8 +10027,9 @@
       "stage": 1,
       "name": "relaxing TLS only under a host grant is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/tls-trust-is-relaxed-only-under-a-host-grant"
       ],
@@ -9980,8 +10043,9 @@
       "stage": 1,
       "name": "naming an outbound address only under a grant is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-call-names-its-address-only-under-a-grant"
       ],
@@ -9995,8 +10059,9 @@
       "stage": 1,
       "name": "an https redirect never becoming plaintext is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-https-redirect-never-becomes-plaintext"
       ],
@@ -10010,8 +10075,9 @@
       "stage": 1,
       "name": "a reply reporting its TLS session is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-reply-reports-its-tls-session"
       ],
@@ -10025,8 +10091,9 @@
       "stage": 1,
       "name": "trying every approved address is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-call-tries-every-approved-address"
       ],
@@ -10388,8 +10455,9 @@
       "stage": 1,
       "name": "one body per outbound request is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-request-carries-one-body"
       ],
@@ -10403,8 +10471,9 @@
       "stage": 1,
       "name": "a streamed reply's bound is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"
       ],
@@ -10418,8 +10487,9 @@
       "stage": 1,
       "name": "the pinned per-core pool is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"
       ],
@@ -10433,8 +10503,9 @@
       "stage": 1,
       "name": "a cross-origin redirect dropping credentials is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-cross-origin-redirect-drops-credentials"
       ],
@@ -10448,8 +10519,9 @@
       "stage": 1,
       "name": "an outbound call answered from a table is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "testing/an-outbound-call-is-answered-from-a-table"
       ],
@@ -10463,8 +10535,9 @@
       "stage": 1,
       "name": "the operator's client trust roots are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/the-client-trust-roots-are-the-operators"
       ],
@@ -10478,8 +10551,9 @@
       "stage": 1,
       "name": "relaxing TLS only under a host grant is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "security/tls-trust-is-relaxed-only-under-a-host-grant"
       ],
@@ -10493,8 +10567,9 @@
       "stage": 1,
       "name": "naming an outbound address only under a grant is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-call-names-its-address-only-under-a-grant"
       ],
@@ -10508,8 +10583,9 @@
       "stage": 1,
       "name": "an https redirect never becoming plaintext is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-https-redirect-never-becomes-plaintext"
       ],
@@ -10523,8 +10599,9 @@
       "stage": 1,
       "name": "a reply reporting its TLS session is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-reply-reports-its-tls-session"
       ],
@@ -10538,8 +10615,9 @@
       "stage": 1,
       "name": "trying every approved address is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-call-tries-every-approved-address"
       ],
@@ -10553,8 +10631,9 @@
       "stage": 1,
       "name": "the process tier is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/the-process-tier-is-one-store-per-process"
       ],
@@ -10568,8 +10647,9 @@
       "stage": 1,
       "name": "a secret cached only sealed is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/a-secret-is-cached-only-sealed"
       ],
@@ -10583,8 +10663,9 @@
       "stage": 1,
       "name": "a secret fill running once per process is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/a-secret-fill-runs-once-per-process"
       ],
@@ -10598,8 +10679,9 @@
       "stage": 1,
       "name": "a session holding a secret only sealed is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-session-holds-a-secret-only-sealed"
       ],
@@ -10751,8 +10833,9 @@
       "stage": 1,
       "name": "the process tier is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/the-process-tier-is-one-store-per-process"
       ],
@@ -10766,8 +10849,9 @@
       "stage": 1,
       "name": "a secret cached only sealed is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/a-secret-is-cached-only-sealed"
       ],
@@ -10781,8 +10865,9 @@
       "stage": 1,
       "name": "a secret fill running once per process is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/a-secret-fill-runs-once-per-process"
       ],
@@ -10796,8 +10881,9 @@
       "stage": 1,
       "name": "a session holding a secret only sealed is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-session-holds-a-secret-only-sealed"
       ],
@@ -10811,8 +10897,9 @@
       "stage": 1,
       "name": "an operator-configured proxy is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-proxy-is-operator-configured"
       ],
@@ -10826,8 +10913,9 @@
       "stage": 1,
       "name": "a proxied call keeping its pin is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"
       ],
@@ -10892,8 +10980,9 @@
       "stage": 1,
       "name": "an operator-configured proxy is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-proxy-is-operator-configured"
       ],
@@ -10907,8 +10996,9 @@
       "stage": 1,
       "name": "a proxied call keeping its pin is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"
       ],
@@ -10922,8 +11012,9 @@
       "stage": 1,
       "name": "an outbound socket opened like an outbound call is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
       ],
@@ -10937,8 +11028,9 @@
       "stage": 1,
       "name": "an outbound socket belonging to its task is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it"
       ],
@@ -10952,8 +11044,9 @@
       "stage": 1,
       "name": "an outbound socket's bounds are a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"
       ],
@@ -10967,8 +11060,9 @@
       "stage": 1,
       "name": "an outbound socket answered by a scripted peer is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "testing/an-outbound-socket-is-answered-by-a-scripted-peer"
       ],
@@ -11076,8 +11170,9 @@
       "stage": 1,
       "name": "an outbound socket opened like an outbound call is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
       ],
@@ -11091,8 +11186,9 @@
       "stage": 1,
       "name": "an outbound socket belonging to its task is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it"
       ],
@@ -11106,8 +11202,9 @@
       "stage": 1,
       "name": "an outbound socket's bounds are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"
       ],
@@ -11121,8 +11218,9 @@
       "stage": 1,
       "name": "an outbound socket answered by a scripted peer is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "testing/an-outbound-socket-is-answered-by-a-scripted-peer"
       ],
@@ -11136,8 +11234,9 @@
       "stage": 1,
       "name": "no plan sentence defers work to a goal that has already walked",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--stale"
       ],
       "want": [
@@ -11150,8 +11249,9 @@
       "stage": 1,
       "name": "plan.py: the index and the chain still agree",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--check"
       ],
       "want": [
@@ -11164,8 +11264,9 @@
       "stage": 1,
       "name": "no module-doc gap names a goal that walked without closing it",
       "argv": [
-        "python",
-        "tools/owners.py"
+        "bun",
+        "nv",
+        "owners"
       ],
       "want": [
         ", 0 owned by a retired goal"
@@ -11177,8 +11278,9 @@
       "stage": 1,
       "name": "no index row names a goal that walked without closing it",
       "argv": [
-        "python",
-        "tools/playbook.py",
+        "bun",
+        "nv",
+        "playbook",
         "--check"
       ],
       "want": [
@@ -11191,8 +11293,9 @@
       "stage": 1,
       "name": "one roster over every register there is",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--registers"
       ],
       "want": [
@@ -11211,8 +11314,9 @@
       "stage": 1,
       "name": "a past-milestone tag is counted, and every recorded gap names an owner",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check",
         "--untagged-is-an-error",
         "--reasons"
@@ -11228,8 +11332,9 @@
       "stage": 1,
       "name": "every deferral names a future milestone whose plan states the scope",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--deferrals"
       ],
       "want": [
@@ -11259,8 +11364,9 @@
       "stage": 1,
       "name": "no module doc records owed work outside its Known gaps block",
       "argv": [
-        "python",
-        "tools/owners.py"
+        "bun",
+        "nv",
+        "owners"
       ],
       "want": [
         "sections outside Known gaps: 0"
@@ -11272,8 +11378,9 @@
       "stage": 1,
       "name": "each past milestone reports whether it is complete",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--past"
       ],
       "want": [
@@ -11290,13 +11397,14 @@
       "stage": 1,
       "name": "brief.py routes a gap question to the register",
       "argv": [
-        "python",
-        "tools/brief.py",
+        "bun",
+        "nv",
+        "brief",
         "--where",
         "gap"
       ],
       "want": [
-        "tools/owners.py"
+        "bun nv owners"
       ]
     },
     {
@@ -11321,8 +11429,9 @@
       "stage": 1,
       "name": "the by-reference, foreach, element-write and unset sites are guarded by their codes",
       "argv": [
-        "python",
-        "tools/holes.py",
+        "bun",
+        "nv",
+        "holes",
         "--guarded"
       ],
       "want": [
@@ -11422,8 +11531,9 @@
       "stage": 1,
       "name": "the label pairs with no equality row and a void condition are guarded by their codes",
       "argv": [
-        "python",
-        "tools/holes.py",
+        "bun",
+        "nv",
+        "holes",
         "--guarded"
       ],
       "want": [
@@ -11605,8 +11715,9 @@
       "stage": 1,
       "name": "a worker placement running the child on another core is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/on-worker-runs-the-child-on-another-core"
       ],
@@ -11771,8 +11882,9 @@
       "stage": 1,
       "name": "a worker placement running the child on another core is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "concurrency/on-worker-runs-the-child-on-another-core"
       ],
@@ -11786,8 +11898,9 @@
       "stage": 1,
       "name": "a spawn is its own trace event, shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/spawn-is-its-own-event"
       ],
@@ -11801,8 +11914,9 @@
       "stage": 1,
       "name": "the host tier running locally and in CI is the rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"
       ],
@@ -11890,9 +12004,9 @@
       "stage": 1,
       "name": "ci.yml runs the headless suites on three platforms, the host suite under xvfb, and uploads the vsix",
       "argv": [
-        "python",
-        "-c",
-        "import pathlib; t = pathlib.Path('.github/workflows/ci.yml').read_text(encoding='utf-8'); [print(m) for m in ('outputs.editor', '  extension:', 'editors/vscode/.nvmrc', 'npm ci', 'test:headless', 'npm run package', 'actions/upload-artifact', 'editors/vscode/nvs.vsix', '  extension-host:', 'xvfb-run -a', 'test:host') if m in t]"
+        "bun",
+        "-e",
+        "const t = require(\"fs\").readFileSync(\".github/workflows/ci.yml\", \"utf8\"); for (const m of [\"outputs.editor\",\"  extension:\",\"editors/vscode/.nvmrc\",\"npm ci\",\"test:headless\",\"npm run package\",\"actions/upload-artifact\",\"editors/vscode/nvs.vsix\",\"  extension-host:\",\"xvfb-run -a\",\"test:host\"]) if (t.includes(m)) console.log(m);"
       ],
       "want": [
         "outputs.editor",
@@ -11914,9 +12028,10 @@
       "stage": 1,
       "name": "the lane table has an editor lane over editors/ and the crates",
       "argv": [
-        "python",
-        "-c",
-        "import pathlib; t = pathlib.Path('tools/ci-changes.py').read_text(encoding='utf-8'); [print(m) for m in ('\"editor\": (', '\"editors/\"') if m in t]"
+        "bun",
+        "nv",
+        "ci-changes",
+        "--lanes"
       ],
       "want": [
         "\"editor\": (",
@@ -11948,8 +12063,9 @@
       "stage": 1,
       "name": "the two-tier rule is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"
       ],
@@ -11963,8 +12079,9 @@
       "stage": 1,
       "name": "the lockfile rule is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "ide/the-lockfile-is-committed-and-build-output-is-not"
       ],
@@ -11978,8 +12095,9 @@
       "stage": 1,
       "name": "the extension-runs-where-the-binary-is rule is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "ide/the-extension-runs-where-the-binary-is"
       ],
@@ -11993,8 +12111,9 @@
       "stage": 1,
       "name": "an enum capture's segment spelling is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"
       ],
@@ -12008,8 +12127,9 @@
       "stage": 1,
       "name": "an exporter bringing no second scheduler and no second client is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/an-exporter-brings-no-second-scheduler-and-no-second-client"
       ],
@@ -12360,8 +12480,9 @@
       "stage": 1,
       "name": "an enum capture's segment spelling is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"
       ],
@@ -12375,8 +12496,9 @@
       "stage": 1,
       "name": "an exporter with no second scheduler is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/an-exporter-brings-no-second-scheduler-and-no-second-client"
       ],
@@ -12390,8 +12512,9 @@
       "stage": 1,
       "name": "the one local control socket is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "config/one-local-control-socket"
       ],
@@ -12405,8 +12528,9 @@
       "stage": 1,
       "name": "ctl config reporting the live snapshot is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "config/ctl-config-reports-the-live-snapshot"
       ],
@@ -12420,8 +12544,9 @@
       "stage": 1,
       "name": "a service as one stored argv is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "packaging/a-service-is-one-stored-argv"
       ],
@@ -12435,8 +12560,9 @@
       "stage": 1,
       "name": "a service answering its manager is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "packaging/a-service-answers-its-manager"
       ],
@@ -12450,8 +12576,9 @@
       "stage": 1,
       "name": "the unix socket listener is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "http-server/a-unix-socket-listener"
       ],
@@ -12465,8 +12592,9 @@
       "stage": 1,
       "name": "a fleet entry under a lease is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "config/a-fleet-entry-fires-at-most-once-under-a-lease"
       ],
@@ -12480,8 +12608,9 @@
       "stage": 1,
       "name": "the per-mount origin and its boot check are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "routing/an-origin-is-per-mount-and-checked-at-boot"
       ],
@@ -12495,8 +12624,9 @@
       "stage": 1,
       "name": "the exporters rule is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/the-exporters-are-crates"
       ],
@@ -12510,8 +12640,9 @@
       "stage": 1,
       "name": "four kinds becoming a span is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/four-kinds-become-a-span"
       ],
@@ -12543,8 +12674,9 @@
       "stage": 1,
       "name": "a stream's parked read is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/a-stream-parks-its-read-on-the-connection"
       ],
@@ -12558,8 +12690,9 @@
       "stage": 1,
       "name": "serverVersion's answer is a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/server-version-is-what-the-server-said"
       ],
@@ -12573,8 +12706,9 @@
       "stage": 1,
       "name": "a unique key's null semantics are a rule",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/a-unique-key-reads-nulls-as-distinct"
       ],
@@ -12650,8 +12784,9 @@
       "stage": 1,
       "name": "the five-driver matrix, streaming included",
       "argv": [
-        "python",
-        "tools/db-matrix.py",
+        "bun",
+        "nv",
+        "db-matrix",
         "--all"
       ],
       "want": [
@@ -12858,8 +12993,9 @@
       "stage": 1,
       "name": "the matrix runs three drivers over AF_UNIX after the five TCP legs",
       "argv": [
-        "python",
-        "tools/db-matrix.py",
+        "bun",
+        "nv",
+        "db-matrix",
         "--all"
       ],
       "want": [
@@ -12897,8 +13033,9 @@
       "stage": 1,
       "name": "the lane table has a database lane",
       "argv": [
-        "python",
-        "tools/ci-changes.py",
+        "bun",
+        "nv",
+        "ci-changes",
         "--full"
       ],
       "want": [
@@ -12911,8 +13048,9 @@
       "stage": 1,
       "name": "a stream's parked read is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/a-stream-parks-its-read-on-the-connection"
       ],
@@ -12926,8 +13064,9 @@
       "stage": 1,
       "name": "serverVersion's answer is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/server-version-is-what-the-server-said"
       ],
@@ -12941,8 +13080,9 @@
       "stage": 1,
       "name": "a unique key's null semantics are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/a-unique-key-reads-nulls-as-distinct"
       ],
@@ -12973,8 +13113,9 @@
       "stage": 1,
       "name": "the array rule states the covariant read the record decided",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "types/arrays"
       ],
@@ -13444,8 +13585,9 @@
       "stage": 1,
       "name": "spawn is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "core-classes/process-spawn"
       ],
@@ -13459,8 +13601,9 @@
       "stage": 1,
       "name": "the three metrics verbs are shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/metrics-three-members"
       ],
@@ -13474,8 +13617,9 @@
       "stage": 1,
       "name": "Core\\Metrics in every build is shipped",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--show",
         "observability/the-exporter-is-a-feature-and-core-metrics-is-not"
       ],
@@ -13489,8 +13633,9 @@
       "stage": 1,
       "name": "no module-doc gap is unowned",
       "argv": [
-        "python",
-        "tools/owners.py"
+        "bun",
+        "nv",
+        "owners"
       ],
       "want": [
         "unowned: 0"
@@ -13682,8 +13827,9 @@
       "stage": 1,
       "name": "the rulebook renders and every fragment the record names exists",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -13693,8 +13839,9 @@
       "stage": 1,
       "name": "the class-scoped alias is a shipped rule the pack can print",
       "argv": [
-        "python",
-        "tools/peek.py",
+        "bun",
+        "nv",
+        "peek",
         "docs/rules/types/class-scoped-alias.md"
       ],
       "want": [
@@ -13880,8 +14027,9 @@
       "stage": 1,
       "name": "the five-driver matrix, with a `bytes` bound on each",
       "argv": [
-        "python",
-        "tools/db-matrix.py",
+        "bun",
+        "nv",
+        "db-matrix",
         "--all"
       ],
       "want": [
@@ -13973,8 +14121,9 @@
       "stage": 1,
       "name": "no module-doc gap names this goal",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--closes",
         "decided-closures"
       ],
@@ -13988,8 +14137,9 @@
       "stage": 1,
       "name": "no index row names this goal",
       "argv": [
-        "python",
-        "tools/playbook.py",
+        "bun",
+        "nv",
+        "playbook",
         "--closes",
         "decided-closures"
       ],
@@ -14003,8 +14153,9 @@
       "stage": 1,
       "name": "no gap is owed to a milestone the program has passed",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check",
         "--past-is-an-error"
       ],
@@ -14197,14 +14348,9 @@
       "stage": 1,
       "name": "the divergence rule is shipped",
       "argv": [
-        "git",
-        "grep",
-        "-n",
-        "-A",
-        "2",
-        "\"id\": \"php-migration/one-type-test\"",
-        "--",
-        "docs/rules/php-migration.json"
+        "bun",
+        "-e",
+        "const r = JSON.parse(require(\"fs\").readFileSync(\"data/rules/php-migration/one-type-test.json\", \"utf8\")); console.log(JSON.stringify({ id: \"php-migration/one-type-test\", ...r }, null, 2));"
       ],
       "want": [
         "\"status\": \"shipped\""
@@ -14216,8 +14362,9 @@
       "stage": 1,
       "name": "the chain still walks",
       "argv": [
-        "python",
-        "tools/chain.py",
+        "bun",
+        "nv",
+        "chain",
         "--check"
       ]
     },
@@ -14227,14 +14374,9 @@
       "stage": 1,
       "name": "the divergence rule exists and the record created it",
       "argv": [
-        "git",
-        "grep",
-        "-n",
-        "-A",
-        "4",
-        "\"id\": \"php-migration/one-type-test\"",
-        "--",
-        "docs/rules/php-migration.json"
+        "bun",
+        "-e",
+        "const r = JSON.parse(require(\"fs\").readFileSync(\"data/rules/php-migration/one-type-test.json\", \"utf8\")); console.log(JSON.stringify({ id: \"php-migration/one-type-test\", ...r }, null, 2));"
       ],
       "want": [
         "\"id\": \"php-migration/one-type-test\"",
@@ -14262,8 +14404,9 @@
       "stage": 1,
       "name": "every rule's because names a record, and every record's changes names its rules",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--check"
       ]
     },
@@ -14273,8 +14416,9 @@
       "stage": 1,
       "name": "the record and the rulebook still agree on what this decision created and modified",
       "argv": [
-        "python",
-        "tools/records.py",
+        "bun",
+        "nv",
+        "records",
         "--check"
       ]
     },
@@ -14554,14 +14698,9 @@
       "stage": 1,
       "name": "the doubles rule is shipped",
       "argv": [
-        "git",
-        "grep",
-        "-n",
-        "-A",
-        "2",
-        "\"id\": \"testing/doubles\"",
-        "--",
-        "docs/rules/testing.json"
+        "bun",
+        "-e",
+        "const r = JSON.parse(require(\"fs\").readFileSync(\"data/rules/testing/doubles.json\", \"utf8\")); console.log(JSON.stringify({ id: \"testing/doubles\", ...r }, null, 2));"
       ],
       "want": [
         "\"status\": \"shipped\""
@@ -14573,14 +14712,9 @@
       "stage": 1,
       "name": "the interaction rule is shipped",
       "argv": [
-        "git",
-        "grep",
-        "-n",
-        "-A",
-        "2",
-        "\"id\": \"testing/interaction-after-the-fact\"",
-        "--",
-        "docs/rules/testing.json"
+        "bun",
+        "-e",
+        "const r = JSON.parse(require(\"fs\").readFileSync(\"data/rules/testing/interaction-after-the-fact.json\", \"utf8\")); console.log(JSON.stringify({ id: \"testing/interaction-after-the-fact\", ...r }, null, 2));"
       ],
       "want": [
         "\"status\": \"shipped\""
@@ -14592,8 +14726,9 @@
       "stage": 1,
       "name": "the rendered rulebook is current",
       "argv": [
-        "python",
-        "tools/rules.py",
+        "bun",
+        "nv",
+        "rules",
         "--render",
         "--check"
       ]
@@ -14604,8 +14739,9 @@
       "stage": 1,
       "name": "no gap names this goal",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--closes",
         "test-doubles"
       ]
@@ -14726,8 +14862,9 @@
       "stage": 1,
       "name": "no gap names this goal",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--closes",
         "bigint"
       ]
@@ -14738,8 +14875,9 @@
       "stage": 1,
       "name": "no recorded gap is owed by anyone but a future milestone",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--check"
       ],
       "want": [
@@ -14787,8 +14925,9 @@
       "stage": 1,
       "name": "the index that held the register no longer exists",
       "argv": [
-        "python",
-        "tools/owners.py",
+        "bun",
+        "nv",
+        "owners",
         "--registers"
       ],
       "want": [
@@ -14802,8 +14941,9 @@
       "stage": 1,
       "name": "nothing in the tree points at the deleted file",
       "argv": [
-        "python",
-        "tools/check-links.py"
+        "bun",
+        "nv",
+        "links"
       ],
       "want": [
         "resolves, with matching case and form"
@@ -14815,8 +14955,9 @@
       "stage": 1,
       "name": "the playbook's own checks survive the file that is gone",
       "argv": [
-        "python",
-        "tools/playbook.py",
+        "bun",
+        "nv",
+        "playbook",
         "--check"
       ],
       "want": [
@@ -14829,8 +14970,9 @@
       "stage": 1,
       "name": "every entry is still one the driver can walk",
       "argv": [
-        "python",
-        "tools/chain.py",
+        "bun",
+        "nv",
+        "chain",
         "--check"
       ]
     },
@@ -14840,8 +14982,9 @@
       "stage": 1,
       "name": "all eleven past milestones are complete",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--past"
       ],
       "want": [
@@ -14854,8 +14997,9 @@
       "stage": 1,
       "name": "plan.py: every cell agrees with the chain, done included",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--check"
       ],
       "want": [
@@ -14866,12 +15010,12 @@
       "id": "dossier-the-chain-already-names-every-emitted-goal",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: the chain already names every emitted goal",
+      "name": "chain: the chain already names every goal record",
       "argv": [
-        "python",
-        "tools/dossier.py",
-        "--emit-goals",
-        "--dry-run"
+        "bun",
+        "nv",
+        "chain",
+        "--check"
       ],
       "want": [
         "already names every one of them -- nothing appended"
@@ -14883,8 +15027,9 @@
       "stage": 1,
       "name": "plan.py: the index and the grown chain still agree",
       "argv": [
-        "python",
-        "tools/plan.py",
+        "bun",
+        "nv",
+        "plan",
         "--check"
       ],
       "want": [
@@ -14895,11 +15040,12 @@
       "id": "dossier-every-generated-goal-is-walkable-and-its-manifest",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: every generated goal is walkable and its manifest resolves",
+      "name": "chain: every goal is walkable and its manifest resolves",
       "argv": [
-        "python",
-        "tools/dossier.py",
-        "--check-goals"
+        "bun",
+        "nv",
+        "chain",
+        "--check"
       ],
       "want": [
         "every manifest resolves"
@@ -14909,10 +15055,11 @@
       "id": "dossier-config-directives-1-3",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: config:directives (1/3)",
+      "name": "proofs: config:directives (1/3)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "directive:app",
@@ -14942,10 +15089,11 @@
       "id": "dossier-config-directives-2-3",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: config:directives (2/3)",
+      "name": "proofs: config:directives (2/3)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "directive:http.client.tls",
@@ -14975,10 +15123,11 @@
       "id": "dossier-config-directives-3-3",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: config:directives (3/3)",
+      "name": "proofs: config:directives (3/3)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "directive:log.target",
@@ -15006,10 +15155,11 @@
       "id": "dossier-types-enum-1-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: types:enum (1/2)",
+      "name": "proofs: types:enum (1/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Audience",
@@ -15040,10 +15190,11 @@
       "id": "dossier-types-enum-2-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: types:enum (2/2)",
+      "name": "proofs: types:enum (2/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Env\\Mode",
@@ -15074,10 +15225,11 @@
       "id": "dossier-types-exception",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: types:exception",
+      "name": "proofs: types:exception",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "types:exception"
@@ -15092,10 +15244,11 @@
       "id": "dossier-types-interface",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: types:interface",
+      "name": "proofs: types:interface",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "types:interface"
@@ -15110,10 +15263,11 @@
       "id": "dossier-lang-programs",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:programs",
+      "name": "proofs: lang:programs",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:programs"
@@ -15128,10 +15282,11 @@
       "id": "dossier-lang-types",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:types",
+      "name": "proofs: lang:types",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:types"
@@ -15146,10 +15301,11 @@
       "id": "dossier-lang-expressions",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:expressions",
+      "name": "proofs: lang:expressions",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:expressions"
@@ -15164,10 +15320,11 @@
       "id": "dossier-lang-statements",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:statements",
+      "name": "proofs: lang:statements",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:statements"
@@ -15182,10 +15339,11 @@
       "id": "dossier-lang-classes",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:classes",
+      "name": "proofs: lang:classes",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:classes"
@@ -15200,10 +15358,11 @@
       "id": "dossier-lang-enums",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:enums",
+      "name": "proofs: lang:enums",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:enums"
@@ -15218,10 +15377,11 @@
       "id": "dossier-lang-iteration",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:iteration",
+      "name": "proofs: lang:iteration",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:iteration"
@@ -15236,10 +15396,11 @@
       "id": "dossier-lang-errors",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:errors",
+      "name": "proofs: lang:errors",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:errors"
@@ -15254,10 +15415,11 @@
       "id": "dossier-lang-concurrency",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:concurrency",
+      "name": "proofs: lang:concurrency",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:concurrency"
@@ -15272,10 +15434,11 @@
       "id": "dossier-lang-attributes",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:attributes",
+      "name": "proofs: lang:attributes",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:attributes"
@@ -15290,10 +15453,11 @@
       "id": "dossier-lang-testing",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: lang:testing",
+      "name": "proofs: lang:testing",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "lang:testing"
@@ -15308,10 +15472,11 @@
       "id": "dossier-core-arr-1-4",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Arr (1/4)",
+      "name": "proofs: Core\\Arr (1/4)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Arr::all",
@@ -15339,10 +15504,11 @@
       "id": "dossier-core-arr-2-4",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Arr (2/4)",
+      "name": "proofs: Core\\Arr (2/4)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Arr::find",
@@ -15370,10 +15536,11 @@
       "id": "dossier-core-arr-3-4",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Arr (3/4)",
+      "name": "proofs: Core\\Arr (3/4)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Arr::keyOf",
@@ -15401,10 +15568,11 @@
       "id": "dossier-core-arr-4-4",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Arr (4/4)",
+      "name": "proofs: Core\\Arr (4/4)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\Arr::range",
@@ -15432,10 +15600,11 @@
       "id": "dossier-core-ast",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Ast",
+      "name": "proofs: Core\\Ast",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Ast"
@@ -15450,10 +15619,11 @@
       "id": "dossier-core-ast-node",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Ast\\Node",
+      "name": "proofs: Core\\Ast\\Node",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Ast\\Node"
@@ -15468,10 +15638,11 @@
       "id": "dossier-core-attributes",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Attributes",
+      "name": "proofs: Core\\Attributes",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Attributes"
@@ -15486,10 +15657,11 @@
       "id": "dossier-core-bigint-1-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\BigInt (1/2)",
+      "name": "proofs: Core\\BigInt (1/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\BigInt::abs",
@@ -15515,10 +15687,11 @@
       "id": "dossier-core-bigint-2-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\BigInt (2/2)",
+      "name": "proofs: Core\\BigInt (2/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\BigInt::parse",
@@ -15544,10 +15717,11 @@
       "id": "dossier-core-budget",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Budget",
+      "name": "proofs: Core\\Budget",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Budget"
@@ -15562,10 +15736,11 @@
       "id": "dossier-core-bytes",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Bytes",
+      "name": "proofs: Core\\Bytes",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Bytes"
@@ -15580,10 +15755,11 @@
       "id": "dossier-core-cache",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cache",
+      "name": "proofs: Core\\Cache",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cache"
@@ -15598,10 +15774,11 @@
       "id": "dossier-core-cache-secretentry",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cache\\SecretEntry",
+      "name": "proofs: Core\\Cache\\SecretEntry",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cache\\SecretEntry"
@@ -15616,10 +15793,11 @@
       "id": "dossier-core-cache-store",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cache\\Store",
+      "name": "proofs: Core\\Cache\\Store",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cache\\Store"
@@ -15634,10 +15812,11 @@
       "id": "dossier-core-cap",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cap",
+      "name": "proofs: Core\\Cap",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cap"
@@ -15652,10 +15831,11 @@
       "id": "dossier-core-cldr",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cldr",
+      "name": "proofs: Core\\Cldr",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cldr"
@@ -15670,10 +15850,11 @@
       "id": "dossier-core-task-channel",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Task\\Channel",
+      "name": "proofs: Core\\Task\\Channel",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Task\\Channel"
@@ -15688,10 +15869,11 @@
       "id": "dossier-core-cli",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli",
+      "name": "proofs: Core\\Cli",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli"
@@ -15706,10 +15888,11 @@
       "id": "dossier-core-cli-color",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli\\Color",
+      "name": "proofs: Core\\Cli\\Color",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli\\Color"
@@ -15724,10 +15907,11 @@
       "id": "dossier-core-cli-live",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli\\Live",
+      "name": "proofs: Core\\Cli\\Live",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli\\Live"
@@ -15742,10 +15926,11 @@
       "id": "dossier-core-cli-progress",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli\\Progress",
+      "name": "proofs: Core\\Cli\\Progress",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli\\Progress"
@@ -15760,10 +15945,11 @@
       "id": "dossier-core-cli-style",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli\\Style",
+      "name": "proofs: Core\\Cli\\Style",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli\\Style"
@@ -15778,10 +15964,11 @@
       "id": "dossier-core-cli-text",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Cli\\Text",
+      "name": "proofs: Core\\Cli\\Text",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Cli\\Text"
@@ -15796,10 +15983,11 @@
       "id": "dossier-core-command",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Command",
+      "name": "proofs: Core\\Command",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Command"
@@ -15814,10 +16002,11 @@
       "id": "dossier-core-compress",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Compress",
+      "name": "proofs: Core\\Compress",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Compress"
@@ -15832,10 +16021,11 @@
       "id": "dossier-core-compress-compressor",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Compress\\Compressor",
+      "name": "proofs: Core\\Compress\\Compressor",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Compress\\Compressor"
@@ -15850,10 +16040,11 @@
       "id": "dossier-core-compress-decompressor",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Compress\\Decompressor",
+      "name": "proofs: Core\\Compress\\Decompressor",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Compress\\Decompressor"
@@ -15868,10 +16059,11 @@
       "id": "dossier-core-config",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Config",
+      "name": "proofs: Core\\Config",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Config"
@@ -15886,10 +16078,11 @@
       "id": "dossier-core-crypto",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Crypto",
+      "name": "proofs: Core\\Crypto",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Crypto"
@@ -15904,10 +16097,11 @@
       "id": "dossier-core-crypto-keypair",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Crypto\\KeyPair",
+      "name": "proofs: Core\\Crypto\\KeyPair",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Crypto\\KeyPair"
@@ -15922,10 +16116,11 @@
       "id": "dossier-core-crypto-publickey",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Crypto\\PublicKey",
+      "name": "proofs: Core\\Crypto\\PublicKey",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Crypto\\PublicKey"
@@ -15940,10 +16135,11 @@
       "id": "dossier-core-csrf",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Csrf",
+      "name": "proofs: Core\\Csrf",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Csrf"
@@ -15958,10 +16154,11 @@
       "id": "dossier-core-csv",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Csv",
+      "name": "proofs: Core\\Csv",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Csv"
@@ -15976,10 +16173,11 @@
       "id": "dossier-core-db",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db",
+      "name": "proofs: Core\\Db",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db"
@@ -15994,10 +16192,11 @@
       "id": "dossier-core-db-column",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Column",
+      "name": "proofs: Core\\Db\\Column",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Column"
@@ -16012,10 +16211,11 @@
       "id": "dossier-core-db-connection",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Connection",
+      "name": "proofs: Core\\Db\\Connection",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Connection"
@@ -16030,10 +16230,11 @@
       "id": "dossier-core-db-plan",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Plan",
+      "name": "proofs: Core\\Db\\Plan",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Plan"
@@ -16048,10 +16249,11 @@
       "id": "dossier-core-db-plan-step",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Plan\\Step",
+      "name": "proofs: Core\\Db\\Plan\\Step",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Plan\\Step"
@@ -16066,10 +16268,11 @@
       "id": "dossier-core-db-row",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Row",
+      "name": "proofs: Core\\Db\\Row",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Row"
@@ -16084,10 +16287,11 @@
       "id": "dossier-core-db-rows",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Rows",
+      "name": "proofs: Core\\Db\\Rows",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Rows"
@@ -16102,10 +16306,11 @@
       "id": "dossier-core-db-schema",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Schema",
+      "name": "proofs: Core\\Db\\Schema",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Schema"
@@ -16120,10 +16325,11 @@
       "id": "dossier-core-db-transaction",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Transaction",
+      "name": "proofs: Core\\Db\\Transaction",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Transaction"
@@ -16138,10 +16344,11 @@
       "id": "dossier-core-db-write",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Db\\Write",
+      "name": "proofs: Core\\Db\\Write",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Db\\Write"
@@ -16156,10 +16363,11 @@
       "id": "dossier-core-debug",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Debug",
+      "name": "proofs: Core\\Debug",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Debug"
@@ -16174,10 +16382,11 @@
       "id": "dossier-core-decimal",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Decimal",
+      "name": "proofs: Core\\Decimal",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Decimal"
@@ -16192,10 +16401,11 @@
       "id": "dossier-core-encoding",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Encoding",
+      "name": "proofs: Core\\Encoding",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Encoding"
@@ -16210,10 +16420,11 @@
       "id": "dossier-core-env",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Env",
+      "name": "proofs: Core\\Env",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Env"
@@ -16228,10 +16439,11 @@
       "id": "dossier-core-fatal",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Fatal",
+      "name": "proofs: Core\\Fatal",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Fatal"
@@ -16246,10 +16458,11 @@
       "id": "dossier-core-hash",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Hash",
+      "name": "proofs: Core\\Hash",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Hash"
@@ -16264,10 +16477,11 @@
       "id": "dossier-core-hash-stream",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Hash\\Stream",
+      "name": "proofs: Core\\Hash\\Stream",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Hash\\Stream"
@@ -16282,10 +16496,11 @@
       "id": "dossier-core-heap",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Heap",
+      "name": "proofs: Core\\Heap",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Heap"
@@ -16300,10 +16515,11 @@
       "id": "dossier-core-html",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Html",
+      "name": "proofs: Core\\Html",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Html"
@@ -16318,10 +16534,11 @@
       "id": "dossier-core-http",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http",
+      "name": "proofs: Core\\Http",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http"
@@ -16336,10 +16553,11 @@
       "id": "dossier-core-http-client",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Client",
+      "name": "proofs: Core\\Http\\Client",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Client"
@@ -16354,10 +16572,11 @@
       "id": "dossier-core-http-identity",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Identity",
+      "name": "proofs: Core\\Http\\Identity",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Identity"
@@ -16372,10 +16591,11 @@
       "id": "dossier-core-http-part",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Part",
+      "name": "proofs: Core\\Http\\Part",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Part"
@@ -16390,10 +16610,11 @@
       "id": "dossier-core-http-response",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Response",
+      "name": "proofs: Core\\Http\\Response",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Response"
@@ -16408,10 +16629,11 @@
       "id": "dossier-core-http-tlsinfo",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\TlsInfo",
+      "name": "proofs: Core\\Http\\TlsInfo",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\TlsInfo"
@@ -16426,10 +16648,11 @@
       "id": "dossier-core-http-event",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Event",
+      "name": "proofs: Core\\Http\\Event",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Event"
@@ -16444,10 +16667,11 @@
       "id": "dossier-core-http-socket",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Socket",
+      "name": "proofs: Core\\Http\\Socket",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Socket"
@@ -16462,10 +16686,11 @@
       "id": "dossier-core-http-stream",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Http\\Stream",
+      "name": "proofs: Core\\Http\\Stream",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Http\\Stream"
@@ -16480,10 +16705,11 @@
       "id": "dossier-core-io-1-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\IO (1/2)",
+      "name": "proofs: Core\\IO (1/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\IO::append",
@@ -16510,10 +16736,11 @@
       "id": "dossier-core-io-2-2",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\IO (2/2)",
+      "name": "proofs: Core\\IO (2/2)",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--only",
         "Core\\IO::open",
@@ -16540,10 +16767,11 @@
       "id": "dossier-core-io-file",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\IO\\File",
+      "name": "proofs: Core\\IO\\File",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\IO\\File"
@@ -16558,10 +16786,11 @@
       "id": "dossier-core-io-metadata",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\IO\\Metadata",
+      "name": "proofs: Core\\IO\\Metadata",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\IO\\Metadata"
@@ -16576,10 +16805,11 @@
       "id": "dossier-core-json",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Json",
+      "name": "proofs: Core\\Json",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Json"
@@ -16594,10 +16824,11 @@
       "id": "dossier-core-jwe",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Jwe",
+      "name": "proofs: Core\\Jwe",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Jwe"
@@ -16612,10 +16843,11 @@
       "id": "dossier-core-jwe-key",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Jwe\\Key",
+      "name": "proofs: Core\\Jwe\\Key",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Jwe\\Key"
@@ -16630,10 +16862,11 @@
       "id": "dossier-core-jwt",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Jwt",
+      "name": "proofs: Core\\Jwt",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Jwt"
@@ -16648,10 +16881,11 @@
       "id": "dossier-core-jwt-keyset",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Jwt\\KeySet",
+      "name": "proofs: Core\\Jwt\\KeySet",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Jwt\\KeySet"
@@ -16666,10 +16900,11 @@
       "id": "dossier-core-log",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Log",
+      "name": "proofs: Core\\Log",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Log"
@@ -16684,10 +16919,11 @@
       "id": "dossier-core-mail",
       "kind": "command",
       "stage": 1,
-      "name": "dossier: Core\\Mail",
+      "name": "proofs: Core\\Mail",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Mail"
@@ -17087,7 +17323,7 @@
       ]
     },
     {
-      "id": "no-check-runs-python-and-no-check-directive-or-tool-says",
+      "id": "no-check-runs-python-and-no-check-directive-or-tool-says-the",
       "kind": "command",
       "stage": 9,
       "name": "no check runs Python, and no check, directive or tool says the old proofs name",

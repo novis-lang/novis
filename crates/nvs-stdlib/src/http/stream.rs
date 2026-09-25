@@ -65,17 +65,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An `id` in force is copied into every event that follows it.** [`step`]
-//!    copies the walk's `lastId` slot out, [`event_at`] copies it again, and
-//!    each dispatch checks it and builds a fresh `string` for the event and one
-//!    for the slot. So an origin that sends one 65000-byte `id` line and then
-//!    nine-byte events makes every nine bytes cost that whole id, several
-//!    times over, in copying and in memory a program that keeps its events
-//!    holds. The request's memory cap still bounds it
-//!    (`tests/hostile/core/Http-Event/id/01-ids-ignored-repeated-and-copied.nvs`).
-//!    The fix shares the slot's one reference with every event whose block set
-//!    no `id`, which is a new refcount edge and owes a valgrind run.
-//!    — owner: M12
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/http/stream.rs` lists them.
 
 use super::*;
 

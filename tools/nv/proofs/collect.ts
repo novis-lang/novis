@@ -1,6 +1,6 @@
 // What each feature on the roster has on disk, and what it still owes. `rule:testing/feature-proofs` is
-// what a feature owes. Here it is data: `POLICY` per kind, overridden by `tools/data/dossier-policy.toml`,
-// with one feature excused from one proof by a skip entry whose value is the reason.
+// what a feature owes. Here it is data: `POLICY` per kind, with one feature excused from one proof by a
+// skip entry in `data/proofs/policy.json` whose value is the reason.
 //
 // A test is attributed to a feature by a `covers:` marker, in a `.nvst` case or above a Rust `#[test]`.
 // A `Core` member is also credited by a case that calls it as `Class::member(`. An example, an attack and
@@ -12,7 +12,6 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { cpus, machine as osMachine } from "node:os";
 import { join } from "node:path";
-import { parse as parseToml } from "smol-toml";
 import { analyse, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
@@ -47,11 +46,11 @@ const POLICY: Record<Kind, Owes> = {
   directive: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false },
 };
 
-const POLICY_FILE = "tools/data/dossier-policy.toml";
-const HELP_BACKLOG = "tools/data/help-backlog.toml";
+const POLICY_FILE = "data/proofs/policy.json";
+const HELP_BACKLOG = "data/proofs/help-backlog.json";
 /** The skip reason every feature on the help backlog reads as. */
 export const HELP_BACKLOG_REASON =
-  "Landed before the help proof was owed; goal `core-class-cards` writes it and deletes this feature from tools/data/help-backlog.toml.";
+  "Landed before the help proof was owed; goal `core-class-cards` writes it and deletes this feature from data/proofs/help-backlog.json.";
 
 export type Policy = Record<Kind, Owes>;
 /** Per feature id, per proof it is excused from, the reason. */
@@ -61,26 +60,21 @@ type Table = Record<string, unknown>;
 const isTable = (v: unknown): v is Table => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * `POLICY` with the policy file's `[all]` and `[<kind>]` overrides applied, and the skip map, with every
+ * `POLICY` with the policy file's `owes` applied, `all` before each kind, and the skip map, with every
  * help-backlog feature skipping `help`. `noPerf`, and `NVS_PROOFS_NO_PERF=1` in the environment, stop
  * the perf proof from being owed and leave the ledger and the benches as they are.
  */
 export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
   const policy = Object.fromEntries(Object.entries(POLICY).map(([k, v]) => [k, { ...v }])) as Policy;
   const skips: Skips = new Map();
-  const doc: Table = existsSync(abs(POLICY_FILE)) ? parseToml(read(POLICY_FILE)) : {};
-  for (const [kind, fields] of Object.entries(doc)) {
-    if (!isTable(fields)) continue;
-    if (kind === "skip") {
-      for (const [fid, reasons] of Object.entries(fields)) if (isTable(reasons)) skips.set(fid, { ...(reasons as Record<string, string>) });
-    } else if (kind === "all") {
-      for (const k of Object.keys(policy) as Kind[]) Object.assign(policy[k], fields);
-    } else if (kind in policy) {
-      Object.assign(policy[kind as Kind], fields);
-    }
-  }
+  const doc: Table = existsSync(abs(POLICY_FILE)) ? JSON.parse(read(POLICY_FILE)) : {};
+  const owes = isTable(doc.owes) ? doc.owes : {};
+  if (isTable(owes.all)) for (const k of Object.keys(policy) as Kind[]) Object.assign(policy[k], owes.all);
+  for (const k of Object.keys(policy) as Kind[]) if (isTable(owes[k])) Object.assign(policy[k], owes[k]);
+  const skip = isTable(doc.skip) ? doc.skip : {};
+  for (const [fid, reasons] of Object.entries(skip)) if (isTable(reasons)) skips.set(fid, { ...(reasons as Record<string, string>) });
   if (existsSync(abs(HELP_BACKLOG))) {
-    const backlog: Table = parseToml(read(HELP_BACKLOG));
+    const backlog: Table = JSON.parse(read(HELP_BACKLOG));
     for (const fid of Array.isArray(backlog.features) ? (backlog.features as string[]) : []) {
       const reasons = skips.get(fid) ?? {};
       if (!("help" in reasons)) reasons.help = HELP_BACKLOG_REASON;

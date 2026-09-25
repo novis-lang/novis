@@ -17,13 +17,13 @@ if either is missing (`prepare`), sets `goals.SIDE_ENV`, and hands the worktree'
 `tools/loop.py` to `tools/respawn.py` with the worktree as the working directory. Every tool of
 every turn then roots itself at the worktree -- its `.loop/`, its `target/`, its `.agent-tmp/` -- and
 reads the side goal's three files where a chain run reads the installed `docs/agent/loop-goal.*` and
-`docs/agent/handoff.md`. So a side run and the chain run never share a state file, a build or a
+`docs/agent/handoff.md`. So a side run and the chain run never share a state file, a build or a  # check-links:retired
 working tree, and both can run at once. When the child exits having landed, the launcher removes
 the worktree, the branch and the WSL target (`cleanup`), because only a process whose working
 directory is outside the worktree can delete it on Windows.
 
 **What a side run is checked against.** Its own checks, plus every check main's installed goal
-already carries as its floor -- the worktree's `docs/agent/loop-goal.toml`, which each rebase brings
+already carries as its floor -- the worktree's `docs/agent/loop-goal.toml`, which each rebase brings  # check-links:retired
 up to date (`effective_spec`). The live chain goal's own checks are left out: they are that goal's
 unfinished work, and a side run held red on them could never land.
 

@@ -401,47 +401,16 @@ fn outstanding_file(name: &str) -> Ratchet {
     Ratchet { path, keys, owners }
 }
 
-/// The chain — [docs/agent/goals/](/docs/agent/goals/) — read for the one thing
-/// an owner column is checked against: which goals it still holds.
-///
-/// A goal is `<number>-<slug>.md`, and the **slug** is what an owner column
-/// names. `AGENTS.md`'s *The schedule is the chain* is why: the number is the
-/// goal's position and moves whenever anything is inserted in front of it, so an
-/// owner written as a number would silently come to mean a different goal. The
-/// `dossier/` subdirectory is walked too — `dossier.py` emits ninety goals into
-/// it and they are on the chain like any other.
+/// The chain — `data/chain.json`, the list of goal slugs in the order the loop
+/// walks them — read for the one thing an owner column is checked against:
+/// which goals it still holds. The **slug** is what an owner column names,
+/// because a goal's position moves whenever anything is inserted in front of it.
 fn chain_goals() -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    goal_slugs(&nvs_repo::path("docs/agent/goals"), &mut out);
-    out
-}
-
-/// The slug of every goal file under `dir`, subdirectories included.
-fn goal_slugs(dir: &Path, out: &mut BTreeSet<String>) {
-    let entries = fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            goal_slugs(&path, out);
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        // `29-xml-tree.handoff.md` is the seed beside the goal, not a second goal.
-        if name.ends_with(".handoff.md") {
-            continue;
-        }
-        let Some(stem) = name.strip_suffix(".md") else {
-            continue;
-        };
-        let Some((num, slug)) = stem.split_once('-') else {
-            continue;
-        };
-        if !num.is_empty() && num.bytes().all(|b| b.is_ascii_digit()) {
-            out.insert(slug.to_owned());
-        }
-    }
+    let path = nvs_repo::path("data/chain.json");
+    let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    let slugs: Vec<String> =
+        serde_json::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    slugs.into_iter().collect()
 }
 
 /// The first milestone a key may be deferred to.
@@ -552,7 +521,7 @@ fn owner_problem(
         return None;
     }
     Some(format!(
-        "names goal `{owner}`, which is no goal under docs/agent/goals/"
+        "names goal `{owner}`, which is no goal in data/chain.json"
     ))
 }
 
@@ -568,7 +537,7 @@ fn every_outstanding_key_names_an_owner() {
     let plan = plan_milestones();
     assert!(
         goals.len() > 10,
-        "docs/agent/goals/ yielded only {} goal(s) — the chain's shape has changed under this \
+        "data/chain.json yielded only {} goal(s) — the chain's shape has changed under this \
          walk, and every owner below is being accepted against almost nothing",
         goals.len()
     );

@@ -147,15 +147,7 @@
 //!
 //! ## Known gaps
 //!
-//! 1. **`--INI--` parses and nothing can act on it.** Parsing it is what keeps
-//!    the M11 importer mechanical; the section is recorded as unsupported
-//!    (`case`'s `NOT_YET` roster) and a case that uses it is reported as a
-//!    **failure** naming the reason, never run-and-half-ignored. What is
-//!    missing is not the configuration, which is read, but anything that turns
-//!    an INI key into the configuration a case's program runs under — and the
-//!    reason `NOT_YET` prints still names M6, a milestone that has since
-//!    walked, so that string changes with it.
-//!    — owner: M11
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-test/src/lib.rs` lists them.
 //!
 //! ## What the request sections change
 //!

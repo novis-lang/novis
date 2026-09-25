@@ -1,7 +1,0 @@
-- **A `#[cfg(test)]` edit does not stale a perf record, but it does stale `target/release/nvs.exe`.**
-  `dossier.py`'s `impl_hash` is the implementing file's text with its trailing `mod tests` cut off
-  (`tools/dossier.py:196`), so a figure recorded before a Rust test lands is still current after it;
-  what is not current is the release binary, which `--record-perf` rebuilds for over two minutes
-  before it measures anything. Record a whole group's figures in one call, after the Rust side of
-  the group is final, and re-record only where the shipped half of the implementing file moved.
-  [until: reviewed 2026-09-21]

@@ -13,7 +13,7 @@ It is a **harness, not a test**. Every assertion belongs to the crate that owns 
 written once against the shape `rule:core-classes/db-one-api`'s *Verification* section names; this file's whole job is to
 point those suites at five endpoints, one driver at a time, and print one `<driver>: ok` line each.
 Which suites, why they are no longer only `nvs-db`'s, and why one leg runs a suite the others do
-not, is `SUITES` and `NO_SERVER_SUITES` below. `docs/agent/loop-goal.md`
+not, is `SUITES` and `NO_SERVER_SUITES` below. `docs/agent/loop-goal.md`  # check-links:retired
 § *The harness this goal owes* is why it exists before the first driver rather than after: a driver
 with no server to run against is a driver whose tests are all mocks.
 
@@ -602,7 +602,7 @@ def main() -> int:
         if not args.list and not CRATE.is_dir():
             for leg in legs:
                 print(f"{leg.label}: n/a (crates/nvs-db does not exist yet)")
-            say("db-matrix: nothing ran -- the driver crate is Stage 2 of docs/agent/loop-goal.md")
+            say("db-matrix: nothing ran -- the driver crate is Stage 2 of docs/agent/loop-goal.md")  # check-links:retired
             return 2
 
         # Every selection but a lone `sqlite` needs the compose file read.

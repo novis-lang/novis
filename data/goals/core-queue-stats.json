@@ -53,10 +53,11 @@
       "id": "dossier-core-queue-stats",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Queue\\Stats",
+      "name": "proofs: Core\\Queue\\Stats",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Queue\\Stats"

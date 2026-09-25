@@ -261,7 +261,7 @@ def pick_current_next(status_text, milestones):
         return current, following, live
     if goals:
         warn(
-            "no goal in docs/agent/goals/ matches the H1 of docs/agent/loop-goal.md, so "
+            "no goal in docs/agent/goals/ matches the H1 of docs/agent/loop-goal.md, so "  # check-links:retired
             "the schedule cannot say which milestone is current and the Status field is being "
             "read instead. A live goal is a copy of its chain entry: the two H1s should be equal."
         )
@@ -517,7 +517,7 @@ def run_where(terms):
     plus whichever of `HOMES` the same words hit.
 
     The routing table in docs/adr/README.md was retired by the docs migration's unit C2 -- one
-    row per topic, hand-maintained, was the second copy of what `docs/rules/_index.json` and the
+    row per topic, hand-maintained, was the second copy of what `docs/rules/_index.json` and the  # check-links:retired
     chapters' own titles already state. A keyword routes to a rule, and the rule's chapter is the
     file that owns the topic; the rows that never were rules are `HOMES` above.
     """

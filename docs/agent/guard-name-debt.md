@@ -1,6 +1,6 @@
 # Guard-name debt
 
-`kind = "cargo-named"` in [loop-goal.toml](loop-goal.toml) is a **substring match against the test
+`kind = "cargo-named"` in `loop-goal.toml` is a **substring match against the test
 names `cargo test` actually runs**. A name that matches nothing reports `did not run`, and
 `Goal.check()` returns at the first failure — so one stale name hides every check behind it.
 

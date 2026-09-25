@@ -10,6 +10,6 @@
     "testing/examples-live-in-the-repository"
   ],
   "guardedBy": [
-    "tools/dossier.py"
+    "tools/nv/cmd/proofs.ts"
   ]
 }

@@ -6,8 +6,8 @@ placed behind M4: completion, hover and diagnostics written against a language t
 or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
 about to change. It runs as **four chain goals** —
-[resilient-tree](../agent/goals/14-resilient-tree.md), [surface](../agent/goals/15-surface.md),
-[lsp-server](../agent/goals/16-lsp-server.md) and [editor](../agent/goals/17-editor.md) — which are
+[resilient-tree](../agent/goals/resilient-tree.md), [surface](../agent/goals/surface.md),
+[lsp-server](../agent/goals/lsp-server.md) and [editor](../agent/goals/editor.md) — which are
 the item list's one home; goal `surface` is M1's two unfinished front-end items, pulled in because the grammar
 must colour their surface.
 
@@ -32,7 +32,7 @@ it at the cursor". There is **no second parser and no second tree**: `nvs check`
 parse followed by "refuse if anything was reported", which is what they already do.
 
 **The `trivia` half of that paragraph is built**, in
-[goal `doc-comments`](../agent/goals/13-doc-comments.md):
+[goal `doc-comments`](../agent/goals/doc-comments.md):
 `rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
 lexing, which is the same one edit to `skip_trivia`, so the `Trivia` vector
 (`crates/nvs-syntax/src/token.rs:43`, read back at `crates/nvs-syntax/src/lexer.rs:171`), its

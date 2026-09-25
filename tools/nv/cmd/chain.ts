@@ -100,6 +100,9 @@ async function check(): Promise<number> {
   const live = liveGoal(goals);
   const where = (g: ChainGoal) => `goal \`${g.slug}\` (${g.num} of ${goals.length})`;
   const ahead = (g: ChainGoal) => live === null || g.num > live.num;
+  // A feature-proof goal's target is the features it lists, so it owes no reason for its place and no
+  // row in the goals README.
+  const provesFeatures = (text: string) => /\n## The target\n(?:(?!\n## )[^])*rule:testing\/feature-proofs/.test(text);
 
   if (goals.length === 0) problems.push("data/chain.json holds no goal -- the driver has nothing to walk");
 
@@ -154,14 +157,14 @@ async function check(): Promise<number> {
     }
     if (!handoffs.has(g.slug)) problems.push(`${where(g)}: no data/goals/${g.slug}.handoff.json -- the first session has no group to take`);
     if (records.has(g.slug)) audit(records.get(g.slug), `data/goals/${g.slug}.json`, g.md);
-    if (ahead(g) && !text.includes("\n## Why here") && !g.md.startsWith(`${GOALS}/dossier/`)) {
+    if (ahead(g) && !text.includes("\n## Why here") && !provesFeatures(text)) {
       notes.push(`${g.md}: no \`## Why here\` section. The order is a dependency chain and that section is the only home of the reason this goal sits where it does`);
     }
     if (ahead(g) && !text.includes("\n## Standing decisions")) {
       notes.push(`${g.md}: no \`## Standing decisions\` section -- loop-authoring.md § 5 is where a goal pre-authorizes the calls its stages reach`);
     }
     if (text.includes("TODO")) notes.push(`${g.md}: still carries TODO markers -- a scaffold nobody has filled in yet`);
-    if (!g.md.startsWith(`${GOALS}/dossier/`) && !readme.includes(g.slug)) {
+    if (!provesFeatures(text) && !readme.includes(g.slug)) {
       notes.push(`${README}: no row for \`${g.slug}\` -- the table there is what a reader reads instead of the directory`);
     }
   }

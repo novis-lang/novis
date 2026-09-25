@@ -53,10 +53,11 @@
       "id": "dossier-core-objectset",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\ObjectSet",
+      "name": "proofs: Core\\ObjectSet",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\ObjectSet"

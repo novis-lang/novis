@@ -10,7 +10,7 @@ the sentence a hand-merge gets wrong, and it gets it wrong silently: a floor tha
 exactly like a floor that passes. Twenty-odd `[[check]]` blocks copied by hand at the moment a run is
 being handed over is the worst possible time to be careful.
 
-So this does it mechanically. It reads the live `docs/agent/loop-goal.toml`, takes every `[[check]]`
+So this does it mechanically. It reads the live `docs/agent/loop-goal.toml`, takes every `[[check]]`  # check-links:retired
 block out of it *verbatim as text* -- comments, formatting and all, because a check's comment says
 what it guards and that is not the new goal's to rewrite -- relabels each one's `stage` to the floor
 stage, and inserts them into the new goal at its marker line:
@@ -51,7 +51,7 @@ FLOOR_STAGE = "1 floor"
 
 def rel_to_root(path):
     """The path as the repository names it, so a banner this writes into a committed file records
-    `docs/agent/loop-goal.toml` rather than whichever absolute checkout the loop ran from."""
+    `docs/agent/loop-goal.toml` rather than whichever absolute checkout the loop ran from."""  # check-links:retired
     resolved = Path(path).resolve()
     try:
         return resolved.relative_to(ROOT).as_posix()
@@ -315,7 +315,7 @@ def main():
     new_path.write_text(out, encoding="utf-8", newline="\n")
     print(f"goal-switch: wrote {new_path}")
     print("goal-switch: next -- `python tools/loop.py --list` against it, then rename it to "
-          "docs/agent/loop-goal.toml")
+          "docs/agent/loop-goal.toml")  # check-links:retired
     return 0
 
 

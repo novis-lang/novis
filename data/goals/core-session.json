@@ -53,10 +53,11 @@
       "id": "dossier-core-session",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Session",
+      "name": "proofs: Core\\Session",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Session"

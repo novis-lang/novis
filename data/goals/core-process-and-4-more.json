@@ -55,10 +55,11 @@
       "id": "dossier-core-process",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Process",
+      "name": "proofs: Core\\Process",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Process"
@@ -73,10 +74,11 @@
       "id": "dossier-core-process-handle",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Process\\Handle",
+      "name": "proofs: Core\\Process\\Handle",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Process\\Handle"
@@ -91,10 +93,11 @@
       "id": "dossier-core-process-result",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Process\\Result",
+      "name": "proofs: Core\\Process\\Result",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Process\\Result"
@@ -109,10 +112,11 @@
       "id": "dossier-core-program",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Program",
+      "name": "proofs: Core\\Program",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Program"
@@ -127,10 +131,11 @@
       "id": "dossier-core-queue",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Queue",
+      "name": "proofs: Core\\Queue",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Queue"

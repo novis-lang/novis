@@ -53,10 +53,11 @@
       "id": "dossier-core-time-datetime",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Time\\DateTime",
+      "name": "proofs: Core\\Time\\DateTime",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Time\\DateTime"

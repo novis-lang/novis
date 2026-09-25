@@ -256,33 +256,7 @@
 //! none and `nvs_stdlib::registry::CoreTy::Instance` owns why — so `$m->groups`
 //! is an unknown member and `$m->groups()` is the member.
 //!
-//! **Known gaps.** Two of them are the class the cursor reached rather than
-//! this walk. An inherited member is not offered: the members are the ones the
-//! resolved class *declares*, and walking `nvs_hir::ClassGraph` for the rest is
-//! the same widening `rule:ide/five-features-are-one-reference-index`'s index
-//! does properly. Visibility is not applied either, so a `private` member is
-//! offered outside its class — which is a name the checker then refuses where
-//! it was written, rather than a wrong answer that compiles. The third is the
-//! class name that is not written down: `self::`, `static::` and `parent::`
-//! reach a class only through the recorded answer above, so an access whose
-//! member half is still empty offers nothing after them. The fourth is the
-//! receiver half of an access, which is a position and is answered as though
-//! it were not: `$u<|>->name` is a variable being written, and offering the
-//! variables in scope there is right and is not done, because the walk decides
-//! it is in an access before it asks what half of one. The fifth is a written
-//! type the tokens do not give away — a property's, and a type argument
-//! between `<` and `>` — which is answered as the position around it. The
-//! sixth is the inside of
-//! a string literal, answered as the position around it: the variables are
-//! what an interpolation slot takes and are right, and the words that open a
-//! statement sit beside them as noise no filter here removes. The seventh is
-//! how far a namespace reaches: the declarations offered under a prefix are
-//! the ones the index holds, so under
-//! `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` a type in a
-//! file nobody has opened is not among them. That setting is the answer, and
-//! this arm deliberately has no second one — a directory walk of its own is
-//! what `rule:ide/completion-offers-only-what-the-compiler-derived` refuses.
-//! — owner: M10
+//! **Known gaps.** Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/completion.rs` lists them.
 
 use std::collections::BTreeMap;
 

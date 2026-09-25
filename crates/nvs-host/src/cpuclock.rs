@@ -1,6 +1,6 @@
 //! One thread's CPU time, sampled by a thread that is not it.
 //!
-//! `docs/agent/goals/40-resource-ceilings.md` § *Stage 3* puts the sampler on
+//! `docs/agent/goals/resource-ceilings.md` § *Stage 3* puts the sampler on
 //! [`crate::watchdog`]'s thread — one thread for the process, already waking on
 //! an interval and already holding an entry per core. That thread is not the
 //! one burning the CPU it has to measure, so it needs a handle on somebody

@@ -53,10 +53,11 @@
       "id": "dossier-core-request-mount",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Request\\Mount",
+      "name": "proofs: Core\\Request\\Mount",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Request\\Mount"
@@ -71,10 +72,11 @@
       "id": "dossier-core-request-part",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Request\\Part",
+      "name": "proofs: Core\\Request\\Part",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Request\\Part"

@@ -53,10 +53,11 @@
       "id": "dossier-core-random",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Random",
+      "name": "proofs: Core\\Random",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Random"
@@ -71,10 +72,11 @@
       "id": "dossier-core-random-seeded",
       "kind": "command",
       "stage": 2,
-      "name": "dossier: Core\\Random\\Seeded",
+      "name": "proofs: Core\\Random\\Seeded",
       "argv": [
-        "python",
-        "tools/dossier.py",
+        "bun",
+        "nv",
+        "proofs",
         "--verify",
         "--group",
         "Core\\Random\\Seeded"
