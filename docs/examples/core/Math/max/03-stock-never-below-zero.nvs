@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a shop keeps its stock count from going below zero when orders arrive.
+
+class Stock {
+    // Returns the stock left after an order. It is never below zero.
+    public static function afterOrder(int $inStock, int $ordered): int {
+        return Core\Math::max(0, $inStock - $ordered);
+    }
+}
+
+int $stock = 12;
+array<int> $orders = [5, 4, 6];
+foreach ($orders as int $ordered) {
+    $stock = Stock::afterOrder($stock, $ordered);
+    // This prints 7, then 3, then 0.
+    echo "Ordered ", $ordered, ", left in stock: ", $stock, "\n";
+}
