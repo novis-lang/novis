@@ -4,8 +4,8 @@
 //!
 //! **This is the one queue suite that needs no server, and that is why it is
 //! not `queue.rs` beside it.** That file's cases assert nothing at
-//! all unless `NVS_DB_MATRIX_DRIVER` names a backend `python
-//! tools/db-matrix.py` has started a container for, because a socket is the
+//! all unless `NVS_DB_MATRIX_DRIVER` names a backend
+//! `bun nv db-matrix` has started a container for, because a socket is the
 //! only way to reach the four drivers that have one. SQLite is a file, so every
 //! case here runs on every machine and under `bun nv verify` — the
 //! statements below are *executed* on the default legs rather than read, which

@@ -18,7 +18,7 @@ services:
       context: ../..
       dockerfile: benches/proxied/Dockerfile
       # `source` builds from this checkout; `prebuilt` takes the binary
-      # `tools/bench-proxied.py --nvs-bin` staged at `.bin/nvs`. The driver sets this.
+      # `bun nv bench-proxied --nvs-bin` staged at `.bin/nvs`. The driver sets this.
       target: ${NVS_STAGE:-source}
       args:
         # `.git` is not in the build context, so `build.rs` has no commit to find and its own
@@ -34,7 +34,7 @@ services:
     cpus: ${NVS_CPUS:-1}
 
     volumes:
-      # The same twin pair `tools/bench.py --serve-vs-fpm` runs, mounted read-only rather than
+      # The same twin pair `bun nv bench --serve-vs-fpm` runs, mounted read-only rather than
       # copied: one case on disk, measured by both legs, and no chance of the two drifting.
       - ../serve:/app:ro
 
@@ -96,6 +96,6 @@ services:
     cpus: 4
     # Deliberately no `depends_on`. The origin arms run with nginx not yet started, and a dependency
     # here would start it -- turning "measure the origin alone" into "measure the origin with a proxy
-    # idling beside it" without a word in the output. `tools/bench-proxied.py` owns the ordering and
+    # idling beside it" without a word in the output. `tools/nv/cmd/bench-proxied.ts` owns the ordering and
     # waits for health itself, and passes `--no-deps` so this stays true if the key ever comes back.
     entrypoint: ["oha"]

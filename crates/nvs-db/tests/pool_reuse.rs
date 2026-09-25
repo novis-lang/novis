@@ -12,7 +12,7 @@
 //! [`nvs_db::matrix`] is where it gets all three, and this crate's skip rule
 //! rides with them: a process that finds `NVS_DB_MATRIX_DRIVER` unset asserts
 //! nothing at all, so `bun nv verify` is green on a machine with no
-//! containers and `python tools/db-matrix.py` is what makes these assertions
+//! containers and `bun nv db-matrix` is what makes these assertions
 //! happen.
 //!
 //! # What this proves that neither half proves alone

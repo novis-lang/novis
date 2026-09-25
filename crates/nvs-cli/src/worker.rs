@@ -2280,8 +2280,8 @@ mod tests {
     /// why this one asks the matrix for an endpoint where its twin makes a temporary file:
     /// [`super::open`] connects, so the only block that opens is one with a server behind it. A
     /// process that finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing — [`nvs_db::matrix`]'s own
-    /// rule, and `python tools/db-matrix.py` is what makes this assertion happen, which is why this
-    /// crate is one of that tool's suites.
+    /// rule, and `bun nv db-matrix` is what makes this assertion happen, which is why this
+    /// crate is one of that command's suites.
     ///
     /// The seam asserted is [`super::Wire::dialect`] and not the connection, for the twin's reason:
     /// a block that opened and was then read as another dialect would send a placeholder spelling

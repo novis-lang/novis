@@ -26,7 +26,7 @@
 #   anchor is. `/certs/ca.crt` is therefore its anchor too, exactly as PostgreSQL's is.
 # * MariaDB 11.4 does NOT, as this file configures it -- `ssl_cert` comes back empty from the running
 #   server, so it serves no certificate and nothing can verify it. Giving it the `certs` volume below is
-#   Stage 6's own work; until then `tools/db-matrix.py` reports it `n/a` rather than running it.
+#   Stage 6's own work; until then `bun nv db-matrix` reports it `n/a` rather than running it.
 # * SQL Server generates one too and encrypts the login packet regardless, but keeps it inside the
 #   instance rather than on the filesystem, so there is no file to hand a client as an anchor.
 # * PostgreSQL, Redis and Mailpit do not, so the `certs` service below issues them one in a shared
@@ -39,7 +39,7 @@
 #     docker compose -f tests/db/compose.yaml cp postgres:/certs/ca.crt tests/db/ca.crt
 #
 # Credentials are fixed and public on purpose -- these servers hold nothing, reach nothing, and listen on
-# loopback. `python tools/db-matrix.py` is what points ADR 0067's per-driver list at them.
+# loopback. `bun nv db-matrix` is what points ADR 0067's per-driver list at them.
 
 name: novis-db
 
@@ -153,7 +153,7 @@ services:
       # `rule:core-classes/db-unix-socket-path`'s transport, published where the process running the
       # matrix can reach it. The directory is the server's own default one and the socket keeps the
       # name that server gives it, so nothing here is a spelling a deployment would not already have:
-      # `tools/db-matrix.py` hands the file to a second run of the TCP case list and the driver opens
+      # `bun nv db-matrix` hands the file to a second run of the TCP case list and the driver opens
       # it exactly as an operator's own `host` would be.
       #
       # A subdirectory per server rather than one shared directory, because each of these images
@@ -172,7 +172,7 @@ services:
   # named here as it is for MySQL two blocks above: 11.4 generates its own certificate at first boot
   # with no `subjectAltName`, and a client that verifies a name -- the only kind `nvs_host::tls` has --
   # refuses it before any credential is offered. Naming the three files replaces that certificate with
-  # the one `tools/db-matrix.py` hands the client as its anchor, and without them this server is one
+  # the one `bun nv db-matrix` hands the client as its anchor, and without them this server is one
   # the matrix reports `n/a` rather than runs.
   # ---------------------------------------------------------------------------------------------------
   mariadb:
@@ -249,7 +249,7 @@ services:
   # The certificate is the one place SQL Server is not like the other three. It has no `--ssl-cert`
   # equivalent and no environment variable for one: left alone it generates a certificate *inside the
   # instance*, which is presented at every handshake and cannot be copied out as a file, so there is
-  # nothing `tools/db-matrix.py` could hand a client as an anchor. `mssql.conf`'s `[network]` section is
+  # nothing `bun nv db-matrix` could hand a client as an anchor. `mssql.conf`'s `[network]` section is
   # the only way to point it at one, and it is written here rather than mounted -- `mssql-conf` rewrites
   # that file in place during setup, which a bind-mounted host file cannot survive. Hence the entrypoint
   # override: write the section, then `exec` the server the image's own CMD names. `forceencryption`

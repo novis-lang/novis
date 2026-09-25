@@ -3,7 +3,7 @@
 //
 // `hello.nvs` beside this one answers every request with the same bytes, which
 // is right for the throughput comparison it serves and useless for the question
-// `tools/bench-load.py` asks — an answer delivered to the wrong connection is
+// `bun nv bench-load` asks — an answer delivered to the wrong connection is
 // byte-identical to the right one, so no generator can tell the two apart. Here
 // the body is the token the request carried and nothing else, and
 // `nvs-serve-probe` checks every one of them.

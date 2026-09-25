@@ -16,7 +16,7 @@
 //! So where a signature repeats per driver, **it repeats**. A `fn query` body
 //! per protocol, each saying what its own does, is cheaper to read and to fix
 //! than one that makes most of them lie, and what keeps them honest is not a
-//! type — it is `tools/db-matrix.py` running one assertion set against every
+//! type — it is `bun nv db-matrix` running one assertion set against every
 //! real server.
 //!
 //! This module holds those shapes and the one rule they share. A driver's own
@@ -150,7 +150,7 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
 /// auth plugins, error tables and bulk protocol, and `rule:core-classes/db-one-api` argues that at
 /// length. The spellings here are also the ones `NVS_DB_MATRIX_DRIVER`,
-/// `tools/db-matrix.py --driver` and a `[db.<name>]` block's own `driver` field
+/// `bun nv db-matrix --driver` and a `[db.<name>]` block's own `driver` field
 /// use, so that roster has one home — see [`Driver::matrix_name`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Driver {
@@ -181,7 +181,7 @@ impl Driver {
     ];
 
     /// The name this driver has in `NVS_DB_MATRIX_DRIVER` and in
-    /// `tools/db-matrix.py --driver`.
+    /// `bun nv db-matrix --driver`.
     ///
     /// These are wire-adjacent identifiers rather than display names, so they
     /// are lower case and stable; nothing renders them to a user.
@@ -1368,7 +1368,7 @@ mod tests {
     }
 
     /// Every driver round-trips through the name the matrix harness uses, and
-    /// no two share one — the roster `tools/db-matrix.py` selects on is this
+    /// no two share one — the roster `bun nv db-matrix` selects on is this
     /// array and not a copy of it.
     #[test]
     fn every_drivers_matrix_name_round_trips_and_is_unique() {

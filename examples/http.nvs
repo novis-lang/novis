@@ -19,8 +19,8 @@
 // deadline this short is the one thing a caller can reliably prove.
 //
 // The origin the first two lines talk to is the harness's, not this file's:
-// `tools/origin.py`, which the driver holds up around the acceptance sweep and
-// which you start by hand to run this file — `python tools/origin.py &`. The
+// `bun nv origin`, which the driver holds up around the acceptance sweep and
+// which you start by hand to run this file — `bun nv origin &`. The
 // address is named here rather than discovered, and the reason the origin is
 // the harness's is recorded beside the stage 5 check in
 // `docs/agent/loop-goal.toml`.

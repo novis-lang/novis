@@ -67,7 +67,7 @@
 //! # `NVS_DB_MATRIX_*`: how this crate's own tests find a server
 //!
 //! `rule:core-classes/db-one-api`'s *Verification* section asks for a five-driver matrix against real
-//! servers. `tools/db-matrix.py` brings those servers up from
+//! servers. `bun nv db-matrix` brings those servers up from
 //! `tests/db/compose.yaml` and points **this crate's** assertions at one of
 //! them at a time; every assertion is here, and that tool is a harness rather
 //! than a test. What it hands over is discrete fields in the environment and
@@ -157,7 +157,7 @@
 //! where a program names one, and [`matrix`]'s `NVS_DB_MATRIX_CA` is where
 //! this crate's own cases get theirs. **Every server there serves one**, some
 //! of them by `tests/db/compose.yaml`'s own arrangement rather than by their
-//! images' — that file's block comments own how — so `tools/db-matrix.py` runs
+//! images' — that file's block comments own how — so `bun nv db-matrix` runs
 //! every leg. [`pg`]'s exchange is asserted against a scripted SCRAM server as
 //! well as against a container: a unit test that needs neither socket nor
 //! certificate is the one that keeps failing usefully when the servers are

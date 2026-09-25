@@ -769,7 +769,7 @@ mod tests {
             BlockError::UnknownDriver {
                 written: "sqlserver"
             },
-            "the one spelling is `mssql`, which is what `tools/db-matrix.py` \
+            "the one spelling is `mssql`, which is what `bun nv db-matrix` \
              and `tests/db/compose.yaml` write"
         );
     }

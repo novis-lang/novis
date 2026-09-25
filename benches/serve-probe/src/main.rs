@@ -1,11 +1,12 @@
 //! The load probe: what `nvs serve` saturates at on this machine, and whether
 //! every answer it gave was the answer to the request that asked.
 //!
-//! `tools/bench-load.py` is what runs this — it compiles the probe, starts the
-//! server, walks the concurrency list and writes the record — and that file's
-//! `## What this leg is` owns why the leg exists and how it differs from the
-//! other two. What is *here* is the client: the token every request carries,
-//! the two ways load is applied, and the checks a response has to pass.
+//! `bun nv bench-load` is what runs this — it compiles the probe, starts the
+//! server, walks the concurrency list and writes the record — and
+//! `tools/nv/cmd/bench-load.ts`'s `# What this leg is` owns why the leg exists
+//! and how it differs from the other two. What is *here* is the client: the
+//! token every request carries, the two ways load is applied, and the checks a
+//! response has to pass.
 //!
 //! # A throughput figure over one constant response measures less than it looks
 //!

@@ -1498,7 +1498,7 @@ mod tests {
     /// cannot build an `nvs_db::Connection` at all (the playbook's own bullet
     /// owns why), so what is pinned here is the seam the member files the
     /// deadline *on*, read back off the stream and then made to expire. The
-    /// live-server half is `tools/db-matrix.py`'s.
+    /// live-server half is `bun nv db-matrix`'s.
     ///
     /// The read runs off a core, where the bound is the poll's own timeout, so
     /// this needs neither a scheduler nor a reactor — `nvs_host::net`'s
@@ -1845,7 +1845,7 @@ mod tests {
     ///
     /// This crate can build no `nvs_db::Connection`, which the playbook's own
     /// bullet owns, so what runs a statement against a real SQL Server is
-    /// `tools/db-matrix.py`.
+    /// `bun nv db-matrix`.
     // covers: Core\Db\Write::lastId
     #[test]
     fn a_sql_server_write_answers_no_key_and_keeps_the_count_it_was_given() {

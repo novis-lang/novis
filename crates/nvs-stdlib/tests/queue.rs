@@ -11,13 +11,13 @@
 //! nvs_stdlib::…` that closes a cycle in the workspace, and the alternative —
 //! a copy of the statement text kept beside such a test — would assert over
 //! the copy rather than over the statement a `push` actually issues. A test
-//! target here sees both crates and needs neither compromise. `tools/db-matrix.py`'s
+//! target here sees both crates and needs neither compromise. `tools/nv/cmd/db-matrix.ts`'s
 //! `SUITES` is what points this file at a server as well as `nvs-db`'s own.
 //!
 //! The skip rule is `nvs-db`'s, because it is the same harness: a process that
 //! finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing at all, so `bun
-//! nv verify` is green on a machine with no containers and `python
-//! tools/db-matrix.py` is what makes these assertions happen.
+//! nv verify` is green on a machine with no containers and
+//! `bun nv db-matrix` is what makes these assertions happen.
 //! [`nvs_db::matrix`]'s module doc owns that rule and why a field that is *set
 //! but unusable* panics instead.
 //!

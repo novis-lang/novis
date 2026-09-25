@@ -6,9 +6,9 @@ members = ["crates/*", "benches/*"]
 # `benches/*` glob above would otherwise look for a `Cargo.toml` that will
 # never exist and fail the whole workspace before a single crate is read.
 # `benches/members/` is the same shape for the per-feature figures its own
-# README describes, and `benches/serve/` for the twin pair `tools/bench.py
+# README describes, and `benches/serve/` for the twin pair `bun nv bench
 # --serve-vs-fpm` runs under two servers and the `echo.nvs` case
-# `tools/bench-load.py` verifies against. `benches/serve-probe/` next to it is a
+# `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
 # crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
 # an nginx and a PHP configuration and a Dockerfile, for the same reason.
 # `benches/results/` is the one nothing in the repository creates: the loop's

@@ -23,16 +23,16 @@ services:
 
     working_dir: /app
     volumes:
-      # The same twin pair `tools/bench.py --serve-vs-fpm` runs, mounted read-only rather than
+      # The same twin pair `bun nv bench --serve-vs-fpm` runs, mounted read-only rather than
       # copied: one case on disk, measured by both legs, and no chance of the two drifting.
       - ../serve:/app:ro
       - ./php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
-      # Rendered by `tools/bench-proxied.py` from `php/pool.conf.in`, because php-fpm interpolates no
+      # Rendered by `bun nv bench-proxied` from `php/pool.conf.in`, because php-fpm interpolates no
       # environment variable in a pool file. The driver writes it before every `up`.
       - ./generated/pool.conf:/usr/local/etc/php-fpm.d/zz-bench.conf:ro
 
     # Published so arm 4 -- FastCGI with no proxy in the way -- can be driven from the host by the
-    # client in `tools/bench.py`. 19000 rather than 9000 for the reason the header above points at.
+    # client in `tools/nv/cmd/bench.ts`. 19000 rather than 9000 for the reason the header above points at.
     ports:
       - "127.0.0.1:19000:9000"
 
@@ -84,6 +84,6 @@ services:
     cpus: 4
     # Deliberately no `depends_on`. The origin arms run with nginx not yet started, and a dependency
     # here would start it -- turning "measure the origin alone" into "measure the origin with a proxy
-    # idling beside it" without a word in the output. `tools/bench-proxied.py` owns the ordering and
+    # idling beside it" without a word in the output. `tools/nv/cmd/bench-proxied.ts` owns the ordering and
     # waits for health itself, and passes `--no-deps` so this stays true if the key ever comes back.
     entrypoint: ["oha"]

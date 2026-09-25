@@ -32,7 +32,7 @@ COPY . /src
 # `.git/` is excluded from the context (it is large and nothing compiles from it), so `build.rs`
 # would record the commit as `unknown` and the binary in the image would not say which source it is.
 # `NVS_BUILD_COMMIT` is that build script's own override for exactly this case -- a source tree with
-# no `.git` is a supported way to build Novis -- and `tools/bench-proxied.py` passes the checkout's
+# no `.git` is a supported way to build Novis -- and `bun nv bench-proxied` passes the checkout's
 # HEAD through it, so `nvs info` inside the container agrees with the record written outside it.
 ARG NVS_BUILD_COMMIT=""
 ENV NVS_BUILD_COMMIT=${NVS_BUILD_COMMIT}
@@ -79,7 +79,7 @@ CMD ["serve", "/app/hello.nvs", "--listen", "0.0.0.0:8080"]
 # --------------------------------------------------------------------------------------
 # Stage `prebuilt` -- the same runtime, taking a binary the host already built.
 # --------------------------------------------------------------------------------------
-# Selected by `tools/bench-proxied.py --nvs-bin PATH`, which stages the file at
+# Selected by `bun nv bench-proxied --nvs-bin PATH`, which stages the file at
 # `benches/proxied/.bin/nvs` and builds this target instead. It exists because the WSL leg already
 # produces a Linux release binary on this machine (`docs/agent/commands.md` § *Fuzzing and callgrind
 # on Windows*), and paying a second full release build to measure it is minutes per iteration for

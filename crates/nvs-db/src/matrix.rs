@@ -1,8 +1,8 @@
 //! Where this crate's own tests find a real server: the `NVS_DB_MATRIX_*`
-//! fields `tools/db-matrix.py` sets, read in one place.
+//! fields `bun nv db-matrix` sets, read in one place.
 //!
 //! `rule:core-classes/db-one-api`'s *Verification* section asks for a five-driver matrix against real
-//! servers rather than mocks. `tools/db-matrix.py` brings them up from
+//! servers rather than mocks. `bun nv db-matrix` brings them up from
 //! `tests/db/compose.yaml`, reads the ports and credentials back out of that
 //! file — so it holds no copy of either — and runs `cargo test -p nvs-db` once
 //! per driver with the fields below in the environment. One driver per process,
@@ -40,7 +40,7 @@
 //!
 //! **A socket leg is this crate's own case list, run a second time.**
 //! `tests/db/compose.yaml` publishes MySQL's, MariaDB's and PostgreSQL's own
-//! socket directory out of the container, and `tools/db-matrix.py` runs those
+//! socket directory out of the container, and `bun nv db-matrix` runs those
 //! three drivers again with [`SOCKET_VAR`] set instead of a host — so every
 //! case that asked a published server asks the same server over `AF_UNIX`, and
 //! the driver is held to one answer across both. That is the whole property a

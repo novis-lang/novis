@@ -1,6 +1,6 @@
 [package]
 name = "nvs-serve-probe"
-description = "The load probe behind `tools/bench-load.py`: what `nvs serve` saturates at, and whether every answer was the right one"
+description = "The load probe behind `bun nv bench-load`: what `nvs serve` saturates at, and whether every answer was the right one"
 publish = false
 version.workspace = true
 edition.workspace = true
