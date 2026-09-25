@@ -33,7 +33,7 @@ Goal `the-description-is-owed`'s whole acceptance list, carried in verbatim by `
 
 **Does:** Rewrites every example, attack and bench comment that is outside the comment bounds.
 
-`python tools/dossier.py --comments docs/examples tests/hostile benches/members` names every program
+`bun nv proofs --comments docs/examples tests/hostile benches/members` names every program
 outside the bounds and every line in it. The work is closing that list, one feature directory at a
 time, and the stage is green when the command exits 0.
 
@@ -51,29 +51,6 @@ which file and which line. Nothing in `tools/dossier.py` changes: the file is th
 durable answer, exactly as it is for `perf` and `about`.
 
 This is last on purpose. Switched on before Stage 2 is green it fails the floor.
-
-## Running this goal wide
-
-The carve-out of the generated dossier goals holds here, for the same reason: a worker's paths are
-derived from a feature's path, so two workers cannot name the same file, and the result is judged
-mechanically. Hand each worker one chapter or class, the three directories it owns, and these rules:
-
-- **`AGENTS.md` § *Text an end user reads* is the rule**, and it is in your context already. It
-  carries a before and an after for an example and for an attack.
-- **Change comment lines and nothing else.** Not a statement, not a string, not a blank line between
-  statements, not a directive line (`// bench:`, `// hostile:`, `// covers:`, `// dossier:`,
-  `// requires:`), not a `.out`.
-- **Run `python tools/dossier.py --comments <your directories>` until it exits 0**, and nothing else:
-  no `git`, no `cargo`, no `--run`, no `--bless`.
-- **Hand back the list of files changed**, and nothing else.
-
-Then, in this session and only after every worker has stopped:
-
-1. `git diff -U0 -- docs/examples tests/hostile benches/members`, and read every changed line that
-   does not open with `//`. There should be none. One that exists is reverted, not reviewed.
-2. `python tools/dossier.py --run examples` over what changed. A comment cannot change what a
-   program prints, so a red example here means a worker touched code.
-3. `bun nv verify`, then the wrap. One commit per chapter or class.
 
 ## Standing decisions
 

@@ -18,7 +18,7 @@
         "text": "**`tools:server/nvs-ctl`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:190`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

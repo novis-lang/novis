@@ -18,7 +18,7 @@
         "text": "**`Core\\Response::html`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:297`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

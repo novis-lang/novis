@@ -18,7 +18,7 @@
         "text": "**`Core\\Process\\Handle::kill`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/process.rs:342`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

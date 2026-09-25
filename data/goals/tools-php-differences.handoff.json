@@ -18,7 +18,7 @@
         "text": "**`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:173`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

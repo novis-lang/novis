@@ -18,7 +18,7 @@
         "text": "**`Core\\Time\\DateTime::difference`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1673`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

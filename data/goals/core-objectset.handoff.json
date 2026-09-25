@@ -18,7 +18,7 @@
         "text": "**`Core\\ObjectSet::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:80`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

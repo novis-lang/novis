@@ -18,7 +18,7 @@
         "text": "**`Core\\Xml\\Node::kind`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:277`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

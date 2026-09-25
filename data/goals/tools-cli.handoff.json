@@ -18,7 +18,7 @@
         "text": "**`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:365`"
       }
     ],
-    "after": "`python tools/dossier.py --id '<feature>'` prints the paths each proof belongs at."
+    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
   },
   "backlog": [
     "(nothing yet)"

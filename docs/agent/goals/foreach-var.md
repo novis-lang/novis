@@ -171,5 +171,5 @@ looks for it.** This is the user's instruction, and it is a stage of its own wei
   user and does not start it.
 - **No bench.** The IR-equality test of Stage 3 is the proof that there is nothing to measure.
 - **Every comment in a new `.nvs` and every changed `about.md` follows `AGENTS.md` § *Text an end
-  user reads* at the first write**, and `python tools/dossier.py --comments <paths>` is run over
+  user reads* at the first write**, and `bun nv proofs --comments <paths>` is run over
   them before the wrap.
