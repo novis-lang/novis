@@ -1,0 +1,16 @@
+<?nvs
+// Shows what `Core\Math::atanh` returns close to the ends of its range, at the ends, and outside it.
+
+// A number close to 1.0 gives a big result. This prints 3.8002011672502.
+echo Core\Math::atanh(0.999), "\n";
+
+// 1.0 gives infinity. This prints INF.
+echo Core\Math::atanh(1.0), "\n";
+
+// -1.0 gives minus infinity. This prints -INF.
+echo Core\Math::atanh(-1.0), "\n";
+
+// 1.5 is outside the range, so the result is `NaN`.
+// `Core\Math::isNan` tests for it. This prints "not a number".
+float $result = Core\Math::atanh(1.5);
+echo Core\Math::isNan($result) ? "not a number\n" : "a number\n";

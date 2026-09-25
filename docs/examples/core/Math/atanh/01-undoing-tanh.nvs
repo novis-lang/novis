@@ -1,0 +1,12 @@
+<?nvs
+// Shows a few results of `Core\Math::atanh`, and how it undoes `Core\Math::tanh`.
+
+// This prints 0.54930614433405.
+echo Core\Math::atanh(0.5), "\n";
+
+// A negative number gives a negative result. This prints -0.54930614433405.
+echo Core\Math::atanh(-0.5), "\n";
+
+// `Core\Math::tanh` turns 2.0 into 0.96402758007582.
+// `Core\Math::atanh` turns that back into 2.0. This prints 2.
+echo Core\Math::atanh(Core\Math::tanh(2.0)), "\n";

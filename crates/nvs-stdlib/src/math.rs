@@ -549,13 +549,14 @@ const CLAMP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::ceil`'s reference card — `rule:core-api/reference-card`.
 const CEIL_DOC: MethodDoc = MethodDoc {
-    short: "The smallest integral value at or above `$n`, as `ceil` does.",
+    short: "Rounds `$n` up to the next whole number. For a negative `$n`, up means toward zero.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The value to round up.",
+        desc: "The number to round up.",
         shape: &[],
     }],
-    ret: "An integral `float`; `NaN` and the infinities pass through unchanged.",
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and \
+          the infinities stay the same.",
     errors: &[],
 };
 
@@ -745,14 +746,15 @@ const SQRT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::cbrt`'s reference card — `rule:core-api/reference-card`.
 const CBRT_DOC: MethodDoc = MethodDoc {
-    short: "The cube root of `$n`, replacing PHP's `pow($n, 1/3)` — and defined for a negative \
-            `$n`, where that idiom answers `NaN`.",
+    short: "Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes \
+            `pow($n, 1/3)`, which gives `NaN` for a negative number.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The value to take the root of.",
+        desc: "Any number.",
         shape: &[],
     }],
-    ret: "The real cube root, carrying `$n`'s sign; `cbrt(-8.0)` is `-2.0`.",
+    ret: "The cube root, with the same sign as `$n`: `Core\\Math::cbrt(-8.0)` is `-2.0`. An \
+          infinity gives the same infinity, and `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -972,14 +974,15 @@ const ACOSH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::atanh`'s reference card — `rule:core-api/reference-card`.
 const ATANH_DOC: MethodDoc = MethodDoc {
-    short: "The inverse hyperbolic tangent of `$n`, as `atanh` does.",
+    short: "Returns the number whose hyperbolic tangent is `$n`. This is the inverse hyperbolic \
+            tangent. It undoes `Core\\Math::tanh`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "A hyperbolic tangent, in `[-1, 1]`.",
+        desc: "A hyperbolic tangent: a number from `-1.0` to `1.0`.",
         shape: &[],
     }],
-    ret: "The value whose `tanh` is `$n`; `INFINITY` at `1.0`, `-INFINITY` at `-1.0` and `NaN` \
-          outside them.",
+    ret: "A number with the same sign as `$n`. `1.0` gives `INF` and `-1.0` gives `-INF`. A `$n` \
+          outside `-1.0` to `1.0` gives `NaN`.",
     errors: &[],
 };
 
@@ -1618,7 +1621,13 @@ unary_float! {
 unary_float! {
     /// `Core\Math::atanh(float $n): float` — replacing PHP's `atanh`. An
     /// infinity at `±1` and `NaN` outside them.
-    nvs_core_math_atanh, "atanh", f64::atanh
+    ///
+    /// Computed over `|n|` with `n`'s sign put back, the way libm's `atanh`
+    /// is and PHP's therefore answers. `f64::atanh` alone is
+    /// `0.5 * ln_1p(2n / (1 - n))`, which is accurate near `1` and loses
+    /// digits near `-1`: it gives `-18.37` for `-0.9999999999999999`, where
+    /// the answer is `-18.71`.
+    nvs_core_math_atanh, "atanh", |n| n.abs().atanh().copysign(n)
 }
 
 unary_float! {
@@ -2732,5 +2741,93 @@ mod tests {
         assert_eq!(atan2(f64::MIN_POSITIVE, f64::MAX), 0.0);
         assert_eq!(atan2(f64::INFINITY, f64::INFINITY), FRAC_PI_4);
         assert!(atan2(f64::NAN, 1.0).is_nan() && atan2(1.0, f64::NAN).is_nan());
+    }
+
+    /// `atanh` answers `±INFINITY` at `±1`, `NaN` outside them, a zero with
+    /// its sign kept, and `-n` exactly `-atanh(n)` right up to the float next
+    /// to `-1` — where `f64::atanh` alone loses digits — never a throw.
+    // covers: Core\Math::atanh
+    #[test]
+    fn atanh_answers_infinity_at_the_ends_nan_outside_them_and_keeps_its_sign() {
+        let atanh = |n: f64| float_result(nvs_core_math_atanh, &[Value::float(n)]);
+        assert!((atanh(0.5) - 0.549_306_144_334_054_9).abs() < 1e-15);
+        assert!((atanh(2.0f64.tanh()) - 2.0).abs() < 1e-12, "undoes tanh");
+        assert_eq!(atanh(1.0), f64::INFINITY);
+        assert_eq!(atanh(-1.0), f64::NEG_INFINITY);
+        let edge = 1.0f64.next_down();
+        assert!(
+            (atanh(edge) - 18.714_973_875_118_524).abs() < 1e-12,
+            "{}",
+            atanh(edge)
+        );
+        for n in [0.5, 0.999, edge, f64::MIN_POSITIVE] {
+            assert_eq!(atanh(-n), -atanh(n), "odd at {n}");
+        }
+        assert_eq!(atanh(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(atanh(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(atanh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for outside in [
+            1.0f64.next_up(),
+            -1.5,
+            f64::MAX,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(atanh(outside).is_nan(), "{outside} has no inverse");
+        }
+    }
+
+    /// `cbrt` answers a real root for a negative `$n` where `pow(n, 1/3)`
+    /// answers `NaN`, exact roots of exact cubes, a finite root at both ends
+    /// of the range and below the smallest normal float, a zero and an
+    /// infinity with their sign kept — never a throw.
+    // covers: Core\Math::cbrt
+    #[test]
+    fn cbrt_answers_every_float_keeps_its_sign_and_is_exact_on_exact_cubes() {
+        let cbrt = |n: f64| float_result(nvs_core_math_cbrt, &[Value::float(n)]);
+        assert_eq!(cbrt(27.0), 3.0);
+        assert_eq!(cbrt(-8.0), -2.0);
+        assert!((-8.0f64).powf(1.0 / 3.0).is_nan(), "the idiom it replaces");
+        assert!((cbrt(2.0).powi(3) - 2.0).abs() < 1e-15);
+        for n in [
+            0.001,
+            2.0,
+            1e300,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+        ] {
+            let root = cbrt(n);
+            assert!(root.is_finite() && root > 0.0, "{n} -> {root}");
+            assert_eq!(cbrt(-n), -root, "odd at {n}");
+        }
+        assert_eq!(cbrt(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(cbrt(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(cbrt(f64::INFINITY), f64::INFINITY);
+        assert_eq!(cbrt(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(cbrt(f64::NAN).is_nan());
+    }
+
+    /// `ceil` rounds toward positive infinity: toward zero for a negative
+    /// `$n`, `-0.0` for a `$n` in `(-1, 0)`, whole values and every float at
+    /// or past `2^52` unchanged, and `NaN` and the infinities through as
+    /// they are — never a throw.
+    // covers: Core\Math::ceil
+    #[test]
+    fn ceil_rounds_toward_positive_infinity_and_keeps_a_negative_zero() {
+        let ceil = |n: f64| float_result(nvs_core_math_ceil, &[Value::float(n)]);
+        assert_eq!(ceil(4.1), 5.0);
+        assert_eq!(ceil(4.0), 4.0);
+        assert_eq!(ceil(-4.1), -4.0);
+        assert_eq!(ceil(-0.5).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(ceil(-f64::MIN_POSITIVE).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(ceil(f64::MIN_POSITIVE), 1.0);
+        assert_eq!(ceil(4_503_599_627_370_495.5), 4_503_599_627_370_496.0);
+        assert_eq!(ceil(-4_503_599_627_370_495.5), -4_503_599_627_370_495.0);
+        assert_eq!(ceil(f64::MAX), f64::MAX);
+        assert_eq!(ceil(f64::INFINITY), f64::INFINITY);
+        assert_eq!(ceil(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(ceil(f64::NAN).is_nan());
     }
 }
