@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Math::acosh` returns for a few numbers, and that it undoes `Core\Math::cosh`.
+
+// 1.0 is the smallest hyperbolic cosine, and it belongs to 0. This prints 0.
+echo Core\Math::acosh(1.0), "\n";
+
+// This prints 1.3169578969248.
+echo Core\Math::acosh(2.0), "\n";
+
+// `Core\Math::cosh` of 3.0 is about 10.07. `acosh` of that number is 3 again.
+// This prints 3.
+echo Core\Math::acosh(Core\Math::cosh(3.0)), "\n";

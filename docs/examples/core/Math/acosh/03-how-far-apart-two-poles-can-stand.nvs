@@ -1,0 +1,21 @@
+<?nvs
+// Shows how an app that plans power lines finds how far apart two poles can stand.
+// The cable between them may sag a given number of metres.
+
+// A hanging cable has the shape of a `cosh` curve. `acosh` turns the sag into a distance.
+class Span {
+    // `$tension` says how tight the cable is. A bigger number means a tighter cable.
+    public static function width(float $tension, float $sag): float {
+        float $half = $tension * Core\Math::acosh(($tension + $sag) / $tension);
+        return Core\Math::round($half * 2.0, {precision: 1});
+    }
+}
+
+// A tight cable that may sag 5 metres. This prints 63.
+echo Span::width(100.0, 5.0), "\n";
+
+// The same cable may sag 10 metres. This prints 88.7.
+echo Span::width(100.0, 10.0), "\n";
+
+// A looser cable that may sag 5 metres. The poles must be closer. This prints 44.4.
+echo Span::width(50.0, 5.0), "\n";
