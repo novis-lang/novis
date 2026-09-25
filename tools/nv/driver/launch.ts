@@ -11,10 +11,13 @@
 //
 // `RunState` is `.loop/run.json`, in the shape `loop.py` writes, so a run continues across the cutover
 // with its numbering intact: `index` names the logs and only goes up, and `served` is what
-// `--max-sessions` counts.
+// `--max-sessions` counts. Its `judge` is a served session no sweep has judged yet, because the session
+// changed driver code the turn had imported: `driverFiles` and `driverChanged` find that, and the next
+// turn, a fresh process, serves no session and judges that one with the code it committed.
 
+import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { say } from "./console.ts";
 
@@ -148,7 +151,62 @@ export interface RunState {
   served: number;
   index: number;
   stalls: number;
+  /** A session the last turn served and left for this one to judge, or `{}`. */
+  judge?: Judge | Record<string, never>;
   [other: string]: unknown;
+}
+
+/** What a turn that judges an earlier turn's session needs of it. */
+export interface Judge {
+  index: number;
+  line: string;
+  commits: number;
+  base: string;
+}
+
+/** `state.judge` when it names a session, and null when there is none to judge. */
+export function pendingJudge(state: RunState): Judge | null {
+  const j = state.judge as Partial<Judge> | undefined;
+  if (!j || typeof j.index !== "number") return null;
+  return { index: j.index, line: String(j.line ?? ""), commits: Number(j.commits) || 0, base: String(j.base ?? "") };
+}
+
+/**
+ * Every `.ts` file under `tools/` this process has imported, with the digest of its bytes. This is the
+ * code a sweep run by this process judges with. A tool the sweep starts as a subprocess reads its code off
+ * disk when it starts, and is never stale.
+ */
+export function driverFiles(root = ROOT): Map<string, string> {
+  const tools = join(root, "tools") + sep;
+  const out = new Map<string, string>();
+  for (const path of Object.keys(require.cache)) {
+    if (!path.endsWith(".ts") || !path.startsWith(tools)) continue;
+    try {
+      out.set(path, createHash("sha256").update(readFileSync(path)).digest("hex"));
+    } catch {
+      // A module deleted since it was imported is not one a digest can be taken of now either.
+    }
+  }
+  return out;
+}
+
+/**
+ * The files in `before`, a `driverFiles` snapshot, whose bytes differ now, as sorted paths from the root.
+ * A non-empty answer after a session means this process would judge it with the code the session
+ * replaced, so a session that fixed the driver's own verdict would fail the same check again.
+ */
+export function driverChanged(before: Map<string, string>, root = ROOT): string[] {
+  const changed: string[] = [];
+  for (const [path, digest] of before) {
+    let now = "";
+    try {
+      now = createHash("sha256").update(readFileSync(path)).digest("hex");
+    } catch {
+      // Deleted: a change like any other.
+    }
+    if (now !== digest) changed.push(relative(root, path).replace(/\\/g, "/"));
+  }
+  return changed.sort();
 }
 
 /** The run state for `run`: the file's when it names the same run, and a fresh one otherwise. */

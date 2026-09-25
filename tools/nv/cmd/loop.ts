@@ -43,7 +43,10 @@
 // `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
 // `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
 // is `bun nv loop` with that variable set: one session, its acceptance sweep and its ledger lines in
-// `.loop/log.md`, then exit 75, which asks for the next turn. `tools/respawn.py` starts turns the same
+// `.loop/log.md`, then exit 75, which asks for the next turn. A session that changed driver code the turn
+// had imported is not swept by that turn, which would judge it with the code it replaced: the turn exits
+// 75 at once, and the next one serves no session and sweeps that one (`driver/launch.ts`'s
+// `driverChanged`). `tools/respawn.py` starts turns the same
 // way for a run started with `python tools/loop.py`. It
 // takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`), `--max-sessions`,
 // `--max-stalls` (10), `--max-retries` (3) and `--max-limit-wait` (21600 seconds). The run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its session
@@ -81,7 +84,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, launch, ledger, loadRun, openingLine, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
+import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, ledger, loadRun, openingLine, pendingJudge, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { respawn } from "../driver/respawn.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { installedGoal } from "../import/goals.ts";
@@ -677,7 +680,13 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
       );
     }
   }
-  if (state.served >= f.maxSessions) return finish(state, `hit --max-sessions (${f.maxSessions})`, true);
+  // The code this turn judges with, taken before a session can change it: `driverChanged`.
+  const imported = driverFiles();
+  // A session the last turn served and could not judge, because it changed that code. This turn serves
+  // no session: it writes the sweep into that session's log and judges it below.
+  const pending = pendingJudge(state);
+  state.judge = {};
+  if (state.served >= f.maxSessions && pending === null) return finish(state, `hit --max-sessions (${f.maxSessions})`, true);
   const found = selected({});
   if (found === null) return 2;
   const { live, goal, labelOf, total } = found;
@@ -716,7 +725,18 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   let number = "";
   let base = "";
   let operator = "";
-  for (;;) {
+  let line = "";
+  let commits = 0;
+  if (pending !== null) {
+    index = ctx.index = pending.index;
+    number = String(index).padStart(4, "0");
+    ({ line, commits, base } = pending);
+    SLICES.start(base);
+    session.begin(index);
+    CONSOLE.openSession(join(ROOT, LOGDIR, `${state.run_id}-${number}.log`));
+    step(`judging session ${index} with the driver code it committed -- no session this turn`, C.CYAN);
+  }
+  for (; pending === null; ) {
     const asked = CONTROL.stopReason();
     if (asked) return finish(state, asked);
     if (wall !== null) {
@@ -810,23 +830,37 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     }
     break;
   }
-  state.served++;
-  saveRun(state);
+  if (pending === null) {
+    state.served++;
+    saveRun(state);
 
-  const statusPath = join(ROOT, RUNDIR, "status.txt");
-  const line = existsSync(statusPath) ? readFileSync(statusPath, "utf8").trim() : "";
-  // A session that exits zero without wrapping, cut off by the harness or out of turns, leaves its
-  // unfinished slice as surely as a crashed one, and one that wrapped leaves nothing and closes an earlier
-  // interruption.
-  const swept = await markInterrupted(index, "it exited without wrapping", touched);
-  if (swept.committed) step(`swept ${swept.paths} uncommitted path(s) into a wip commit -- the session ended without wrapping`, C.YELLOW);
-  const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
-  const commits = Number(counted.stdout.trim()) || 0;
-  const left = swept.left > 0 ? ` | ${swept.left} path(s) the session never wrote left in the tree` : "";
-  const wip = swept.committed ? ` | ${swept.paths} path(s) swept into a wip commit` : swept.paths > 0 ? ` | ${swept.paths} path(s) left uncommitted, the sweep's commit failed` : "";
-  // Said because it changes what the line means: a session a person halted or spoke to is not an unattended one.
-  const attended = operator ? ` | ${operator}` : "";
-  ledger(`- ${number} ${commits} commit(s)${wip}${left}${attended} | ${line || "(no status written)"}`);
+    const statusPath = join(ROOT, RUNDIR, "status.txt");
+    line = existsSync(statusPath) ? readFileSync(statusPath, "utf8").trim() : "";
+    // A session that exits zero without wrapping, cut off by the harness or out of turns, leaves its
+    // unfinished slice as surely as a crashed one, and one that wrapped leaves nothing and closes an earlier
+    // interruption.
+    const swept = await markInterrupted(index, "it exited without wrapping", touched);
+    if (swept.committed) step(`swept ${swept.paths} uncommitted path(s) into a wip commit -- the session ended without wrapping`, C.YELLOW);
+    const counted = await runProc(["git", "rev-list", "--count", `${base}..HEAD`]);
+    commits = Number(counted.stdout.trim()) || 0;
+    const left = swept.left > 0 ? ` | ${swept.left} path(s) the session never wrote left in the tree` : "";
+    const wip = swept.committed ? ` | ${swept.paths} path(s) swept into a wip commit` : swept.paths > 0 ? ` | ${swept.paths} path(s) left uncommitted, the sweep's commit failed` : "";
+    // Said because it changes what the line means: a session a person halted or spoke to is not an unattended one.
+    const attended = operator ? ` | ${operator}` : "";
+    ledger(`- ${number} ${commits} commit(s)${wip}${left}${attended} | ${line || "(no status written)"}`);
+
+    // Straight to the next turn: no budget or stall check stands between a session and its verdict.
+    const stale = driverChanged(imported);
+    if (stale.length > 0) {
+      state.judge = { index, line, commits, base };
+      const reason = `session ${index} changed the driver's own code (${stale.join(", ")}), so a fresh turn judges it`;
+      ledger(`       ${reason}`);
+      CONSOLE.closeSession();
+      saveRun(state);
+      say(reason, C.CYAN);
+      return AGAIN;
+    }
+  }
 
   // The sweep, over the goal's list as the session left it.
   const again = selected({});

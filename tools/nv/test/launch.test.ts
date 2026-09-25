@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { claudeArgs, launch, loadRun, openingLine, runName, saveRun } from "../driver/launch.ts";
+import { claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../driver/launch.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const scratch = () => {
@@ -40,6 +40,22 @@ describe("run state", () => {
     expect(next.fresh).toBe(false);
     expect(next.state).toMatchObject({ served: 78, index: 78, judge: {} });
     expect(loadRun("20260925-090000-1", root).fresh).toBe(true);
+  });
+
+  test("a session left to judge is read back, and an empty `judge` names none", () => {
+    const base = { run: "r", run_id: "r", served: 1, index: 1, stalls: 0 };
+    expect(pendingJudge({ ...base, judge: {} })).toBeNull();
+    expect(pendingJudge(base)).toBeNull();
+    expect(pendingJudge({ ...base, judge: { index: 7, line: "CONTINUE x", commits: 2, base: "abc" } })).toEqual({ index: 7, line: "CONTINUE x", commits: 2, base: "abc" });
+  });
+
+  test("a driver file whose bytes moved since the snapshot is named, and an unmoved one is not", () => {
+    const before = driverFiles();
+    const self = [...before.keys()].find((p) => p.replace(/\\/g, "/").endsWith("tools/nv/driver/launch.ts"));
+    expect(self).toBeDefined();
+    expect(driverChanged(before)).toEqual([]);
+    const stale = new Map(before).set(self!, "0".repeat(64));
+    expect(driverChanged(stale)).toEqual(["tools/nv/driver/launch.ts"]);
   });
 
   test("a run name is the local time and the process id", () => {
