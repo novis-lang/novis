@@ -1,5 +1,6 @@
 // `bun nv <command> [args]`: the one entry point of the repository's tools. Each command is a module
-// under `cmd/` exporting a `summary` line and `run(args)`, which returns the exit status.
+// under `cmd/` exporting a `summary` line and `run(args)`, which returns the exit status. Every command
+// runs with the console held in the modes `lib/tty.ts` names, whatever the programs it starts do to it.
 
 import * as audit from "./cmd/audit.ts";
 import * as bg from "./cmd/bg.ts";
@@ -52,6 +53,7 @@ import * as tryCmd from "./cmd/try.ts";
 import * as verify from "./cmd/verify.ts";
 import * as webcryptoVectors from "./cmd/webcrypto-vectors.ts";
 import * as why from "./cmd/why.ts";
+import { holdConsole } from "./lib/tty.ts";
 
 interface Command {
   summary: string;
@@ -66,6 +68,7 @@ function usage(): void {
   for (const [name, cmd] of Object.entries(COMMANDS)) console.log(`  ${name.padEnd(width)}  ${cmd.summary}`);
 }
 
+holdConsole();
 const [name, ...args] = process.argv.slice(2);
 if (name === undefined || name === "help" || name === "--help" || name === "-h") {
   usage();

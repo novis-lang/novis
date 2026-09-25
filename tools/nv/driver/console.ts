@@ -35,10 +35,11 @@
 // Everything said is also written, stamped, to `.loop/logs/<run>-console.log`, and the driver's own lines
 // go into the running session's log as `loop_console` events.
 
-import { dlopen, FFIType, ptr } from "bun:ffi";
+import { dlopen, FFIType } from "bun:ffi";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { cookConsole } from "../lib/tty.ts";
 import type { Tree } from "./proctree.ts";
 import { cut, keyRow } from "./status.ts";
 
@@ -79,33 +80,13 @@ export function paint(text: string, colour: string): string {
   return coloured ? `${colour}${text}${C.RESET}` : text;
 }
 
-type ConsoleApi = ReturnType<typeof loadConsole>;
-let consoleApi: ConsoleApi | null | undefined;
-
-function loadConsole() {
-  return dlopen("kernel32.dll", {
-    GetStdHandle: { args: [FFIType.i32], returns: FFIType.ptr },
-    GetConsoleMode: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
-    SetConsoleMode: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.i32 },
-  }).symbols;
-}
-
 /**
- * Turns on escape-sequence processing for the Windows console, and turns off the mode in which a bare LF
- * keeps the column. Called when the ticker starts and after every session, since a child may change the
- * mode of the console it shares. Does nothing elsewhere, or when stdout is not a console.
+ * Sets the Windows console's modes through `lib/tty.ts` now, without waiting for its next tick, and turns
+ * colour off when the console does not take escape sequences. Called when the ticker starts and after
+ * every session. Does nothing elsewhere, or when stdout is not a console.
  */
 export function consoleMode(): void {
-  if (!WIN || !OUT_TTY) return;
-  try {
-    consoleApi ??= loadConsole();
-    const out = consoleApi.GetStdHandle(-11);
-    const mode = new Uint32Array(1);
-    if (out && consoleApi.GetConsoleMode(out, ptr(mode))) consoleApi.SetConsoleMode(out, (mode[0]! | 0x0004) & ~0x0008);
-  } catch {
-    consoleApi = null;
-    coloured = false;
-  }
+  if (WIN && OUT_TTY && !cookConsole()) coloured = false;
 }
 
 // -------------------------------------------------------------------------------------------- times
