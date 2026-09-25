@@ -1,7 +1,6 @@
-- **Editing a rule fragment leaves the website's copy of it stale, and nothing turns red.**
-  `python tools/rules.py --render` rewrites `docs/rules/<topic>.md` and `nv verify` gates that,
-  but `website/src/content/docs/docs/rules/` is a second rendering no Python tool touches — it was
-  already a goal behind at this session's HEAD. Run `node scripts/sync-rules.mjs` from `website/`
-  after any fragment or `<topic>.json` edit, and expect the diff to carry whatever the sessions
-  before you left behind as well as your own rule.
-  [until: exists tools/nv/cmd/verify.ts:sync-rules]
+- **Editing a rule fragment leaves the website's copy of it stale, and nothing local turns red.**
+  `bun nv rules --render` rewrites `docs/rules/<topic>.md` and `nv verify` gates that, but the
+  website's pages under `website/src/content/docs/docs/rules/` and `website/src/data/rules.json` are
+  a second rendering, and only CI's `bun nv render --check` gates it. Run `bun nv render --website`
+  after any fragment or `data/rules/` edit, and commit the pages with the rule.
+  [until: exists tools/nv/cmd/verify.ts:WEBSITE_RENDERERS]

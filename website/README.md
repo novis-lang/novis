@@ -19,8 +19,8 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run dev` | dev server with live reload |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
-| `npm run sync` | all four sync scripts, in order |
-| `npm run sync:rules` | publish `../docs/rules/` → `src/content/docs/docs/rules/**` + `src/data/rules.json` |
+| `npm run sync` | the render and the three sync scripts, in order |
+| `npm run sync:render` | `bun nv render --website`: publish `../data/rules/` and `../docs/rules/` → `src/content/docs/docs/rules/**` + `src/data/rules.json` |
 | `npm run sync:decisions` | re-render `../docs/decisions.toml` → `src/data/decisions.json` (the plain-language summary) |
 | `npm run sync:core` | reparse the spec + registry → `src/data/core.json`, create missing member pages |
 | `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
@@ -39,7 +39,7 @@ wherever it kept a component.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `src/content/docs/docs/rules/**` | tool | regenerated on every `sync:rules`, except the handwritten hub at `index.mdx` — a rule's prose lives in `../docs/rules/`, where the rule is |
+| `src/content/docs/docs/rules/**` | tool | regenerated on every `sync:render`, except the handwritten hub at `index.mdx` — a rule's prose lives in `../docs/rules/`, where the rule is |
 | `config/rule-sections.mjs` | human | where each chapter is cut into pages — the one thing about the rulebook the repository does not own |
 | `src/data/core.json`, `src/data/rules.json` | tool | regenerated on every sync |
 | `src/data/core-changelog.json` | human | per-member changelog entries; the tool only creates the empty file |
@@ -82,9 +82,9 @@ Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 
 ## How the rulebook works
 
-The repository owns the rules: `../docs/rules/_index.json` names the chapters,
-`../docs/rules/<topic>.json` holds each chapter's rules in reading order, and
-`../docs/rules/<topic>/<slug>.md` is the prose. `sync:rules` publishes all of it as three
+The repository owns the rules: `../data/rules/<topic>.json` names a chapter and holds
+its rules in reading order, `../data/rules/<topic>/<slug>.json` is one rule's record, and
+`../docs/rules/<topic>/<slug>.md` is the prose. `sync:render` publishes all of it as three
 levels — a hub, 22 chapter pages, and one page per **section**.
 
 A section is a contiguous run of a chapter's rules, and it is the one thing about the

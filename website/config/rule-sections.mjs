@@ -1,17 +1,18 @@
 /**
  * How a rulebook chapter is cut into pages.
  *
- * The repository owns the rules and their order: `docs/rules/_index.json` names the
- * chapters, `docs/rules/<topic>.json` holds each chapter's rules in the order they are
- * meant to be read, and `docs/rules/<topic>/<slug>.md` is the prose. None of that
+ * The repository owns the rules and their order: `data/rules/<topic>.json` names a
+ * chapter and lists its rules in the order they are meant to be read,
+ * `data/rules/<topic>/<slug>.json` is one rule's record, and
+ * `docs/rules/<topic>/<slug>.md` is its prose. None of that
  * carries a section heading, because a chapter in the repository is one document a
  * person scrolls. A chapter on the web is not: Security alone is 89 rules and some
  * 14,000 words, which is a page nobody finishes.
  *
  * So the cut lives here, and only here. A section is a **contiguous run** of a
  * chapter's rules, named by its first rule's slug — never by an index, which every
- * inserted rule would shift. `scripts/sync-rules.mjs` walks each chapter in the
- * repository's order and starts a new section wherever `from` matches, so:
+ * inserted rule would shift. `bun nv render --website` walks each chapter in
+ * the repository's order and starts a new section wherever `from` matches, so:
  *
  *   - a rule added to the middle of a chapter joins the section it was written into,
  *   - a rule added to the end joins the last section,
