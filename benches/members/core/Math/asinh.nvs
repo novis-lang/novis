@@ -1,0 +1,20 @@
+<?nvs
+// Measures the inverse hyperbolic sine, as a program does when it draws a chart
+// scale for values that can be negative.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value used this round depends on last round's total.
+            $total = $total + Core\Math::asinh($total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
