@@ -8913,15 +8913,15 @@ Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-
 Core\Math::sign(int|float|decimal $n): int
 ```
 
-Which side of zero `$n` is on — `-1`, `0` or `1` — as PHP's `$n <=> 0` does.
+Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is zero. This replaces PHP's `$n <=> 0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `int\|float\|decimal` | The number to classify: an `int`, a `float` or a `decimal`. |
+| `$n` | `int\|float\|decimal` | The number to check: an `int`, a `float` or a `decimal`. |
 
-**Returns** `int` — `-1` below zero, `1` above it and `0` for zero, `-0.0` included.
+**Returns** `int` — `-1`, `0` or `1`, as an `int`. `-0.0` is zero, so the result for it is `0`.
 
-**Throws** `RuntimeError` — When `$n` is `NaN`, which is on neither side of zero.; `ArithmeticError` — When `$n` is a `uint` past `INT_MAX`.
+**Throws** `RuntimeError` — When `$n` is `NaN` (a value that means "not a number"). `NaN` is not below, above or equal to zero.; `ArithmeticError` — When `$n` is a `uint` bigger than `Core\Math::INT_MAX`.
 
 <a id="core-core-math-min"></a>
 #### `Core\Math::min`
@@ -9015,13 +9015,13 @@ Rounds `$n` down to the next whole number. For a negative `$n`, down means away 
 Core\Math::truncate(float $n): float
 ```
 
-`$n` with its fractional part dropped — toward zero, so `floor` for a positive `$n` and `ceil` for a negative one — as PHP's `(int)` cast does without the type change.
+Removes the fractional part of `$n`. The result moves toward zero, so `2.7` gives `2.0` and `-2.7` gives `-2.0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to truncate. |
+| `$n` | `float` | The number whose fractional part is removed. |
 
-**Returns** `float` — An integral `float`, still a `float`; `NaN` and the infinities pass through unchanged.
+**Returns** `float` — A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and the infinities stay the same.
 
 <a id="core-core-math-round"></a>
 #### `Core\Math::round`
@@ -9135,13 +9135,13 @@ Returns the least common multiple of two integers. This is the smallest positive
 Core\Math::sqrt(float $n): float
 ```
 
-The square root of `$n`, as `sqrt` does.
+Returns the square root of `$n`. This replaces PHP's `sqrt`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to take the root of. |
+| `$n` | `float` | The number to take the square root of. |
 
-**Returns** `float` — The non-negative root; `NaN` for a negative `$n`, and `-0.0` for `-0.0`.
+**Returns** `float` — A `float` that is zero or more. A negative `$n` gives `NaN`. `-0.0` gives `-0.0`, and `Core\Math::INFINITY` gives `Core\Math::INFINITY`.
 
 <a id="core-core-math-cbrt"></a>
 #### `Core\Math::cbrt`

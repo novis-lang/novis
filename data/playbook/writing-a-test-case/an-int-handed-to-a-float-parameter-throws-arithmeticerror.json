@@ -1,0 +1,11 @@
+{
+  "lead": "An `int` handed to a `float` parameter throws `ArithmeticError` once it is past ±2^53, and `INT_MIN` and `INT_MAX` both are.",
+  "body": "The conversion is checked at the call, before the member runs, so an attack that passes `Core\\Math::INT_MAX` to a float-taking member ends the program there and reads as the member failing. Put the far ends of `int` in a `try` that catches `ArithmeticError`, the way `tests/hostile/core/Math/truncate/01-far-ends-and-special-values.nvs` does.",
+  "files": [
+    "tests/hostile/core/Math/truncate/01-far-ends-and-special-values.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/hostile/core/Math/truncate/01-far-ends-and-special-values.nvs:ArithmeticError"
+  }
+}

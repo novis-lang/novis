@@ -1,28 +1,31 @@
 {
-  "state": "Goal `core-math-3-3`: `Core\\Math::min`, `Core\\Math::mod` and `Core\\Math::round` carry every proof — about.md, three examples, a bench with a fresh record, an attack and a `covers:` Rust test each — and their reference cards in `crates/nvs-stdlib/src/math.rs` are in the plain voice. Ten members of the goal's check still owe proofs: `sign`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `toBase`, `toDegrees`, `toRadians` and `truncate`. Every `Core\\Math` bench record was re-measured after this session's `round_to` fix, so none is stale. Nothing is blocked.",
+  "state": "Goal `core-math-3-3`: `Core\\Math::min`, `mod`, `round`, `sign`, `sqrt` and `truncate` carry every proof — about.md, three examples, a bench with a fresh record, an attack and a `covers:` Rust test each — and their reference cards in `crates/nvs-stdlib/src/math.rs` are in the plain voice. Seven members of the goal's check still owe proofs: `sin`, `sinh`, `tan`, `tanh`, `toBase`, `toDegrees` and `toRadians`. `bun nv proofs --record-perf` ran after this session's last Rust edit, so no `Core\\Math` record is stale. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (row, card, helper and test module), plus each member's new trees under `docs/examples/core/Math/`, `benches/members/core/Math/` and `tests/hostile/core/Math/`. `docs/examples/core/Math/min/` and `tests/hostile/core/Math/max/01-far-ends-and-values-with-no-order.nvs` are the models. Every edit to `math.rs` makes every `Core\\Math` perf record stale, so run `bun nv proofs --record-perf` once, after the last Rust edit.",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (row, card and test module), plus each member's new trees under `docs/examples/core/Math/`, `benches/members/core/Math/` and `tests/hostile/core/Math/`. `docs/examples/core/Math/sqrt/` and `tests/hostile/core/Math/sqrt/01-far-ends-and-negative-numbers.nvs` are the models for a one-float member. Put every Rust edit (tests and cards) in one patch, then run `bun nv proofs --record-perf` once after it.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::sign`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:83`"
+        "text": "**`Core\\Math::sin`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:245`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::truncate`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:137`"
+        "text": "**`Core\\Math::tan`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:263`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::sqrt`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:200`"
+        "text": "**`Core\\Math::sinh`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:308`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Math::tanh`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/math.rs:326`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Math::round(1.005, {precision: 2})` returns `1` and PHP 8.5 returns `1.01`. `Core\\Math::format` does the same. `a_precision_rounds_at_that_place` in `crates/nvs-stdlib/src/math.rs` and `docs/examples/core/Math/format/about.md` pin it, and no rule records the difference. It needs a decision: match PHP, or record the difference as a divergence.",
-    "Spec § 3 (`docs/spec/01-core-library.md:401`) gives `round` a `float|decimal` parameter. The registry row takes `float` only. Not checked further.",
-    "The goal's remaining members after the next group: `sin`, `sinh`, `tan`, `tanh`, `toBase`, `toDegrees` and `toRadians`."
+    "`Core\\Math::toRadians` and `toDegrees` (`crates/nvs-stdlib/src/math.rs:362`, `:371`) — one pair, one session; `rule:testing/feature-proofs`.",
+    "`Core\\Math::toBase` (`crates/nvs-stdlib/src/math.rs:398`) — `fromBase`'s attack under `tests/hostile/core/Math/fromBase/` is the model; `rule:testing/feature-proofs`."
   ]
 }
