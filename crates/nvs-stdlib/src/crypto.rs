@@ -5067,7 +5067,7 @@ mod tests {
     /// [`agree_p256`], its published `Z` asserted on the way past, then the
     /// context it names and the key it prints.
     ///
-    /// `tools/webcrypto-vectors.mjs` reproduces this same output before it
+    /// `bun nv webcrypto-vectors` reproduces this same output before it
     /// writes the set, so the two implementations of one derivation are pinned
     /// to one published answer rather than to each other.
     ///

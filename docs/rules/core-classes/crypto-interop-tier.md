@@ -32,5 +32,5 @@ when it is read, which is `rule:security/algorithm-comes-from-the-key` held for 
 algorithms share, and an RSA pair is never generated. A key off the wire that fails is a `RuntimeError`;
 a malformed key the program built is a `LogicError`.
 
-The interop claim is checkable rather than intended: `tools/webcrypto-vectors.mjs` freezes WebCrypto's
+The interop claim is checkable rather than intended: `bun nv webcrypto-vectors` freezes WebCrypto's
 own output for every algorithm here, derived from labels so a rerun writes the same bytes.

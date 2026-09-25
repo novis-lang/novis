@@ -1,12 +1,13 @@
 //! The frozen WebCrypto vector set, read once and reached as JSON — the one
 //! door onto `crates/nvs-stdlib/tests/vectors/webcrypto.json`.
 //!
-//! `tools/webcrypto-vectors.mjs` wrote that file from Node's `crypto.subtle`,
-//! the W3C API a browser ships, and its own header is the home of how and of
-//! what makes it reproducible. What belongs here is why the tests read the file
-//! rather than carry its octets: a vector copied into a `#[test]` is a second
-//! copy of a number whose first copy is what the other implementation actually
-//! produced, and the copy is the one that goes stale. Every interop section —
+//! `bun nv webcrypto-vectors` (`tools/nv/cmd/webcrypto-vectors.ts`) writes that
+//! file from `crypto.subtle`, the W3C API a browser ships, and its own header is
+//! the home of how and of what makes it reproducible. What belongs here is why
+//! the tests read the file rather than carry its octets: a vector copied into a
+//! `#[test]` is a second copy of a number whose first copy is what the other
+//! implementation actually produced, and the copy is the one that goes stale.
+//! Every interop section —
 //! the key agreements, and the tokens `Core\Jwe` and `Core\Jwt` are held to —
 //! is asserted against the file itself, so regenerating it is what changes a
 //! test's expectations and nothing else is.
@@ -33,9 +34,7 @@ const SOURCE: &str = include_str!("../../tests/vectors/webcrypto.json");
 /// The parsed set, built on the first call and shared by every test after it.
 fn set() -> &'static Value {
     static SET: OnceLock<Value> = OnceLock::new();
-    SET.get_or_init(|| {
-        serde_json::from_str(SOURCE).expect("tools/webcrypto-vectors.mjs writes JSON")
-    })
+    SET.get_or_init(|| serde_json::from_str(SOURCE).expect("bun nv webcrypto-vectors writes JSON"))
 }
 
 /// A section's vectors — the cases where an operation has an answer.

@@ -1,12 +1,12 @@
 {
   "about": [
-    "Written by tools/webcrypto-vectors.mjs from Node's crypto.subtle, the W3C Web Cryptography API a browser exposes; regenerate it only by running that script.",
-    "Every input is derived from a label, so the script writes these bytes every time. Octets are lowercase hex; tokens, passwords, info strings and payloads are text.",
+    "Written by `bun nv webcrypto-vectors` from crypto.subtle, the W3C Web Cryptography API a browser exposes; regenerate it only by running that command.",
+    "Every input is derived from a label, so the command writes these bytes every time. Octets are lowercase hex; tokens, passwords, info strings and payloads are text.",
     "aesGcm.sealed is nonce(12) || ciphertext || tag(16), the layout Core\\Crypto::seal answers under Cipher::Aes256Gcm.",
     "A jwe vector proves both directions: Core\\Jwe::decrypt must answer its payload, and Core\\Jwe::encrypt given the same randomness must answer its token byte for byte.",
     "A refusal of kind \"policy\" is well-formed except for the one thing it is refused for; one of kind \"authenticity\" fails its cryptography. Core\\Jwe refuses both with one RuntimeError.",
     "jws.keys are the signing keys by kid. An RSA key is built from label-derived primes, because WebCrypto cannot derive one from a seed. jwkMinimal is RFC 7638's required members sorted, the form PublicKey::write(KeyFormat::Jwk) answers, and thumbprint is base64url(SHA-256(jwkMinimal)).",
-    "An ES256 or PS256 signature is randomized by its algorithm, so the script keeps the one on disk while it still verifies over an unchanged signing input; every other byte is derived from a label.",
+    "An ES256 or PS256 signature is randomized by its algorithm, so the command keeps the one on disk while it still verifies over an unchanged signing input; every other byte is derived from a label.",
     "jws.keySets: Jwt\\KeySet::read(jwks) with rsaScheme naming the scheme of an RSA key that carries no alg admits exactly kids (null is a key with no kid), or refuses the whole set.",
     "jws.vectors: Jwt::verifyIssued against keySets[keySet ?? 0] at now ?? defaults.now, with defaults.issuer, defaults.audience, defaults.leeway and options, answers payload's claims.",
     "jws.signs: Jwt::sign(claims, lifetime, keys[key], options) at clock answers token byte for byte when deterministic, and otherwise its header and payload segments byte for byte and a signature that verifies.",
