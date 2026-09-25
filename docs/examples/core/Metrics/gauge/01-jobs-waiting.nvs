@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to report how many jobs are still waiting while a list of jobs is worked through.
+
+array<string> $jobs = ["resize photo", "send invoice", "update search index"];
+float $waiting = 3.0;
+
+// Before the loop, the gauge `jobs_waiting` is 3.
+Core\Metrics::gauge("jobs_waiting", $waiting);
+
+foreach ($jobs as string $job) {
+    echo "done: ", $job, "\n";
+    // Each call replaces the value. After the last job, the gauge is 0.
+    $waiting = $waiting - 1.0;
+    Core\Metrics::gauge("jobs_waiting", $waiting);
+}
+
+// This prints 0.
+echo "jobs left: ", $waiting, "\n";

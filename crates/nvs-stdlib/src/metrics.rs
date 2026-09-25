@@ -49,18 +49,24 @@
 //!
 //! # What it spends
 //!
-//! Per call: one borrow of the `labels` array and one `(String, String)` per
-//! label written, both freed before the member returns. Per *name* a program
+//! Per call: one borrow of the `labels` array, one `(String, String)` per
+//! label written, the call site rendered as a `String`, and the owned series
+//! key the registry builds for its lookup, all freed before the member
+//! returns. Per *name* a program
 //! writes: the series itself, and one `String` holding the `file:line` that
 //! fixed it. Nothing is charged to a request, and nothing grows with requests
 //! served — `rule:programs/memory-priority`'s O(in-flight) reading of the same
 //! cost `nvs_runtime::metrics` states in full.
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/metrics.rs` lists them.
 
 use nvs_runtime::metrics::{Refused, Written};
 use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class's fully-qualified name.
@@ -136,11 +142,18 @@ const INCREMENT_OPTIONS: &[CoreOption] = &[
 /// `observe`'s and `gauge`'s bag: the labels alone, the value being positional.
 const VALUE_OPTIONS: &[CoreOption] = &[LABELS];
 
+/// `Core\Metrics`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Counts and measures what your program does, for a monitoring system to collect. \
+            `increment` adds to a counter, `observe` records a measurement and `gauge` sets a \
+            level. A program cannot read the values back.",
+};
+
 /// `rule:observability/metrics-three-members`'s three members, and nothing else
 /// — there is no reader.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "increment",
@@ -428,10 +441,126 @@ fn labels_of(value: Value) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::metrics::{self, Refused, Written};
-    use nvs_runtime::{Fault, ThrownClass};
+    use nvs_runtime::{Ctx, Fault, NvsFn, NvsStr, ThrownClass, Value};
 
-    use super::{CLASS, NAME, mismatch};
+    use super::{
+        CLASS, NAME, mismatch, nvs_core_metrics_gauge, nvs_core_metrics_increment,
+        nvs_core_metrics_observe,
+    };
     use crate::registry::{CoreTy, Qual};
+
+    /// One member called the way a compiled call site calls it: no call site,
+    /// the name, the one value-or-option argument, and no labels.
+    fn called(member: NvsFn, ctx: &mut Ctx, name: &str, value: Value) -> Result<Value, i32> {
+        let name = Value::str(NvsStr::new(name.as_bytes()));
+        let answer = nvs_runtime::call(
+            member,
+            ctx,
+            &[
+                Value::source_const(std::ptr::null()),
+                name,
+                value,
+                Value::null(),
+            ],
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the name and still owns the only reference to it; the \
+                      member borrowed it"
+        )]
+        unsafe {
+            name.release();
+        }
+        answer
+    }
+
+    /// `rule:observability/metrics-three-members`: `gauge` *sets* the level, so
+    /// a lower write replaces a higher one, and a counter write under the same
+    /// name throws and leaves the level as it was.
+    // covers: Core\Metrics::gauge
+    #[test]
+    fn gauge_sets_the_level_and_a_lower_write_replaces_a_higher_one() {
+        let mut ctx = Ctx::buffered();
+        for level in [5.0, 2.0] {
+            called(
+                nvs_core_metrics_gauge,
+                &mut ctx,
+                "pool_connections_open",
+                Value::float(level),
+            )
+            .expect("a gauge write is recorded");
+        }
+        called(
+            nvs_core_metrics_increment,
+            &mut ctx,
+            "pool_connections_open",
+            Value::uint(1),
+        )
+        .expect_err("a counter write disagrees with the gauge that fixed the name");
+        let message = ctx.take_pending().expect("the refusal left a message");
+        assert!(message.contains("in a callable reference"), "{message}");
+        assert!(message.contains(r"`Core\Metrics::increment`"), "{message}");
+
+        let registry = metrics::on_this_core().expect("the first write built this thread's one");
+        assert_eq!(
+            registry.read("pool_connections_open", &[]),
+            Some(&metrics::Value::Gauge(2.0))
+        );
+    }
+
+    /// `rule:observability/metrics-three-members`: `increment` adds one when
+    /// `by` is left out, and adds `by` when it is given.
+    // covers: Core\Metrics::increment
+    #[test]
+    fn increment_adds_one_by_default_and_by_when_given() {
+        let mut ctx = Ctx::buffered();
+        called(
+            nvs_core_metrics_increment,
+            &mut ctx,
+            "emails_sent_total",
+            Value::null(),
+        )
+        .expect("a counter write is recorded");
+        called(
+            nvs_core_metrics_increment,
+            &mut ctx,
+            "emails_sent_total",
+            Value::uint(4),
+        )
+        .expect("a second write accumulates");
+
+        let registry = metrics::on_this_core().expect("the first write built this thread's one");
+        assert_eq!(
+            registry.read("emails_sent_total", &[]),
+            Some(&metrics::Value::Counter(5))
+        );
+    }
+
+    /// `rule:observability/metrics-three-members`: `observe` keeps every
+    /// observation, so two calls give a histogram of count two and their sum.
+    // covers: Core\Metrics::observe
+    #[test]
+    fn observe_counts_every_observation_and_sums_them() {
+        let mut ctx = Ctx::buffered();
+        for seconds in [0.5, 1.5] {
+            called(
+                nvs_core_metrics_observe,
+                &mut ctx,
+                "upload_seconds",
+                Value::float(seconds),
+            )
+            .expect("a histogram write is recorded");
+        }
+
+        let registry = metrics::on_this_core().expect("the first write built this thread's one");
+        match registry.read("upload_seconds", &[]) {
+            Some(metrics::Value::Histogram(histogram)) => {
+                assert_eq!(histogram.count, 2);
+                assert!((histogram.sum - 2.0).abs() < 1e-9, "{}", histogram.sum);
+            }
+            other => panic!("`observe` fixes the name to a histogram, and this read {other:?}"),
+        }
+    }
 
     /// `rule:observability/metrics-three-members`: three verbs, three kinds,
     /// and no fourth member that reads one back

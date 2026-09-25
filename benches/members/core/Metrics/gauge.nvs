@@ -1,0 +1,21 @@
+<?nvs
+// Measures setting a gauge, as a server does after each job to report how many are still waiting.
+// bench: iterations 400000
+// bench: allocations 0
+// proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value set this round depends on last round's total.
+            Core\Metrics::gauge("jobs_waiting", ($total % 100) as float);
+            $total = $total + $i % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
