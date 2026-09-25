@@ -1,0 +1,17 @@
+<?nvs
+// Shows a few results of `Core\Math::exp`.
+
+// Any number to the power 0 is 1. This prints 1.
+echo Core\Math::exp(0.0), "\n";
+
+// `E` to the power 1 is `E`. This prints 2.718281828459.
+echo Core\Math::exp(1.0), "\n";
+
+// This is `E` × `E`. It prints 7.3890560989307.
+echo Core\Math::exp(2.0), "\n";
+
+// A negative power gives a number between 0 and 1. This prints 0.36787944117144.
+echo Core\Math::exp(-1.0), "\n";
+
+// `Core\Math::log` does the reverse. This prints 5.
+echo Core\Math::log(Core\Math::exp(5.0)), "\n";

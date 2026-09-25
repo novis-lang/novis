@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `Core\Math::exp` is given numbers whose result is too big or too small for a `float`,
+// and values that are not ordinary numbers. It is also called a million times. Every call should
+// return a number, `INFINITY`, `0` or `NaN`, and the program should run to its end.
+
+// 1. The last number with a finite result, and the first one past it.
+echo Core\Math::exp(709.78), "\n";
+echo Core\Math::exp(709.79), "\n";
+
+// 2. The smallest result above zero, and the first number whose result is zero.
+echo Core\Math::exp(-745.0), "\n";
+echo Core\Math::exp(-746.0), "\n";
+
+// 3. The biggest numbers, positive and negative.
+echo Core\Math::exp(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::exp(-Core\Math::FLOAT_MAX), "\n";
+
+// 4. The smallest numbers, and zero with a minus sign.
+echo Core\Math::exp(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::exp(-Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::exp(-0.0), "\n";
+
+// 5. Values that are not ordinary numbers.
+echo Core\Math::exp(Core\Math::NAN), "\n";
+echo Core\Math::exp(Core\Math::INFINITY), "\n";
+echo Core\Math::exp(-Core\Math::INFINITY), "\n";
+
+// 6. A result that is too big, given back to `exp` again and again.
+float $grown = 800.0;
+int $step = 0;
+while ($step < 5) {
+    $grown = Core\Math::exp($grown);
+    $step = $step + 1;
+}
+echo $grown, "\n";
+
+// 7. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::exp($value) - 2.0;
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";

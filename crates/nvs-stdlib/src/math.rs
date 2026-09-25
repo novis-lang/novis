@@ -561,13 +561,15 @@ const CEIL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::floor`'s reference card — `rule:core-api/reference-card`.
 const FLOOR_DOC: MethodDoc = MethodDoc {
-    short: "The largest integral value at or below `$n`, as `floor` does.",
+    short: "Rounds `$n` down to the next whole number. For a negative `$n`, down means away from \
+            zero.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The value to round down.",
+        desc: "The number to round down.",
         shape: &[],
     }],
-    ret: "An integral `float`; `NaN` and the infinities pass through unchanged.",
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-1.0`. `NaN` and \
+          the infinities stay the same.",
     errors: &[],
 };
 
@@ -663,22 +665,23 @@ const MOD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::fdiv`'s reference card — `rule:core-api/reference-card`.
 const FDIV_DOC: MethodDoc = MethodDoc {
-    short: "The IEEE quotient of `$a / $b`, as `fdiv` does — the one member here that answers a \
-            zero divisor instead of throwing, the `/` operator having no such spelling.",
+    short: "Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or \
+            `NaN`. The `/` operator throws an error there. This replaces PHP's `fdiv`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The dividend.",
+            desc: "The number to divide.",
             shape: &[],
         },
         ParamDoc {
             name: "b",
-            desc: "The divisor, which may be zero.",
+            desc: "The number to divide by. It may be zero.",
             shape: &[],
         },
     ],
-    ret: "`$a / $b` under IEEE 754: an infinity signed by both operands when `$b` is zero and \
-          `$a` is not, and `NaN` when both are.",
+    ret: "`$a / $b`. When `$b` is zero, the result is `INFINITY` or `-INFINITY`. Its sign comes \
+          from the signs of both numbers together. When both numbers are zero, the result is \
+          `NaN`.",
     errors: &[],
 };
 
@@ -779,14 +782,14 @@ const HYPOT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::exp`'s reference card — `rule:core-api/reference-card`.
 const EXP_DOC: MethodDoc = MethodDoc {
-    short: "`E` raised to the power `$n`, as `exp` does.",
+    short: "Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's `exp`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The exponent.",
+        desc: "The power to raise `E` to.",
         shape: &[],
     }],
-    ret: "`E ** $n`, always positive; `INFINITY` once `$n` is past about `709.78`, and `0.0` \
-          far enough below zero.",
+    ret: "`E ** $n`, which is never negative. Above about `709.78` the result is `INFINITY`. Far \
+          enough below zero, the result is `0.0`. `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -2923,5 +2926,92 @@ mod tests {
         assert_eq!(cosh(f64::MAX), f64::INFINITY);
         assert_eq!(cosh(f64::NEG_INFINITY), f64::INFINITY);
         assert!(cosh(f64::NAN).is_nan());
+    }
+
+    /// `exp` is `1` at zero and `E` at one, turns a sum into a product, is
+    /// finite at `709.78` and `INFINITY` just past it, reaches `0.0` only below
+    /// the smallest subnormal float, and is never negative — never a throw.
+    // covers: Core\Math::exp
+    #[test]
+    fn exp_is_never_negative_overflows_past_709_78_and_underflows_to_zero() {
+        let exp = |n: f64| float_result(nvs_core_math_exp, &[Value::float(n)]);
+        assert_eq!(exp(0.0), 1.0);
+        assert_eq!(exp(-0.0), 1.0);
+        assert_eq!(exp(1.0), std::f64::consts::E);
+        assert!(
+            (exp(0.3) * exp(0.4) - exp(0.7)).abs() < 1e-15,
+            "a sum becomes a product"
+        );
+        assert!(exp(709.78).is_finite());
+        assert_eq!(exp(709.79), f64::INFINITY);
+        assert_eq!(exp(f64::MAX), f64::INFINITY);
+        assert!(exp(-745.0) > 0.0, "a subnormal result is still above zero");
+        assert_eq!(exp(-746.0), 0.0);
+        assert_eq!(exp(-f64::MAX), 0.0);
+        assert_eq!(exp(f64::NEG_INFINITY), 0.0);
+        assert_eq!(exp(f64::INFINITY), f64::INFINITY);
+        assert!(exp(f64::NAN).is_nan());
+        for n in [-700.0, -1.0, -f64::MIN_POSITIVE, 0.5, 700.0] {
+            assert!(exp(n) > 0.0, "{n}");
+        }
+    }
+
+    /// `fdiv` answers a zero divisor where `/` throws: an infinity signed by
+    /// both operands, zero's sign included, and `NaN` for `0 / 0` and for two
+    /// infinities; it overflows and underflows the way `/` does elsewhere —
+    /// never a throw.
+    // covers: Core\Math::fdiv
+    #[test]
+    fn fdiv_answers_a_zero_divisor_with_a_signed_infinity_and_never_throws() {
+        let fdiv =
+            |a: f64, b: f64| float_result(nvs_core_math_fdiv, &[Value::float(a), Value::float(b)]);
+        assert_eq!(fdiv(10.0, 4.0), 2.5);
+        assert_eq!(fdiv(1.0, 0.0), f64::INFINITY);
+        assert_eq!(fdiv(-1.0, 0.0), f64::NEG_INFINITY);
+        assert_eq!(fdiv(1.0, -0.0), f64::NEG_INFINITY);
+        assert_eq!(fdiv(-1.0, -0.0), f64::INFINITY);
+        assert_eq!(fdiv(f64::INFINITY, 0.0), f64::INFINITY);
+        assert!(fdiv(0.0, 0.0).is_nan());
+        assert!(fdiv(-0.0, 0.0).is_nan());
+        assert!(fdiv(f64::INFINITY, f64::NEG_INFINITY).is_nan());
+        assert!(fdiv(f64::NAN, 0.0).is_nan());
+        assert!(fdiv(1.0, f64::NAN).is_nan());
+        assert_eq!(fdiv(f64::MAX, f64::MIN_POSITIVE), f64::INFINITY);
+        assert_eq!(fdiv(f64::MIN_POSITIVE, f64::MAX), 0.0);
+        assert_eq!(
+            fdiv(-0.0, 1.0).to_bits(),
+            (-0.0f64).to_bits(),
+            "a zero keeps its sign"
+        );
+        assert_eq!(fdiv(1.0, f64::INFINITY), 0.0);
+    }
+
+    /// `floor` rounds toward negative infinity on both sides of zero, keeps a
+    /// whole number and a zero's sign, returns `-1` for the smallest negative
+    /// float, leaves every float past `2^52` alone because none has a fraction,
+    /// and passes `NaN` and the infinities through — never a throw.
+    // covers: Core\Math::floor
+    #[test]
+    fn floor_rounds_toward_negative_infinity_and_keeps_every_whole_number() {
+        let floor = |n: f64| float_result(nvs_core_math_floor, &[Value::float(n)]);
+        assert_eq!(floor(4.9), 4.0);
+        assert_eq!(floor(4.0), 4.0);
+        assert_eq!(floor(-4.1), -5.0);
+        assert_eq!(floor(-0.5), -1.0);
+        assert_eq!(floor(-f64::MIN_POSITIVE), -1.0);
+        assert_eq!(floor(f64::MIN_POSITIVE).to_bits(), 0.0f64.to_bits());
+        assert_eq!(
+            floor(-0.0).to_bits(),
+            (-0.0f64).to_bits(),
+            "a zero keeps its sign"
+        );
+        assert_eq!(floor(0.999_999_999_999_999_9), 0.0);
+        assert_eq!(floor(4_503_599_627_370_495.5), 4_503_599_627_370_495.0);
+        for whole in [9_007_199_254_740_994.0, f64::MAX, -f64::MAX] {
+            assert_eq!(floor(whole), whole, "{whole} has no fraction");
+        }
+        assert_eq!(floor(f64::INFINITY), f64::INFINITY);
+        assert_eq!(floor(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(floor(f64::NAN).is_nan());
     }
 }
