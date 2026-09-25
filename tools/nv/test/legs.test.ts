@@ -102,6 +102,20 @@ describe("linuxLegs", () => {
     expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(true);
   });
 
+  test("the legs say how many steps they will take, and finish exactly that many", async () => {
+    const count = async (over: Partial<LegsOptions>, platform: NodeJS.Platform = "win32") => {
+      const f = fake(undefined, platform);
+      const got = { planned: [] as number[], steps: 0 };
+      await linuxLegs(options(f, { ...over, onPlan: (n) => got.planned.push(n), onStep: () => void got.steps++ }));
+      return got;
+    };
+    // The build, one setup check, two fixtures, one suite and two valgrind runs.
+    expect(await count({ setups: [migrate] })).toEqual({ planned: [7], steps: 7 });
+    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg" }) })).toEqual({ planned: [3], steps: 3 });
+    expect(await count({}, "linux")).toEqual({ planned: [3], steps: 3 });
+    expect(await count({ programs: [] })).toEqual({ planned: [], steps: 0 });
+  });
+
   test("with the floor gate shut, a green leg is not remembered", async () => {
     const f = fake();
     const o = options(f, { gateOpen: false });

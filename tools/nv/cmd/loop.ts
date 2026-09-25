@@ -375,11 +375,13 @@ async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string
   return { keys, tree };
 }
 
-/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. */
+/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. The Linux legs say how many steps they will take, then each one they finish. */
 interface Progress {
   run: (what: string) => void;
   trace: (c: Check, answered: boolean) => void;
   note: (text: string) => void;
+  plan: (steps: number) => void;
+  step: () => void;
 }
 
 /**
@@ -401,6 +403,8 @@ async function sweepOver(
     run: (what) => console.error(`  .. ${what}`),
     trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
     note: (text) => console.error(`  ${text}`),
+    plan: () => {},
+    step: () => {},
   };
   const sweep = new Sweep({ stageLabel: labelOf, onRun: p.run });
   // The two Linux legs, over the fixtures and suites this sweep reaches, run after its tiers.
@@ -419,6 +423,8 @@ async function sweepOver(
     full: o.full,
     label: labelOf,
     onRun: p.run,
+    onPlan: p.plan,
+    onStep: p.step,
   };
   if (o.legs) startWslBuild(legs);
   let result: AcceptanceResult;
@@ -1276,6 +1282,8 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
       say(`   .. ${at()}  ${nameOf(c)} [${labelOf(c.stage)}]${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
     },
     note: (text) => say(`   .. ${" ".repeat(7)}  ${text}`, C.GRAY),
+    plan: (steps) => TICKER.extend(steps, "linux legs"),
+    step: () => TICKER.advance(),
   };
 }
 

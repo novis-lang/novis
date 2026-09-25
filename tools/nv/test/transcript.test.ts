@@ -73,6 +73,16 @@ describe("the console's helpers", () => {
     expect(TICKER.phase()).toBe("held");
   });
 
+  test("the Linux legs grow the sweep's count from where its checks end", () => {
+    TICKER.set({ phase: "acceptance sweep", total: 58, done: 0 });
+    for (let i = 0; i < 57; i++) TICKER.advance();
+    TICKER.extend(40, "linux legs");
+    TICKER.advance();
+    expect(TICKER.phase()).toBe("acceptance sweep 59/98, linux legs");
+    TICKER.set({ phase: "cleaning disk" });
+    expect(TICKER.phase()).toBe("cleaning disk");
+  });
+
   test("the status line's clock starts again with a new phase, and not with a new detail", async () => {
     TICKER.set({ phase: "launching" });
     await Bun.sleep(1100);

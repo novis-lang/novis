@@ -243,6 +243,14 @@ class StatusLine {
     this.draw();
   }
 
+  /** Every planned step is behind the phase, and `steps` more follow as the part named `detail`: a sweep's Linux legs, counted once they know their work. */
+  extend(steps: number, detail: string): void {
+    this.done = this.total;
+    this.total += steps;
+    this.detail = detail;
+    this.draw();
+  }
+
   /** One planned step of the phase is finished. */
   advance(): void {
     this.done++;

@@ -93,6 +93,10 @@ export interface LegsOptions {
   label: (stage: number) => string;
   /** A process is starting / a step is reached, for the console. */
   onRun?: (what: string) => void;
+  /** How many steps the legs will take, said once they know: the build, then each setup check, fixture, suite and valgrind run still to judge. */
+  onPlan?: (steps: number) => void;
+  /** One of the steps `onPlan` counted is finished. */
+  onStep?: () => void;
   /** The processes, replaced under test. Each one left out is the real one. */
   seams?: Partial<LegsSeams>;
 }
@@ -337,9 +341,11 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
       return "";
     }
     if (targets.length === 0) return "";
+    o.onPlan?.(1 + targets.length);
     say("cargo build");
     const built = await s.shell("native", `cd ${q(ROOT)} && cargo build --quiet`, TIMEOUT_MS);
     if (built.code !== 0) return `the native build failed -- ${firstErrLine(built)}`;
+    o.onStep?.();
     const origin = await s.origin("native", join(ROOT, "target", "debug", "nvs"), ROOT);
     say(`native ${origin.line}`);
     try {
@@ -367,11 +373,13 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
 
   const repo = wslRepo(o.wslTarget);
   const binary = `${o.wslTarget}/debug/nvs`;
+  o.onPlan?.(1 + o.setups.length + (legGreen ? 0 : o.programs.length + o.suites.length) + (sweepGreen ? 0 : targets.length));
   say("wsl build");
   const pending = inflight.get(o.wslTarget);
   inflight.delete(o.wslTarget);
   const buildFail = await (pending ?? buildWsl(s, o.wslTarget));
   if (buildFail !== "") return buildFail;
+  o.onStep?.();
 
   // The origin's program is written into this checkout, so it runs from the mount, not from the copy.
   const origin = await s.origin("wsl", binary, wslPath(ROOT));
@@ -406,6 +414,7 @@ async function wslSetup(o: LegsOptions, s: LegsSeams, repo: string, binary: stri
     const argv = c.argv ?? [];
     if (!argv.includes("{nvs}")) {
       o.onRun?.(`${label} -- skipped: it does not run nvs`);
+      o.onStep?.();
       continue;
     }
     const line = argv.map((a) => (a === "{nvs}" ? q(binary) : q(a))).join(" ");
@@ -413,6 +422,7 @@ async function wslSetup(o: LegsOptions, s: LegsSeams, repo: string, binary: stri
     const r = await s.shell("wsl", `cd ${q(`${repo}/${c.cwd ?? "."}`)} && ${line}`, TIMEOUT_MS);
     const fail = judgeCommand(c, r, label);
     if (fail !== "") fails.push({ c, fail });
+    o.onStep?.();
   }
   return fails;
 }
@@ -435,23 +445,9 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
     return r;
   };
   for (const c of o.programs) {
-    const label = `wsl ${c.file} [${o.label(c.stage)}]`;
-    if (c.needs !== undefined) {
-      const ask = LEG_NEEDS[c.needs];
-      if (ask === undefined) {
-        fails.push({ c, fail: `${label}: \`needs\` is ${JSON.stringify(c.needs)}, which no leg is asked -- one of: ${Object.keys(LEG_NEEDS).join(", ")}` });
-        continue;
-      }
-      if (!ask(leg)) {
-        o.onRun?.(`${label} -- skipped: this leg has no ${c.needs}`);
-        continue;
-      }
-    }
-    if (!PROGRAM_KINDS.has(c.kind)) continue;
-    const args = [...(c.args ?? []), c.file ?? ""];
-    const r = await shared(`cd ${q(repo)} && ${q(binary)} run ${args.map(q).join(" ")}`, `wsl ${c.file}`);
-    const fail = judgeProgram(c, r, label);
+    const fail = await wslProgram(o, c, leg, shared, repo, binary);
     if (fail !== "") fails.push({ c, fail });
+    o.onStep?.();
   }
   for (const c of o.suites) {
     const label = `wsl ${c.name ?? c.id} [${o.label(c.stage)}]`;
@@ -459,10 +455,35 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
     const r = await shared(`cd ${q(repo)} && ${q(binary)} ${args.map(q).join(" ")}`, `wsl nvs ${args.join(" ")}`);
     const v = judgeTests(c, r, label, (rel) => existsSync(join(ROOT, rel)));
     if (v.fail !== "") fails.push({ c, fail: v.fail });
+    o.onStep?.();
   }
   if (fails.length === 0) return "";
   const ordered = fails.map((f, i) => ({ f, i })).sort((a, b) => a.f.c.stage - b.f.c.stage || a.i - b.i).map((x) => x.f);
   return programFailLine(ordered, o.label);
+}
+
+/** One fixture on the WSL leg: its red line, or "" when it is green or the leg has not what it `needs`. */
+async function wslProgram(
+  o: LegsOptions,
+  c: Check,
+  leg: { afUnix: boolean },
+  shared: (line: string, what: string) => Promise<Outcome>,
+  repo: string,
+  binary: string,
+): Promise<string> {
+  const label = `wsl ${c.file} [${o.label(c.stage)}]`;
+  if (c.needs !== undefined) {
+    const ask = LEG_NEEDS[c.needs];
+    if (ask === undefined) return `${label}: \`needs\` is ${JSON.stringify(c.needs)}, which no leg is asked -- one of: ${Object.keys(LEG_NEEDS).join(", ")}`;
+    if (!ask(leg)) {
+      o.onRun?.(`${label} -- skipped: this leg has no ${c.needs}`);
+      return "";
+    }
+  }
+  if (!PROGRAM_KINDS.has(c.kind)) return "";
+  const args = [...(c.args ?? []), c.file ?? ""];
+  const r = await shared(`cd ${q(repo)} && ${q(binary)} run ${args.map(q).join(" ")}`, `wsl ${c.file}`);
+  return judgeProgram(c, r, label);
 }
 
 /** Every target under valgrind, `jobs` at a time and longest first: every leaking fixture, as one line. */
@@ -485,6 +506,7 @@ async function valgrindSweep(o: LegsOptions, s: LegsSeams, where: Where, repo: s
       const started = s.now();
       const r = await s.shell(where, valgrindLine(repo, binary, f), TIMEOUT_MS);
       done.set(f, { r, seconds: (s.now() - started) / 1000 });
+      o.onStep?.();
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(width, order.length)) }, worker));
