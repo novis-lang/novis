@@ -1,31 +1,23 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) is under way.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) is Stage 12's check. Every document is clear now: `audit: no document names a Python tool`. What is left is 5 tracked `.py` files: `tools/disk.py`, `tools/observe.py`, `tools/proctree.py`, `tools/written.py` and `editors/vscode/scripts/mkwoff.py`. The audit's two calls, which the user may overrule: the Python twins under `benches/userland/` stay because `bun nv bench` runs them as a workload, and a \"document\" is tracked Markdown outside `docs/decisions/`, `CHANGELOG.md` and the prose of every goal the chain has reached. The module doc owns the definition.\n\nA Python step with no port is described by what it did, with no path: `tools/nv/cmd/loop.ts:70` lists the driver's, `tools/nv/driver/accept.ts:30` the WSL leg and the valgrind sweep. The goal switch, the side run and the proof tool's partition mode have no port either, and the goal prose now says what each did.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 to 11 are done, and Stage 12 (`no Python`) has one piece left.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv audit python` (`tools/nv/cmd/audit.ts`) exits 0. The only tracked `.py` files are the two launch shims, `tools/loop.py` and `tools/respawn.py`, and the Python twins under `benches/userland/`, which `bun nv bench` runs as a workload. The goal's § *Stage 12* says the driver's last turn deletes the two shims in its closing commit, so no session deletes them.\n\nThe parity command is gone with the last Python tool it compared. The `observed` key source now serves only the proofs groups (`tools/nv/keys/checks.ts`). The extension's icon font generator is deleted by the goal's standing decision, so `editors/vscode/media/novis-icons.woff` is now a committed binary with no generator in the tree. A port would need a font library, and a new dependency is out of scope.\n\nWhat is left is the decision record § *Stage 12* owes. No check enforced it, so Stage 12 now has a second check: a record under `docs/decisions/` names both `linguist-generated` and `smol-toml`. A gap record cannot hold a goal open, because `bun nv owners --check` refuses a gap owned by a goal.\n\n`docs/agent/loop-goal.md` and `loop-goal.toml` are gone from disk. The pack warns that the first one is missing, and the driver runs anyway.",
   "next": {
     "stage": 12,
     "title": "no Python",
     "files": [],
-    "note": "one file set: the five tracked `.py` files and the `tools/nv/` files that still name them.",
+    "note": "one file set: the new decision record and the rules it creates.",
     "items": [
       {
         "done": false,
-        "text": "**Delete `tools/disk.py`** (`tools/disk.py:1`); its port is `tools/nv/cmd/disk.ts:1`. `tools/nv/cmd/parity.ts:1` and its `tools/nv/parity/groups.json:3` row go with it, and so does the root manifest's comment naming it and the `what` at `tools/data/optimization-baseline.json:65`, both of which name the Python file."
+        "text": "**Write the decision record for the data model, the runtime and the generated-output rule** (`docs/agent/goals/tooling-overhaul.md:152` is the data model, `docs/agent/goals/tooling-overhaul.md:679` the standing decisions it writes down). It claims the next free number (0221 at this commit; re-check first) as `data/decisions/NNNN.json` plus `docs/decisions/NNNN.md`, and creates its rules under `docs/rules/tooling/` in the same commit, per conventions.md § *A decision record*. It names `linguist-generated` and `smol-toml`, which is what the Stage 12 check in `data/goals/tooling-overhaul.json:17430` greps for. Then run `bun nv rules --render`."
       },
       {
         "done": false,
-        "text": "**Delete `tools/observe.py`** (`tools/observe.py:1`). `tools/nv/keys/checks.ts:17` keys a Python gate on its record (`checks.ts:67`, `checks.ts:509`); drop the `observed` source once no check runs Python, which `bun nv audit checks` says."
-      },
-      {
-        "done": false,
-        "text": "**Delete `tools/proctree.py` and `tools/written.py`** (`tools/proctree.py:1`, `tools/written.py:1`). `tools/nv/driver/proctree.ts:1` is the first one's port; find the second's with `bun nv peek --locate` before you delete it."
-      },
-      {
-        "done": false,
-        "text": "**Port or delete `editors/vscode/scripts/mkwoff.py`** (`editors/vscode/scripts/mkwoff.py:1`). It builds the extension's icon font from an SVG. `tools/nv/test/audit.test.ts:73` uses its path as an example of a stray file and keeps working after it goes. When `bun nv audit python` exits 0, Stage 12 is green."
+        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes tooling-overhaul` and `bun nv playbook --closes tooling-overhaul` (`tools/nv/cmd/owners.ts:1`), then `DONE`."
       }
     ]
   },
   "backlog": [
-    "`bun nv import --check` crashes on the missing `docs/rules/_index.json` (`tools/nv/import/rules.ts:10`). Either retire the importer or point it at `data/rules/`. Owner: goal `tooling-overhaul`.",
-    "The lead-in of `docs/agent/playbook/tooling/a-loop-goal-toml-program-check-runs-its-file-through-leg-run.md` still names Python's `leg.run`, and the audit does not catch it. Its body names `tools/nv/driver/accept.ts`."
+    "`editors/vscode/media/novis-icons.woff` has no generator in the tree. Its last one is in `git log` for `editors/vscode/scripts/`, and a port waits on a font library being allowed (the goal's § *Standing decisions*).",
+    "conventions.md § *Citing a document* still says how a `.py` file's links are read, and only the shims are left. Trim it with the contract rewrite."
   ]
 }

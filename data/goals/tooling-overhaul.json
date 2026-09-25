@@ -98,7 +98,6 @@
       "tools/nv/cmd/records.ts",
       "tools/nv/cmd/plan.ts",
       "tools/nv/cmd/audit.ts",
-      "tools/nv/parity/groups.json",
       "crates/nvs-cli/src/script.rs",
       "crates/nvs-host/src/watchdog.rs",
       "crates/nvs-stdlib/src/http/socket.rs",
@@ -17426,6 +17425,24 @@
       "want": [
         "audit: no Python file is tracked beyond the launch shims",
         "audit: no document names a Python tool"
+      ]
+    },
+    {
+      "id": "a-decision-record-states-the-data-model-the-runtime-and-the",
+      "kind": "command",
+      "stage": 12,
+      "name": "a decision record states the data model, the runtime and the generated-output rule",
+      "argv": [
+        "git",
+        "grep",
+        "-l",
+        "--all-match",
+        "-e",
+        "linguist-generated",
+        "-e",
+        "smol-toml",
+        "--",
+        "docs/decisions/"
       ]
     }
   ],
