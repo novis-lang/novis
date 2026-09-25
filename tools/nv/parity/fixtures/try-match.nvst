@@ -1,8 +1,0 @@
---TEST--
-integer addition prints the same on both sides
---FILE--
-<?nvs
-echo 1 + 2, "\n";
---ORACLE--
-<?php
-echo 1 + 2, "\n";

@@ -226,7 +226,7 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>) -> ExitCode {
     };
     match write_bundle(&files, &output) {
         Ok(()) => {
-            // ASCII on purpose: this line is captured by `tools/try.py` and by
+            // ASCII on purpose: this line is captured by `bun nv try` and by
             // the acceptance check behind it, and a Windows console's legacy
             // code page renders an em dash here as mojibake in both.
             println!(

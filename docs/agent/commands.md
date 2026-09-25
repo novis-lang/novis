@@ -412,13 +412,13 @@ and the rules; `proof.py`'s module doc is what a failed task means.
 ## Trying a snippet against PHP
 
 ```sh
-python tools/try.py .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
-python tools/try.py .agent-tmp/*.nvst          # the whole scratch pad, one call
-python tools/try.py --keep .agent-tmp/promo.nvst
+bun nv try .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
+bun nv try .agent-tmp/*.nvst          # the whole scratch pad, one call
+bun nv try --keep .agent-tmp/promo.nvst
 ```
 
 Each file is in the `.nvst` shape — `--TEST--`, `--FILE--`, `--ORACLE--` — or, with no markers at all, a
-bare `<?nvs` snippet. `try.py` runs the Novis, runs the `--ORACLE--` through PHP, prints both and says
+bare `<?nvs` snippet. `bun nv try` runs the Novis, runs the `--ORACLE--` through PHP, prints both and says
 whether they agree and where they first do not. Write the files with the Write tool, as many as you have
 questions, and run them in one call.
 
@@ -435,7 +435,7 @@ under `tests/differential/`, and `nvs test` runs the same two programs the same 
 translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
 `.nvst` test case* owns the format.
 
-`try.py` needs `target/debug/nvs` built; `nv verify` builds it, so a snippet run after a green
+`bun nv try` needs `target/debug/nvs` built; `nv verify` builds it, so a snippet run after a green
 verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
 finding, not an error.
 
@@ -633,12 +633,12 @@ when two lanes collide. `tools/dossier.py`'s § *Running one group's features at
 ## How wide anything runs
 
 ```sh
-python tools/machine.py               # what this box is, and the widths it implies
-python tools/machine.py --refresh     # forget the cached facts and probe again
+bun nv machine                        # what this box is, and the widths it implies
+bun nv machine --refresh              # forget the cached facts and probe again
 NVS_VALGRIND_JOBS=2 python tools/loop.py --goal-only   # override one run's sweep width
 ```
 
-**One policy, in `tools/machine.py`, and no caller has its own:** half the cores the work will actually
+**One policy, in `tools/nv/lib/machine.ts`, and no caller has its own:** half the cores the work will actually
 see, floor two, capped by how many items there are and by free memory. Half and not more because the
 machine is not idle — `loop.py` overlaps the release build with the valgrind sweep deliberately, and that
 build is the longer pole.
@@ -650,8 +650,8 @@ memory independently of the host, so the host's count is the wrong number. An en
 host name changes or after 30 days, which is how a `.wslconfig` edit gets noticed. `NVS_JOBS` overrides
 every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; none is written back.
 
-Two callers today: the valgrind sweep in `loop.py`, and `try.py`, which runs its snippets this wide and
-prints the blocks back in the order you asked for them.
+Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
+blocks back in the order you asked for them.
 
 ## Disk
 

@@ -1,11 +1,11 @@
 {
-  "lead": "`tools/try.py` runs `target/debug/nvs.exe` and never builds it, so a member you just added reports `E0405` as if its registry row never landed.",
-  "body": "The driver builds that binary at session start and nothing afterwards refreshes it — a green `cargo test -p nvs-stdlib` does not, because a test binary is its own. One `cargo build` before `try.py` is the fix, not anything in `registry.rs`.",
+  "lead": "`bun nv try` runs `target/debug/nvs.exe` and never builds it, so a member you just added reports `E0405` as if its registry row never landed.",
+  "body": "The driver builds that binary at session start and nothing afterwards refreshes it — a green `cargo test -p nvs-stdlib` does not, because a test binary is its own. One `cargo build` before `bun nv try` is the fix, not anything in `registry.rs`.",
   "files": [
-    "tools/try.py"
+    "tools/nv/cmd/try.ts"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/try.py"
+    "arg": "tools/nv/cmd/try.ts"
   }
 }

@@ -364,24 +364,6 @@
       ["--check-c-deps", "x"]
     ]
   },
-  "try": {
-    "python": ["python", "tools/try.py"],
-    "nv": ["bun", "tools/nv/main.ts", "try"],
-    "sequential": "Both programs write the same `.agent-tmp/try-<stem>` and `bundle-<stem>` files, and one would delete what the other is about to run.",
-    "cases": [
-      ["tools/nv/parity/fixtures/try-match.nvst", "tools/nv/parity/fixtures/try-differ.nvst", "tools/nv/parity/fixtures/try-bare.nvs", "tools/nv/parity/fixtures/try-diverges.nvst"],
-      ["--keep", "tools/nv/parity/fixtures/try-match.nvst"],
-      ["--php", "no-such-php", "tools/nv/parity/fixtures/try-match.nvst"],
-      ["tools/nv/parity/fixtures/no-such.nvst"],
-      ["--bundle", "examples/hello.nvs", "--expect", "Hello, World!"],
-      ["--bundle", "examples/hello.nvs", "--expect", "Goodbye"],
-      ["--bundle", "no/such.nvs"],
-      ["--expect", "x", "tools/nv/parity/fixtures/try-match.nvst"],
-      ["a.nvst", "--keep", "b.nvst"],
-      [],
-      ["--bogus", "a.nvst"]
-    ]
-  },
   "writers": {
     "python": ["python", "tools/session.py"],
     "nv": ["bun", "tools/nv/main.ts", "session"],

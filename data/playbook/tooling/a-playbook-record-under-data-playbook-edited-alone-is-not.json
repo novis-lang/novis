@@ -1,0 +1,13 @@
+{
+  "lead": "A playbook record under `data/playbook/` edited alone is not what `bun nv orient` prints, and `bun nv render` does not write the Markdown from it.",
+  "body": "While the fragment files under `docs/agent/playbook/` are still a home, `tools/nv/cmd/orient.ts` imports each bullet from its fragment. Edit the fragment, then rebuild the record from it with `bulletValue` in `tools/nv/import/playbook.ts`, which is what `bun nv session --wrap` does.",
+  "files": [
+    "docs/agent/playbook/",
+    "tools/nv/cmd/orient.ts",
+    "tools/nv/import/playbook.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/orient.ts:Python writers"
+  }
+}

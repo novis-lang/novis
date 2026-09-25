@@ -1,7 +1,0 @@
---TEST--
-a case that says its twin differs on purpose
---FILE--
-<?nvs
-echo "novis\n";
---ORACLE-DIVERGES--
-Novis prints its own name here, and nothing is compared.

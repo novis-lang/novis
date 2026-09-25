@@ -51,20 +51,6 @@
       "why": "A message names the program that printed it."
     }
   ],
-  "try": [
-    {
-      "side": "python",
-      "pattern": "^(usage: |)try\\.py(:? )",
-      "replace": "$1nv try$2",
-      "why": "A message names the program that printed it."
-    },
-    {
-      "side": "both",
-      "pattern": "^(===== .*  -- cannot read: ).*$",
-      "replace": "$1<the error>",
-      "why": "The reason a file cannot be read is the runtime's own error text, and Python and Bun word the same error differently."
-    }
-  ],
   "db-matrix": [
     {
       "side": "python",

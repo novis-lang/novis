@@ -384,11 +384,11 @@ above. Stage
 with the gate open.
 
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
-`tools/machine.py` holds that policy and nothing else does: half the cores the work will actually see,
+`tools/nv/lib/machine.ts` holds that policy and nothing else does: half the cores the work will actually see,
 never fewer than two, never more than there are fixtures, never more than free memory allows. On
 Windows "the cores the work sees" means WSL's, which `.wslconfig` sets independently of the host. Those
 facts, plus one fixture timed serially as a baseline, are probed **once per machine** and cached in
-`.loop/machine.json`; `python tools/machine.py` shows what this box came out as, and `NVS_VALGRIND_JOBS`
+`.loop/machine.json`; `bun nv machine` shows what this box came out as, and `NVS_VALGRIND_JOBS`
 overrides the width for one run. Half a box and not all of it, because the release build overlaps the
 sweep on purpose and is the longer pole. Measured on 16 cores, 23 fixtures: 67.8s serial, 21.2s at four,
 16.0s at eight. A leak verdict is per-process and deterministic, so concurrency cannot change one; the
