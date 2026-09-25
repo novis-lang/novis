@@ -1,26 +1,27 @@
 {
-  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `cbrt` and `ceil` have every feature proof on disk, and `bun nv proofs --verify --only` over those ten says nothing owed. `Core\\Math` has its class card.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\nMember cards are rewritten in plain words as each member is taken (`ABS_DOC` to `ATANH_DOC`, `CBRT_DOC`, `CEIL_DOC` done). Do the same for each card you take.\nAny code change in `crates/nvs-stdlib/src/math.rs` makes every measured `Core\\Math` member's perf figure stale. Re-record all of them in one `bun nv proofs --record-perf --only <id> ...` call after the session's last code edit. A card or test edit does not make them stale.\n`Core\\Math` has no `pow`: the power is the `**` operator. `Core\\Math::round` takes its precision as an option: `{precision: 1}`.\nThe WSL leg now runs the goal's `setup` checks inside its copy before its fixtures (`tools/nv/driver/legs.ts` `wslSetup`), so the red floor check `wsl examples/queue-sqlite.nvs` should be green on the next sweep. Checked by hand in the copy: `queue migrate` then the example prints its `want` and exits 0.",
+  "state": "Goal `core-math-1-3` is reached: `bun nv proofs --verify --only` over its thirteen `Core\\Math` members (`abs` to `cosh`) says nothing owed, 0 failed.\n`clamp`, `cos` and `cosh` got every feature proof this session, and their perf figures are recorded. Their cards in `crates/nvs-stdlib/src/math.rs` are rewritten in plain words.\n`abs`'s example 03 still carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\n`bun nv verify --doc`, `bun nv owners --closes core-math-1-3` and `bun nv playbook --closes core-math-1-3` are all green.\nThe WSL floor check `wsl examples/queue-sqlite.nvs` should be green now that the WSL leg runs the goal's `setup` checks. It has not been seen green on a driver sweep yet.",
   "next": {
     "stage": 2,
     "title": "the dossier, Core\\Math (1/3)",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (the member's `*_DOC` card and the test module at its end) plus new files under `docs/examples/core/Math/<member>/`, `tests/hostile/core/Math/<member>/` and `benches/members/core/Math/<member>.nvs`. `rule:testing/feature-proofs`.",
+    "note": ", done. The next goal starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Math::clamp`** — owes about, examples, hostile, perf, tests. Typed `T`; throws `RuntimeError` for `low > high` and for values with no natural order. `crates/nvs-stdlib/src/math.rs:520`"
+        "done": true,
+        "text": "**`Core\\Math::clamp`**, every feature proof. `crates/nvs-stdlib/src/math.rs:520`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Math::cos`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:832`"
+        "done": true,
+        "text": "**`Core\\Math::cos`**, every feature proof. `crates/nvs-stdlib/src/math.rs:830`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Math::cosh`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:928`"
+        "done": true,
+        "text": "**`Core\\Math::cosh`**, every feature proof. `crates/nvs-stdlib/src/math.rs:926`"
       }
     ]
   },
   "backlog": [
-    "If the next sweep still shows `wsl examples/queue-sqlite.nvs` red, read the leg's trace for the `wsl setup:` line — `tools/nv/driver/legs.ts`."
+    "`Core\\Math::abs`'s result is typed as the whole union. The gap record `nvs-stdlib/math-abs-result-is-the-whole-union` owns it (M10).",
+    "`Core\\Math` has no `isInfinite`. A program compares with `Core\\Math::INFINITY` instead. Nothing owns this yet: docs/spec/01-core-library.md § 3."
   ]
 }

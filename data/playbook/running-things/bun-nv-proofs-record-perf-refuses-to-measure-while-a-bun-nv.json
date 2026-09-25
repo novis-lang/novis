@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv proofs --record-perf` refuses to measure while a `bun nv verify --start` job is still running.",
+  "body": "The background build and test run take the CPU, so the calibration reads the unit program as no slower than the empty one and stops with \"the calibration did not measure anything\". Collect the job with `bun nv verify --wait` first, then record the perf figures.",
+  "files": [
+    "tools/nv/proofs/perf.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/perf.ts:the calibration did not measure anything"
+  }
+}

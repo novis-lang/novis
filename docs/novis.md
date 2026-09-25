@@ -8966,17 +8966,17 @@ The larger of two values under their natural order, as `max` does with two scala
 Core\Math::clamp(T $n, T $low, T $high): T
 ```
 
-`$n` brought inside `[$low, $high]`, replacing PHP's `min(max($n, $low), $high)` idiom.
+Keeps `$n` between `$low` and `$high`. It replaces PHP's `min(max($n, $low), $high)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `T` | The value to clamp, of a type with a natural order: a number, a string, a `bool` or `null`. |
-| `$low` | `T` | The smallest value the answer may be. |
-| `$high` | `T` | The largest value the answer may be, at or above `$low`. |
+| `$n` | `T` | The value to keep in the range. It can be a number, a string, a `bool` or `null`. |
+| `$low` | `T` | The smallest value the result can be. |
+| `$high` | `T` | The largest value the result can be. It must not be below `$low`. |
 
-**Returns** `T` — `$low` when `$n` is below it, `$high` when `$n` is above it, and `$n` itself otherwise.
+**Returns** `T` — `$low` when `$n` is below it, `$high` when `$n` is above it, and `$n` itself otherwise. Both ends are inside the range.
 
-**Throws** `RuntimeError` — When `$low` is above `$high`, which is an empty range, or when any pair has no natural order — an object, an array, or two values of different kinds.
+**Throws** `RuntimeError` — When `$low` is above `$high`. Also when two of the values cannot be compared: an object without `compareTo`, an array, or a number and a string.
 
 <a id="core-core-math-ceil"></a>
 #### `Core\Math::ceil`
@@ -9229,13 +9229,13 @@ The sine of an angle in radians, as `sin` does.
 Core\Math::cos(float $radians): float
 ```
 
-The cosine of an angle in radians, as `cos` does.
+Returns the cosine of an angle. The angle is in radians.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$radians` | `float` | The angle, in radians. |
+| `$radians` | `float` | The angle, in radians. `Core\Math::toRadians` converts degrees to radians. |
 
-**Returns** `float` — A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.
+**Returns** `float` — A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.
 
 <a id="core-core-math-tan"></a>
 #### `Core\Math::tan`
@@ -9335,13 +9335,13 @@ The hyperbolic sine of `$n`, as `sinh` does.
 Core\Math::cosh(float $n): float
 ```
 
-The hyperbolic cosine of `$n`, as `cosh` does.
+Returns the hyperbolic cosine of `$n`, which is `(exp($n) + exp(-$n)) / 2`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The argument, any `float`. |
+| `$n` | `float` | Any number. |
 
-**Returns** `float` — `(exp($n) + exp(-$n)) / 2`, at least `1.0`; `INFINITY` once `$n` is past about `±710`.
+**Returns** `float` — A number of at least `1.0`. It is `INFINITY` when `$n` is above about `710` or below about `-710`. `NaN` gives `NaN`.
 
 <a id="core-core-math-tanh"></a>
 #### `Core\Math::tanh`
