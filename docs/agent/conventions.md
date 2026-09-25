@@ -40,7 +40,7 @@ paragraph is repeated from one commit to the next.
 `Signed-off-by`, no `Generated-with`, no tool or model attribution in any spelling. Who or what wrote a
 commit is not part of the record this project keeps, and boilerplate at the foot of every message is
 noise every future reader pays for. `git log` should read as a history of the language, not of its
-authorship. This is enforced twice — `tools/session.py` strips a trailer out of any message it is handed,
+authorship. This is enforced twice — `bun nv session --wrap` strips a trailer out of any message it is handed,
 and the `commit-msg` hook in `tools/git-hooks/` rejects one that arrives any other way.
 
 The one line that is not attribution: the commit that fixes **a bug reported in a public issue** ends its
@@ -125,11 +125,11 @@ the exact stdout, byte for byte
 
 **The four shapes a depth case takes.** Every section of Part I has had a pass, so a new case reaches
 for one of these rather than for a section, and what it adds is the boundary or the invariant the
-member is written around — never another row of the same shape. `python tools/gaps.py` finds the
+member is written around — never another row of the same shape. `bun nv gaps` finds the
 candidates; the playbook owns the spellings that will not compile.
 
 - *Edges* — the answer where the member stops accepting: an empty receiver, a name it cannot read, a
-  padding only wide enough to be used. `gaps.py --errors` lists the boundaries no case asks about.
+  padding only wide enough to be used. `bun nv gaps --errors` lists the boundaries no case asks about.
 - *Invariance over a sweep* — a property that must hold across a whole table, asserted by **counting**
   rather than read off a line, so a member answering plausibly row by row still fails.
 - *A bound asserted on both sides* — the last accepted value and the first refused one, named
@@ -143,12 +143,12 @@ candidates; the playbook owns the spellings that will not compile.
 `rule:testing/feature-proofs` makes these owed. **Each tree's own
 README owns the rules** — [docs/examples/](../examples/README.md), [tests/hostile/](../../tests/hostile/README.md),
 [benches/members/](../../benches/members/README.md) — and this section is only the skeletons, so
-nothing is copied out of an existing file to get the shape right. `python tools/dossier.py --id
-'<feature>'` prints the three paths for any feature; all four trees share one path per feature
+nothing is copied out of an existing file to get the shape right. `bun nv proofs --id '<feature>'`
+prints the three paths for any feature; all four trees share one path per feature
 (`core/Str/length`, `lang/expressions/precedence-and-associativity`, `types/Throwable`, …).
 
 **An example** — `docs/examples/<path>/03-slug.nvs`, three per member, each a *different* use, plus a
-`.out` created with `python tools/dossier.py --bless <file>`:
+`.out` created with `bun nv proofs --bless <file>`:
 
 ```nvs
 <?nvs
@@ -265,8 +265,8 @@ name    property  string
 
 ## A `Core` member — the five edits
 
-All five in the module that owns the class; `python tools/brief.py`'s *anchors* block resolves each
-spelling to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
+All five in the module that owns the class; `bun nv peek --locate <symbol>` resolves each spelling
+to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
 read whole.
 
 **1. The row**, in that module's `pub const CLASS: CoreClass`:
@@ -360,7 +360,7 @@ the arithmetic and what a mismatch looks like.
 **A rule is cited by its token, and the token is the whole citation.** `rule:types/conversion` is the
 canonical spelling everywhere — a Rust doc comment, a `.nvst` header, a goal manifest, a commit message,
 one rule citing another. It is flat text, not a link: `grep -rn 'rule:'` finds every citation in the
-repository, `python tools/rules.py --check` reports one that resolves to nothing, and the generated
+repository, `bun nv rules --check` reports one that resolves to nothing, and the generated
 chapters linkify it on the way out. A rule id is its fragment's path — `types/conversion` is
 `docs/rules/types/conversion.md` — so the token also says where the prose is.
 
@@ -368,8 +368,8 @@ chapters linkify it on the way out. A rule id is its fragment's path — `types/
 link to it when the *reasoning* is the point — why this shape, what it cost, what was rejected — and
 name the rule beside it when a reader needs what is currently true. A record's text was true on its
 date and is not maintained afterwards, so a citation that means "the current rule" and points at a
-record is stale from the first later decision that touches it. `python tools/brief.py --where
-<keyword>` routes a topic to the rule that owns it.
+record is stale from the first later decision that touches it. `bun nv brief --where <keyword>`
+routes a topic to the rule that owns it.
 
 **When a record is linked, the form depends on whether a renderer resolves it, and there are exactly
 two.**
@@ -385,11 +385,12 @@ file's depth, so every split, rename and new directory level silently invalidate
 half that moved, and nothing looked. The root-absolute form has one spelling per target and survives
 the move, which is the whole reason it is worth two rules instead of one.
 
-`python tools/check-links.py` is the gate for both, and CI's `docs` job runs it. Two shapes in a
+`bun nv links` is the gate for both, and CI's `docs` job runs it. Two shapes in a
 source file are not paths and it skips them: a rustdoc intra-doc link naming an item
 (`[the store](Cache::store)`) has no `/`, and a link to a rustdoc page (`../nvs_ir/ids/index.html`)
-is deliberately relative to the rendered HTML. `.py` is outside the gate — `tools/` emits markdown,
-so a link in a string literal there is relative to the *generated* file.
+is deliberately relative to the rendered HTML. A `.py` file is read only for the repository paths its
+prose names, and a `.ts` file not at all: a tool emits markdown, so a link in one of its string
+literals is relative to the *generated* file.
 
 Neither form is what rustdoc follows: a relative link in a doc comment resolves against the generated
 HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a check on any of this.
@@ -397,17 +398,17 @@ HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a 
 ## A rule fragment
 
 A rule is **two files**, and a decision that creates or modifies one writes both in the same commit as
-the record. The pair is `docs/rules/<topic>.json` — the structure, which carries no prose — and
-`docs/rules/<topic>/<slug>.md` — the prose, which carries no structure. `docs/rules/<topic>.md` is
-generated from the two by `python tools/rules.py --render` and **is never edited**, along with
+the record. The pair is `data/rules/<topic>/<slug>.json` — the structure, which carries no prose — and
+`docs/rules/<topic>/<slug>.md` — the prose, which carries no structure. The rule's place is its id in
+the `rules` list of its topic's record, `data/rules/<topic>.json`, inserted at the position § *Where a
+rule sits in the order* below gives it — never appended because it is the newest. `docs/rules/<topic>.md`
+is generated from all of them by `bun nv rules --render` and **is never edited**, along with
 [ground-rules.md](../ground-rules.md) and [divergences.md](../divergences.md).
 
-The JSON entry, inserted into the topic's `rules` array at the position § *Where a rule sits in the
-order* below gives it — never appended because it is the newest:
+The record, `data/rules/core-classes/schema-plan.json`:
 
 ```json
 {
-  "id": "core-classes/schema-plan",
   "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
   "status": "shipped",
   "because": ["0145", "0067"],
@@ -417,7 +418,7 @@ order* below gives it — never appended because it is the newest:
 }
 ```
 
-- **The `id` is the path.** `core-classes/schema-plan` is `docs/rules/core-classes/schema-plan.md`, and
+- **The id is the path.** `core-classes/schema-plan` is `docs/rules/core-classes/schema-plan.md`, and
   the citation token everywhere is `rule:core-classes/schema-plan`. The topic half namespaces it, so two
   topics cannot collide, and `bun nv peek rule:core-classes/schema-plan` reads it.
 - **The `title` is the rule as one statement of what is now true** — the same voice as a record's H1 and a
@@ -425,9 +426,9 @@ order* below gives it — never appended because it is the newest:
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
-- **`because` is decision records, first-created-then-amended**, and it is one half of a relation whose
-  other half is those records' `changes:` blocks. Writing one without the other is what `rules.py --check`
-  refuses.
+- **`because` is decision records, first-created-then-amended**, and it is the only place that says
+  which decisions shaped a rule. `bun nv records --check` refuses a `because` that names something that
+  is not a record, or names one twice.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
   the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
 
@@ -436,18 +437,18 @@ so the file opens on the first sentence of the rule. Its **opening sentence is c
 `ground-rules.md`, so write a sentence that stands alone. Body length is the rule's own business — one
 paragraph where one is enough, four where the rule has a table of cases in it.
 
-**Then run `python tools/rules.py --render`**, which rewrites the three generated files. `--check` and
-`--render --check` are CI's `docs` job, and `session.py --wrap` runs both for any session that has
+**Then run `bun nv rules --render`**, which rewrites the three generated files. `--check` and
+`--render --check` are CI's `docs` job, and `bun nv session --wrap` runs both for any session that has
 touched `docs/rules/` — so a fragment edited without a render, or a rule renamed under its citations,
 refuses the wrap rather than reaching CI.
 
 ## Where a rule sits in the order
 
-**Both arrays read from the ground up — the order a language is built in, never the order the decisions
+**Both lists read from the ground up — the order a language is built in, never the order the decisions
 arrived in.** `git log` keeps the arrival order, so nothing is lost by not writing it twice, and a
 reader who opens a chapter at the top meets the thing being declared before anything that constrains it.
 
-`docs/rules/_index.json` is where a chapter's place is written, and its `order`
+A chapter's place is the `order` field of its topic record, `data/rules/<topic>.json`, and the
 values sit ten apart so a new topic slots in without renumbering its neighbours. The five bands, in the
 order the generated pages walk them:
 
@@ -459,7 +460,8 @@ order the generated pages walk them:
 | The server on top of that | `http-server`, `routing` |
 | What surrounds the language | `config`, `packaging`, `php-migration` |
 
-Inside a chapter there is no `order` field — **position in the `rules` array is the order**, and the
+Inside a chapter there is no `order` field — **position in the topic record's `rules` list is the
+order**, and the
 same principle repeats one level down:
 
 - The rule that says a thing **exists** comes before every rule that narrows it, and a refusal sits with
@@ -468,7 +470,7 @@ same principle repeats one level down:
   the parking contract, a directive before how a reload applies it.
 - A rule that cannot be understood without another one goes **after** that one.
 - A run that is already grouped — the `fmt-` rules, the `db-` rules, the capability rules — stays one
-  run: a new member joins it rather than starting a second group elsewhere in the array.
+  run: a new member joins it rather than starting a second group elsewhere in the list.
 
 Nothing checks this, because no tool can read whether one rule explains another. It is the reason a
 reorder is cheap: moving an entry changes no content, and `--render` rewrites the chapters from it.
@@ -478,9 +480,16 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 A record is the reasoning behind a rule, frozen on acceptance at `docs/decisions/NNNN.md`. **The rule
 is not in it** — the rule is a fragment under [docs/rules/](../rules/), written to the shape in
 § *A rule fragment* above, and the record is what its `because` list names. Writing one without the
-other is half a decision, and the two are one commit. There is no scaffolder: a new record is written by hand from the shape below and
-claims the next free number, which is one more than the highest file in `docs/decisions/`. Newest
-worked example: [0104](../decisions/0104.md).
+other is half a decision, and the two are one commit. There is no scaffolder. A new record claims the
+next free number, which is one more than the highest file in `docs/decisions/`, and is two files
+written by hand:
+
+- `data/decisions/NNNN.json` — the fields: `title`, `status`, `scope`, `dependsOn`, and `validatedBy`
+  and `summary` when it has them. `tools/nv/schema/decision.ts` is the field list.
+- `docs/decisions/NNNN.md` — the reasoning, in the shape below. Its YAML block and its bold field lines
+  repeat the record's fields, and no renderer writes them yet, so they are written to agree with it.
+
+Newest worked example: [0104](../decisions/0104.md).
 
 ```markdown
 ---
@@ -514,33 +523,30 @@ changes:
 
 **What the shape means, so none of it is a matter of care:**
 
-- **The YAML block is the record's only machine-read field set** — `status` and `changes`.
-  `changes.creates` is the rule ids this decision brings into the rulebook; `changes.modifies` is the
-  rule ids whose fragment it edits. Both name rules by id (`types/conversion`), never a record. A
-  record touching no rule is not a decision — put the paragraph in the module doc or the plan instead.
-- **The `changes:` block and the rules' `because` lists are one relation, written twice, in one
-  commit.** Every rule under `creates` gets a new topic-JSON entry whose `because` opens with this
-  record's number; every rule under `modifies` gets this number appended to its `because`. The freeze
-  derived `changes:` from `because` in exactly that way — first entry created, the rest amended — so a
-  record and the rulebook must keep agreeing. `python tools/rules.py --check` refuses a rule whose
-  `because` is empty or names something that is not a record id; `python tools/records.py --check` audits
-  the record; `python tools/records.py --graph NNNN` prints what the record created and modified and which
-  records share a rule with it, derived from every `changes:` block.
+- **The rules' `because` lists say which rules a decision shaped, and nothing else does.** Every rule
+  the decision brings into the rulebook gets a new record whose `because` opens with this number; every
+  rule whose fragment it edits gets this number appended to its `because`. The prose's `changes:` block
+  is a copy of that: `creates` names the first kind by id (`types/conversion`), `modifies` the second,
+  never a record. A decision touching no rule is not a decision — put the paragraph in the module doc
+  or the plan instead.
+- **`bun nv records --check` audits the set**, and refuses a `because` that names something that is
+  not a record. `bun nv records --graph NNNN` prints what a record created and modified and which
+  records share a rule with it, derived from every rule's `because`.
 - **The H1 is `# ADR NNNN — <the decision as a statement>`**, and it is the title every index derives
   from. `Scope`, `Depends on` and `Validated by` are the three bullets that may follow it, each present
   only when the record has one. Nothing else goes above *In short* — there is no `Status:` line, no
-  `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the YAML block or derived
-  from it.
+  `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the record's fields or
+  derived from the rules' `because` lists.
 - **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
   `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
-  `tools/records.py`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
+  `tools/nv/cmd/records.ts`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
   a `###` subsection under `Decision`. Use only the sections that have content; `Revisiting` is for a
   decision with a real trigger to reconsider it.
 - **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from
   `docs/spec/` and from the goal manifests; a new section between two others is `§ 3a`.
 - **A record is frozen on acceptance.** Its body states what was decided when it was written and is not
-  edited when a later decision moves the rule: that decision is a new record whose `changes.modifies`
-  names the rule, and **the rule's fragment is where the current text lives.** A body therefore carries
+  edited when a later decision moves the rule: that decision is a new record whose number the rule's
+  `because` gains, and **the rule's fragment is where the current text lives.** A body therefore carries
   no history and no maintenance — no "this previously said", no withdrawn-section tombstone, no running
   total of anything — and the reader who wants to know what is true now reads the rule, never the
   record.
@@ -549,13 +555,13 @@ changes:
   against anything and tells a reader years later only that time has passed. The same rule the code
   comments follow — § *A code comment*, *A date* — applies to every file under `docs/`.
 
-Retiring a decision is `status: retired` in its own YAML block, in the same commit that edits or
+Retiring a decision is `status: retired` in its record and its YAML block, in the same commit that edits or
 removes the rules it created; there is no `Superseded` status and nothing to move in an index, because
 every index is derived.
 
 ## A diagnostic
 
-Next free code per band: `python tools/brief.py`. Bands are by compiler phase and the legend is
+Next free code per band: `bun nv orient`, under *The next free number*. Bands are by compiler phase and the legend is
 `crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
 siblings — that file is the whole registry, so a code declared anywhere else does not exist.
 
@@ -597,13 +603,13 @@ the `Edit` tool has to make.
 ## A status-block field
 
 ```
-python tools/plan.py                                  # field names and sizes
-python tools/plan.py --get "Open now"                 # its current text
-python tools/plan.py --set "Open now" --from <file>   # replace it
+bun nv plan --check              # field names and sizes
+bun nv plan --get "Open now"     # its current text
 ```
 
-The field set is fixed and `plan.py` refuses a name that is not already there. Write the new text with
-the Write tool; `--set` re-wraps that one field and leaves every other byte of the file alone.
+A field is written by the wrap, never by hand: a `## plan: <Field>` section in the `bun nv session
+--wrap` file replaces it whole, and `## plan-edit: <Field>` replaces one fragment of it. The field set
+is fixed, and the wrap refuses a name that is not already there.
 
 ## A playbook bullet
 
@@ -613,18 +619,17 @@ the Write tool; `--set` re-wraps that one field and leaves every other byte of t
   [until: <kind> <arg>]
 ```
 
-Three sentences and about 400 bytes; `session.py --wrap` refuses a new bullet past 700. The first
+Three sentences and about 400 bytes; `bun nv session --wrap` refuses a new bullet past 700. The first
 sentence is the bullet's selector — a goal manifest fetches it by the opening words of that bold text — so it
 states the trap and not the story. It is also the bullet's file name: the wrap writes each bullet to
-`docs/agent/playbook/<section>/<lead-in words>.md`. The trailer is required, and `tools/playbook.py`'s
-module doc is the only home of its five kinds. Use a mechanical one (`test`, `exists`, `gone`, `rule`):
-those let the wrap delete the bullet the day it stops being true. A bullet names, in backticks, at
-least one file in the tree by its path from the repository root, and the wrap refuses one that names
-none. So `reviewed` does not fit a new bullet: the wrap refuses it on a bullet that names a file,
-because `gone <path>:<word>` fits it, and refuses a `reviewed` date after today.
+`docs/agent/playbook/<section>/<lead-in words>.md`, with its record under `data/playbook/`. The
+trailer is required, and `tools/nv/cmd/playbook.ts`'s module doc is the only home of its four kinds
+(`test`, `exists`, `gone`, `rule`). Each one is a condition the tree answers, so `bun nv playbook
+--retire` deletes the bullet the day it stops being true. A bullet names, in backticks, at least one
+file in the tree by its path from the repository root, and the wrap refuses one that names none.
 
 What does **not** go in: the session's narrative (which stage, which check, what was tried first —
 `git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,
 `AGENTS.md`), or a trap whose whole subject is a stale comment in `loop-goal.toml` or a wrong claim in a
-handoff — fix the comment instead. `python tools/playbook.py --match <path>` before writing says whether
-the trap is already there.
+handoff — fix the comment instead. `bun nv orient --traps <path>` before writing prints the traps
+already filed against that path.
