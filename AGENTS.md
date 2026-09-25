@@ -21,17 +21,17 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 
 | You are | Run |
 |---|---|
-| A session of the unattended loop | Nothing — the driver ran `python tools/orient.py` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
-| Working interactively, on anything | `python tools/brief.py` — the plan's status, one line per milestone and per module, the definitions most often grepped for, the guard tests, what is on disk |
-| Looking for the file that owns a topic | `python tools/brief.py --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
+| A session of the unattended loop | Nothing — the driver ran `bun nv orient` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
+| Working interactively, on anything | `bun nv orient --full` — the same pack with no narrowing: where the run and the work stand, one line per module, the rules, the shapes and the plan's fields |
+| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
 Those three route to everything else. The five files behind them, none of which is read in full by default:
 
 - **[docs/ground-rules.md](docs/ground-rules.md)** — generated, one line per rule, each linking the rule
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
-- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `nv verify`,
-  `session.py`, `nv splice`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
+- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `nv peek`, `nv verify`,
+  `nv session`, `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
@@ -106,8 +106,8 @@ which are whole where they stand.
    or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
    follow-up that sends you to the code and changes what you said means the answer went out early.
 9. **A feature is finished when its feature proofs exist, not when it works** — `about.md`, tests from
-   Novis and from Rust, three examples, one bench, one attack, and its help in the binary. `python tools/dossier.py --id
-   '<feature>'` prints what it still owes and the path of each, and every `.nvs` and `about.md` among
+   Novis and from Rust, three examples, one bench, one attack, and its help in the binary. `bun nv proofs --id '<feature>'`
+   prints what it still owes and the path of each, and every `.nvs` and `about.md` among
    them is held to § *Text an end user reads* below.
 10. **Nothing is written outside the project's folders.** Every scratch file — a patch, a probe script, a
    throwaway case, a commit message, a log — goes under `.agent-tmp/` at the repository root, which is
@@ -233,7 +233,7 @@ And an attack:
 
 If a comment would only make sense to somebody who works on Novis, it is the wrong comment.
 
-`python tools/dossier.py --comments <paths>` judges the three bounds a script can count — lines in a
+`bun nv proofs --comments <paths>` judges the three bounds a script can count — lines in a
 block, words in a sentence, a dash joining two — and nothing about the words. Passing it says nothing
 about whether the comment is plain; a line it names is written again from what the code does, never
 trimmed until it passes.
@@ -243,7 +243,7 @@ trimmed until it passes.
 Every session runs the same five steps, in this order, and **stops**:
 
 1. **Orient in one call** — already done for you in the loop (the driver pipes the pack in with the
-   prompt), `python tools/brief.py` interactively.
+   prompt), `bun nv orient --full` interactively.
    That is the map, where the work stands, the traps that apply to these files, the shapes you are about to
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
@@ -258,14 +258,14 @@ Every session runs the same five steps, in this order, and **stops**:
    slice as the most expensive one. A session pays a **fixed cost** — orienting at the front, collecting
    the verification and applying the wrap at the back — that is the same for a three-line slice as for a
    three-hundred-line one, so a slice that only writes a test over landed work buys that whole fixed cost
-   a second time when it gets a session to itself. `python tools/loop-stats.py`'s `fixed cost per session`
+   a second time when it gets a session to itself. `bun nv loop-stats`'s `fixed cost per session`
    line is what it currently is; **the number is not copied here on purpose.** It moved from 39% to 22%
    the day the tail was measured correctly — `nv verify --start` fires mid-work, so every call after it
    had been counted as wrap-up — and a copy in this file was wrong between every pair of optimization
    passes that refreshed it. Read the tool.
    One lowering slice spends the 120k by itself; five test-writing slices over one file set do not, and a
-   rule counting slices cannot tell those apart. This replaced a cap of 2, which `python
-   tools/loop-stats.py` had derived three ways at once — and could not have derived otherwise, because it
+   rule counting slices cannot tell those apart. This replaced a cap of 2, which `bun nv
+   loop-stats` had derived three ways at once — and could not have derived otherwise, because it
    prices a slice from sessions that each did one hard one. Take the **ceiling** from that tool after any
    run that changes what a session reads: its projection opens where the *next* session will open, so a
    pass that cuts the pack shows up immediately. Leave the number of slices to the 120k gate.
@@ -319,28 +319,26 @@ Step 5 above, in detail:
   in the plan.
 - **The plan is that index plus one file per milestone**, under [docs/plan/](docs/plan/), with the frozen
   half — the pre-M0 decisions, the architecture, the verification strategy — in
-  [docs/plan/design.md](docs/plan/design.md). Never open the directory to find one: `python tools/plan.py
-  --show M8` prints a milestone, `--show M8:verify` its acceptance paragraph, `--amend M8 --from <file>`
-  rewrites one, and `bun nv session --wrap` takes a `## milestone: M8` section for the same thing.
+  [docs/plan/design.md](docs/plan/design.md). Never open the directory to find one: `bun nv plan
+  --show M8` prints a milestone and `--show M8:verify` its acceptance paragraph, and a `## milestone: M8`
+  section in a `bun nv session --wrap` file rewrites one.
 - **The schedule is the chain, not the milestone table.**
-  [docs/agent/goals/](docs/agent/goals/) *is* the chain: a goal is `N-<slug>.md` plus, until it is
-  retired, a sibling `.toml` and `.handoff.md`, the numbers run `1..N` with no gaps, and the order
-  the loop walks is that number. A milestone is an **identity tag** one or more goals carry, and
+  `data/chain.json` *is* the chain: a list of goal slugs, and the order the loop walks is the order
+  of that list. A goal is its prose at `docs/agent/goals/<slug>.md` and its record at
+  `data/goals/<slug>.json`, with a handoff record beside it until it is retired. A milestone is an **identity tag** one or more goals carry, and
   the plan's `Carried by` cells are derived from it, so a milestone number says nothing about what
   is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
-  `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `brief.py` prints the live
-  goal; `plan.py --check` gates it. **A side goal is off the chain**: `docs/agent/goals/side/<slug>`,
-  run only by `loop.py --side <slug>` in its own worktree and landed on `main` when green —
-  [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
+  `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `bun nv orient` prints the live
+  goal; `bun nv plan --check` gates it. **A side goal is off the chain**: its prose is under
+  `docs/agent/goals/side/` and its record under `data/goals/side/`, it runs in a worktree of its own
+  and it lands on `main` when green — [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
 - **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
   in a code comment, in a commit message, in an owner column, **and in what a tool prints**. A
   number is fine as a *position* beside a total (`29 of 43`), which is what it is; what is never
-  fine is a number where the goal's name goes. **The number moves** the moment anything is
+  fine is a number where the goal's name goes. **The position moves** the moment anything is
   inserted in front of it, and a line naming one silently comes to mean a different goal; the slug
-  never moves. The two places a number belongs are the goal's own two file headers and a link
-  target that is a filename, and `chain.py` rewrites both when it renames.
-  `python tools/chain.py --check` fails on any other one in a file.
-- **Reordering the chain is renaming files, and `python tools/chain.py` is what does it.**
-  `--new <slug> --after N` / `--before N`, `--move N --to M` (or `--after`/`--before`/`--next`),
-  `--remove N --delete-files`: each renumbers everything it displaces so `1..N` still holds, and
-  closes the hole a removal leaves. Never rename a goal file by hand.
+  never moves. `bun nv chain --check` fails on prose that names a goal by its number.
+- **Reordering the chain is editing `data/chain.json`, and `bun nv chain` is what does it.**
+  `--new <slug>`, `--move <slug>` and `--remove <slug>` each take one place — `--after <goal>`,
+  `--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file and nothing
+  else. A goal's record and prose are written by hand around it.
