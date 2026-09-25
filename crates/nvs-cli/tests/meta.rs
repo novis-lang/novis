@@ -270,7 +270,7 @@ fn declared(program: &serde_json::Value, roster: &str, name: &str) -> serde_json
 
 /// The seam `rule:tooling/meta-json-takes-a-program` states: the argument adds
 /// one key and changes nothing else, so the two renderers already on this
-/// pipeline — `tools/reference.py` and the website's `sync:core` — read the
+/// pipeline — `tools/reference.py` and the website's Core reference — read the
 /// same bytes they did before it existed.
 ///
 /// Asserted by taking the program half back out of the entry-point document and

@@ -57,10 +57,9 @@ jobs:
 
       # `npm run sync` is deliberately **not** run here. It is a human-fired command that rewrites
       # tracked files — it publishes the rulebook into `src/content/`, regenerates `src/data/*.json`,
-      # creates member pages and reports orphans for review — and `sync:core` reads the built `nvs`
-      # binary for its registry docs, so a run without one silently publishes *less* than a
-      # developer's sync did. Ownership is per page (website/README.md § Who owns which file), and a
-      # deploy is the wrong place to decide it. So the site is built from what is committed, which
+      # creates member pages — and its Core reference reads the built `nvs` binary's registry, which
+      # this job does not build. Ownership is per page (website/README.md § Who owns which file), and
+      # a deploy is the wrong place to decide it. So the site is built from what is committed, which
       # is why the four `src/data/*.json` files are in the tree at all.
       #
       # Building for the webroot: `SITE_URL` in `website/config/site.mjs` is a custom domain at the

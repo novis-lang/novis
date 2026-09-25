@@ -28,7 +28,8 @@
 //! mechanical: the registry spells "not written yet" as the empty value, and a
 //! consumer must be able to tell that apart from "written, and empty" without
 //! learning the convention — an absent key is the one spelling that needs no
-//! explanation. The website's `scripts/lib/meta.mjs` is the consumer.
+//! explanation. The website's Core reference, which `bun nv render --website`
+//! writes, is the consumer.
 //!
 //! ## The signature half, and the tables beside the registry
 //!
@@ -64,8 +65,8 @@
 //! under `program`, and the registry half above is untouched, so the
 //! no-argument form is byte-identical to what it printed before the argument
 //! existed. That is the whole seam — one input added to one document, never a
-//! fork — and it is what lets `tools/reference.py` and the website's
-//! `sync:core` stay renderers rather than sources
+//! fork — and it is what lets `tools/reference.py` and the website's Core
+//! reference stay renderers rather than sources
 //! (`rule:tooling/one-json-several-renderers`).
 //!
 //! The program half is the *program*, not the file: [`crate::front_end`]

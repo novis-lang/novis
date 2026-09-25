@@ -1,27 +1,23 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv render --website` writes the website's rulebook: `website/src/data/rules.json` and every page under `website/src/content/docs/docs/rules/` except the handwritten `index.mdx` (`tools/nv/renderers/website-rules.ts`). It reads `data/rules/`, the prose under `docs/rules/<topic>/`, and `website/config/rule-sections.mjs`. Over an adapter rulebook built from `data/rules/`, its output was byte-identical to the old `sync-rules.mjs` apart from the marker line. A renderer can now own a directory (`Renderer.owns` in `tools/nv/lib/render.ts`): `render` deletes a file there that it no longer writes, and `render --check` names it. The plain `bun nv render --check`, which CI's docs job runs, covers the website pages too. `website/scripts/sync-rules.mjs` is deleted. `npm run sync:render` in `website/` runs the render.\n\n`bun nv audit ci` still exits 1, and the Stage 11 check is red. This is an open item, not a regression. The only thing it still names is `website/scripts/sync-core.mjs`.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv render --website` writes all of the website's generated data. `website-rules` writes the rulebook. `website-core` (`tools/nv/renderers/website-core.ts`) writes `website/src/data/core.json` and the Core stub pages. It reads the member tables from the `spec_core_members` record and the class prose (summary, `Enums:`, `Constants:`, bullet rosters, headings) from `docs/spec/01-core-library.md`. It reads the registry from `nvs meta --json`, with no Rust text scan, and the corrections from `website/config/spec-overrides.mjs`. It needs a built binary, so it is in `WEBSITE_RENDERERS` only, not in the `RENDERERS` that CI's docs job checks. A draft page is the renderer's, and `Owned.mine` in `tools/nv/lib/render.ts` makes only a draft page an orphan. `website/scripts/sync-core.mjs` and `website/scripts/lib/` are deleted.\n\nThe Stage 11 check `CI, the website and the git hooks run bun…` passes: `bun nv audit ci` prints both of its `want` lines. The other Stage 11 check, `bun nv loop-stats --guard`, is still red. This is an open item, not a regression: `loop-stats` is not ported yet.",
   "next": {
     "stage": 11,
-    "title": "the Core pages of `bun nv render --website`",
-    "files": [
-      "tools/nv/renderers/",
-      "website/scripts/sync-core.mjs",
-      "website/scripts/lib/*.mjs",
-      "website/scripts/spec-overrides.mjs",
-      "website/package.json"
-    ],
+    "title": "`bun nv loop-stats`, with `--guard`",
+    "files": [],
+    "note": "one file set: `tools/loop-stats.py`, a new `tools/nv/cmd/loop-stats.ts`, `tools/nv/main.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**Port `sync-core.mjs` to a `website-core` renderer** -- `website/scripts/sync-core.mjs:48` writes `website/src/data/core.json` and the tool-owned `.mdx` stubs under `website/src/content/docs/docs/core/`. Its member rows come from tables, which are in `data/spec/core-members.json`. But `website/scripts/lib/spec.mjs:284` also reads prose the records do not carry: each class's summary, the `Enums:` and `Constants:` lines, and the bullet rosters. Before porting, decide where each of those comes from: `nvs meta --json` (`website/scripts/lib/meta.mjs:1`), `data/reference/core/<Class>.json`'s `summary`, or a new record field. Note that a stub is only rewritten while it still says `draft: true`, so `Renderer.owns` (`tools/nv/lib/render.ts:21`) cannot own that directory. Diff `core.json` against what the script writes before deleting it."
+        "text": "**Port `tools/loop-stats.py` to `bun nv loop-stats`** -- `tools/loop-stats.py:830` (`main`) and `tools/loop-stats.py:249` (`read_session`) are the seams. The script is 1079 lines, so read it by region. Port the report the loop's docs quote first: the head, the drift and the `--attribute` report. The goal's Stage 11 bullet `nv loop-stats --guard` owns this."
       },
       {
         "done": false,
-        "text": "**Delete `sync-core.mjs` and its `lib/` helpers** -- point `website/package.json:15` (`sync`, `sync:core`) at `bun nv render --website`. Then `tools/nv/cmd/audit.ts:149` finds nothing and `bun nv audit ci` exits 0."
+        "text": "**Add `--guard`** -- count the guard's denials per session and per rule, from the `guard: <rule>:` reasons in `.loop/logs/`. The check wants the line `guard denials by rule`. The seam is `tools/loop-stats.py:249`."
       }
     ]
   },
   "backlog": [
+    "Port the rest of the Stage 11 tool list to `bun nv`: `bench-load`, `bench-proxied`, `machine`, `observe`, `proctree`, `relink`, `exe-icons`, `origin`, `written`, `webcrypto-vectors.mjs`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this.",
     "The website's `tmLanguage` is rendered from the editor's grammar, or a reason in the grammar's record says why both stay. The goal's Stage 11 bullet `The website.` owns this.",
     "`nv verify` does not run `bun nv render --check`, so a rule edit that leaves the website pages stale fails only in CI. The playbook bullet `Editing a rule fragment leaves the website's copy of it stale` covers this.",
     "`tools/check-links.py:73` still says `npm run sync:rules`. Stage 12 deletes the file."

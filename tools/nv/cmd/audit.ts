@@ -175,9 +175,8 @@ async function auditCi(): Promise<Finding[]> {
   const hooks = HOOKS.flatMap((p) => pythonCalls(p, readText(p) ?? ""));
   const syncs = WEBSITE_SYNCS.filter((p) => existsSync(join(ROOT, p))).map((p) => `${p}: still exists`);
   return [
-    { pass: "audit: no workflow runs a Python tool", fail: "workflow step(s) run a Python tool", offenders: steps },
-    { pass: "audit: no git hook calls Python", fail: "git hook line(s) call Python", offenders: hooks },
-    { pass: "audit: the website reads its data from `bun nv render --website`", fail: "website sync script(s) still parse the data", offenders: syncs },
+    { pass: "audit: no workflow or hook calls python", fail: "workflow step(s) or git hook line(s) call Python", offenders: [...steps, ...hooks] },
+    { pass: "audit: no website script parses a record", fail: "website sync script(s) still parse the data", offenders: syncs },
   ];
 }
 
