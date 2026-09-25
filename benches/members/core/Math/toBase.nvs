@@ -1,0 +1,19 @@
+<?nvs
+// Measures writing a number in hexadecimal, as a program does for a colour code or an id.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number written this round depends on last round's total.
+            string $digits = Core\Math::toBase(1000000 + $total, 16);
+            $total = ($total + (Core\Str::length($digits) as int) + $i) % 100000;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

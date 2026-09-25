@@ -1061,25 +1061,26 @@ const IS_FINITE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::toBase`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE_DOC: MethodDoc = MethodDoc {
-    short: "`$n` written out in `$base`, with lowercase digits above nine, as `decbin`, `dechex`, \
-            `decoct` and the writing half of `base_convert` do.",
+    short: "Writes the number `$n` in base `$base` and returns the digits as a `string`. This \
+            replaces PHP's `decbin`, `dechex`, `decoct` and `base_convert`. Digits above `9` are \
+            the lower case letters `a` to `z`.",
     params: &[
         ParamDoc {
             name: "n",
-            desc: "The integer to write.",
+            desc: "The number to write. It can be negative.",
             shape: &[],
         },
         ParamDoc {
             name: "base",
-            desc: "The radix, from `2` to `36` — the digits and the Latin letters.",
+            desc: "The base, from `2` to `36`. Base 2 is binary and base 16 is hexadecimal.",
             shape: &[],
         },
     ],
-    ret: "The digit string, with no prefix and no padding; a negative `$n` gets a leading `-`, \
-          which `base_convert` has no answer for, and `0` is `\"0\"`.",
+    ret: "The digits, with no prefix and no leading zeros. A negative `$n` starts with `-`. \
+          `0` returns `\"0\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$base` is outside `2` to `36`, where `base_convert` answers `0`.",
+        desc: "When `$base` is outside `2` to `36`. PHP's `base_convert` returns `0` here.",
     }],
 };
 
@@ -3709,6 +3710,64 @@ mod tests {
         assert!(to_degrees(f64::MAX / 60.0).is_finite());
         assert_eq!(to_degrees(f64::from_bits(1)), 0.0);
         assert!(to_degrees(f64::NAN).is_nan());
+    }
+
+    /// `toBase` writes lowercase digits with no prefix or padding, a leading
+    /// `-` for a negative `$n`, both ends of `int` in the smallest and the
+    /// largest base, and throws for a base outside `2` to `36`, where
+    /// `base_convert` answers `0`.
+    // covers: Core\Math::toBase
+    #[test]
+    fn to_base_writes_lowercase_digits_a_sign_and_both_ends_of_int_and_throws_outside_its_bases() {
+        let to_base = |n: i64, base: u64| {
+            let mut ctx = Ctx::buffered();
+            match call(
+                nvs_core_math_to_base,
+                &mut ctx,
+                &[Value::int(n), Value::uint(base)],
+            ) {
+                Ok(value) => {
+                    let text =
+                        String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
+                            .expect("the digits are ASCII");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the result carries the one reference this test owns"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    Ok(text)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        let written = |digits: &str| Ok::<String, String>(digits.to_owned());
+        assert_eq!(to_base(10, 2), written("1010"));
+        assert_eq!(to_base(10, 8), written("12"));
+        assert_eq!(to_base(255, 16), written("ff"));
+        assert_eq!(to_base(-255, 16), written("-ff"));
+        assert_eq!(to_base(35, 36), written("z"));
+        assert_eq!(to_base(36, 36), written("10"));
+        assert_eq!(to_base(0, 2), written("0"));
+        assert_eq!(to_base(0, 36), written("0"));
+        assert_eq!(to_base(i64::MAX, 2), Ok("1".repeat(63)));
+        assert_eq!(to_base(i64::MIN, 2), Ok(format!("-1{}", "0".repeat(63))));
+        assert_eq!(to_base(i64::MAX, 16), written("7fffffffffffffff"));
+        assert_eq!(to_base(i64::MIN, 16), written("-8000000000000000"));
+        assert_eq!(to_base(i64::MAX, 36), written("1y2p0ij32e8e7"));
+        assert_eq!(to_base(i64::MIN, 36), written("-1y2p0ij32e8e8"));
+
+        for base in [0, 1, 37, u64::MAX] {
+            let message = to_base(1, base).expect_err("no such base");
+            assert!(
+                message.contains("a base runs from 2 to 36"),
+                "{base}: {message}"
+            );
+        }
     }
 
     /// `fromBase` reads either letter case, reaches both ends of `int` and no
