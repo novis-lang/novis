@@ -1,0 +1,19 @@
+<?nvs
+// Measures finding the sign of a whole number, as a report does to say if a value went up or down.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number checked this round depends on last round's total.
+            $total = $total + Core\Math::sign($total % 7 - 3) + 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
