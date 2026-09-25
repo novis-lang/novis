@@ -11,7 +11,8 @@
 // handoff, which moves `HEAD` past the commit the run was for, and a check demanding equality could
 // never be met by the session that has to meet it. So the run's commit must be an ancestor of `HEAD`,
 // and every path changed since must sit under `BOOKKEEPING` -- the files a session writes to say where
-// the work stands, which no CI leg builds.
+// the work stands, which no CI leg builds: the handoff, goal and chain records, the plan and playbook
+// records, and the Markdown rendered from them.
 
 import { run as runProc } from "../lib/proc.ts";
 
@@ -21,7 +22,12 @@ export const summary = "whether the latest ci.yml run on main is green for the c
 const GREEN = "the latest ci.yml run on main succeeded, and it ran the code HEAD holds";
 
 // What a session writes after the work is done. A prefix ending in `/` matches everything beneath it.
-const BOOKKEEPING = ["docs/agent/", "docs/plan/", "docs/implementation-plan.md"];
+const BOOKKEEPING = ["data/goals/", "data/chain.json", "data/plan/", "data/playbook/", "docs/agent/", "docs/plan/", "docs/implementation-plan.md"];
+
+/** Whether `path` is one a session writes to say where the work stands, so a green run need not have seen it. */
+export function bookkeeping(path: string): boolean {
+  return BOOKKEEPING.some((b) => path === b || (b.endsWith("/") && path.startsWith(b)));
+}
 
 async function out(...argv: string[]): Promise<[number, string]> {
   const r = await runProc(argv);
@@ -69,7 +75,7 @@ export async function run(args: string[]): Promise<number> {
   const unproven = changed
     .split(/\r?\n/)
     .filter(Boolean)
-    .filter((p) => !BOOKKEEPING.some((b) => p === b || (b.endsWith("/") && p.startsWith(b))));
+    .filter((p) => !bookkeeping(p));
   if (unproven.length > 0) {
     console.log(
       `ci-green: the green run is for ${sha.slice(0, 9)}, and ${unproven.length} path(s) it never saw ` +
