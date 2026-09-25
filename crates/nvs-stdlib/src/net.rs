@@ -2293,6 +2293,53 @@ mod tests {
         assert_eq!(asked("listenLocal"), Some(nvs_config::Cap::NetLocal));
     }
 
+    /// A path `net.local` names gets past the grant at both ends and reaches
+    /// the transport. On Unix the listener binds it and the connection meets
+    /// it; where this build has no Unix-domain transport, both members answer
+    /// with that fact, which they can only give once the grant has held.
+    // covers: Core\Net::connectLocal, Core\Net::listenLocal
+    #[test]
+    fn a_granted_socket_path_reaches_the_transport_at_both_ends() {
+        let path = std::env::temp_dir().join(format!("nvs-local-{}.sock", std::process::id()));
+        // A run that was killed leaves the node behind, and a bind refuses it.
+        let _ = std::fs::remove_file(&path);
+        let path = path
+            .to_str()
+            .expect("the temporary directory is text")
+            .to_owned();
+        let written = format!("[capabilities.net]\nlocal = [{path:?}]\n");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&written));
+        let args = [Value::str(NvsStr::new(path.as_bytes()))];
+        let bound = nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
+            .map_err(|_| ctx.take_pending().expect("a message").into_owned());
+        released(args);
+        let args = [Value::str(NvsStr::new(path.as_bytes())), a_second()];
+        let connected = nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
+            .map_err(|_| ctx.take_pending().expect("a message").into_owned());
+        released(args);
+
+        if cfg!(unix) {
+            let bound = bound.expect("a granted path the program may create");
+            let connected = connected.expect("a granted path something is listening at");
+            #[expect(unsafe_code, reason = "each handle owns the reference it releases")]
+            unsafe {
+                connected.release();
+                bound.release();
+            }
+            let _ = std::fs::remove_file(&path);
+        } else {
+            for (member, answer) in [("listenLocal", bound), ("connectLocal", connected)] {
+                let refused = answer.expect_err("no transport to open a path over");
+                assert!(
+                    refused.contains(member) && refused.contains("no Unix-domain transport"),
+                    "the grant held, so the answer is about the transport: {refused}"
+                );
+            }
+        }
+    }
+
     /// `rule:security/a-path-is-not-a-url`: no door reads a scheme prefix, so
     /// `unix:`, `tcp:` and `php:` are ordinary text inside whatever argument
     /// they arrived in.

@@ -1,0 +1,23 @@
+<?nvs
+// Shows a health check that tests whether two local services are running.
+// requires: unix
+
+// Only the orders service is started here. Nothing listens at the cache socket file.
+Core\Net\Listener $orders = Core\Net::listenLocal("/tmp/novis-orders.sock");
+
+array<string> $services = ["orders" => "/tmp/novis-orders.sock", "cache" => "/tmp/novis-cache.sock"];
+
+// `connectLocal` throws an `IOError` when nothing listens at the path.
+// This prints `orders: running` and then `cache: not running`.
+foreach ($services as string $name => string $path) {
+    try {
+        Core\Net\Stream $probe = Core\Net::connectLocal($path, 1s);
+        $probe->close();
+        echo $name, ": running\n";
+    } catch (IOError $down) {
+        echo $name, ": not running\n";
+    }
+}
+
+$orders->close();
+Core\IO::remove("/tmp/novis-orders.sock");

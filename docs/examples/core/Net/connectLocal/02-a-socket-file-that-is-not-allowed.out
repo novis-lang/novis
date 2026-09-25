@@ -1,0 +1,2 @@
+Core\Net::connectLocal needs the capability `net.local` for /run/docker.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

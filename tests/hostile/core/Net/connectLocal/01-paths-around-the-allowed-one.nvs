@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program tries socket paths that look like the one path it may use, but are not.
+// Each call should throw an error, and the program should end cleanly.
+
+// 1. A path of one million characters.
+try {
+    Core\Net::connectLocal(Core\Str::repeat('a', 1000000), 1s);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. An empty path.
+try {
+    Core\Net::connectLocal('', 1s);
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. The allowed path, then `..` steps that lead to another file.
+try {
+    Core\Net::connectLocal('/tmp/novis-hostile-connect.sock/../../etc/passwd', 1s);
+} catch (RuntimeError $e) {
+    echo "3 ok\n";
+}
+
+// 4. A path that starts with the allowed path but names another file.
+try {
+    Core\Net::connectLocal('/tmp/novis-hostile-connect.sock.evil', 1s);
+} catch (RuntimeError $e) {
+    echo "4 ok\n";
+}
+
+// 5. The allowed path with a zero byte and a way out after it.
+try {
+    Core\Net::connectLocal("/tmp/novis-hostile-connect.sock\0/../../etc/shadow", 1s);
+} catch (RuntimeError $e) {
+    echo "5 ok\n";
+}
+
+// 6. The allowed path written as a URL.
+try {
+    Core\Net::connectLocal('unix:///tmp/novis-hostile-connect.sock', 1s);
+} catch (RuntimeError $e) {
+    echo "6 ok\n";
+}
+
+// 7. The folder that contains the allowed path.
+try {
+    Core\Net::connectLocal('/tmp', 1s);
+} catch (RuntimeError $e) {
+    echo "7 ok\n";
+}
+
+// 8. The allowed path, where nothing listens, with a time limit of zero.
+try {
+    Core\Net::connectLocal('/tmp/novis-hostile-connect.sock', 0s);
+} catch (RuntimeError $e) {
+    echo "8 ok\n";
+}

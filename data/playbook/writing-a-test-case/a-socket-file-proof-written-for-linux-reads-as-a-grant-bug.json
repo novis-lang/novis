@@ -1,0 +1,12 @@
+{
+  "lead": "A socket-file proof written for Linux reads as a grant bug on Windows.",
+  "body": "A `/tmp/...` entry under `[capabilities.net] local` or `[capabilities.fs]` is refused there as not granted, so the refusal hides the missing transport (observed, cause not checked). Mark the program `// requires: unix`, bring the WSL mirror up with `tools/nv/driver/mirror.ts`'s `syncMirror`, build there, and run it with `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml`, since `--bless` refuses it on Windows.",
+  "files": [
+    "tools/nv/driver/mirror.ts",
+    "tools/nv/proofs/run.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:UNIX_RE"
+  }
+}

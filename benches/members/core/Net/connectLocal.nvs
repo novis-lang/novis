@@ -1,0 +1,27 @@
+<?nvs
+// Connects to a server through a socket file, as a program does before it talks to a local database or cache.
+// bench: iterations 200
+// requires: unix
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/tmp/novis-bench-connect.sock"];
+        Core\Net\Listener $server = Core\Net::listenLocal($paths[0]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round connects, then the server takes the connection so the queue never fills.
+            Core\Net\Stream $client = Core\Net::connectLocal($paths[$total % 1], 5s);
+            Core\Net\Stream $accepted = $server->accept(5s);
+            $client->close();
+            $accepted->close();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $server->close();
+        Core\IO::remove($paths[0]);
+        return $total;
+    }
+}
+
+echo Bench::run(200), "\n";

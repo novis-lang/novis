@@ -1,23 +1,23 @@
 {
-  "state": "Goal `core-metrics-and-4-more`, stage 2, per-member feature proofs. `Core\\Metrics`, `Core\\Mime`,\n`Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` are done, and their group checks pass.\n`Core\\Net::connect`, `listen` and `bindDatagram` carry every proof. The only members still owed\nare `Core\\Net::connectLocal` and `listenLocal`, so `dossier-core-net` is the last red check of the\nstage. The two local members have a platform problem, which the item below describes. Nothing is\nblocked.",
+  "state": "Goal `core-metrics-and-4-more` is reached. Every check of stage 2, the goal's last stage, passes:\n`Core\\Metrics`, `Core\\Mime`, `Core\\Net`, `Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe\nnothing, and their examples and attacks pass. `Core\\Net::connectLocal` and `listenLocal` run their\nUnix-only examples under the `// requires: unix` directive, which skips them on Windows; their perf\nproofs are `skip` entries in `data/proofs/policy.json`. `bun nv verify --doc`, `owners --closes` and\n`playbook --closes` are green. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, `tools/nv/proofs/run.ts`, the three proof READMEs, and the `core/Net/connectLocal/` and `core/Net/listenLocal/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/net.rs`, `tools/nv/proofs/run.ts`, and the `core/Net/connectLocal/` and `core/Net/listenLocal/` proof directories.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Net::connectLocal` and `listenLocal`** — every proof except help, plus a Rust `covers:` marker on the path-grant test near `crates/nvs-stdlib/src/net.rs:2292` (`rule:testing/feature-proofs`). The members are at `crates/nvs-stdlib/src/net.rs:1422` and `crates/nvs-stdlib/src/net.rs:1452`. **This build has no Unix-domain transport on Windows** (`crates/nvs-stdlib/src/net.rs:1491`), so a working example prints something different on Windows than on Linux. Only a grant refusal prints the same on both, because the grant is checked before the transport. The proof runner has no platform directive, only `requires: unimplemented` (`tools/nv/proofs/run.ts:54`). Recommended: add a `// requires: unix` directive beside it (skip on Windows, at `tools/nv/proofs/run.ts:165` and `tools/nv/proofs/run.ts:227`), document it in the three proof READMEs, and bless under WSL. Then decide how the Windows perf gate treats a bench it skips. The hostile case can be all grant refusals and pass on both."
+        "done": true,
+        "text": "**`Core\\Net::connectLocal` and `listenLocal`** — every proof, the Rust one at `crates/nvs-stdlib/src/net.rs:2296` (`rule:testing/feature-proofs`), and the `requires: unix` directive at `tools/nv/proofs/run.ts:55`."
       },
       {
-        "done": false,
-        "text": "**Close the goal** — once `dossier-core-net` passes, the whole of stage 2 is green: run `bun nv verify --doc`, `bun nv owners --closes core-metrics-and-4-more` and `bun nv playbook --closes core-metrics-and-4-more`, then write `DONE` (`docs/agent/goals/core-metrics-and-4-more.md`, anchored at `crates/nvs-stdlib/src/net.rs:1422`)."
+        "done": true,
+        "text": "**Close the goal** — `bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` are green, anchored at `tools/nv/proofs/run.ts:55`."
       }
     ]
   },
   "backlog": [
-    "The `Core\\Net\\Datagram` and `Message` reference cards in `crates/nvs-stdlib/src/net.rs` are in the essay voice, not the voice of AGENTS.md § *Text an end user reads* — goal `plain-comments` owns that sweep.",
-    "`docs/perf/members.ndjson` keeps two early `0.0` ns/op rows for `Core\\Net\\Datagram::receive` and the three `Message` members. The later `--force` rows replace them for every reader."
+    "No sweep runs a `requires: unix` example on Linux, so its `.out` is checked only by hand under WSL; a Linux leg of `bun nv proofs --verify` would close that (`benches/members/README.md`).",
+    "The perf ledger has no Unix figure, so the two `perf` skips in `data/proofs/policy.json` stay until a Unix sweep measures `benches/members/core/Net/connectLocal.nvs` and `listenLocal.nvs`."
   ]
 }

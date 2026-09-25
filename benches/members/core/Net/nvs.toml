@@ -3,3 +3,8 @@
 listen = ["127.0.0.1:0"]
 connect = ["127.0.0.1"]
 internal = ["127.0.0.1"]
+local = ["/tmp/novis-bench-connect.sock", "/tmp/novis-bench-listen.sock"]
+
+# The benches for socket files delete those files again.
+[capabilities.fs]
+write = ["/tmp/novis-bench-connect.sock", "/tmp/novis-bench-listen.sock"]

@@ -6,6 +6,12 @@
     }
   },
   "skip": {
+    "Core\\Net::connectLocal": {
+      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
+    },
+    "Core\\Net::listenLocal": {
+      "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
+    },
     "Core\\Cache::shared": {
       "perf": "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
     },

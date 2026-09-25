@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when a program connects to a socket file its configuration does not allow.
+
+// The `nvs.toml` beside this example does not allow `/run/docker.sock`.
+// So this call throws a `RuntimeError`, and no connection is opened.
+try {
+    Core\Net::connectLocal("/run/docker.sock", 5s);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
