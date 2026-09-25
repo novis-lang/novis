@@ -25,6 +25,7 @@ import { digest } from "../keys/scan.ts";
 import { Tree } from "../keys/tree.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
+import { linked } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
 
@@ -94,7 +95,7 @@ async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | strin
   if (existsSync(path) && stamp === key) return { path, key };
   const command = build.argv.join(" ");
   console.error(`nv proofs: building the ${build.name} (\`${command}\`)`);
-  const built = await runProc(build.argv, { timeoutMs: 60 * 60 * 1000 });
+  const built = await linked(path, () => runProc(build.argv, { timeoutMs: 60 * 60 * 1000 }), (r) => r.stderr);
   if (built.code !== 0 || !existsSync(path)) {
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;

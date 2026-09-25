@@ -35,6 +35,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
+import { linked, releaseCli } from "../lib/relink.ts";
 
 /** A check as the goal record holds it. */
 export interface Check {
@@ -337,7 +338,9 @@ export class Sweep {
   private releaseCli(): Promise<Outcome> {
     this.release ??= (async () => {
       this.opts.onRun?.("cargo build --release -p nvs-cli");
-      return capture(["cargo", "build", "--release", "-p", "nvs-cli"]);
+      // An editor running `nvs lsp` out of this tree holds the binary the link replaces;
+      // `tools/nv/lib/relink.ts` moves it aside so the retry lands.
+      return linked(releaseCli(), () => capture(["cargo", "build", "--release", "-p", "nvs-cli"]), (r) => r.err);
     })();
     return this.release;
   }

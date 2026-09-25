@@ -14,6 +14,7 @@ import * as dbMatrix from "./cmd/db-matrix.ts";
 import * as decisions from "./cmd/decisions.ts";
 import * as directives from "./cmd/directives.ts";
 import * as disk from "./cmd/disk.ts";
+import * as exeIcons from "./cmd/exe-icons.ts";
 import * as gaps from "./cmd/gaps.ts";
 import * as genAttribution from "./cmd/gen-attribution.ts";
 import * as goal from "./cmd/goal.ts";
@@ -37,7 +38,9 @@ import * as query from "./cmd/query.ts";
 import * as records from "./cmd/records.ts";
 import * as reference from "./cmd/reference.ts";
 import * as release from "./cmd/release.ts";
+import * as relink from "./cmd/relink.ts";
 import * as orient from "./cmd/orient.ts";
+import * as origin from "./cmd/origin.ts";
 import * as render from "./cmd/render.ts";
 import * as rules from "./cmd/rules.ts";
 import * as selftest from "./cmd/selftest.ts";
@@ -52,7 +55,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, migration, orient, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, render, rules, selftest, session, splice, try: tryCmd, verify, why };
+const COMMANDS: Record<string, Command> = { audit, bench, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, migration, orient, origin, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");
