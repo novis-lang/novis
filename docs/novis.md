@@ -8985,13 +8985,13 @@ Core\Math::clamp(T $n, T $low, T $high): T
 Core\Math::ceil(float $n): float
 ```
 
-The smallest integral value at or above `$n`, as `ceil` does.
+Rounds `$n` up to the next whole number. For a negative `$n`, up means toward zero.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to round up. |
+| `$n` | `float` | The number to round up. |
 
-**Returns** `float` — An integral `float`; `NaN` and the infinities pass through unchanged.
+**Returns** `float` — A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and the infinities stay the same.
 
 <a id="core-core-math-floor"></a>
 #### `Core\Math::floor`
@@ -9150,13 +9150,13 @@ The square root of `$n`, as `sqrt` does.
 Core\Math::cbrt(float $n): float
 ```
 
-The cube root of `$n`, replacing PHP's `pow($n, 1/3)` — and defined for a negative `$n`, where that idiom answers `NaN`.
+Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes `pow($n, 1/3)`, which gives `NaN` for a negative number.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to take the root of. |
+| `$n` | `float` | Any number. |
 
-**Returns** `float` — The real cube root, carrying `$n`'s sign; `cbrt(-8.0)` is `-2.0`.
+**Returns** `float` — The cube root, with the same sign as `$n`: `Core\Math::cbrt(-8.0)` is `-2.0`. An infinity gives the same infinity, and `NaN` gives `NaN`.
 
 <a id="core-core-math-hypot"></a>
 #### `Core\Math::hypot`
@@ -9395,13 +9395,13 @@ Returns the number whose hyperbolic cosine is `$n`. This is the inverse hyperbol
 Core\Math::atanh(float $n): float
 ```
 
-The inverse hyperbolic tangent of `$n`, as `atanh` does.
+Returns the number whose hyperbolic tangent is `$n`. This is the inverse hyperbolic tangent. It undoes `Core\Math::tanh`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A hyperbolic tangent, in `[-1, 1]`. |
+| `$n` | `float` | A hyperbolic tangent: a number from `-1.0` to `1.0`. |
 
-**Returns** `float` — The value whose `tanh` is `$n`; `INFINITY` at `1.0`, `-INFINITY` at `-1.0` and `NaN` outside them.
+**Returns** `float` — A number with the same sign as `$n`. `1.0` gives `INF` and `-1.0` gives `-INF`. A `$n` outside `-1.0` to `1.0` gives `NaN`.
 
 <a id="core-core-math-toradians"></a>
 #### `Core\Math::toRadians`

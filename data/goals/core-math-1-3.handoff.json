@@ -1,30 +1,30 @@
 {
-  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs`, `acos`, `acosh`, `asin`, `asinh`, `atan` and `atan2` have every feature proof on disk: `about.md`, three examples, one attack, one bench with a recorded figure, a Rust `#[test]` with a `covers:` marker in `crates/nvs-stdlib/src/math.rs`'s test module, and help. `Core\\Math` has its class card, so the class-card part of help is done for every member of the class.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union`. `abs` is typed `int|float|decimal` whatever it is given, so `decimal $owed = Core\\Math::abs($x)` does not compile. The fix needs a bounded type variable, which is a design question (M10).\nMember cards are rewritten in plain words as each member is taken (`ABS_DOC` to `ATAN2_DOC` done). Do the same for each card you take.\n`Core\\Math::round` takes its precision as an option: `Core\\Math::round($x, {precision: 1})`, never a second plain argument. `bun nv proofs --record-perf --only <id> <id>` records several figures in one call; `--id` takes one.\nThe WSL leg's copy now links `target` to the leg's target directory (`tools/nv/driver/mirror.ts`'s `targetLine`), so `examples/process.nvs` finds `target/debug/nvs` and its grant there again.",
+  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `cbrt` and `ceil` have every feature proof on disk, and `bun nv proofs --verify --only` over those ten says nothing owed. `Core\\Math` has its class card.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\nMember cards are rewritten in plain words as each member is taken (`ABS_DOC` to `ATANH_DOC`, `CBRT_DOC`, `CEIL_DOC` done). Do the same for each card you take.\nAny code change in `crates/nvs-stdlib/src/math.rs` makes every measured `Core\\Math` member's perf figure stale. Re-record all of them in one `bun nv proofs --record-perf --only <id> ...` call after the session's last code edit. A card or test edit does not make them stale.\n`Core\\Math` has no `pow`: the power is the `**` operator. `Core\\Math::round` takes its precision as an option: `{precision: 1}`.\nRed floor check: `wsl examples/queue-sqlite.nvs` fails with `no such table: nvs_jobs`. It is a regression from the WSL copy (`d84d609fd`), not from this goal's work. The next group's first item is the fix.",
   "next": {
-    "stage": 2,
-    "title": "the dossier, Core\\Math (1/3)",
+    "stage": null,
+    "title": "Stage 1 floor, then Stage 2: the dossier, Core\\Math (1/3)",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (the member's `*_DOC` card and the test module at its end), plus new files under `docs/examples/core/Math/<member>/`, `tests/hostile/core/Math/<member>/` and `benches/members/core/Math/<member>.nvs`. `rule:testing/feature-proofs`.",
+    "note": "two file sets: `tools/nv/driver/legs.ts` and `tools/nv/driver/mirror.ts` for the first item, then `crates/nvs-stdlib/src/math.rs` (the member's `*_DOC` card and the test module at its end) plus new files under `docs/examples/core/Math/<member>/`, `tests/hostile/core/Math/<member>/` and `benches/members/core/Math/<member>.nvs`. `rule:testing/feature-proofs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::atanh`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:352`"
+        "text": "**The WSL leg runs no `setup` check, so `examples/queue-sqlite.nvs` finds no `nvs_jobs` table** — `accept.ts` runs `setup` checks (`nvs queue migrate --config examples/queue-sqlite.toml`) on Windows only, and the WSL copy's `git clean -qffdx` deletes the ignored `tests/db/queue-sqlite.db`. Run the goal's `setup` checks inside the leg, against the copy, before its fixtures; carrying the Windows file would carry Windows' job rows too. `tools/nv/driver/accept.ts:530` `tools/nv/driver/mirror.ts:145` `tools/nv/driver/legs.ts:143`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::cbrt`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:208`"
+        "text": "**`Core\\Math::clamp`** — owes about, examples, hostile, perf, tests. Typed `T`, throws `RuntimeError` for `low > high` and for values with no natural order. `crates/nvs-stdlib/src/math.rs:109`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::ceil`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:118`"
+        "text": "**`Core\\Math::cos`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:253`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::clamp`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:109`"
+        "text": "**`Core\\Math::cosh`** — owes about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:316`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Math::cos` and `cosh` still owe every proof but help, and close this goal's check (`crates/nvs-stdlib/src/math.rs:253`, `crates/nvs-stdlib/src/math.rs:316`)."
+    "`COSH_DOC`, `SINH_DOC` and `TANH_DOC` are still in the old \"as `cosh` does\" voice; `cosh` is in this goal, `sinh` and `tanh` are in goal `core-math-2-3`."
   ]
 }
