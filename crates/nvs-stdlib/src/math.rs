@@ -518,32 +518,31 @@ const MAX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::clamp`'s reference card — `rule:core-api/reference-card`.
 const CLAMP_DOC: MethodDoc = MethodDoc {
-    short: "`$n` brought inside `[$low, $high]`, replacing PHP's `min(max($n, $low), $high)` \
-            idiom.",
+    short: "Keeps `$n` between `$low` and `$high`. It replaces PHP's `min(max($n, $low), $high)`.",
     params: &[
         ParamDoc {
             name: "n",
-            desc: "The value to clamp, of a type with a natural order: a number, a string, a \
-                   `bool` or `null`.",
+            desc: "The value to keep in the range. It can be a number, a string, a `bool` or \
+                   `null`.",
             shape: &[],
         },
         ParamDoc {
             name: "low",
-            desc: "The smallest value the answer may be.",
+            desc: "The smallest value the result can be.",
             shape: &[],
         },
         ParamDoc {
             name: "high",
-            desc: "The largest value the answer may be, at or above `$low`.",
+            desc: "The largest value the result can be. It must not be below `$low`.",
             shape: &[],
         },
     ],
     ret: "`$low` when `$n` is below it, `$high` when `$n` is above it, and `$n` itself \
-          otherwise.",
+          otherwise. Both ends are inside the range.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$low` is above `$high`, which is an empty range, or when any pair has no \
-               natural order — an object, an array, or two values of different kinds.",
+        desc: "When `$low` is above `$high`. Also when two of the values cannot be compared: an \
+               object without `compareTo`, an array, or a number and a string.",
     }],
 };
 
@@ -830,13 +829,13 @@ const SIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::cos`'s reference card — `rule:core-api/reference-card`.
 const COS_DOC: MethodDoc = MethodDoc {
-    short: "The cosine of an angle in radians, as `cos` does.",
+    short: "Returns the cosine of an angle. The angle is in radians.",
     params: &[ParamDoc {
         name: "radians",
-        desc: "The angle, in radians.",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
         shape: &[],
     }],
-    ret: "A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.",
+    ret: "A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -926,13 +925,14 @@ const SINH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::cosh`'s reference card — `rule:core-api/reference-card`.
 const COSH_DOC: MethodDoc = MethodDoc {
-    short: "The hyperbolic cosine of `$n`, as `cosh` does.",
+    short: "Returns the hyperbolic cosine of `$n`, which is `(exp($n) + exp(-$n)) / 2`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The argument, any `float`.",
+        desc: "Any number.",
         shape: &[],
     }],
-    ret: "`(exp($n) + exp(-$n)) / 2`, at least `1.0`; `INFINITY` once `$n` is past about `±710`.",
+    ret: "A number of at least `1.0`. It is `INFINITY` when `$n` is above about `710` or below \
+          about `-710`. `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -2829,5 +2829,99 @@ mod tests {
         assert_eq!(ceil(f64::INFINITY), f64::INFINITY);
         assert_eq!(ceil(f64::NEG_INFINITY), f64::NEG_INFINITY);
         assert!(ceil(f64::NAN).is_nan());
+    }
+
+    /// `clamp` holds a closed range, orders its floats totally — a `NaN` below
+    /// every number, `-0.0` below `0.0` — and throws, naming itself, for an
+    /// empty range and for a pair with no natural order.
+    // covers: Core\Math::clamp
+    #[test]
+    fn clamp_holds_a_closed_range_orders_floats_totally_and_throws_for_an_empty_one() {
+        let clamp = |n: i64, low: i64, high: i64| {
+            let mut ctx = Ctx::buffered();
+            call(
+                nvs_core_math_clamp,
+                &mut ctx,
+                &[Value::int(n), Value::int(low), Value::int(high)],
+            )
+            .expect("a non-empty range has an answer")
+            .as_int()
+            .expect("an int answer")
+        };
+        assert_eq!(clamp(5, 0, 10), 5);
+        assert_eq!(clamp(-1, 0, 10), 0);
+        assert_eq!(clamp(11, 0, 10), 10);
+        assert_eq!(clamp(0, 0, 10), 0, "the low end is inside");
+        assert_eq!(clamp(10, 0, 10), 10, "the high end is inside");
+        assert_eq!(clamp(i64::MIN, 7, 7), 7, "a one-point range");
+        assert_eq!(clamp(i64::MAX, i64::MIN, i64::MAX), i64::MAX);
+
+        let clamp_float = |n: f64, low: f64, high: f64| {
+            float_result(
+                nvs_core_math_clamp,
+                &[Value::float(n), Value::float(low), Value::float(high)],
+            )
+        };
+        assert_eq!(clamp_float(f64::NAN, 0.0, 1.0), 0.0, "NaN is below 0.0");
+        assert_eq!(clamp_float(0.5, f64::NAN, 1.0), 0.5, "NaN is a valid low");
+        assert_eq!(clamp_float(-0.0, 0.0, 1.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(clamp_float(f64::INFINITY, 0.0, 1.0), 1.0);
+
+        for refused in [
+            [Value::int(7), Value::int(8), Value::int(7)],
+            [Value::int(1), Value::int(0), Value::bool(true)],
+            [Value::float(0.5), Value::null(), Value::float(1.0)],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_clamp, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::clamp"), "{message}");
+        }
+    }
+
+    /// `cos` is `1` at zero and `-1` at `PI`, the same for `-n` and `n`, stays
+    /// in `[-1, 1]` for the largest finite float, and answers `NaN` — never a
+    /// throw — for an infinity and for `NaN`.
+    // covers: Core\Math::cos
+    #[test]
+    fn cos_stays_in_its_range_is_even_and_answers_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let cos = |n: f64| float_result(nvs_core_math_cos, &[Value::float(n)]);
+        assert_eq!(cos(0.0), 1.0);
+        assert_eq!(cos(-0.0), 1.0);
+        assert_eq!(cos(PI), -1.0);
+        assert!((cos(PI / 3.0) - 0.5).abs() < 1e-15);
+        assert_eq!(cos(-2.5).to_bits(), cos(2.5).to_bits(), "even");
+        assert!(
+            (cos(1e22) - 0.523_214_785_395_138_9).abs() < 1e-15,
+            "a large angle"
+        );
+        for far in [f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&cos(far)), "{far}");
+        }
+        assert_eq!(cos(f64::MIN_POSITIVE), 1.0);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(cos(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `cosh` is `1` at zero and never below it, the same for `-n` and `n`,
+    /// finite at `710` and `INFINITY` one step past it, and `NaN` only for
+    /// `NaN` — never a throw.
+    // covers: Core\Math::cosh
+    #[test]
+    fn cosh_is_at_least_one_is_even_and_overflows_to_infinity_past_710() {
+        let cosh = |n: f64| float_result(nvs_core_math_cosh, &[Value::float(n)]);
+        assert_eq!(cosh(0.0), 1.0);
+        assert_eq!(cosh(-0.0), 1.0);
+        assert!((cosh(1.0) - 1.543_080_634_815_243_7).abs() < 1e-15);
+        assert_eq!(cosh(-3.5).to_bits(), cosh(3.5).to_bits(), "even");
+        assert_eq!(cosh(f64::MIN_POSITIVE), 1.0);
+        assert!(cosh(710.0).is_finite());
+        assert_eq!(cosh(711.0), f64::INFINITY);
+        assert_eq!(cosh(-711.0), f64::INFINITY);
+        assert_eq!(cosh(f64::MAX), f64::INFINITY);
+        assert_eq!(cosh(f64::NEG_INFINITY), f64::INFINITY);
+        assert!(cosh(f64::NAN).is_nan());
     }
 }
