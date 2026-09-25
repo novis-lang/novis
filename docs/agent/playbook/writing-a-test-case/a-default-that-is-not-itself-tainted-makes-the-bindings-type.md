@@ -3,4 +3,4 @@
   because the join keeps both spellings rather than widening to the marked one — so a case written to
   pin a reader's qualifier reads as being refused for the union instead, and its `--EXPECTF-ERROR--`
   freezes the wrong claim. Write the default with the mark on it, `?? ("" as tainted string)`, and the
-  diagnostic says `found tainted string`. [until: reviewed 2026-09-13]
+  diagnostic says `found tainted string`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0401]

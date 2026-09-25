@@ -4,4 +4,4 @@
   ran 3m23s in a debug build against a declared `timeout-ms 60000`, where the same 20000 repeats of
   `Core\Arr::firstKey` cost nothing because that member reads one end. Nothing grows here, so this is
   not the quadratic-append trap above; divide the repeat count by the entries the member walks, and
-  time the file yourself before committing it. [until: reviewed 2026-09-20]
+  time the file yourself before committing it. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::firstKey]

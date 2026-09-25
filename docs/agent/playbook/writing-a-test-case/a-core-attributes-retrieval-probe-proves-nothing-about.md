@@ -5,4 +5,4 @@
   Attach a matching literal to the class *and* to the member before asserting anything about
   `$member`, the way
   `tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst` does.
-  [until: reviewed 2026-09-20]
+  [until: gone tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst:Core\Attributes]

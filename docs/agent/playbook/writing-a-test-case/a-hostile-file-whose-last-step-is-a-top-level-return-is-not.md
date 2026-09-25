@@ -4,4 +4,4 @@
   says is reported as `declares ends-early, but ran to its last line`. Keep `ends-early` for a limit,
   an uncaught throw or `exit`, and run `python tools/dossier.py --run hostile --group <group>` while
   you still have the file open rather than leaving it to the driver's acceptance check.
-  [until: reviewed 2026-09-19]
+  [until: gone tools/nv/proofs/run.ts:ran to its last line]

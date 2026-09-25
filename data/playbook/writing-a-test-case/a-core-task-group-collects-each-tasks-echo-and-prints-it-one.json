@@ -5,7 +5,7 @@
     "tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-20"
+    "kind": "gone",
+    "arg": "tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst:Core\\Time::sleep"
   }
 }

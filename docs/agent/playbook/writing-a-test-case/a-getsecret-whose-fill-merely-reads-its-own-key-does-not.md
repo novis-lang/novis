@@ -5,4 +5,4 @@
   `tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst` passes
   an inner `{fill: …}`. Write the inner call with its own `fill` when the attack is the self-wait,
   or the step reports the member answering where you meant it to refuse.
-  [until: reviewed 2026-09-21]
+  [until: gone tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst:LogicError]

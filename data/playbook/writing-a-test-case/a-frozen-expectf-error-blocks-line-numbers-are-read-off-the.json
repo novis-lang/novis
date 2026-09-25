@@ -1,9 +1,0 @@
-{
-  "lead": "A frozen `--EXPECTF-ERROR--` block's line numbers are read off the runner, not counted by hand.",
-  "body": "`--FILE--`'s first line, the `<?nvs`, is *not* `case.nvs:1` — the line after it is, so the number is the `.nvst` line minus one more than the header, and an off-by-one lands the caret on the statement above the one that is wrong. Write the block with any plausible numbers and run `target/debug/nvs test tests/conformance/core --filter <slug>` once — it prints the real `case.nvs:NN:CC` in the actual half, and columns do not shift with the header.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

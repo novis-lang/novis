@@ -3,4 +3,4 @@
   counter `$n = $n + (Core\Str::contains(…) ? 1 : 0);`. The rest of the shape works: an
   `array<Core\Time\Duration> $each = [0s, 1ns, …]` iterates with a typed `foreach` binding,
   `continue` skips a row a law does not apply to, and a bare `Core\X::member($arg);` is a legal
-  statement when only the throw is wanted. [until: reviewed 2026-09-06]
+  statement when only the throw is wanted. [until: gone crates/nvs-diagnostics/src/lib.rs:E0708]

@@ -1,5 +1,0 @@
-- **A green conformance case can be pinning the bug you are about to fix.** A case that reaches for
-  a construct incidentally (`$maybe["gone"] ?? …` as a way to spell a read) freezes whatever that
-  construct did when it was written, and its `--EXPECT--` block is only as authoritative as that
-  session. When a case goes red under a fix, check its expectation against PHP (`php -r '…'`) before
-  adjusting either side. [until: reviewed 2026-09-06]

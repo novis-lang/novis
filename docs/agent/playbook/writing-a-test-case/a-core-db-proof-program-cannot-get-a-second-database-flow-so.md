@@ -4,4 +4,4 @@
   second connection" is unreachable from a proof, and every step after an abandoned walk meets the
   parked stream rather than its own subject. Keep one such step, last, and pin the rest from a
   `.nvst` whose final statement is the one that parks the connection.
-  [until: reviewed 2026-09-22]
+  [until: gone crates/nvs-stdlib/src/db/mod.rs:LogicError]

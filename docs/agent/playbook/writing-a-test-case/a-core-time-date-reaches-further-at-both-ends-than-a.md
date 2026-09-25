@@ -3,4 +3,4 @@
   `Core\Time::at(9999, 12, 31, $utc)` and `at(-9999, 1, 2, $utc)` throw, because jiff's timestamp
   range stops inside the calendar's last day and first two; the refusal says the conversion
   overflowed. Read a year's length from March rather than from either end.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/time.rs:Core\Time\Date]

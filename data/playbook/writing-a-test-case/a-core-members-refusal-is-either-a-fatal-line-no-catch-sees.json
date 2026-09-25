@@ -1,9 +1,11 @@
 {
   "lead": "A `Core` member's refusal is either a `FATAL:` line no `catch` sees or an ordinary `Throwable`; the `Fault::` constructor decides which.",
   "body": "`Fault::fatal` (every argument-shape guard in `nvs-stdlib`) unwinds past `catch (Throwable $e)`, so pin it with `--EXPECT-ERROR--` and read the message off `2>`; `Fault::thrown` (`nvs_stdlib::ordering::compare_values`, so `Core\\Arr::min`/`sort` over a mixed subject) is caught at file scope. Check the constructor, not the member.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/src/ordering.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/ordering.rs:Fault::thrown"
   }
 }

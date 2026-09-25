@@ -3,4 +3,4 @@
   outside a `\r\n` survives on the Novis side and not on PHP's, so a `trimStart` case padded with
   carriage returns fails. Assert the carriage return by length —
   `Core\Str::length(Core\Str::trimStart("\r\rx"))` against `strlen(ltrim("\r\rx"))`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-test/src/expect.rs:pub fn normalize]

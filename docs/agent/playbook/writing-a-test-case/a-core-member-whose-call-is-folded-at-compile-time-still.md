@@ -4,4 +4,4 @@
   `benches/members/lang/attributes/reading-attributes-back-core-attributes-get-and-all.nvs` has
   always measured those reads, because materializing the folded constant costs a running program
   something. Before writing `[skip] perf`, list `benches/members/lang/<topic>/` for a bench over the
-  same surface. [until: reviewed 2026-09-20]
+  same surface. [until: gone benches/members/lang/attributes/reading-attributes-back-core-attributes-get-and-all.nvs:Core\Attributes]

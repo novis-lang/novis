@@ -3,4 +3,4 @@
   `rule:core-classes/derive-field-list` makes a decode an ordinary `new`, so with no parameter list the
   field list is empty, and `crates/nvs-types/src/derive.rs:1878` stays quiet on the assumption
   `ctor_init` already reported it, which it does not when every property has a default. Give the class
-  a constructor taking every field. [until: reviewed 2026-09-19]
+  a constructor taking every field. [until: gone crates/nvs-types/src/derive.rs:ctor_init]

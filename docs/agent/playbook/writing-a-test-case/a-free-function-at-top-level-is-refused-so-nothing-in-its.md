@@ -3,4 +3,4 @@
   `function make(): void` got `none` from `definition` for a reason that had nothing to do with the
   request: `check_declarations` reports `E0215` for the declaration
   (`rule:classes/no-free-functions-or-constants`) and the walk never types the body. Put a fixture's
-  executable code at the top level or inside a method. [until: reviewed 2026-09-07]
+  executable code at the top level or inside a method. [until: gone crates/nvs-syntax/src/casing.rs:check_declarations]

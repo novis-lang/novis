@@ -4,4 +4,4 @@
   inserted line fails the case on a number rather than on its claim — in `class/` and `lang/` as
   much as in `reject/`. Put the marker on the **last** line of the `--FILE--` block in any case
   carrying an `--EXPECTF-ERROR--` section, at the top everywhere else, and anywhere at all when
-  `%A` swallows it. [until: reviewed 2026-09-19]
+  `%A` swallows it. [until: gone tools/nv/proofs/collect.ts:COVERS_RE]

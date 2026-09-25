@@ -4,4 +4,4 @@
   free `function` in the oracle as a Novis site and can overstate the blast radius by an order of
   magnitude. Scope the measurement to `tests/conformance/` — which has no oracle section
   ([the bullet above](../../playbook.md)) — or split each differential file at `--ORACLE--` before
-  counting. [until: reviewed 2026-09-16]
+  counting. [until: gone crates/nvs-test/src/case.rs:ORACLE]

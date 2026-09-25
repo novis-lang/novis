@@ -4,4 +4,4 @@
   which no `.nvst` can see — and `--id` reported `0 Rust` only because neither carried the comment
   that attributes a Rust test. `grep -n '#\[test\]' -A 1` over the implementing file before
   budgeting the test: where a name for the claim already resolves, the slice is two comment lines.
-  [until: reviewed 2026-09-21]
+  [until: gone tools/nv/proofs/collect.ts:no Rust-side test carries its]

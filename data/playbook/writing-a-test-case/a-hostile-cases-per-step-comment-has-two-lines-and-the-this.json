@@ -1,9 +1,11 @@
 {
   "lead": "A hostile case's per-step comment has two lines, and the \"this is caught\" note does not fit beside the step.",
   "body": "`python tools/dossier.py --comments` holds a numbered step's comment to 2 lines and the top comment to 4, while an attack that names its trick *and* says its error is caught needs three, so every step of a fresh case missed the bound on the first write. Put \"every error is caught here, so every step runs\" once in the top comment, and leave each step one sentence saying what it tries.",
-  "files": [],
+  "files": [
+    "tools/nv/proofs/collect.ts"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-22"
+    "kind": "gone",
+    "arg": "tools/nv/proofs/collect.ts:a comment above a step"
   }
 }

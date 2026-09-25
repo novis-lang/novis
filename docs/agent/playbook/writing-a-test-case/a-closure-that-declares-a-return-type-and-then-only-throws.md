@@ -2,4 +2,4 @@
   `fn(int $n): int => throw new LogicError('no')` is `E0401: expected int, found never`, while the
   same closure with no `: int` on it is accepted, so the same throwing step is fine in one attack
   file and refused in the next. Write that step as a static method declaring the return type and
-  throwing in its body, and hand the closure a call to it. [until: reviewed 2026-09-20]
+  throwing in its body, and hand the closure a call to it. [until: gone tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs:fn(int $n) => throw]

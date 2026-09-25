@@ -2,4 +2,4 @@
   and the shortfall belongs to whoever reads second.** The counter is a thread-local fed by the
   global allocator, so it counts everything live on the thread, the fixture's own copy included.
   Name an allowance for the second reader's footprint (64 KiB against a 2 MiB signal still catches a
-  retained arena) rather than an exact number. [until: reviewed 2026-09-06]
+  retained arena) rather than an exact number. [until: gone crates/nvs-runtime/src/budget.rs:pub fn live_bytes]

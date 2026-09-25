@@ -5,4 +5,4 @@
   case built around it panics in its own helper before it asserts anything. The spelling that does
   exercise `Scope::Endpoint`'s address comparison is the IPv4-mapped v6 one,
   `[::ffff:127.0.0.1]:8080`, which parses and unmaps onto the granted v4 address.
-  [until: reviewed 2026-09-09]
+  [until: gone crates/nvs-config/src/capability.rs:Scope::Endpoint]

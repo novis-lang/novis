@@ -4,4 +4,4 @@
   case's whole text for the run of the message before its first `{`, and `Core\\Zip` does not
   contain `Core\Zip`. Print the message — `echo $e->message` — rather than testing it with
   `Core\Str::startsWith`, and keep every hole out of the stem, which means a refusal must not
-  interpolate a library's own error text if the case is to freeze it. [until: reviewed 2026-09-09]
+  interpolate a library's own error text if the case is to freeze it. [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted_or_declared_unreachable]

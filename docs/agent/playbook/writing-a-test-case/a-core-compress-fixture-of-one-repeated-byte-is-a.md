@@ -3,4 +3,4 @@
   one byte past `DEFAULT_MAX_RATIO`'s 1000:1 — 16 MiB of `A` comes back at 1027:1 — so a payload
   written to be easy to build fails the roomy call as well as the tight one, and reads as the member
   ignoring its defaults. Build the payload out of English text repeated, the way the `.nvst` cases in
-  `tests/conformance/core/compress-*` already do. [until: reviewed 2026-09-21]
+  `tests/conformance/core/compress-*` already do. [until: gone crates/nvs-stdlib/src/compress.rs:DEFAULT_MAX_RATIO]

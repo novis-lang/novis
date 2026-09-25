@@ -1,9 +1,11 @@
 {
   "lead": "A `Core` member declared on two classes owes the conformance floor twice, and the wrong receiver counts for neither.",
   "body": "The floor is per class; `corpus::Attribution` attributes `->member(` to the classes a case mentions, so three cases writing `$db->stream(` leave `Core\\Db\\Transaction::stream` at zero. Add a `$db->transaction(fn (Core\\Db\\Transaction $tx) => …)` half, and run `cargo test -p nvs-stdlib --test conformance_coverage` before `nv verify`.",
-  "files": [],
+  "files": [
+    "crates/nvs-stdlib/tests/corpus/mod.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/corpus/mod.rs:Attribution"
   }
 }

@@ -4,4 +4,4 @@
   is every mistake in the call — a nested `transaction` asking for its own isolation level, a value with
   no bound form — while only a refusal the server itself worded is a `DbError` carrying a `kind`. Read
   the driver member's own `# Errors` paragraph for which one it answers before writing the `catch`.
-  [until: reviewed 2026-09-18]
+  [until: gone crates/nvs-stdlib/src/db/bind.rs:Core\Db\DbError]

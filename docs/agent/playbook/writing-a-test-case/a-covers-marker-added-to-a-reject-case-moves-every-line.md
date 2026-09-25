@@ -1,5 +1,0 @@
-- **A `covers:` marker added to a reject case moves every line number its `--EXPECTF-ERROR--` block
-  names.** The marker belongs inside the `--FILE--` block, so a line inserted after `<?nvs` shifts
-  every `case.nvs:N:C` below it by one, and the `-->` gutter widens by a space when a number crosses
-  into two digits. Bump each location by the number of lines inserted, in the same edit, rather than
-  waiting for the conformance suite to name them. [until: reviewed 2026-09-20]

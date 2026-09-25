@@ -2,4 +2,4 @@
   sentence is on the context.** `call_static` leaves the implementor's message pending rather than
   building a fault around it, so an arm matching `Fault::Thrown(_, said)` — what the *engine's own*
   refusals look like one arm along — panics on a refusal that worked. Match `Fault::Pending(_)` and
-  read `ctx.take_pending()`, as `crate::command`'s `parse_each` does. [until: reviewed 2026-09-08]
+  read `ctx.take_pending()`, as `crate::command`'s `parse_each` does. [until: gone crates/nvs-stdlib/src/command.rs:Fault::Pending]

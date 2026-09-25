@@ -5,7 +5,7 @@
     "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-15"
+    "kind": "gone",
+    "arg": "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst:--EXPECTF-ERROR--"
   }
 }

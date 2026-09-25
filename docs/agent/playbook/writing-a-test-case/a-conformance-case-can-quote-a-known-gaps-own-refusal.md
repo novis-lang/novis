@@ -3,4 +3,4 @@
   so pinning it was right — `json-an-absent-optional-field-reads-apart-from-an-absent-required-one`
   carried "…is `nvs_stdlib::json`'s own known gap" in its `--EXPECT--`. Before verifying a gap
   closure, grep `tests/` for a phrase of the message you are deleting, and rewrite the case holding
-  it to assert the new behaviour. [until: reviewed 2026-09-16]
+  it to assert the new behaviour. [until: gone tests/conformance/core/json-an-absent-optional-field-reads-apart-from-an-absent-required-one.nvst:--EXPECT--]

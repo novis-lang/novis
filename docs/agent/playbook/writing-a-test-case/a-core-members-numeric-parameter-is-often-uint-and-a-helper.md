@@ -3,4 +3,4 @@
   `Core\Str::repeat("36", 64)` compiles and hides the rule, but a count arriving through a helper
   parameter typed `int` is `E0401: expected uint, found int` at every call. Type the parameter
   `uint` (arithmetic on it stays `uint`); and since `Core\Str::length` *returns* `uint`, a loop
-  counter fed from it wants `as int` or a `uint` of its own. [until: reviewed 2026-09-06]
+  counter fed from it wants `as int` or a `uint` of its own. [until: gone crates/nvs-stdlib/src/str.rs:Core\Str::length]

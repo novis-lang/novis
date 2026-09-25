@@ -3,4 +3,4 @@
   `nvs-stdlib`) unwinds past `catch (Throwable $e)`, so pin it with `--EXPECT-ERROR--` and read the
   message off `2>`; `Fault::thrown` (`nvs_stdlib::ordering::compare_values`, so
   `Core\Arr::min`/`sort` over a mixed subject) is caught at file scope. Check the constructor, not
-  the member. [until: reviewed 2026-09-06]
+  the member. [until: gone crates/nvs-stdlib/src/ordering.rs:Fault::thrown]

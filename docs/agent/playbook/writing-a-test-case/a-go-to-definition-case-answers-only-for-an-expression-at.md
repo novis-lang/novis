@@ -3,4 +3,4 @@
   for `$b->area()` and `new Square()` written inside a `function` body while the same expressions at
   file scope answered, and `$s is Shape` over a `Square`-typed subject folds to a constant that
   leaves no node to navigate from. Write the subject as a `mixed` local at file scope, and keep the
-  tested class one the declaration cannot settle. [until: reviewed 2026-09-18]
+  tested class one the declaration cannot settle. [until: gone crates/nvs-lsp/src/definition.rs:fn jump]

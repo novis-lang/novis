@@ -3,4 +3,4 @@
   reference prints before the resolution error the case exists to pin, and the block no longer
   matches at its first line. A compile-error case's entry file should do the least that reaches the
   diagnostic — often a bare `require` — and `%A` covers the span between two diagnostics, notes
-  included. [until: reviewed 2026-09-06]
+  included. [until: gone crates/nvs-test/src/expect.rs:%A]

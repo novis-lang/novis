@@ -1,9 +1,11 @@
 {
   "lead": "A cursor in inline HTML lands on a node, so \"inside no production\" is narrower than it looks.",
   "body": "`InlineHtml` is one of `nvs_syntax::walk`'s own kinds, and so are `Error` and every operator, so `SyntaxIndex::at` answers something for a cursor almost anywhere in a file. The offsets that are genuinely inside nothing are the trivia runs between two nodes — a blank line between two statements is the one to reach for.",
-  "files": [],
+  "files": [
+    "crates/nvs-syntax/src/walk.rs"
+  ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-08"
+    "kind": "gone",
+    "arg": "crates/nvs-syntax/src/walk.rs:InlineHtml"
   }
 }

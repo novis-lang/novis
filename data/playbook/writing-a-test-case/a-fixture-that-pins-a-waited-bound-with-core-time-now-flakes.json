@@ -5,7 +5,7 @@
     "examples/pool.nvs"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-11"
+    "kind": "gone",
+    "arg": "examples/pool.nvs:Core\\Time::monotonic"
   }
 }

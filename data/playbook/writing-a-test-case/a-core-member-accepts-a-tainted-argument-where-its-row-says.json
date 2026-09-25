@@ -1,9 +1,0 @@
-{
-  "lead": "A `Core` member accepts a `tainted` argument where its row says so; the trap is the type of the *answer*.",
-  "body": "Only a `Sink` refuses one (`rule:security/unclassified-parameter-refuses-tainted`), and a contagious answer carries it into elements and union members: `Core\\Str::split($t, \",\")` is `array<tainted string>` and the plain type is `E0401`. `tainted ?string` does not parse and fails as `E0102: expected an expression` a line *before* the mismatch.",
-  "files": [],
-  "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
-  }
-}

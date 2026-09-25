@@ -3,4 +3,4 @@
   variable, so the diagnostics are `E0301`s about undeclared `$s` and `$d` that blame the fixture's
   subject. Escape it (`"!#\$%&…"`) or single-quote it (`'%1$s %2$d'` folds to the same
   `ConstArg::Str` and interpolates nothing); a backtick and an apostrophe need nothing inside double
-  quotes. [until: reviewed 2026-09-06]
+  quotes. [until: gone crates/nvs-syntax/src/string_lit.rs:pub fn cook_double_quoted_text]

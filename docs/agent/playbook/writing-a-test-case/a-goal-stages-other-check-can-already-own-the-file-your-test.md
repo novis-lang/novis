@@ -1,7 +1,0 @@
-- **A goal stage's *other* check can already own the file your test belongs in, and `Write` replaces
-  it whole.** `crates/nvs-codegen/tests/markup.rs` held the three cases of stage 4's sink check, and
-  a new file under the obvious name for a markup test landed on top of them — the harness reports
-  that as "updated" rather than "created", which is the only tell before the deleted tests show up
-  as a check that stopped passing. Before writing a new test file, check whether the goal's other
-  checks name tests that would live in it, and if a `Write` reports "updated", recover the original
-  with `git show HEAD:<path>` and append instead. [until: reviewed 2026-09-12]

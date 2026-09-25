@@ -3,4 +3,4 @@
   several of its 96 levels, so `Core\Str::repeat('if (1) { ', 90)` throws a `ParseError` while 40
   parses and walks, and a case written to reach a deep tree then asserts nothing about depth.
   Probe the depth with `target/debug/nvs.exe run` on a throwaway program before writing the case,
-  and put the level that parses in the comment beside the number. [until: reviewed 2026-09-20]
+  and put the level that parses in the comment beside the number. [until: gone crates/nvs-syntax/src/parser/mod.rs:MAX_RECURSION_DEPTH]

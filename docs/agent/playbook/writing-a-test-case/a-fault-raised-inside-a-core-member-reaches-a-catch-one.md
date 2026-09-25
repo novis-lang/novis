@@ -4,4 +4,4 @@
   `a-helper-fault-names-the-frame-it-was-raised-in-when-it-is-caught-there.nvst` is written around,
   while `backtrace` is filled either way. Print `Core\Arr::count($e->backtrace)` when the claim is
   that the throw unwound, and leave `location` to the case that owns it.
-  [until: reviewed 2026-09-19]
+  [until: gone tests/conformance/error/a-helper-fault-names-the-frame-it-was-raised-in-when-it-is-caught-there.nvst:backtrace]

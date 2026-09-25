@@ -3,4 +3,4 @@
   `crates/nvs-cli/tests/fixtures/api/base.nvs` is one file with a class and an `echo`, and `nvs
   build --openapi` emits both its operations. `examples/routes.nvs` splits across a root to
   demonstrate `rule:packaging/autoload-probes-fold-into-the-cache-key`'s scan, not because an
-  emitter fixture has to. [until: reviewed 2026-09-06]
+  emitter fixture has to. [until: gone crates/nvs-cli/tests/fixtures/api/base.nvs:autoload]

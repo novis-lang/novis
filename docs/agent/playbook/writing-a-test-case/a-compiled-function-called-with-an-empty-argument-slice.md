@@ -3,4 +3,4 @@
   naming no test), because the callee reads its argument slot regardless. Give the method one
   parameter it ignores and pass `Value::int(0)`, as `nvs-codegen`'s `stack_limit.rs` fixtures do; it
   bites only through `unit.function("Class::member")`, never `run_with`/`output_of`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-codegen/tests/common/mod.rs:output_of]

@@ -5,7 +5,7 @@
     "tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-20"
+    "kind": "gone",
+    "arg": "tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst:Core\\Attributes"
   }
 }

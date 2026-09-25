@@ -1,5 +1,0 @@
-- **A `covers:` marker added to a case that expects a diagnostic moves the line number that case
-  pins.** An `--EXPECTF-ERROR--` block reproduces the diagnostic's own `--> case.nvs:NN:CC`
-  header, so one comment line at the top of `--FILE--` turns a green case red, and the failure
-  reads as the member having changed. Add the marker and the `NN` in the same edit, or put the
-  marker under the line the diagnostic names. [until: reviewed 2026-09-21]

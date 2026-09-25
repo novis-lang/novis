@@ -3,4 +3,4 @@
   the header verbatim, so `a-shebang-line-opens-code.nvst` hands the lexer `#!` at offset 0. Had the
   harness kept the separator's newline, a case about the first bytes of a file
   (`rule:tooling/shebang-opens-code-mode`) would pass while testing nothing; know this before
-  writing one. [until: reviewed 2026-09-06]
+  writing one. [until: gone tests/conformance/core/a-shebang-line-opens-code.nvst:rule:tooling/shebang-opens-code-mode]

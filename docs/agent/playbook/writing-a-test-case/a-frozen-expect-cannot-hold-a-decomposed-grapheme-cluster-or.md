@@ -3,4 +3,4 @@
   and a refusal that quotes its subject unescaped (`Core\Encoding::encodeText`) puts a raw C1
   control in the expectation; either fails with two halves that look the same. Echo
   `Core\Encoding::toHex($s as bytes)` for any cell that is not plainly ASCII.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/encoding.rs:Core\Encoding::encodeText]

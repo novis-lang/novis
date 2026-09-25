@@ -4,4 +4,4 @@
   wait — which WSL2 takes — reported 464ms and printed a verdict accusing the pool of refusing
   early. Measure an elapsed interval with `Core\Time::monotonic()->minus($mark)->toMilliseconds()`,
   and read `rule:http-server/every-deadline-is-monotonic` for why the two clocks are not
-  interchangeable. [until: reviewed 2026-09-11]
+  interchangeable. [until: gone examples/pool.nvs:Core\Time::monotonic]
