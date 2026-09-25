@@ -3,6 +3,10 @@ import { OTHER, STATE, partitionOf, wrapWritten } from "../keys/partition.ts";
 import { readFileSync } from "node:fs";
 import { abs } from "../lib/paths.ts";
 import { analyse } from "../keys/scan.ts";
+import { readsCard } from "../keys/escape.ts";
+import { metadata } from "../keys/graph.ts";
+import { CARD_READERS, builtFrom, keyOf, testBuild } from "../keys/key.ts";
+import { Tree } from "../keys/tree.ts";
 
 describe("partitionOf", () => {
   test("a goal's handoff record is state, so a wrap stales no key, and the other records are not", () => {
@@ -53,6 +57,32 @@ function moved(a: string, b: string): string[] {
   const y = tiersOf(b);
   return (Object.keys(x) as (keyof typeof x)[]).filter((k) => x[k] !== y[k]);
 }
+
+describe("a test binary's dependency tier", () => {
+  test("a card edit moves a card reader's test binary and no other", async () => {
+    const graph = await metadata();
+    expect(graph).not.toBeNull();
+    const tree = await Tree.read();
+    const math = "crates/nvs-stdlib/src/math.rs";
+    const text = readFileSync(abs(math), "utf8");
+    const edited = tree.edited({ [math]: text.replace('short: "Returns `$n` without its sign', 'short: "Gives `$n` without its sign') });
+    expect(edited.raw(math)).not.toBe(tree.raw(math));
+    const key = (t: Tree, pkg: string, kind: string) => keyOf(pkg, builtFrom(t, graph!, testBuild(pkg, kind)));
+    expect(key(edited, "nvs-types", "test")).toBe(key(tree, "nvs-types", "test"));
+    expect(key(edited, "nvs-cli", "bin")).not.toBe(key(tree, "nvs-cli", "bin"));
+    expect(key(edited, "nvs-lsp", "lib")).not.toBe(key(tree, "nvs-lsp", "lib"));
+    expect(key(edited, "nvs-stdlib", "lib")).not.toBe(key(tree, "nvs-stdlib", "lib"));
+  });
+
+  test("only the registered card readers read a card outside the registry's package", () => {
+    const types = ["MethodDoc", "ClassDoc"];
+    expect(readsCard("fn f(d: &MethodDoc) {}", types)).toBe(true);
+    expect(readsCard("/// a MethodDoc\nfn f() {}", types)).toBe(false);
+    expect(readsCard("use nvs_stdlib::registry; fn f(m: &Member) { m.doc.unwrap(); }", types)).toBe(true);
+    expect(readsCard("fn f(decl: &Decl) { decl.doc.as_ref(); }", types)).toBe(false);
+    for (const reader of CARD_READERS) expect(reader).toMatch(/^nvs-/);
+  });
+});
 
 describe("the tiers", () => {
   test("a plain comment and a layout change move no tier", () => {

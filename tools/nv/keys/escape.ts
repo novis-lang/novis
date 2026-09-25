@@ -37,6 +37,7 @@ import { isAbsolute, posix, relative, resolve } from "node:path";
 
 const { basename, dirname } = posix;
 import { ROOT } from "../lib/paths.ts";
+import { CARD_HOME, CARD_READERS } from "./key.ts";
 import { WRAP_WRITES } from "./partition.ts";
 
 export const WIDE_LIST = "tools/data/impact-wide.txt";
@@ -480,8 +481,67 @@ export function wideWhy(b: Judged): string | null {
   return "";
 }
 
-/** What the `test` step fails on: a wide binary the list does not name, and a listed one that is narrow
- * or is no test binary of this build. */
+/** The reference-card types: every `pub struct <Name>Doc` the registry declares. */
+function cardTypes(): string[] {
+  let text = "";
+  try {
+    text = readFileSync(resolve(ROOT, "crates/nvs-stdlib/src/registry.rs"), "utf8");
+  } catch {
+    return [];
+  }
+  return [...text.matchAll(/pub struct ([A-Za-z]+Doc)\b/g)].map((m) => m[1]!);
+}
+
+/** The package name a `Cargo.toml` in `dir` declares, or "". */
+function packageName(dir: string): string {
+  try {
+    return /^\s*name\s*=\s*"([^"]+)"/m.exec(readFileSync(resolve(ROOT, dir, "Cargo.toml"), "utf8"))?.[1] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Does this source's code read a reference card: name a card type, or read a `doc` field while
+ * using the registry? Comments are not code, so a doc comment naming either is not a read. */
+export function readsCard(text: string, types: readonly string[]): boolean {
+  const { code } = scan(text);
+  if (types.some((t) => new RegExp(`(?<![\\p{L}\\p{N}_])${t}(?![\\p{L}\\p{N}_])`, "u").test(code))) return true;
+  return /\.doc(?![\p{L}\p{N}_])/u.test(code) && /registry/.test(code);
+}
+
+/** Each source of these binaries that reads a card from a package `CARD_READERS` does not name. Its
+ * binaries would key on the cards' `card` tier and miss an edit to one. */
+function cardFindings(binaries: Judged[]): string[] {
+  const types = cardTypes();
+  if (types.length === 0) return ["crates/nvs-stdlib/src/registry.rs declares no card type, so no card reader can be found"];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const b of binaries) {
+    for (const rel of depInfo(b.exe) ?? []) {
+      if (!rel.endsWith(".rs") || seen.has(rel)) continue;
+      seen.add(rel);
+      const name = packageName(packageOf(rel));
+      if (name === CARD_HOME || CARD_READERS.includes(name)) continue;
+      let text: string;
+      try {
+        text = readFileSync(resolve(ROOT, rel), "utf8");
+      } catch {
+        continue;
+      }
+      if (readsCard(text, types)) {
+        out.push(
+          `${rel} reads a reference card, and \`${name}\` is not in \`CARD_READERS\` (tools/nv/keys/key.ts).\n    ` +
+            `A test binary built from no card reader keys on the cards' \`card\` tier, so an edit to a card would not ` +
+            `re-run this one. Add the package to that list.`,
+        );
+      }
+    }
+  }
+  return out.sort();
+}
+
+/** What the `test` step fails on: a wide binary the list does not name, a listed one that is narrow
+ * or is no test binary of this build, and a card reader `CARD_READERS` does not name. */
 export function findings(binaries: Judged[]): string[] {
   const allowed = allowedWide();
   const out: string[] = [];
@@ -513,6 +573,7 @@ export function findings(binaries: Judged[]): string[] {
     }
   }
   out.push(...staleData(dataLiterals()));
+  out.push(...cardFindings(binaries));
   const names = new Set(binaries.map((b) => b.name));
   for (const name of [...allowed].sort()) {
     if (wide.has(name) || pending.has(name)) continue;

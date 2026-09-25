@@ -15,7 +15,8 @@
 // - the files a package's `build.rs` reads from outside the package, from `BUILD_READS`.
 //
 // A dependency's tier is `shipped` for anything that reads the binary's text as well as running it,
-// and `card` for a check that only runs programs: `scan.ts` says what each tier leaves out.
+// and `card` for a check that only runs programs, and for a test binary none of whose packages reads
+// a reference card (`CARD_READERS`): `scan.ts` says what each tier leaves out.
 
 import { type Graph, closure } from "./graph.ts";
 import { partitionOf } from "./partition.ts";
@@ -50,6 +51,14 @@ export const BUILD_READS: Record<string, readonly string[]> = {
   "nvs-stdlib": ["docs/spec/02-php-migration.md", "tools/data/php-builtins.txt", "docs/reference/core"],
   "nvs-cli": ["LICENSE", "THIRD-PARTY-LICENSES.txt"],
 };
+
+/** The package the reference cards are declared in. */
+export const CARD_HOME = "nvs-stdlib";
+
+/** The packages whose code reads a reference card. A test binary built from none of them keys its
+ * dependencies at `card`. `escape.ts`'s `cardReaders` fails `verify`'s `test` step on code anywhere
+ * else that names a card type, or reads a `doc` field in a file that uses the registry. */
+export const CARD_READERS: readonly string[] = ["nvs-cli", "nvs-lsp"];
 
 /** The workspace files every build reads, whatever it compiles. */
 const ROOT_MANIFESTS = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/config.toml"];
@@ -104,7 +113,11 @@ export function builtFrom(tree: Tree, graph: Graph, build: Build): Part[] {
     if (!build.test) for (const rel of shippedFiles(name)) add(rel, build.ownTier);
     else for (const rel of tree.under(dir)) add(rel, OWN_ONLY.some((d) => under(rel, `${dir}/${d}`)) ? "raw" : build.ownTier);
   }
-  for (const name of [...deps].sort()) for (const rel of shippedFiles(name)) add(rel, build.depTier);
+  // A test binary with no card reader among its packages cannot print a card, so an edit to one
+  // does not move its key.
+  const readsCards = [...own, ...deps].some((name) => CARD_READERS.includes(name)) || own.has(CARD_HOME);
+  const depTier = build.test && build.depTier === "shipped" && !readsCards ? "card" : build.depTier;
+  for (const name of [...deps].sort()) for (const rel of shippedFiles(name)) add(rel, depTier);
   return [...parts.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 }
 
