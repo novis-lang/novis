@@ -8896,15 +8896,15 @@ nan 9223372036854775807
 Core\Math::abs(int|float|decimal $n): int|float|decimal
 ```
 
-The magnitude of `$n`, in `$n`'s own type, as `abs` does — the one member here whose result type is the argument's.
+Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-2.5` gives `2.5`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `int\|float\|decimal` | The number to take the magnitude of: an `int`, a `float` or a `decimal`. |
+| `$n` | `int\|float\|decimal` | The number whose sign is removed: an `int`, a `float` or a `decimal`. |
 
-**Returns** `int|float|decimal` — `$n` with its sign dropped, in the type it came in; `-0.0` becomes `0.0`.
+**Returns** `int|float|decimal` — `$n` without its sign. An `int` or a `uint` gives an `int`, a `float` gives a `float` and a `decimal` gives a `decimal` with the same decimal places. `-0.0` becomes `0.0`.
 
-**Throws** `ArithmeticError` — When `$n` is `INT_MIN`, whose magnitude is one past `INT_MAX`, or a `uint` past `INT_MAX`.
+**Throws** `ArithmeticError` — When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`, or a `uint` larger than `INT_MAX`.
 
 <a id="core-core-math-sign"></a>
 #### `Core\Math::sign`
@@ -9274,13 +9274,13 @@ The arc sine — the angle in radians whose sine is `$n` — as `asin` does.
 Core\Math::acos(float $n): float
 ```
 
-The arc cosine — the angle in radians whose cosine is `$n` — as `acos` does.
+Returns the angle, in radians, whose cosine is `$n`. This is the arc cosine.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A cosine, in `[-1, 1]`. |
+| `$n` | `float` | A cosine: a number from `-1.0` to `1.0`. |
 
-**Returns** `float` — An angle in `[0, PI]`; `NaN` for a `$n` outside `[-1, 1]`.
+**Returns** `float` — An angle from `0.0` to `PI`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.
 
 <a id="core-core-math-atan"></a>
 #### `Core\Math::atan`

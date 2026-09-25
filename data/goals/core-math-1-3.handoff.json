@@ -1,26 +1,32 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Math (1/3) has been taken yet.",
+  "state": "Goal `core-math-1-3`, stage 2 (the dossier). `Core\\Math::abs` and `Core\\Math::acos` have every feature proof on disk: `about.md`, three examples, one attack, one bench with a recorded figure, a Rust `#[test]` with a `covers:` marker in `crates/nvs-stdlib/src/math.rs`'s test module, and help. `Core\\Math` now has its class card (`CARD`, above `CLASS`), so the class-card part of help is done for every member of the class.\n`abs`'s example 03 carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union`. `abs` is typed `int|float|decimal` whatever it is given, so `decimal $owed = Core\\Math::abs($x)` does not compile. The attack and the bench convert with `as int`. The fix needs a bounded type variable, which is a design question (M10).\nMember cards are being rewritten in plain words as each member is taken (`ABS_DOC`, `ACOS_DOC` done). Do the same for each card you take.\nThe pack's acceptance failure (`[12 no Python]`) was stale. `bun nv audit python` prints what that check wants.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier, Core\\Math (1/3)",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` (the member's `*_DOC` card and the test module at its end), plus new files under `docs/examples/core/Math/<member>/`, `tests/hostile/core/Math/<member>/` and `benches/members/core/Math/<member>.nvs`. `rule:testing/feature-proofs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::abs`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:66`"
+        "text": "**`Core\\Math::acosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:343`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::acos`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:273`"
+        "text": "**`Core\\Math::asin`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:271`"
       },
       {
         "done": false,
-        "text": "**`Core\\Math::acosh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:336`"
+        "text": "**`Core\\Math::asinh`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:334`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Math::atan`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/math.rs:289`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The rest of this goal's list: `atan2`, `atanh`, `cbrt`, `ceil`, `clamp`, `cos`, `cosh` (`bun nv loop --list` stage 2).",
+    "`Core\\Math::abs`'s result type is the whole union — `data/gaps/nvs-stdlib/math-abs-result-is-the-whole-union.json`, owner M10.",
+    "Record the bench after the last `math.rs` edit of the session. Any later edit to the file, `fmt` included, makes every figure measured before it stale."
   ]
 }
