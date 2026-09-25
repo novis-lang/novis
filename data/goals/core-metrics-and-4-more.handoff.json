@@ -1,26 +1,19 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Metrics and 4 more has been taken yet.",
+  "state": "Goal `core-metrics-and-4-more`, stage of per-member feature proofs. `Core\\Metrics::gauge` and\n`Core\\Metrics::increment` carry every proof: description, three examples, an attack, a bench with a\nperf record, and a Rust test driving the member through its helper symbol. `Core\\Metrics` has its\nclass card. `Core\\Metrics::observe` already has its Rust test\n(`observe_counts_every_observation_and_sums_them`) and owes its description, examples, attack and\nbench. Every `Core\\Metrics` write allocates 8 times a call; that is gap\n`nvs-stdlib/a-metrics-write-allocates-on-every-call` (owner M12), and each metrics bench carries its\n`// proof: gap` marker. Nothing is blocked.",
   "next": {
     "stage": null,
+    "title": "Stage: per-member feature proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/metrics.rs` and the `core/Metrics/` directories under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Metrics::gauge`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:167`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Metrics::increment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:145`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Metrics::observe`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/metrics.rs:154`"
+        "text": "**`Core\\Metrics::observe`** — owes about, examples, hostile, perf (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/metrics.rs:168`. The `gauge` and `increment` directories are the model to copy the shape of. Its bench declares `allocations 0` and carries `// proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call`. In an attack, a step that makes many new series fills the series limit, and every later *new* name is then dropped silently, so a kind or label refusal must be asked for before that step."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The metrics write path allocates on every call, including twice per served request through `Registry::request` — gap `nvs-stdlib/a-metrics-write-allocates-on-every-call`, owner M12.",
+    "A name built at run time skips the `[a-z][a-z0-9_]*` grammar and is stored as written (an empty name, a line break), so what the exporter prints for it is not checked here — `crates/nvs-stdlib/src/metrics.rs` `validate_name` doc; not checked against the exporter."
   ]
 }
