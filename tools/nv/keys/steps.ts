@@ -53,7 +53,7 @@ const cli = (tier: "card" | "shipped"): Omit<Build, "own"> & { own: string[] } =
 /** Each step's parts. A step that is absent is never answered from the cache. */
 export const STEP_READS: Record<string, (tree: Tree, graph: Graph | null) => Part[]> = {
   fmt: (t) => files(t, (r) => isRust(r) || isManifest(r) || r === "rustfmt.toml"),
-  lints: (t) => files(t, (r) => isManifest(r) || r === "tools/lints.py"),
+  lints: (t) => files(t, (r) => isManifest(r) || r === "tools/nv/cmd/lints.ts"),
   directives: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/directives.py"),
   template: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/directives.py"),
   owners: (t) => files(t, within("crates", ...OWNERS_READS)),

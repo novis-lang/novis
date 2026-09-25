@@ -391,10 +391,10 @@ starts rather than sitting empty.
 `forbid` is not something an individual `#[allow]` can relax, so a crate that keeps it cannot hold an
 `unsafe` block at all — which makes the roster of crates that opt down to `deny` the whole policy.
 
-**That roster is `tools/lints.py`'s `UNSAFE_CRATES`, with the reason each crate needs it, and this
+**That roster is `UNSAFE_CRATES` in `tools/nv/cmd/lints.ts`, with the reason each crate needs it, and this
 section does not restate it.** A prose copy here is what went stale: it named four crates while seven
 carried `unsafe`, and nothing failed. Cargo refuses a manifest that inherits `[workspace.lints]` and
-overrides one entry, so those crates must restate the whole table; `tools/lints.py` generates the
+overrides one entry, so those crates must restate the whole table; `bun nv lints` generates the
 copies and `--check` fails the `lint` CI job and `nv verify` on any drift. A crate joins the roster
 with an ADR.
 

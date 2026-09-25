@@ -22,7 +22,7 @@ from the file an operator reads.
 **The walk fails closed.** A field whose type this script does not recognise is
 an error, not a key quietly left out: a new block added to `tree.rs` cannot join
 the accepted key set by saying nothing here, which is the property
-`tools/lints.py` has for a crate that carries no `[lints]` table.
+`bun nv lints` has for a crate that carries no `[lints]` table.
 
 **A reader is counted three ways, and every one of them is load-bearing.** A key
 is read when the field is touched outside `tree.rs`, *or* when its dotted key

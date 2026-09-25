@@ -11,7 +11,7 @@
 //     bun nv verify --list           the steps in order, running none of them
 //     bun nv verify --keys           each test binary's key over the tree now, as JSON
 //
-// The steps, in order, stopping at the first failure: `cargo fmt`, `tools/lints.py --check`,
+// The steps, in order, stopping at the first failure: `cargo fmt`, `bun nv lints --check`,
 // `tools/directives.py --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees through the debug binary the build
@@ -675,7 +675,7 @@ export const summaries: Record<string, (out: string) => string> = {
     let m = /lints: (\d+) generated tables current/.exec(out);
     if (m) return `${m[1]} generated lint tables current`;
     m = /(\d+) problem\(s\)/.exec(out);
-    return m ? `${m[1]} lint table(s) drifted -- run \`python tools/lints.py\`` : NO_SUMMARY;
+    return m ? `${m[1]} lint table(s) drifted -- run \`bun nv lints\`` : NO_SUMMARY;
   },
   template(out) {
     let m = /spells all (\d+) leaf keys/.exec(out);
@@ -726,7 +726,7 @@ function stepsFor(opts: Opts): Step[] {
     steps.push(step("fmt", ["fmt", "--all", "--", "-l"], summaries.fmt!));
     // The script steps decide what the tree means rather than whether it builds, and read manifests,
     // doc comments or the tools, so `-p` narrows none of them.
-    steps.push(step("lints", ["tools/lints.py", "--check"], summaries.lints!, { exe: PYTHON }));
+    steps.push(step("lints", ["nv", "lints", "--check"], summaries.lints!, { exe: "bun" }));
     steps.push(step("directives", ["tools/directives.py", "--check"], summaries.directives!, { exe: PYTHON }));
     steps.push(step("template", ["tools/directives.py", "--check-template"], summaries.template!, { exe: PYTHON }));
     steps.push(step("owners", ["nv", "owners", "--check"], summaries.owners!, { exe: "bun" }));

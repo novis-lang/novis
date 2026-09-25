@@ -400,13 +400,15 @@ jobs:
       # Before clippy, because it decides what clippy enforces. The crates that hold `unsafe`
       # cannot inherit `[workspace.lints]` -- cargo refuses a manifest that inherits the
       # workspace table and overrides one entry of it -- so they restate it, and a restated
-      # table drifts without failing anything. `tools/lints.py` generates those copies and
+      # table drifts without failing anything. `bun nv lints` generates those copies and
       # this checks they are still copies.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          python-version: '3.x'
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
       - name: Lint tables match the workspace
-        run: python tools/lints.py --check
+        run: bun nv lints --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
@@ -425,7 +427,7 @@ jobs:
   # Enforces the claims in docs/adr: no C dependencies sneaking into the trusted
   # core, no yanked or vulnerable deps. The other claim this comment used to
   # make -- no unsafe outside the audited modules -- is the `lint` job's
-  # `tools/lints.py --check`, which is where the roster of those modules lives:
+  # `bun nv lints --check`, which is where the roster of those modules lives:
   # a crate off it keeps `[workspace.lints]`'s `forbid`, which no `#[allow]` can
   # relax, so it cannot hold an `unsafe` block at all.
   # ---------------------------------------------------------------------------

@@ -980,10 +980,10 @@ criterion = "0.7"
 #            overrides or `lints.workspace = true` and manually specify the lints
 #
 # -- so they restate the whole table with `unsafe_code = "deny"` and allow each
-# block individually with a reason. `python tools/lints.py` generates those
+# block individually with a reason. `bun nv lints` generates those
 # copies from this table and `--check` fails on drift, in the `lint` CI job and
 # in `nv verify`; a lint added here reaches every crate through it. That
-# script's `UNSAFE_CRATES` is the roster of crates that may override and the one
+# command's `UNSAFE_CRATES` is the roster of crates that may override and the one
 # home for it -- three prose copies of that list had gone stale, naming four
 # crates while seven carried `unsafe`. docs/plan/design.md § *Unsafe policy* is
 # the reasoning.

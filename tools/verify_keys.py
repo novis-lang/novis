@@ -87,11 +87,11 @@ INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml"
                # `fuzz/Cargo.lock` is what it writes, so it is derived and stays out.
                "fuzz/Cargo.toml",
                # The steps that are a script rather than `cargo`. Their verdict changes when
-               # the script does -- a crate added to `lints.py`'s roster, a reader counted a
+               # the script does -- a crate added to `nv lints`' roster, a reader counted a
                # third way in `directives.py`, a chapter rule changed in `reference.py`. The rest
                # of `tools/` is deliberately not an input: `loop.py` and friends change most
                # sessions and change nothing these steps would say.
-               "tools/lints.py", "tools/reference.py", "tools/directives.py",
+               "tools/nv/cmd/lints.ts", "tools/reference.py", "tools/directives.py",
                # What decides which test binaries the `test` step runs, and which of them may
                # be wide: an edit to either is a reason to ask the step again.
                "tools/impact.py", "tools/data/impact-wide.txt",
@@ -406,7 +406,7 @@ def _everything(t):
 #: Each step's partition. A step that is absent is never answered from the cache.
 STEP_READS = {
     "fmt": lambda t: t.part(is_rust) + t.part(is_manifest) + t.part(_only("rustfmt.toml")),
-    "lints": lambda t: t.part(is_manifest) + t.part(_only("tools/lints.py")),
+    "lints": lambda t: t.part(is_manifest) + t.part(_only("tools/nv/cmd/lints.ts")),
     "directives": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "template": lambda t: t.part(under("crates", "benches")) + t.part(_only("tools/directives.py")),
     "owners": lambda t: t.part(under("crates")) + t.part(under(*OWNERS_READS)),
