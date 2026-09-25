@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { OTHER, STATE, partitionOf } from "../keys/partition.ts";
+import { OTHER, STATE, partitionOf, wrapWritten } from "../keys/partition.ts";
 import { readFileSync } from "node:fs";
 import { abs } from "../lib/paths.ts";
 import { analyse } from "../keys/scan.ts";
@@ -11,6 +11,15 @@ describe("partitionOf", () => {
     expect(partitionOf("data/goals/core-math-1-3.json")).toBe(OTHER);
     expect(partitionOf("data/chain.json")).toBe(OTHER);
     expect(partitionOf("docs/agent/goals/core-math-1-3.md")).toBe("goals");
+  });
+
+  test("the plan, a milestone and both playbook homes are what a wrap writes, and their neighbours are not", () => {
+    for (const rel of ["docs/implementation-plan.md", "docs/plan/m8.md", "docs/agent/playbook/running-things/x.md", "data/playbook/running-things/x.json"]) {
+      expect(wrapWritten(rel)).toBe(true);
+    }
+    for (const rel of ["docs/implementation-plan.mdx", "docs/planning.md", "docs/agent/goals/x.md", "data/goals/x.json"]) {
+      expect(wrapWritten(rel)).toBe(false);
+    }
   });
 });
 

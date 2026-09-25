@@ -33,6 +33,18 @@ describe("a probe's verdict", () => {
     expect(v.wide).toBe(1);
     expect(v.failures).toEqual(["keep pattern matches no unit: ^tsan: "]);
   });
+
+  test("holds a test check to its binaries: it re-runs with a moved one, and stays with none", () => {
+    const check = (name: string, binaries: string[]): Unit => ({ ...unit("test", name), source: "verify record", binaries });
+    const withA = check("a (filtered)", ["a lib a"]);
+    const onlyB = check("b (filtered)", ["b lib b"]);
+    const all = [...us, withA, onlyB];
+    const held = judge(probe(["^binary: a "], ["^binary: ", "^test: "]), all, new Set([a, withA]), new Set());
+    expect(held.failures).toEqual([]);
+    expect([held.rerun, held.kept]).toEqual([2, 2]);
+    const broken = judge(probe(["^binary: a "], ["^binary: ", "^test: "]), all, new Set([a, onlyB]), new Set());
+    expect(broken.failures).toEqual(["does not re-run with its binaries: test: a (filtered)", "re-runs: test: b (filtered)"]);
+  });
 });
 
 describe("what `nv why` prints", () => {

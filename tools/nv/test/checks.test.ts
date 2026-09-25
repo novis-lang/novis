@@ -118,6 +118,20 @@ describe("the units a key answers for", () => {
     expect(key(tree.edited({ "docs/agent/playbook.md": "x" }))).not.toBe(key(tree));
   });
 
+  test("a wide test binary's key leaves out what a wrap writes, and a check keyed on everything does not", async () => {
+    const tree = await Tree.read();
+    const us = units({ graph, checks: [{ kind: "command", name: "w", argv: ["bun", "nv", "selftest"] }], reads: new Map(), wide: new Set(["nvs-cli bin nvs"]), proofReads: new Map(), nvReads: new Map() });
+    const binary = us.find((u) => u.name === "nvs-cli bin nvs")!;
+    const check = us.find((u) => u.name === "w")!;
+    expect(isWide(binary.parts(tree))).toBe(true);
+    for (const rel of ["docs/agent/playbook/zz-probe.md", "data/playbook/zz-probe.json", "docs/implementation-plan.md", "docs/plan/zz-probe.md"]) {
+      const edited = tree.edited({ [rel]: "x" });
+      expect(keyOf("b", binary.parts(edited))).toBe(keyOf("b", binary.parts(tree)));
+      expect(keyOf("w", check.parts(edited))).not.toBe(keyOf("w", check.parts(tree)));
+    }
+    expect(keyOf("b", binary.parts(tree.edited({ "docs/examples/zz-probe.nvs": "x" })))).not.toBe(keyOf("b", binary.parts(tree)));
+  });
+
   test("each program a `bun nv` process starts keys on what that program reads", async () => {
     const tree = await Tree.read();
     const labels = (argv: string[]) => spawnParts(tree, graph, argv)?.map((p) => p.label) ?? null;

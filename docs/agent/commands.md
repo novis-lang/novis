@@ -292,10 +292,12 @@ the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line 
 was green, so the step's counts stay the workspace's. The record also keeps every `test <name> ...`
 line, and the loop's acceptance sweep reads it: a test binary whose key matches is answered from
 `nv verify`'s run and not run a second time. Every doubt resolves wide — a binary whose sources leave
-their package some other way, or whose dep-info cannot be found, keeps the whole-tree key.
+their package some other way, or whose dep-info cannot be found, keeps the whole-tree key, less the
+files a wrap writes, so the wrap that follows `nv verify` does not undo its answers.
 `bun nv verify --keys` prints each binary with its key and whether that key is wide,
-`tools/data/impact-wide.txt` says why each wide one is, and `bun nv why "<name>"` prints what one key
-is read from. The argument is § *Why `test` runs only the binaries a change reaches* in the old
+`tools/data/impact-wide.txt` says why each wide one is, `tools/data/impact-data-literals.txt` lists
+the `"../x"` literals that are data and so make no binary wide, and `bun nv why "<name>"` prints what
+one key is read from. The argument is § *Why `test` runs only the binaries a change reaches* in the old
 `verify` tool's module doc at tag `pre-overhaul`.
 
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under

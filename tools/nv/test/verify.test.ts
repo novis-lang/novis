@@ -21,6 +21,18 @@ describe("wayOut", () => {
     expect(wayOut('// Command::new("git") and "../../x"\nfn t() {}')).toBe("");
   });
 
+  test("an escape sequence in a literal is not a path separator, and a raw literal's backslash is", () => {
+    expect(wayOut('fn t() { let s = "..\\u{1f1e6}\\u{1f1f9}"; }')).toBe("");
+    expect(wayOut('fn t() { read(r"..\\x.txt"); }')).toContain("climbs out of its directory");
+  });
+
+  test("a climbing literal listed as data is not a way out, and nothing else can be listed", () => {
+    const data = new Set(['"../escape"']);
+    expect(wayOut('fn t() { refuse("../escape"); }', data)).toBe("");
+    expect(wayOut('fn t() { refuse("../escape"); read("../other"); }', data)).toContain('"../other"');
+    expect(wayOut('fn t() { Path::new(env!("CARGO_MANIFEST_DIR")).join("../escape"); }', data)).toContain("CARGO_MANIFEST_DIR");
+  });
+
   test("the manifest directory beside a climb is a way out", () => {
     expect(wayOut('fn t() { Path::new(env!("CARGO_MANIFEST_DIR")).parent(); }')).toContain("CARGO_MANIFEST_DIR");
   });

@@ -41,6 +41,12 @@ fn reading(roots: &[&str]) -> Capabilities {
     }
 }
 
+/// This crate's directory. Every path these tests open is inside it, and `nvs_repo` records it
+/// as what the binary reads.
+fn package() -> PathBuf {
+    nvs_repo::path("crates/nvs-stdlib")
+}
+
 fn canonical(path: &Path) -> String {
     Disk.canonical(path)
         .expect("the crate's own directories exist")
@@ -83,7 +89,7 @@ fn an_ungranted_capability_throws_naming_the_capability() {
 
 #[test]
 fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = &package();
     let src = manifest.join("src");
     let caps = reading(&[&canonical(&src)]);
 
@@ -116,7 +122,7 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
     // § 4's write case: a file that does not exist yet resolves through its deepest existing
     // ancestor, so a create inside the root is allowed and one that `..` walks out of is not —
     // without either path having to exist first.
-    let caps = reading(&[&canonical(manifest)]);
+    let caps = reading(&[&canonical(&src)]);
     assert!(caps.allows(
         Cap::FsRead,
         Scope::Path(&src.join("not-written-yet.rs")),
@@ -124,7 +130,7 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
     ));
     assert!(!caps.allows(
         Cap::FsRead,
-        Scope::Path(&manifest.join("..").join("..").join("not-written-yet.rs")),
+        Scope::Path(&src.join("..").join("not-written-yet.rs")),
         &Disk
     ));
 }
@@ -178,7 +184,7 @@ fn within_resolves_and_then_proves_containment() {
     // Spec § 14's *Resolution* bullet over `rule:security/launderers-are-sink-named`: the launderer answers a path that is
     // resolved — every `..` and every symlink already gone — and proved to be under the base. Both
     // halves matter, and the order is what separates this from `Core\Path::normalize`.
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = &package();
     let src = manifest.join("src");
     let mut ctx = ctx_reading(&[&canonical(manifest)]);
 
@@ -204,7 +210,7 @@ fn within_resolves_and_then_proves_containment() {
 
 #[test]
 fn within_refuses_a_path_that_escapes_through_dotdot_or_a_symlink() {
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = &package();
     let src = manifest.join("src");
 
     // Granted wide enough that every refusal below is about *containment* and not about the grant —
@@ -341,7 +347,7 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
         "std::env::set_var",
         "std::env::current_dir",
     ];
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let src = package().join("src");
     for file in sources(&src) {
         let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
 
@@ -501,7 +507,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
     // The implementation half. `://` is the structural spelling of a scheme prefix and not one
     // scheme's name — a bare `:` is not the pattern, because `Core\Path` parses a Windows drive
     // letter on every platform (see its module doc) and reads one legitimately.
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let src = package().join("src");
 
     /// The file under `src` that implements `class`.
     ///
@@ -560,7 +566,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
     // The behavioural half, at the launderer every supplied path goes through. The pair is the
     // whole claim: the same trailing name resolves when it is a name, and does not when a scheme
     // is glued in front of it.
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = &package();
     let base = manifest.join("src");
     let mut ctx = ctx_reading(&[&canonical(manifest)]);
     let plain = within(&mut ctx, &base, "registry.rs").expect("a name inside the base");

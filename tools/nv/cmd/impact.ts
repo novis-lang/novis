@@ -1,8 +1,10 @@
 // `bun nv impact --probe [<probe>...]`: holds every unit's key to `data/impact-probes.json`. Each probe
 // is one synthetic edit, applied to an in-memory copy of the tree with `Tree.edited`, and two lists of
 // patterns over `<role>: <name>` (`tools/nv/keys/checks.ts` says what each role is). Every unit a
-// `rerun` pattern matches must move, and every other unit a `keep` pattern matches must not. A
-// pattern that matches no unit is an error, so a renamed check cannot empty a probe without saying so.
+// `rerun` pattern matches must move, and every other unit a `keep` pattern matches must not. The one
+// exception is a test check keyed on its binaries: it must move exactly when one of its binaries
+// does, so a probe names the binaries and not every check that runs them. A pattern that matches no
+// unit is an error, so a renamed check cannot empty a probe without saying so.
 //
 // A unit keyed on everything moves on every edit. A probe counts it as `wide` rather than failing on
 // it, because a wide key is never an unsafe one; `tools/data/impact-wide.txt` is the list of test
@@ -82,6 +84,7 @@ export function judge(p: Probe, us: Unit[], moved: Set<Unit>, wide: Set<Unit>): 
   let nRerun = 0;
   let nKept = 0;
   let nWide = 0;
+  const binaryMoved = new Map(us.filter((u) => u.role === "binary").map((u) => [u.name, moved.has(u)]));
   for (const u of us) {
     const l = label(u);
     let isRerun = false;
@@ -105,7 +108,11 @@ export function judge(p: Probe, us: Unit[], moved: Set<Unit>, wide: Set<Unit>): 
     });
     if (!isKeep) continue;
     if (wide.has(u)) nWide++;
-    else if (moved.has(u)) failures.push(`re-runs: ${l}`);
+    else if (u.binaries?.some((b) => binaryMoved.get(b))) {
+      // It runs a binary the edit re-runs, and its key is the union of its binaries' keys.
+      if (moved.has(u)) nRerun++;
+      else failures.push(`does not re-run with its binaries: ${l}`);
+    } else if (moved.has(u)) failures.push(`re-runs: ${l}`);
     else nKept++;
   }
   rerunHits.forEach((n, i) => n === 0 && failures.push(`rerun pattern matches no unit: ${p.rerun[i]}`));

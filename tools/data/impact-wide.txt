@@ -15,18 +15,9 @@ nvs-abi-probe lib nvs_abi_probe  --  `process.rs` starts the probe's child proce
 nvs-runtime lib nvs_runtime  --  `capability.rs` starts a process
 nvs-cli bin nvs  --  the CLI reads its working directory and starts workers, services and bundles
 nvs-repo lib nvs_repo  --  `spawn` is the recorded `Command::new` every other test uses
-
-# A string that looks like a path climbing out of its directory, and is data: the subject of a
-# path-normalisation rule, or an escape attempt a test hands to the code under test.
-nvs-stdlib lib nvs_stdlib  --  `path.rs`, `storage.rs`, `str.rs`, `uri.rs` and `zip.rs` normalise and refuse `..` segments
-nvs-stdlib test capability  --  dot-dot escape paths are what the test is about
-nvs-config lib nvs_config  --  `resolve.rs` pushes `..` while normalising a mount path
-nvs-config test capability  --  `"../escape.txt"` is an escape the test expects to be refused
-nvs-config test mount  --  `"../secret/public/index.nvs"` is an escape the test expects to be refused
-nvs-config test trust  --  `conf.d/..` inside the test's own temporary directory
-nvs-lsp lib nvs_lsp  --  `"../escape.nvs"` is a case path the suite expects to be refused
-nvs-hir lib nvs_hir  --  `"../lib.nvs"` is a `require` target in a fixture program
-nvs-test lib nvs_test  --  `"../x.nvs"` is a `--FILE` path the parser expects to refuse
+nvs-test lib nvs_test  --  `run.rs` starts the program under test
 
 # It reads the whole tree, and says so.
 nvs-runtime test manifest_policy  --  finds every `Cargo.toml` by walking from `nvs_repo::root`
+
+# A climbing literal that is data, not a read, is listed in `impact-data-literals.txt` instead.

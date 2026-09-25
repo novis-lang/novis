@@ -9,7 +9,7 @@
 //   key is the union of theirs.
 // - `binary key`: a test binary. What it is compiled from, `builtFrom` with `testBuild`, and the
 //   paths it last recorded opening at run time. A binary `tools/data/impact-wide.txt` lists keys on
-//   everything.
+//   everything but the files a wrap writes (`WRAP_WRITES`).
 // - `package key`: a check that builds or runs a program. Its build is `builtFrom` at the tier the
 //   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
@@ -42,7 +42,7 @@ import type { Reads } from "../lib/reads.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { NV_MANIFESTS, commandModules } from "./modules.ts";
-import { OTHER, PARTITIONS, partitionOf } from "./partition.ts";
+import { OTHER, PARTITIONS, partitionOf, wrapWritten } from "./partition.ts";
 import { TIERS, digest } from "./scan.ts";
 import type { Tree } from "./tree.ts";
 
@@ -62,6 +62,9 @@ export interface Unit {
   role: Role;
   /** The `[[check]]` this unit is; none for a test binary or a leg. */
   check?: Check;
+  /** For a test check keyed on its binaries, their names: its key is the union of theirs, so it moves
+   * exactly when one of them does. */
+  binaries?: string[];
   parts(tree: Tree): Part[];
 }
 
@@ -254,6 +257,19 @@ function everything(tree: Tree): Part[] {
   return cached(tree, "everything", () => [WIDE_MARK, ...EVERYTHING.flatMap((p) => partition(tree, p))]);
 }
 
+/** What a wide test binary keys on: everything but the files a wrap writes, which no wide binary's
+ * source names (`escape.ts`). A wrap lands after `nv verify` has run, so this is what lets verify's
+ * run of a wide binary still answer the sweep that follows the wrap. */
+function everythingButWrap(tree: Tree): Part[] {
+  return cached(tree, "everything-but-wrap", () => [
+    WIDE_MARK,
+    ...EVERYTHING.map((name): Part => {
+      const files = partitionFiles(tree, name).filter((f) => !wrapWritten(f));
+      return { label: `<${name}>`, partition: name, tier: "raw", digest: digest(name, ...files.map((f) => `${f}\x01${tree.raw(f)}`)) };
+    }),
+  ]);
+}
+
 function build(tree: Tree, graph: Graph, b: Build): Part[] {
   return cached(tree, `build\0${JSON.stringify(b)}`, () => {
     try {
@@ -421,7 +437,7 @@ function nvParts(tree: Tree, graph: Graph, name: string, rec: Reads): Part[] {
 /** A test binary's parts. Its name is `<package> <kind> <target>`, as `testBinaries` writes it. */
 function binaryParts(tree: Tree, r: Records, pkg: string, name: string): Part[] {
   const built = build(tree, r.graph, testBuild(pkg, name.split(" ")[1]));
-  if (r.wide.has(name)) return union(built, everything(tree));
+  if (r.wide.has(name)) return union(built, everythingButWrap(tree));
   return union(built, ...(r.reads.get(name) ?? []).map((rel) => path(tree, rel)));
 }
 
@@ -536,7 +552,7 @@ function checkUnit(r: Records, c: Check): Unit {
   if (c.kind === "cargo-named") {
     const targets = testTargets(g, strings(c.args));
     if (!targets || targets.names.length === 0) return wide;
-    return unit("verify record", (t) => union(...targets.names.map((n) => binaryParts(t, r, targets.pkg, n))));
+    return { ...unit("verify record", (t) => union(...targets.names.map((n) => binaryParts(t, r, targets.pkg, n)))), binaries: targets.names };
   }
 
   if (c.kind !== "command") return wide;

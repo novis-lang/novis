@@ -2,7 +2,7 @@
   "probes": [
     {
       "name": "test-module",
-      "what": "a `#[test]` in `jwt.rs`'s `mod tests`. The three binaries past the first read every file under `crates/` as text",
+      "what": "a `#[test]` in `jwt.rs`'s `mod tests`. The three binaries past the first read every file under `crates/` as text, and `capability` every file under `nvs-stdlib/src`",
       "edit": {
         "path": "crates/nvs-stdlib/src/jwt.rs",
         "after": [
@@ -14,7 +14,8 @@
         "^binary: nvs-stdlib lib nvs_stdlib$",
         "^binary: nvs-config test directives$",
         "^binary: nvs-lsp test stdout_policy$",
-        "^binary: nvs-stdlib test tier_boundary$"
+        "^binary: nvs-stdlib test tier_boundary$",
+        "^binary: nvs-stdlib test capability$"
       ],
       "keep": [
         "^binary: ",
@@ -31,7 +32,7 @@
     },
     {
       "name": "self-included-test-module",
-      "what": "a `#[test]` in `jwe.rs`'s `mod tests`, which `crypto.rs`'s policy test embeds. The three binaries past the first read every file under `crates/` as text",
+      "what": "a `#[test]` in `jwe.rs`'s `mod tests`, which `crypto.rs`'s policy test embeds. The three binaries past the first read every file under `crates/` as text, and `capability` every file under `nvs-stdlib/src`",
       "edit": {
         "path": "crates/nvs-stdlib/src/jwe.rs",
         "after": [
@@ -43,7 +44,8 @@
         "^binary: nvs-stdlib lib nvs_stdlib$",
         "^binary: nvs-config test directives$",
         "^binary: nvs-lsp test stdout_policy$",
-        "^binary: nvs-stdlib test tier_boundary$"
+        "^binary: nvs-stdlib test tier_boundary$",
+        "^binary: nvs-stdlib test capability$"
       ],
       "keep": [
         "^binary: ",

@@ -12,6 +12,12 @@
 // - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
 //   `.parent()`, `.ancestors()` or `.pop()`.
 //
+// A climbing literal that is data -- a path a pure function takes apart, an entry name in an archive
+// built in memory, an escape the code under test is expected to refuse, a detour that stays inside
+// the package -- opens nothing outside the package, and `impact-data-literals.txt` lists each one
+// with the reason. No other way out can be listed there.
+// A wide binary may not name a file a wrap writes, because its key leaves those out.
+//
 // Read off `scan` below, a lexer that separates comments and literals from code, so a comment is never
 // matched and a literal never splits. A literal rustc opens itself (`include_str!`, `#[path]`) is in the
 // dep-info already and is not a way out.
@@ -19,8 +25,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { WRAP_WRITES } from "./partition.ts";
 
 export const WIDE_LIST = "tools/data/impact-wide.txt";
+export const DATA_LIST = "tools/data/impact-data-literals.txt";
 
 const TOKEN =
   /(?<doc>\/\/(?:\/(?!\/)|!)[^\n]*)|(?<line>\/\/[^\n]*)|(?<block>\/\*)|(?<raw>(?<![A-Za-z0-9_])(?:b|c)?r(?<hashes>#*)"[\s\S]*?"\k<hashes>)|(?<str>(?:(?<![A-Za-z0-9_])(?:b|c))?"(?:\\[\s\S]|[^"\\])*")|(?<chr>(?:(?<![A-Za-z0-9_])b)?'(?:\\(?:u\{[^}\n]*\}|x[0-9a-fA-F]{2}|[^\n])|[^\\'\n])')/g;
@@ -98,49 +106,79 @@ function body(literal: string): string {
   return start >= 0 && start < end ? literal.slice(start + 1, end) : "";
 }
 
+/** A literal's path segments. In a raw literal a backslash is a separator. In any other literal `\\` is
+ * one, and a single backslash starts an escape such as `\n` or `\u{…}`, which is not. */
+function segments(literal: string): string[] {
+  const b = body(literal);
+  return /^(?:b|c)?r/.test(literal) ? b.split(SEGMENT) : b.split("\\\\").join("/").split("/");
+}
+
 /** Does this relative path climb above the directory it starts in? An absolute one names nothing in
  * the tree, so it does not. */
-function leaves(path: string): boolean {
+function leaves(literal: string): boolean {
+  const path = body(literal);
   if (!path || path[0] === "/" || path[0] === "\\" || path.slice(1, 2) === ":") return false;
   let depth = 0;
-  for (const part of path.split("\\\\").join("/").split(SEGMENT)) {
+  for (const part of segments(literal)) {
     depth += part === ".." ? -1 : part === "" || part === "." ? 0 : 1;
     if (depth < 0) return true;
   }
   return false;
 }
 
-/** How this source can reach a file outside its package without `nvs_repo`, or "". */
-export function wayOut(text: string): string {
+export interface WayOut {
+  how: string;
+  /** The literal that climbs out of its directory, as the source writes it. Only this kind of way
+   * out can be cleared, by a line in `DATA_LIST` that says the literal is data and opens nothing. */
+  climbs?: string;
+}
+
+/** Every way this source can reach a file outside its package without `nvs_repo`. */
+export function waysOut(text: string): WayOut[] {
   const { code, literals } = scan(text);
+  const out: WayOut[] = [];
   const count = (s: string) => s.split("\x02").length - 1;
   for (const m of code.matchAll(SPAWN)) {
     const index = count(code.slice(0, m.index));
     OWN_BIN.lastIndex = m.index;
     const own = OWN_BIN.test(code) && index < literals.length;
-    if (!(own && literals[index]!.includes("CARGO_BIN_EXE_"))) return "starts a process with `Command::new`";
+    if (!(own && literals[index]!.includes("CARGO_BIN_EXE_"))) {
+      out.push({ how: "starts a process with `Command::new`" });
+      break;
+    }
   }
   // `Command::current_dir(dir)` takes an argument and moves a child, which was judged above.
-  if (code.includes("set_current_dir") || code.includes("current_dir()")) return "reads or sets the working directory";
+  if (code.includes("set_current_dir") || code.includes("current_dir()")) out.push({ how: "reads or sets the working directory" });
   const rustcOpens = new Set<number>();
   const starts: number[] = [];
   for (let at = code.indexOf("\x02"); at >= 0; at = code.indexOf("\x02", at + 1)) {
     if (RUSTC_OPENS.test(code.slice(Math.max(0, at - 20), at))) rustcOpens.add(starts.length);
     starts.push(at);
   }
-  if (starts.length !== literals.length) return "its literals could not be placed";
+  if (starts.length !== literals.length) return [...out, { how: "its literals could not be placed" }];
   const manifest = literals.some((l) => l.includes("CARGO_MANIFEST_DIR"));
   for (const [index, lit] of literals.entries()) {
     const b = body(lit);
     if (rustcOpens.has(index) || !b) continue;
-    if (b.includes("target/debug") || b.includes("target\\\\debug")) return `names the target directory in ${lit.slice(0, 60)}`;
+    if (b.includes("target/debug") || b.includes("target\\\\debug")) out.push({ how: `names the target directory in ${lit.slice(0, 60)}` });
     const at = starts[index]!;
     const bare = b === ".." && !manifest && !JOINS.test(code.slice(Math.max(0, at - 12), at));
-    if (leaves(b) && !bare) return `the literal ${lit.slice(0, 60)} climbs out of its directory`;
-    if (manifest && b.split("\\\\").join("/").split(SEGMENT).includes("..")) return `\`CARGO_MANIFEST_DIR\` beside the literal ${lit.slice(0, 60)}`;
+    if (leaves(lit) && !bare) out.push({ how: `the literal ${lit.slice(0, 60)} climbs out of its directory`, climbs: lit });
+    if (manifest && segments(lit).includes("..")) out.push({ how: `\`CARGO_MANIFEST_DIR\` beside the literal ${lit.slice(0, 60)}` });
   }
-  if (manifest && CLIMBS.test(code)) return "`CARGO_MANIFEST_DIR` beside `.parent()`, `.ancestors()` or `.pop()`";
-  return "";
+  if (manifest && CLIMBS.test(code)) out.push({ how: "`CARGO_MANIFEST_DIR` beside `.parent()`, `.ancestors()` or `.pop()`" });
+  return out;
+}
+
+/** How this source can reach a file outside its package without `nvs_repo`, or "". A climbing
+ * literal in `data` is not a way out. */
+export function wayOut(text: string, data: ReadonlySet<string> = new Set()): string {
+  return waysOut(text).find((w) => w.climbs === undefined || !data.has(w.climbs))?.how ?? "";
+}
+
+/** The bodies of this source's string literals, with `\\` read as `/`. */
+export function literalPaths(text: string): string[] {
+  return scan(text).literals.map((l) => segments(l).join("/"));
 }
 
 /** The sources rustc compiled the executable at `exe` from, repo-relative, or `null` when its dep-info
@@ -168,8 +206,9 @@ export function depInfo(exe: string): string[] | null {
   return out.length > 0 ? out : null;
 }
 
-/** The first of these sources with a way out, as `file: how`, or "". One that cannot be read counts. */
-export function escapes(sources: string[]): string {
+/** The first of these sources with a way out, as `file: how`, or "". One that cannot be read counts.
+ * A climbing literal `data` names for its file is not a way out. */
+export function escapes(sources: string[], data: Map<string, Set<string>> = dataLiterals()): string {
   for (const rel of sources) {
     if (!rel.endsWith(".rs")) continue;
     let text: string;
@@ -178,7 +217,7 @@ export function escapes(sources: string[]): string {
     } catch {
       return `${rel}: could not be read`;
     }
-    const how = wayOut(text);
+    const how = wayOut(text, data.get(rel));
     if (how) return `${rel}: ${how}`;
   }
   return "";
@@ -193,6 +232,58 @@ export function allowedWide(): Set<string> {
     if (line.trim() && !line.startsWith("#")) out.add(line.split("  --  ")[0]!.trim());
   }
   return out;
+}
+
+/** The climbing literals `DATA_LIST` clears, by source file, each written as the source writes it. */
+export function dataLiterals(): Map<string, Set<string>> {
+  const path = resolve(ROOT, DATA_LIST);
+  const out = new Map<string, Set<string>>();
+  if (!existsSync(path)) return out;
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    if (!line.trim() || line.startsWith("#")) continue;
+    const m = /^(\S+)\s+(.+)$/.exec(line.split("  --  ")[0]!.trim());
+    if (!m) continue;
+    let set = out.get(m[1]!);
+    if (!set) out.set(m[1]!, (set = new Set()));
+    set.add(m[2]!);
+  }
+  return out;
+}
+
+/** A line of `DATA_LIST` whose literal no longer climbs out of its file, one finding each. */
+function staleData(data: Map<string, Set<string>>): string[] {
+  const out: string[] = [];
+  for (const [rel, literals] of [...data].sort()) {
+    let text = "";
+    try {
+      text = readFileSync(resolve(ROOT, rel), "utf8");
+    } catch {
+      // A file that is gone climbs nowhere: every line naming it is stale.
+    }
+    const climbs = new Set(waysOut(text).flatMap((w) => (w.climbs === undefined ? [] : [w.climbs])));
+    for (const lit of [...literals].sort()) {
+      if (!climbs.has(lit)) out.push(`${rel}  ${lit} is listed in ${DATA_LIST} and no longer climbs out of its directory there: delete its line.`);
+    }
+  }
+  return out;
+}
+
+/** A file a wrap writes that this wide binary's sources name, as `file: literal`, or "". A directory
+ * above one counts from two segments up: a bare `"data"` or `"docs"` is a word far more often than a
+ * path, as the `data` field of a server-sent event is. */
+function namesWrapWritten(sources: string[]): string {
+  for (const rel of sources) {
+    if (!rel.endsWith(".rs")) continue;
+    let text: string;
+    try {
+      text = readFileSync(resolve(ROOT, rel), "utf8");
+    } catch {
+      continue;
+    }
+    const hit = literalPaths(text).find((p) => WRAP_WRITES.some((w) => p === w || p.startsWith(`${w}/`) || (p.includes("/") && w.startsWith(`${p}/`))));
+    if (hit !== undefined) return `${rel}: "${hit}"`;
+  }
+  return "";
 }
 
 export interface Judged {
@@ -244,11 +335,21 @@ export function findings(binaries: Judged[]): string[] {
     if (!allowed.has(b.name)) {
       out.push(
         `\`${b.name}\` ${why}.\n    Reach the file through \`nvs_repo::path\`, or a child process through ` +
-          `\`nvs_repo::spawn\`, so the binary is run when what it reads changes and not on every change. If it ` +
+          `\`nvs_repo::spawn\`, so the binary is run when what it reads changes and not on every change. A ` +
+          `climbing literal that is data and opens nothing gets a line in ${DATA_LIST}. If the binary ` +
           `cannot be narrow, give it a line in ${WIDE_LIST}.`,
       );
     }
+    const wrap = namesWrapWritten(depInfo(b.exe) ?? []);
+    if (wrap) {
+      out.push(
+        `\`${b.name}\` is wide and names a file a wrap writes -- ${wrap}.\n    A wide binary's key leaves ` +
+          `out what a wrap writes (\`WRAP_WRITES\` in tools/nv/keys/partition.ts), so this read would go ` +
+          `unkeyed. Make the binary narrow and reach the file through \`nvs_repo::path\`.`,
+      );
+    }
   }
+  out.push(...staleData(dataLiterals()));
   const names = new Set(binaries.map((b) => b.name));
   for (const name of [...allowed].sort()) {
     if (wide.has(name) || pending.has(name)) continue;
