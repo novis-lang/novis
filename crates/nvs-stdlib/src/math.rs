@@ -493,13 +493,12 @@ const MIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::max`'s reference card — `rule:core-api/reference-card`.
 const MAX_DOC: MethodDoc = MethodDoc {
-    short: "The larger of two values under their natural order, as `max` does with two scalar \
-            arguments; the array form is `Core\\Arr::max`.",
+    short: "Returns the larger of two values. This replaces PHP's `max` with two values. For \
+            the largest value in an array, use `Core\\Arr::max`.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "One value, of a type with a natural order: a number, a string, a `bool` or \
-                   `null`.",
+            desc: "One value: a number, a string, a `bool` or `null`.",
             shape: &[],
         },
         ParamDoc {
@@ -508,10 +507,11 @@ const MAX_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Whichever compares larger; `$a` on a tie, as PHP's `max` answers too.",
+    ret: "The larger value. When the two are equal, the result is `$a`. `NaN` is smaller than \
+          every other `float`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the pair has no natural order — an object, an array, or two values of \
+        desc: "When the two values cannot be compared: an object, an array, or two values of \
                different kinds.",
     }],
 };
@@ -800,26 +800,26 @@ const EXP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::log`'s reference card — `rule:core-api/reference-card`.
 const LOG_DOC: MethodDoc = MethodDoc {
-    short: "The logarithm of `$n`, natural unless a `base` is given — one member for PHP's \
-            `log`, `log10` and `log2`.",
+    short: "Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base \
+            is `E` unless you give one. This replaces PHP's `log`, `log10` and `log2`.",
     params: &[
         ParamDoc {
             name: "n",
-            desc: "The value to take the logarithm of.",
+            desc: "The number to take the logarithm of.",
             shape: &[],
         },
         ParamDoc {
             name: "base",
-            desc: "The base, greater than zero; `E` unless said otherwise, and `10.0` and `2.0` \
-                   use the dedicated exact routines rather than a ratio of two logarithms.",
+            desc: "The base. It must be greater than zero, and it is `E` when you leave it out. \
+                   For a power of `10.0` or `2.0` in that base, the result is exact.",
             shape: &[],
         },
     ],
-    ret: "The power `base` must be raised to for `$n`; `-INFINITY` for a zero `$n`, `NaN` for a \
-          negative `$n` and for a `base` of exactly `1.0`.",
+    ret: "The logarithm. When `$n` is `0.0` and `base` is greater than `1.0`, the result is \
+          `-INFINITY`. When `$n` is negative, or `base` is `1.0`, the result is `NaN`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `base` is not greater than zero, where PHP's `log` raises a `ValueError`.",
+        desc: "When `base` is zero or negative. PHP throws a `ValueError` here.",
     }],
 };
 
@@ -1927,7 +1927,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Base `10` and base `2` take `f64`'s own dedicated routines rather than
     /// `ln($n) / ln($base)`, which is a ratio of two inexact values and
-    /// answers `1.9999999999999998` for `log(100.0, {base: 10.0})`. Every
+    /// answers `2.9999999999999996` for `log(1000.0, {base: 10.0})`. Every
     /// other base is that ratio, because there is nothing more exact to use.
     ///
     /// A base that is not greater than zero has no logarithm at all, and the
@@ -1938,7 +1938,8 @@ nvs_runtime::nvs_helper! {
     /// argument's. Both rules are PHP's, which raises a `ValueError` for the
     /// first and answers `NAN` to the second; only the class of the refusal
     /// differs. The *argument's* domain is left at IEEE's answer, matching
-    /// PHP's `log` exactly: zero is `-INF` and a negative is `NaN`.
+    /// PHP's `log` exactly: zero is `-INF` in a base above one and `INF` in a
+    /// base below it, and a negative is `NaN`.
     fn nvs_core_math_log(_ctx, args: [2]) {
         let n = float_at(args, 0, "log")?;
         let base = float_at(args, 1, "log")?;
@@ -3216,6 +3217,115 @@ mod tests {
         ] {
             let message = lcm(a, b).expect_err("the result is past INT_MAX");
             assert!(message.contains("Core\\Math::lcm"), "{message}");
+        }
+    }
+
+    /// `log` is exact for a power of ten or two in those bases, where the
+    /// ratio of two logarithms is not; zero is `-INFINITY` and a negative is
+    /// `NaN` in every base; base `1.0` is `NaN`; and a base that is not
+    /// greater than zero throws.
+    // covers: Core\Math::log
+    #[test]
+    fn log_is_exact_in_base_ten_and_two_is_nan_for_base_one_and_throws_for_a_base_not_above_zero() {
+        let log = |n: f64, base: f64| {
+            let mut ctx = Ctx::buffered();
+            match call(
+                nvs_core_math_log,
+                &mut ctx,
+                &[Value::float(n), Value::float(base)],
+            ) {
+                Ok(result) => Ok(result.as_float().expect("a float result")),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        let e = std::f64::consts::E;
+        assert_eq!(log(e, e), Ok(1.0));
+        assert_eq!(log(1.0, e), Ok(0.0));
+        assert_eq!(
+            1000.0_f64.ln() / 10.0_f64.ln(),
+            2.999_999_999_999_999_6,
+            "the ratio is inexact"
+        );
+        for power in 0..=22 {
+            let n = 10.0_f64.powi(power);
+            assert_eq!(log(n, 10.0), Ok(f64::from(power)), "log({n}, 10)");
+        }
+        for power in -1022..=1023 {
+            let n = 2.0_f64.powi(power);
+            assert_eq!(log(n, 2.0), Ok(f64::from(power)), "log({n}, 2)");
+        }
+        assert!((log(81.0, 3.0).expect("base 3") - 4.0).abs() < 1e-12);
+        assert!((log(0.25, 0.5).expect("base 0.5") - 2.0).abs() < 1e-12);
+        for base in [e, 10.0, 2.0, 3.0, 0.5] {
+            assert!(log(-1.0, base).expect("no throw").is_nan(), "base {base}");
+        }
+        for base in [e, 10.0, 2.0, 3.0] {
+            assert_eq!(log(0.0, base), Ok(f64::NEG_INFINITY), "zero in base {base}");
+        }
+        assert_eq!(
+            log(0.0, 0.5),
+            Ok(f64::INFINITY),
+            "a base under one turns the sign"
+        );
+        assert_eq!(log(f64::INFINITY, 10.0), Ok(f64::INFINITY));
+        assert!(log(5.0, 1.0).expect("base 1 does not throw").is_nan());
+        assert!(
+            log(5.0, f64::NAN)
+                .expect("a NaN base does not throw")
+                .is_nan()
+        );
+        for base in [0.0, -0.0, -2.0, f64::NEG_INFINITY] {
+            let message = log(5.0, base).expect_err("the base is not above zero");
+            assert!(message.contains("Core\\Math::log"), "{message}");
+        }
+    }
+
+    /// `max` returns the larger value in either order and `$a` on a tie, orders
+    /// `float`s totally so `NaN` is never the result beside a number, and
+    /// throws for a pair with no natural order.
+    // covers: Core\Math::max
+    #[test]
+    fn max_returns_a_on_a_tie_orders_floats_totally_and_throws_for_an_unordered_pair() {
+        let max = |a: Value, b: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_max, &mut ctx, &[a, b]).expect("an ordered pair has an answer")
+        };
+        for (a, b) in [(3, 7), (7, 3), (-7, -3), (i64::MIN, i64::MAX)] {
+            assert_eq!(max(Value::int(a), Value::int(b)).as_int(), Some(a.max(b)));
+        }
+        assert_eq!(
+            max(Value::int(1), Value::float(1.0)).as_int(),
+            Some(1),
+            "a tie is $a"
+        );
+        assert_eq!(max(Value::float(1.0), Value::int(1)).as_float(), Some(1.0));
+        assert_eq!(max(Value::int(1), Value::float(1.5)).as_float(), Some(1.5));
+
+        let max_float = |a: f64, b: f64| max(Value::float(a), Value::float(b)).as_float();
+        assert_eq!(max_float(f64::NAN, 0.0), Some(0.0), "NaN is below 0.0");
+        assert_eq!(max_float(0.0, f64::NAN), Some(0.0));
+        assert_eq!(
+            max_float(-0.0, 0.0).map(f64::to_bits),
+            Some(0.0f64.to_bits())
+        );
+        assert_eq!(
+            max_float(0.0, -0.0).map(f64::to_bits),
+            Some(0.0f64.to_bits())
+        );
+        assert_eq!(max_float(f64::MAX, f64::INFINITY), Some(f64::INFINITY));
+        assert_eq!(max_float(f64::NEG_INFINITY, -f64::MAX), Some(-f64::MAX));
+
+        for refused in [
+            [Value::int(1), Value::bool(true)],
+            [Value::float(0.5), Value::null()],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_max, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::max"), "{message}");
         }
     }
 }

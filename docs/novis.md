@@ -8948,16 +8948,16 @@ The smaller of two values under their natural order, as `min` does with two scal
 Core\Math::max(T $a, T $b): T
 ```
 
-The larger of two values under their natural order, as `max` does with two scalar arguments; the array form is `Core\Arr::max`.
+Returns the larger of two values. This replaces PHP's `max` with two values. For the largest value in an array, use `Core\Arr::max`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `T` | One value, of a type with a natural order: a number, a string, a `bool` or `null`. |
+| `$a` | `T` | One value: a number, a string, a `bool` or `null`. |
 | `$b` | `T` | The other value, of the same type as `$a`. |
 
-**Returns** `T` — Whichever compares larger; `$a` on a tie, as PHP's `max` answers too.
+**Returns** `T` — The larger value. When the two are equal, the result is `$a`. `NaN` is smaller than every other `float`.
 
-**Throws** `RuntimeError` — When the pair has no natural order — an object, an array, or two values of different kinds.
+**Throws** `RuntimeError` — When the two values cannot be compared: an object, an array, or two values of different kinds.
 
 <a id="core-core-math-clamp"></a>
 #### `Core\Math::clamp`
@@ -9196,16 +9196,16 @@ Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's 
 Core\Math::log(float $n, {base?: float}): float
 ```
 
-The logarithm of `$n`, natural unless a `base` is given — one member for PHP's `log`, `log10` and `log2`.
+Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base is `E` unless you give one. This replaces PHP's `log`, `log10` and `log2`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | The value to take the logarithm of. |
-| `{base: …}` | `float` (default `2.718281828459045`) | The base, greater than zero; `E` unless said otherwise, and `10.0` and `2.0` use the dedicated exact routines rather than a ratio of two logarithms. |
+| `$n` | `float` | The number to take the logarithm of. |
+| `{base: …}` | `float` (default `2.718281828459045`) | The base. It must be greater than zero, and it is `E` when you leave it out. For a power of `10.0` or `2.0` in that base, the result is exact. |
 
-**Returns** `float` — The power `base` must be raised to for `$n`; `-INFINITY` for a zero `$n`, `NaN` for a negative `$n` and for a `base` of exactly `1.0`.
+**Returns** `float` — The logarithm. When `$n` is `0.0` and `base` is greater than `1.0`, the result is `-INFINITY`. When `$n` is negative, or `base` is `1.0`, the result is `NaN`.
 
-**Throws** `RuntimeError` — When `base` is not greater than zero, where PHP's `log` raises a `ValueError`.
+**Throws** `RuntimeError` — When `base` is zero or negative. PHP throws a `ValueError` here.
 
 <a id="core-core-math-sin"></a>
 #### `Core\Math::sin`

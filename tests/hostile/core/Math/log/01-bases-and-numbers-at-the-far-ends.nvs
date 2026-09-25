@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `Core\Math::log` is given numbers and bases at the ends of the `float` range,
+// `NaN`, bases at zero and below, and a million calls. Every call should return a number,
+// an infinity or `NaN`, or throw a `RuntimeError`, and the program should run to its end.
+
+// 1. The biggest and the smallest numbers above zero, in three bases.
+float $tiny = Core\Math::FLOAT_MIN / 4503599627370496.0;
+echo Core\Math::log(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::log($tiny, { base: 2.0 }), "\n";
+echo Core\Math::log($tiny, { base: 10.0 }), "\n";
+
+// 2. Infinities and `NaN` as the number.
+echo Core\Math::log(Core\Math::INFINITY), "\n";
+echo Core\Math::log(-Core\Math::INFINITY), "\n";
+echo Core\Math::log(Core\Math::NAN, { base: 10.0 }), "\n";
+
+// 3. Bases at the far ends, base 1, and `NaN` as the base.
+echo Core\Math::log(8.0, { base: Core\Math::INFINITY }), "\n";
+echo Core\Math::log(8.0, { base: $tiny }), "\n";
+echo Core\Math::log(8.0, { base: 1.0 }), "\n";
+echo Core\Math::log(1.0, { base: 1.0 }), "\n";
+echo Core\Math::log(8.0, { base: Core\Math::NAN }), "\n";
+
+// 4. Bases at zero and below. Each one throws a `RuntimeError`.
+array<float> $bases = [0.0, -0.0, -2.0, -Core\Math::INFINITY, -$tiny];
+foreach ($bases as float $base) {
+    try {
+        echo Core\Math::log(8.0, { base: $base }), "\n";
+    } catch (RuntimeError $error) {
+        echo "thrown\n";
+    }
+}
+
+// 5. A million calls. Each result becomes the next number, so the value falls
+// until it is negative and the result stays `NaN`.
+float $value = Core\Math::FLOAT_MAX;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::log($value, { base: 2.0 });
+    $round = $round + 1;
+}
+echo $value, "\n";
