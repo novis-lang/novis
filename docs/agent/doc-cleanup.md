@@ -3,7 +3,7 @@
 How to run a cleanup pass over `docs/`. It was rewritten after the pass that read every record end to
 end, and again when the docs migration froze the records and moved the rules into the rulebook; the
 instruction sets it replaces are superseded, and most of what they asked a reader to check by hand is
-now `python tools/records.py` and `python tools/rules.py --check`.
+now `bun nv records` and `bun nv rules --check`.
 
 **Read this before starting, then start with the tools.** An earlier pass spent its first third
 answering questions the tools now answer in one call — which is exactly why they exist, and why
@@ -13,21 +13,21 @@ this file is shorter than the one it replaces.
 
 **Not on a size signal — there is no size signal**, by design
 ([doc-style.md](doc-style.md) § *Length targets*). Doc length never triggers a pass, and nothing in
-CI, `brief.py` or `orient.py` measures a doc against a number.
+CI, `bun nv brief` or `bun nv orient` measures a doc against a number.
 
-Run one when the **user** fires it, or when `python tools/records.py` or `python tools/rules.py --check`
+Run one when the **user** fires it, or when `bun nv records` or `bun nv rules --check`
 reports findings that accumulated between passes. The tools are the standing signal; this file is the
 method for what they cannot decide.
 
 ## Start here, always
 
 ```
-python tools/records.py            # the record audit: the YAML block, structure, links, § refs, stale counters
-python tools/records.py --stats    # size and section shape per record
-python tools/records.py --orphans  # what nothing links to, and what is most cited
-python tools/records.py --graph NNNN   # what one record created and modified, and who else touched those rules
-python tools/rules.py --check  # the rulebook: every id, fragment, `because`, `seeAlso`, guard and citation
-python tools/check-links.py    # every link in every markdown file, case included
+bun nv records              # the record audit: metadata, changes, structure, links, § refs, residue, stale counters
+bun nv records --stats      # size and section shape per record
+bun nv records --orphans    # what nothing links to, and what is most cited
+bun nv records --graph NNNN # what one record created and modified, and who else touched those rules
+bun nv rules --check        # the rulebook: every id, fragment, `because`, `seeAlso`, guard and citation
+bun nv links                # every link in every tracked file, case included
 ```
 
 The tools finding nothing does **not** mean the set is clean — it means the mechanical failure classes
@@ -50,12 +50,12 @@ something new — what is currently true is the rule's fragment under `docs/rule
 **2. A section number is a public identifier too — never renumber one.** `0007 § 3`, `0066 § 3a` and
 `0009 § 1` are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
 live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by
-`tools/check-migration.py` — and from the `[context]` manifest in `docs/agent/loop-goal.toml` that the
+`bun nv migration` — and from the `[context]` manifest in `docs/agent/loop-goal.toml` that the
 running loop reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
-Insert as `§ 3a`; delete a section's *content* and keep its number. `records.py`'s **section refs** check
+Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check
 catches the citations that are already wrong, not the ones a renumber would create.
 
-**3. The loop may be running while you work.** `tools/session.py --wrap` stages a slice's own files and
+**3. The loop may be running while you work.** `bun nv session --wrap` stages a slice's own files and
 lets the last commit sweep whatever is left, so an uncommitted docs change can be swept into a loop
 commit. Confine a pass to `docs/` and `tools/`, check `git log --oneline -3` before and after, and
 commit promptly rather than leaving a large working tree open across loop iterations.
@@ -84,7 +84,7 @@ a number. `--only "stale counters"` looks for the spellings; a new kind of count
 
 **3. A derivable index maintained by hand.** README's index table's *Decision* cell was a second copy
 of each record's own title, and had drifted: 26 of 102 cells past 200 bytes, one at 836. That table is
-gone, and so are the authored `ground-rules.md` and `divergences.md`: `python tools/rules.py --render`
+gone, and so are the authored `ground-rules.md` and `divergences.md`: `bun nv rules --render`
 writes both and every `docs/rules/<topic>.md` chapter from the topic JSON and the fragments, and
 `--check` reports a copy that has drifted. Look for the same shape elsewhere before writing a new list
 by hand: if a fact can be derived from the files, derive it.
@@ -97,7 +97,7 @@ by hand: if a fact can be derived from the files, derive it.
   block.** Those are the running loop's state.
 - **Never renumbers a record or a section.** Constraints 1 and 2.
 - **Never edits a generated file.** `docs/ground-rules.md`, `docs/divergences.md` and
-  `docs/rules/<topic>.md` are written by `python tools/rules.py --render`; an edit there is lost on the
+  `docs/rules/<topic>.md` are written by `bun nv rules --render`; an edit there is lost on the
   next render, and the file that lost it does not say so. Edit the fragment or the topic JSON.
 - **Never changes what a rule decides** — only what its fragment says the current rule is. A change
   of substance is a new decision record.
@@ -111,7 +111,7 @@ Read for these directly; there is no check for any of them.
   boilerplate. What recurs instead is one *rule* explained in two places, usually because one
   fragment restates a neighbour's table "because this is the boundary a reader lands on first". Decide
   which is the home, and make the other a `rule:` citation.
-- **A fragment that disagrees with the record behind it.** `rules.py --check` finds a `because` that
+- **A fragment that disagrees with the record behind it.** `bun nv rules --check` finds a `because` that
   names nothing, not a fragment whose text no longer says what its latest record decided. Read the
   last record in the rule's `because` against the fragment when either looks suspect.
 - **A doc-vs-code disagreement.** If the code shipped something a rule still calls designed, or carries
@@ -123,12 +123,12 @@ Read for these directly; there is no check for any of them.
 
 ## Finishing
 
-1. `python tools/records.py`, `python tools/rules.py --check` and `python tools/check-links.py` all clean.
+1. `bun nv records --check`, `bun nv rules --check` and `bun nv links` all clean.
    There is no build to break — this is a docs pass, and a broken or mis-cased cross-link is the only
    mechanical risk.
 2. If the pass changed the record set's *shape*, update this file and [conventions.md](conventions.md)
    § *A decision record* in the same commit — that section is the shape's only copy, and
-   `tools/records.py`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
+   `tools/nv/cmd/records.ts`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
    once, there; a rule it cannot enforce is documented here.
 3. Commit with line counts before and after in the message.
 4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite `handoff.md` — unless
