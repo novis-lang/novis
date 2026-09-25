@@ -15,10 +15,10 @@ a shell. The harness line saves permission prompts, and this mode has none to sa
 changes about them, and step 6.
 
 1. **Your orientation is already in this message — do not fetch it.** The driver piped
-   `python tools/orient.py` in ahead of this prompt, narrowed to the goal's `[context]` manifest in
+   `bun nv orient` in ahead of this prompt, narrowed to the goal's `[context]` manifest in
    `docs/agent/loop-goal.toml`. Re-running it spends three calls and about 20k of context on a pack you
    already hold. If it is genuinely absent, run it once and say so in the handoff — that is a driver bug.
-   `python tools/brief.py` is the unscoped version; reach for it only for something outside the goal —
+   `bun nv orient --full` is the unscoped map; reach for it only for something outside the goal —
    then **widen the goal's `[context]` by the selector it was missing**. A module is added with `bun nv
    goal context --add <path>`, which writes the goal's record and `docs/agent/loop-goal.toml` together;
    any other field is edited in that toml. It is reloaded every session and widening it breaks nothing,
@@ -35,13 +35,13 @@ changes about them, and step 6.
 4. **Write the docs and the handoff once for the whole group**, and **choose the next group** — you hold
    the context that makes that cheap. A *trap* — something that looked like it should work and did not —
    earns one bullet in `docs/agent/playbook.md`, in the shape `docs/agent/conventions.md` § *A playbook
-   bullet* gives, ending with the `[until: ...]` trailer `tools/playbook.py`'s module doc defines.
+   bullet* gives, ending with the `[until: ...]` trailer `tools/nv/cmd/playbook.ts`'s module doc defines.
 5. **Commit one slice at a time**, staging each slice's own files.
 6. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you landed>` — the normal case.
    - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met. Run `bun nv
-     verify --doc` first and fix every broken doc link it names, then `python
-     tools/owners.py --closes <slug>` and `python tools/playbook.py --closes <slug>` and close or
+     verify --doc` first and fix every broken doc link it names, then `bun nv owners --closes
+     <slug>` and `bun nv playbook --closes <slug>` and close or
      re-owner every gap they name: those are the gates a goal meets only at its end, and the driver
      does not reach the goal while one is red. A tag is not a build.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
@@ -58,21 +58,21 @@ acceptance check itself, and stops after `--max-stalls` sessions without a commi
 ## Context is the budget, and reading is where it goes
 
 A session must finish under **200k**, and that is a quality ceiling: an agent starts missing what it
-has read well before its window is full. `orient.py` starts you under 20k of it.
+has read well before its window is full. `bun nv orient` starts you under 20k of it.
 
 - **Read a big file in the region you need.** Whole file under about 400 lines; past that, locate the
   anchor and read around it.
 - **Do not re-read what the pack printed** — the handoff, the rules, the record sections, the shapes,
   the traps. A rule's chapter body is the rule and a decision record is frozen reasoning; for another
   record section, slice it and name it in the handoff for `[context] adrs`.
-- **Read with `peek.py`, not one probe at a time.** `python tools/peek.py A.rs:120-160 B.rs:@symbol
+- **Read with `bun nv peek`, not one probe at a time.** `bun nv peek A.rs:120-160 B.rs:@symbol
   rule:types/conversion C.md:"## 4" "crates/**/*.rs:re:pat"` takes as many targets as you have
   questions, and `--locate <symbol> ...` returns `file:line` anchors alone. A `rule:` citation is a
   target: paste the token and get the fragment, which is the rule.
 - **Delegate a read-heavy search to a subagent, and keep its answer rather than its reading.** Its
   reads are charged to its own window. Send one for "where is X, and what are its anchors" over files
   you will not otherwise open. One measured run: 1 session in 39 delegated anything, while discovery
-  and source reads took 53% of everything fetched — `python tools/loop-stats.py --attribute` is that
+  and source reads took 53% of everything fetched — `bun nv loop-stats --attribute` is that
   number now.
 - **What is safe to delegate, and what is not.** Safe: *where is X*, *how many of Y are there*, *what
   spelling does the corpus use*, over a tree you are not editing — and sent as the read-only agent
@@ -96,7 +96,7 @@ has read well before its window is full. `orient.py` starts you under 20k of it.
   wrap, so the build runs while you write. That is the one piece of parallelism that is free every
   single session, and step 3 above is where it belongs.
 
-`python tools/loop-stats.py` measures all of this from `.loop/logs/`, and `--attribute` says which reads
+`bun nv loop-stats` measures all of this from `.loop/logs/`, and `--attribute` says which reads
 put a session where it landed.
 
 ## The handoff's shape — `docs/agent/handoff.md`

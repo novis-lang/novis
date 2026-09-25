@@ -77,6 +77,6 @@ half it is named after.
 
 A future stage that names a test on purpose before writing it adds a bullet here, one per name, with the
 item that owes it, and ends the bullet with the trailer `[until: test <name>]` that
-[tools/playbook.py](../../tools/playbook.py)'s module doc defines. `python tools/playbook.py --check`
+[tools/nv/cmd/playbook.ts](../../tools/nv/cmd/playbook.ts)'s module doc defines. `bun nv playbook --check`
 reads it, and `--retire` deletes the bullet the moment the test is in the tree — exactly as the
 fifty-four ticked lines were deleted in place, and for the same reason: `git log` holds them.

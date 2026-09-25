@@ -996,7 +996,7 @@ async function runMap(m: Manifest): Promise<void> {
     return;
   }
   if (m.modules.length === 0) {
-    warn("[context] modules is empty, so the map is not printed at all. A goal that touches code must name the files it touches; `python tools/brief.py` prints all of them.");
+    warn("[context] modules is empty, so the map is not printed at all. A goal that touches code must name the files it touches; `bun nv orient --full` prints all of them.");
     return;
   }
   let shown = 0;
@@ -1054,7 +1054,7 @@ async function runMap(m: Manifest): Promise<void> {
   emit();
   const also = extra > 0 ? `, plus ${extra} file(s) it names outside them` : "";
   emit(`${shown} of ${total} crate and editor module(s) are in scope${also}. For one that is not,`);
-  emit("`python tools/brief.py` prints the whole map -- and if you needed it, the manifest is");
+  emit("`bun nv orient --full` prints the whole map -- and if you needed it, the manifest is");
   emit("missing a pattern.");
   for (const pat of rest.filter((p) => !hitPats.has(p))) {
     warn(`[context] modules pattern ${pyRepr(pat)} matches no file in the tree -- it moved, or the glob is wrong. The shape does not have to be Rust: any tracked file resolves.`);
@@ -1707,13 +1707,13 @@ export async function run(args: string[]): Promise<number> {
 
   const src = sources(opts.goal);
   if (src === null) {
-    process.stdout.write(`nv orient: no goal is installed at ${LIVE.md}, so there is no goal to narrow to.\nRun \`python tools/brief.py\` for the unscoped orientation.\n`);
+    process.stdout.write(`nv orient: no goal is installed at ${LIVE.md}, so there is no goal to narrow to.\n\`bun nv brief --where <keyword>\` routes a topic to the file that owns it.\n`);
     return 2;
   }
   const unread: Unread[] = [];
   const g = goalRecord(src, opts.goal === null, unread);
   if (g === null) {
-    process.stdout.write(`nv orient: goal ${src.slug} has no record, so there is no goal to narrow to.\nRun \`python tools/brief.py\` for the unscoped orientation.\n`);
+    process.stdout.write(`nv orient: goal ${src.slug} has no record, so there is no goal to narrow to.\n\`bun nv brief --where <keyword>\` routes a topic to the file that owns it.\n`);
     return 2;
   }
   const h = handoffRecord(src, unread);
@@ -1722,7 +1722,7 @@ export async function run(args: string[]): Promise<number> {
   if (opts.full) m.modules = ["crates/**", "editors/**"];
 
   emit("Novis -- oriented to the current goal. This is deliberately narrow: it prints what this");
-  emit("goal's [context] manifest names and nothing else. `python tools/brief.py` is the wide one.");
+  emit("goal's [context] manifest names and nothing else. `bun nv orient --full` is the wide one.");
   emit(src.position === null ? `Side goal \`${src.slug}\`, off the chain.` : `Goal \`${src.slug}\`, ${src.position} on the chain.`);
   if (m.staged.length > 0) {
     const namedBy = opts.stage !== null ? "--stage" : "the handoff's next group";

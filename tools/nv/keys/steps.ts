@@ -18,8 +18,8 @@ import { partitionOf } from "./partition.ts";
 import { digest } from "./scan.ts";
 import { type Tree, under } from "./tree.ts";
 
-/** What `tools/owners.py` reads beside the doc comments under `crates/`. No other step reads these. */
-export const OWNERS_READS = ["docs/implementation-plan.md", "docs/plan", "docs/agent/goals", "tools/owners.py", "tools/goals.py"];
+/** What `bun nv owners` reads beside the doc comments under `crates/` and the records under `data/`. No other step reads these. */
+export const OWNERS_READS = ["docs/implementation-plan.md", "docs/plan", "docs/agent/goals", "tools/nv/cmd/owners.ts"];
 /** What the `nv` step reads. No other step reads these. */
 export const NV_READS = ["tools/nv", "data", "package.json", "bun.lock", "tsconfig.json"];
 
@@ -56,7 +56,7 @@ export const STEP_READS: Record<string, (tree: Tree, graph: Graph | null) => Par
   lints: (t) => files(t, (r) => isManifest(r) || r === "tools/nv/cmd/lints.ts"),
   directives: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/nv/cmd/directives.ts"),
   template: (t) => files(t, (r) => within("crates", "benches")(r) || r === "tools/nv/cmd/directives.ts"),
-  owners: (t) => files(t, within("crates", ...OWNERS_READS)),
+  owners: (t) => files(t, within("crates", "data", ...OWNERS_READS)),
   nv: (t) => files(t, within(...NV_READS)),
   "fuzz-lock": (t) => [...toolchain(t), ...files(t, isManifest)],
   build: (t, g) => compiled(t, g, { ownTier: "code", depTier: "code", test: false }),

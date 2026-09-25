@@ -81,7 +81,8 @@ describe("nv playbook triage", () => {
 describe("nv playbook retire", () => {
   test("a retired bullet takes its fragment, its record and the manifest line that named only it", async () => {
     const tmp = scratch();
-    tmp.put("tools/playbook.py", 'SECTIONS = (\n    ("tooling", "Tooling"),\n)\n');
+    write(playbookSection, "tooling", { title: "Tooling", order: 1 }, tmp.root);
+    tmp.put("tools/playbook.py", "");
     tmp.put("docs/agent/playbook/tooling/dead.md", "- **A dead trap.** About `tools/playbook.py`. [until: exists tools/playbook.py]\n");
     tmp.put("docs/agent/playbook/tooling/live.md", "- **A live trap.** About `tools/playbook.py`. [until: gone tools/playbook.py]\n");
     write(playbookBullet, "tooling/dead", { lead: "A dead trap.", body: "About `tools/playbook.py`.", files: ["tools/playbook.py"], until: { kind: "exists", arg: "tools/playbook.py" } }, tmp.root);

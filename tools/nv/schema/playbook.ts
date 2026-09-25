@@ -2,7 +2,7 @@
 // `data/playbook/<section>/<slug>.json`. A bullet is a trap: `lead` is the claim a reader matches against
 // their symptom, `body` is why and what to do instead, and `until` is the condition that retires it.
 //
-// `until`'s kinds and what each tests are `tools/playbook.py`'s module doc.
+// `until`'s kinds and what each tests are `tools/nv/cmd/playbook.ts`'s module doc.
 
 import { defineRecord, s } from "../lib/schema.ts";
 

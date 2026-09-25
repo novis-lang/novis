@@ -24,24 +24,6 @@
       ["--nvs", "target/debug/nvs.exe", "--allow-debug", "--check", "--engines", "nvs,php", "01", "03"]
     ]
   },
-  "brief": {
-    "python": ["python", "tools/brief.py"],
-    "nv": ["bun", "tools/nv/main.ts", "brief"],
-    "cases": [
-      ["--where"],
-      ["--where", "testing"],
-      ["--where", "plan"],
-      ["--where", "comment"],
-      ["--where", "owners"],
-      ["--where", "types", "conversion"],
-      ["--where", "no-such-topic-anywhere"]
-    ]
-  },
-  "chain": {
-    "python": ["python", "tools/chain.py"],
-    "nv": ["bun", "tools/nv/main.ts", "chain"],
-    "cases": [["--check"]]
-  },
   "db-matrix": {
     "python": ["python", "tools/db-matrix.py"],
     "nv": ["bun", "tools/nv/main.ts", "db-matrix"],
@@ -74,43 +56,6 @@
       ["--scratch", "3", "extra"]
     ]
   },
-  "orient": {
-    "python": ["python", "tools/orient.py"],
-    "nv": ["bun", "tools/nv/main.ts", "orient"],
-    "select": {
-      "pattern": "^(== |!! |-- YOUR|   \\[\\d+\\])",
-      "why": "A pack is prose for a session to read, and nv's names nv commands, prints the goal's place as `N of M` and quotes each record's text unwrapped. What the two must agree on is which sections, warnings and items the pack carries, and those are its section heads, its `!!` lines, the current item's head and the numbers of the rest of the group."
-    },
-    "cases": [
-      [],
-      ["--item", "2"],
-      ["--stage", "4"],
-      ["--full"],
-      ["--audit"]
-    ]
-  },
-  "owners": {
-    "python": ["python", "tools/owners.py"],
-    "nv": ["bun", "tools/nv/main.ts", "owners"],
-    "unordered": {
-      "pattern": "^  crates/\\S+  gap # ",
-      "why": "Python lists a module's gaps in the order its doc writes them. A gap record carries no position, so nv lists them by slug."
-    },
-    "cases": [
-      [],
-      ["--check"],
-      ["--check", "--untagged-is-an-error"],
-      ["--check", "--reasons"],
-      ["--check", "--untagged-is-an-error", "--reasons", "--past-is-an-error"],
-      ["--closes", "tooling-overhaul"],
-      ["--closes", "decided-closures"],
-      ["--deferrals"],
-      ["--registers"],
-      ["--untagged"],
-      ["--unowned"],
-      ["--json"]
-    ]
-  },
   "peek": {
     "python": ["python", "tools/peek.py"],
     "nv": ["bun", "tools/nv/main.ts", "peek"],
@@ -123,75 +68,14 @@
       ["rule:testing/feature-proofs", "`rule:types/no-such-rule`"],
       ["tools/peek.py", "tools/peek.py:/^DEFAULT_/1"],
       ["--context", "1", "tools/peek.py:re:^DEFAULT_", "tools/peek.py:re:^BYTES_PER_TOKEN:0"],
-      ["--window", "3", "tools/chain.py:@number_citations"],
+      ["--window", "3", "tools/bench.py:@discover"],
       ["--max-lines", "40", "tools/nv/main.ts"],
-      ["--locate", "number_citations", "DEFAULT_WINDOW", "NoSuchSymbolAnywhere"],
+      ["--locate", "discover", "DEFAULT_WINDOW", "NoSuchSymbolAnywhere"],
       ["--locate", "rel", "Index"],
       ["--locate", "rel", "--in", "tools/nv/**/*.ts"],
-      ["--outline", "tools/peek.py", "tools/chain.py"],
+      ["--outline", "tools/peek.py", "tools/bench.py"],
       ["--deep", "--outline", "crates/nvs-host/src/watchdog.rs", "tools/nv/cmd/*.ts"],
       ["--outline", "no/such.rs"]
-    ]
-  },
-  "plan": {
-    "python": ["python", "tools/plan.py"],
-    "nv": ["bun", "tools/nv/main.ts", "plan"],
-    "cases": [
-      ["--show", "M8"],
-      ["--show", "m4s"],
-      ["--show", "M9:lead"],
-      ["--show", "M8:verify"],
-      ["--show", "M0:verify"],
-      ["--show", "M8:nosuchpart"],
-      ["--show", "M99"],
-      ["--get", "Open now"],
-      ["--get", "blocking"],
-      ["--get", "No such field"],
-      ["--past"],
-      ["--stale"],
-      ["--check"]
-    ]
-  },
-  "records": {
-    "python": ["python", "tools/records.py"],
-    "nv": ["bun", "tools/nv/main.ts", "records"],
-    "unordered": {
-      "pattern": "^  \\d{4}\\s+\\d+ inbound$|^    [a-z0-9-]+/[a-z0-9-]+ +(also shaped by |no other record|created by )",
-      "why": "Python breaks a tie among the most-cited records in set-hash order, which changes from run to run. nv breaks it by number. And `--graph` lists a record's rules in the order its prose front matter wrote them, which nv does not read: it derives them from the rules' `because` lists and lists them by id."
-    },
-    "cases": [
-      [],
-      ["--graph", "0066"],
-      ["--graph", "0134"],
-      ["--graph", "0205"],
-      ["--graph", "9999"],
-      ["--check"],
-      ["--only", "links"],
-      ["--only", "structure", "--only", "section refs"],
-      ["--only", "no-such-check"],
-      ["--residue"],
-      ["--stats"],
-      ["--orphans"]
-    ]
-  },
-  "rules": {
-    "python": ["python", "tools/rules.py"],
-    "nv": ["bun", "tools/nv/main.ts", "rules"],
-    "cases": [
-      [],
-      ["--check"],
-      ["--render", "--check"],
-      ["--list"],
-      ["--show", "testing/feature-proofs"],
-      ["--sh", "core-api/reference-card"],
-      ["--show", "types/no-such-rule"],
-      ["--locate", "types/conversion"],
-      ["--locate=nope/nope"],
-      ["--citations"],
-      ["--stats"],
-      ["--show"],
-      ["--c"],
-      ["--bogus", "extra"]
     ]
   }
 }

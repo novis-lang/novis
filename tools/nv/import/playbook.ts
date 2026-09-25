@@ -1,18 +1,19 @@
-// The playbook's legacy homes: one bullet per file under `docs/agent/playbook/<section>/`, and the
-// section titles and their order in `tools/playbook.py`'s `SECTIONS`. A section becomes
-// `data/playbook/<section>.json` and a bullet `data/playbook/<section>/<slug>.json`.
+// The playbook's Markdown home: one bullet per file under `docs/agent/playbook/<section>/`, each
+// becoming `data/playbook/<section>/<slug>.json`. A section's title and order are its record,
+// `data/playbook/<section>.json`, which has no Markdown source, so it is read as it stands and passed
+// through.
 //
 // A bullet's `lead` is its bold opening and `body` the rest before the trailer, each unwrapped to one
-// line, since the rendered file wraps them again. `files` is what `tools/playbook.py`'s `anchors`
-// finds: the tree paths the bullet names in backticks that exist, and a `gone` or `exists` trailer's.
+// line, since the rendered file wraps them again. `files` is what `anchors` finds: the tree paths the
+// bullet names in backticks that exist, and a `gone` or `exists` trailer's.
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
+import { load, pathOf } from "../lib/store.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { exists, list, text, type Importer, type ImportResult } from "./lib.ts";
 
 const DIR = "docs/agent/playbook";
-const TOOL = "tools/playbook.py";
 const TREE_DIRS = ["crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "fuzz/", ".github/"];
 const PATH_TRIM = /(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'"]+)$/;
 const BRACES = /^([^{}]*)\{([^{}]+)\}([^{}]*)$/;
@@ -42,7 +43,7 @@ export function namedPaths(bullet: string): string[] {
   return out;
 }
 
-/** The files in the tree a bullet names, as `tools/playbook.py`'s `anchors` finds them. */
+/** The files in the tree a bullet names: its backticked paths that exist, and its trailer's path. */
 export function anchors(root: string, bullet: string, until: { kind: string; arg: string } | null): string[] {
   const out = namedPaths(bullet).filter((p) => exists(root, p));
   for (const [, raw] of bullet.matchAll(/`([^`\s/]+\.[A-Za-z]+)`/g)) if (isFile(root, raw!)) out.push(raw!);
@@ -78,18 +79,20 @@ export function bulletValue(root: string, src: string): { value: { lead: string;
 export const playbook: Importer = {
   name: "playbook",
   read(root) {
-    const out: ImportResult = { records: [], unread: [], files: 1 };
-    const table = /^SECTIONS = \(\n([\s\S]*?)\n\)/m.exec(text(root, TOOL));
-    const sections = table ? [...table[1]!.matchAll(/\("([a-z0-9-]+)", "([^"]+)"\)/g)].map((m) => [m[1]!, m[2]!] as const) : [];
-    if (sections.length === 0) out.unread.push({ path: TOOL, reason: "has no `SECTIONS` table to read the section titles from" });
-    sections.forEach(([dir, title], i) => {
-      out.records.push({ type: playbookSection, id: dir, value: { title, order: i + 1 }, from: TOOL });
-    });
-    const known = new Set(sections.map(([dir]) => dir));
+    const out: ImportResult = { records: [], unread: [], files: 0 };
+    const sections = load(playbookSection, root)
+      .filter((r) => r.issues.length === 0)
+      .map((r) => ({ id: r.id, value: r.value as { title: string; order: number } }))
+      .sort((a, b) => a.value.order - b.value.order);
+    for (const s of sections) {
+      out.files++;
+      out.records.push({ type: playbookSection, id: s.id, value: s.value, from: pathOf(playbookSection, s.id) });
+    }
+    const known = new Set(sections.map((s) => s.id));
     for (const dir of list(root, DIR)) {
       if (dir.endsWith(".md")) continue;
       if (!known.has(dir)) {
-        out.unread.push({ path: `${DIR}/${dir}`, reason: `is no section in ${TOOL}'s \`SECTIONS\`` });
+        out.unread.push({ path: `${DIR}/${dir}`, reason: "has no section record under `data/playbook/`" });
         continue;
       }
       for (const name of list(root, `${DIR}/${dir}`)) {

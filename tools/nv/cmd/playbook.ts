@@ -1,6 +1,18 @@
 // `bun nv playbook`: prints a bullet by its selector, audits the playbook, and deletes every bullet
 // whose `[until:]` condition holds with the goal manifest lines that named only a bullet that went.
-// `tools/playbook.py`'s module doc is the trailer's syntax and the reasoning behind it.
+//
+// Every bullet declares what retires it, because an append-mostly file has no other way out. The last
+// thing in a bullet is a trailer, `[until: <kind> <arg>]`, on one line however far past the wrap column
+// that puts it, since an argument broken across lines equals no path, needle or name. This comment is
+// the one home of its four kinds:
+//
+//     [until: test <fn_name>]            a Rust test `fn <fn_name>` exists under crates/, tests/ or benches/
+//     [until: exists <path>[:<needle>]]  the repo-rooted path exists, and holds the needle if one is given
+//     [until: gone <path>[:<needle>]]    the path is gone, or no longer holds the needle
+//     [until: rule <topic>/<slug>]       `docs/rules/<topic>/<slug>.md` exists
+//
+// A needle is a plain substring, never a pattern, and holds no `]`. `holds` evaluates one trailer. An
+// expired bullet is deleted rather than archived, because `git log -S` keeps every one of them.
 //
 //     bun nv playbook --show <selector>       one bullet, or a whole section, as `nv orient` prints it
 //     bun nv playbook --check                 expiry, stale paths, selectors, section sizes; 1 on a gating finding
@@ -46,7 +58,7 @@ const GOAL_TOML = "docs/agent/loop-goal.toml";
  */
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 
-/** The trailer every bullet ends with. `tools/playbook.py`'s module doc is its syntax's one home. */
+/** The trailer every bullet ends with. This file's module doc is its syntax's one home. */
 export const EXPIRY = /\[until:\s*(test|exists|gone|rule)\s+([^\]]+?)\s*\]\s*$/;
 /** Anything that looks like a trailer and did not parse as one, so a typo is a finding. */
 const EXPIRY_LIKE = /\[until:[^\]]*\]?\s*$/;

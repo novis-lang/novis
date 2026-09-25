@@ -182,8 +182,8 @@ as a chain goal, with three differences.
 Its list runs over **main's carried floor** as well as its own checks, so a side branch cannot land
 anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side session
 writes no plan section and never edits the chain run's files; the driver tells it so ahead of the
-prompt. [tools/side.py](../../../tools/side.py) is the mechanism, the handshake with the chain run and
-the landing order; `python tools/side.py --status` lists every side goal and who holds the merge lock.
+prompt. `bun nv loop` has no side mode, so the mechanism, the handshake with the chain run and the
+landing order are not implemented, and no side goal can run until they are.
 
 ## Starting the chain
 

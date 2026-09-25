@@ -25,5 +25,5 @@ that ratchet is ever raised.
 An entry leaves this file exactly one way: the refusal is closed, in the goal that writes that crate
 again. This is not an exemption list — `refusals.rs`'s `ALLOWLIST` is the only one of those, it is empty,
 and adding to it is the move that gate forbids outright. Each entry ends with the `[until: ...]` trailer
-[tools/playbook.py](../../tools/playbook.py)'s module doc defines, naming the state of the tree that
+[tools/nv/cmd/playbook.ts](../../tools/nv/cmd/playbook.ts)'s module doc defines, naming the state of the tree that
 closes it; `python tools/playbook.py --check` reads it and `--retire` deletes the entry when it holds.

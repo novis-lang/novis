@@ -131,7 +131,7 @@ function where(terms: string[]): number {
 export async function run(args: string[]): Promise<number> {
   const at = args.indexOf("--where");
   if (at < 0) {
-    console.error("nv brief: only --where is here yet; `python tools/brief.py` prints the rest of the brief");
+    console.error("usage: bun nv brief --where [<keyword>...]\n  `bun nv orient` prints the orientation, and `--full` widens its map to every module");
     return 2;
   }
   return where(args.slice(at + 1).filter((a) => !a.startsWith("--")));

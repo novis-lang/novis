@@ -9,6 +9,8 @@ import { proofs } from "../import/proofs.ts";
 import { reference } from "../import/reference.ts";
 import { rules } from "../import/rules.ts";
 import { spec } from "../import/spec.ts";
+import { write } from "../lib/store.ts";
+import { playbookSection } from "../schema/playbook.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -105,7 +107,8 @@ describe("import", () => {
 
   test("a bullet unwraps its lead and body, and names the files it anchors", () => {
     tmp = scratch();
-    tmp.put("tools/playbook.py", 'SECTIONS = (\n    ("tooling", "Tooling"),\n    ("divergences", "Divergences"),\n)\n');
+    write(playbookSection, "tooling", { title: "Tooling", order: 1 }, tmp.root);
+    write(playbookSection, "divergences", { title: "Divergences", order: 2 }, tmp.root);
     tmp.put("tools/x.py", "");
     tmp.put("Cargo.toml", "");
     tmp.put(
@@ -126,7 +129,7 @@ describe("import", () => {
       },
     });
     expect(got.unread.map((u) => `${u.path}: ${u.reason}`)).toEqual([
-      "docs/agent/playbook/stray: is no section in tools/playbook.py's `SECTIONS`",
+      "docs/agent/playbook/stray: has no section record under `data/playbook/`",
       "docs/agent/playbook/tooling/plain.md: does not open on `- **`",
     ]);
   });

@@ -458,6 +458,6 @@ export async function run(args: string[]): Promise<number> {
   if (flag === "--stale" && value === undefined) return stale();
   if (flag === "--check" && value === undefined) return check();
   console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale | --check\n" +
-    "  the plan's other modes are still `python tools/plan.py`'s");
+    "  a status field or a milestone is rewritten by `bun nv session --wrap`'s `## plan:` and `## milestone:` sections");
   return 2;
 }

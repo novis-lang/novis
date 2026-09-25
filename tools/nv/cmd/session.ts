@@ -1508,15 +1508,14 @@ async function uncommittedWrites(sections: Section[], extra: string[]): Promise<
 /**
  * Measures the orientation pack this wrap leaves behind, appends it to `.loop/pack-size.jsonl`, and names
  * the growth when this session grew it past `PACK_NOTE_AT` inside one goal. The pack is the one the driver
- * pipes in: `bun nv orient`'s once `cutOver` holds, `tools/orient.py`'s before. It is a report and never a
+ * pipes in, `bun nv orient`'s. It is a report and never a
  * gate: a failure here is silent, because a wrap that already committed must not report failure over a
  * measurement.
  */
 async function recordPack(): Promise<void> {
   let size: number;
   try {
-    const argv = cutOver() ? ["bun", "nv", "orient"] : ["python", "tools/orient.py"];
-    const done = await runProc(argv, { timeoutMs: 60_000, env: { PYTHONIOENCODING: "utf-8" } });
+    const done = await runProc(["bun", "nv", "orient"], { timeoutMs: 60_000 });
     if (done.code !== 0 || !done.stdout) return;
     size = Buffer.byteLength(done.stdout, "utf8");
   } catch {
@@ -1553,7 +1552,7 @@ async function recordPack(): Promise<void> {
   console.log(`== PACK  ${thousands(previous)} -> ${thousands(size)} B  (+${thousands(grew)} this session)`);
   console.log("  Every byte of that is re-billed on every turn of every session after this one.");
   console.log("  It is not a problem to fix now and NOT something to shave prose against -- it is a");
-  console.log(`  number for whoever writes the next goal: \`${cutOver() ? "bun nv orient" : "python tools/orient.py"} --audit\` says which`);
+  console.log(`  number for whoever writes the next goal: \`bun nv orient --audit\` says which`);
   console.log("  section carries it, and a `[context]` entry may name one bullet, not a whole section.");
 }
 

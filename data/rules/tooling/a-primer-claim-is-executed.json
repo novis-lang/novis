@@ -10,6 +10,6 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/agent.rs",
-    "tools/reference.py"
+    "tools/nv/cmd/reference.ts"
   ]
 }

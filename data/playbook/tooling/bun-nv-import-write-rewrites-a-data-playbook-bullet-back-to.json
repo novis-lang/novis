@@ -3,10 +3,10 @@
   "body": "The import reads the legacy `.md` as the truth, and a citation rewrite that touched only `data/playbook/` made those records newer than their legacy files. After a `--write`, run `git diff -- data/playbook` and `git checkout` every modified bullet; keep only the new files, which are bullets added to the legacy home alone.",
   "files": [
     "docs/agent/playbook/",
-    "tools/playbook.py"
+    "tools/nv/import/playbook.ts"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/playbook.py"
+    "arg": "tools/nv/import/playbook.ts"
   }
 }

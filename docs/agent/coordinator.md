@@ -583,9 +583,9 @@ that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry
 `symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
 the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
 The chain run itself is still **one working tree and one handoff file**. A second lane is a **side goal**:
-`loop.py --side <slug>` runs one goal in a git worktree of its own, with its own handoff, and lands it on
-`main` unattended once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract,
-[tools/side.py](../../tools/side.py) the mechanism). What it does not do is split the chain: a side goal
+A side run is one goal in a git worktree of its own, with its own handoff, landed on `main` unattended
+once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract). `bun nv loop` has
+no side mode, so no side goal can run until one is written. What a side run does not do is split the chain: a side goal
 is written by hand for work that can run beside the chain, and the chain still walks one goal at a time.
 
 **Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a

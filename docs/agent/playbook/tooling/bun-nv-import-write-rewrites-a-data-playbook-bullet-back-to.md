@@ -1,2 +1,2 @@
 - **`bun nv import --write` rewrites a `data/playbook/` bullet back to its older `docs/agent/playbook/` text.** The import reads the legacy `.md` as the truth, and a citation rewrite that touched only `data/playbook/` made those records newer than their legacy files. After a `--write`, run `git diff -- data/playbook` and `git checkout` every modified bullet; keep only the new files, which are bullets added to the legacy home alone.
-  [until: gone tools/playbook.py]
+  [until: gone tools/nv/import/playbook.ts]
