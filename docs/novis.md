@@ -9289,13 +9289,13 @@ Returns the angle, in radians, whose cosine is `$n`. This is the arc cosine.
 Core\Math::atan(float $n): float
 ```
 
-The arc tangent — the angle in radians whose tangent is `$n` — as `atan` does; for a pair of coordinates, `atan2` keeps the quadrant.
+Returns the angle, in radians, whose tangent is `$n`. This is the arc tangent. For a point, use `Core\Math::atan2`, which takes both coordinates.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A tangent, any `float`. |
+| `$n` | `float` | A tangent: any number. |
 
-**Returns** `float` — An angle in `(-PI / 2, PI / 2)`, reaching either end for an infinite `$n`.
+**Returns** `float` — An angle between `-PI / 2` and `PI / 2`, in radians. An infinite `$n` gives exactly `PI / 2` or `-PI / 2`.
 
 <a id="core-core-math-atan2"></a>
 #### `Core\Math::atan2`
@@ -9304,14 +9304,14 @@ The arc tangent — the angle in radians whose tangent is `$n` — as `atan` doe
 Core\Math::atan2(float $y, float $x): float
 ```
 
-The angle of the point `($x, $y)` from the positive x-axis, in radians, as `atan2` does — `$y` first, as in PHP and in C.
+Returns the angle of the point (`$x`, `$y`), in radians, measured from the positive x-axis. `$y` comes first.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$y` | `float` | The point's y coordinate. |
 | `$x` | `float` | The point's x coordinate. |
 
-**Returns** `float` — An angle in `[-PI, PI]`, in the quadrant the two signs choose; `atan2(0.0, 0.0)` is `0.0` rather than `NaN`.
+**Returns** `float` — An angle from `-PI` to `PI`, in radians. A point above the x-axis gives a positive angle, and a point below it gives a negative one. The point (0, 0) gives `0.0`.
 
 <a id="core-core-math-sinh"></a>
 #### `Core\Math::sinh`
@@ -9365,13 +9365,13 @@ The hyperbolic tangent of `$n`, as `tanh` does.
 Core\Math::asinh(float $n): float
 ```
 
-The inverse hyperbolic sine of `$n`, as `asinh` does.
+Returns the inverse hyperbolic sine of `$n`. It undoes `Core\Math::sinh`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `float` | A hyperbolic sine, any `float`. |
+| `$n` | `float` | Any number. |
 
-**Returns** `float` — The value whose `sinh` is `$n`, carrying `$n`'s sign.
+**Returns** `float` — The number whose hyperbolic sine is `$n`. It has the same sign as `$n`. `NaN` gives `NaN`.
 
 <a id="core-core-math-acosh"></a>
 #### `Core\Math::acosh`
