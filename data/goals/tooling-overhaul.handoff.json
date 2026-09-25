@@ -1,24 +1,28 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv lints` replaces `tools/lints.py`, which is deleted (`tools/nv/cmd/lints.ts`, test `tools/nv/test/lints.test.ts`). `UNSAFE_CRATES` and `EXCEPTIONS` now live in that file, and `docs/plan/design.md` § *Unsafe policy* points there. A write edits only the lint region, so a table after it survives, writes LF, and puts every manifest back if `cargo metadata` then fails. `nv verify`'s `lints` step and the CI `lint` job run it through Bun, and that job no longer sets up Python.\n\n`bun nv audit ci` still exits 1 and is the red Stage 11 check, an open item and not a regression. It names 9 workflow steps that run `python tools/release.py`, and the two website sync scripts. No git hook calls Python.\n\n`bun nv loop --owed` and `--settle` exist, and `tools/git-hooks/pre-push` calls them. `tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
+  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv release` replaces `tools/release.py`, which is deleted (`tools/nv/cmd/release.ts`, test `tools/nv/test/release.test.ts`). Its output matched the Python script's for `--check`, `--plan`, `--preview`, `--notes` and `--docker-tags` on this tree, and `--apply 0.0.2 --manifests-only` gave the same diff to `Cargo.toml` and `Cargo.lock`. `--apply` finds the pins by reading the manifest as TOML, so it bumps every pin `--check` checks. `--package` writes tar.gz and zip itself; system `tar` and Python's `zipfile` both read the archives.\n\n`ci.yml`'s `docs` job, all four `release.yml` jobs and `release-promote.yml` now run `bun nv release` after `setup-bun` and `bun install --frozen-lockfile`. No workflow sets up Python. Not checked: whether `setup-bun` installs Bun 1.3.5 on the `windows-11-arm` build runner. That matrix row is `optional: true`.\n\n`bun nv audit ci` still exits 1, and the Stage 11 check is red. This is an open item, not a regression. The only thing it still names is the two website sync scripts.",
   "next": {
     "stage": 11,
-    "title": "the last Python steps in CI",
-    "files": [],
-    "note": "-- one file set: `tools/release.py`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/release-promote.yml`.",
+    "title": "the website sync scripts",
+    "files": [
+      "tools/nv/cmd/render.ts",
+      "website/scripts/sync-rules.mjs",
+      "website/scripts/sync-core.mjs",
+      "website/package.json"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Port `release` to `bun nv release`** -- `tools/release.py:1` is 685 lines: `--check`, `--notes`, `--apply`, `--package`, `--docker-tags`. Read manifests with `smol-toml` and write by line-scoped edits checked by `cargo metadata`, the way `tools/nv/cmd/lints.ts:1` does. The pin bump at `tools/release.py:436` must bump every pin that `tools/release.py:530` checks. Then `.github/workflows/ci.yml:596`, `.github/workflows/release.yml:140` and `.github/workflows/release-promote.yml:98` run `bun nv release`, and each job drops `setup-python` if nothing else in it needs Python. Add a unit test in `tools/nv/test/`."
+        "text": "**`bun nv render --website`** -- write the pages `website/scripts/sync-rules.mjs:1` (497 lines) and `website/scripts/sync-core.mjs:1` (414 lines) write, from the records under `data/` and not from the Markdown. `tools/nv/cmd/render.ts:1` gets the mode, and `--check` covers it. Diff the output against what the scripts produce today before deleting anything."
       },
       {
         "done": false,
-        "text": "**Delete the website sync scripts** -- `website/scripts/sync-rules.mjs:1` and `website/scripts/sync-core.mjs:1`. Their data comes from `bun nv render --website`, which `tools/nv/cmd/render.ts:1` does not have yet. Then `bun nv audit ci` exits 0, checked by `tools/nv/cmd/audit.ts:1`."
+        "text": "**Delete the two scripts** -- and point `website/package.json:15` (`sync`, `sync:rules`, `sync:core`) at `bun nv render --website`. Then `tools/nv/cmd/audit.ts:149` finds nothing and `bun nv audit ci` exits 0. The playbook bullet with `[until: gone website/scripts/sync-rules.mjs]` expires on its own. Also rewrite the comments that name the scripts: `website/config/rule-sections.mjs:13` and `website/src/styles/rulebook.css:24`."
       }
     ]
   },
   "backlog": [
-    "The website's `tmLanguage` rendered from the editor's grammar, or the reason it differs written in the grammar's record -- `docs/agent/goals/tooling-overhaul.md` § *Stage 11*.",
-    "`nv loop-stats --guard` and the other Stage 11 ports -- `docs/agent/goals/tooling-overhaul.md` § *Stage 11*.",
-    "`tools/verify_keys.py` and `tools/impact.py` still exist beside their Bun ports -- Stage 12."
+    "`docs/agent/commands.md:317` still names `rules.py`, `check-links.py`, `layout.py`, `records.py`, `plan.py` and `playbook.py` as CI's `docs` job, but that job runs `bun nv` for each of them now.",
+    "`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
+    "`windows-11-arm` and `setup-bun`: check this on the first release dispatch (`.github/workflows/release.yml`)."
   ]
 }
