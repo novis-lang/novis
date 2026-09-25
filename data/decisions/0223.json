@@ -1,0 +1,15 @@
+{
+  "title": "the HTML parse holds at most 512 open elements and closes the current one to make room, and every check it makes grows no faster than the document",
+  "status": "accepted",
+  "scope": "how `Core\\Html::parse` and `Core\\Html::sanitize` bound the time one document can cost: a cap on the\nstack of open elements, and three checks rewritten without changing their answer. It carries the\n`html5ever` changes as a patched copy under `vendor/html5ever`. It does not change the memory limit,\nwhich already bounds a tree's size, or `DEPTH_CEILING`, which bounds the walks over a finished tree.",
+  "dependsOn": [
+    "0122",
+    "0121"
+  ],
+  "validatedBy": "`crates/nvs-stdlib/src/html.rs`'s `every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap`,\n`a_start_tag_at_the_cap_closes_the_current_element_and_becomes_its_sibling` and\n`the_cap_closes_tables_templates_selects_and_foreign_content_without_failing`, and the attacks under\n`tests/hostile/core/Html/`.",
+  "summary": {
+    "group": "security",
+    "headline": "Parsing HTML takes time in proportion to the document",
+    "body": "`Core\\Html::parse` keeps at most 512 elements open at once, like the major browsers. When a document nests deeper, the next element closes the current one and becomes its sibling. No content is lost. Because of this limit, a small hostile document cannot keep a CPU core busy."
+  }
+}

@@ -19,8 +19,12 @@ members = ["crates/*", "benches/*"]
 # rather than that one directory: `cargo` reads the glob before it reads a
 # crate, so a `.nvs` tree under `benches/` that is not listed here breaks every
 # build in the repository.
+# `vendor/` holds third-party crates built from a patched copy (the
+# `[patch.crates-io]` table at the end of this file). A path dependency inside
+# the workspace directory would otherwise become a member, and this repository's
+# lints, formatter and tests would run over somebody else's code.
 exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
-           "benches/results"]
+           "benches/results", "vendor"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.
@@ -1079,3 +1083,15 @@ incremental = true
 codegen-units = 256
 overflow-checks = true
 debug-assertions = false
+
+# ---------------------------------------------------------------------------
+# Patched third-party crates.
+# ---------------------------------------------------------------------------
+[patch.crates-io]
+# The published 0.39.0 with the changes docs/decisions/0223.md records: a cap
+# on the stack of open elements that `crates/nvs-stdlib/src/html.rs` switches
+# on, a hash set for duplicate attribute names, and a cached fingerprint for
+# the active formatting elements' attribute comparison. Without them a small
+# hostile document costs time in the square of its size. The version stays
+# 0.39.0, so the `html5ever` row above resolves to this copy unchanged.
+html5ever = { path = "vendor/html5ever" }

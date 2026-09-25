@@ -512,6 +512,12 @@
           "headline": "A resource ceiling stops the request that broke it, where the resource goes",
           "body": "A request that exceeds its memory or CPU budget is stopped by the runtime, not by a check the program happens to run. The allocator raises a flag the compiled code polls on every loop, which bounds a runaway loop; each value allocation asks before it allocates, which bounds a single huge operation a loop check would reach too late; and a watchdog samples each core's CPU clock. Bytes held by a store that outlives requests, such as a process-wide cache, are accounted to the process, so no request is charged or credited for them.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0174.md"
+        },
+        {
+          "adr": "0223",
+          "headline": "Parsing HTML takes time in proportion to the document",
+          "body": "`Core\\Html::parse` keeps at most 512 elements open at once, like the major browsers. When a document nests deeper, the next element closes the current one and becomes its sibling. No content is lost. Because of this limit, a small hostile document cannot keep a CPU core busy.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0223.md"
         }
       ]
     },

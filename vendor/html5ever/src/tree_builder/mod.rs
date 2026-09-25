@@ -25,7 +25,9 @@ use crate::tokenizer::{Doctype, EndTag, StartTag, Tag, TokenSink, TokenSinkResul
 
 use std::borrow::Cow::{self, Borrowed};
 use std::cell::{Cell, Ref, RefCell};
+use std::collections::hash_map::RandomState;
 use std::collections::VecDeque;
+use std::hash::BuildHasher;
 use std::iter::{Enumerate, Rev};
 use std::{fmt, slice};
 
@@ -66,6 +68,16 @@ pub struct TreeBuilderOpts {
 
     /// Initial TreeBuilder quirks mode. Default: NoQuirks
     pub quirks_mode: QuirksMode,
+
+    // Novis: the cap on the stack of open elements.
+    /// How many elements the stack of open elements may hold before a start
+    /// tag first closes the current node. Default: `None`, no cap.
+    ///
+    /// This is WebKit's rule: at the cap, the current node is closed and the
+    /// new element becomes its sibling, so the stack never grows past the cap.
+    /// Every scope check walks that stack, so a cap bounds the work any one
+    /// token can cost.
+    pub max_open_elements: Option<usize>,
 }
 
 impl Default for TreeBuilderOpts {
@@ -76,6 +88,7 @@ impl Default for TreeBuilderOpts {
             iframe_srcdoc: false,
             drop_doctype: false,
             quirks_mode: NoQuirks,
+            max_open_elements: None,
         }
     }
 }
@@ -134,6 +147,11 @@ pub struct TreeBuilder<Handle, Sink> {
 
     /// Track current line
     current_line: Cell<u64>,
+
+    // Novis: the key `format_fingerprint` hashes with.
+    /// A random key for each parse, so a document cannot be written to make
+    /// different attribute sets share a fingerprint.
+    format_hasher: RandomState,
     // WARNING: If you add new fields that contain Handles, you
     // must add them to trace_handles() below to preserve memory
     // safety!
@@ -169,6 +187,7 @@ where
             foster_parenting: Default::default(),
             context_elem: Default::default(),
             current_line: Cell::new(1),
+            format_hasher: RandomState::new(),
         }
     }
 
@@ -209,6 +228,7 @@ where
             foster_parenting: Default::default(),
             context_elem: RefCell::new(Some(context_elem)),
             current_line: Cell::new(1),
+            format_hasher: RandomState::new(),
         };
 
         // https://html.spec.whatwg.org/multipage/#parsing-html-fragments
@@ -273,7 +293,7 @@ where
         }
 
         for e in &*self.active_formatting.borrow() {
-            if let FormatEntry::Element(handle, _) = e {
+            if let FormatEntry::Element(handle, _, _) = e {
                 tracer.trace_handle(handle);
             }
         }
@@ -307,7 +327,7 @@ where
         for entry in self.active_formatting.borrow().iter() {
             match entry {
                 &FormatEntry::Marker => print!(" Marker"),
-                FormatEntry::Element(h, _) => {
+                FormatEntry::Element(h, _, _) => {
                     let name = self.sink.elem_name(h);
                     match *name.ns() {
                         ns!(html) => print!(" {}", name.local_name()),
@@ -524,7 +544,13 @@ where
                 }
             },
 
-            tokenizer::TagToken(x) => Token::Tag(x),
+            // Novis: a start tag first makes room under `max_open_elements`.
+            tokenizer::TagToken(x) => {
+                if x.kind == StartTag && !self.make_room_for_start_tag() {
+                    return tokenizer::TokenSinkResult::Continue;
+                }
+                Token::Tag(x)
+            },
             tokenizer::CommentToken(x) => Token::Comment(x),
             tokenizer::NullCharacterToken => Token::NullCharacter,
             tokenizer::EOFToken => Token::Eof,
@@ -580,7 +606,7 @@ impl<'a, Handle> Iterator for ActiveFormattingIter<'a, Handle> {
     fn next(&mut self) -> Option<(usize, &'a Handle, &'a Tag)> {
         match self.iter.next() {
             None | Some((_, &FormatEntry::Marker)) => None,
-            Some((i, FormatEntry::Element(h, t))) => Some((i, h, t)),
+            Some((i, FormatEntry::Element(h, t, _))) => Some((i, h, t)),
         }
     }
 }
@@ -649,7 +675,7 @@ where
             .iter()
             .position(|n| match n {
                 FormatEntry::Marker => false,
-                FormatEntry::Element(ref handle, _) => self.sink.same_node(handle, element),
+                FormatEntry::Element(ref handle, _, _) => self.sink.same_node(handle, element),
             })
     }
 
@@ -679,6 +705,56 @@ where
         self.to_raw_text_mode(k)
     }
     //§ END
+
+    // Novis: the step `TreeBuilderOpts::max_open_elements` adds.
+    /// Closes the current node until the stack of open elements is under
+    /// `max_open_elements`, and reports whether the start tag about to be
+    /// processed may go ahead.
+    ///
+    /// Each close is an end tag for the current node's name, processed like
+    /// any other token. The builder therefore only ever sees a token stream a
+    /// document could have contained, and every invariant the rules keep
+    /// between tokens still holds. A rule that ignores that end tag leaves the
+    /// stack as deep as it was, and then the start tag is dropped instead.
+    fn make_room_for_start_tag(&self) -> bool {
+        let Some(max) = self.opts.max_open_elements else {
+            return true;
+        };
+        loop {
+            let depth = self.open_elems.borrow().len();
+            if depth < max {
+                return true;
+            }
+            let name = {
+                let node = self.current_node();
+                let name = self.sink.elem_name(&node);
+                let local: &str = name.local_name();
+                // The tokenizer lowercases an end tag's name, and the rules
+                // for foreign content compare against that.
+                if local.bytes().any(|b| b.is_ascii_uppercase()) {
+                    LocalName::from(local.to_ascii_lowercase())
+                } else {
+                    name.local_name().clone()
+                }
+            };
+            let end = Tag {
+                kind: EndTag,
+                name,
+                self_closing: false,
+                attrs: vec![],
+                had_duplicate_attributes: false,
+            };
+            if !matches!(
+                self.process_to_completion(Token::Tag(end)),
+                tokenizer::TokenSinkResult::Continue
+            ) {
+                return false;
+            }
+            if self.open_elems.borrow().len() >= depth {
+                return false;
+            }
+        }
+    }
 
     fn current_node(&self) -> Ref<'_, Handle> {
         Ref::map(self.open_elems.borrow(), |elems| {
@@ -824,10 +900,10 @@ where
                 };
 
                 // 13.7.
-                let tag = match self.active_formatting.borrow()[node_formatting_index] {
-                    FormatEntry::Element(ref h, ref t) => {
+                let (tag, fingerprint) = match self.active_formatting.borrow()[node_formatting_index] {
+                    FormatEntry::Element(ref h, ref t, fingerprint) => {
                         assert!(self.sink.same_node(h, &node));
-                        t.clone()
+                        (t.clone(), fingerprint)
                     },
                     FormatEntry::Marker => panic!("Found marker during adoption agency"),
                 };
@@ -841,7 +917,7 @@ where
                 );
                 self.open_elems.borrow_mut()[node_index] = new_element.clone();
                 self.active_formatting.borrow_mut()[node_formatting_index] =
-                    FormatEntry::Element(new_element.clone(), tag);
+                    FormatEntry::Element(new_element.clone(), tag, fingerprint);
                 node = new_element;
 
                 // 13.8.
@@ -872,7 +948,8 @@ where
                 fmt_elem_tag.attrs.clone(),
                 fmt_elem_tag.had_duplicate_attributes,
             );
-            let new_entry = FormatEntry::Element(new_element.clone(), fmt_elem_tag);
+            let fingerprint = self.format_fingerprint(&fmt_elem_tag);
+            let new_entry = FormatEntry::Element(new_element.clone(), fmt_elem_tag, fingerprint);
 
             // 16.
             self.sink.reparent_children(&furthest_block, &new_element);
@@ -950,7 +1027,7 @@ where
     fn is_marker_or_open(&self, entry: &FormatEntry<Handle>) -> bool {
         match *entry {
             FormatEntry::Marker => true,
-            FormatEntry::Element(ref node, _) => self
+            FormatEntry::Element(ref node, _, _) => self
                 .open_elems
                 .borrow()
                 .iter()
@@ -1004,8 +1081,8 @@ where
         loop {
             // Step 8. Create: Insert an HTML element for the token for which the element entry was created,
             // to obtain new element.
-            let tag = match self.active_formatting.borrow()[entry_index] {
-                FormatEntry::Element(_, ref t) => t.clone(),
+            let (tag, fingerprint) = match self.active_formatting.borrow()[entry_index] {
+                FormatEntry::Element(_, ref t, fingerprint) => (t.clone(), fingerprint),
                 FormatEntry::Marker => {
                     panic!("Found marker during formatting element reconstruction")
                 },
@@ -1023,7 +1100,7 @@ where
 
             // Step 9. Replace the entry for entry in the list with an entry for new element.
             self.active_formatting.borrow_mut()[entry_index] =
-                FormatEntry::Element(new_element, tag);
+                FormatEntry::Element(new_element, tag, fingerprint);
 
             // Step 10. If the entry for new element in the list of active formatting elements is
             // not the last entry in the list, return to the step labeled advance.
@@ -1521,12 +1598,28 @@ where
             .attach_declarative_shadow(shadow_host, template, &tag.attrs)
     }
 
+    // Novis: an order-independent hash of a tag's name and attributes.
+    /// Equal for two tags `Tag::equiv_modulo_attr_order` calls equal, so a
+    /// different fingerprint rules a match out without comparing attributes.
+    fn format_fingerprint(&self, tag: &Tag) -> u64 {
+        tag.attrs.iter().fold(self.format_hasher.hash_one(&tag.name), |sum, attr| {
+            sum.wrapping_add(self.format_hasher.hash_one((&attr.name, &*attr.value)))
+        })
+    }
+
     fn create_formatting_element_for(&self, tag: Tag) -> Handle {
         // FIXME: This really wants unit tests.
+        // Novis: the fingerprint is compared first. `equiv_modulo_attr_order`
+        // copies and sorts both attribute lists, and this loop runs once per
+        // entry for every formatting start tag.
+        let fingerprint = self.format_fingerprint(&tag);
         let mut first_match = None;
         let mut matches = 0usize;
-        for (i, _, old_tag) in self.active_formatting_end_to_marker().iter() {
-            if tag.equiv_modulo_attr_order(old_tag) {
+        for (i, entry) in self.active_formatting.borrow().iter().enumerate().rev() {
+            let FormatEntry::Element(_, old_tag, old_fingerprint) = entry else {
+                break;
+            };
+            if *old_fingerprint == fingerprint && tag.equiv_modulo_attr_order(old_tag) {
                 first_match = Some(i);
                 matches += 1;
             }
@@ -1547,7 +1640,7 @@ where
         );
         self.active_formatting
             .borrow_mut()
-            .push(FormatEntry::Element(elem.clone(), tag));
+            .push(FormatEntry::Element(elem.clone(), tag, fingerprint));
         elem
     }
 

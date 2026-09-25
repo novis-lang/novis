@@ -15,6 +15,18 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
+**The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
+cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
+WebKit does, and the new element becomes its sibling: nesting past the cap flattens, and every
+element, attribute and character of the document still arrives. The close is an end tag for the
+current element's own name, a token the algorithm already has a rule for, so the parse still never
+fails. The cap is a constant and not a setting, because it is what bounds the work one token costs:
+every scope check the algorithm makes walks that stack, and without the cap a document costs time in
+the square of its depth. It is part of the parse, so the PDF renderer holds it too. The two other
+checks that grow with a document — a tag's attributes against each other for a duplicate, and the
+active formatting elements against a new one for an equal entry — cost time in proportion to what
+they check, and neither changes what the parse produces.
+
 **The tree came first and this parse is written against it**, rather than beside it: the tree and the
 builder interface are one implementation, so whichever was built second would otherwise have been
 shaped by the first. `Core\Html::parse` drives `html5ever` through a tree builder of ours straight

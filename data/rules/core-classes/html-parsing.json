@@ -5,7 +5,8 @@
     "0122",
     "0095",
     "0063",
-    "0121"
+    "0121",
+    "0223"
   ],
   "divergesFromPhp": "there is no `LIBXML_*` flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes",
   "seeAlso": [
@@ -20,6 +21,8 @@
     "tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst",
     "tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst",
     "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
-    "crates/nvs-stdlib/src/html.rs"
+    "crates/nvs-stdlib/src/html.rs",
+    "tests/hostile/core/Html/parse/02-markup-nested-a-hundred-thousand-deep.nvs",
+    "tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs"
   ]
 }

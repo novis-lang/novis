@@ -142,6 +142,7 @@
 
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};
+use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 
 use html5ever::tendril::{StrTendril, TendrilSink};
@@ -848,6 +849,14 @@ struct Sink {
     /// mutability is the trait's shape rather than a choice made here. Every
     /// borrow below is one statement long for that reason.
     nodes: RefCell<Vec<Node>>,
+    /// The attribute names of each element [`TreeSink::add_attrs_if_missing`]
+    /// has added to, by handle.
+    ///
+    /// Only `<html>` and `<body>` are ever added to, and a document may repeat
+    /// either tag as often as it likes. Building the set once per element is
+    /// what keeps each repeat in proportion to its own attributes rather than
+    /// to every attribute the element already has.
+    attribute_names: RefCell<HashMap<usize, HashSet<String>>>,
 }
 
 impl Sink {
@@ -856,6 +865,7 @@ impl Sink {
     fn new() -> Self {
         Self {
             nodes: RefCell::new(vec![Node::new(Kind::Document)]),
+            attribute_names: RefCell::new(HashMap::new()),
         }
     }
 
@@ -881,10 +891,15 @@ impl Sink {
 
     /// Which parent `target` hangs off and where among its children it sits, or
     /// `None` for a node with no parent.
+    ///
+    /// The search starts at the last child. Foster parenting asks for the
+    /// place of the open `<table>`, which is its parent's last child, once for
+    /// every node it inserts, so a search from the front would cost a table
+    /// with many misplaced nodes time in the square of their number.
     fn locate(&self, target: usize) -> Option<(usize, usize)> {
         let nodes = self.nodes.borrow();
         let parent = nodes[target].parent?;
-        let at = nodes[parent].children.iter().position(|&n| n == target)?;
+        let at = nodes[parent].children.iter().rposition(|&n| n == target)?;
         Some((parent, at))
     }
 
@@ -1079,11 +1094,21 @@ impl TreeSink for Sink {
     fn set_quirks_mode(&self, _mode: QuirksMode) {}
 
     fn add_attrs_if_missing(&self, target: &usize, attrs: Vec<Attribute>) {
+        if attrs.is_empty() {
+            return;
+        }
         let mut nodes = self.nodes.borrow_mut();
         let node = &mut nodes[*target];
+        let mut index = self.attribute_names.borrow_mut();
+        let had = index.entry(*target).or_insert_with(|| {
+            node.attributes
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect()
+        });
         for attr in attrs {
             let name = written(&attr.name);
-            if node.attributes.iter().all(|(had, _)| *had != name) {
+            if had.insert(name.clone()) {
                 node.attributes.push((name, attr.value.to_string()));
             }
         }
@@ -1193,7 +1218,17 @@ fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
     work.extend(children.into_iter().rev());
 }
 
-/// `document`, parsed by the WHATWG algorithm.
+/// How many elements may be open at once while a document is parsed.
+///
+/// `rule:core-classes/html-parsing` caps the stack of open elements here, as
+/// WebKit does and at the depth Chromium, Firefox and WebKit all cap a tree
+/// at: a start tag that arrives with this many elements open first closes the
+/// current one, and the new element becomes its sibling. Every scope check
+/// the tree builder makes walks that stack, so the cap is what keeps each
+/// token's cost bounded and a parse's time in proportion to its document.
+const OPEN_ELEMENTS_CAP: usize = 512;
+
+/// `document`, parsed by the WHATWG algorithm under [`OPEN_ELEMENTS_CAP`].
 ///
 /// `ParseOpts::default()` leaves scripting *enabled*, which is what a browser
 /// with JavaScript on does and therefore what the agreement this member is
@@ -1202,7 +1237,14 @@ fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
 /// content a scripting browser would never build elements from does not become
 /// elements here either.
 fn parse(document: &str) -> Parsed {
-    html5ever::parse_document(Sink::new(), html5ever::ParseOpts::default()).one(document)
+    html5ever::parse_document(Sink::new(), options()).one(document)
+}
+
+/// The options [`parse`] runs `html5ever` with.
+fn options() -> html5ever::ParseOpts {
+    let mut opts = html5ever::ParseOpts::default();
+    opts.tree_builder.max_open_elements = Some(OPEN_ELEMENTS_CAP);
+    opts
 }
 
 /// The payload [`Sink::push`] unwinds with when the request cannot afford one
@@ -1736,10 +1778,112 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
     use nvs_runtime::{Ctx, NvsArray, OutputSink, call};
 
     use super::*;
     use crate::registry::CLASSES;
+
+    /// [`Sink`], counting the names the tree builder reads.
+    ///
+    /// Every step of every walk the builder makes over its stack of open
+    /// elements reads one name, so the count is the length of those walks.
+    struct Counted {
+        sink: Sink,
+        reads: Cell<u64>,
+    }
+
+    impl TreeSink for Counted {
+        type Handle = usize;
+        type Output = (Parsed, u64);
+        type ElemName<'a> = Ref<'a, QualName>;
+
+        fn finish(self) -> (Parsed, u64) {
+            (self.sink.finish(), self.reads.get())
+        }
+        fn parse_error(&self, why: Cow<'static, str>) {
+            self.sink.parse_error(why);
+        }
+        fn get_document(&self) -> usize {
+            self.sink.get_document()
+        }
+        fn elem_name<'a>(&'a self, target: &'a usize) -> Ref<'a, QualName> {
+            self.reads.set(self.reads.get() + 1);
+            self.sink.elem_name(target)
+        }
+        fn create_element(
+            &self,
+            name: QualName,
+            attrs: Vec<Attribute>,
+            flags: ElementFlags,
+        ) -> usize {
+            self.sink.create_element(name, attrs, flags)
+        }
+        fn create_comment(&self, text: StrTendril) -> usize {
+            self.sink.create_comment(text)
+        }
+        fn create_pi(&self, target: StrTendril, data: StrTendril) -> usize {
+            self.sink.create_pi(target, data)
+        }
+        fn append(&self, parent: &usize, child: NodeOrText<usize>) {
+            self.sink.append(parent, child);
+        }
+        fn append_before_sibling(&self, sibling: &usize, new_node: NodeOrText<usize>) {
+            self.sink.append_before_sibling(sibling, new_node);
+        }
+        fn append_based_on_parent_node(
+            &self,
+            element: &usize,
+            prev_element: &usize,
+            child: NodeOrText<usize>,
+        ) {
+            self.sink
+                .append_based_on_parent_node(element, prev_element, child);
+        }
+        fn append_doctype_to_document(
+            &self,
+            name: StrTendril,
+            public: StrTendril,
+            system: StrTendril,
+        ) {
+            self.sink.append_doctype_to_document(name, public, system);
+        }
+        fn get_template_contents(&self, target: &usize) -> usize {
+            self.sink.get_template_contents(target)
+        }
+        fn same_node(&self, x: &usize, y: &usize) -> bool {
+            self.sink.same_node(x, y)
+        }
+        fn set_quirks_mode(&self, mode: QuirksMode) {
+            self.sink.set_quirks_mode(mode);
+        }
+        fn add_attrs_if_missing(&self, target: &usize, attrs: Vec<Attribute>) {
+            self.sink.add_attrs_if_missing(target, attrs);
+        }
+        fn remove_from_parent(&self, target: &usize) {
+            self.sink.remove_from_parent(target);
+        }
+        fn reparent_children(&self, node: &usize, new_parent: &usize) {
+            self.sink.reparent_children(node, new_parent);
+        }
+        fn is_mathml_annotation_xml_integration_point(&self, handle: &usize) -> bool {
+            self.sink.is_mathml_annotation_xml_integration_point(handle)
+        }
+        fn allow_declarative_shadow_roots(&self, intended_parent: &usize) -> bool {
+            self.sink.allow_declarative_shadow_roots(intended_parent)
+        }
+    }
+
+    /// `document` parsed as [`parse`] parses it, and the steps its walks
+    /// over the stack of open elements took.
+    fn parsed_counting_steps(document: &str) -> (Parsed, u64) {
+        let counted = Counted {
+            sink: Sink::new(),
+            reads: Cell::new(0),
+        };
+        html5ever::parse_document(counted, options()).one(document)
+    }
 
     /// A `Core\Html\Markup` over `source`, built the way every member that
     /// answers one builds it — the carrier's one slot holding the bytes.
@@ -2793,6 +2937,189 @@ mod tests {
             escaped.is_empty(),
             "an element with no place in the grammar leaves no tag, escaped or \
              otherwise: {escaped:?}"
+        );
+    }
+
+    /// `rule:core-classes/html-parsing`'s cap on the stack of open elements,
+    /// read off the tree it leaves.
+    ///
+    /// `html` and `body` are the first two open elements, so the first
+    /// `OPEN_ELEMENTS_CAP - 2` `div`s nest. Each `div` after them closes the
+    /// one before it and becomes its sibling. Every `div` is still in the tree,
+    /// no element is deeper than the cap, and the text lands in the last
+    /// `div`, as it does in WebKit.
+    #[test]
+    fn a_start_tag_at_the_cap_closes_the_current_element_and_becomes_its_sibling() {
+        let count = OPEN_ELEMENTS_CAP + 10;
+        let tree = parse(&("<div>".repeat(count) + "bottom"));
+        let nodes = walked(&tree);
+        let divs: Vec<usize> = nodes
+            .iter()
+            .filter(|(_, kind, name)| *kind == Kind::Element && *name == "div")
+            .map(|(depth, _, _)| *depth)
+            .collect();
+        assert_eq!(divs.len(), count, "no element is dropped");
+        assert_eq!(divs.iter().max(), Some(&OPEN_ELEMENTS_CAP));
+        assert_eq!(
+            divs.iter()
+                .filter(|&&depth| depth == OPEN_ELEMENTS_CAP)
+                .count(),
+            count - (OPEN_ELEMENTS_CAP - 3),
+            "every div past the cap is a sibling of the div at the cap"
+        );
+        let (depth, kind, _) = *nodes.last().expect("the tree has nodes");
+        assert_eq!((depth, kind), (OPEN_ELEMENTS_CAP + 1, Kind::Text));
+    }
+
+    /// The cap bounds the work each token costs, whatever the shape of the
+    /// document past it.
+    ///
+    /// Without the cap, each of these costs steps in the square of its length:
+    /// every `div` checks the whole stack for an open `p`, every unmatched end
+    /// tag searches the whole stack for its element, and every `form` searches
+    /// it for a `template`. With the cap, no walk is longer than
+    /// [`OPEN_ELEMENTS_CAP`] and a few elements a formatting element reopens,
+    /// so the steps per tag stay under a small multiple of the cap.
+    #[test]
+    fn every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap() {
+        const COUNT: usize = 20_000;
+        let cases = [
+            ("<div>".repeat(COUNT), COUNT),
+            ("<span>".repeat(COUNT) + &"</x>".repeat(COUNT), 2 * COUNT),
+            ("<b>".repeat(COUNT) + &"</i>".repeat(COUNT), 2 * COUNT),
+            ("<ul><li>".repeat(COUNT / 2), COUNT),
+            ("<form><span>".repeat(COUNT / 2), COUNT),
+            ("<table><tr><td>".repeat(COUNT / 3), COUNT),
+        ];
+        for (document, tags) in cases {
+            let (tree, steps) = parsed_counting_steps(&document);
+            assert_eq!(tree.kind, Kind::Document);
+            let per_tag = steps / tags as u64;
+            assert!(
+                per_tag <= 4 * OPEN_ELEMENTS_CAP as u64,
+                "{}…: {steps} steps is {per_tag} for each tag",
+                &document[..24]
+            );
+        }
+    }
+
+    /// The special elements the cap can close still parse. Each is closed by
+    /// an end tag for its own name, which is a token the WHATWG algorithm
+    /// already has a rule for, so no input reaches a panic.
+    #[test]
+    fn the_cap_closes_tables_templates_selects_and_foreign_content_without_failing() {
+        let deep = OPEN_ELEMENTS_CAP + 50;
+        let documents = [
+            "<table>".repeat(deep),
+            "<table><tr><td>".repeat(deep),
+            "<template>".repeat(deep) + "x",
+            "<select><option>".repeat(deep),
+            "<svg>".repeat(deep) + "<foreignObject><div>x",
+            "<math><mi>".repeat(deep) + "x",
+            "<p><button>".repeat(deep),
+            "<b><p>".repeat(deep) + "x",
+            "<textarea>".to_owned() + &"<div>".repeat(deep),
+        ];
+        for document in &documents {
+            assert_eq!(parse(document).kind, Kind::Document, "{}…", &document[..20]);
+        }
+    }
+
+    /// A tag's attributes are kept in written order, and a name written a
+    /// second time is dropped with its value, the first one winning. That holds
+    /// for a tag with a few attributes and for one with enough that the
+    /// tokenizer looks its names up in a set.
+    #[test]
+    fn a_duplicate_attribute_is_dropped_and_the_first_value_kept_for_any_count() {
+        let few = parse("<p a=1 b=2 a=3>");
+        let many: String = (0..40).map(|i| format!(" n{i}={i}")).collect();
+        let many = parse(&format!("<p{many} n3=late n39=late z=last>"));
+        let attributes = |tree: &Parsed| -> Vec<(String, String)> {
+            let body = &tree.children[0].children[1];
+            body.children[0].attributes.clone()
+        };
+        assert_eq!(
+            attributes(&few),
+            [("a", "1"), ("b", "2")].map(|(n, v)| (n.to_owned(), v.to_owned()))
+        );
+        let many = attributes(&many);
+        assert_eq!(many.len(), 41);
+        assert_eq!(many[3], ("n3".to_owned(), "3".to_owned()));
+        assert_eq!(many[39], ("n39".to_owned(), "39".to_owned()));
+        assert_eq!(many[40], ("z".to_owned(), "last".to_owned()));
+    }
+
+    /// A tag with a hundred thousand attributes keeps every one of them.
+    ///
+    /// The duplicate check runs once for each attribute, against the ones
+    /// before it on the same tag. A set makes that check constant, so this tag
+    /// parses in time in proportion to its length.
+    #[test]
+    fn a_tag_with_a_hundred_thousand_attributes_keeps_them_all() {
+        let attributes: String = (0..100_000).map(|i| format!(" a{i}={i}")).collect();
+        let tree = parse(&format!("<p{attributes}>x"));
+        let paragraph = &tree.children[0].children[1].children[0];
+        assert_eq!(paragraph.name, "p");
+        assert_eq!(paragraph.attributes.len(), 100_000);
+        assert_eq!(paragraph.attributes[99_999].1, "99999");
+    }
+
+    /// A repeated `<html>` or `<body>` tag adds only the attributes the element
+    /// does not have yet, and the element keeps the value written first.
+    #[test]
+    fn a_repeated_html_tag_adds_only_the_attributes_its_element_lacks() {
+        let tree =
+            parse("<html lang=en><html lang=fr dir=ltr><body a=1><body a=2 b=3><html dir=rtl x=y>");
+        let html = &tree.children[0];
+        let body = &html.children[1];
+        let pairs = |node: &Parsed| -> Vec<String> {
+            node.attributes
+                .iter()
+                .map(|(n, v)| format!("{n}={v}"))
+                .collect()
+        };
+        assert_eq!(pairs(html), ["lang=en", "dir=ltr", "x=y"]);
+        assert_eq!(pairs(body), ["a=1", "b=3"]);
+    }
+
+    /// The active formatting elements still follow the Noah's Ark rule: at
+    /// most three entries with the same name and the same attributes are
+    /// kept, and attributes written in a different order are the same.
+    ///
+    /// `</p>` closes the `b`s with the paragraph, and the text in the second
+    /// paragraph reopens every entry that is kept, so that paragraph shows how
+    /// many there are. Four identical `b`s leave three, four that differ only
+    /// in attribute order leave three too, and four different ones leave four.
+    #[test]
+    fn noahs_ark_keeps_three_equal_formatting_elements_in_any_attribute_order() {
+        let cases = [
+            ("<p><b a=1><b a=1><b a=1><b a=1></p><p>x", 3),
+            ("<p><b a=1 c=2><b c=2 a=1><b a=1 c=2><b c=2 a=1></p><p>x", 3),
+            ("<p><b a=1><b a=2><b a=3><b a=4></p><p>x", 4),
+        ];
+        for (document, reopened) in cases {
+            let tree = parse(document);
+            let nodes = walked(&tree);
+            let paragraph = nodes
+                .iter()
+                .rposition(|(_, _, name)| *name == "p")
+                .expect("the document has two paragraphs");
+            let in_paragraph = nodes[paragraph + 1..]
+                .iter()
+                .filter(|(_, kind, name)| *kind == Kind::Element && *name == "b")
+                .count();
+            assert_eq!(in_paragraph, reopened, "{document}");
+        }
+    }
+
+    /// Foster parenting puts misplaced content in front of the open table, in
+    /// the order the document wrote it.
+    #[test]
+    fn foster_parented_nodes_land_before_the_table_in_written_order() {
+        let tree = parse("<table>a<i>1</i>b<i>2</i><tr><td>c</table>");
+        assert_eq!(
+            source(&tree.children[0].children[1]),
+            "a<i>1</i>b<i>2</i><table><tbody><tr><td>c</td></tr></tbody></table>"
         );
     }
 }

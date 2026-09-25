@@ -93,7 +93,8 @@ pub(crate) enum ProcessResult<Handle> {
 }
 
 pub(crate) enum FormatEntry<Handle> {
-    Element(Handle, Tag),
+    // Novis: the third field is `TreeBuilder::format_fingerprint` of the tag.
+    Element(Handle, Tag, u64),
     Marker,
 }
 

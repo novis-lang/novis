@@ -1,7 +1,6 @@
 <?nvs
 // Attack: one link with two hundred thousand event handler attributes is cleaned.
 // The program should finish quickly, and must not crash the runtime.
-// proof: gap nvs-stdlib/element-with-many-attributes-costs-time
 
 // 1. Builds the attributes `on0=x on1=x on2=x` and so on.
 string $attributes = '';

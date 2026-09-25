@@ -27,8 +27,14 @@ use log::{debug, trace};
 use markup5ever::{ns, small_char_set, TokenizerResult};
 use std::borrow::Cow::{self, Borrowed};
 use std::cell::{Cell, RefCell, RefMut};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::mem;
+
+// Novis: where `finish_attribute` changes from a scan to a set.
+/// How many attributes a tag has before a new name is checked against a hash
+/// set of the earlier ones. Chromium's `kMinimumNumAttributesToDedupWithHash`
+/// is the same number: below it a scan is as fast and allocates nothing.
+const ATTRIBUTES_TO_HASH: usize = 10;
 
 pub use crate::buffer_queue::{BufferQueue, FromSet, NotFromSet, SetResult};
 use crate::macros::{time, unwrap_or_return};
@@ -153,6 +159,11 @@ pub struct Tokenizer<Sink> {
     /// Current tag attributes.
     current_tag_attrs: RefCell<Vec<Attribute>>,
 
+    // Novis: the set `finish_attribute` checks once a tag has many attributes.
+    /// The current tag's attribute names, filled only once the tag has
+    /// `ATTRIBUTES_TO_HASH` of them and empty otherwise.
+    current_tag_attr_names: RefCell<HashSet<Box<str>>>,
+
     /// Current attribute name.
     current_attr_name: RefCell<StrTendril>,
 
@@ -205,6 +216,7 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
             current_tag_self_closing: Cell::new(false),
             current_tag_had_duplicate_attributes: Cell::new(false),
             current_tag_attrs: RefCell::new(vec![]),
+            current_tag_attr_names: RefCell::new(HashSet::new()),
             current_attr_name: RefCell::new(StrTendril::new()),
             current_attr_value: RefCell::new(StrTendril::new()),
             current_comment: RefCell::new(StrTendril::new()),
@@ -511,6 +523,12 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
         self.current_tag_self_closing.set(false);
         self.current_tag_had_duplicate_attributes.set(false);
         *self.current_tag_attrs.borrow_mut() = vec![];
+        // Novis: replaced rather than cleared, because clearing costs the
+        // capacity a previous tag with many attributes left behind.
+        let mut names = self.current_tag_attr_names.borrow_mut();
+        if !names.is_empty() {
+            *names = HashSet::new();
+        }
     }
 
     fn create_tag(&self, kind: TagKind, c: char) {
@@ -542,12 +560,21 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
 
         // Check for a duplicate attribute.
         // FIXME: the spec says we should error as soon as the name is finished.
+        // Novis: a linear scan for a tag with few attributes, and a hash set
+        // once it has `ATTRIBUTES_TO_HASH`, so that a tag costs time in
+        // proportion to its attributes rather than to their square.
         let dup = {
-            let name = &*self.current_attr_name.borrow();
-            self.current_tag_attrs
-                .borrow()
-                .iter()
-                .any(|a| *a.name.local == **name)
+            let name = &**self.current_attr_name.borrow();
+            let attrs = self.current_tag_attrs.borrow();
+            if attrs.len() < ATTRIBUTES_TO_HASH {
+                attrs.iter().any(|a| *a.name.local == *name)
+            } else {
+                let mut names = self.current_tag_attr_names.borrow_mut();
+                if names.is_empty() {
+                    names.extend(attrs.iter().map(|a| Box::from(&*a.name.local)));
+                }
+                !names.insert(Box::from(name))
+            }
         };
 
         if dup {

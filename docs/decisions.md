@@ -742,6 +742,12 @@ operation a loop check would reach too late; and a watchdog samples each core's 
 held by a store that outlives requests, such as a process-wide cache, are accounted to the process,
 so no request is charged or credited for them.
 
+**Parsing HTML takes time in proportion to the document**
+
+`Core\Html::parse` keeps at most 512 elements open at once, like the major browsers. When a document
+nests deeper, the next element closes the current one and becomes its sibling. No content is lost.
+Because of this limit, a small hostile document cannot keep a CPU core busy.
+
 ## The standard library and runtime
 
 What is built in and how it behaves: the Core namespace's own conventions, the components that ship with it, and how the runtime serves a request.

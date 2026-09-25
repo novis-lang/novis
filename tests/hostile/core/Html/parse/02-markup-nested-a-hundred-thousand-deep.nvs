@@ -1,7 +1,6 @@
 <?nvs
 // Attack: documents with tags nested one hundred thousand deep are parsed. The
 // program should finish quickly, and no step may crash the runtime.
-// proof: gap nvs-stdlib/deeply-nested-markup-costs-time-in
 
 // 1. One hundred thousand `div` tags, each inside the one before, and none closed.
 var $deep = Core\Html::parse(Core\Str::repeat('<div>', 100000) . 'bottom');
@@ -10,3 +9,17 @@ echo 'step 1: ', Core\Str::length($deep->text()), "\n";
 // 2. One hundred thousand `b` tags that are never closed, then a paragraph that closes them all.
 var $bold = Core\Html::parse(Core\Str::repeat('<b>', 100000) . '<p>x</p>');
 echo 'step 2: ', Core\Str::length($bold->text()), "\n";
+
+// 3. One hundred thousand `span` tags, then one hundred thousand end tags that match none of them.
+var $unmatched = Core\Html::parse(Core\Str::repeat('<span>', 100000) . Core\Str::repeat('</x>', 100000));
+echo 'step 3: ', Core\Str::length($unmatched->text()), "\n";
+
+// 4. One hundred thousand `b` tags. Each one has a different value in its attribute.
+string $different = '';
+int $i = 0;
+while ($i < 100000) {
+    $different = $different . '<b a=' . $i . '>';
+    $i = $i + 1;
+}
+var $formatted = Core\Html::parse($different . 'x');
+echo 'step 4: ', Core\Str::length($formatted->text()), "\n";

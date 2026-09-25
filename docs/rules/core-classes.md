@@ -566,6 +566,18 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
+**The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
+cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
+WebKit does, and the new element becomes its sibling: nesting past the cap flattens, and every
+element, attribute and character of the document still arrives. The close is an end tag for the
+current element's own name, a token the algorithm already has a rule for, so the parse still never
+fails. The cap is a constant and not a setting, because it is what bounds the work one token costs:
+every scope check the algorithm makes walks that stack, and without the cap a document costs time in
+the square of its depth. It is part of the parse, so the PDF renderer holds it too. The two other
+checks that grow with a document — a tag's attributes against each other for a duplicate, and the
+active formatting elements against a new one for an equal entry — cost time in proportion to what
+they check, and neither changes what the parse produces.
+
 **The tree came first and this parse is written against it**, rather than beside it: the tree and the
 builder interface are one implementation, so whichever was built second would otherwise have been
 shaped by the first. `Core\Html::parse` drives `html5ever` through a tree builder of ours straight
@@ -578,7 +590,7 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md), [0223](../decisions/0223.md).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 

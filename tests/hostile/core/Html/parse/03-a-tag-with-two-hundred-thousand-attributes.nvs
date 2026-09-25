@@ -1,7 +1,6 @@
 <?nvs
 // Attack: one tag with two hundred thousand attributes is parsed. The program
 // should finish quickly, and must not crash the runtime.
-// proof: gap nvs-stdlib/element-with-many-attributes-costs-time
 
 // 1. Builds the attributes `a0=0 a1=1 a2=2` and so on.
 string $attributes = '';
@@ -14,3 +13,7 @@ while ($i < 200000) {
 // 2. Parses one paragraph that has all of them.
 var $wide = Core\Html::parse('<p' . $attributes . '>x');
 echo 'step 2: ', Core\Str::length($wide->text()), "\n";
+
+// 3. Parses a second `html` tag that has all of them. The parser adds each one to the first `html` tag.
+var $twice = Core\Html::parse('<html><html' . $attributes . '>x');
+echo 'step 3: ', Core\Str::length($twice->text()), "\n";
