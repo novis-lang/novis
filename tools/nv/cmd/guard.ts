@@ -469,7 +469,91 @@ export const RULES: Rule[] = [
       return null;
     },
   },
+  {
+    name: "heavy-run",
+    tools: ["Bash", "PowerShell"],
+    commands: ["affected"],
+    deny(call, parsed) {
+      for (const seg of parsed!.segments) {
+        const why = heavyRun(plain(seg), call.cwd);
+        if (why === null) continue;
+        return (
+          `${why}. \`bun nv affected\` names what your change reaches, and \`bun nv affected --run\` runs exactly ` +
+          `that; \`--since <rev>\` names a committed change. To look into one test, name it: \`cargo test --test <name>\` ` +
+          `or \`cargo test --lib <filter>\`. The owed floor is paid by the loop, and at a push by the person pushing.`
+        );
+      }
+      return null;
+    },
+  },
 ];
+
+/** The words after `bun nv` when a segment runs an `nv` command, else null. */
+function nvArgs(words: string[]): string[] | null {
+  if (base(words[0]) !== "bun") return null;
+  if (words[1] === "nv") return words.slice(2);
+  if (words[1] === "run" && words[2] === "nv") return words.slice(3);
+  if ((words[1] ?? "").replace(/\\/g, "/").endsWith("tools/nv/main.ts")) return words.slice(2);
+  return null;
+}
+
+/** `cargo test`'s flags that take a value, whose value is not a test-name filter. */
+const CARGO_VALUED = /^(?:--features|-F|--jobs|-j|--manifest-path|--target|--target-dir|--message-format|--color|--profile|--config|-Z|--exclude|--package|-p)$/;
+/** `cargo test`'s flags that pick which test targets build and run. */
+const CARGO_TARGETS = /^(?:--lib|--bin|--bins|--test|--tests|--doc|--no-run|--example|--examples|--bench|--benches)(?:=|$)/;
+
+/** Whether a `cargo test` segment names what it runs: a target flag, or a test-name filter before or
+ * after `--`. */
+function narrowCargoTest(args: string[]): boolean {
+  for (let j = 0; j < args.length; j++) {
+    const w = args[j]!;
+    if (w === "--") return args.slice(j + 1).some((a) => !a.startsWith("-"));
+    if (CARGO_TARGETS.test(w)) return true;
+    if (CARGO_VALUED.test(w)) j++;
+    else if (!w.startsWith("-")) return true;
+  }
+  return false;
+}
+
+/** A segment's words without the commands that only wrap the next one: `timeout 100`, `time`, `nice`,
+ * `nohup`, `env` and a leading `NAME=value`. */
+function unwrapped(words: string[]): string[] {
+  let j = 0;
+  while (j < words.length) {
+    const w = base(words[j]);
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[j]!)) j++;
+    else if (w === "time" || w === "nice" || w === "nohup" || w === "env") j++;
+    else if (w === "timeout") {
+      j++;
+      while (j < words.length && words[j]!.startsWith("-")) j++;
+      j++;
+    } else break;
+  }
+  return words.slice(j);
+}
+
+/** Why a segment runs verification its change does not decide, or null. */
+function heavyRun(all: string[], cwd: string): string | null {
+  const words = unwrapped(all);
+  const nv = nvArgs(words);
+  if (nv !== null) {
+    const [cmd, ...rest] = nv;
+    const narrowed = rest.some((w) => /^--(?:stage|name|feature)(?:=|$)/.test(w));
+    if (cmd === "loop" && rest[0] === "--settle") return "`bun nv loop --settle` runs every carried check the memo does not answer, and most of them were owed before your change";
+    if (cmd === "loop" && (rest[0] === "--goal-only" || rest[0] === "--run") && !narrowed) return `\`bun nv loop ${rest[0]}\` runs the whole plan, whatever your change reaches`;
+    if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
+      return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
+    }
+    if (cmd === "verify" && rest.includes("--no-cache")) return "`bun nv verify --no-cache` runs every step whatever its inputs, and the green cache is keyed on exactly what each step reads";
+    return null;
+  }
+  if (base(words[0]) !== "cargo") return null;
+  const args = words.slice(1).filter((w) => !w.startsWith("+"));
+  if (args[0] !== "test" || narrowCargoTest(args.slice(1))) return null;
+  // A scratch crate is not the workspace.
+  if (args.includes("--manifest-path") || inTree(cwd)?.startsWith(".agent-tmp")) return null;
+  return "`cargo test` with no target and no filter runs every test binary in the workspace, whatever your change reaches";
+}
 
 /** The reason a hook event is denied, or null when it is allowed. Anything unexpected allows it. */
 export function decide(event: unknown): string | null {

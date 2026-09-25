@@ -195,17 +195,38 @@ that crate's binaries off one shared `cargo test --no-run` (`tools/nv/driver/acc
 ## Verifying
 
 ```sh
+bun nv affected                                                # what the change reaches, and what verifying it runs
+bun nv affected --run                                          # run exactly that: nv verify, then the reached checks
+bun nv affected --since HEAD~2                                 # the same, for a change already committed
+bun nv affected --paths crates/nvs-ir/src/lower.rs             # the same, for these paths alone
 bun nv verify                                                  # build + fmt + test + clippy, one call
 bun nv verify --fast                                           # build + test only, for a mid-work check
 bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
 bun nv verify --start   ... --wait                             # run it while you write the wrap file
-bun nv verify --no-cache                                       # run every step, whatever the cache holds
+bun nv verify --no-cache                                       # run every step, whatever the cache holds; by hand only
 bun nv verify --doc                                            # the rustdoc gate alone (the driver's)
 bun nv verify --list                                           # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p nvs-cli --bin nvs by_the_margin         # the CLI's two cost margins (skipped in debug)
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
+
+**`bun nv affected` is the one thing that chooses what to run.** It takes a change — the uncommitted
+paths, in a loop session every commit since the session began, `--since <rev>` or `--paths` — builds the
+tree as it was before it, and keys every `nv verify` step, test binary, acceptance check and leg over
+both trees with the keys the memos use. A unit whose key moved is reached, and each is printed with the
+changed paths that moved it. A reached unit already green over the tree is not run, and neither is a
+`cargo test -p` check whose binaries `nv verify` just ran green with its tests in them. A heavy check —
+the release profile, fuzz, TSan, the database matrix, the Linux legs — is named and left to the floor
+gate. A carried check that was owed before the change is counted and left to the floor gate or to
+`bun nv loop --settle` at a push. `--run` runs the rest: `nv verify` first, then the sweep over exactly
+the checks it named.
+
+**`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
+and no filter, `bun nv loop --settle`, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv
+proofs --verify` or `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by
+hand; the loop driver and the pre-push hook are not tool calls, so the guard never sees them. To look
+into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
 **Two of those are for the run that is not the final one, and both are measured as unused.** Over a
 33-session run there were 108 verifications and **`--fast` was chosen 0 times**, `-p` three times — every
@@ -322,8 +343,9 @@ fail over it.
 
 ```sh
 bun nv loop --owed                # the carried checks no memo answers for this tree; runs nothing
-bun nv loop --settle              # run those, and only those
+bun nv loop --settle              # run those, and only those; by hand, since the guard refuses it to an agent
 bun nv why "<check name>"         # what one check's key is read from
+bun nv affected                   # which of them a change reaches, and the paths that reach each
 ```
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`

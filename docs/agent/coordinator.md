@@ -408,8 +408,9 @@ because the sweep runs checks in parallel. An acceptance test nobody has ever
 timed is one nobody can tune.
 
 Inspect it without running it: `bun nv loop --list`, narrowed by `--stage`, `--name` or `--feature`.
-Run it once, without any session: `bun nv loop --goal-only`, which prints each check as it goes,
-names the first failure, and prints what it cost.
+Run it once by hand, without any session: `bun nv loop --goal-only`, which prints each check as it goes,
+names the first failure, and prints what it cost. An agent is refused the whole-plan sweep and runs
+`bun nv affected --run` instead, which runs the checks its change reaches.
 
 ## Running it
 

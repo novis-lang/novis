@@ -80,6 +80,27 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Bash", { command: "bun nv verify -p nvs-stdlib" }],
     ],
   },
+  "heavy-run": {
+    deny: [
+      ["Bash", { command: "cargo test 2>&1 | tail -20" }],
+      ["PowerShell", { command: "cargo test --workspace --features x" }],
+      ["Bash", { command: "bun nv loop --settle" }],
+      ["Bash", { command: "timeout 100 bun nv loop --settle > .agent-tmp/out 2>&1" }],
+      ["PowerShell", { command: "bun nv loop --goal-only --full" }],
+      ["Bash", { command: "bun nv proofs --verify" }],
+      ["Bash", { command: "bun nv verify --no-cache" }],
+    ],
+    allow: [
+      ["Bash", { command: "cargo test --lib html::tests 2>&1 | tail -20" }],
+      ["Bash", { command: "cargo test --test meta" }],
+      ["Bash", { command: "cargo test -- --exact spec_registry_coverage" }],
+      ["Bash", { command: "cargo test --manifest-path .agent-tmp/probe/Cargo.toml" }],
+      ["Bash", { command: "bun nv loop --goal-only --stage 3" }],
+      ["Bash", { command: "bun nv proofs --verify --group Core\\\\Html" }],
+      ["Bash", { command: "bun nv affected --run" }],
+      ["Bash", { command: "bun nv verify" }],
+    ],
+  },
 };
 
 describe("nv guard", () => {

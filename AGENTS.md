@@ -88,8 +88,12 @@ which are whole where they stand.
    any number of files, all of it or none of it.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
-4. **Verify with one call, once, at the end:** `bun nv verify` — build, fmt, test, the `.nvst` trees and clippy in
-   order, stopping at the first failure.
+4. **Verify with one call, once, at the end:** `bun nv affected --run`. It names what your change
+   reaches, runs `bun nv verify` — build, fmt, test, the `.nvst` trees and clippy, each step only when
+   what it reads changed — and then only the acceptance checks your change reaches that are not green
+   yet. A loop session runs `bun nv verify` alone, because the driver sweeps the rest. Never choose a
+   wider command yourself: `nv guard` refuses one, and `bun nv affected` without `--run` says what
+   would run and why.
 5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
    --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
    package and writes a second copy of every workspace crate beside the first, and a day of those
@@ -273,8 +277,9 @@ Every session runs the same five steps, in this order, and **stops**:
    prices a slice from sessions that each did one hard one. Take the **ceiling** from that tool after any
    run that changes what a session reads: its projection opens where the *next* session will open, so a
    pass that cuts the pack shows up immediately. Leave the number of slices to the 120k gate.
-3. **Verify what you touched, once, at the end of the group** — `bun nv verify`, plus whatever the
-   change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
+3. **Verify what you touched, once, at the end of the group** — `bun nv verify` in the loop, `bun nv
+   affected --run` anywhere else, plus whatever the change specifically warrants (a `valgrind` run for a
+   new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
    if a trap cost you time, and the live goal's handoff overwritten with where the work stands now. The

@@ -66,11 +66,7 @@ minutes, under-running costs a silently retracted premise.
 **A. Always.**
 
 ```sh
-cargo build --workspace --all-targets
-cargo test --workspace --all-targets
-cargo test --workspace --doc
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all --check
+bun nv affected --run                     # a moved Cargo.lock reaches every build: verify, then every check it reaches
 cargo deny check                          # cargo install cargo-deny --locked, if absent
 bun nv gen-attribution                    # regenerate; commit the diff in the same commit
 ```
@@ -83,10 +79,12 @@ cargo test --release -p nvs-abi-probe
 cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 ```
 
-**C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep:
+**C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep.
+`bun nv affected` names them as heavy checks the floor gate runs. Before the bump is pushed, the person
+pushing runs them by hand:
 
 ```sh
-bun nv loop --goal-only                   # --list shows what it would run
+bun nv loop --settle                      # every carried check the memo does not answer; `--owed` names them first
 ```
 
 The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/driver/accept.ts`'s "Not here
