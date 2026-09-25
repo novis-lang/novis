@@ -447,21 +447,23 @@ const ABS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Which side of zero `$n` is on — `-1`, `0` or `1` — as PHP's `$n <=> 0` does.",
+    short: "Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is \
+            zero. This replaces PHP's `$n <=> 0`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The number to classify: an `int`, a `float` or a `decimal`.",
+        desc: "The number to check: an `int`, a `float` or a `decimal`.",
         shape: &[],
     }],
-    ret: "`-1` below zero, `1` above it and `0` for zero, `-0.0` included.",
+    ret: "`-1`, `0` or `1`, as an `int`. `-0.0` is zero, so the result for it is `0`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "When `$n` is `NaN`, which is on neither side of zero.",
+            desc: "When `$n` is `NaN` (a value that means \"not a number\"). `NaN` is not below, \
+                   above or equal to zero.",
         },
         ErrorDoc {
             error: "ArithmeticError",
-            desc: "When `$n` is a `uint` past `INT_MAX`.",
+            desc: "When `$n` is a `uint` bigger than `Core\\Math::INT_MAX`.",
         },
     ],
 };
@@ -575,14 +577,15 @@ const FLOOR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::truncate`'s reference card — `rule:core-api/reference-card`.
 const TRUNCATE_DOC: MethodDoc = MethodDoc {
-    short: "`$n` with its fractional part dropped — toward zero, so `floor` for a positive `$n` \
-            and `ceil` for a negative one — as PHP's `(int)` cast does without the type change.",
+    short: "Removes the fractional part of `$n`. The result moves toward zero, so `2.7` gives \
+            `2.0` and `-2.7` gives `-2.0`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The value to truncate.",
+        desc: "The number whose fractional part is removed.",
         shape: &[],
     }],
-    ret: "An integral `float`, still a `float`; `NaN` and the infinities pass through unchanged.",
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and \
+          the infinities stay the same.",
     errors: &[],
 };
 
@@ -738,13 +741,14 @@ const LCM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::sqrt`'s reference card — `rule:core-api/reference-card`.
 const SQRT_DOC: MethodDoc = MethodDoc {
-    short: "The square root of `$n`, as `sqrt` does.",
+    short: "Returns the square root of `$n`. This replaces PHP's `sqrt`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The value to take the root of.",
+        desc: "The number to take the square root of.",
         shape: &[],
     }],
-    ret: "The non-negative root; `NaN` for a negative `$n`, and `-0.0` for `-0.0`.",
+    ret: "A `float` that is zero or more. A negative `$n` gives `NaN`. `-0.0` gives `-0.0`, and \
+          `Core\\Math::INFINITY` gives `Core\\Math::INFINITY`.",
     errors: &[],
 };
 
@@ -3468,6 +3472,94 @@ mod tests {
             let message = ctx.take_pending().expect("the refusal is pending");
             assert!(message.contains("Core\\Math::min"), "{message}");
         }
+    }
+
+    /// `sign` answers `-1`, `0` or `1` on every numeric arm, both ends of
+    /// `int` and the smallest floats included, calls both zeros `0`, and
+    /// throws naming itself for `NaN` and for a `uint` past `INT_MAX`.
+    // covers: Core\Math::sign
+    #[test]
+    fn sign_answers_every_side_of_zero_and_throws_for_nan_and_a_uint_past_int_max() {
+        let sign = |n: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_sign, &mut ctx, &[n])
+                .expect("a number with a side has an answer")
+                .as_int()
+        };
+        for (n, want) in [(-42, -1), (0, 0), (7, 1), (i64::MIN, -1), (i64::MAX, 1)] {
+            assert_eq!(sign(Value::int(n)), Some(want), "sign({n})");
+        }
+        assert_eq!(sign(Value::uint(i64::MAX.unsigned_abs())), Some(1));
+        for (n, want) in [
+            (-0.0, 0),
+            (0.0, 0),
+            (-f64::from_bits(1), -1),
+            (f64::from_bits(1), 1),
+            (f64::NEG_INFINITY, -1),
+            (f64::INFINITY, 1),
+        ] {
+            assert_eq!(sign(Value::float(n)), Some(want), "sign({n:e})");
+        }
+        for (text, want) in [("-19.90", -1), ("0.00", 0), ("0.01", 1)] {
+            let exact = Decimal::parse(text).expect("a decimal literal");
+            assert_eq!(sign(Value::decimal(exact)), Some(want), "sign({text})");
+        }
+
+        for refused in [Value::float(f64::NAN), Value::uint(u64::MAX)] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_sign, &mut ctx, &[refused]).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::sign"), "{message}");
+        }
+    }
+
+    /// `truncate` moves toward zero for both signs, keeps a zero's sign and
+    /// gives `-0.0` for a `$n` in `(-1, 0)`, leaves every float at or past
+    /// `2^52` alone because none has a fraction, and passes `NaN` and the
+    /// infinities through — never a throw.
+    // covers: Core\Math::truncate
+    #[test]
+    fn truncate_moves_toward_zero_and_keeps_a_negative_zero() {
+        let truncate = |n: f64| float_result(nvs_core_math_truncate, &[Value::float(n)]);
+        for (n, want) in [(2.7, 2.0), (-2.7, -2.0), (2.0, 2.0), (0.999_999, 0.0)] {
+            assert_eq!(truncate(n), want, "truncate({n})");
+        }
+        for tiny in [-0.5, -f64::from_bits(1), -0.0] {
+            let zero = truncate(tiny);
+            assert!(zero == 0.0 && zero.is_sign_negative(), "truncate({tiny:e})");
+        }
+        let past_fractions = 2f64.powi(52) + 1.0;
+        assert_eq!(truncate(past_fractions), past_fractions);
+        assert_eq!(truncate(f64::MAX), f64::MAX);
+        assert_eq!(truncate(-f64::MAX), -f64::MAX);
+        assert_eq!(truncate(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(truncate(f64::NAN).is_nan());
+    }
+
+    /// `sqrt` is exact on perfect squares, `NaN` for every negative number
+    /// down to `-INFINITY`, keeps the sign of a zero, stays finite at
+    /// `f64::MAX` and above zero at the smallest subnormal — never a throw.
+    // covers: Core\Math::sqrt
+    #[test]
+    fn sqrt_is_exact_on_squares_nan_below_zero_and_keeps_a_zeros_sign() {
+        let sqrt = |n: f64| float_result(nvs_core_math_sqrt, &[Value::float(n)]);
+        for (n, want) in [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (4.0, 2.0),
+            (0.25, 0.5),
+            (1e300, 1e150),
+        ] {
+            assert_eq!(sqrt(n), want, "sqrt({n})");
+        }
+        let negative_zero = sqrt(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        for below in [-1.0, -f64::from_bits(1), f64::NEG_INFINITY, f64::NAN] {
+            assert!(sqrt(below).is_nan(), "sqrt({below:e})");
+        }
+        assert!(sqrt(f64::MAX).is_finite());
+        assert!(sqrt(f64::from_bits(1)) > 0.0);
+        assert_eq!(sqrt(f64::INFINITY), f64::INFINITY);
     }
 
     /// `fromBase` reads either letter case, reaches both ends of `int` and no
