@@ -2592,7 +2592,7 @@ mod tests {
     /// **`None` is a skip and not a failure.** The bundle is issued by
     /// `tests/db/compose.yaml`'s own `certs` service into a Docker volume and is
     /// not in git, so a checkout with no servers up cannot reach the database
-    /// this asserts about at all. `tools/loop.py` brings both up for the
+    /// this asserts about at all. `bun nv loop` brings both up for the
     /// acceptance sweep, which is where the assertion below actually runs.
     fn compose_postgres() -> Option<nvs_config::tree::Database> {
         let bundle = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

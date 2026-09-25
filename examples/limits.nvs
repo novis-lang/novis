@@ -20,8 +20,8 @@
 // instead. 512 slabs of 1 MiB is comfortably past a 256M cap and
 // comfortably short of anything a developer machine minds.
 //
-// stdout, exit status and stderr for this program are frozen in
-// `docs/agent/loop-goal.toml` (stage 4); the source is not.
+// stdout, exit status and stderr for this program are frozen by a check in a
+// goal record under `data/goals/`; the source is not.
 
 echo 'before the cap', "\n";
 

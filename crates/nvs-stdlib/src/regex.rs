@@ -7,9 +7,8 @@
 //!
 //! # The two crates, and why these two
 //!
-//! `docs/agent/loop-goal.md` § *Standing decisions* names both, so the choice
-//! is recorded rather than made here — what belongs here is what each one is
-//! doing:
+//! The choice of these two crates is settled, not made here — what belongs
+//! here is what each one is doing:
 //!
 //! * **`regex`** is `rule:core-classes/regex-two-tiers`'s linear tier. A finite-automata engine with
 //!   no backtracking to exhaust, so [`Compiled::Linear`] needs no budget and

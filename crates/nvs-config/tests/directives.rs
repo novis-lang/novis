@@ -2299,7 +2299,7 @@ fn every_unimplemented_key_in_the_default_file_is_marked_as_one() {
 /// note out of the default file arrives, so it has to be a thing that can be opened: a rule id or a
 /// decision record's number.
 ///
-/// Whether a rule an owner names still exists is `python tools/rules.py --check`'s question, asked
+/// Whether a rule an owner names still exists is `bun nv rules --check`'s question, asked
 /// of every `rule:` citation in the repository rather than of these alone.
 #[test]
 fn every_unread_key_names_what_is_missing_and_who_owns_it() {

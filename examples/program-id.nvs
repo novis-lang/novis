@@ -20,8 +20,8 @@
 // computes it once, at program resolution, and again only at a hot-reload
 // swap; nothing here recomputes, caches or shortens anything.
 //
-// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 3); the source is not.
+// The two lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 string $id = Core\Program::id();
 

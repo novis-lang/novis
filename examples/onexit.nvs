@@ -19,8 +19,8 @@
 // Novis does — so before this queue there was no way at all to run code at the
 // one ending a CLI program most wants to clean up after.
 //
-// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 12); the source is not.
+// The three lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // The reason is an ordinary enum, so a `match` over it is exhaustive and a

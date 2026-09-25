@@ -262,8 +262,7 @@ address two evaluations answer with, that crate having no allocation counter to 
 
 ### C — an integer subscript reaches the packed form from compiled code
 
-Already scoped, already the handoff's next group, and already half of loop-goal item 15's measured
-claim. `nvs_ir::lower::Lowering::lower_array_key` renders an `int` subscript to a decimal string
+Already scoped. `nvs_ir::lower::Lowering::lower_array_key` renders an `int` subscript to a decimal string
 through `Helper::IntToString` before `InstKind::ArrayGet`/`ArraySet` reaches codegen, so the
 allocation has happened before `nvs_array_get_index` — which exists, and which nothing calls — can
 avoid it. `crates/nvs-runtime/src/array.rs`'s module doc § *the ABI was the part that expired* owns

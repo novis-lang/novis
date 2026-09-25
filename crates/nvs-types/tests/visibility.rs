@@ -11,8 +11,8 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// The name `docs/agent/loop-goal.toml`'s Stage 0 block names for this item,
-/// so it covers the whole of it in one source: both halves of a member, read
+/// The name an acceptance check in the goal records under `data/goals/` runs,
+/// so it covers the whole rule in one source: both halves of a member, read
 /// from a class that is neither the declaring one nor a subclass of it. The
 /// cases below take the same rule apart one shape at a time.
 #[test]

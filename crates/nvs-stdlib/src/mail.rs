@@ -1145,7 +1145,7 @@ mod tests {
     /// endpoint is a *name* the grant answers about, and there is no parameter
     /// anywhere on the row through which a program could name a host.
     ///
-    /// The acceptance check `loop-goal.toml` names, and it asserts the
+    /// An acceptance check in the goal records under `data/goals/`, and it asserts the
     /// **absence** deliberately: a later slice adding a `host` option would
     /// leave every other test in this file green.
     // covers: Core\Mail::send

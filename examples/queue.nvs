@@ -19,8 +19,8 @@
 // attempts are finite with nothing configured, and an exhausted job reaches
 // the dead-letter table rather than being discarded.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`;
-// the source is not. The jobs run in-process workers, which
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. The jobs run in-process workers, which
 // `[queue] workers` in `nvs.toml` turns on, over the `[queue] connection`
 // that names a `[db.<name>]` block — `examples/db.nvs`'s, by design, since
 // § 3's property is only available to a queue sharing the application's own

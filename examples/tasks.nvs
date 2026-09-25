@@ -2,8 +2,8 @@
 // ADR 0072's `Core\Task` roster, as a program — one block per section the
 // roster is specified in.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 4); the source below is not, and the session that lands each item
+// The four lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source below is not, and the session that lands each item
 // is expected to rewrite the block that reaches it.
 
 // § 1: a fixed, heterogeneous set. Each field's type binds from the written

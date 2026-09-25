@@ -2,7 +2,7 @@
 //! bytes on the calling thread, in front of the allocator Novis actually ships.
 //!
 //! It exists for one guard: `object::tests::an_acyclic_object_graph_releases_
-//! every_allocation`, the leak check `docs/agent/loop-goal.md` Stage 5 names. A
+//! every_allocation`, the runtime's leak check. A
 //! hand-written refcount protocol is exactly where a leak hides, and asserting
 //! that a refcount reached zero only proves the *bookkeeping* balanced — not
 //! that the allocation was handed back. Measuring the allocator proves both.
@@ -38,7 +38,7 @@
 //! while it is on is that they measure the platform heap rather than the code
 //! path a release binary takes. The CI job named `asan` is the only caller.
 //!
-//! **No other leg needs it.** `tools/loop.py`'s valgrind sweep runs
+//! **No other leg needs it.** The valgrind sweep runs
 //! `target/debug/nvs`, and a debug build is deliberately left on the platform
 //! heap ([`crate`] § *the allocator itself*), so that sweep sees every free
 //! already. `nvs-codegen` and `nvs-stdlib` link this crate with `cfg(test)`

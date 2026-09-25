@@ -16,9 +16,8 @@ exist in the registry (or the reverse).
 
 Every item was decided against the ADR that owns it; the decisions that were open were put to the user
 and are folded into their ADRs (0006, 0007, 0033, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
-`README.md` § *Decisions taken at project start*, `divergences.md`). The code and card work is **stage 0c
-of the running loop goal** — `docs/agent/loop-goal.md` items 31–35 — and it runs ahead of everything else
-in that goal. An item's owner is the row it sits in.
+`README.md` § *Decisions taken at project start*, `divergences.md`). The code and card work is the five
+rows whose owner is an item number, 31 to 35. An item's owner is the row it sits in.
 
 | Verdict | Items | Owner |
 |---|---|---|

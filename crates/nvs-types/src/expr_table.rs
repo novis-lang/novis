@@ -1,9 +1,7 @@
-//! The typed-expression table — the architecture decision `nvs-ir` widening
-//! past scalars needed before it could lower a call, `new`, or a member
-//! access: see `docs/agent/handoff.md`'s history for the two options this
-//! was weighed against (`nvs-ir` depending on `nvs-types` and duplicating its
-//! resolution logic, versus this crate publishing a persisted result
-//! `nvs-ir` reads back) and why the second was chosen.
+//! The typed-expression table — what `nvs-ir` reads to lower a call, `new`, or
+//! a member access. This crate publishes a persisted result that `nvs-ir`
+//! reads back, so `nvs-ir` does not depend on `nvs-types` and does not
+//! duplicate its resolution logic.
 //!
 //! # What this is, and why it's shaped this way
 //!
@@ -285,7 +283,7 @@ pub struct ObserverCalls {
 ///
 /// The route's `path` is **not** carried beside this. § 2's grammar is read
 /// once, by [`crate::routes::link_pieces`], and what crosses to `nvs-ir` is its
-/// answer — `docs/agent/loop-goal.md` § *Standing decisions* makes a fold and
+/// answer — `docs/agent/goals/core-depth.md` § *Standing decisions* makes a fold and
 /// its runtime path one implementation, and a template the runtime re-parsed
 /// would be the second copy that rule exists to refuse.
 #[derive(Clone, Debug, PartialEq, Eq)]

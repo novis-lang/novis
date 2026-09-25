@@ -1,5 +1,4 @@
-//! The gate `docs/agent/loop-goal.md` names as this loop's own definition of
-//! done: every member
+//! A coverage gate: every member
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) §§ 1-12
 //! writes as a **table row** is a member some class in [`registry::CLASSES`]
 //! declares.
@@ -56,8 +55,9 @@
 //! `nv verify` stops at the first failing step, so a permanently red
 //! `cargo test` costs every later session its clippy and fmt signal, which is
 //! a much larger loss than the one it buys. The acceptance gate withholds
-//! *done* on `loop-goal.toml`'s `min_passing = 600` regardless, and that
-//! number is untouched by anything here.
+//! *done* on the conformance suite's `minPassing` floor in the goal records
+//! under `data/goals/` regardless, and that number is untouched by anything
+//! here.
 //!
 //! So the outstanding members live in
 //! [`tests/spec-members-outstanding.txt`](spec-members-outstanding.txt), a
@@ -82,21 +82,23 @@
 //! than a note — it reads the chain and the plan's table and fails on an owner
 //! neither of them answers for, so a goal renamed or dropped cannot leave a key
 //! pointing at nothing. [`owner_problem`] is where the two kinds are decided,
-//! and `tools/owners.py`'s module doc is the rule they come from.
+//! and `tools/nv/cmd/owners.ts`'s module doc states the same kinds for a gap
+//! record.
 //!
 //! **The word `unowned` is refused by name**, and
 //! [`unowned_is_no_longer_an_owner_for_a_key`] is what holds it refused. A key
 //! whose owner is a scheduling question puts that question to the user, and
 //! what comes back is a goal on the chain or a milestone whose plan states the
 //! scope; a word standing for "nobody has decided" is the one owner a reader
-//! cannot act on. `tools/owners.py`'s module doc owns that rule for a module
-//! doc's `# Known gaps` item, and this file is the ratchet-file half of it.
+//! cannot act on. `tools/nv/cmd/owners.ts` refuses the same word as the owner
+//! of a gap record under `data/gaps/`, and this file is the ratchet-file half
+//! of that rule.
 //!
 //! The column exists because these facts were header prose, where one paragraph
 //! owned eight keys and could not say which was which. The failure it exists to
 //! stop is on record: `§18 stream` read as "goal `database`'s" for six goals
-//! after goal `database` closed. `tools/owners.py`'s module doc holds the same
-//! rule for a `# Known gaps` item, which is the other half of the contract.
+//! after goal `database` closed. `tools/nv/cmd/owners.ts` holds the same rule
+//! for a gap record under `data/gaps/`, which is the other half of the contract.
 //!
 //! What the gate deliberately does not check is whether an owner is still
 //! *ahead*. A chain entry that goes green without striking its key is the more
@@ -417,14 +419,14 @@ fn chain_goals() -> BTreeSet<String> {
 ///
 /// Everything before it is complete at the end of the program, so a key tagged
 /// to an earlier one names a carrier that has been and gone rather than work
-/// that is scheduled. `tools/owners.py`'s `FIRST_FUTURE_MILESTONE` is the same
-/// number for the same reason over the module docs; there is no file both sides
-/// can read it from, so each states it and each is held by its own test.
+/// that is scheduled. `tools/nv/cmd/owners.ts`'s `FIRST_FUTURE_MILESTONE` is the
+/// same number for the same reason over the gap records; there is no file both
+/// sides can read it from, so each states it.
 const FIRST_FUTURE_MILESTONE: u32 = 9;
 
 /// Every milestone in the plan's table, mapped to its *Carried by* cell.
 ///
-/// The row shape is `tools/owners.py`'s `PLAN_ROW`: the carrier cell first, then
+/// The row shape is the carrier cell first, then
 /// the milestone as a link to its own file under `docs/plan/`. That cell is the
 /// only place a milestone is finished — the plan's own § under the table says
 /// so — and `done` is the whole vocabulary for it.
@@ -446,7 +448,7 @@ fn plan_milestones() -> BTreeMap<String, String> {
 /// A suffixed milestone is its number's — `M4S` and `M4B` are both M4's, which
 /// is what the suffix means in the plan's table — so the suffix is read and
 /// dropped rather than making the tag unparseable. The shape is
-/// `tools/owners.py`'s `MILESTONE`, and a goal slug cannot collide with it: a
+/// `tools/nv/cmd/owners.ts`'s `MILESTONE`, and a goal slug cannot collide with it: a
 /// slug is lower case throughout.
 fn milestone_number(owner: &str) -> Option<u32> {
     let rest = owner.strip_prefix('M')?;
@@ -462,11 +464,11 @@ fn milestone_number(owner: &str) -> Option<u32> {
 
 /// What is wrong with one key's owner column, or `None` if nothing is.
 ///
-/// The two kinds `tools/owners.py`'s module doc allows both pass here: a goal
+/// Two kinds pass here: a goal
 /// the chain still holds, named by its slug, and a milestone tag. A milestone
 /// owns a key the way it owns a gap —
 /// the work is scheduled rather than missing — and the three things that make a
-/// tag empty are the same three `tools/owners.py:@classify` asks about, in its
+/// tag empty are the same three `tools/nv/cmd/owners.ts:@classify` asks about, in its
 /// order. A tag the plan's table does not list names no milestone at all; one
 /// before [`FIRST_FUTURE_MILESTONE`] is behind the program, so nothing is left
 /// to carry the key; and a row whose *Carried by* cell reads `done` closed
@@ -683,9 +685,9 @@ fn unowned_is_no_longer_an_owner_for_a_key() {
 ///
 /// Both tags are read from the real table, because the claim is about the plan
 /// as it stands: M9 and later are what the program has left, and M1 is carried
-/// by goals that are walking now. `tools/owners.py`'s module doc § *A milestone
-/// tag* is the rule, and the user's decision behind it is goal `gap-register`
-/// § *Standing decisions*.
+/// by goals that are walking now. The `milestone` and `past` kinds in
+/// `tools/nv/cmd/owners.ts`'s module doc are the rule, and the user's decision
+/// behind it is goal `gap-register` § *Standing decisions*.
 #[test]
 fn a_future_milestone_owns_a_key_and_a_past_one_does_not() {
     let goals = chain_goals();
@@ -863,10 +865,9 @@ fn every_part_one_spec_member_is_registered() {
 /// § 4's one `at` row is `Core\Time\DateTime`'s five-parameter constructor,
 /// and `Date::at`/`TimeOfDay::at` take three, so they are not compared against
 /// it rather than compared and failed. A member the spec writes with a
-/// different arity than the registry builds is `docs/agent/handoff.md`'s
-/// Backlog, not a failure here: `docs/agent/loop-goal.md` § *Standing
-/// decisions* says the spec is authoritative for the names and the registry
-/// for what is built, and nothing in Stage 0b changes a member's shape.
+/// different arity than the registry builds is not a failure here:
+/// `docs/agent/goals/concurrency.md` § *Standing decisions* says the spec is
+/// authoritative for the names and the registry for what is built.
 ///
 /// The floor on the comparison count is the real assertion about the parser —
 /// it makes 234 comparisons today, and one that stops matching the spec's

@@ -20,8 +20,8 @@
 // three lines below evidence — a `Throwable` would have caught a compile
 // mistake or a missing file just as quietly.
 //
-// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 4); the source is not.
+// The three lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 // Granted: a read under the root the operator named.
 try {

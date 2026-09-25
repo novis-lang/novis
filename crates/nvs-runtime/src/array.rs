@@ -1,8 +1,7 @@
 //! Novis's array: `rule:types/arrays`'s insertion-ordered, string-keyed hash, refcounted and copy-on-write.
 //!
-//! This is what `nvs_ir::ty::Ty::Array` lowers to, and the other half of M4's
-//! Stage 1 gate — `Core\Arr`'s whole contract rests on it
-//! (`docs/agent/loop-goal.md`).
+//! This is what `nvs_ir::ty::Ty::Array` lowers to, and `Core\Arr`'s whole
+//! contract rests on it.
 //!
 //! # Decision: the representation is opaque to compiled code
 //!

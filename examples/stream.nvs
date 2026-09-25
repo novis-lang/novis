@@ -8,8 +8,8 @@
 // The connection it opens is named in root-owned config (§ 2), so `nvs.toml` owes
 // this file both an `[[app]]` block granting `db.connect = ["main"]` and the
 // `[db.main]` block behind the name; § 13's pool is what hands the connection back
-// afterwards. The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 5); the source is not.
+// afterwards. The three lines this prints are frozen by an exact check in a goal
+// record under `data/goals/`; the source is not.
 
 use Core\Db;
 use Core\Db\Row;

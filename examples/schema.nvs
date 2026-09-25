@@ -29,8 +29,8 @@
 // by hand, in the `Core\Db::execute` that has always been where a statement a
 // human wrote goes — and that is why the second plan comes back empty.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 6); the source is not. The connection is an in-memory SQLite database
+// The four lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. The connection is an in-memory SQLite database
 // this program owns rather than the `main` the other database fixtures share,
 // because the step count here is exact and § 7 makes it depend on every other
 // table in the database.

@@ -2369,8 +2369,7 @@ pub enum Helper {
     ToArrayOfOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
-    /// effect under `nvs run`, decided in `docs/agent/loop-goal.md`. Defines no
-    /// value: a [`Helper`] invoked for an effect
+    /// effect under `nvs run`. Defines no value: a [`Helper`] invoked for an effect
     /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
     /// with `result: None` and every other variant's "the result is a fresh
     /// `Ty::Str` nothing else owns" release policy does not apply to it.

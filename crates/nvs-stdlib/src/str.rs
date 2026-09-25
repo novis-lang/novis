@@ -79,8 +79,8 @@
 //! **Replaces** column lists both PHP spellings against one Novis member on
 //! purpose (R13: "no member takes an encoding argument"), so the byte-wise
 //! behaviour has no surviving spelling to be compatible with — a deliberate
-//! divergence, and the shape `docs/agent/loop-goal.md`'s `--ORACLE-DIVERGES--`
-//! section exists to record in the conformance suite.
+//! divergence, and the shape a test case's `--ORACLE-DIVERGES--` section exists
+//! to record (`crates/nvs-test/src/lib.rs`).
 
 use std::cmp::Ordering;
 

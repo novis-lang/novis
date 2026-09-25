@@ -10,7 +10,7 @@
 // extension host, `console.log` reaches the editor's own output channels and only sometimes the
 // terminal that launched it, so `scripts/host.mjs` prints this file instead and the acceptance check
 // reads one stream on every platform. The last line is always `host: N passing, M failing`, which is
-// the pair `tools/loop.py` greps.
+// the pair `bun nv loop`'s acceptance check greps.
 
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

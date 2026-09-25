@@ -12,8 +12,8 @@
 #
 # `examples/routes.nvs` is what reads it today, so `nvs run` from this
 # directory prints an absolute link rather than throwing. Changing the value
-# changes that program's expected output, which `docs/agent/loop-goal.toml`
-# freezes.
+# changes that program's expected output, which an exact check in a goal
+# record under `data/goals/` freezes.
 
 # ADR 0104 § 1: an application is an entry file path, and the block naming it is
 # `[[app]]` — an array of tables. There is no `[app]` table for a global origin
@@ -2521,7 +2521,7 @@ fill_wait = "5s"
 # and `Core\RateLimit::consume` both open *this* store, and neither takes an argument
 # saying where it is. The port is `tests/db/compose.yaml`'s `redis` service —
 # `127.0.0.1:16379` rather than 6379, so a developer's own Redis is never the one a
-# fixture writes to — and `docs/agent/loop-goal.toml`'s `[docker]` block is what brings
+# fixture writes to — and a goal record's `env.docker` under `data/goals/` is what brings
 # it up for the acceptance sweep. `redis://` and not `rediss://`, because which
 # certificates this binary trusts has no decision yet; `nvs_stdlib::cache`'s module doc
 # is the home of that reasoning and of why there is no key for a password or a database
@@ -2571,9 +2571,8 @@ keep_temporary = false
 # TLS off, and `nvs_host::tls` verifies against anchors compiled into the binary; the compose
 # PostgreSQL presents a certificate its own `certs` service issued, so this block names that
 # service's CA and nothing else vouches for the server. The file is not in git — it belongs to
-# a Docker volume and is remade whenever that volume is — and `tools/loop.py` copies it out as
-# part of bringing the servers up. By hand, it is the one command
-# `tests/db/compose.yaml`'s header names.
+# a Docker volume and is remade whenever that volume is — and copying it out is the one
+# command `tests/db/compose.yaml`'s header names.
 [db.main]
 driver = "postgres"
 host = "127.0.0.1"

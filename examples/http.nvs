@@ -22,11 +22,10 @@
 // `bun nv origin`, which the driver holds up around the acceptance sweep and
 // which you start by hand to run this file — `bun nv origin &`. The
 // address is named here rather than discovered, and the reason the origin is
-// the harness's is recorded beside the stage 5 check in
-// `docs/agent/loop-goal.toml`.
+// the harness's is recorded in `tools/nv/driver/origin.ts`.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 5); the source is not.
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 string $origin = 'http://127.0.0.1:8099';
 

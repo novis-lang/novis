@@ -1,13 +1,13 @@
-# The test binaries `tools/impact.py` keys on the whole tree, one per line, each with why.
+# The test binaries whose key is the whole tree, one per line, each with why.
 #
 # A wide binary runs on every change, which is safe and slow. This file is the list of the ones
-# that are wide for a reason somebody looked at, and `python tools/impact.py --check` -- which
-# `nv verify`'s `test` step asks -- fails on any other. So a new test that joins `..` onto
+# that are wide for a reason somebody looked at, and `bun nv verify`'s `test` step fails on any
+# other (`tools/nv/keys/escape.ts`). So a new test that joins `..` onto
 # `CARGO_MANIFEST_DIR` or starts a process fails the run that wrote it, with the line, instead of
 # quietly costing every later run its narrow key: reach the file through `nvs_repo::path`.
 # A line naming a binary that is narrow now fails too, so this list only ever shrinks by hand.
 #
-# `<binary>  --  <why it cannot be narrow>`. The binary is named as `impact.py` prints it.
+# `<binary>  --  <why it cannot be narrow>`. The binary is named as `bun nv verify --keys` prints it.
 
 # Product code that starts a process or reads its working directory. `nvs_repo` is for tests.
 nvs-diagnostics lib nvs_diagnostics  --  `embedded.rs` reads the working directory to resolve a relative entry script

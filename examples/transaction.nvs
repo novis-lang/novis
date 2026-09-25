@@ -14,8 +14,8 @@
 // so `$tx` has the same surface `$db` does and nothing is declared twice.
 // A nested `transaction` is a savepoint.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 5); the source is not. It reads the same `[db.main]` block
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. It reads the same `[db.main]` block
 // `examples/db.nvs` does.
 
 use Core\Db;

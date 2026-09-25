@@ -341,8 +341,8 @@ fn fixture(stem: &str) -> String {
 /// **A fresh file per call, not one per stem.** Several tests here ask for
 /// `base`, `cargo test` runs them on their own threads, and a reader that
 /// catches another thread's `fs::write` half-done gets a truncated document and
-/// a diff that reports nothing — which is a flake in exactly the cases
-/// `loop-goal.toml` names as acceptance checks. The counter is what stops two
+/// a diff that reports nothing — which is a flake in exactly the cases the
+/// goal records under `data/goals/` name as acceptance checks. The counter is what stops two
 /// calls sharing a path at all; the documents are byte-identical either way, so
 /// nothing about what is compared changes.
 fn document(stem: &str) -> std::path::PathBuf {

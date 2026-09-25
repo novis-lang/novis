@@ -9,7 +9,7 @@
 //! model never hides a mistake inside its arguments.
 //!
 //! Two kinds of type argument meet here, and the wall between them is
-//! `docs/agent/loop-goal.md`'s standing decision that type variables stay
+//! `rule:attributes/call-site-type-argument`'s rule that type variables stay
 //! compiler-owned. [`check_written_type_args`] takes the `<...>` a call site
 //! wrote and binds it, but only where the registry marks the variable
 //! [`Written`](nvs_stdlib::registry::CoreTy::Written); [`check_generic_args`]
@@ -1545,7 +1545,7 @@ pub(crate) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<
 /// twins in [`crate::lower`]: a member declaring no type parameter refuses a
 /// written list (`E_TYPE_ARGS_NOT_GENERIC`), and one that declares some
 /// requires exactly that many (`E_TYPE_ARG_COUNT`, "including none at all").
-/// `docs/agent/loop-goal.md`'s standing decision is what draws the line —
+/// `rule:attributes/call-site-type-argument` is what draws the line —
 /// user-declared generics stay parked, and a call site may write the argument
 /// only where the compiler owns the declaration.
 ///

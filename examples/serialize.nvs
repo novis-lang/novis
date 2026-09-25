@@ -2,8 +2,8 @@
 // ADR 0023's one graph copy, reached through its externalizing carrier —
 // `Core\Serialize::encode`/`decode`, § 2's second row.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 5); the source is not. Nothing below declares a `__serialize`, a
+// The four lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. Nothing below declares a `__serialize`, a
 // `__sleep` or a `__wakeup`, and not because this fixture omits them: § 2
 // says no hook fires, so the shape that crosses is exactly the class's own
 // declared properties, every time.

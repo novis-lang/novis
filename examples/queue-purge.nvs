@@ -18,8 +18,8 @@
 // because a worker holds a lease on it and there is no protocol for
 // interrupting work in flight.
 //
-// The eight lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 6); the source is not. Both members take the deny-by-default
+// The eight lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. Both members take the deny-by-default
 // `queue.purge` capability, so `nvs.toml` owes this entry a grant — written
 // there as every queue, because the names below are drawn at run time and no
 // list in a configuration file could have named them.

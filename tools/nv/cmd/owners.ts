@@ -213,7 +213,7 @@ export function registers(found: Gap[]): Register[] {
     { name: "outstanding keys", where: RATCHETS, owners: ratchetOwners(),
       what: "a spec or migration member `registry::CLASSES` does not declare yet, each key naming its owner in a `#` column" },
     { name: "guard-name-debt.md", where: GUARD_DEBT, owners: entryLines(GUARD_DEBT, /^- \[/),
-      what: "a guard test `loop-goal.toml` names and the tree does not hold yet" },
+      what: "a guard test a goal record's check names and the tree does not hold yet" },
     { name: "playbook until", where: "data/playbook/",
       owners: load(playbookBullet).map(() => ""),
       what: "a trap whose `until` names the state of the tree that retires it" },

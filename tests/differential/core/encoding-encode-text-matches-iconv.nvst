@@ -48,8 +48,7 @@ echo Core\Encoding::toHex(Core\Encoding::encodeText("あア亜", Core\Charset::E
 // ASCII-transparent, so a table that quietly stopped being consulted — or that
 // grew a byte-order mark, or a shift sequence — fails here even where its own
 // row still looks plausible. Written out one charset at a time because a
-// `Core\Charset` case cannot yet be held in a binding of its own type
-// (`docs/agent/handoff.md` § Backlog).
+// `Core\Charset` case cannot yet be held in a binding of its own type.
 uint $ascii = 0;
 if (Core\Encoding::toHex(Core\Encoding::encodeText("ok", Core\Charset::Ascii)) == "6f6b") { $ascii = $ascii + 1; }
 if (Core\Encoding::toHex(Core\Encoding::encodeText("ok", Core\Charset::Latin1)) == "6f6b") { $ascii = $ascii + 1; }

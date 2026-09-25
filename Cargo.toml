@@ -125,7 +125,7 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # the most-exercised h1 implementation in the language, against a hand-rolled
 # parser of ours that would be exercised by this repository alone.
 # `docs/plan/design.md`'s refusal to own FCGI framing is the same argument and
-# `docs/agent/loop-goal.md` § *Two things every session must hold* applies it here.
+# `docs/agent/goals/server.md` § *Two things every session must hold* applies it here.
 #
 # **`default-features = false` is load-bearing, not tidiness.** With `http1`,
 # `server` and `client` the graph is `http`, `http-body`, `bytes`,
@@ -154,8 +154,10 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # became unconditional — buys the *name* out of the lock file and pays for it in
 # unpatched HTTP framing, which AGENTS.md's ordering refuses: priority 1 is not
 # traded for anything, least of all for a string. What guards the real rule is a
-# test over the lock file's *feature set*, and `docs/agent/handoff.md` names the
-# open decision about what that test is called.
+# test over the lock file's *feature set*:
+# `crates/nvs-runtime/tests/manifest_policy.rs`'s
+# `tokio_appears_in_neither_the_manifest_nor_the_lockfile`, whose name reads
+# wider than what it asserts.
 hyper = { version = "1", default-features = false, features = [
     "http1",
     "server",

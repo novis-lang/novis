@@ -108,7 +108,7 @@
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
-//! `docs/agent/loop-goal.md`), and every part of it is testable without a
+//! `docs/plan/m3.md`), and every part of it is testable without a
 //! backend. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],
@@ -157,8 +157,7 @@
 //! * [`value_identical`], the one strict-identity comparison over two
 //!   [`Value`]s, and [`value_hash`], the hash that agrees with it. What
 //!   identity *means* — including what it means for an object — is
-//!   [`identity`]'s own docs, which is the home
-//!   `docs/agent/loop-goal.md` names for that decision. It lives here rather
+//!   [`identity`]'s own docs, which are that decision's home. It lives here rather
 //!   than in `nvs-stdlib` because `Core\Arr`'s set members, `ObjectSet`,
 //!   `ObjectMap` **and the `==` operator itself** all ask the same question,
 //!   and a second answer would be a second set of PHP-divergence rules nothing

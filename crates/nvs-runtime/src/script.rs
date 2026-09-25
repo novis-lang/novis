@@ -266,7 +266,7 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 /// filling, so it is a value with a lifetime rather than a constant.
 /// Leaking one per process is well inside
 /// `rule:programs/memory-priority`'s bound, but it
-/// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
+/// is a *definite* loss to a leak checker, and the valgrind sweep
 /// is worth more than those bytes: a sweep with one known-red fixture is a
 /// sweep nobody reads.
 ///

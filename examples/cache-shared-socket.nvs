@@ -12,13 +12,13 @@
 //
 // A build with no `AF_UNIX` transport refuses that URL at boot rather than
 // reading it as loopback TCP, so this fixture is run only where there is one
-// (`docs/agent/loop-goal.toml`'s check carries `needs = "af-unix"`). Printing
+// (its check in a goal record under `data/goals/` has `"needs": "af-unix"`). Printing
 // "across the socket" over TCP is exactly what
 // `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
 // exists to prevent.
 //
-// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 3); the source is not.
+// The two lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 var $shared = Core\Cache::shared();
 

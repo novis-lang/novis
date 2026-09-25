@@ -22,8 +22,8 @@
 // 0052 keeps that door shut and this is the member that would otherwise
 // have propped it open.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 8); the source is not.
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 class Point
 {

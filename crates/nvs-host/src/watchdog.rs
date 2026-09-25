@@ -51,10 +51,10 @@
 //! entry.
 //!
 //! [`DEFAULT_MARGIN`] and [`DEFAULT_INTERVAL`] are **compiled-in defaults**.
-//! `docs/agent/loop-goal.md` § *Standing decisions* puts the `[limits]` block
-//! that will make them configurable in the goal after this one, and says to run
-//! under compiled-in defaults and to say so at the site — this paragraph is
-//! that.
+//! `docs/agent/goals/concurrency.md` § *Standing decisions* gives the
+//! `[limits]` block that makes them configurable to goal `governance`, and says
+//! to run under compiled-in defaults and to say so at the site — this paragraph
+//! is that.
 //!
 //! # The request a core is running
 //!

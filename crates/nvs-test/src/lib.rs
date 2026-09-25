@@ -37,8 +37,7 @@
 //! | `--COOKIE--` | its cookies, one `NAME=value` per line |
 //! | `--HEADERS--` | its header fields, one `Name: value` per line |
 //!
-//! The rest are Novis's own, among them the differential pair
-//! `docs/agent/loop-goal.md` names:
+//! The rest are Novis's own, among them the differential pair:
 //!
 //! | section | meaning |
 //! |---|---|
@@ -138,8 +137,9 @@
 //! machine where the PHP binary cannot be run at all — that is an absent
 //! oracle, not a failing comparison, and one identical failure per case would
 //! bury the one line that says PHP is missing. The count is what
-//! catches it: `docs/agent/loop-goal.toml` sets a floor on *passing*
-//! differential cases, so a leg that silently lost its oracle fails there.
+//! catches it: the differential suite's check in the goal records under
+//! `data/goals/` sets a `minPassing` floor on *passing* cases, so a leg that
+//! silently lost its oracle fails there.
 //! A development machine carries PHP 8.5 on `PATH` on both sides of a Windows
 //! setup — Windows and the WSL distro, at the same version — so the Linux leg
 //! runs this suite rather than skipping it
@@ -273,7 +273,7 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 /// Runs every case in `paths`, writing a report to `out`.
 ///
 /// The last line is always `N passed, M failed, K skipped` — the shape
-/// `tools/loop.py` reads to decide whether a suite check held.
+/// `bun nv loop` reads to decide whether an `nvs-suite` check held.
 ///
 /// Cases run [`Options::jobs`] at a time, which asks nothing of a case: each
 /// runs in its own process with its own working directory, and the artifact

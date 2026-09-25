@@ -10,7 +10,7 @@
 // than this repository. Without them a second instance attaches to the window already open and exits
 // with no results, and a test that writes a setting writes it into that developer's own `settings.json`.
 //
-// `tools/loop.py`'s acceptance check greps this output for `host:` and `0 failing`, and what it reads is
+// `bun nv loop`'s acceptance check greps this output for `host:` and `0 failing`, and what it reads is
 // the report the in-host index wrote, printed here after the editor exits. The launcher's own stdout is
 // the same on Windows, macOS and Linux; Electron's is not.
 

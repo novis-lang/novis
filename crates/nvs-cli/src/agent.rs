@@ -362,7 +362,7 @@ fn unique_slug(taken: &mut Vec<String>, heading: &str) -> String {
 /// names a file of this repository, which the agent reading the section does
 /// not have and cannot resolve through `show`, so on the shipped surface it is
 /// a dangling name. The token is spelled here without a topic and a name on
-/// purpose: `tools/rules.py --check` reads a whole one as a citation wherever
+/// purpose: `bun nv rules --check` reads a whole one as a citation wherever
 /// it stands, so a made-up rule id in this comment fails the rulebook's gate.
 fn without_rule_citations(line: &str) -> String {
     const OPEN: &str = "(`rule:";

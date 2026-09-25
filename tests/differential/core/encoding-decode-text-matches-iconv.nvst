@@ -45,7 +45,7 @@ echo Core\Encoding::decodeText(Core\Encoding::fromHex("a4a2a5a2b0a1"), Core\Char
 // ASCII-transparent, so a table that quietly stopped being consulted fails
 // here even where its own row still looks plausible. Written out one charset
 // at a time because a `Core\Charset` case cannot yet be held in a binding of
-// its own type (`docs/agent/handoff.md` § Backlog).
+// its own type.
 uint $ascii = 0;
 if (Core\Encoding::decodeText(Core\Encoding::fromHex("6f6b"), Core\Charset::Ascii) == "ok") { $ascii = $ascii + 1; }
 if (Core\Encoding::decodeText(Core\Encoding::fromHex("6f6b"), Core\Charset::Latin1) == "ok") { $ascii = $ascii + 1; }

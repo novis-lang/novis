@@ -19,8 +19,8 @@
 // value on this side, exactly as in `examples/capability.nvs`, so this
 // program still exits 0 having watched another one not.
 //
-// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 7), and each record names the line it was produced at
+// The three lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`, and each record names the line it was produced at
 // (`rule:errors/a-record-names-where-it-was-produced`) — so moving a write
 // below moves what that check expects.
 

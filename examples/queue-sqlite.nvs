@@ -23,8 +23,8 @@
 // writer, so a second worker waits out the busy timeout rather than claiming in
 // parallel, and `both ran` below is the assertion that waiting is what it does.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 6); the source is not.
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 use Core\Queue;
 use Core\Queue\State;

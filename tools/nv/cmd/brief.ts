@@ -94,7 +94,7 @@ function where(terms: string[]): number {
   }
   const needles = terms.map((t) => t.toLowerCase());
   // A home is hit through its words and its path, never its description: "plan" should not route to
-  // commands.md because that line happens to name plan.py.
+  // commands.md because that line happens to name `nv plan`.
   const homes = HOMES.filter(([words, home]) => needles.every((n) => `${words} ${home}`.toLowerCase().includes(n)));
   const hits = all.filter((r) => needles.every((n) => `${r.id} ${r.title}`.toLowerCase().includes(n)));
   if (hits.length === 0 && homes.length === 0) {

@@ -1,8 +1,8 @@
 <?nvs
 // `Core\Task\Channel` and its backpressure, as a program — goal `concurrency`'s item 11.
 //
-// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 4); the source is not. The channel's *surface* is M5's own design
+// The three lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. The channel's *surface* is M5's own design
 // and no ADR pins it (ADR 0072's scope line says so), so the spellings below
 // are this fixture's proposal and the session that lands the type owns the
 // final one — what it may not change is that a send into a full channel

@@ -17,8 +17,8 @@
 // the ceiling — so `512M` is the last accepted value and `1G` is the first
 // refused one, named together the way a bound wants to be.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 3); the source is not.
+// The four lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 // The operator's default, before this request has touched anything.
 echo 'memory=' . (Core\Config::get('memory') ?? 'unset') . "\n";

@@ -310,8 +310,7 @@ fn is_landing(block: &BasicBlock) -> bool {
 ///
 /// [`CodegenError::Internal`] and never [`CodegenError::Unsupported`]: what
 /// this reports is input no lowering builds, so it names no shape the language
-/// refuses and belongs on no worklist. `docs/agent/loop-goal.md`
-/// § *Standing decisions* owns the rule; `crates/nvs-ir/tests/refusals.rs` is
+/// refuses and belongs on no worklist. `crates/nvs-ir/tests/refusals.rs` is
 /// the gate that reads the other constructor as the inventory.
 pub(crate) fn internal(what: &str) -> CodegenError {
     CodegenError::Internal(format!("{what} (this is a bug in nvs-ir or nvs-codegen)"))

@@ -2,8 +2,7 @@
 //! object's fields inline behind it — plus the [`ClassDesc`] every instance
 //! points back at.
 //!
-//! This is the representation `nvs_ir::ty::Ty::Object` lowers to, and the one
-//! thing nearly everything else in M4 waits on (`docs/agent/loop-goal.md`). It
+//! This is the representation `nvs_ir::ty::Ty::Object` lowers to. It
 //! follows [`crate::string`]'s shape deliberately: one allocation, a
 //! [`Cell`]-refcounted header, and the payload behind it at a fixed offset
 //! compiled code computes rather than asks for.
@@ -5569,7 +5568,7 @@ mod tests {
 
     #[test]
     fn an_acyclic_object_graph_releases_every_allocation() {
-        // The Stage 5 guard `docs/agent/loop-goal.md` names. A refcount protocol
+        // The runtime's leak guard. A refcount protocol
         // written by hand is exactly where a leak hides, so this measures the
         // allocator rather than trusting a refcount to have reached zero: the
         // process's live byte count must return to what it was before the

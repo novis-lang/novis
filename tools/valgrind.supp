@@ -1,4 +1,4 @@
-# Memcheck suppressions for the sweep in `tools/loop.py` and for `tools/leak-check.sh`.
+# Memcheck suppressions for the valgrind sweep in `tools/nv/driver/legs.ts` and for `tools/leak-check.sh`.
 #
 # Two contexts, one cause. `ring`'s AEAD is hand-written AES-NI/PCLMULQDQ assembly that
 # operates a whole 16-byte block at a time and masks off the part it must not use.

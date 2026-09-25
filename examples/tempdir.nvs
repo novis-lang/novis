@@ -21,8 +21,8 @@
 // program, because a script that could exempt its own files could be made to
 // hoard them.
 //
-// The line this prints is frozen in `docs/agent/loop-goal.toml` (stage 5);
-// the source is not.
+// The line this prints is frozen by an exact check in a goal record under
+// `data/goals/`; the source is not.
 
 string $dir = Core\IO::temporaryDir();
 string $note = Core\Path::join($dir, 'note.txt');

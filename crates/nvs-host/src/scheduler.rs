@@ -2022,7 +2022,7 @@ mod tests {
     /// binary in the workspace, and a hundred thousand stack reservations and
     /// the switches they cost through an unoptimized scheduler is not a thing to
     /// do on that path. The driver runs it under `--release` once its sweep has
-    /// finished — `tools/loop.py`'s release checks.
+    /// finished — the release checks `bun nv loop` runs.
     #[test]
     #[cfg_attr(
         debug_assertions,

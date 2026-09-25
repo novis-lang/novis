@@ -319,7 +319,7 @@ pub enum Ty {
     /// A *type variable*, named — `T` in `Core\Arr::count(array<T> $a): uint`.
     ///
     /// The one type in this enum no source text can spell. `rule:types/declaration` parks
-    /// user-declared generics and `docs/agent/loop-goal.md` keeps type variables
+    /// user-declared generics and `rule:attributes/call-site-type-argument` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
     /// `nvs_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
     /// `rule:iteration/two-interfaces`'s two iteration interfaces ([`crate::iter_lib`]) —

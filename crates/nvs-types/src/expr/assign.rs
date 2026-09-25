@@ -632,8 +632,7 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 
 /// The four assignment targets that have nowhere to write to, refused where
 /// they are written rather than lowered into something that quietly drops the
-/// write. The first two match PHP, which refuses the same two spellings, and
-/// are standing decisions in `docs/agent/loop-goal.md`.
+/// write. The first two match PHP, which refuses the same two spellings.
 ///
 /// A **nullsafe** target (`$a?->b = v`) is refused for the operator's own
 /// reason: `?->` yields `null` where the receiver is `null`, and `null` is not

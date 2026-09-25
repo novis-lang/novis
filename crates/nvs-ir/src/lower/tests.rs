@@ -135,7 +135,7 @@ fn lower_program(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
     (p, map, file)
 }
 
-/// The acceptance program of `docs/agent/loop-goal.md`, lowered: one
+/// `echo "Hello, World!";` as a whole script, lowered: one
 /// synthesized frame, no receiver parameter, a `ConstStr` handed straight
 /// to `Helper::EchoStr`, and the literal released right after the write
 /// reads it (nothing else ever owns it).

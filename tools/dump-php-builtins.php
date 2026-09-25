@@ -9,12 +9,12 @@
 //   php -d extension=php_fileinfo.dll -d extension=php_zip.dll tools/dump-php-builtins.php \
 //       > tools/data/php-builtins.txt
 //
-// A run that omits one of them writes a *smaller* inventory, and tools/check-migration.py reads that as
+// A run that omits one of them writes a *smaller* inventory, and `bun nv migration` reads that as
 // rows for names PHP does not have. The `# extensions:` header line is what a regenerated file must be
 // compared against: it is the list the audit's denominator was taken from.
 //
 // The result is committed. It is an inventory, never a decision — what Novis does with each name is
-// docs/spec/02-php-migration.md, and tools/check-migration.py compares the two.
+// docs/spec/02-php-migration.md, and `bun nv migration` compares the two.
 
 $functions = get_defined_functions()['internal'];
 sort($functions, SORT_STRING);

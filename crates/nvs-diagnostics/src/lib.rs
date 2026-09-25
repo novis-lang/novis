@@ -2051,7 +2051,7 @@ pub mod code {
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
     // band digits read as E05xx — IR and codegen — so that number is never
     // issued and the types band continues here instead. `docs/adr/README.md`
-    // § *Decisions taken at project start* owns the reasoning; `tools/brief.py`
+    // § *Decisions taken at project start* owns the reasoning; `bun nv orient`
     // reports a filled band as full rather than handing out the number past
     // its end.
     /// An array element written through a root that is not a **place**:
@@ -4028,7 +4028,7 @@ mod tests {
     /// The band's highest number is the newest code in it, which is what makes
     /// "the next free one is the highest plus one" answerable by reading the
     /// registry. A code allocated into a hole would leave this failing rather
-    /// than leave `brief.py`'s next-free line quietly wrong.
+    /// than leave `bun nv orient`'s next-free line quietly wrong.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
         assert_eq!(code::E_CLASS_KEYWORD_MEMBER_IN_TYPE.as_str(), "E0135");

@@ -18,8 +18,8 @@
 // driver runs it with no arguments of its own and the frozen line is about
 // the command's body rather than about argv parsing.
 //
-// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 3); the source is not.
+// The three lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 // The handler is a `public static` method of a class, and both halves of that
 // are rules rather than style: Novis has no top-level functions at all

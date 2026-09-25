@@ -2,7 +2,7 @@
 //! them back through the signature.
 //!
 //! `rule:types/declaration` parks
-//! user-declared generics and `docs/agent/loop-goal.md` keeps type variables
+//! user-declared generics and `rule:attributes/call-site-type-argument` keeps type variables
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `nvs_stdlib::registry`
 //! signature, and [`crate::iter_lib`] writing `rule:iteration/two-interfaces`'s two iteration

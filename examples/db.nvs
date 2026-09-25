@@ -16,8 +16,8 @@
 // than through hand-written hydration — read-only by design, because writing
 // rows from objects is an ORM concern and not `Core`'s.
 //
-// The twelve lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 9); the source is not. The connection it opens is named in
+// The twelve lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. The connection it opens is named in
 // root-owned config, so `nvs.toml` owes the `[db.main]` block this reads.
 
 use Core\Db;

@@ -2422,8 +2422,8 @@ mod tests {
     /// normalisation in [`crate::plan::diff`] exists — the differences
     /// `a_schema_applied_to_sqlite_assembles_back_into_itself` pins in the
     /// *value* are what this asserts are not differences in the *plan*. The
-    /// other backends ask the same question of a container, and
-    /// `docs/agent/loop-goal.toml` runs those.
+    /// other backends ask the same question of a container, and an acceptance
+    /// check in the goal records under `data/goals/` runs those.
     #[test]
     fn an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite() {
         let applied = Schema::new(sqlite_fixture()).unwrap();

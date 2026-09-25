@@ -24,8 +24,8 @@
 // lock — and an unreachable store **throws** rather than deciding
 // *allowed*. The `retryAfter` on a refusal is what makes a `429` honest.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 6); the source is not.
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 var $local = Core\Cache::local();
 

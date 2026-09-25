@@ -43,7 +43,7 @@ export const PROOF_BINARY = `target/proof/${EXE}`;
 export const RELEASE_BINARY = `target/release/${EXE}`;
 const GREEN = ".loop/proofs-green.json";
 
-/** The two builds a proof runs on. The release build is the argv `loop.py` runs, so both share one set
+/** The two builds a proof runs on. The release build is the argv `bun nv loop`'s acceptance sweep runs, so both share one set
  * of artefacts under `target/release/`. Each writes the key it was built at to `key` beside it. */
 const BUILDS = {
   proof: { name: "proof binary", path: PROOF_BINARY, key: "target/proof/nvs.key", argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] },

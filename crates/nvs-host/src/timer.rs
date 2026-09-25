@@ -1,7 +1,7 @@
 //! Deadlines on the same reactor: one mechanism, and a sleep and a timeout are
 //! two views of it.
 //!
-//! `docs/agent/loop-goal.md` § *Stage 2* item 5 is why this is one thing and
+//! `docs/agent/goals/concurrency.md` § *Stage 2* item 5 is why this is one thing and
 //! not two: `rule:concurrency/limit-and-deadline-are-the-only-bounds`
 //! 's `{limit, deadline}` and
 //! `rule:http-server/no-spelling-for-an-unbounded-wait`'s "no spelling

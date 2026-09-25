@@ -31,8 +31,8 @@
 //! from source because `nvs-stdlib` does not depend on `nvs-hir` and must not
 //! grow the edge to satisfy a test.
 //!
-//! Reading a sibling crate's source is what `loop-goal.toml` asks for by
-//! putting this check in `cargo test -p nvs-stdlib`: the claim is about the
+//! Reading a sibling crate's source is what the goal records under
+//! `data/goals/` ask for by putting this check in `cargo test -p nvs-stdlib`: the claim is about the
 //! repository, not about this crate, and the other repository-wide gates here
 //! (`conformance_coverage.rs`, `allocation_policy.rs`) are already scans of
 //! the same shape.

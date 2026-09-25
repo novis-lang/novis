@@ -25,7 +25,7 @@ perf.data*
 flamegraph.svg
 *.profraw
 
-# The compose fixtures' CA, copied out of the `certs` volume by `tools/loop.py` and named by
+# The compose fixtures' CA, copied out of the `certs` volume by the command `tests/db/compose.yaml`'s header names, and named by
 # `nvs.toml`'s `[db.main] tls_ca_file`. Remade whenever that volume is, so committing it would
 # pin an anchor no server on any other machine holds the key to.
 /tests/db/ca.crt

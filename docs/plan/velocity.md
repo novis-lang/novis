@@ -62,8 +62,8 @@ code volume.
 In the order the risk is real:
 
 1. **A design call the loop cannot make.** `Blocking: Nothing` holds only because
-   `../agent/loop-goal.md` § *Standing decisions* pre-authorises every call the
-   loop reaches. Each one that is not pre-authorised converts loop-hours to human-hours at 1:1. This is
+   the live goal's § *Standing decisions*, in its prose under `../agent/goals/`,
+   pre-authorises every call the loop reaches. Each one that is not pre-authorised converts loop-hours to human-hours at 1:1. This is
    the largest lever, and it is the user's.
 2. **Context, which is the binding budget** — AGENTS.md § *Session workflow* step 2 owns the ceiling and
    the number. As the tree grows, a cross-cutting change needs more sessions per unit of work. That is

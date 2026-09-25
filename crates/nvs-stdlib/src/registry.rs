@@ -543,8 +543,8 @@ pub enum CoreTy {
     /// variable is bound by unifying the declared parameter types against the
     /// call's actual argument types and then substituted through the whole
     /// signature; `nvs_types` owns both halves. Nothing user-written can
-    /// declare one, which is `docs/agent/loop-goal.md`'s standing decision that
-    /// type variables stay compiler-owned.
+    /// declare one, which is `rule:attributes/call-site-type-argument`'s rule
+    /// that type variables stay compiler-owned.
     Var(&'static str),
     /// A type variable bound from the type argument **written at the call
     /// site**, named — `T` in `decodeAs<T>(string $json): T`.
@@ -555,7 +555,7 @@ pub enum CoreTy {
     /// only works where some parameter position holds the answer —
     /// `Core\Json::decodeAs`'s `T` appears in no parameter at all, so the call
     /// site has to say it. `docs/spec/01-core-library.md` § 6 writes exactly
-    /// that, and `docs/agent/loop-goal.md`'s standing decision names the
+    /// that, and `rule:attributes/call-site-type-argument` names the
     /// explicit call-site type argument as one of the two things user code
     /// gets from the compiler-owned `<T>` machinery.
     ///
@@ -3343,7 +3343,7 @@ pub fn takes_prepared(class: &str, method: &str) -> bool {
 /// The closed roster of `Core`-owned **generic** classes, each with the type
 /// parameters it declares, in order — spec § 9's three collections.
 ///
-/// This is the other half of `docs/agent/loop-goal.md`'s standing decision on
+/// This is the other half of `rule:attributes/call-site-type-argument`'s rule on
 /// type variables: user code gets an explicit type argument only where the
 /// compiler owns the declaration, and for a `new` target that means this
 /// table. `nvs_hir::interfaces::type_params` is the same roster for the

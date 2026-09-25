@@ -14,7 +14,7 @@
     "ratio_origin": 3.6427,
     "caveats": [
       "nginx fronts both peers, which is the only deployment either has -- FPM speaks FastCGI and nvs serve is ADR 0097's proxied origin; the proxy's cost is in both numbers",
-      "arm 4 is driven by tools/bench.py's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
+      "arm 4 is driven by nv bench's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
       "this row shares no inputs with benches/serve.json -- different OS, generator, topology and CPU budget -- and no arithmetic between the two files is meaningful",
       "fair arm: one cpu to each backend container, so the number is runtime against runtime. The PHP pool is 96 workers, sized from the concurrency rather than from the budget, because a FastCGI worker is bound to the keep-alive connection it holds and a pool smaller than the open connections stops rather than slows"
     ],
@@ -140,7 +140,7 @@
     "ratio_origin": 2.6161,
     "caveats": [
       "nginx fronts both peers, which is the only deployment either has -- FPM speaks FastCGI and nvs serve is ADR 0097's proxied origin; the proxy's cost is in both numbers",
-      "arm 4 is driven by tools/bench.py's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
+      "arm 4 is driven by nv bench's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
       "this row shares no inputs with benches/serve.json -- different OS, generator, topology and CPU budget -- and no arithmetic between the two files is meaningful",
       "deployed arm: both containers are given 4 cpus, but nvs serve can use only one of them -- binding a listener across cores is an unlanded slice (crates/nvs-cli/src/serve.rs), while php-fpm's process manager uses the whole budget. This prices that slice; it is not a language comparison"
     ],

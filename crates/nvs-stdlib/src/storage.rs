@@ -592,7 +592,7 @@ mod tests {
     /// every door this class reaches is an `fs.*` one, so the class declares no
     /// capability of its own and every row says which half of `fs` it needs.
     ///
-    /// The acceptance check `loop-goal.toml` names. It asserts over the registry
+    /// An acceptance check in the goal records under `data/goals/`. It asserts over the registry
     /// rather than over a temporary directory on purpose — a `storage.read`
     /// added beside these rows would leave every behavioural test in this file
     /// green while splitting one door's authority in two.

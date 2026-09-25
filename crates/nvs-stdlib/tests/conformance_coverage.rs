@@ -1,4 +1,4 @@
-//! The coverage gate `docs/agent/loop-goal.md`'s Stage 4 names: every `Core`
+//! A coverage gate: every `Core`
 //! member this crate registers is called by at least one `.nvst` case under
 //! `tests/conformance/`.
 //!

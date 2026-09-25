@@ -18,8 +18,8 @@
 // `Core\Password::hash` is one of exactly two operations that legitimately
 // take a `secret` and give back a value that is not one (ADR 0033).
 //
-// The six lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 4); the source is not.
+// The six lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 secret string $password = 'correct horse battery staple';
 

@@ -987,7 +987,7 @@ pub enum ExprKind {
         ///
         /// Grammar only: which members accept one, how many, and what a
         /// written argument binds are all the checker's, and
-        /// `docs/agent/loop-goal.md`'s standing decision keeps type variables
+        /// `rule:attributes/call-site-type-argument` keeps type variables
         /// compiler-owned, so a user-declared method never takes one.
         type_args: Vec<Type>,
         /// The call's arguments.
@@ -1040,7 +1040,7 @@ pub enum ExprKind {
         /// the requirement that a `(` follow are shared verbatim with
         /// [`ExprKind::StaticCall::type_args`].
         ///
-        /// Grammar only, again: `docs/agent/loop-goal.md`'s standing decision
+        /// Grammar only, again: `rule:attributes/call-site-type-argument`
         /// keeps type variables compiler-owned, so the only target that
         /// accepts one is a compiler-owned generic class and every other
         /// written list is the checker's to refuse.

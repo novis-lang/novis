@@ -19,7 +19,7 @@
 //!
 //! # Decision: `jiff`, for the type set rather than the API
 //!
-//! `docs/agent/loop-goal.md` names it, and what it buys is that its own types
+//! What `jiff` buys is that its own types
 //! map one-to-one onto the ones § 4 already wrote: [`jiff::Timestamp`] is an
 //! `Instant`, [`jiff::tz::TimeZone`] is a `Zone`, and its `Zoned`/`civil`
 //! split is the same absolute-versus-civil distinction the spec is built on —
@@ -1385,8 +1385,7 @@ pub const DATETIME_NAME: &str = r"Core\Time\DateTime";
 /// lengthen.
 ///
 /// Flat under `Core` rather than under `Core\Time`, following `Core\Order`:
-/// [`crate::registry::ENUMS`] states the rule and `docs/agent/loop-goal.md`
-/// settled the spelling. The values are the CLDR-free ascending order the spec
+/// [`crate::registry::ENUMS`] states the rule. The values are the CLDR-free ascending order the spec
 /// writes them in, smallest first, so a comparison between two of them means
 /// what it reads as.
 pub const UNIT: CoreEnum = CoreEnum {

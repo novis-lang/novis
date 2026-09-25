@@ -1,12 +1,8 @@
-//! The Novis type checker (`rule:types/declaration`) — M2's last open thread. See
-//! `docs/implementation-plan.md`'s M2 paragraph and `docs/agent/handoff.md`
-//! for how this crate grew: a full type checker covering every ADR M2
-//! assigns to `nvs-types` was too large for one slice, so the first slice
-//! covered `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and `rule:types/arithmetic` in full (declared-type recording, per-local
+//! The Novis type checker (`rule:types/declaration`). It covers
+//! `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and `rule:types/arithmetic` (declared-type recording, per-local
 //! definite assignment, the interned type grammar, the arithmetic
-//! result-type table) plus enough of §§ 5-6 to satisfy the earliest corpus
-//! items; this one adds property/method-call/`new`/`match`/ternary
-//! expression typing on top, via a new per-class signature table
+//! result-type table), and it types property, method-call, `new`, `match`
+//! and ternary expressions through a per-class signature table
 //! ([`signatures`]).
 //!
 //! # Layout

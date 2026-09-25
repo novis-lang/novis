@@ -3702,7 +3702,7 @@ mod tests {
     /// guards are: a cost margin holds only on an idle machine, and
     /// `nv verify` runs this binary beside every other test binary in
     /// the workspace. The driver runs it under `--release` once its sweep has
-    /// finished and the box is idle — `tools/loop.py`'s release checks.
+    /// finished and the box is idle — the release checks `bun nv loop` runs.
     #[test]
     #[cfg_attr(
         debug_assertions,

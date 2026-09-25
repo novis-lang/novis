@@ -36,8 +36,8 @@
 //!     is on [`KNOWN_ICE`].
 //!
 //! [`KNOWN_ICE`] is a ratchet with the same rule as `refusals.rs`'s `CEILING`:
-//! **it may never grow**, every entry is an open item in
-//! `docs/agent/loop-goal.md`, and an entry that stops panicking fails this test
+//! **it may never grow**, every entry is an open item in a goal's prose under
+//! `docs/agent/goals/`, and an entry that stops panicking fails this test
 //! until it is deleted — so a shape cannot be fixed and left on the list, and a
 //! new one cannot be added to make a run go green.
 //!
@@ -104,8 +104,8 @@ const ATOMS: &[&str] = &[
 
 /// The shapes that still panic, as `(atom, position)`.
 ///
-/// **This may never grow.** Every entry is an open item in
-/// `docs/agent/loop-goal.md`, and the test fails just as loudly on an entry
+/// **This may never grow.** Every entry is an open item in a goal's prose
+/// under `docs/agent/goals/`, and the test fails just as loudly on an entry
 /// that has *stopped* panicking — the ratchet only turns one way.
 ///
 /// **It is empty, and that is this table's finished state**: every atom ADR
@@ -520,7 +520,7 @@ const SHAPE_TABLES: &[(&[&str], Slot, Outcome)] = &[
 /// The shapes that still panic, by their source text.
 ///
 /// **This may never grow**, on [`KNOWN_ICE`]'s terms exactly: every entry is an
-/// open item in `docs/agent/loop-goal.md`, and an entry that has stopped
+/// open item in a goal's prose under `docs/agent/goals/`, and an entry that has stopped
 /// panicking fails this test until it is deleted.
 const SHAPE_ICE: &[&str] = &[];
 

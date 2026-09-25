@@ -6,7 +6,7 @@
 //! [`crate::render`] and compares it to `--EXPECT--` byte for byte
 //! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 //!
-//! The last line is always `N passed, M failed` — the shape `tools/loop.py`'s
+//! The last line is always `N passed, M failed` — the shape `bun nv loop`'s
 //! `nvs-suite` check parses, which is how an editor-behaviour gate reaches the
 //! loop with no change to the driver. **It is `.lspt`'s own count and shares
 //! nothing with `nvs test`'s**: two suites answering two questions, and a
@@ -113,7 +113,7 @@ pub struct Outcome {
 /// What a run prints when it is done.
 ///
 /// Whether the matrix comes first, never whether the verdict comes at all:
-/// `tools/loop.py`'s `nvs-suite` check reads the last line as `N passed, M
+/// `bun nv loop`'s `nvs-suite` check reads the last line as `N passed, M
 /// failed`, so the matrix goes above it, where it is a report for a person and
 /// the line under it is still the one the driver finds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

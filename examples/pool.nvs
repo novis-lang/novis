@@ -28,8 +28,8 @@
 // an instant is for: it is comparable with another reading of itself and with
 // nothing else.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`; the
-// source is not. `[db.tight]` is its own block and so its own pool, and
+// The four lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. `[db.tight]` is its own block and so its own pool, and
 // `examples/db.nvs`'s `[db.main]` is reached by nothing here.
 
 use Core\Db;

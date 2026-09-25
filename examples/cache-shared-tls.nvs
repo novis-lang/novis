@@ -23,8 +23,8 @@
 // `a_reconnect_after_a_dropped_socket_sends_both_again` in
 // `crates/nvs-stdlib/src/cache/redis.rs`, which can see the wire itself.
 //
-// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 5); the source is not.
+// The two lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 var $shared = Core\Cache::shared();
 

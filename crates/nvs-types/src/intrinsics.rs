@@ -25,7 +25,7 @@
 //!   [`crate::expr::calls`] resolved — never against what the call site
 //!   spelled. `use Core\Str;` and `Core\Str::format(...)` are one member, and
 //!   no userland `Str` is any of them, which is the same rule the four
-//!   attribute passes are held to (`docs/agent/loop-goal.md`
+//!   attribute passes are held to (`docs/agent/goals/core-depth.md`
 //!   § *Standing decisions*).
 //! * **A refusal must be one the runtime would also have made.** § 4 makes
 //!   preparation produce an earlier answer and never a different one, so where

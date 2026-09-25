@@ -98,9 +98,9 @@
 //!
 //! # Scope of this slice
 //!
-//! Narrow by authorization, not by accident — `docs/agent/loop-goal.md` allows
-//! the first backend to be exactly as wide as `nvs run examples/hello.nvs`
-//! requires, and each gap below is a missing *lowering*, not a missing
+//! Narrow by authorization, not by accident — the first backend is allowed to
+//! be exactly as wide as `nvs run examples/hello.nvs` requires, and each gap
+//! below is a missing *lowering*, not a missing
 //! decision. **A closed gap is deleted and its number retired**, never reused
 //! and never handed to a survivor, so the list has holes on purpose — every
 //! `nvs-codegen` gap N named anywhere else in the tree keeps meaning what it

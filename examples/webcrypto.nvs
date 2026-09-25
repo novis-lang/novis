@@ -16,8 +16,8 @@
 // from the key**: no call below names one, so there is nothing an attacker's
 // header can select.
 //
-// The seven lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 7); the source is not.
+// The seven lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not.
 
 // AES-256-GCM, in the layout a browser can take apart: the 12-byte nonce, the
 // ciphertext and the 16-byte tag in that order, which is WebCrypto's own

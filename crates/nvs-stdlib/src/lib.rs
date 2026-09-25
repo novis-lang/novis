@@ -3,8 +3,8 @@
 //!
 //! `rule:core-api/five-placements`
 //! makes this "compiled into the binary, native, direct heap access, no
-//! boundary," and `docs/agent/loop-goal.md` records that it is meant literally:
-//! no part of `Core` is written in Novis. `rule:core-api/shape-rules`
+//! boundary," and it is meant literally: no part of `Core` is written in
+//! Novis. `rule:core-api/shape-rules`
 //! fixes every member's *shape* and [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! is authoritative for every *signature* — this crate restates neither. It
 //! holds the two things a signature on paper cannot be: a resolvable entry in

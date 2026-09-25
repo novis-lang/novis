@@ -2949,7 +2949,7 @@ mod tests {
     /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s guards are: a cost
     /// margin holds only on an idle machine, and `nv verify` runs this binary beside every
     /// other test binary in the workspace. The driver runs it under `--release` once its sweep has
-    /// finished and the box is idle — `tools/loop.py`'s release checks — and both margins hold
+    /// finished and the box is idle — the release checks `bun nv loop` runs — and both margins hold
     /// there by a wider factor than here.
     #[test]
     // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.

@@ -32,9 +32,6 @@
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
 // come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, `tools/nv/proofs/run.ts` is
 // how a proof program is run and judged, and `tools/nv/proofs/perf.ts` is how a figure is taken.
-//
-// This replaces the Python proof tool's audit, `--run`, `--verify`, `--bless`, `--comments`,
-// `--record-perf` and `--perf-report`.
 
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -394,8 +391,8 @@ export async function run(args: string[]): Promise<number> {
   // Only what runs a proof program pays for a current binary. The audit reads a roster, and a person
   // asking `--owed` is not made to wait for a build.
   if (comments !== null) return flush(checkComments(out, comments));
-  // What a perf record's `impl_hash` is for each file, one `<hash> <path>` line each. The Python proof
-  // tool reads its currency from here, so the two tools cannot disagree about it.
+  // What a perf record's `impl_hash` is for each file, one `<hash> <path>` line each: the same
+  // `implHash` a figure's currency is judged by, so a person can check a record by hand.
   if (hashed !== null) {
     for (const path of hashed) out.push(`${implHash(path) || "-"} ${path}`);
     return flush(0);

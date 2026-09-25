@@ -3,8 +3,8 @@
 // in-process with its own arena, sharing compiled code and the parent's
 // budget and nothing else.
 //
-// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 6); the source is not. The three children live in
+// The five lines this prints are frozen by an exact check in a goal record
+// under `data/goals/`; the source is not. The three children live in
 // `examples/isolate/` and each exists to be one of those lines.
 //
 // The paths are written from the repository root, which is where the

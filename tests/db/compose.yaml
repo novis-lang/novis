@@ -1,9 +1,10 @@
 # Every server a test needs, as one file: the five ADR 0067's *Verification* names, and the SMTP catcher
 # goal `core-part-ii`'s stage 9 points `Core\Mail` at.
 #
-# `tools/loop.py` brings these up once per run -- `docker compose -f tests/db/compose.yaml up -d --wait
-# <services>` -- from the current goal's `[docker]` block: goal `core-part-ii` names `redis` and `mailpit`, goal `database` the
-# five database servers, and goal `server` reuses `postgres` and `redis` alone. `--wait` is why every service below
+# `bun nv loop` brings these up when a run starts and at every goal switch -- `docker compose -f
+# tests/db/compose.yaml up -d --wait <services>` -- from the live goal record's `env.docker`: goal
+# `core-part-ii` names `redis` and `mailpit`, goal `database` the five database servers, and goal
+# `server` reuses `postgres` and `redis` alone. `--wait` is why every service below
 # carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
 # connection is not racing the server's own initialisation.
 #

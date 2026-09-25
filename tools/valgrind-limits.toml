@@ -1,5 +1,5 @@
 # The memory cap `examples/limits.nvs` crosses under valgrind, layered over `nvs.toml` by the
-# acceptance sweep (`VALGRIND_CONFIG` in `tools/loop.py`) and read by nothing else.
+# acceptance sweep (`VALGRIND_CONFIG` in `tools/nv/driver/legs.ts`) and read by nothing else.
 #
 # The fixture exists to walk into `[limits] memory` and be killed. What the valgrind sweep asks of it
 # is whether that kill path leaks, and the path is the same at any cap -- while every slab the script

@@ -608,11 +608,10 @@ impl<'a> Lowering<'a> {
         }
     }
     /// `echo $a, $b;` — writes each operand's bytes to standard output in
-    /// order, with no separator and no escaping: `docs/agent/loop-goal.md`
-    /// records that `rule:core-classes/html-auto-escape`'s auto-escaping sink is the HTTP *response*
-    /// write, not this one, and that whether `echo` under a future
-    /// `nvs serve` becomes that sink is an M7 decision this does not
-    /// pre-empt.
+    /// order, with no separator and no escaping:
+    /// `rule:core-classes/html-auto-escape`'s auto-escaping sink is the HTTP *response*
+    /// write, not this one, and whether `echo` under `nvs serve` is that sink
+    /// is M7's decision, not this lowering's.
     ///
     /// A scalar or [`Ty::Str`] operand is converted by
     /// [`Self::convert_operand`] — the same shared path `.` concatenation

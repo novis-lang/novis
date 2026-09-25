@@ -315,7 +315,7 @@ enum Command {
         /// allocations, bytes — and print the four totals on stderr at exit.
         ///
         /// The counts are the same on every machine for the same program and
-        /// binary, which is what `tools/dossier.py --record-perf` keeps them
+        /// binary, which is what `bun nv proofs --record-perf` keeps them
         /// for (`rule:testing/bench-counters`). Stdout is untouched, so a
         /// program's own output is what it always was.
         #[arg(long, conflicts_with_all = ["dump_ir", "dump_asm"])]
@@ -2734,7 +2734,7 @@ fn run_run(
     // run's share is the difference across it. Taken here, after the reactor
     // and the compiler are up, so what is counted is the program and the
     // scheduler under it rather than the process's own start-up; the same
-    // subtraction `tools/dossier.py` then makes against the empty program.
+    // subtraction `bun nv proofs` then makes against the empty program.
     let allocated_before = count.then(|| {
         (
             nvs_runtime::budget::allocations(),
