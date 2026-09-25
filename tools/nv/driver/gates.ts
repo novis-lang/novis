@@ -101,7 +101,7 @@ export function enoughDisk(minFreeGb: number, root: string = ROOT): string {
   return `${free.toFixed(1)}G free, and a run needs ${minFreeGb}G. \`bun nv disk\` says what holds it, and \`--clean\` drops the superseded build generations; --min-free-gb 0 starts anyway.`;
 }
 
-/** `nv disk --clean`'s sweep. Returns the one-line summary the ledger keeps, and says each part. */
+/** `nv disk --clean`'s sweep. Says each part, and returns the one-line summary for the caller's ledger. */
 export async function sweepDisk(keepRuns: number, say: Say, root: string = ROOT): Promise<string> {
   const before = freeGb(root);
   let freed: Record<string, number | null>;
@@ -113,7 +113,6 @@ export async function sweepDisk(keepRuns: number, say: Say, root: string = ROOT)
     return failed;
   }
   let summary = `disk: freed ${human(total(freed))}, ${before.toFixed(1)}G -> ${freeGb(root).toFixed(1)}G free`;
-  say(summary);
   for (const line of freedLines(freed)) say(`  ${line}`);
   if (freed["target/deps"] === null) summary += "; deps/ left alone, cargo could not name the live set";
   return summary;
