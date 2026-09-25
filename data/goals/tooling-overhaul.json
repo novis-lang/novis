@@ -13016,7 +13016,7 @@
         "grep",
         "-n",
         "-F",
-        "python tools/db-matrix.py --all",
+        "bun nv db-matrix --all",
         "--",
         ".github/workflows/ci.yml"
       ],

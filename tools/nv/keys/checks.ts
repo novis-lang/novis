@@ -25,10 +25,10 @@
 // Fuzz builds the crates its target's source `use`s, over `fuzz/**`. TSan builds the workspace
 // packages its script names, raw and with their test modules. The database matrix builds each
 // `cargo test` argument list its script writes, and an integration test among them builds its
-// package's library without its test modules. The matrix is either the Python script or its
-// `bun nv db-matrix` port, and its lists are read from the one the check's `argv` runs. Both key on
-// what runs them, every `Cargo.toml` and `examples/`, and the matrix on `tests/db/` too. What runs
-// the port is the whole `nv` program, since `tools/nv/main.ts` loads every command.
+// package's library without its test modules. The matrix is `bun nv db-matrix`, and its lists are
+// read from that command's module. Both key on what runs them, every `Cargo.toml` and `examples/`,
+// and the matrix on `tests/db/` too. What runs the matrix is the whole `nv` program, since
+// `tools/nv/main.ts` loads every command.
 //
 // A probe names units by `<role>: <name>`, and `roleOf` says what a check's role is.
 
@@ -107,8 +107,7 @@ export const EVERYTHING = [...Object.keys(PARTITIONS), OTHER, STATE];
 
 const FUZZ = "cargo +nightly fuzz run";
 const TSAN = "tools/tsan.sh";
-const DB_MATRIX = "tools/db-matrix.py";
-const DB_MATRIX_NV = "tools/nv/cmd/db-matrix.ts";
+const DB_MATRIX = "tools/nv/cmd/db-matrix.ts";
 /** What `bun nv <command>` runs besides the command's own module. */
 const NV_PROGRAM = ["tools/nv", "package.json", "bun.lock", "tsconfig.json"];
 
@@ -377,11 +376,9 @@ function runs(argv: string[], needle: string): boolean {
   return argv.length > 0 && argv[0] !== "git" && argv.some((a) => a.includes(needle));
 }
 
-/** The database matrix this command runs: the Python script, its `bun nv` port, or neither. */
-function dbMatrixOf(argv: string[]): typeof DB_MATRIX | typeof DB_MATRIX_NV | undefined {
-  if (runs(argv, DB_MATRIX)) return DB_MATRIX;
-  if (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "db-matrix") return DB_MATRIX_NV;
-  return undefined;
+/** Whether this command runs the database matrix, `bun nv db-matrix`. */
+function runsDbMatrix(argv: string[]): boolean {
+  return argv[0] === "bun" && argv[1] === "nv" && argv[2] === "db-matrix";
 }
 
 /** The workspace packages a file names as a whole word: what a script builds. */
@@ -433,7 +430,7 @@ export function roleOf(c: Check): Role {
   if (argv[0] === "npm" && cwd.startsWith("editors/")) return argv.includes("package") ? "vsix" : "editor";
   if (runs(argv, FUZZ)) return "fuzz";
   if (runs(argv, TSAN)) return "tsan";
-  if (dbMatrixOf(argv)) return "db-matrix";
+  if (runsDbMatrix(argv)) return "db-matrix";
   if (argv[0] === "python" && argv[1]?.startsWith("tools/")) return "gate";
   if (argv[0] === "bun") return "nv";
   if (argv[0] === "git" && argv[1] === "grep") return "grep";
@@ -501,13 +498,11 @@ function checkUnit(r: Records, c: Check): Unit {
       return union(build(t, g, { own, ownTier: "raw", depTier: "card", test: true }), path(t, TSAN), manifests(t), path(t, "examples"));
     });
   }
-  const matrix = dbMatrixOf(argv);
-  if (matrix) {
-    const runner = matrix === DB_MATRIX_NV ? NV_PROGRAM : [DB_MATRIX];
+  if (runsDbMatrix(argv)) {
     return unit("package key", (t) => {
-      const builds = suitesIn(t, g, matrix);
+      const builds = suitesIn(t, g, DB_MATRIX);
       if (builds.length === 0) return everything(t);
-      return union(...builds.map((b) => build(t, g, b)), ...runner.map((p) => path(t, p)), manifests(t), path(t, "examples"), path(t, "tests/db"));
+      return union(...builds.map((b) => build(t, g, b)), ...NV_PROGRAM.map((p) => path(t, p)), manifests(t), path(t, "examples"), path(t, "tests/db"));
     });
   }
 

@@ -6,7 +6,6 @@
   },
   "permissions": {
     "allow": [
-      "Bash(python tools/peek.py:*)",
       "Bash(bun nv peek:*)",
       "Bash(bun nv brief:*)",
       "Bash(bun nv orient:*)",

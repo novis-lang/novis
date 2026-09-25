@@ -102,7 +102,6 @@ describe("the units a key answers for", () => {
     expect(role({ kind: "command", argv: ["{nvs}", "agent", "find", "x"] })).toBe("nvs");
     expect(role({ kind: "command", cwd: "editors/vscode", argv: ["npm", "run", "package"] })).toBe("vsix");
     expect(role({ kind: "command", cwd: "editors/vscode", argv: ["npm", "test"] })).toBe("editor");
-    expect(role({ kind: "command", argv: ["python", "tools/db-matrix.py", "--all"] })).toBe("db-matrix");
     expect(role({ kind: "command", argv: ["bun", "nv", "db-matrix", "--all"] })).toBe("db-matrix");
     expect(role({ kind: "command", argv: ["git", "grep", "-e", "tools/tsan.sh", "--", "ci.yml"] })).toBe("grep");
     expect(role({ kind: "command", argv: ["python", "tools/owners.py", "--check"] })).toBe("gate");

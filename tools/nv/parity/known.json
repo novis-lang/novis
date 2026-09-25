@@ -7,42 +7,6 @@
       "why": "A command a tool prints for the reader to run next is spelled as the nv subcommand that replaces the Python tool, which keeps the Python tool's name."
     }
   ],
-  "bench": [
-    {
-      "side": "python",
-      "pattern": "^(usage: |)bench\\.py(:? )",
-      "replace": "$1nv bench$2",
-      "why": "A message names the program that printed it."
-    },
-    {
-      "side": "python",
-      "pattern": "`warm_start` in this file says why\\.",
-      "replace": "`--warm-start` in `nv bench` says why.",
-      "why": "The message names where the reasoning lives, and in nv that is the command's own module doc."
-    }
-  ],
-  "db-matrix": [
-    {
-      "side": "python",
-      "pattern": "^(usage: |)db-matrix\\.py(:? )",
-      "replace": "$1nv db-matrix$2",
-      "why": "A message names the program that printed it."
-    },
-    {
-      "side": "both",
-      "pattern": "^(db-matrix: sqlite against ).*$",
-      "replace": "$1<scratch>/matrix.sqlite",
-      "why": "The SQLite leg's file is in a fresh directory each run. Python makes it in the system temp directory, and nv makes it under `.agent-tmp/db-matrix/`, where every scratch file of this repository goes."
-    }
-  ],
-  "peek": [
-    {
-      "side": "both",
-      "pattern": "^-- (that is \\d+ calls in a row|you have now fetched) .*\\n",
-      "replace": "",
-      "why": "The footer's advice reads a per-session ledger both programs write, and a parity case runs them at once, so which one counted first is a race."
-    }
-  ],
   "disk": [
     {
       "side": "python",
