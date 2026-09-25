@@ -2,6 +2,6 @@
   `nvs-test` spawns the `nvs` binary once per case (`crates/nvs-test/src/run.rs:344`), so a check whose
   mechanism is named by a `rule:http-server/...` ceiling is still answered by the CLI run path in
   `crates/nvs-cli/src/main.rs`, and a group scoped to `serve.rs` writes that mechanism where the case can
-  never reach it. Read the `[[check]]`'s own `args` before choosing the file set: `args = ["test", ...]`
-  over a `.nvst` tree means the surface under test is `nvs run`, whatever the stage header says the stage
-  is about. [until: gone crates/nvs-cli/src/main.rs:nvs serve]
+  never reach it. Read the check's own `args` before choosing the file set: `"args": ["test", ...]`
+  over a `.nvst` tree means the surface under test is `nvs run`, whatever the stage's prose says the
+  stage is about. [until: gone crates/nvs-cli/src/main.rs:nvs serve]

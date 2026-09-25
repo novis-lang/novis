@@ -1,7 +1,7 @@
-- **A `loop-goal.toml` check naming a refusal can be asking for the refusal itself, not for one more
+- **A goal record's check naming a refusal can be asking for the refusal itself, not for one more
   name under it.** Stage 2's `a_program_declaring_its_own_interface_named_parses_is_refused` reads as a
   new case of a settled rule, but `nvs check` accepted `interface Stringable {}` and `class Throwable {}`
   alike — neither compiler-owned roster was refused anywhere, because every resolver short-circuits on
   those names before the symbol table and nothing ever looked at the declaration. Probe the precedent
   with `target/debug/nvs.exe check` on a two-line file before budgeting the slice as a one-line
-  addition. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]
+  addition. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

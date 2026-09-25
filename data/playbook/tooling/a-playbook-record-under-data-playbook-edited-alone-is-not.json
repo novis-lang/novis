@@ -8,6 +8,6 @@
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/nv/cmd/orient.ts:Python writers"
+    "arg": "tools/nv/cmd/orient.ts:playbookImporter.read"
   }
 }

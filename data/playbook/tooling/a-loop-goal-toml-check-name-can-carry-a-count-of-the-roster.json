@@ -1,11 +1,11 @@
 {
-  "lead": "A `loop-goal.toml` check name can carry a *count* of the roster the goal itself grows, and the count is stale the day the goal lands.",
-  "body": "`runs_answers_true_for_three_drivers_and_false_for_sql_server_alone` was drafted while `nvs_stdlib::queue::runs` answered true for three drivers, and goal `sqlite-queue` makes it four, so the drafted name could only be satisfied by a test whose name lies about what it asserts. Rename the check in both toml copies to the claim with the count taken out — in a name of that shape the claim is the half after the `and`, and the count is decoration — rather than writing the test under the drafted name.",
+  "lead": "A goal record's check name can carry a *count* of the roster the goal itself grows, and the count is stale the day the goal lands.",
+  "body": "`runs_answers_true_for_three_drivers_and_false_for_sql_server_alone` was drafted while `nvs_stdlib::queue::runs` answered true for three drivers, and goal `sqlite-queue` makes it four, so the drafted name could only be satisfied by a test whose name lies about what it asserts. Rename the check in the goal's record to the claim with the count taken out — in a name of that shape the claim is the half after the `and`, and the count is decoration — rather than writing the test under the drafted name.",
   "files": [
     "tools/nv/cmd/orient.ts"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/nv/cmd/orient.ts:a loop-goal.toml*"
+    "arg": "tools/nv/cmd/orient.ts:const TRIAGE"
   }
 }

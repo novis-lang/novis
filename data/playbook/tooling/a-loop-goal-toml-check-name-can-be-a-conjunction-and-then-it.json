@@ -1,11 +1,11 @@
 {
-  "lead": "A loop-goal.toml check name can be a *conjunction*, and then it reports one open item where there are two — one landed, one unwritable.",
+  "lead": "A goal record's check name can be a *conjunction*, and then it reports one open item where there are two — one landed, one unwritable.",
   "body": "A conjunction reports `did not run` while *either* half is missing, so the landed half earns nothing and the report cannot say which one is the work. The tell is the `_and_` in the name: grep each half's claim separately, and split the entry into one name per half rather than waiting for a single test to become writable.",
   "files": [
     "tools/nv/cmd/orient.ts"
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/nv/cmd/orient.ts:a loop-goal.toml*"
+    "arg": "tools/nv/cmd/orient.ts:const TRIAGE"
   }
 }

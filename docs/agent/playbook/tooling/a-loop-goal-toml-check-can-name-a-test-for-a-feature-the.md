@@ -1,6 +1,6 @@
-- **A `loop-goal.toml` check can name a test for a feature the tree's own module doc says is
+- **A goal record's check can name a test for a feature the tree's own module doc says is
   *blocked*, and then the check is right and the doc is the specification.** The tell is a gap
   section that names its own repair in a sentence — a doc that precise has already done the design,
   so the check asks for the implementation, not a filing correction. Read the module doc's gap
   section before `Cargo.toml`: it answers "impossible", "unwritten" and "decided but unlanded" in
-  one call, and only the third looks like a misfiling from outside. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]
+  one call, and only the third looks like a misfiling from outside. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

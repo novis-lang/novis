@@ -429,29 +429,17 @@ export function retire(expired: Expired[], dry: boolean, root: string = ROOT, sa
 /**
  * Bullets whose missing path is the trap itself, keyed by `selector\npath` with the reason as the value.
  * They are printed under their own heading so the stale-path list can reach `none`. An entry no bullet
- * matches is reported.
+ * matches is reported. None is listed: a bullet that has to go on mentioning a deleted path names the
+ * constant that holds it instead.
  */
-const DELIBERATE_STALE = new Map<string, string>([
-  [
-    "Tooling > a tool's prose citing\ntests/vectors.rs", // check-links:subject
-    "the suffix `bun nv links` wrongly resolves to; the file is crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the relation between them is the trap",
-  ],
-  [
-    "Tooling > a playbook bullet\ndocs/rules/_index.json", // check-links:subject
-    "the file the rules importer still reads after it was deleted; that it is gone is the trap, and the bullet retires with the importer's read of it",
-  ],
-]);
+const DELIBERATE_STALE = new Map<string, string>();
 
 /**
  * `--check`: the retirement findings, the paths a bullet names that are gone, the selectors that do not
  * name exactly one bullet, and what each section costs. It exits 1 on an unresolvable selector or a
- * bullet with no readable trailer, and reports the rest.
- *
- * It differs from `playbook.py --check` in three ways. The sizes are of the bullets as the records hold
- * them, one line each, so they are smaller than the wrapped fragment files. A selector is built from the
- * whole bold lead, which can take a word more than one built from the lead's first line. And the file's
- * growth over `git log` and the cost of the live manifest's selectors are not printed: both were reports
- * that gated nothing, and no check reads them.
+ * bullet with no readable trailer, and reports the rest. The sizes are of the bullets as the records
+ * hold them, one line each, so they are smaller than the wrapped fragment files, and a selector is built
+ * from the whole bold lead.
  */
 async function runCheck(root: string = ROOT): Promise<number> {
   const book = playbookBook(root);

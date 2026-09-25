@@ -1,7 +1,7 @@
-- **A `loop-goal.toml` check can name a *status* a rule forbids the named crate to send, and the
+- **A goal record's check can name a *status* a rule forbids the named crate to send, and the
   sentence that settles it is in the section the check cites.**
   `rule:routing/matched-once-before-the-handler` forbids the server to send `404`/`405`; they are
   the program's decision over the table's answer. When a check name carries a wire-level effect (a
   status, a header, a close), find who may emit it before writing the test, and move the check to
-  the crate owning the computation (`crates/nvs-runtime/src/routes.rs` here) with a comment saying
-  why the name is not a claim about who sends it. [until: gone tools/nv/cmd/orient.ts:a loop-goal.toml*]
+  the crate owning the computation (`crates/nvs-runtime/src/routes.rs` here) with a sentence in the
+  goal's prose saying why the name is not a claim about who sends it. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

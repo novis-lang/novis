@@ -1,4 +1,4 @@
-- **A `loop-goal.toml` acceptance list is not all under `crates/` and `tests/` —
+- **A goal record's acceptance list is not all under `crates/` and `tests/` —
   `benches/abi-probe/` hosts a whole leg of it.** `perf_guards.rs` and `invariants.rs` under
   `benches/abi-probe/tests/` are the ABI and cost-class guards, a workspace member the goal names
   like any other, and the only tests outside those two roots. Grep `fn <name>` from the repository

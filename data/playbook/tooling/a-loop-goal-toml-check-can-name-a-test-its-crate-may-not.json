@@ -1,5 +1,5 @@
 {
-  "lead": "A `loop-goal.toml` check can name a test its crate may not *write*, and `Cargo.toml` naming the right dependency does not settle it — read the `[lints]` block underneath.",
+  "lead": "A goal record's check can name a test its crate may not *write*, and `Cargo.toml` naming the right dependency does not settle it — read the `[lints]` block underneath.",
   "body": "A fixture that needs a leaked `ClassTable` carrying an `invoke` address (`allocation_policy.rs`'s `closure_of`) cannot compile under the workspace's `unsafe_code = \"forbid\"`, which `#[expect(unsafe_code)]` cannot open. `grep -rn unsafe_code crates/*/Cargo.toml` lists the crates that chose `deny`; then ask which crate holds the state the claim is about before moving the check.",
   "files": [
     "Cargo.toml",
@@ -7,6 +7,6 @@
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/nv/cmd/orient.ts:a loop-goal.toml*"
+    "arg": "tools/nv/cmd/orient.ts:const TRIAGE"
   }
 }
