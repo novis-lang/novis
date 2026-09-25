@@ -3,4 +3,4 @@
   — so both halves of an orderless pair are laundered through `mixed` locals, and an array through
   `array<mixed>`, before `nvs_stdlib::ordering::compare_values` sees them. All seven members then
   raise the same `Fault::thrown`, `<member> has no natural order for tag N against tag M: …`,
-  differing only in the name in front. [until: reviewed 2026-09-06]
+  differing only in the name in front. [until: gone crates/nvs-stdlib/src/ordering.rs:fn compare_values]

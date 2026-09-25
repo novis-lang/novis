@@ -1,29 +1,24 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stage 10.** The cutover is committed on `main`: the records under `data/` are the homes, the legacy goal files, `loop-goal.*` and `handoff.md` are gone, every text file is LF, and `tools/loop.py` is a shim that starts `bun nv loop`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nThe goal-only sweep over the cut-over tree (`.agent-tmp/floor-sweep-real.log`) is red on exactly the five checks later stages own: Stage 9's `audit checks` (the old proofs name in 7 Python tools' comments, which Stage 12 deletes), Stage 10's trailer check, Stage 11's `audit ci` and `loop-stats --guard`, and Stage 12's `audit python`. The run also showed the abi-probe four-core fan-out red under load; it passes alone.\n\n38 citations of a gap by position named no gap and were left as they were (`.agent-tmp/cutover-unresolved-citations.txt`). The scratch worktree `.agent-tmp/worktrees/cutover-rehearsal` and its branch are done with and can be removed.",
+  "state": "**Goal `tooling-overhaul`, Stage 10.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback. The Stage 9 check `no goal file carries a number` passes when run by hand. The failure in the ledger was recorded before the cutover commit.\n\n`bun nv playbook --triage <section>` is on disk (`tools/nv/cmd/playbook.ts:707`). It prints each bullet's text, the files it names, what a bare name among them resolves to, a proposed `gone` trailer, `LIVE MANIFEST`, `NO NAMED WORD IN ITS FILE`, its near-duplicates, and the closing `triage:` line. Section `divergences` is decided: 11 bullets deleted and 17 kept with a `gone` trailer. The other sections still owe: `splitting-a-file` 13 of 13, `running-things`, `writing-novis`, `tooling` 301 of 397, and `writing-a-test-case`.\n\nA bullet still has two homes that are read: the fragment under `docs/agent/playbook/<section>/` (which `nv orient` and `--show` read through the importer) and the record under `data/playbook/<section>/`. A batch changes both. `.agent-tmp/triage-divergences.ts` is the batch script to copy: it checks each proposed `gone` condition stands, rewrites the fragment's trailer, writes the record as `bulletValue` reads it back, and deletes both homes of a dropped bullet.\n\nThe goal-only sweep is red on the four checks later stages own: Stage 9's `audit checks`, Stage 11's `audit ci` and `loop-stats --guard`, and Stage 12's `audit python`, plus Stage 10's trailer check until every section is triaged. The scratch worktree `.agent-tmp/worktrees/cutover-rehearsal` and its branch can be removed.",
   "next": {
     "stage": 10,
     "title": "the playbook triage, on records",
-    "files": [
-      "tools/nv/cmd/playbook.ts",
-      "data/playbook/divergences/",
-      "data/playbook/splitting-a-file/"
-    ],
+    "files": [],
+    "note": "one file set: `data/playbook/splitting-a-file/`, `docs/agent/playbook/splitting-a-file/`, then the same pair for `running-things`, with `tools/nv/cmd/playbook.ts` for the triage report.",
     "items": [
       {
         "done": false,
-        "text": "**`bun nv playbook --triage <section>`** — the report goal prose § *Stage 10* (`docs/agent/goals/tooling-overhaul.md:583`) specifies, added beside `--check` in `tools/nv/cmd/playbook.ts:37`; it writes nothing and ends on the `triage: <section>:` line."
+        "text": "**Triage `splitting-a-file`** — run `bun nv playbook --triage splitting-a-file` (`tools/nv/cmd/playbook.ts:707`) and decide all 13 bullets by the rubric in the goal's § *Standing decisions* (`docs/agent/goals/tooling-overhaul.md:741`), with a copy of `.agent-tmp/triage-divergences.ts`. Most are general lessons about splitting a Rust module, and several are the story of splitting `ctx.rs`. Keep a lesson only with a `gone` trailer on a file it names today."
       },
       {
         "done": false,
-        "text": "**Triage `divergences` and `splitting-a-file`** — decide each bullet under `data/playbook/divergences/` by the rubric in the goal's § *Standing decisions*, with a script under `.agent-tmp/` for the batch (`tools/nv/cmd/playbook.ts:448`), one commit per section."
+        "text": "**Triage `running-things`** — the same for its 163 bullets, in batches, one commit per batch. Delete a bullet about a Python tool this goal deleted. Check the manifest selector `Running things > target/release/nvs.exe is` before you delete the bullet it reaches (`docs/agent/goals/tooling-overhaul.md:590`)."
       }
     ]
   },
   "backlog": [
-    "Triage `running-things`, `writing-novis`, `tooling`, `writing-a-test-case`, in that order — goal prose § *Stage 10*.",
-    "Stage 11: `nv audit ci`, `nv loop-stats --guard`, CI and hooks on bun — goal prose § *Stage 11*.",
-    "Stage 12: delete the Python tools, which also turns Stage 9's `audit checks` green — goal prose § *Stage 12*.",
-    "`nv verify`'s `lints`, `directives` and `template` steps still run Python (`tools/nv/cmd/verify.ts:729`) — goal prose § *Stage 12*.",
-    "The 38 unresolved gap citations — `.agent-tmp/cutover-unresolved-citations.txt`."
+    "Cross-section near-duplicates: `divergences/a-new-directory-under-benches…` and `tooling/an-untracked-non-crate-directory…` say the same thing. Decide it when `tooling` is triaged (`docs/agent/goals/tooling-overhaul.md:741`).",
+    "`bun nv import --check` throws on the deleted `docs/rules/_index.json`, because the importer is a pre-cutover tool. Stage 12 deletes it (`docs/agent/goals/tooling-overhaul.md`).",
+    "Stage 10's gate still needs a schema change: `files` non-empty and `until.kind` without `reviewed` (`tools/nv/schema/playbook.ts`). It lands once the last section is triaged."
   ]
 }

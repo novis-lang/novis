@@ -4,4 +4,4 @@
   does not lower, so `Core\Test::assertCount`'s two sites and `Core\Csv::format`'s column guard
   cannot be reached. Three `nvs run` probes on a scratch file settle it in one call; the assertion
   members read as if a bad subject were a runtime question, and it is a signature question.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::assertCount]

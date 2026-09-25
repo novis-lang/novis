@@ -3,4 +3,4 @@
   names no class the compiler can resolve"* and points at `Core\Reflect`
   (`rule:classes/no-free-functions-or-constants`). A `.nvst` case that wants to show which class was
   selected calls an overridden member and reads the answer, as the class-reference cases under
-  `tests/conformance/class/` do. [until: reviewed 2026-09-06]
+  `tests/conformance/class/` do. [until: gone crates/nvs-diagnostics/src/lib.rs:E_CLASS_NAME_CONST_NOT_STATIC]

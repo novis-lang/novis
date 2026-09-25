@@ -1,6 +1,0 @@
-- **Turning a panic into a diagnostic breaks the tests that pinned the panic, and they do not look
-  like your change.** A `#[should_panic(expected = "known gaps")]` guard fails with *"panic did not
-  contain expected string"* while printing the new diagnostic, and a fixture helper's own
-  `assert!(!diags.has_errors())` fails without naming the feature. Delete the guard — the `.nvst`
-  case is its replacement — and split the fixture helper so the one test whose point is the
-  diagnostic gets the `Diagnostics` back. [until: reviewed 2026-09-06]

@@ -3,4 +3,4 @@
   row and quietly wrong, while `abs` refuses. A case asserting the divergence asserts that the
   derivation *answered* and `abs` *refused*, never what the arithmetic wrapped to — the overflow
   policy is another member's question and pinning it here fails the case for the wrong reason.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/math.rs:Core\Math::abs]

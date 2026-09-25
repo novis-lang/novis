@@ -4,4 +4,4 @@
   `String::with_capacity` or `NvsStr::build` and dies. Draw through `NvsStr::try_build`,
   `NvsArray::try_reserve` or the `*_fallibly` helpers in `str.rs`/`bytes.rs`/`arr.rs`, and add the
   member to `tests/conformance/core/count-shaped-producers-refuse-alike.nvst`.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-runtime/src/abi.rs:pub fn affordable]

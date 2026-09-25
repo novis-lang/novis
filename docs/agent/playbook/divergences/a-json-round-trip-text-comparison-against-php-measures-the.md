@@ -2,4 +2,4 @@
   every float carries a fraction.** `Core\Json::encode` keeps a whole-valued float's fractional part
   — `0.0`, `100.0`, `1e+308` — where `json_encode` writes `0`, `100`, `1.0e+308`. Separately,
   `Core\Json::decode` refuses the band `i64::MAX`+1 ..= `u64::MAX` that `json_decode` widens, pinned
-  by `json-decode-refuses-the-number-band-json_decode-degrades`. [until: reviewed 2026-09-06]
+  by `json-decode-refuses-the-number-band-json_decode-degrades`. [until: gone crates/nvs-stdlib/src/json.rs:Core\Json::encode]

@@ -6,10 +6,11 @@
     "tests/conformance/reject/",
     "docs/reference/tools/30-php-differences.md",
     "docs/divergences.md",
-    "docs/novis.md"
+    "docs/novis.md",
+    "tools/rules.py"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "tools/rules.py"
   }
 }

@@ -1,4 +1,0 @@
-- **`docker compose build | tail` reports success for a failed build.** The pipeline's status is
-  `tail`'s, so the exit code is 0 and the failure is only in the text scrolled past — AGENTS.md's
-  `;`-chain rule wearing a different hat. Redirect to a file and echo `$?`, or read the status
-  before the output. [until: reviewed 2026-09-06]

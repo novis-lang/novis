@@ -3,4 +3,4 @@
   world-writable directory, and the check runs on the directory *and its parent* — so a tight
   scratch directory of your own is still refused, with a `Breach` naming a mode you did not set.
   Scratch beside the test binary instead (`std::env::current_exe()`'s parent, under `target/`);
-  Windows hides this entirely because its temp dir is per-user. [until: reviewed 2026-09-06]
+  Windows hides this entirely because its temp dir is per-user. [until: gone crates/nvs-config/src/trust.rs:Breach]

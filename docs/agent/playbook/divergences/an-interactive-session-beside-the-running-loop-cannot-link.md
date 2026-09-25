@@ -4,4 +4,4 @@
   one for minutes. `Get-CimInstance Win32_Process -Filter "Name='nvs.exe'"` shows it is live work —
   PIDs change between two calls — so retry rather than kill; the same collision fails
   `log::tests::the_engine_floor_rotates_and_rate_limits_itself` on a shared rotation path.
-  [until: reviewed 2026-09-06]
+  [until: gone crates/nvs-stdlib/src/log.rs:the_engine_floor_rotates_and_rate_limits_itself]

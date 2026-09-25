@@ -3,4 +3,4 @@
   paragraph is why it pinned the class, and it can be true and beside the point —
   `Core\Time::parse`'s zonal-pattern refusal was argued into `ParseError` that way. Read the
   reasoning before reclassifying, and if it is what is wrong, rewrite that paragraph rather than the
-  expectation alone. [until: reviewed 2026-09-06]
+  expectation alone. [until: gone crates/nvs-stdlib/src/time.rs:Core\Time::parse]
