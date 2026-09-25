@@ -9,7 +9,7 @@
 //   key is the union of theirs.
 // - `binary key`: a test binary. What it is compiled from, `builtFrom` with `testBuild`, and the
 //   paths it last recorded opening at run time. A binary `tools/data/impact-wide.txt` lists keys on
-//   everything but the files a wrap writes (`WRAP_WRITES`).
+//   everything but the files a session writes after `nv verify` (`WRAP_WRITES`).
 // - `package key`: a check that builds or runs a program. Its build is `builtFrom` at the tier the
 //   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
@@ -261,9 +261,9 @@ function everything(tree: Tree): Part[] {
   return cached(tree, "everything", () => [WIDE_MARK, ...EVERYTHING.flatMap((p) => partition(tree, p))]);
 }
 
-/** What a wide test binary keys on: everything but the files a wrap writes, which no wide binary's
- * source names (`escape.ts`). A wrap lands after `nv verify` has run, so this is what lets verify's
- * run of a wide binary still answer the sweep that follows the wrap. */
+/** What a wide test binary keys on: everything but the files a session writes after `nv verify`
+ * (`WRAP_WRITES`), which no wide binary's source names (`escape.ts`). This is what lets verify's run
+ * of a wide binary still answer the sweep that follows the wrap and the perf recording. */
 function everythingButWrap(tree: Tree): Part[] {
   return cached(tree, "everything-but-wrap", () => [
     WIDE_MARK,

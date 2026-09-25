@@ -13,11 +13,11 @@ describe("partitionOf", () => {
     expect(partitionOf("docs/agent/goals/core-math-1-3.md")).toBe("goals");
   });
 
-  test("the plan, a milestone and both playbook homes are what a wrap writes, and their neighbours are not", () => {
-    for (const rel of ["docs/implementation-plan.md", "docs/plan/m8.md", "docs/agent/playbook/running-things/x.md", "data/playbook/running-things/x.json"]) {
+  test("the plan, a milestone, both playbook homes and the perf ledger are written after verify, and their neighbours are not", () => {
+    for (const rel of ["docs/implementation-plan.md", "docs/plan/m8.md", "docs/agent/playbook/running-things/x.md", "data/playbook/running-things/x.json", "docs/perf/members.ndjson"]) {
       expect(wrapWritten(rel)).toBe(true);
     }
-    for (const rel of ["docs/implementation-plan.mdx", "docs/planning.md", "docs/agent/goals/x.md", "data/goals/x.json"]) {
+    for (const rel of ["docs/implementation-plan.mdx", "docs/planning.md", "docs/agent/goals/x.md", "data/goals/x.json", "docs/perf/userland-gap.md"]) {
       expect(wrapWritten(rel)).toBe(false);
     }
   });

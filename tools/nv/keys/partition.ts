@@ -48,10 +48,11 @@ export const STATE = "state";
 /** A goal's handoff record, main's or a side goal's: what a wrap rewrites every session. */
 const STATE_FILES = /^data\/goals\/(side\/)?[^/]+\.handoff\.json$/;
 
-/** What a wrap writes after `nv verify` has run: the plan's status block, a milestone's file and a
- * playbook bullet's two homes. No test binary keyed on everything names one (`escape.ts` fails the
- * `test` step on one that does), so that key leaves them out and a wrap does not move it. */
-export const WRAP_WRITES = ["docs/implementation-plan.md", "docs/plan", "docs/agent/playbook", "data/playbook"];
+/** What a session writes after `nv verify` has run: the wrap's plan status block, a milestone's file
+ * and a playbook bullet's two homes, and the perf ledger `nv proofs --record-perf` appends to, which
+ * waits for verify to finish. No test binary keyed on everything names one (`escape.ts` fails the
+ * `test` step on one that does), so that key leaves them out and none of them moves it. */
+export const WRAP_WRITES = ["docs/implementation-plan.md", "docs/plan", "docs/agent/playbook", "data/playbook", "docs/perf/members.ndjson"];
 
 /** Is this repo-relative path one a wrap writes? */
 export function wrapWritten(rel: string): boolean {
