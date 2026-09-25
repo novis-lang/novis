@@ -403,16 +403,26 @@ fn outstanding_file(name: &str) -> Ratchet {
     Ratchet { path, keys, owners }
 }
 
-/// The chain — `data/chain.json`, the list of goal slugs in the order the loop
-/// walks them — read for the one thing an owner column is checked against:
-/// which goals it still holds. The **slug** is what an owner column names,
-/// because a goal's position moves whenever anything is inserted in front of it.
+/// The chain — `data/chain.json`'s `goals`, the list of goal slugs in the order
+/// the loop walks them — read for the one thing an owner column is checked
+/// against: which goals it still holds. The **slug** is what an owner column
+/// names, because a goal's position moves whenever anything is inserted in front of it.
 fn chain_goals() -> BTreeSet<String> {
     let path = nvs_repo::path("data/chain.json");
     let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let slugs: Vec<String> =
+    let chain: serde_json::Value =
         serde_json::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    slugs.into_iter().collect()
+    let goals = chain["goals"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{}: `goals` is not a list", path.display()));
+    goals
+        .iter()
+        .map(|g| {
+            g.as_str()
+                .unwrap_or_else(|| panic!("{}: a goal that is not a slug: {g}", path.display()))
+                .to_owned()
+        })
+        .collect()
 }
 
 /// The first milestone a key may be deferred to.
