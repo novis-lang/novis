@@ -1,0 +1,57 @@
+---
+title: "Core\\Db::quoteIdentifier"
+description: "Checks that $name is a bare SQL identifier — a letter or _, then letters, digits or _ — and answers it unchanged and no longer tainted, so it can be written into the text of a statement. Replaces escaping a table or column name by hand, which is what mysqli_real_escape_string was doing there."
+sidebar:
+  label: "quoteIdentifier"
+novis:
+  kind: method
+  id: "Db.quoteIdentifier"
+  draft: true
+---
+
+import MethodLead from '@components/MethodLead.astro'
+import MethodSignature from '@components/MethodSignature.astro'
+import MethodDescription from '@components/MethodDescription.astro'
+import ParamDocs from '@components/ParamDocs.astro'
+import MethodReturn from '@components/MethodReturn.astro'
+import MethodErrors from '@components/MethodErrors.astro'
+import MethodChangelog from '@components/MethodChangelog.astro'
+import MethodExamples from '@components/MethodExamples.astro'
+import SeeAlso from '@components/SeeAlso.astro'
+
+{/* OWNERSHIP: while `draft: true` stands above, this page is TOOL-OWNED and
+    `bun nv render --website` REGENERATES it on every run — edits here will be lost.
+    To take ownership, remove `draft: true`; the tool then never touches this
+    file again. Keep a <Method...> component wherever its default (rendered
+    from the repository's own data) is good enough; replace one with your own
+    prose where it is not. */}
+
+<MethodLead id="Db.quoteIdentifier" />
+
+<MethodSignature id="Db.quoteIdentifier" />
+
+## Description
+
+<MethodDescription id="Db.quoteIdentifier" />
+
+### Parameters
+
+<ParamDocs id="Db.quoteIdentifier" kind="params" />
+
+## Return value
+
+<MethodReturn id="Db.quoteIdentifier" />
+
+## Errors
+
+<MethodErrors id="Db.quoteIdentifier" />
+
+<MethodChangelog id="Db.quoteIdentifier" />
+
+{/* Tips & tricks: add a "## Tips" section here when there is something worth
+    saying. The section is simply absent until then. */}
+
+<MethodExamples id="Db.quoteIdentifier" />
+
+{/* Related members: list ids like "Str.isEmpty". Renders nothing while empty. */}
+<SeeAlso ids={[]} />

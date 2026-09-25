@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { isGenerated } from "../cmd/links.ts";
 import { ROOT } from "../lib/paths.ts";
 import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../lib/render.ts";
+import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
 import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -53,6 +54,28 @@ describe("render", () => {
     removeOrphans(found, ["site"], tmp.root);
     expect(existsSync(join(tmp.root, "site/gone"))).toBe(false);
     expect(existsSync(join(tmp.root, "site/index.mdx"))).toBe(true);
+  });
+
+  test("a Core page is an orphan only while it is still a draft, since a person owns the rest", () => {
+    tmp = scratch();
+    tmp.put(`${CORE_DIR}/index.mdx`, "hub\n");
+    tmp.put(`${CORE_DIR}/str/gone.mdx`, "---\nnovis:\n  draft: true\n---\n");
+    tmp.put(`${CORE_DIR}/str/kept.mdx`, "---\nnovis:\n  kind: method\n---\n");
+    expect(orphans([websiteCore.owns!], [], tmp.root)).toEqual([`${CORE_DIR}/str/gone.mdx`]);
+    expect(isDraft("---\ndraft: true\n---\n")).toBe(true);
+    expect(isDraft("draft: true\n")).toBe(false);
+  });
+
+  test("a spec signature reads its receiver, its parameters and its options bag", () => {
+    const sig = parseSignature("`$d->plus(Duration $by, ?int ...$rest = null, {utc?: bool}): DateTime — note`")!;
+    expect(sig.receiver).toBe("d");
+    expect(sig.params.map((p) => [p.name, p.type, p.variadic, p.optional])).toEqual([
+      ["by", "Duration", false, false],
+      ["rest", "?int", true, true],
+    ]);
+    expect(sig.options).toEqual([{ name: "utc", type: "bool" }]);
+    expect(sig.returnType).toBe("DateTime");
+    expect(parseSignature("not a signature")).toBeNull();
   });
 
   test("the website's rule pages are what the records render, and every one carries both markers", async () => {

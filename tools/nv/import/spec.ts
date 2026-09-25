@@ -1,6 +1,7 @@
 // The spec chapters' tables. `docs/spec/01-core-library.md` becomes `data/spec/core-members.json`:
 // every table in it, whole, under the headings it sits beneath, which is what `tools/gaps.py`,
-// `tools/check-migration.py` and `website/scripts/sync-core.mjs` each pick their own rows out of.
+// `tools/check-migration.py` and the website's Core reference (`tools/nv/renderers/website-core.ts`)
+// each pick their own rows out of.
 // `docs/spec/02-php-migration.md` becomes `data/spec/php-migration.json`: one row per line of a
 // `PHP | Outcome | Novis` table, which is what `tools/reference.py` and `tools/check-migration.py`
 // read. Every other table in that chapter is its legend, and stays prose.

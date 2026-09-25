@@ -19,24 +19,32 @@ export interface Output {
 export interface Renderer {
   name: string;
   render(root: string): Output[] | Promise<Output[]>;
-  /**
-   * A directory whose every file is this renderer's, except the repo-relative names in `keep`
-   * under it. A file there that the render no longer writes is stale, and `bun nv render` deletes it.
-   */
-  owns?: { dir: string; keep: string[] };
+  owns?: Owned;
 }
 
-/** Every file under each owned directory that is neither an output nor kept, repo-relative. */
-export function orphans(owned: { dir: string; keep: string[] }[], outputs: Output[], root: string = ROOT): string[] {
+/**
+ * A directory whose every file is this renderer's, except the repo-relative names in `keep` under it,
+ * and, when `mine` is given, a file it says is not. A file of the renderer's that the render no longer
+ * writes is stale, and `bun nv render` deletes it.
+ */
+export interface Owned {
+  dir: string;
+  keep: string[];
+  mine?: (path: string, root: string) => boolean;
+}
+
+/** Every file of an owned directory's renderer that is neither an output nor kept, repo-relative. */
+export function orphans(owned: Owned[], outputs: Output[], root: string = ROOT): string[] {
   const written = new Set(outputs.map((o) => o.path));
   const found: string[] = [];
-  const walk = (sub: string, own: { dir: string; keep: string[] }) => {
+  const walk = (sub: string, own: Owned) => {
     const full = join(root, sub);
     if (!existsSync(full)) return;
     for (const e of readdirSync(full, { withFileTypes: true })) {
       const path = `${sub}/${e.name}`;
       if (e.isDirectory()) walk(path, own);
-      else if (!written.has(path) && !own.keep.includes(path.slice(own.dir.length + 1))) found.push(path);
+      else if (written.has(path) || own.keep.includes(path.slice(own.dir.length + 1))) continue;
+      else if (own.mine?.(path, root) ?? true) found.push(path);
     }
   };
   for (const own of owned) walk(own.dir, own);

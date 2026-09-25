@@ -2028,7 +2028,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "map(array<T> $a, callable $fn): array<U>",
+          "signature": "map(array<T> $a, callable(T, string): U $fn): array<U>",
           "params": [
             {
               "kind": "param",
@@ -2041,7 +2041,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(T, string): U",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2078,7 +2078,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "mapKeys(array<T> $a, callable $fn): array<T>",
+          "signature": "mapKeys(array<T> $a, callable(T, string): int|string $fn): array<T>",
           "params": [
             {
               "kind": "param",
@@ -2091,7 +2091,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(T, string): int|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2128,7 +2128,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "filter(array<T> $a, callable $predicate): array<T>",
+          "signature": "filter(array<T> $a, callable(T, string): bool $predicate): array<T>",
           "params": [
             {
               "kind": "param",
@@ -2141,7 +2141,7 @@
             {
               "kind": "param",
               "name": "predicate",
-              "type": "callable",
+              "type": "callable(T, string): bool",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2178,7 +2178,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "reduce(array<T> $a, callable $fn, U $initial): U",
+          "signature": "reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U",
           "params": [
             {
               "kind": "param",
@@ -2191,7 +2191,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(U, T, string): U",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2240,7 +2240,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "find(array<T> $a, callable $predicate): ?T",
+          "signature": "find(array<T> $a, callable(T, string): bool $predicate): ?T",
           "params": [
             {
               "kind": "param",
@@ -2253,7 +2253,7 @@
             {
               "kind": "param",
               "name": "predicate",
-              "type": "callable",
+              "type": "callable(T, string): bool",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2290,7 +2290,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "findKey(array<T> $a, callable $predicate): ?string",
+          "signature": "findKey(array<T> $a, callable(T, string): bool $predicate): ?string",
           "params": [
             {
               "kind": "param",
@@ -2303,7 +2303,7 @@
             {
               "kind": "param",
               "name": "predicate",
-              "type": "callable",
+              "type": "callable(T, string): bool",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2340,7 +2340,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "any(array<T> $a, callable $predicate): bool",
+          "signature": "any(array<T> $a, callable(T, string): bool $predicate): bool",
           "params": [
             {
               "kind": "param",
@@ -2353,7 +2353,7 @@
             {
               "kind": "param",
               "name": "predicate",
-              "type": "callable",
+              "type": "callable(T, string): bool",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2390,7 +2390,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "all(array<T> $a, callable $predicate): bool",
+          "signature": "all(array<T> $a, callable(T, string): bool $predicate): bool",
           "params": [
             {
               "kind": "param",
@@ -2403,7 +2403,7 @@
             {
               "kind": "param",
               "name": "predicate",
-              "type": "callable",
+              "type": "callable(T, string): bool",
               "default": null,
               "optional": false,
               "variadic": false
@@ -2440,7 +2440,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "groupBy(array<T> $a, callable $key): array<array<T>>",
+          "signature": "groupBy(array<T> $a, callable(T, string): int|string $key): array<array<T>>",
           "params": [
             {
               "kind": "param",
@@ -2453,7 +2453,7 @@
             {
               "kind": "param",
               "name": "key",
-              "type": "callable",
+              "type": "callable(T, string): int|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -3731,6 +3731,87 @@
           },
           "slug": "format",
           "url": "/docs/core/csv/format/"
+        },
+        {
+          "id": "Csv.rows",
+          "name": "rows",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "rows(Core\\IO\\File $file, {separator?, quote?, escape?, header?: bool}): Core\\Csv\\Rows",
+          "params": [
+            {
+              "kind": "param",
+              "name": "file",
+              "type": "Core\\IO\\File",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "separator",
+              "type": ""
+            },
+            {
+              "name": "quote",
+              "type": ""
+            },
+            {
+              "name": "escape",
+              "type": ""
+            },
+            {
+              "name": "header",
+              "type": "bool"
+            }
+          ],
+          "returnType": "Core\\Csv\\Rows",
+          "replaces": "the `while (fgetcsv($handle))` loop",
+          "notes": "",
+          "qualifier": "",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Walks an open file one record at a time, as <code>while ($r = fgetcsv($h))</code> does, by the same RFC 4180 grammar and the same dialect <code>parse</code> reads. The walk holds one record and never the document, so a file larger than memory reads fine; it reads forward from wherever the handle is and is taken once.",
+            "params": [
+              {
+                "name": "file",
+                "descHtml": "The open handle to read from, positioned where the walk should start."
+              },
+              {
+                "name": "separator",
+                "descHtml": "The single ASCII byte between fields; <code>,</code> by default."
+              },
+              {
+                "name": "quote",
+                "descHtml": "The single ASCII byte that quotes a field; <code>&quot;</code> by default."
+              },
+              {
+                "name": "escape",
+                "descHtml": "The single ASCII byte that escapes a quote inside a quoted field, or the empty string for none, which is the default — a doubled quote is the RFC's own escape."
+              },
+              {
+                "name": "header",
+                "descHtml": "Consume the first record as column names and key every walked record by them; the default keys each field by its column index."
+              }
+            ],
+            "returnHtml": "A walk over the records, each an array of <code>string</code> fields keyed as <code>parse</code> keys one. Nothing is read until the walk is taken.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "A dialect option is empty, longer than one ASCII character, or <code>CR</code> or <code>LF</code>; two of <code>separator</code>, <code>quote</code> and <code>escape</code> name the same byte; or the handle was closed before or during the walk."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The operating system refused a read part way through the walk."
+              }
+            ]
+          },
+          "slug": "rows",
+          "url": "/docs/core/csv/rows/"
         }
       ],
       "unparsed": [],
@@ -3739,6 +3820,293 @@
       "url": "/docs/core/csv/",
       "summaryHtml": "",
       "surfaceHtml": ""
+    },
+    {
+      "id": "Db",
+      "name": "Core\\Db",
+      "section": "16. Network, data and crypto",
+      "summary": "Semantics are `rule:core-classes/db-one-api` — connection naming and memoization, the capability split,\nwhy there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section\nowns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live\nin a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).",
+      "surface": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
+      "adrs": [
+        "0067"
+      ],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Db.connect",
+          "name": "connect",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "connect(string $name, {shared?: bool, timeout?: Duration}): Db\\Connection",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "shared",
+              "type": "bool"
+            },
+            {
+              "name": "timeout",
+              "type": "Duration"
+            }
+          ],
+          "returnType": "Db\\Connection",
+          "replaces": "`new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3`",
+          "notes": "",
+          "qualifier": "sink (name)",
+          "section": "18. `Core\\Db`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens the connection an operator named in a <code>[db.&lt;name&gt;]</code> block of <code>nvs.toml</code>, and answers the same one again for the rest of the request — <code>new PDO</code>, <code>pg_connect</code> and <code>mysqli_connect</code>, with the credential out of the program and in root-owned configuration. Needs the <code>db.connect</code> capability for that name.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The block to open, matched exactly: <code>&quot;main&quot;</code> is <code>[db.main]</code>. Two blocks that configure the same server are two connections, because an operator who wrote two meant two."
+              },
+              {
+                "name": "shared",
+                "descHtml": "Whether this call may answer with the connection an earlier one already opened. <code>false</code> opens a dedicated connection instead — what a write that must survive a rollback, a session-scoped lock or a second statement alongside a <code>stream</code> needs."
+              },
+              {
+                "name": "timeout",
+                "descHtml": "How long the handshake may take, including name resolution and TLS. Left out, the connection is bounded by the server and the network alone."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Db\\Connection</code>. The same call twice in one request answers the same object unless <code>shared</code> is <code>false</code>, and the connection is closed when the request ends.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>db.connect</code> does not grant <code>$name</code>, no <code>[db.&lt;name&gt;]</code> block of that name exists, or the block cannot be read as a connection — a missing <code>driver</code>, a field belonging to another driver, or a <code>time_zone</code> that is not an offset."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The host does not resolve, the connection, the TLS handshake or the login itself failed, or this core already holds <code>[db.&lt;name&gt;.pool] max</code> connections under that name and none came free within <code>acquire</code>. A refusal the server worded carries its own message."
+              }
+            ]
+          },
+          "slug": "connect",
+          "url": "/docs/core/db/connect/"
+        },
+        {
+          "id": "Db.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(Db\\Settings $settings, {shared?: bool}): Db\\Connection",
+          "params": [
+            {
+              "kind": "param",
+              "name": "settings",
+              "type": "Db\\Settings",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "shared",
+              "type": "bool"
+            }
+          ],
+          "returnType": "Db\\Connection",
+          "replaces": "a runtime-built DSN",
+          "notes": "",
+          "qualifier": "sink (host)",
+          "section": "18. `Core\\Db`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens a connection to a server the program itself names, for the case a <code>[db.&lt;name&gt;]</code> block cannot cover — a tenant whose database is a row in another one, or an administration tool a human types a host into. Needs the <code>db.open</code> capability for that host, and unlike <code>connect</code> the address is checked against the denied ranges in full.",
+            "params": [
+              {
+                "name": "settings",
+                "descHtml": "Everything the connection is made of. It is one of two shapes and the <code>driver</code> decides which: four of the five backends take a host, and SQLite takes a file path instead.",
+                "shape": [
+                  {
+                    "key": "driver",
+                    "type": "Driver",
+                    "descHtml": "Which backend this is, and so which of the two shapes the rest of the literal has to be."
+                  },
+                  {
+                    "key": "host",
+                    "type": "string",
+                    "descHtml": "The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to."
+                  },
+                  {
+                    "key": "port",
+                    "type": "uint",
+                    "descHtml": "The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB."
+                  },
+                  {
+                    "key": "database",
+                    "type": "tainted string",
+                    "descHtml": "The database or schema to attach to. <code>tainted</code> is accepted: it is a length-prefixed protocol field and never parsed text."
+                  },
+                  {
+                    "key": "user",
+                    "type": "tainted string",
+                    "descHtml": "The role to log in as, accepted <code>tainted</code> for the same reason."
+                  },
+                  {
+                    "key": "password",
+                    "type": "secret tainted string",
+                    "descHtml": "The role's password. It is <code>secret</code>, so it cannot reach a log line, a message or a trace."
+                  },
+                  {
+                    "key": "tls",
+                    "type": "Tls",
+                    "descHtml": "How much of the certificate is checked. Only <code>VerifyFull</code> runs, and it is what an absent key means; the weaker three are refused."
+                  },
+                  {
+                    "key": "timeZone",
+                    "type": "Core\\Time\\Zone",
+                    "descHtml": "The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent."
+                  },
+                  {
+                    "key": "timeout",
+                    "type": "Core\\Time\\Duration",
+                    "descHtml": "How long the handshake may take, resolution and TLS included."
+                  },
+                  {
+                    "key": "statementCache",
+                    "type": "uint",
+                    "descHtml": "How many prepared statements this connection may keep on the server. <code>0</code> turns the cache off."
+                  },
+                  {
+                    "key": "path",
+                    "type": "string",
+                    "descHtml": "SQLite's file, in place of a host. It is a path sink, and reaching it needs <code>fs.read</code> and <code>fs.write</code> as well."
+                  }
+                ]
+              },
+              {
+                "name": "shared",
+                "descHtml": "Whether this call may answer with the connection an earlier one opened from the same settings. <code>false</code> opens a dedicated connection instead."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Db\\Connection</code>, closed when the request ends. Two calls with settings that agree in every field answer the same object unless <code>shared</code> is <code>false</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>db.open</code> does not grant the host, the address it resolves to is a private range that <code>net.internal</code> does not except, the settings do not describe a connection this build can open, or <code>tls</code> asks for a mode weaker than <code>VerifyFull</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The host does not resolve, the connection, the TLS handshake or the login itself failed, or this core already holds its <code>max</code> of connections to those settings and none came free while waiting."
+              }
+            ]
+          },
+          "slug": "open",
+          "url": "/docs/core/db/open/"
+        },
+        {
+          "id": "Db.inList",
+          "name": "inList",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "inList(array<mixed> $values): Db\\InList",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<mixed>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Db\\InList",
+          "replaces": "`implode(\",\", array_fill(0, n, \"?\"))`",
+          "notes": "",
+          "qualifier": "",
+          "section": "18. `Core\\Db`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Marks <code>$values</code> as a run of bound values rather than one, so the placeholder it is bound to expands into a parenthesised list of that many — the <code>IN (?, ?, ?)</code> every PHP program builds with <code>implode</code> and <code>array_fill</code>. Nothing else in a statement expands, which is what keeps the SQL text independent of what a value turned out to be.",
+            "params": [
+              {
+                "name": "values",
+                "descHtml": "The values to bind, one placeholder each, in the array's own order. Keys are not read: a marker binds positions inside one placeholder, not names."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Db\\InList</code> to bind to a single placeholder. It has no members and is accepted nowhere else; two lists of different lengths bound to the same SQL are two entries in the statement cache, because expansion changes the statement's arity.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$values</code> is empty, which means &quot;match nothing&quot; inside <code>IN</code> and &quot;match everything&quot; inside <code>NOT IN</code> — the caller branches instead."
+              }
+            ]
+          },
+          "slug": "inlist",
+          "url": "/docs/core/db/inlist/"
+        },
+        {
+          "id": "Db.quoteIdentifier",
+          "name": "quoteIdentifier",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "quoteIdentifier(tainted string $name): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "tainted string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "replaces": "`mysqli_real_escape_string` on a table/column name",
+          "notes": "",
+          "qualifier": "launder (identifier)",
+          "section": "18. `Core\\Db`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Checks that <code>$name</code> is a bare SQL identifier — a letter or <code>_</code>, then letters, digits or <code>_</code> — and answers it unchanged and no longer <code>tainted</code>, so it can be written into the text of a statement. Replaces escaping a table or column name by hand, which is what <code>mysqli_real_escape_string</code> was doing there.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The identifier to check. It is answered exactly as given: nothing is escaped, truncated or lower-cased, because a name this accepts needs none of it."
+              }
+            ],
+            "returnHtml": "The same text, without the <code>tainted</code> qualifier. It carries no delimiter — <code>Core\\Db</code> has no connection and so no dialect, and the five backends disagree on what a delimiter is.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$name</code> is empty, starts with a digit, or holds any character outside letters, digits and <code>_</code> — including a name that would need delimiting to be legal."
+              }
+            ]
+          },
+          "slug": "quoteidentifier",
+          "url": "/docs/core/db/quoteidentifier/"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "db",
+      "url": "/docs/core/db/",
+      "summaryHtml": "<p>Semantics are <code>rule:core-classes/db-one-api</code> — connection naming and memoization, the capability split, why there is no <code>prepare</code>, the transaction shape, the coercion rule and the full SQL type map. This section owns the signatures only. Every member needs <code>db.connect</code> or <code>db.open</code>, and a connection's credentials live in a root-owned <code>[db.&lt;name&gt;]</code> block (<code>rule:config/the-file-is-nvs-toml-and-it-is-toml</code>).</p>",
+      "surfaceHtml": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces <code>PDO</code> <strong>and</strong> the procedural <code>mysqli</code>/<code>pgsql</code>/<code>sqlite3</code> APIs"
     },
     {
       "id": "Encoding",
@@ -6694,12 +7062,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "capture(callable $fn, {through?: callable}): Sink",
+          "signature": "capture(callable(): mixed $fn, {through?: callable}): Sink",
           "params": [
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(): mixed",
               "default": null,
               "optional": false,
               "variadic": false
@@ -6986,7 +7354,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Appends each of <code>$segments</code> to <code>$base</code> with a separator between — the <code>$a . &quot;/&quot; . $b</code> every PHP program writes. Only the base decides the root: a segment's own leading separator or drive is dropped rather than allowed to replace what came before.",
+            "shortHtml": "Appends each of <code>$segments</code> to <code>$base</code> with a separator between — the <code>$a . &quot;/&quot; . $b</code> every PHP program writes. Only the base decides the root: a segment's own leading separator or root is dropped rather than allowed to replace what came before.",
             "params": [
               {
                 "name": "base",
@@ -7035,7 +7403,7 @@
                 "descHtml": "The path, with <code>/</code> and <code>\\</code> both read as separators."
               }
             ],
-            "returnHtml": "The components in order, an absolute path's root (<code>/</code> or <code>C:\\</code>, rendered with <code>Path::SEPARATOR</code>) first; never an empty element, since a repeated or trailing separator contributes nothing, and an empty array for <code>''</code>."
+            "returnHtml": "The components in order, an absolute path's root (<code>/</code>, <code>C:\\</code> or <code>\\\\server\\share\\</code>, rendered with <code>Path::SEPARATOR</code>) first; never an empty element, since a repeated or trailing separator contributes nothing, and an empty array for <code>''</code>."
           },
           "slug": "split",
           "url": "/docs/core/path/split/"
@@ -7104,14 +7472,14 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Answers whether <code>$path</code> begins at a root — a separator, or a drive letter followed by a separator — replacing the manual checks PHP leaves this to.",
+            "shortHtml": "Answers whether <code>$path</code> begins at a root — a separator, a drive letter followed by a separator, or a UNC server — replacing the manual checks PHP leaves this to.",
             "params": [
               {
                 "name": "path",
                 "descHtml": "The path, with <code>/</code> and <code>\\</code> both read as separators."
               }
             ],
-            "returnHtml": "<code>true</code> for <code>/tmp</code>, <code>\\tmp</code> and <code>C:/log</code> on every platform — the grammar is the same everywhere, only the rendered separator differs — and <code>false</code> otherwise, <code>''</code> included."
+            "returnHtml": "<code>true</code> for <code>/tmp</code>, <code>\\tmp</code>, <code>C:/log</code> and <code>\\\\server\\share</code> on every platform — the grammar is the same everywhere, only the rendered separator differs — and <code>false</code> otherwise, <code>''</code> included."
           },
           "slug": "isabsolute",
           "url": "/docs/core/path/isabsolute/"
@@ -7161,7 +7529,7 @@
                 "descHtml": "The directory the answer is relative to; one <code>..</code> is emitted per component of it that the two do not share."
               }
             ],
-            "returnHtml": "The relative path, rendered with <code>Path::SEPARATOR</code> and never carrying a root; <code>.</code> when both name the same place; <code>null</code> when no relative path exists — one side is absolute and the other is not, the two name different drives, or <code>$base</code> still holds a <code>..</code> the answer would have to walk back into. Components compare byte for byte, except a drive letter, which ignores ASCII case."
+            "returnHtml": "The relative path, rendered with <code>Path::SEPARATOR</code> and never carrying a root; <code>.</code> when both name the same place; <code>null</code> when no relative path exists — one side is absolute and the other is not, the two begin at different roots, or <code>$base</code> still holds a <code>..</code> the answer would have to walk back into. Components compare byte for byte, except a drive letter and a UNC server, which ignore ASCII case."
           },
           "slug": "relativeto",
           "url": "/docs/core/path/relativeto/"
@@ -7838,7 +8206,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "replaceWith(string $subject, Pattern|string $pattern, callable $fn, {limit?: uint}): string",
+          "signature": "replaceWith(string $subject, Pattern|string $pattern, callable(Match): string $fn, {limit?: uint}): string",
           "params": [
             {
               "kind": "param",
@@ -7859,7 +8227,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(Match): string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -10336,7 +10704,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "map(array<T> $items, callable $fn, {limit?: uint, deadline?: Duration}): array<U>",
+          "signature": "map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>",
           "params": [
             {
               "kind": "param",
@@ -10349,7 +10717,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(T, string): U",
               "default": null,
               "optional": false,
               "variadic": false
@@ -10413,12 +10781,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "afterResponse(callable $fn, {deadline?: Duration}): void",
+          "signature": "afterResponse(callable(): mixed $fn, {deadline?: Duration}): void",
           "params": [
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable",
+              "type": "callable(): mixed",
               "default": null,
               "optional": false,
               "variadic": false
@@ -10453,7 +10821,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When the call is not the request's own task — a <code>Core\\Task</code> child, a spawned isolate, or deferred work itself, none of which has a queue anything would drain. Hand the work back to the request that started you and register it there."
+                "descHtml": "When the call is not the request's own task — a <code>Core\\Task</code> child or deferred work itself, neither of which has a queue anything would drain. Hand the work back to the request that started you and register it there."
               }
             ]
           },
@@ -13370,7 +13738,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "A fresh <code>Uri</code> with the named components replaced and every other one carried over, replacing reassembly by hand. It replaces and never removes — there is no spelling that clears a component — and <code>userInfo</code> is not on the bag, so it can neither add nor drop a credential.",
+            "shortHtml": "A fresh <code>Uri</code> with the named components replaced and every other one carried over, replacing reassembly by hand. Writing <code>null</code> for <code>port</code>, <code>query</code> or <code>fragment</code> removes that component, where leaving the key out carries it over; <code>userInfo</code> is not on the bag, so it can neither add nor drop a credential.",
             "params": [
               {
                 "name": "scheme",
@@ -13382,7 +13750,7 @@
               },
               {
                 "name": "port",
-                "descHtml": "The new port, <code>0</code>–<code>65535</code>."
+                "descHtml": "The new port, <code>0</code>–<code>65535</code>, or <code>null</code> to remove it."
               },
               {
                 "name": "path",
@@ -13390,11 +13758,11 @@
               },
               {
                 "name": "query",
-                "descHtml": "The new query, already encoded and without its <code>?</code>."
+                "descHtml": "The new query, already encoded and without its <code>?</code>, or <code>null</code> to remove it; <code>&quot;&quot;</code> is an empty query, which is a different thing."
               },
               {
                 "name": "fragment",
-                "descHtml": "The new fragment, already encoded and without its <code>#</code>."
+                "descHtml": "The new fragment, already encoded and without its <code>#</code>, or <code>null</code> to remove it."
               }
             ],
             "returnHtml": "A new <code>Uri</code>; the receiver is unchanged. A receiver whose port was written empty (<code>h:/</code>) loses that <code>:</code> on the way through.",
@@ -13407,6 +13775,106 @@
           },
           "slug": "with",
           "url": "/docs/core/uri/with/"
+        },
+        {
+          "id": "Uri.queryParameter",
+          "name": "queryParameter",
+          "static": false,
+          "receiver": "uri",
+          "generics": null,
+          "signature": "queryParameter(string $name): mixed",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "mixed",
+          "replaces": "`parse_str` over `parse_url`'s `query` key, then an array read",
+          "notes": "",
+          "qualifier": "neutral",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "One query parameter by name, read through <code>Core\\Uri::parseQuery</code>'s bracket convention instead of by parsing the query string at the call site.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The parameter's name, decoded and top-level: the brackets of <code>a[b]=c</code> belong to the value, so <code>&quot;a&quot;</code> is what reaches it."
+              }
+            ],
+            "returnHtml": "The value — <code>bytes</code>, or a nested <code>array&lt;mixed&gt;</code> where the convention built one — and <code>null</code> both for a name that is not there and for a URI with no query at all; <code>query()</code> is what tells those two apart.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "A name in the receiver's own query decodes to octets that are not valid UTF-8, which is <code>Core\\Uri::parseQuery</code>'s refusal reached through it."
+              }
+            ]
+          },
+          "slug": "queryparameter",
+          "url": "/docs/core/uri/queryparameter/"
+        },
+        {
+          "id": "Uri.withQueryParameter",
+          "name": "withQueryParameter",
+          "static": false,
+          "receiver": "uri",
+          "generics": null,
+          "signature": "withQueryParameter(string $name, mixed $value): Uri",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "value",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Uri",
+          "replaces": "`parse_str`, an array edit and `http_build_query` written out at every call site",
+          "notes": "",
+          "qualifier": "",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "A fresh <code>Uri</code> with one query parameter set, replaced or removed and every other pair carried over — <code>Core\\Uri::parseQuery</code>, the edit and <code>Core\\Uri::buildQuery</code> in one member instead of three at the call site.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The parameter's name, decoded and top-level; brackets are written by an array <code>value</code>, never by spelling them into the name."
+              },
+              {
+                "name": "value",
+                "descHtml": "The new value: a scalar, or an array nested to any depth, which is written under the bracket convention. <code>null</code> removes the parameter."
+              }
+            ],
+            "returnHtml": "A new <code>Uri</code>; the receiver is unchanged. Removing the last parameter leaves no query at all rather than a bare <code>?</code>, and every pair that is carried over is rewritten in <code>buildQuery</code>'s spelling rather than the one it arrived in.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "A name in the receiver's own query decodes to octets that are not valid UTF-8; <code>value</code> is neither a scalar nor a nested array; or the rebuilt reference does not still hold every component it was written out of, which is <code>with</code>'s refusal reached through the same recompose-and-reread path."
+              }
+            ]
+          },
+          "slug": "withqueryparameter",
+          "url": "/docs/core/uri/withqueryparameter/"
         },
         {
           "id": "Uri.resolve",
@@ -13489,6 +13957,110 @@
           },
           "slug": "compareto",
           "url": "/docs/core/uri/compareto/"
+        },
+        {
+          "id": "Uri.sign",
+          "name": "sign",
+          "static": false,
+          "receiver": "uri",
+          "generics": null,
+          "signature": "sign({keys: array<secret bytes>, until: ?Time\\Instant} $settings): Uri",
+          "params": [
+            {
+              "kind": "param",
+              "name": "settings",
+              "type": "{keys: array<secret bytes>, until: ?Time\\Instant}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Uri",
+          "replaces": "nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner`",
+          "notes": "",
+          "qualifier": "",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Answers the receiver with the reserved <code>_sig</code> query parameter set, over a signature taken across everything <code>compareTo</code> normalizes — scheme, userInfo, host, port, path and the query's parameters. Appending, removing or editing any parameter invalidates it; reordering them does not, and neither does a fragment.",
+            "params": [
+              {
+                "name": "settings",
+                "descHtml": "The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose.",
+                "shape": [
+                  {
+                    "key": "keys",
+                    "type": "array<secret bytes>",
+                    "descHtml": "The key ring, <strong>newest first</strong>: <code>$keys[0]</code> signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring <code>Core\\Signature</code> takes, and a token minted at one door does not verify at the other."
+                  },
+                  {
+                    "key": "until",
+                    "type": "?Core\\Time\\Instant",
+                    "descHtml": "When the link stops working, inside the signed bytes where a holder cannot edit it. <code>null</code> is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, <code>Referer</code> headers and chat unfurls."
+                  }
+                ]
+              }
+            ],
+            "returnHtml": "A new <code>Uri</code>, the receiver with <code>_sig</code> set — so it composes with <code>with</code> and <code>toString</code> like every other member here. A receiver already carrying <code>_sig</code> has it replaced rather than nested, and the same URL under the same key and lifetime always mints the same token. The token carries the signed form as well as the tag, so it adds about <code>4/3 × (URL + 40)</code> characters. A <strong>relative</strong> reference signs without a scheme, host or port, so its token is valid on any origin: <code>$uri-&gt;scheme()</code> is what says which you are holding.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$settings.keys</code> is empty, so there is no newest key; or its first entry is not 32 octets long — a <code>bytes</code> that was never a key."
+              }
+            ]
+          },
+          "slug": "sign",
+          "url": "/docs/core/uri/sign/"
+        },
+        {
+          "id": "Uri.verifySignature",
+          "name": "verifySignature",
+          "static": false,
+          "receiver": "uri",
+          "generics": null,
+          "signature": "verifySignature(array<secret bytes> $keys): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "keys",
+              "type": "array<secret bytes>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "replaces": "nothing",
+          "notes": "",
+          "qualifier": "neutral",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Checks the receiver's <code>_sig</code> against every key in <code>$keys</code>, and the lifetime that rode inside it. Answers nothing: a signed URL carries no claims to hand back — the claim is the URL the caller already holds — and a <code>bool</code> is a value a caller can drop.",
+            "params": [
+              {
+                "name": "keys",
+                "descHtml": "The same ring <code>sign</code> was given, newest first. A link minted under any key still in the ring verifies; one minted under a key that has been dropped off the end does not."
+              }
+            ],
+            "returnHtml": "Nothing. Reaching the next statement is what says the URL is authentic and live.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$keys</code> is empty, or one of its entries is not 32 octets long."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The URL is not one this ring signed — a parameter was added, removed or edited, the token was altered, it was minted for another door or under a retired key, there is no <code>_sig</code> at all, or there are two of them. Every one of those is one message. Expiry is the single refusal with a sentence of its own, because only the holder of a genuinely signed link ever reaches it."
+              }
+            ]
+          },
+          "slug": "verifysignature",
+          "url": "/docs/core/uri/verifysignature/"
         },
         {
           "id": "Uri.scheme",
@@ -13829,6 +14401,50 @@
           "url": "/docs/core/uuid/tryparse/"
         },
         {
+          "id": "Uuid.fromBytes",
+          "name": "fromBytes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromBytes(bytes $b): Uuid",
+          "params": [
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Uuid",
+          "replaces": "userland `fromBytes`, the `hex2bin` round trip",
+          "notes": "",
+          "qualifier": "",
+          "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reads sixteen octets as a UUID — the form a native <code>UUID</code> column and a binary protocol carry one in, with no canonical text on the way, replacing the <code>getBytes</code>/<code>fromBytes</code> pair of the userland libraries.",
+            "params": [
+              {
+                "name": "b",
+                "descHtml": "The sixteen octets, most significant first, as <code>$uuid-&gt;toBytes()</code> writes them."
+              }
+            ],
+            "returnHtml": "The <code>Uuid</code> those 128 bits are; every pattern is one, the nil and the max included, so a length is all this checks.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$b</code> is not exactly sixteen bytes long; the message names the length it got."
+              }
+            ]
+          },
+          "slug": "frombytes",
+          "url": "/docs/core/uuid/frombytes/"
+        },
+        {
           "id": "Uuid.toString",
           "name": "toString",
           "static": false,
@@ -13850,6 +14466,29 @@
           },
           "slug": "tostring",
           "url": "/docs/core/uuid/tostring/"
+        },
+        {
+          "id": "Uuid.toBytes",
+          "name": "toBytes",
+          "static": false,
+          "receiver": "uuid",
+          "generics": null,
+          "signature": "toBytes(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "userland `getBytes`, `hex2bin(str_replace(\"-\", \"\", …))`",
+          "notes": "",
+          "qualifier": "neutral",
+          "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Writes the receiver's sixteen octets, most significant first — <code>toString</code>'s twin for a native <code>UUID</code> column, a binary protocol or a hash input, where the canonical text would be 36 bytes spelling the same 128 bits.",
+            "returnHtml": "Sixteen bytes, which <code>Core\\Uuid::fromBytes</code> reads back as this same UUID."
+          },
+          "slug": "tobytes",
+          "url": "/docs/core/uuid/tobytes/"
         }
       ],
       "unparsed": [],
