@@ -125,7 +125,9 @@ use nvs_host::{NvsListener, NvsTcp, NvsUdp};
 use nvs_host::{NvsUnix, NvsUnixListener};
 use nvs_runtime::{Ctx, Fault, HeldSocket, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class's own name, for the rosters in [`crate::registry`] that key on it.
 pub(crate) const NAME: &str = r"Core\Net";
@@ -193,12 +195,19 @@ const DATAGRAM_CEILING: usize = 64 * 1024;
 /// member takes one — see this module's second decision.
 const WITHIN: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
+/// `Core\Net`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Opens network sockets. `connect` and `listen` open a TCP connection or a TCP \
+            listener, `bindDatagram` opens a UDP socket, and `connectLocal` and `listenLocal` do \
+            the same over a Unix-domain socket path. Each one needs a grant in the configuration.",
+};
+
 /// Spec § 16's `Core\Net` —
 /// `rule:core-classes/net-one-api-three-transports`'s five entry points, each
 /// saying in its name what it opens.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "connect",
@@ -691,7 +700,7 @@ const LISTENER_CLOSE_DOC: MethodDoc = MethodDoc {
 /// [`nvs_core_net_datagram_send`] asks a second one.
 pub(crate) const DATAGRAM: CoreClass = CoreClass {
     name: DATAGRAM_NAME,
-    doc: None,
+    doc: Some(&DATAGRAM_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -741,6 +750,13 @@ pub(crate) const DATAGRAM: CoreClass = CoreClass {
     ],
     slots: &["socket"],
     constants: &[],
+};
+
+/// `Core\Net\Datagram`'s class card — `rule:core-api/reference-card`.
+const DATAGRAM_CARD: ClassDoc = ClassDoc {
+    short: "A UDP socket, returned by `Core\\Net::bindDatagram`. `send` sends one message to an \
+            address, and `receive` waits for one message and returns it as a \
+            `Core\\Net\\Datagram\\Message`.",
 };
 
 /// `Core\Net\Datagram::send`'s reference card — `rule:core-api/reference-card`.
@@ -869,7 +885,7 @@ const DATAGRAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// already in hand by the time one of these exists.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
-    doc: None,
+    doc: Some(&MESSAGE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -906,6 +922,12 @@ pub(crate) const MESSAGE: CoreClass = CoreClass {
     ],
     slots: &["payload", "host", "port"],
     constants: &[],
+};
+
+/// `Core\Net\Datagram\Message`'s class card — `rule:core-api/reference-card`.
+const MESSAGE_CARD: ClassDoc = ClassDoc {
+    short: "One message that `Core\\Net\\Datagram::receive` returned. `payload` gives its bytes, \
+            and `host` and `port` give the address it came from, which is where a reply goes.",
 };
 
 /// `Core\Net\Datagram\Message::payload`'s reference card —
@@ -1921,6 +1943,7 @@ mod tests {
     /// The deployment grants the host by name and excepts no address, which is
     /// the configuration that separates the two questions: the grant says yes
     /// and the policy still says no.
+    // covers: Core\Net::connect
     #[test]
     fn a_tcp_connect_walks_the_denied_range_table_through_pin_host() {
         const MEMBER: &str = r"Core\Net::connect";
@@ -1986,6 +2009,7 @@ mod tests {
     /// Both directions, because either alone is met by a member that asks the
     /// wrong grant consistently: the outbound grant does not open a port, and
     /// the inbound grant alone does.
+    // covers: Core\Net::listen
     #[test]
     fn a_tcp_listener_asks_net_listen_and_not_net_connect() {
         let mut outbound = Ctx::buffered();

@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program connects to hosts that are too long, empty or not allowed, and to ports out of range.
+// Then it opens many connections and never closes them. Each bad call should throw, and the request should end cleanly.
+
+// 1. A host name of one million characters.
+try {
+    Core\Net::connect(Core\Str::repeat('a', 1000000), 80, 1s);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. An empty host.
+try {
+    Core\Net::connect('', 80, 1s);
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. A port past 65535, and port 0.
+try {
+    Core\Net::connect('127.0.0.1', 65536, 1s);
+} catch (RuntimeError $e) {
+    echo "3a ok\n";
+}
+try {
+    Core\Net::connect('127.0.0.1', 0, 1s);
+} catch (RuntimeError $e) {
+    echo "3b ok\n";
+}
+
+// 4. A time limit of zero.
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+try {
+    Core\Net::connect('127.0.0.1', $server->port(), 0s);
+} catch (RuntimeError $e) {
+    echo "4 ok\n";
+}
+
+// 5. A host with a zero byte and a path in it.
+try {
+    Core\Net::connect("127.0.0.1\0/../../etc/passwd", 80, 1s);
+} catch (RuntimeError $e) {
+    echo "5 ok\n";
+}
+
+// 6. Many connections that are never accepted and never closed. The request closes them when it ends.
+uint $opened = 0;
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Net::connect('127.0.0.1', $server->port(), 1s);
+        $opened = $opened + 1;
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '6 opened ', $opened > 0 ? 'some' : 'none', "\n";

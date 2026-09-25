@@ -1,0 +1,14 @@
+{
+  "lead": "A proof of a member behind a capability runs with nothing granted, because `bun nv proofs` runs every program from the repository root under the root `nvs.toml`.",
+  "body": "Every `Core\\Net` door answers \"not granted\" there, and an instance class such as `Core\\Net\\Datagram` cannot be reached at all. Put the smallest loopback grant in an `nvs.toml` in the feature's own directory (`docs/examples/README.md` § *A grant the examples need*), and `spawnProof` passes it as `--config`; `docs/examples/core/Net/connect/nvs.toml` is the shape.",
+  "files": [
+    "docs/examples/README.md",
+    "docs/examples/core/Net/connect/nvs.toml",
+    "nvs.toml",
+    "tools/nv/proofs/run.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:--config"
+  }
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows a health check that tries to connect to each service and reports which ones are down.
+
+class Health {
+    // A connection that opens means the service is up.
+    // A stopped service throws an `IOError`, and a slow one throws a `TimeoutError`.
+    public static function report(string $name, uint $port): void {
+        try {
+            Core\Net\Stream $probe = Core\Net::connect("127.0.0.1", $port, 5s);
+            $probe->close();
+            echo $name, ": up\n";
+        } catch (IOError $down) {
+            echo $name, ": down\n";
+        } catch (TimeoutError $slow) {
+            echo $name, ": too slow\n";
+        }
+    }
+}
+
+// Two services on this computer. The cache is running.
+// The queue is stopped, so nothing listens on its port.
+Core\Net\Listener $cache = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Listener $queue = Core\Net::listen("127.0.0.1", 0);
+uint $queuePort = $queue->port();
+$queue->close();
+
+// This prints `cache: up` and `queue: down`.
+Health::report("cache", $cache->port());
+Health::report("queue", $queuePort);
+
+$cache->close();

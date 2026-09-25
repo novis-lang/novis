@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when a program connects to a host its configuration does not allow.
+
+// The `nvs.toml` beside this example allows only `127.0.0.1`.
+// So this call throws a `RuntimeError`, and nothing is sent.
+try {
+    Core\Net::connect("mail.example.com", 25, 5s);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

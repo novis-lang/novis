@@ -1,0 +1,22 @@
+<?nvs
+// Shows a small server that reads one request from a client and sends back a reply.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// A client connects and asks for the status of order 1042.
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+$client->write("STATUS 1042\n" as bytes, 5s);
+
+// `accept` waits up to 5 seconds for the next client. The server reads the request and replies.
+// Text from the network is `tainted`, which means it is not checked yet.
+Core\Net\Stream $connection = $server->accept(5s);
+tainted string $request = Core\Str::trim($connection->read(64, 5s) as string);
+echo "server got: ", $request, "\n";
+$connection->write("SHIPPED\n" as bytes, 5s);
+
+// This prints `client got: SHIPPED`.
+echo "client got: ", Core\Str::trim($client->read(64, 5s) as string), "\n";
+
+$connection->close();
+$client->close();
+$server->close();

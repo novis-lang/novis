@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program starts servers on addresses that are too long, broken or not allowed.
+// Then it opens many servers and never closes them. Each bad call should throw, and the request should end cleanly.
+
+// 1. An address of one million characters.
+try {
+    Core\Net::listen(Core\Str::repeat('1', 1000000), 0);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. An address with a zero byte in it.
+try {
+    Core\Net::listen("127.0.0.1\0", 0);
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. A port past 65535.
+try {
+    Core\Net::listen('127.0.0.1', 65536);
+} catch (RuntimeError $e) {
+    echo "3 ok\n";
+}
+
+// 4. Every address on this computer, which the configuration does not allow.
+try {
+    Core\Net::listen('0.0.0.0', 0);
+} catch (RuntimeError $e) {
+    echo "4a ok\n";
+}
+try {
+    Core\Net::listen('::', 0);
+} catch (RuntimeError $e) {
+    echo "4b ok\n";
+}
+
+// 5. Many servers that are never closed. The request closes them when it ends.
+uint $opened = 0;
+uint $i = 0;
+while ($i < 200) {
+    try {
+        Core\Net::listen('127.0.0.1', 0);
+        $opened = $opened + 1;
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '5 opened ', $opened > 0 ? 'some' : 'none', "\n";

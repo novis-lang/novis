@@ -1,0 +1,25 @@
+<?nvs
+// Opens a TCP connection to a server on the same computer, as a program does before it talks to a cache or a queue.
+// bench: iterations 200
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        uint $port = $server->port();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round connects, then the server takes the connection so the queue never fills.
+            Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $port + $total % 1, 5s);
+            Core\Net\Stream $accepted = $server->accept(5s);
+            $client->close();
+            $accepted->close();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200), "\n";
