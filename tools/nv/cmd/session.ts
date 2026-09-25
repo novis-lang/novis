@@ -853,8 +853,7 @@ function writtenPaths(sections: Section[]): string[] {
       for (const [path] of playbookTargets(sections, s)) out.push(path, bulletRecord(path).path);
     } else if (s.kind === "handoff") {
       const owner = handoffOwner(sideGoal());
-      out.push(handoffPath(sideGoal()));
-      if (owner) out.push(pathOf(owner.type, owner.slug));
+      out.push(owner ? pathOf(owner.type, owner.slug) : handoffPath(sideGoal()));
     }
   }
   return [...new Set(out)];
@@ -1108,7 +1107,10 @@ async function check(): Promise<number> {
   say();
   say("== HANDOFF");
   const handoff = join(ROOT, handoffPath(sideGoal()));
-  if (!existsSync(handoff)) {
+  const record = handoffOwner(sideGoal());
+  if (!existsSync(handoff) && record) {
+    say(`  the handoff is ${pathOf(record.type, record.slug)}, written by \`## handoff\` in the wrap`);
+  } else if (!existsSync(handoff)) {
     say("  MISSING");
   } else {
     const body = readFileSync(handoff, "utf8").replace(/\r\n?/g, "\n");
@@ -1226,7 +1228,9 @@ function template(): number {
   say("The body. No trailers of any kind -- they are stripped and counted.");
   say("");
   // The docs this wrap writes, committed by this wrap, pre-filled so no session hand-rolls a `git add` of them.
-  const docs = side ? [PLAYBOOK_DIR, handoffPath(side)] : [PLAN, PLAYBOOK_DIR, handoffPath(side)];
+  const owner = handoffOwner(side);
+  const handoffHome = owner ? pathOf(owner.type, owner.slug) : handoffPath(side);
+  const docs = side ? [PLAYBOOK_DIR, handoffHome] : [PLAN, PLAYBOOK_DIR, handoffHome];
   say(`## commit: ${docs.join(" ")}`);
   say(side ? "docs(agent): what the handoff now says" : "docs(agent): what the plan and the handoff now say");
   say("");
@@ -1409,14 +1413,26 @@ function applyHandoff(s: Section, dry: boolean): string {
   }
   if (dry) return note;
   const side = sideGoal();
-  writeFileSync(join(ROOT, handoffPath(side)), body);
   const owner = handoffOwner(side);
-  if (owner === null) return note;
+  if (owner === null) {
+    writeFileSync(join(ROOT, handoffPath(side)), body);
+    return note;
+  }
+  // A live goal's handoff is its record alone: the Markdown is parsed from a scratch copy, and a
+  // tracked `handoff.md` would be the copy `nv audit goals` refuses.
+  const scratch = handoffScratch(side);
+  mkdirSync(join(ROOT, TMP), { recursive: true });
+  writeFileSync(join(ROOT, scratch), body);
   const unread: Unread[] = [];
-  const value = handoffValue(ROOT, handoffPath(side), owner.slug, unread);
+  const value = handoffValue(ROOT, scratch, owner.slug, unread);
   if (value) writeRecord(owner.type, owner.slug, value as any);
   for (const u of unread) note += `\n  its record is not written: ${u.reason}`;
   return note;
+}
+
+/** The scratch file a live goal's handoff is parsed from on its way into the record. */
+function handoffScratch(side: string | null): string {
+  return `${TMP}/${side ? `${side}.` : ""}handoff.md`;
 }
 
 /** The record type and id the handoff's record is written under, or null while no goal is live. */

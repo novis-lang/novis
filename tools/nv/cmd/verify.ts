@@ -12,7 +12,7 @@
 //     bun nv verify --keys           each test binary's key over the tree now, as JSON
 //
 // The steps, in order, stopping at the first failure: `cargo fmt`, `tools/lints.py --check`,
-// `tools/directives.py --check` and `--check-template`, `tools/owners.py --check`, `bun nv selftest`,
+// `tools/directives.py --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees through the debug binary the build
 // produced, `tools/reference.py`, `cargo clippy --all-targets -- -D warnings`, and the VS Code
@@ -729,7 +729,7 @@ function stepsFor(opts: Opts): Step[] {
     steps.push(step("lints", ["tools/lints.py", "--check"], summaries.lints!, { exe: PYTHON }));
     steps.push(step("directives", ["tools/directives.py", "--check"], summaries.directives!, { exe: PYTHON }));
     steps.push(step("template", ["tools/directives.py", "--check-template"], summaries.template!, { exe: PYTHON }));
-    steps.push(step("owners", ["tools/owners.py", "--check"], summaries.owners!, { exe: PYTHON }));
+    steps.push(step("owners", ["nv", "owners", "--check"], summaries.owners!, { exe: "bun" }));
     if (existsSync(join(ROOT, "package.json"))) steps.push(step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun" }));
     if (existsSync(join(FUZZ, "Cargo.toml"))) {
       steps.push(
