@@ -1,16 +1,18 @@
 {
-  "state": "**Goal `tooling-overhaul`: every stage is on disk, Stage 12 included.** The cutover is on `main`. `main` stays frozen until the driver reaches the goal, and tag `pre-overhaul` is the rollback.\n\nThe red `npm` checks after session 0006 were the driver judging with stale code, not a regression: that turn imported `tools/nv/lib/proc.ts` before session 0006 committed the `Bun.which` fix, and `bun nv loop --run --name \"vsix packages\"` and `--name \"vscode (headless)\"` are green on the tree. A turn now takes a `driverFiles` snapshot before its session, and a session that changes imported driver code is judged by a fresh turn with no session of its own (`tools/nv/driver/launch.ts`'s `driverChanged`, `tools/nv/cmd/loop.ts`'s `serve`), which is what the Python driver did.\n\nADR 0221 (`docs/decisions/0221.md`) records the data model, the Bun runtime and the generated-output rule. The goal-end gates are green: `bun nv owners --closes tooling-overhaul` and `bun nv playbook --closes tooling-overhaul` name nothing. The Python launch shims are deleted, and a run starts with `bun nv loop`, which switches to the next goal itself when this one is reached.\n\n`bun nv decisions --check` reports 44 records without a plain-language summary, 0221 among them. It is not a gate; `bun nv decisions --gate` passes.",
+  "state": "**Goal `tooling-overhaul`: every stage is on disk, and every stage's checks are green.** The cutover is on `main`. `main` stays frozen until the driver reaches the goal, and tag `pre-overhaul` is the rollback.\n\nStage 12's `bun nv audit python` check now wants the three lines `tools/nv/cmd/audit.ts`'s `auditPython` prints: the Python twins under `benches/userland/` are a bench workload and stay, the launch shims are deleted, and records are audited as well as documents. `bun nv loop --run --stage 12` is green, and the Stage 12 prose in `docs/agent/goals/tooling-overhaul.md` says the same.\n\nADR 0221 (`docs/decisions/0221.md`) records the data model, the Bun runtime and the generated-output rule. The goal-end gates are green: `bun nv owners --closes tooling-overhaul` and `bun nv playbook --closes tooling-overhaul` name nothing. A run starts with `bun nv loop`, which switches to the next goal itself when this one is reached.\n\n`bun nv decisions --check` reports 44 records without a plain-language summary, 0221 among them. It is not a gate; `bun nv decisions --gate` passes.",
   "next": {
     "stage": null,
     "title": "Goal `core-math-1-3`, after the goal switch",
     "files": [],
-    "note": "one file set: the one that goal's own handoff record names.",
+    "note": ": one file set, the one that goal's own handoff record names.",
     "items": [
       {
         "done": false,
-        "text": "**The driver's goal switch moves `live` to `core-math-1-3`** when this goal is reached (`data/chain.json`); that goal's handoff record, `data/goals/core-math-1-3.handoff.json`, names its first group. The restart is `bun nv loop`, by the user."
+        "text": "**The driver's goal switch moves `live` to `core-math-1-3`** when this goal is reached (`data/chain.json`, written by `tools/nv/cmd/loop.ts:1223`); that goal's handoff record, `data/goals/core-math-1-3.handoff.json`, names its first group. The restart is `bun nv loop`, by the user."
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "44 decision records owe a plain-language summary (`bun nv decisions --check`); not a gate."
+  ]
 }

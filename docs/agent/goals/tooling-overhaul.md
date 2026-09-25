@@ -659,13 +659,12 @@ One file set per bullet.
 One file set: `AGENTS.md`, `docs/agent/*.md`, `docs/agent/goals/README.md`, `docs/setup.md`,
 `docs/rules/` wherever a rule is about the old tooling.
 
-- **Every tracked `.py` file is deleted, except two:**
-  - `tools/respawn.py`, the running process;
-  - the `tools/loop.py` shim.
+- **Every tracked `.py` file is deleted**, the launch shims `tools/respawn.py` and `tools/loop.py`
+  included. The Python twins under `benches/userland/` stay: they are a peer engine's workload in the
+  cross-language bench, not a tool. `bun nv audit python` checks both halves, and checks that no
+  document or record names a Python tool or a home the cutover deleted.
 
-  The run ends at this goal's `GOAL REACHED` on purpose. The driver's last turn prints the new start
-  command, deletes both files in its closing commit, and exits with a code that ends `respawn`. The
-  user starts the next run with `bun nv loop`.
+  A run starts with `bun nv loop`, which switches to the next goal itself when this one is reached.
 - **The contract is rewritten whole**, by the authority § *Standing decisions* grants:
   - AGENTS.md: the routing table, the rules that name a tool, and the numbering and copy rules that
     no longer apply;

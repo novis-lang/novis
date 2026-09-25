@@ -17415,7 +17415,7 @@
       "id": "no-python-file-is-tracked-beyond-the-launch-shims-and-no",
       "kind": "command",
       "stage": 12,
-      "name": "no Python file is tracked beyond the launch shims, and no document names a Python tool",
+      "name": "no Python file is tracked beyond the bench's workload, and no document or record names a Python tool",
       "argv": [
         "bun",
         "nv",
@@ -17423,8 +17423,9 @@
         "python"
       ],
       "want": [
-        "audit: no Python file is tracked beyond the launch shims",
-        "audit: no document names a Python tool"
+        "audit: no Python file is tracked beyond the bench's workload",
+        "audit: no document names a Python tool or a deleted home",
+        "audit: no record names a Python tool or a deleted home"
       ]
     },
     {
