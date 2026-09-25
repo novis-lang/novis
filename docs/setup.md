@@ -30,7 +30,7 @@ reaches it over the 9p mount.
 |---|---|---|
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
-| The `claude` CLI on `PATH` — **the unattended loop only** | `tools/loop.py` spawns one `claude -p` per session and finds it with `shutil.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1 with `FileNotFoundError: [WinError 2]`, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `nv verify`, `--goal-only` and `--leg-only` never do. | `python -c "import shutil; print(shutil.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `loop.py` cannot see |
+| The `claude` CLI on `PATH` — **the unattended loop only** | `bun nv loop` spawns one `claude -p` per session and finds it with `Bun.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `nv verify` and `nv loop --goal-only` never do. | `bun -e "console.log(Bun.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `bun nv loop` cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
 | Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `nv verify`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `bun nv bench --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
@@ -53,7 +53,7 @@ A clone carries it, so there is normally nothing to do. **If it is absent — an
 that keeps `.claude/` out of git — write it before the first session**, with that import line and nothing
 project-specific in it. Without it a Claude session opens with no project instructions whatsoever and reads
 like a model that has never seen this repository; the unattended loop fails the same way, because
-`tools/loop.py` spawns that same `claude` binary. No other harness needs anything here: Codex reads
+`bun nv loop` spawns that same `claude` binary. No other harness needs anything here: Codex reads
 `AGENTS.md` at the root directly.
 
 ## Windows
@@ -117,8 +117,8 @@ Whatever the source, treat a version mismatch as a machine that is not set up.
 
 ## Linux and macOS
 
-The native leg already *is* the second target, so there is no WSL leg — `tools/loop.py` detects that and
-runs the valgrind sweep directly. Install a C toolchain, PHP 8.5, and (on Linux) `valgrind` the same way;
+The native leg already *is* the second target, so there is no WSL leg, and the valgrind sweep runs
+directly. Install a C toolchain, PHP 8.5, and (on Linux) `valgrind` the same way;
 `cargo-fuzz` still needs a nightly toolchain, with `rust-src` on it for the same reason the WSL one needs
 it. macOS has no valgrind, so the leak sweep is a Linux or WSL machine's job, and so is `tools/tsan.sh`:
 `-Zsanitizer=thread` targets `x86_64-unknown-linux-gnu`.
@@ -190,8 +190,10 @@ green is what costs a debugging session, so do not archive them "just in case".
 ```sh
 bun nv verify                                            # build, fmt, test, the .nvst trees, clippy, the extension
 cargo run -q -p nvs-cli -- test tests/differential/       # must report 0 skipped
-python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
 ```
+
+The Linux leg — the valgrind sweep, driven through WSL on Windows — has no `bun nv` command yet:
+`tools/nv/driver/accept.ts`'s "Not here yet" list names it.
 
 From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
 the acceptance run must never go to the network:
@@ -201,7 +203,7 @@ cd editors/vscode && npm ci && npm run test:prepare       # fetches the pinned V
 npm run test:headless                                     # grammar, contributions, protocol -- no editor
 ```
 
-The middle one is the check that actually catches a missing PHP: what matters is **`0 skipped`**. A suite
+The second one is the check that actually catches a missing PHP: what matters is **`0 skipped`**. A suite
 whose oracle cannot be run prints one `no PHP oracle` line per case and still **exits 0**, so nothing else
 in this repository will tell you the coverage is gone.
 
@@ -211,11 +213,11 @@ Once those are green, in this order:
 
 1. `git status` and `git log --oneline -5`. The old machine's last session committed everything it did, so
    a clean tree sitting at `origin/main` *is* the handover.
-2. **`python tools/brief.py`** — the plan's status, one line per milestone and per module, the guard tests,
-   what is on disk. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
+2. **`bun nv orient --full`** — where the run and the work stand, one line per module, the rules, the
+   shapes and the plan's fields. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
 3. `docs/agent/handoff.md` — where the work stands now, and the next group of slices with
    the file set they share. It is overwritten each session, so it is state rather than history.
-4. `python tools/loop.py` if the unattended loop is what runs next; its design is
+4. `bun nv loop` if the unattended loop is what runs next; its design is
    [docs/agent/coordinator.md](agent/coordinator.md). It is the one thing here that needs a `claude` on
    `PATH` (§ *Every platform*), and the only step above will not have caught its absence.
 

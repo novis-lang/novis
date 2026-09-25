@@ -77,18 +77,18 @@ a public issue:
 Search with several keywords per item, including the PHP name of the thing and the Novis one:
 
 ```sh
-python tools/brief.py --where <keyword>      # rules; `(designed)` means decided and not built
-python tools/owners.py --registers           # the `# Known gaps` items and who owns each
-python tools/side.py --status                # side goals
-python tools/plan.py --show M<n>             # a milestone the search pointed at
+bun nv brief --where <keyword>      # rules; `(designed)` means decided and not built
+bun nv owners --registers           # the `# Known gaps` items and who owns each
+bun nv plan --show M<n>             # a milestone the search pointed at
 ```
 
 and grep `docs/agent/goals/` (chain and `side/`) and `docs/plan/` for the same words.
 
 **If an item is already planned**, name the goal, milestone or gap in the summary, and add the report's
 requirement to it in neutral words so whoever builds it knows a user needs it: an acceptance line in the
-goal's `.md`, a check in its `.toml`, or the milestone through `plan.py --amend`. The goal the loop is
-running now — `brief.py` names it — is not edited from here: the user decides whether it absorbs the item.
+goal's `.md`, a check in its record under `data/goals/`, or the milestone through a `## milestone: M<n>`
+section in a `bun nv session --wrap` file. The goal the loop is running now — `bun nv orient` names it —
+is not edited from here: the user decides whether it absorbs the item.
 
 ## 4. Examine the rest, and ask
 
@@ -105,7 +105,7 @@ summary:
 Then ask the open questions **one at a time**, the recommended answer first. Keep asking until every
 item has exactly one outcome: *fix now*, *new goal*, *folded into a planned goal*, *declined*, *answered
 without a change*, or *needs information*. A decline the user makes as a design decision becomes a rule
-fragment, so the next report of the same thing is answered by `brief.py --where`.
+fragment, so the next report of the same thing is answered by `bun nv brief --where`.
 
 ## 5. Decide where the work goes
 
@@ -119,7 +119,7 @@ Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
   ahead of it ([goals/README.md](goals/README.md) § *Side goals*). This is the default for a report,
   because it lands without waiting for the chain.
 - **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, placed with
-  `python tools/chain.py --new <slug> --after <N>` right behind the goal it depends on.
+  `bun nv chain --new <slug> --after <goal>` right behind the goal it depends on.
 
 Say which one you chose and why, and let the user confirm the placement.
 
@@ -129,7 +129,7 @@ The proofs are the same as for any change:
 
 - **A bug** gets a failing test first — a `.nvst` case or a Rust test with the neutral reproducer — and
   then the fix. The test is the proof that the report is answered.
-- **A feature** is finished when its feature proofs exist (`python tools/dossier.py --id '<feature>'`).
+- **A feature** is finished when its feature proofs exist (`bun nv proofs --id '<feature>'`).
 - **Friction** gets the diagnostic or document change and the test that pins it.
 - A new decision gets its record and its rule fragment; take the next record number right before you
   write it, because the loop may take one concurrently.
