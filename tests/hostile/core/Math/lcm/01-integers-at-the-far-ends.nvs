@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `Core\Math::lcm` is given the biggest and smallest integers, zeros, and big pairs
+// that share no divisor. It is also called a million times. Only the calls whose result does
+// not fit an `int` should throw an error, and the program should run to its end.
+
+// 1. The biggest integer with itself, with 1 and with 0. Each result fits an `int`.
+echo Core\Math::lcm(Core\Math::INT_MAX, Core\Math::INT_MAX), "\n";
+echo Core\Math::lcm(Core\Math::INT_MAX, 1), "\n";
+echo Core\Math::lcm(Core\Math::INT_MAX, 0), "\n";
+
+// 2. The smallest integer with 0, and with 2 to the power 62, which divides it.
+echo Core\Math::lcm(Core\Math::INT_MIN, 0), "\n";
+echo Core\Math::lcm(4611686018427387904, 2), "\n";
+
+// 3. Pairs whose result is past the biggest integer. Each one throws an error.
+class Attempt
+{
+    public static function lcm(int $a, int $b): void
+    {
+        try {
+            echo Core\Math::lcm($a, $b), "\n";
+        } catch (ArithmeticError $tooBig) {
+            echo "ArithmeticError\n";
+        }
+    }
+}
+Attempt::lcm(Core\Math::INT_MIN, 1);
+Attempt::lcm(Core\Math::INT_MIN, Core\Math::INT_MIN);
+Attempt::lcm(Core\Math::INT_MAX, 2);
+Attempt::lcm(Core\Math::INT_MAX, Core\Math::INT_MIN);
+Attempt::lcm(4611686018427387904, 3);
+
+// 4. The two biggest neighbouring Fibonacci numbers that fit an `int`. They share no divisor.
+Attempt::lcm(7540113804746346429, 4660046610375530309);
+
+// 5. A million calls. Each result feeds the next one, and none is kept.
+int $value = 1;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::lcm($round % 50 + 1, $value % 60 + 1);
+    $round = $round + 1;
+}
+echo $value, "\n";
