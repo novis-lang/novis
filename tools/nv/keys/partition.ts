@@ -44,7 +44,8 @@ const SPLITS: [string, string][] = [
 
 export const OTHER = "other";
 export const STATE = "state";
-const STATE_FILES = /^docs\/agent\/(handoff\.md|goals\/[^/]+\.handoff\.md)$/;
+/** A goal's handoff record, main's or a side goal's: what a wrap rewrites every session. */
+const STATE_FILES = /^data\/goals\/(side\/)?[^/]+\.handoff\.json$/;
 
 const TOP_OWNER = new Map<string, string>();
 for (const [name, tops] of Object.entries(PARTITIONS)) for (const top of tops) TOP_OWNER.set(top, name);

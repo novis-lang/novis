@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { OTHER, STATE, partitionOf } from "../keys/partition.ts";
 import { analyse } from "../keys/scan.ts";
+
+describe("partitionOf", () => {
+  test("a goal's handoff record is state, so a wrap stales no key, and the other records are not", () => {
+    expect(partitionOf("data/goals/core-math-1-3.handoff.json")).toBe(STATE);
+    expect(partitionOf("data/goals/side/restart-free.handoff.json")).toBe(STATE);
+    expect(partitionOf("data/goals/core-math-1-3.json")).toBe(OTHER);
+    expect(partitionOf("data/chain.json")).toBe(OTHER);
+    expect(partitionOf("docs/agent/goals/core-math-1-3.md")).toBe("goals");
+  });
+});
 
 const BASE = `//! A module.
 use std::fmt;
