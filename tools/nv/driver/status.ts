@@ -81,19 +81,6 @@ export function percent(plan: Plan, results: Results): number {
 }
 
 /**
- * The results the Python driver's memo gives, `green` being its table of `<name> #<spec digest>` keys: a
- * check is green when a key is filed under its name, or its fixture or kind when it has no name. A key
- * a leg files, `<leg> <name>`, names no check. The memo is not re-checked against the tree, so a check
- * a later edit broke still shows green until a sweep runs it again.
- */
-export function memoResults(green: Record<string, unknown>, checks: PlanCheck[]): Results {
-  const filed = new Set(Object.keys(green).map((k) => k.replace(/ #[0-9a-f]+$/, "")));
-  const results: Results = new Map();
-  for (const c of checks) if (filed.has(c.name ?? c.file ?? c.kind ?? "")) results.set(c.id, true);
-  return results;
-}
-
-/**
  * One session's figures, fed its stream-json events one at a time. The figures outlive the session:
  * `begin` is called when the next one reports, so the row between sessions shows the last one's.
  */

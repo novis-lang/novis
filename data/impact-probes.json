@@ -153,8 +153,8 @@
       "name": "driver-tool",
       "what": "a comment line at the end of the loop driver",
       "edit": {
-        "path": "tools/loop.py",
-        "insert": "\n# probe\n"
+        "path": "tools/nv/cmd/loop.ts",
+        "insert": "\n// probe\n"
       },
       "rerun": [
         "^nv: the chain still walks$",
@@ -165,8 +165,7 @@
         "^suite: ",
         "^tsan: ",
         "^fuzz: ",
-        "^db-matrix: ",
-        "^binary: ",
+        "^binary: (?!nvs-ir test refusals$)",
         "^program: "
       ]
     },
