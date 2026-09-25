@@ -1,30 +1,24 @@
 {
-  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv loop --owed` and `bun nv loop --settle` exist (`tools/nv/cmd/loop.ts`, `owed` and `settle`; the filter is `owedChecks` in `tools/nv/driver/accept.ts`). A carried check is a stage whose label says `floor`; stage 0 is not carried, as in the old `is_carried`. `tools/git-hooks/pre-push` calls them, so a push is judged again instead of refused outright. `--owed` names hundreds of checks on a tree with uncommitted `tools/nv/` edits, because most carried keys read that tree.\n\n`bun nv audit ci` still exits 1 and is the red Stage 11 check, an open item and not a regression. It names 10 workflow steps that run `python tools/lints.py` or `python tools/release.py`, and the two website sync scripts. No git hook calls Python any more.\n\n`tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
+  "state": "**Goal `tooling-overhaul`, Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\n`bun nv lints` replaces `tools/lints.py`, which is deleted (`tools/nv/cmd/lints.ts`, test `tools/nv/test/lints.test.ts`). `UNSAFE_CRATES` and `EXCEPTIONS` now live in that file, and `docs/plan/design.md` § *Unsafe policy* points there. A write edits only the lint region, so a table after it survives, writes LF, and puts every manifest back if `cargo metadata` then fails. `nv verify`'s `lints` step and the CI `lint` job run it through Bun, and that job no longer sets up Python.\n\n`bun nv audit ci` still exits 1 and is the red Stage 11 check, an open item and not a regression. It names 9 workflow steps that run `python tools/release.py`, and the two website sync scripts. No git hook calls Python.\n\n`bun nv loop --owed` and `--settle` exist, and `tools/git-hooks/pre-push` calls them. `tools/playbook.py`'s module doc still lists the `reviewed` kind. That file goes in Stage 12.",
   "next": {
     "stage": 11,
     "title": "the last Python steps in CI",
     "files": [],
-    "note": "-- one file set: `tools/lints.py`, `tools/release.py`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/release-promote.yml`.",
+    "note": "-- one file set: `tools/release.py`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/release-promote.yml`.",
     "items": [
       {
         "done": false,
-        "text": "**Port `lints` to `bun nv lints`** -- `tools/lints.py:1` is 250 lines. Then `.github/workflows/ci.yml:409` runs `bun nv lints --check`, and that job drops `setup-python` if nothing else in it needs Python. Add a unit test in `tools/nv/test/`."
+        "text": "**Port `release` to `bun nv release`** -- `tools/release.py:1` is 685 lines: `--check`, `--notes`, `--apply`, `--package`, `--docker-tags`. Read manifests with `smol-toml` and write by line-scoped edits checked by `cargo metadata`, the way `tools/nv/cmd/lints.ts:1` does. The pin bump at `tools/release.py:436` must bump every pin that `tools/release.py:530` checks. Then `.github/workflows/ci.yml:596`, `.github/workflows/release.yml:140` and `.github/workflows/release-promote.yml:98` run `bun nv release`, and each job drops `setup-python` if nothing else in it needs Python. Add a unit test in `tools/nv/test/`."
       },
       {
         "done": false,
-        "text": "**Port `release` to `bun nv release`** -- `tools/release.py:1` is 685 lines: `--check`, `--notes`, `--apply`, `--package`, `--docker-tags`. Then `.github/workflows/ci.yml:594`, every `release.py` step in `.github/workflows/release.yml:140` and `.github/workflows/release-promote.yml:98` run it, and their `setup-python` steps go. This one may need a session to itself."
-      },
-      {
-        "done": false,
-        "text": "**Delete the website sync scripts** -- `website/scripts/sync-rules.mjs:1` and `website/scripts/sync-core.mjs:1`. Their data comes from `bun nv render --website`. `website/package.json:1` and `website/config/rule-sections.mjs:1` still name them. Stage 11's bullets at `docs/agent/goals/tooling-overhaul.md:645` are the list."
+        "text": "**Delete the website sync scripts** -- `website/scripts/sync-rules.mjs:1` and `website/scripts/sync-core.mjs:1`. Their data comes from `bun nv render --website`, which `tools/nv/cmd/render.ts:1` does not have yet. Then `bun nv audit ci` exits 0, checked by `tools/nv/cmd/audit.ts:1`."
       }
     ]
   },
   "backlog": [
-    "`bun nv loop-stats --guard` -- Stage 11's second check, not reached yet (`docs/agent/goals/tooling-overhaul.md:634`).",
-    "The website's `tmLanguage` is rendered from the editor's grammar (`docs/agent/goals/tooling-overhaul.md:648`).",
-    "Stage 10's \"ported to `bun nv`\" list at `docs/agent/goals/tooling-overhaul.md:629` still has unported tools: `lints`, `release`, `loop-stats`, `machine`, `observe`, `proctree`, `relink` and others. Stage 12's `audit python` fails until they are ported.",
-    "`tools/playbook.py`'s module doc lists the `reviewed` kind; it is deleted in Stage 12.",
-    "`data/goals/tooling-overhaul.handoff.json` held its em dashes double-encoded (UTF-8 read as cp1252) before this wrap; worth checking whether `session.py --wrap` writes them that way."
+    "The website's `tmLanguage` rendered from the editor's grammar, or the reason it differs written in the grammar's record -- `docs/agent/goals/tooling-overhaul.md` § *Stage 11*.",
+    "`nv loop-stats --guard` and the other Stage 11 ports -- `docs/agent/goals/tooling-overhaul.md` § *Stage 11*.",
+    "`tools/verify_keys.py` and `tools/impact.py` still exist beside their Bun ports -- Stage 12."
   ]
 }
