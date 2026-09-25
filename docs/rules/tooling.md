@@ -3,7 +3,7 @@
 
 # Tooling
 
-*24 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1678,3 +1678,62 @@ update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../decisions/0130.md).</sub>
+
+<a id="tooling-the-repository-tools-are-one-bun-program"></a>
+
+## The repository's tools are one Bun + TypeScript program, `bun nv`, and `smol-toml` is its only runtime dependency
+
+`rule:tooling/the-repository-tools-are-one-bun-program`
+
+Every tool that builds, checks, renders or drives this repository is a subcommand of one program,
+`bun nv <command>`, written in TypeScript and run by Bun at the version `package.json` pins. Its one
+runtime dependency is `smol-toml`, which reads the TOML files the tree still has; `Bun.TOML` is never
+used, so one parser reads all of them. The dev dependencies are `typescript` and `@types/bun`, and any
+other dependency is a new decision. `bun nv audit python` fails on a tracked Python file it does not
+name as allowed, and on a document that tells a reader to run a Python tool.
+
+This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
+program or a request.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md).</sub>
+
+<a id="tooling-a-repository-fact-is-one-json-record"></a>
+
+## A fact a repository tool reads is one JSON record under `data/`, its type declared once and its text written by one writer
+
+`rule:tooling/a-repository-fact-is-one-json-record`
+
+A fact a repository tool reads — a goal, the chain, a rule's structure, a decision's fields, a gap,
+a playbook bullet, a plan field — is one JSON file under `data/`, holding one entity. Its type is
+declared once in `tools/nv/schema/`, and that declaration is the static type, the runtime check and
+the JSON Schema together. `tools/nv/lib/store.ts` is the only code that writes a record: keys in
+schema order, two-space indent, LF and one trailing newline. So one value has one text, and git merges
+two edits to one record line by line.
+
+An id is a slug or a number, and it never changes. A reference is an id, and `bun nv check` fails on
+one that names no record.
+
+Prose stays under `docs/` at its own path — a rule fragment, a decision record, a goal's prose, a
+reference chapter — so every citation into it still resolves. Where a prose file repeats a field a
+record holds, the record is the authority and a check compares the copy to it.
+
+<sub>See also [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md).</sub>
+
+<a id="tooling-a-rendered-file-is-committed-and-never-edited"></a>
+
+## A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again
+
+`rule:tooling/a-rendered-file-is-committed-and-never-edited`
+
+A file a tool writes from the records is committed, so GitHub and a reader without Bun see it. It
+opens with a marker naming the command that writes it, and `.gitattributes` gives it
+`linguist-generated`, so a review folds it away. It is never edited by hand: the change goes into the
+record or the prose fragment it is rendered from, and the file is rendered again.
+
+The command that writes it has a check form that writes nothing and fails when the file no longer
+matches its sources — `bun nv render --check` for the website's pages and data, `bun nv rules --render
+--check` for the rulebook's chapters, `docs/ground-rules.md` and `docs/divergences.md`. CI's `docs`
+job runs both. After a merge conflict in a rendered file, it is rendered again from the merged
+records, never merged by hand.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0221](../decisions/0221.md).</sub>

@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1011,
-    "shipped": 773,
+    "total": 1014,
+    "shipped": 776,
     "designed": 238,
     "diverging": 589
   },
@@ -2252,8 +2252,8 @@
       "url": "/docs/rules/tooling/",
       "single": false,
       "counts": {
-        "total": 62,
-        "shipped": 38,
+        "total": 65,
+        "shipped": 41,
         "designed": 24,
         "diverging": 40
       },
@@ -2834,6 +2834,44 @@
               "title": "`nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0",
               "status": "designed",
               "href": "/docs/rules/tooling/benchmarks-and-telemetry/#update-check-states-the-whole-picture",
+              "diverges": null
+            }
+          ]
+        },
+        {
+          "slug": "the-repository-tools",
+          "title": "The repository's own tools",
+          "blurb": "One Bun program, one JSON record per fact under `data/`, and generated files that are committed and never edited.",
+          "url": "/docs/rules/tooling/the-repository-tools/",
+          "counts": {
+            "total": 3,
+            "shipped": 3,
+            "designed": 0,
+            "diverging": 0
+          },
+          "rules": [
+            {
+              "id": "tooling/the-repository-tools-are-one-bun-program",
+              "slug": "the-repository-tools-are-one-bun-program",
+              "title": "The repository's tools are one Bun + TypeScript program, `bun nv`, and `smol-toml` is its only runtime dependency",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/the-repository-tools/#the-repository-tools-are-one-bun-program",
+              "diverges": null
+            },
+            {
+              "id": "tooling/a-repository-fact-is-one-json-record",
+              "slug": "a-repository-fact-is-one-json-record",
+              "title": "A fact a repository tool reads is one JSON record under `data/`, its type declared once and its text written by one writer",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record",
+              "diverges": null
+            },
+            {
+              "id": "tooling/a-rendered-file-is-committed-and-never-edited",
+              "slug": "a-rendered-file-is-committed-and-never-edited",
+              "title": "A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/the-repository-tools/#a-rendered-file-is-committed-and-never-edited",
               "diverges": null
             }
           ]

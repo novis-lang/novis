@@ -7,8 +7,8 @@ editUrl: false
 lastUpdated: false
 tableOfContents: false
 prev:
-  link: /docs/rules/tooling/benchmarks-and-telemetry/
-  label: "Benchmarks, telemetry and the update check"
+  link: /docs/rules/tooling/the-repository-tools/
+  label: "The repository's own tools"
 next:
   link: /docs/rules/ide/the-resilient-parse/
   label: "The resilient parse"

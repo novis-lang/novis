@@ -10,8 +10,8 @@ prev:
   link: /docs/rules/tooling/nvs-convert/
   label: "Converting PHP"
 next:
-  link: /docs/rules/ide/
-  label: "The editor"
+  link: /docs/rules/tooling/the-repository-tools/
+  label: "The repository's own tools"
 ---
 
 <p class="nv-section-lead">Two independent opt-ins, both off by default, a closed set of counters, and a process serving traffic that never uploads.</p>

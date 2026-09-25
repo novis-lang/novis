@@ -32,6 +32,10 @@
 # Written by `bun nv render` from the records. A conflict in one is resolved by rendering it again.
 website/src/content/docs/docs/rules/*/**  linguist-generated
 website/src/data/rules.json               linguist-generated
+# Written by `bun nv rules --render` from `data/rules/` and the fragments under `docs/rules/<topic>/`.
+docs/rules/*.md                           linguist-generated
+docs/ground-rules.md                      linguist-generated
+docs/divergences.md                       linguist-generated
 
 # Binary
 *.png     binary

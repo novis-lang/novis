@@ -63,6 +63,9 @@
     "tooling/telemetry-show-prints-the-payload",
     "tooling/a-serving-process-never-uploads",
     "tooling/a-failed-upload-never-fails-the-command",
-    "tooling/update-check-states-the-whole-picture"
+    "tooling/update-check-states-the-whole-picture",
+    "tooling/the-repository-tools-are-one-bun-program",
+    "tooling/a-repository-fact-is-one-json-record",
+    "tooling/a-rendered-file-is-committed-and-never-edited"
   ]
 }

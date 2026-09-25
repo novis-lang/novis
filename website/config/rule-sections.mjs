@@ -307,6 +307,12 @@ export const ruleSections = {
       blurb: 'Two independent opt-ins, both off by default, a closed set of counters, and a process serving traffic that never uploads.',
       from: 'bench-engine-list-is-data',
     },
+    {
+      slug: 'the-repository-tools',
+      title: "The repository's own tools",
+      blurb: 'One Bun program, one JSON record per fact under `data/`, and generated files that are committed and never edited.',
+      from: 'the-repository-tools-are-one-bun-program',
+    },
   ],
 
   ide: [

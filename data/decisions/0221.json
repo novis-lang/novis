@@ -1,0 +1,9 @@
+{
+  "title": "the repository's tools are one Bun program over JSON records under `data/`, and a file rendered from the records is committed, marked and never edited",
+  "status": "accepted",
+  "scope": "the repository's own tooling: what runs it, where a fact a tool reads is kept, how a record is\nwritten, and what a file rendered from the records is. It does not decide the perf currency, which\n[0220](0220.md) owns, and it changes nothing a Novis program or the `nvs` binary does.",
+  "dependsOn": [
+    "0220"
+  ],
+  "validatedBy": "`bun nv audit python`, `bun nv check`, `bun nv render --check` and `bun nv rules --render --check`,\nthe last three in CI's `docs` job; `tools/nv/test/records.test.ts` for the writer's one text per value."
+}
