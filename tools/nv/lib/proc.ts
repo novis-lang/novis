@@ -23,12 +23,26 @@ export interface RunResult {
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * `argv` with a bare program name replaced by its path on `PATH`. On Windows, `Bun.spawn` handed an
+ * `env` finds only an `.exe` by a bare name, so `npm`, which is `npm.cmd`, fails to start unless
+ * `Bun.which` resolves it first, the way a shell would through `PATHEXT`. Windows starts a `.cmd`
+ * under `cmd.exe`, so every argument handed to one is one this tree wrote.
+ */
+export function resolved(argv: string[], env: Record<string, string | undefined>): string[] {
+  const exe = argv[0]!;
+  if (process.platform !== "win32" || /[\\/]/.test(exe)) return argv;
+  const found = Bun.which(exe, { PATH: env.PATH ?? env.Path ?? "" });
+  return found === null ? argv : [found, ...argv.slice(1)];
+}
+
 /** Runs `argv` to completion and returns what it printed. A program that cannot be started throws. */
 export async function run(argv: string[], opts: RunOptions = {}): Promise<RunResult> {
   if (argv.length === 0) throw new Error("proc.run: an empty argument list");
-  const child = Bun.spawn(argv, {
+  const env = opts.env ? { ...process.env, ...opts.env } : process.env;
+  const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
-    env: opts.env ? { ...process.env, ...opts.env } : process.env,
+    env,
     stdin: opts.input === undefined ? "ignore" : new TextEncoder().encode(opts.input),
     stdout: "pipe",
     stderr: "pipe",
@@ -52,9 +66,10 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
 
 /** Runs `argv` with its output going straight to this process's own, and returns its exit status. */
 export async function passthrough(argv: string[], opts: Omit<RunOptions, "input"> = {}): Promise<number> {
-  const child = Bun.spawn(argv, {
+  const env = opts.env ? { ...process.env, ...opts.env } : process.env;
+  const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
-    env: opts.env ? { ...process.env, ...opts.env } : process.env,
+    env,
     stdin: "ignore",
     stdout: "inherit",
     stderr: "inherit",
