@@ -9470,16 +9470,16 @@ Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN
 Core\Math::toBase(int $n, uint $base): string
 ```
 
-`$n` written out in `$base`, with lowercase digits above nine, as `decbin`, `dechex`, `decoct` and the writing half of `base_convert` do.
+Writes the number `$n` in base `$base` and returns the digits as a `string`. This replaces PHP's `decbin`, `dechex`, `decoct` and `base_convert`. Digits above `9` are the lower case letters `a` to `z`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `int` | The integer to write. |
-| `$base` | `uint` | The radix, from `2` to `36` — the digits and the Latin letters. |
+| `$n` | `int` | The number to write. It can be negative. |
+| `$base` | `uint` | The base, from `2` to `36`. Base 2 is binary and base 16 is hexadecimal. |
 
-**Returns** `string` — The digit string, with no prefix and no padding; a negative `$n` gets a leading `-`, which `base_convert` has no answer for, and `0` is `"0"`.
+**Returns** `string` — The digits, with no prefix and no leading zeros. A negative `$n` starts with `-`. `0` returns `"0"`.
 
-**Throws** `RuntimeError` — When `$base` is outside `2` to `36`, where `base_convert` answers `0`.
+**Throws** `RuntimeError` — When `$base` is outside `2` to `36`. PHP's `base_convert` returns `0` here.
 
 <a id="core-core-math-frombase"></a>
 #### `Core\Math::fromBase`
