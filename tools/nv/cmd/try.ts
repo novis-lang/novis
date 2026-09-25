@@ -13,8 +13,9 @@
 // A hand-written `php -r` twin is a translation, made by the agent that wrote the Novis at the moment
 // it most wants the answer to be yes. Here the twin is a section of the same file, so an experiment
 // that comes out right is already a differential case: give it a `--TEST--` line and move it under
-// `tests/differential/`. The snippets run several at a time, half the cores wide unless `NVS_TRY_JOBS`
-// or `NVS_JOBS` says otherwise, and print back in the order they were asked for.
+// `tests/differential/`. The snippets run several at a time, as wide as `tools/nv/lib/machine.ts` says
+// this box may go unless `NVS_TRY_JOBS` or `NVS_JOBS` says otherwise, and print back in the order they
+// were asked for.
 //
 // Nothing here judges. A snippet that fails to compile prints its diagnostic, a twin that diverges
 // prints both outputs, and the exit status is 0, because "Novis and PHP disagree" is the finding.
@@ -26,9 +27,10 @@
 // judges, because an acceptance check needs a verdict: every `LINE` must appear in the bundle's
 // output, and the exit status is 1 when one does not or when the bundle and `nvs run` differ.
 
-import { availableParallelism } from "node:os";
+
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join, normalize, parse } from "node:path";
+import { jobs as machineJobs } from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 
@@ -229,14 +231,6 @@ async function bundled(path: string, keep: boolean, expect: string[], stem: stri
   return [ok, out];
 }
 
-/** How many run at once: an override if one is set, otherwise half the cores, at least two. */
-function width(items: number): number {
-  for (const name of ["NVS_TRY_JOBS", "NVS_JOBS"]) {
-    const raw = (process.env[name] ?? "").trim();
-    if (/^\d+$/.test(raw) && Number(raw) > 0) return Math.max(1, Math.min(Number(raw), items));
-  }
-  return Math.max(1, Math.min(items, Math.max(2, Math.floor(availableParallelism() / 2))));
-}
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
@@ -284,7 +278,8 @@ export async function run(args: string[]): Promise<number> {
     seen.add(stems[stems.length - 1]!);
   });
 
-  const jobs = width(paths.length);
+  // A snippet is a process pair with nothing shared, so the width is the machine's to decide.
+  const jobs = machineJobs("local", { ceiling: paths.length, envs: ["NVS_TRY_JOBS"] });
   const work = (i: number) => (bundle ? bundled(paths[i]!, keep, expect, stems[i]!) : one(paths[i]!, keep, php, stems[i]!));
   const results: Promise<[boolean, string[]]>[] = new Array(paths.length);
   let next = 0;
