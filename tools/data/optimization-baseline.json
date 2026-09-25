@@ -62,7 +62,7 @@
       "expected_effect": "Three fewer guaranteed-red checks at the end. No effect on rate."
     },
     {
-      "what": "tools/disk.py --clean, reclaiming superseded incremental generations.",
+      "what": "`bun nv disk --clean`, reclaiming superseded incremental generations.",
       "expected_effect": "37.7G freed, 46.7G -> 81.8G. Removes the risk of the driver refusing to start (min 10G). No effect on rate."
     },
     {

@@ -32,7 +32,6 @@ import * as loopStats from "./cmd/loop-stats.ts";
 import * as machine from "./cmd/machine.ts";
 import * as migration from "./cmd/migration.ts";
 import * as owners from "./cmd/owners.ts";
-import * as parity from "./cmd/parity.ts";
 import * as peek from "./cmd/peek.ts";
 import * as plan from "./cmd/plan.ts";
 import * as playbook from "./cmd/playbook.ts";
@@ -59,7 +58,7 @@ interface Command {
   run(args: string[]): Promise<number>;
 }
 
-const COMMANDS: Record<string, Command> = { audit, bench, "bench-load": benchLoad, "bench-proxied": benchProxied, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, machine, migration, orient, origin, owners, parity, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, "webcrypto-vectors": webcryptoVectors, why };
+const COMMANDS: Record<string, Command> = { audit, bench, "bench-load": benchLoad, "bench-proxied": benchProxied, bg, brief, chain, check, "ci-changes": ciChanges, "ci-green": ciGreen, "class-cards": classCards, "db-matrix": dbMatrix, decisions, directives, disk, "exe-icons": exeIcons, gaps, "gen-attribution": genAttribution, goal, guard, holes, impact, import: importCmd, layout, links, lints, loop, "loop-stats": loopStats, machine, migration, orient, origin, owners, peek, plan, playbook, proofs, query, records, reference, release, relink, render, rules, selftest, session, splice, try: tryCmd, verify, "webcrypto-vectors": webcryptoVectors, why };
 
 function usage(): void {
   console.log("usage: bun nv <command> [args]\n");

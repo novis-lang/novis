@@ -312,7 +312,7 @@ One file set: `tools/nv/import/**`.
 
 **Does:** Ports the read-only Python tools to `bun nv`, each proven to print what the old one did.
 
-One file set: `tools/nv/cmd/{peek,brief,plan,records,rules,decisions,owners,gaps,holes,links,layout,disk,directives,migration,reference}.ts`, `tools/nv/parity/**`.
+One file set: `tools/nv/cmd/{peek,brief,plan,records,rules,decisions,owners,gaps,holes,links,layout,disk,directives,migration,reference}.ts`.
 
 - **Each replaces a Python tool's read-only modes**, under the same subcommand name:
   - `nv peek` (with `--locate` and `--outline`);
@@ -323,10 +323,10 @@ One file set: `tools/nv/cmd/{peek,brief,plan,records,rules,decisions,owners,gaps
   - `nv migration` (was `check-migration.py`), `nv reference`.
 - **Each checks it replaces becomes a query in `nv check`.** Its old flag stays as an alias that prints
   the same verdict lines.
-- **`bun nv parity <group>`** runs the Python tool and its replacement on the same tree and compares
-  their output. The comparison ignores only what `tools/nv/parity/known.json` declares. The main
-  declared difference is a goal named by slug where Python prints a number. Parity is proven for every
-  mode the floor, a goal `.toml` or a process doc invokes.
+- **A parity command** ran each Python tool and its replacement on the same tree and compared their
+  output, ignoring only the differences it declared, such as a goal named by slug where Python printed
+  a number. Parity was proven for every mode the floor, a goal `.toml` or a process doc invoked, and
+  the command was deleted with the last Python tool it compared.
 
 ## Stage 6 — one key for what a check reads (the keystone)
 
@@ -546,9 +546,8 @@ One file set: `tools/nv/cmd/{verify,orient,session,chain,side,loop,respawn,splic
     replacement is a registered `nv` command.
   - A later tool that replaces a raw habit adds its rule in the same commit.
 - **Parity:**
-  - `bun nv parity writers` shows that a wrap applied by both tools to two copies of the tree gives the
-    same records and the same rendered files.
-  - `bun nv parity orient` shows that the packs for the live goal carry the same sections and items.
+  - A wrap applied by both tools to two copies of the tree gave the same records and the same rendered
+    files, and the packs for the live goal carried the same sections and items.
 
 ## Stage 9 — the cutover
 
