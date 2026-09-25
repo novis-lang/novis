@@ -1,5 +1,0 @@
-- **A private `const` that falls out of scope becomes a binding pattern, not an error.** `TY_XML` in
-  a `match` arm is a new variable once the module that holds it is a sibling, so the arm matches
-  everything after it; only a multi-pattern arm gets an `E0408` naming it, and an arm of its own
-  compiles and matches every column type. `pub(super)` on the consts before the first build is the
-  cheap order; reading the first build's errors is the other one. [until: reviewed 2026-09-06]

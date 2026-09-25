@@ -1,6 +1,0 @@
-- **A 3,000-line `impl` block is not a seam problem, and splitting one widens nothing.** An inherent
-  `impl` may sit in any module of the type's own crate, and a private item is visible in its
-  defining module and every descendant — so `Ctx`'s private fields stayed in `ctx/mod.rs` and not
-  one of them changed. What widens is only what a **sibling** reads: a private method or type moved
-  away from its caller, each `pub(super)` — the reach it already had. Write each fragment back
-  inside a generated `impl Ctx { … }` and the move is mechanical. [until: reviewed 2026-09-06]

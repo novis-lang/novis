@@ -5,7 +5,7 @@
     "docs/agent/doc-style.md"
   ],
   "until": {
-    "kind": "reviewed",
-    "arg": "2026-09-06"
+    "kind": "gone",
+    "arg": "docs/agent/doc-style.md:charter"
   }
 }

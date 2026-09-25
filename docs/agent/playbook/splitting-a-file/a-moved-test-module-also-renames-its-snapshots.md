@@ -2,4 +2,4 @@
   snapshots moving with their module: the file name is the test's module path, so
   `parser::tests::foo` becoming `parser::tests::stmt::foo` needs the `.snap` moved and its `source:`
   line updated. Do that by hand instead of accepting the `.new`, and the diff stays a rename rather
-  than a delete plus an unreviewable add. [until: reviewed 2026-09-06]
+  than a delete plus an unreviewable add. [until: gone crates/nvs-ir/Cargo.toml:insta]

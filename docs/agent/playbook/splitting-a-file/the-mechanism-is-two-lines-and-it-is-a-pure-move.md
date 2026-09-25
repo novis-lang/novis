@@ -3,4 +3,4 @@
   super::*;` (which reaches the parent's private imports and its siblings' names once `mod.rs` globs
   them back), and every item that crosses a seam becomes `pub(super)` — the reach it had as a
   private item of one file. A child can also see the parent's private items, so plumbing stays
-  private in `mod.rs`. [until: reviewed 2026-09-06]
+  private in `mod.rs`. [until: gone crates/nvs-runtime/src/ctx/mod.rs:pub(crate) use self::]
