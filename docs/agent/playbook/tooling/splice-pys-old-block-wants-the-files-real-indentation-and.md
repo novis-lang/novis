@@ -1,6 +1,6 @@
-- **`nv splice`'s `OLD` block wants the file's real indentation, and `peek.py`'s gutter is easy to
-  mis-count.** `peek.py` prints `<line number><two spaces><the line>`, so a nested line reads one
-  level deeper than it is, and the refusal ("the anchor matches for its first N character(s), up to
-  target line M") can name a line far away, because a leading run of spaces matches elsewhere before
-  the words do. Subtract two from the column `peek.py` shows, or measure it: `awk 'NR>=A && NR<=B {
-  match($0, /[^ ]/); print NR": indent="RSTART-1 }' <file>`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+- **`nv splice`'s `OLD` block wants the file's real indentation, and `bun nv peek`'s gutter is easy
+  to mis-count.** `bun nv peek` prints `<line number><two spaces><the line>`, so a nested line reads
+  one level deeper than it is, and the refusal ("the anchor matches for its first N character(s), up
+  to target line M") can name a line far away, because a leading run of spaces matches elsewhere
+  before the words do. Subtract two from the column `bun nv peek` shows, or measure it: `awk 'NR>=A
+  && NR<=B { match($0, /[^ ]/); print NR": indent="RSTART-1 }' <file>`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]

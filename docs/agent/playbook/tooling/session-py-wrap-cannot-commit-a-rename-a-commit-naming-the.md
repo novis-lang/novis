@@ -1,4 +1,4 @@
-- **`session.py --wrap` cannot commit a rename: a `## commit:` naming the path that went away is
+- **`bun nv session --wrap` cannot commit a rename: a `## commit:` naming the path that went away is
   refused with "no such path", and naming only the new one leaves the deletion uncommitted.** Every
   named path is checked against the disk before a byte is written, and the commit it makes is
   pathspec-limited, so no spelling of the section carries a `git mv` — and `git add -- <old>` would exit

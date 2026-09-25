@@ -1,4 +1,4 @@
-- **`session.py --wrap` can refuse over a link no session touched, because a rule fragment's
+- **`bun nv session --wrap` can refuse over a link no session touched, because a rule fragment's
   relative link is resolved from two different places.** A fragment's links are copied verbatim
   into the chapter one directory above it, so `../../../README.md` resolved from
   `docs/rules/packaging/the-banner-states-the-build.md` and escaped the repository from

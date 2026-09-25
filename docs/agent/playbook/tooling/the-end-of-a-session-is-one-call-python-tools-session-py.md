@@ -1,4 +1,4 @@
-- **The end of a session is one call: `python tools/session.py --wrap <file>`.** Write one markdown
+- **The end of a session is one call: `bun nv session --wrap <file>`.** Write one markdown
   file whose `## ` headings are instructions — `## plan-edit: <Field>`, `## playbook: <Heading>`,
   `## handoff`, `## commit: <paths>` once per slice, `## status` — and it applies all of them in a
   fixed order, or refuses one as broken and writes *nothing*. `--check` first says what the tree
