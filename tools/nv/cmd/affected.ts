@@ -155,8 +155,8 @@ export function before(tree: Tree, change: Change): { tree: Tree; paths: string[
 
 // ---- the plan ----------------------------------------------------------------------------------------
 
-/** The changed paths a moved key holds: each moved part that is a changed path, and each changed path
- * under a moved part over a directory or a partition. */
+/** The changed paths a moved key holds: each moved part that is a changed path, each changed path
+ * under a moved part over a directory or a partition, and each one a moved `**\/<name>` part names. */
 function movedBy(pre: Part[], after: Part[], changed: Set<string>): string[] {
   const was = new Map(pre.map((p) => [p.label, p.digest]));
   const now = new Map(after.map((p) => [p.label, p.digest]));
@@ -165,6 +165,10 @@ function movedBy(pre: Part[], after: Part[], changed: Set<string>): string[] {
     if (was.get(label) === now.get(label)) continue;
     if (changed.has(label)) {
       out.add(label);
+      continue;
+    }
+    if (label.startsWith("**/")) {
+      for (const p of changed) if (p === label.slice(3) || p.endsWith(label.slice(2))) out.add(p);
       continue;
     }
     const dir = label.replace(/^<[a-z]+>/, "").replace(/\/$/, "");

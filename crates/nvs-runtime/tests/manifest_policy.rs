@@ -77,34 +77,14 @@ fn the_release_profile_checks_integer_overflow() {
 /// `default-features = false` is for. A grep over the raw text would report both
 /// and could never report a real dependency, so what is searched is the code.
 fn manifest_code() -> Vec<(PathBuf, usize, String)> {
-    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-        let entries = fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let name = entry.file_name();
-            if path.is_dir() {
-                // `target` is every dependency's vendored manifest and `.git`
-                // holds none, so neither is ours to have an opinion about.
-                if name != "target" && name != ".git" {
-                    walk(&path, out);
-                }
-            } else if name == "Cargo.toml" {
-                out.push(path);
-            }
-        }
-    }
-
-    // The whole tree, because a manifest may sit in any directory of it.
-    let root = nvs_repo::root();
-    let mut paths = Vec::new();
-    walk(&root, &mut paths);
-    paths.sort();
+    // Every directory of the tree, because a manifest may sit in any of them. `target`, which holds
+    // every dependency's vendored manifest, is not ours to have an opinion about.
+    let paths = nvs_repo::named("Cargo.toml");
     assert!(
         paths.len() > 10,
-        "found only {} manifest(s) under {} — this walk stopped finding the crates rather than \
-         the tree losing them",
+        "found only {} manifest(s) in the repository — this walk stopped finding the crates \
+         rather than the tree losing them",
         paths.len(),
-        root.display()
     );
 
     paths

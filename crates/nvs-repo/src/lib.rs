@@ -8,7 +8,8 @@
 //!
 //! A recorded directory stands for every file beneath it, so a test that walks
 //! `tests/conformance` records that one line and is run again when a case is added, changed or
-//! removed. Without the variable set -- a bare `cargo test` -- nothing is written and the
+//! removed. [`named`] records `**/<name>`, which stands for every file of that name anywhere in
+//! the tree. Without the variable set -- a bare `cargo test` -- nothing is written and the
 //! functions only build paths.
 //!
 //! **This is the only way out.** A test source that joins `..` onto `CARGO_MANIFEST_DIR`, walks
@@ -97,6 +98,45 @@ pub fn root() -> PathBuf {
     repository()
 }
 
+/// Every file called `name` in the repository, sorted, and the record `**/<name>`: this binary
+/// reads each of them, and would read one that arrived anywhere. The walk leaves out `target`,
+/// `node_modules` and every directory whose name starts with `.`, which hold no file of ours.
+///
+/// # Panics
+///
+/// If `name` is empty or holds a separator, if a directory cannot be listed, and if the log
+/// `NVS_READS_LOG` names cannot be written.
+#[must_use]
+pub fn named(name: &str) -> Vec<PathBuf> {
+    fn walk(dir: &Path, name: &str, out: &mut Vec<PathBuf>) {
+        let entries =
+            std::fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file = entry.file_name();
+            if path.is_dir() {
+                let skipped = file == "target"
+                    || file == "node_modules"
+                    || file.to_string_lossy().starts_with('.');
+                if !skipped {
+                    walk(&path, name, out);
+                }
+            } else if file == name {
+                out.push(path);
+            }
+        }
+    }
+    assert!(
+        !name.is_empty() && !name.contains(['/', '\\']),
+        "nvs_repo::named takes a file name, and `{name}` is not one"
+    );
+    record(&format!("**/{name}"));
+    let mut out = Vec::new();
+    walk(&repository(), name, &mut out);
+    out.sort();
+    out
+}
+
 /// A [`Command`] for `program`, and the record of what that process reads in the tree, each
 /// entry written as [`path`] takes it. The list is the caller's statement about the program it
 /// starts: a script that walks `crates/` is `&["crates", "tools"]`, and a program that opens
@@ -132,5 +172,23 @@ mod tests {
     #[should_panic(expected = "inside the repository")]
     fn an_empty_path_is_refused() {
         let _ = path("");
+    }
+
+    #[test]
+    fn named_finds_every_file_of_that_name_and_none_under_target() {
+        let found = named("Cargo.toml");
+        assert!(found.contains(&repository().join("Cargo.toml")));
+        assert!(found.contains(&repository().join("crates/nvs-repo/Cargo.toml")));
+        assert!(
+            found
+                .iter()
+                .all(|p| !p.components().any(|c| c.as_os_str() == "target"))
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "a file name")]
+    fn named_refuses_a_path() {
+        let _ = named("crates/Cargo.toml");
     }
 }

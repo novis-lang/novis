@@ -231,10 +231,18 @@ function partition(tree: Tree, name: string): Part[] {
 }
 
 /** One part for a file, or for every file under a directory; a path with none is `absent`. The
- * root, `.`, is every file in the tree. A directory leaves out the `state` files under it, which a
- * wrap rewrites every session: a reader of one names it. */
+ * root, `.`, is every file in the tree, and `**\/<name>` every file called `<name>` anywhere in it
+ * (`nvs_repo::named`). A directory leaves out the `state` files under it, which a wrap rewrites
+ * every session: a reader of one names it. */
 function path(tree: Tree, top: string): Part[] {
   if (top === ".") top = "";
+  if (top.startsWith("**/")) {
+    const name = top.slice(3);
+    return cached(tree, `named\0${name}`, () => {
+      const files = tree.files.filter((f) => f === name || f.endsWith(`/${name}`));
+      return [{ label: top, partition: OTHER, tier: "raw", digest: digest(top, ...(files.length ? files.map((f) => `${f}\x01${tree.raw(f)}`) : ["absent"])) }];
+    });
+  }
   return cached(tree, `path\0${top}`, () => {
     const kept = (f: string) => f === top || partitionOf(f) !== STATE;
     if (top === "") return [{ label: "./", partition: OTHER, tier: "raw", digest: digest("", ...tree.files.filter(kept).map((f) => `${f}\x01${tree.raw(f)}`)) }];
