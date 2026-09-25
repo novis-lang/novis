@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to use an angle in degrees, and why you round the result.
+
+// `Core\Math::toRadians` converts 30 degrees to radians. This prints 0.5.
+echo Core\Math::sin(Core\Math::toRadians(30.0)), "\n";
+
+// The sine of 180 degrees is zero, but the result is a tiny number.
+// This prints 1.2246467991474E-16.
+echo Core\Math::sin(Core\Math::toRadians(180.0)), "\n";
+
+// Rounding to 10 digits after the point gives zero. This prints 0.
+echo Core\Math::round(Core\Math::sin(Core\Math::toRadians(180.0)), {precision: 10}), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Measures the hyperbolic tangent of a number, as a website does when it turns votes into a score.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 0.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number used this round depends on last round's total.
+            $total = $total + Core\Math::tanh($total * 0.000001 + 0.1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

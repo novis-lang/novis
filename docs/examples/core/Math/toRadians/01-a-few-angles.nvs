@@ -1,0 +1,11 @@
+<?nvs
+// Shows a few angles in degrees converted to radians.
+
+// Half a circle is `PI` radians. This prints 3.1415926535898.
+echo Core\Math::toRadians(180.0), "\n";
+
+// A full circle is `2 * PI` radians. This prints 6.2831853071796.
+echo Core\Math::toRadians(360.0), "\n";
+
+// A negative angle gives a negative result. This prints -0.78539816339745.
+echo Core\Math::toRadians(-45.0), "\n";

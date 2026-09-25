@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a delivery app finds the compass direction from a driver to a customer.
+
+class Compass {
+    // `$east` and `$north` are how many meters the customer is from the driver.
+    // North is 0 degrees and east is 90 degrees.
+    public static function bearing(float $east, float $north): float {
+        float $degrees = Core\Math::toDegrees(Core\Math::atan2($east, $north));
+        if ($degrees < 0.0) {
+            $degrees = $degrees + 360.0;
+        }
+        return Core\Math::round($degrees, {precision: 1});
+    }
+}
+
+// The customer is 100 meters east and 100 meters north. This prints 45.
+echo Compass::bearing(100.0, 100.0), "\n";
+
+// The customer is 50 meters south. This prints 180.
+echo Compass::bearing(0.0, -50.0), "\n";
+
+// The customer is 300 meters west and 40 meters north. This prints 277.6.
+echo Compass::bearing(-300.0, 40.0), "\n";

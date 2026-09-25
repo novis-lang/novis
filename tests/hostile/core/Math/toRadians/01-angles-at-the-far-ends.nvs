@@ -1,0 +1,27 @@
+<?nvs
+// Attack: `Core\Math::toRadians` is given the biggest and smallest angles, and values that are not
+// ordinary numbers. It is also called a million times. Every call should return a number, an
+// infinity or `NaN`, and the program should run to its end.
+
+// 1. The biggest angles, positive and negative.
+echo Core\Math::toRadians(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::toRadians(-Core\Math::FLOAT_MAX), "\n";
+
+// 2. The smallest angles. The last one is too small to keep, so the result is 0.
+echo Core\Math::toRadians(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::toRadians(Core\Math::FLOAT_MIN / 4503599627370496.0), "\n";
+echo Core\Math::toRadians(-0.0), "\n";
+
+// 3. Values that are not ordinary numbers.
+echo Core\Math::toRadians(Core\Math::NAN), "\n";
+echo Core\Math::toRadians(Core\Math::INFINITY), "\n";
+echo Core\Math::toRadians(-Core\Math::INFINITY), "\n";
+
+// 4. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::toRadians($value) + 1.0;
+    $round = $round + 1;
+}
+echo Core\Math::round($value, { precision: 6 }), "\n";

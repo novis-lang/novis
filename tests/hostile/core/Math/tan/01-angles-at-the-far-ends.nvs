@@ -1,0 +1,35 @@
+<?nvs
+// Attack: `Core\Math::tan` is given angles next to 90 degrees, the biggest and smallest angles,
+// and values that are not ordinary numbers. It is also called a million times. Every call
+// should return a number or `NaN`, and the program should run to its end.
+
+// 1. The angles closest to 90 degrees and to -90 degrees.
+echo Core\Math::tan(Core\Math::PI / 2.0), "\n";
+echo Core\Math::tan(-Core\Math::PI / 2.0), "\n";
+echo Core\Math::tan(1.5707963267948963), "\n";
+
+// 2. The biggest angles, positive and negative.
+echo Core\Math::tan(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::tan(-Core\Math::FLOAT_MAX), "\n";
+
+// 3. Very large angles, where the angle must be reduced exactly before the tangent.
+echo Core\Math::tan(1.0e22), "\n";
+echo Core\Math::tan(4503599627370496.0), "\n";
+
+// 4. The smallest angles, and zero with a minus sign.
+echo Core\Math::tan(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::tan(-0.0), "\n";
+
+// 5. Values that are not ordinary numbers. Each one gives `NaN`.
+echo Core\Math::tan(Core\Math::NAN), "\n";
+echo Core\Math::tan(Core\Math::INFINITY), "\n";
+echo Core\Math::tan(-Core\Math::INFINITY), "\n";
+
+// 6. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::tan($value);
+    $round = $round + 1;
+}
+echo Core\Math::isFinite($value) ? "a number\n" : "not a number\n";

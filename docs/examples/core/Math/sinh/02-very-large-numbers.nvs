@@ -1,0 +1,14 @@
+<?nvs
+// Shows how fast the hyperbolic sine grows.
+
+// This prints 11013.232874703.
+echo Core\Math::sinh(10.0), "\n";
+
+// At 710 the result is still a number. This prints 1.1169973830809E+308.
+echo Core\Math::sinh(710.0), "\n";
+
+// At 711 the result is too big for a `float`. This prints INF.
+echo Core\Math::sinh(711.0), "\n";
+
+// At -711 the result is equal to `-Core\Math::INFINITY`. This prints yes.
+echo Core\Math::sinh(-711.0) == -Core\Math::INFINITY ? "yes" : "no", "\n";

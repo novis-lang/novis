@@ -1,0 +1,13 @@
+<?nvs
+// Shows the sines of a few angles in radians.
+
+// The sine of 0 is 0. This prints 0.
+echo Core\Math::sin(0.0), "\n";
+
+// `Core\Math::PI` radians is half a circle, so `PI / 2` is a quarter circle. This prints 1.
+echo Core\Math::sin(Core\Math::PI / 2.0), "\n";
+
+// A negative angle gives the same result with the other sign.
+// These lines print 0.8414709848079 and -0.8414709848079.
+echo Core\Math::sin(1.0), "\n";
+echo Core\Math::sin(-1.0), "\n";

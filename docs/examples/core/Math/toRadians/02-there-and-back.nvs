@@ -1,0 +1,10 @@
+<?nvs
+// Shows an angle converted to radians and back to degrees.
+
+float $radians = Core\Math::toRadians(30.0);
+
+// This prints 0.5235987755983.
+echo $radians, "\n";
+
+// `Core\Math::toDegrees` converts it back. The result is exactly 30, so this prints yes.
+echo Core\Math::toDegrees($radians) == 30.0 ? "yes" : "no", "\n";

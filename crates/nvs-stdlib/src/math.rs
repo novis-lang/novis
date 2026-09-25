@@ -828,13 +828,13 @@ const LOG_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::sin`'s reference card — `rule:core-api/reference-card`.
 const SIN_DOC: MethodDoc = MethodDoc {
-    short: "The sine of an angle in radians, as `sin` does.",
+    short: "Returns the sine of an angle. The angle is in radians.",
     params: &[ParamDoc {
         name: "radians",
-        desc: "The angle, in radians.",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
         shape: &[],
     }],
-    ret: "A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.",
+    ret: "A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -852,13 +852,15 @@ const COS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::tan`'s reference card — `rule:core-api/reference-card`.
 const TAN_DOC: MethodDoc = MethodDoc {
-    short: "The tangent of an angle in radians, as `tan` does.",
+    short: "Returns the tangent of an angle. The angle is in radians. The tangent is the sine \
+            divided by the cosine.",
     params: &[ParamDoc {
         name: "radians",
-        desc: "The angle, in radians.",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
         shape: &[],
     }],
-    ret: "`sin / cos` of the angle, any `float`; `NaN` for an infinity or `NaN`.",
+    ret: "Any number. It is very large when the angle is close to 90 degrees. An infinity or \
+          `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -923,14 +925,14 @@ const ATAN2_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::sinh`'s reference card — `rule:core-api/reference-card`.
 const SINH_DOC: MethodDoc = MethodDoc {
-    short: "The hyperbolic sine of `$n`, as `sinh` does.",
+    short: "Returns the hyperbolic sine of `$n`, which is `(exp($n) - exp(-$n)) / 2`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The argument, any `float`.",
+        desc: "Any number.",
         shape: &[],
     }],
-    ret: "`(exp($n) - exp(-$n)) / 2`, carrying `$n`'s sign; an infinity once `$n` is past about \
-          `±710`.",
+    ret: "A number with the same sign as `$n`. It is `INFINITY` when `$n` is above about `710`, \
+          and `-INFINITY` when `$n` is below about `-710`. `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -949,13 +951,15 @@ const COSH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::tanh`'s reference card — `rule:core-api/reference-card`.
 const TANH_DOC: MethodDoc = MethodDoc {
-    short: "The hyperbolic tangent of `$n`, as `tanh` does.",
+    short: "Returns the hyperbolic tangent of `$n`. That is `Core\\Math::sinh` divided by \
+            `Core\\Math::cosh`.",
     params: &[ParamDoc {
         name: "n",
-        desc: "The argument, any `float`.",
+        desc: "Any number.",
         shape: &[],
     }],
-    ret: "`sinh / cosh` of `$n`, in `[-1, 1]` and reaching either end for an infinite `$n`.",
+    ret: "A number from `-1.0` to `1.0`, with the same sign as `$n`. `INFINITY` gives `1.0`, \
+          `-INFINITY` gives `-1.0` and `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -999,27 +1003,29 @@ const ATANH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::toRadians`'s reference card — `rule:core-api/reference-card`.
 const TO_RADIANS_DOC: MethodDoc = MethodDoc {
-    short: "An angle in degrees as radians, as `deg2rad` does — computed as PHP's own \
-            `($degrees / 180) * PI`, so a round trip through `toDegrees` agrees with PHP's.",
+    short: "Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`, the \
+            same way as PHP.",
     params: &[ParamDoc {
         name: "degrees",
         desc: "The angle, in degrees.",
         shape: &[],
     }],
-    ret: "The same angle in radians, so `toRadians(180.0)` is `PI`.",
+    ret: "The same angle in radians. `Core\\Math::toRadians(180.0)` is `PI`. An infinity gives an \
+          infinity, and `NaN` gives `NaN`.",
     errors: &[],
 };
 
 /// `Core\Math::toDegrees`'s reference card — `rule:core-api/reference-card`.
 const TO_DEGREES_DOC: MethodDoc = MethodDoc {
-    short: "An angle in radians as degrees, as `rad2deg` does — computed as PHP's own \
-            `($radians / PI) * 180`, so a round trip through `toRadians` agrees with PHP's.",
+    short: "Converts an angle from radians to degrees. It computes `($radians / PI) * 180`, the \
+            same way as PHP.",
     params: &[ParamDoc {
         name: "radians",
         desc: "The angle, in radians.",
         shape: &[],
     }],
-    ret: "The same angle in degrees, so `toDegrees(PI)` is `180.0`.",
+    ret: "The same angle in degrees. `Core\\Math::toDegrees(Core\\Math::PI)` is `180.0`. A \
+          result too big for a `float` is an infinity, and `NaN` gives `NaN`.",
     errors: &[],
 };
 
@@ -3560,6 +3566,149 @@ mod tests {
         assert!(sqrt(f64::MAX).is_finite());
         assert!(sqrt(f64::from_bits(1)) > 0.0);
         assert_eq!(sqrt(f64::INFINITY), f64::INFINITY);
+    }
+
+    /// `sin` is `0` at zero and `1` at `PI / 2`, keeps a zero's sign, is odd,
+    /// reduces a huge angle exactly, stays in `[-1, 1]` at the largest finite
+    /// float, and answers `NaN` — never a throw — for an infinity and `NaN`.
+    // covers: Core\Math::sin
+    #[test]
+    fn sin_stays_in_its_range_is_odd_and_answers_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let sin = |n: f64| float_result(nvs_core_math_sin, &[Value::float(n)]);
+        assert_eq!(sin(0.0), 0.0);
+        let negative_zero = sin(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert_eq!(sin(PI / 2.0), 1.0);
+        assert!((sin(PI / 6.0) - 0.5).abs() < 1e-15);
+        assert_eq!(sin(-2.5).to_bits(), (-sin(2.5)).to_bits(), "odd");
+        assert!(
+            (sin(1e22) + 0.852_200_849_767_188_8).abs() < 1e-15,
+            "a large angle"
+        );
+        for far in [f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&sin(far)), "{far}");
+        }
+        assert_eq!(sin(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(sin(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `sinh` is `0` at zero and keeps a zero's sign, is odd, is finite at
+    /// `710` and an infinity of `$n`'s sign one step past it, and is `NaN`
+    /// only for `NaN` — never a throw.
+    // covers: Core\Math::sinh
+    #[test]
+    fn sinh_is_odd_and_overflows_to_a_signed_infinity_past_710() {
+        let sinh = |n: f64| float_result(nvs_core_math_sinh, &[Value::float(n)]);
+        assert_eq!(sinh(0.0), 0.0);
+        let negative_zero = sinh(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((sinh(1.0) - 1.175_201_193_643_801_4).abs() < 1e-15);
+        assert_eq!(sinh(-3.5).to_bits(), (-sinh(3.5)).to_bits(), "odd");
+        assert_eq!(sinh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert!(sinh(710.0).is_finite());
+        assert_eq!(sinh(711.0), f64::INFINITY);
+        assert_eq!(sinh(-711.0), f64::NEG_INFINITY);
+        assert_eq!(sinh(f64::MAX), f64::INFINITY);
+        assert_eq!(sinh(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(sinh(f64::NAN).is_nan());
+    }
+
+    /// `tan` is `0` at zero and keeps a zero's sign, is `1` at `PI / 4`, is
+    /// odd, is a large finite number at the float nearest `PI / 2`, stays
+    /// finite at the largest float, and answers `NaN` — never a throw — for
+    /// an infinity and `NaN`.
+    // covers: Core\Math::tan
+    #[test]
+    fn tan_is_odd_finite_at_the_float_nearest_a_quarter_circle_and_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let tan = |n: f64| float_result(nvs_core_math_tan, &[Value::float(n)]);
+        assert_eq!(tan(0.0), 0.0);
+        let negative_zero = tan(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((tan(PI / 4.0) - 1.0).abs() < 1e-15);
+        assert_eq!(tan(-1.25).to_bits(), (-tan(1.25)).to_bits(), "odd");
+        let quarter = tan(PI / 2.0);
+        assert!(quarter.is_finite() && quarter > 1e16, "{quarter}");
+        assert!(tan(-PI / 2.0) < -1e16);
+        for far in [f64::MAX, -f64::MAX, 1e22] {
+            assert!(tan(far).is_finite(), "{far}");
+        }
+        assert_eq!(tan(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(tan(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `tanh` is `0` at zero and keeps a zero's sign, is odd, never leaves
+    /// `[-1, 1]`, is exactly `±1` from `20` and at either infinity, and is
+    /// `NaN` only for `NaN` — never a throw.
+    // covers: Core\Math::tanh
+    #[test]
+    fn tanh_is_odd_stays_in_its_range_and_reaches_one_from_20() {
+        let tanh = |n: f64| float_result(nvs_core_math_tanh, &[Value::float(n)]);
+        assert_eq!(tanh(0.0), 0.0);
+        let negative_zero = tanh(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((tanh(0.5) - 0.462_117_157_260_009_7).abs() < 1e-15);
+        assert_eq!(tanh(-2.5).to_bits(), (-tanh(2.5)).to_bits(), "odd");
+        assert!(tanh(3.0) < 1.0);
+        for n in [-50.0, -3.0, -0.5, 0.5, 3.0, 50.0, f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&tanh(n)), "{n}");
+        }
+        assert_eq!(tanh(20.0), 1.0);
+        assert_eq!(tanh(-20.0), -1.0);
+        assert_eq!(tanh(f64::INFINITY), 1.0);
+        assert_eq!(tanh(f64::NEG_INFINITY), -1.0);
+        assert_eq!(tanh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert!(tanh(f64::NAN).is_nan());
+    }
+
+    /// `toRadians` maps `180` to `PI` and `90` to `PI / 2` exactly, keeps a
+    /// zero's sign, stays finite at the largest float, underflows the
+    /// smallest subnormal to `0`, and passes an infinity and `NaN` through.
+    // covers: Core\Math::toRadians
+    #[test]
+    fn to_radians_is_exact_on_half_and_quarter_turns_and_passes_an_infinity_through() {
+        use std::f64::consts::PI;
+        let to_radians = |n: f64| float_result(nvs_core_math_to_radians, &[Value::float(n)]);
+        assert_eq!(to_radians(180.0), PI);
+        assert_eq!(to_radians(90.0), PI / 2.0);
+        assert_eq!(to_radians(-180.0), -PI);
+        let negative_zero = to_radians(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!(to_radians(f64::MAX).is_finite());
+        assert_eq!(to_radians(f64::from_bits(1)), 0.0);
+        assert_eq!(to_radians(f64::INFINITY), f64::INFINITY);
+        assert_eq!(to_radians(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(to_radians(f64::NAN).is_nan());
+    }
+
+    /// `toDegrees` maps `PI` to `180` exactly, undoes `toRadians` on the
+    /// angles a program writes, overflows to a signed infinity at the largest
+    /// float, underflows the smallest subnormal to `0`, and passes `NaN`
+    /// through — PHP's `($radians / PI) * 180`, so the round trip agrees
+    /// with PHP's.
+    // covers: Core\Math::toDegrees
+    #[test]
+    fn to_degrees_undoes_to_radians_and_overflows_to_a_signed_infinity() {
+        use std::f64::consts::PI;
+        let to_degrees = |n: f64| float_result(nvs_core_math_to_degrees, &[Value::float(n)]);
+        let to_radians = |n: f64| float_result(nvs_core_math_to_radians, &[Value::float(n)]);
+        assert_eq!(to_degrees(PI), 180.0);
+        assert_eq!(to_degrees(PI / 2.0), 90.0);
+        for degrees in [30.0, 45.0, 60.0, 90.0, 180.0, 360.0, -30.0] {
+            assert_eq!(to_degrees(to_radians(degrees)), degrees, "{degrees}");
+        }
+        let negative_zero = to_degrees(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert_eq!(to_degrees(f64::MAX), f64::INFINITY);
+        assert_eq!(to_degrees(-f64::MAX), f64::NEG_INFINITY);
+        assert!(to_degrees(f64::MAX / 60.0).is_finite());
+        assert_eq!(to_degrees(f64::from_bits(1)), 0.0);
+        assert!(to_degrees(f64::NAN).is_nan());
     }
 
     /// `fromBase` reads either letter case, reaches both ends of `int` and no

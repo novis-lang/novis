@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a map app finds the distance between two cities from their positions in degrees.
+
+class Distance {
+    // This is the haversine formula. It finds the shortest distance over the surface of the Earth.
+    public static function km(float $lat1, float $lon1, float $lat2, float $lon2): float {
+        float $a1 = Core\Math::toRadians($lat1);
+        float $a2 = Core\Math::toRadians($lat2);
+        float $halfLat = Core\Math::toRadians($lat2 - $lat1) / 2.0;
+        float $halfLon = Core\Math::toRadians($lon2 - $lon1) / 2.0;
+        float $h = Core\Math::sin($halfLat) ** 2.0
+            + Core\Math::cos($a1) * Core\Math::cos($a2) * Core\Math::sin($halfLon) ** 2.0;
+        // 6371 is the radius of the Earth in kilometers.
+        return Core\Math::round(2.0 * 6371.0 * Core\Math::asin(Core\Math::sqrt($h)));
+    }
+}
+
+// From Berlin to Paris. This prints 877.
+echo Distance::km(52.52, 13.405, 48.8566, 2.3522), "\n";
+
+// From New York to London. This prints 5570.
+echo Distance::km(40.7128, -74.006, 51.5074, -0.1278), "\n";

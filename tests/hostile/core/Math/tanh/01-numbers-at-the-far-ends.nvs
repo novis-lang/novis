@@ -1,0 +1,32 @@
+<?nvs
+// Attack: `Core\Math::tanh` is given the biggest and smallest numbers, and values that are not
+// ordinary numbers. It is also called a million times. Every call should return a number from
+// -1 to 1 or `NaN`, and the program should run to its end.
+
+// 1. The numbers where the result stops changing, positive and negative.
+echo Core\Math::tanh(19.0), "\n";
+echo Core\Math::tanh(20.0), "\n";
+echo Core\Math::tanh(-20.0), "\n";
+
+// 2. The biggest numbers, positive and negative.
+echo Core\Math::tanh(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::tanh(-Core\Math::FLOAT_MAX), "\n";
+
+// 3. The smallest numbers, and zero with a minus sign.
+echo Core\Math::tanh(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::tanh(-Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::tanh(-0.0), "\n";
+
+// 4. Values that are not ordinary numbers.
+echo Core\Math::tanh(Core\Math::NAN), "\n";
+echo Core\Math::tanh(Core\Math::INFINITY), "\n";
+echo Core\Math::tanh(-Core\Math::INFINITY), "\n";
+
+// 5. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::tanh($value) * 2.0;
+    $round = $round + 1;
+}
+echo Core\Math::round($value, { precision: 6 }), "\n";
