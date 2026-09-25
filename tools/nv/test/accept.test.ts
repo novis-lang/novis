@@ -17,6 +17,9 @@ import {
   owedChecks,
   plainCrateTest,
   programFailLine,
+  proofGroups,
+  proofOutcome,
+  proofSections,
   stdoutLines,
   testExecutables,
   tiers,
@@ -99,6 +102,54 @@ test("judgeCommand reads want across both streams in order", () => {
   expect(judgeCommand(check({ exit: "nonzero" }), ok(), "L")).toBe("L: exit 0, and this check asserts a non-zero exit");
 });
 
+describe("the batched proofs run", () => {
+  test("proofGroups reads only a plain `--verify --group` check", () => {
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str", "--group=lang:types"] }))).toEqual(["Core\\Str", "lang:types"]);
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "directive:app"] }))).toBeNull();
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str", "--no-cache"] }))).toBeNull();
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--run", "--group", "Core\\Str"] }))).toBeNull();
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"], cwd: "tools" }))).toBeNull();
+    expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify"] }))).toBeNull();
+  });
+
+  const out = [
+    "== Core\\Env",
+    "nv proofs gate: nothing owed in Core\\Env (2 features).",
+    "proofs examples: 9 ok, 0 skipped, 0 known-gap, 0 failed",
+    "-- Core\\Env: passed",
+    "== Core\\Heap",
+    "nv proofs gate: nothing owed in Core\\Heap (1 feature).",
+    "  FAIL  tests/hostile/core/Heap/01.nvs: exit 3",
+    "proofs hostile: 0 ok, 0 skipped, 0 known-gap, 1 failed",
+    "-- Core\\Heap: failed",
+    "",
+  ].join("\r\n");
+
+  test("proofSections cuts each group's lines, headers kept", () => {
+    const s = proofSections(out);
+    expect([...s.keys()]).toEqual(["Core\\Env", "Core\\Heap"]);
+    expect(s.get("Core\\Env")).toEqual({ passed: true, lines: out.split("\r\n").slice(0, 4) });
+    expect(s.get("Core\\Heap")!.passed).toBe(false);
+  });
+
+  test("proofOutcome prints one group bare, and several with their sections", () => {
+    const batch = { code: 1, out, err: "nv proofs: building the proof binary" };
+    expect(proofOutcome(["Core\\Env"], batch)).toEqual({ code: 0, out: "nv proofs gate: nothing owed in Core\\Env (2 features).\nproofs examples: 9 ok, 0 skipped, 0 known-gap, 0 failed\n", err: "" });
+    const heap = proofOutcome(["Core\\Heap"], batch);
+    expect(heap.code).toBe(1);
+    expect(judgeCommand(check({ want: ["nothing owed", "0 failed"] }), heap, "L")).toBe("L: exit 1 -- proofs hostile: 0 ok, 0 skipped, 0 known-gap, 1 failed");
+    const both = proofOutcome(["Core\\Env", "Core\\Heap"], batch);
+    expect(both.code).toBe(1);
+    expect(both.out).toBe(`${out.replaceAll("\r", "").trimEnd()}\n`);
+  });
+
+  test("a group the batch printed no verdict for fails with the batch's own reason", () => {
+    expect(proofOutcome(["Core\\Str"], { code: 1, out: "", err: "nv proofs: no group 'Core\\\\Str'." })).toEqual({ code: 1, out: "", err: "nv proofs: no group 'Core\\\\Str'." });
+    expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).code).toBe(1);
+    expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).err).toBe("the batched `nv proofs --verify` printed no verdict for Core\\Str");
+  });
+});
+
 describe("judgeTests", () => {
   const disk = (rel: string) => rel !== "tests/conformance/missing.nvst";
   test("a suite needs its summary, no failure, every named case run", () => {
@@ -172,6 +223,13 @@ describe("the whole sweep", () => {
     const r = await acceptance(plan, opts(s));
     expect(r.fail).toBe("cmd2 red");
     expect(s.ran).toEqual(["catch", "setup", "over", "floor-fix", "cmd2"]);
+  });
+
+  test("the sweep names each tier's checks the memo does not answer before the first of them runs", async () => {
+    const told: string[][] = [];
+    const s = { ...fake([]), batch: (checks: Check[]) => told.push(checks.map((c) => c.id)) };
+    await acceptance(plan, opts(s, new GreenMemo({ cmd2: "k-cmd2" })));
+    expect(told).toEqual([["catch"], ["setup"], ["floor-fix"], ["cmd3"], ["goal-fix"], ["over"], ["rel"]]);
   });
 
   test("a collecting sweep runs past each red and names every one", async () => {

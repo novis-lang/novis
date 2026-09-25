@@ -311,6 +311,7 @@ async function runChecks(filters: Filters): Promise<number> {
   const { shown, labelOf } = found;
   const order = tiers(shown, labelOf).flatMap((t) => t.checks);
   const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  sweep.batch(order);
   let red = 0;
   const origin = await holdOrigin();
   console.error(`  ${origin.line}`);

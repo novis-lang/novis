@@ -6,7 +6,10 @@
 // A sweep shares every process between the checks that ask for the same one. Two checks naming one
 // `argv` in one directory get one run, and each judges its own exit and `want` against it. The same holds
 // for a cargo argument list, an `nvs test` argument list and a crate's test executables. The tree
-// cannot change inside one sweep, so a second run would only answer the same thing again.
+// cannot change inside one sweep, so a second run would only answer the same thing again. The
+// `nv proofs --verify --group` checks of one tier share a run too: the first one reached starts one
+// `nv proofs --verify` over every group the tier's checks name, and each check is judged on its own
+// groups' sections of what that run prints, so the roster is read and the pool filled once.
 //
 // A fixture and a suite run the debug CLI, built once per sweep by `cargo build` over the whole
 // workspace. A `cargo test -p <crate>` check, bare or with one `--test <name>`, runs that crate's test
@@ -28,8 +31,7 @@
 // `minPassing` is not remembered, since the next sweep must report it again.
 //
 // Not here yet, and each is the Python driver's until it is: reusing `nv verify`'s green test records,
-// one batched `nv proofs --verify` over every proofs check, the floor gate, the WSL leg and the valgrind
-// sweep.
+// the floor gate, the WSL leg and the valgrind sweep.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -236,6 +238,58 @@ export function testExecutables(json: string): Map<string, TestExe[]> {
   return exes;
 }
 
+/** The groups a `bun nv proofs --verify --group G...` check names, in order; null for any other check. */
+export function proofGroups(c: Check): string[] | null {
+  const argv = c.argv ?? [];
+  if (c.kind !== "command" || (c.cwd ?? ".") !== "." || argv.slice(0, 4).join(" ") !== "bun nv proofs --verify") return null;
+  const groups: string[] = [];
+  for (let i = 4; i < argv.length; i++) {
+    if (argv[i] === "--group" && i + 1 < argv.length) groups.push(argv[++i]!);
+    else if (argv[i]!.startsWith("--group=")) groups.push(argv[i]!.slice("--group=".length));
+    else return null;
+  }
+  return groups.length > 0 ? groups : null;
+}
+
+/**
+ * Each group's section of a batched `nv proofs --verify` run's stdout, from its `== G` line to its
+ * `-- G: passed` or `-- G: failed` line, with both kept, and whether it passed.
+ */
+export function proofSections(out: string): Map<string, { passed: boolean; lines: string[] }> {
+  const sections = new Map<string, { passed: boolean; lines: string[] }>();
+  let group: string | null = null;
+  let lines: string[] = [];
+  for (const line of stdoutLines(out)) {
+    if (line.startsWith("== ")) {
+      group = line.slice(3);
+      lines = [line];
+    } else if (group !== null) {
+      lines.push(line);
+      if (line === `-- ${group}: passed` || line === `-- ${group}: failed`) {
+        sections.set(group, { passed: line.endsWith(": passed"), lines });
+        group = null;
+      }
+    }
+  }
+  return sections;
+}
+
+/**
+ * What `nv proofs --verify` over `groups` alone would have done, cut from a batched run over more groups.
+ * One group prints its lines with no `==` and `--` lines around them, as a run over one group does. A
+ * group the batch printed no verdict for fails with the batch's own output, which says why it stopped.
+ */
+export function proofOutcome(groups: string[], batch: Outcome): Outcome {
+  const sections = proofSections(batch.out);
+  const missing = groups.find((g) => !sections.has(g));
+  if (missing !== undefined) {
+    return { code: batch.code === 0 ? 1 : batch.code, out: batch.out, err: batch.err.trim() !== "" ? batch.err : `the batched \`nv proofs --verify\` printed no verdict for ${missing}` };
+  }
+  const mine = groups.map((g) => sections.get(g)!);
+  const lines = groups.length === 1 ? mine[0]!.lines.slice(1, -1) : mine.flatMap((s) => s.lines);
+  return { code: mine.every((s) => s.passed) ? 0 : 1, out: `${lines.join("\n")}\n`, err: "" };
+}
+
 /** Runs `argv`, and turns a program that cannot start into exit -1 with the reason on stderr. */
 async function capture(argv: string[], cwd: string = ROOT, env?: Record<string, string>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Outcome> {
   try {
@@ -259,8 +313,19 @@ export class Sweep {
   private release: Promise<Outcome> | undefined;
   private exes: Promise<Map<string, TestExe[]> | { fail: string }> | undefined;
   private readonly memo = new Map<string, Promise<Outcome>>();
+  private proofs: { groups: string[]; run?: Promise<Outcome> } | undefined;
 
   constructor(private readonly opts: SweepOptions) {}
+
+  /**
+   * Names the checks the sweep is about to reach, so the first `nv proofs --verify --group` check among
+   * them runs every group they name in one process. Fewer than two groups is no batch, since a run over
+   * one group prints no sections to cut. A batch already started is kept by the checks that await it.
+   */
+  batch(checks: Check[]): void {
+    const groups = [...new Set(checks.flatMap((c) => proofGroups(c) ?? []))];
+    this.proofs = groups.length > 1 ? { groups } : undefined;
+  }
 
   private once(key: string, what: string, thunk: () => Promise<Outcome>): Promise<Outcome> {
     let p = this.memo.get(key);
@@ -361,6 +426,15 @@ export class Sweep {
     }
 
     if (c.kind === "command") {
+      const groups = proofGroups(c);
+      const batch = this.proofs;
+      if (groups !== null && batch !== undefined && groups.every((g) => batch.groups.includes(g))) {
+        batch.run ??= (async () => {
+          this.opts.onRun?.(`bun nv proofs --verify over ${batch.groups.length} groups`);
+          return capture(["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((g) => ["--group", g])]);
+        })();
+        return none(judgeCommand(c, proofOutcome(groups, await batch.run), label));
+      }
       let argv = c.argv ?? [];
       if (argv.includes("{nvs}")) {
         const exe = await this.binary();
@@ -508,8 +582,8 @@ export function owedChecks(checks: Check[], label: (n: number) => string, memo: 
 
 export interface AcceptanceOptions {
   label: (n: number) => string;
-  /** What runs and judges one check: a `Sweep`, or a stand-in under test. */
-  sweep: { check(c: Check): Promise<Verdict> };
+  /** What runs and judges one check: a `Sweep`, or a stand-in under test. `batch` is told each tier's checks the memo does not answer, before the first of them runs. */
+  sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void };
   /** A check's key over the tree as the sweep began, or null when it has none. */
   key: (c: Check) => string | null;
   memo: GreenMemo;
@@ -545,6 +619,7 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
 
   for (const tier of tiers(checks, o.label)) {
     const fails: { c: Check; fail: string }[] = [];
+    o.sweep.batch?.(tier.checks.filter((c) => o.full || !o.memo.answers(c, o.key(c))));
     for (const c of tier.checks) {
       if (answer(c)) continue;
       if (!pending.has(c.id)) o.trace?.(c, false);
