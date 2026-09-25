@@ -1,0 +1,21 @@
+<?nvs
+// Measures turning a cosine into an angle, as a program does when it finds the
+// angle between two directions.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the cosine used this round depends on last round's total.
+            float $cosine = Core\Math::cos($total);
+            $total = $total + Core\Math::acos($cosine);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

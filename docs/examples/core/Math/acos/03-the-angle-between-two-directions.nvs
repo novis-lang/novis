@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a delivery app finds the angle between the direction a driver is
+// going and the direction of the next stop.
+
+class Heading {
+    // Returns the angle between two directions, in whole degrees.
+    public static function turn(float $ax, float $ay, float $bx, float $by): float {
+        // The cosine of the angle is the dot product divided by both lengths.
+        float $cosine = ($ax * $bx + $ay * $by)
+            / (Core\Math::hypot($ax, $ay) * Core\Math::hypot($bx, $by));
+        // Rounding can move the cosine a tiny bit past 1.0, so it is kept in range.
+        float $angle = Core\Math::acos(Core\Math::clamp($cosine, -1.0, 1.0));
+        return Core\Math::round(Core\Math::toDegrees($angle));
+    }
+}
+
+// Driving east, the next stop is to the north-east. This prints 45.
+echo Heading::turn(1.0, 0.0, 3.0, 3.0), "\n";
+
+// Driving east, the next stop is to the north. This prints 90.
+echo Heading::turn(1.0, 0.0, 0.0, 2.0), "\n";
+
+// Driving east, the next stop is behind. This prints 180.
+echo Heading::turn(1.0, 0.0, -5.0, 0.0), "\n";
