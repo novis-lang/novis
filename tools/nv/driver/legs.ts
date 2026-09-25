@@ -76,7 +76,7 @@ export interface LegsOptions {
   programs: Check[];
   /** The `nvs-suite` checks the sweep reached. */
   suites: Check[];
-  /** The `setup` checks the sweep reached, which the WSL leg runs again inside its copy. */
+  /** Every `setup` check of the goal, reached by the sweep or held back from it, which the WSL leg runs inside its copy. */
   setups: Check[];
   /** The plan's fixture list and valgrind skip list (goal record `files`, `env.valgrind.skip`). */
   files: string[];

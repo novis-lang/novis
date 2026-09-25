@@ -407,7 +407,9 @@ async function sweepOver(
   const legs: LegsOptions = {
     programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
     suites: checks.filter((c) => c.kind === "nvs-suite"),
-    setups: checks.filter((c) => c.setup === true),
+    // From the whole goal, not `checks`: a setup check is heavy, so a shut floor gate holds it back while
+    // the leg still runs the fixtures that read what it writes.
+    setups: (goal.checks as Check[]).filter((c) => c.setup === true),
     files: goal.files,
     valgrindSkip: goal.env.valgrind?.skip ?? [],
     wslTarget: goal.env.wsl?.targetDir ?? null,

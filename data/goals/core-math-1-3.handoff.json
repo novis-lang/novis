@@ -1,27 +1,18 @@
 {
-  "state": "Goal `core-math-1-3` is reached: `bun nv proofs --verify --only` over its thirteen `Core\\Math` members (`abs` to `cosh`) says nothing owed, 0 failed.\n`clamp`, `cos` and `cosh` got every feature proof this session, and their perf figures are recorded. Their cards in `crates/nvs-stdlib/src/math.rs` are rewritten in plain words.\n`abs`'s example 03 still carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\n`bun nv verify --doc`, `bun nv owners --closes core-math-1-3` and `bun nv playbook --closes core-math-1-3` are all green.\nThe WSL floor check `wsl examples/queue-sqlite.nvs` should be green now that the WSL leg runs the goal's `setup` checks. It has not been seen green on a driver sweep yet.",
+  "state": "Goal `core-math-1-3` is reached: `bun nv proofs --verify --only` over its thirteen `Core\\Math` members (`abs` to `cosh`) says nothing owed, 0 failed.\n`abs`'s example 03 still carries `// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union` (a bounded type variable, M10).\nThe WSL floor check `wsl examples/queue-sqlite.nvs` was red because the WSL leg got no `setup` checks when the floor gate was shut. Both setup checks are `memoize: false` and so heavy, and the scoped sweep held them back.\n`tools/nv/cmd/loop.ts`'s `sweepOver` now hands the leg every `setup` check of the goal. By hand in the WSL copy, `nvs queue migrate --config examples/queue-sqlite.toml` and then the fixture both pass.\n`bun nv verify --doc`, `bun nv owners --closes core-math-1-3` and `bun nv playbook --closes core-math-1-3` were green when the goal was first claimed.",
   "next": {
     "stage": 2,
     "title": "the dossier, Core\\Math (1/3)",
     "files": [],
-    "note": ", done. The next goal starts from its own handoff record.",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs`, done. The next goal starts from its own handoff record.",
     "items": [
       {
         "done": true,
-        "text": "**`Core\\Math::clamp`**, every feature proof. `crates/nvs-stdlib/src/math.rs:520`"
-      },
-      {
-        "done": true,
-        "text": "**`Core\\Math::cos`**, every feature proof. `crates/nvs-stdlib/src/math.rs:830`"
-      },
-      {
-        "done": true,
-        "text": "**`Core\\Math::cosh`**, every feature proof. `crates/nvs-stdlib/src/math.rs:926`"
+        "text": "**The WSL leg runs every `setup` check of the goal**, not only the ones the scoped sweep reached. `tools/nv/cmd/loop.ts:410`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Math::abs`'s result is typed as the whole union. The gap record `nvs-stdlib/math-abs-result-is-the-whole-union` owns it (M10).",
-    "`Core\\Math` has no `isInfinite`. A program compares with `Core\\Math::INFINITY` instead. Nothing owns this yet: docs/spec/01-core-library.md § 3."
+    "`abs`'s result-is-the-whole-union gap is M10's (`data/gaps/nvs-stdlib/`)."
   ]
 }
