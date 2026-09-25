@@ -14,7 +14,7 @@ const graph: Graph = new Map([
 ]);
 
 function sources(checks: Check[], wide: string[] = []): Record<string, string> {
-  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), observed: new Map(), proofReads: new Map() });
+  const us = units({ graph, checks, reads: new Map(), wide: new Set(wide), proofReads: new Map() });
   return Object.fromEntries(us.map((u) => [u.name, u.source]));
 }
 
@@ -39,7 +39,6 @@ describe("the units a key answers for", () => {
         { kind: "command", name: "vsix", cwd: "editors/vscode", argv: ["npm", "run", "package"] },
         { kind: "command", name: "fuzz", argv: ["wsl.exe", "--", "bash", "-lc", "cargo +nightly fuzz run prefix"] },
         { kind: "command", name: "tsan", argv: ["wsl.exe", "--", "bash", "-lc", "bash tools/tsan.sh"] },
-        { kind: "command", name: "gate", argv: ["python", "tools/never-observed.py"] },
         { kind: "command", name: "grep", argv: ["git", "grep", "-n", "x", "--", "crates/a.rs"] },
         { kind: "command", name: "glob", argv: ["git", "grep", "-n", "x", "--", "crates/*.rs"] },
         { kind: "command", name: "bun", argv: ["bun", "nv", "selftest"] },
@@ -59,7 +58,6 @@ describe("the units a key answers for", () => {
       vsix: "partitions",
       fuzz: "package key",
       tsan: "package key",
-      gate: "everything",
       grep: "partitions",
       glob: "everything",
       bun: "everything",
@@ -79,7 +77,7 @@ describe("the units a key answers for", () => {
 
   test("a proofs group keys on its own recorded paths, and on everything before it has run", async () => {
     const check: Check = { kind: "command", name: "g", argv: ["bun", "nv", "proofs", "--verify", "--group", "lang:types"] };
-    const records = (proofReads: Map<string, string[]>) => ({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), observed: new Map(), proofReads });
+    const records = (proofReads: Map<string, string[]>) => ({ graph, checks: [check], reads: new Map(), wide: new Set<string>(), proofReads });
     const tree = await Tree.read();
     const unit = (proofReads: Map<string, string[]>) => units(records(proofReads)).find((u) => u.name === "proofs: lang:types")!;
     expect(isWide(unit(new Map()).parts(tree))).toBe(true);
@@ -104,7 +102,6 @@ describe("the units a key answers for", () => {
     expect(role({ kind: "command", cwd: "editors/vscode", argv: ["npm", "test"] })).toBe("editor");
     expect(role({ kind: "command", argv: ["bun", "nv", "db-matrix", "--all"] })).toBe("db-matrix");
     expect(role({ kind: "command", argv: ["git", "grep", "-e", "tools/tsan.sh", "--", "ci.yml"] })).toBe("grep");
-    expect(role({ kind: "command", argv: ["python", "tools/owners.py", "--check"] })).toBe("gate");
     expect(role({ kind: "command", argv: ["bun", "nv", "check"] })).toBe("nv");
   });
 });

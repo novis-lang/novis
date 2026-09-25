@@ -14,8 +14,7 @@
 //   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
 //   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
-// - `observed`: a check over what it was last seen to read. A Python gate keys on what
-//   `tools/observe.py` saw it open, list and start. A proofs group, the unit `proofs: <group>` for
+// - `observed`: a check over what it was last seen to read. A proofs group, the unit `proofs: <group>` for
 //   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, what the
 //   roster and the audit read for every group, and the example, attack and bench paths `nv proofs`
 //   last recorded for that group. A check that names groups is the union of its groups.
@@ -43,13 +42,13 @@ import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { OTHER, PARTITIONS, STATE, partitionOf } from "./partition.ts";
 import { TIERS, digest } from "./scan.ts";
-import { NOT_INPUTS, type Tree } from "./tree.ts";
+import type { Tree } from "./tree.ts";
 
 export type Source = "verify record" | "binary key" | "observed" | "package key" | "partitions" | "everything";
 
 /** What a unit is: a test binary, a leg, or the kind of thing a check runs. A probe names units by
  * `<role>: <name>`. */
-export type Role = "binary" | "leg" | "program" | "suite" | "test" | "nvs" | "editor" | "vsix" | "fuzz" | "tsan" | "db-matrix" | "gate" | "nv" | "grep" | "other";
+export type Role = "binary" | "leg" | "program" | "suite" | "test" | "nvs" | "editor" | "vsix" | "fuzz" | "tsan" | "db-matrix" | "nv" | "grep" | "other";
 
 /** One `[[check]]` table, as the goal file writes it. */
 export type Check = { kind: string } & Record<string, unknown>;
@@ -64,13 +63,6 @@ export interface Unit {
   parts(tree: Tree): Part[];
 }
 
-/** What `tools/observe.py` recorded for one Python gate. */
-export interface Observed {
-  files: string[];
-  dirs: string[];
-  spawns: string[][];
-}
-
 /** Everything a unit's key is read from besides the tree. */
 export interface Records {
   graph: Graph;
@@ -79,8 +71,6 @@ export interface Records {
   reads: Map<string, string[]>;
   /** The test binaries keyed on everything. */
   wide: Set<string>;
-  /** Each Python gate's reads, by `argv` and `cwd` joined with NULs. */
-  observed: Map<string, Observed>;
   /** Each proofs group's own paths, as `nv proofs` last recorded them. */
   proofReads: Map<string, string[]>;
 }
@@ -88,7 +78,6 @@ export interface Records {
 export const GOAL = "docs/agent/loop-goal.toml";
 const READS = ".agent-tmp/impact-reads.json";
 const WIDE = "tools/data/impact-wide.txt";
-const OBSERVED = ".loop/check-reads.json";
 /** Each proofs group's example and attack directories and bench file, which `nv proofs` writes. */
 export const PROOF_READS = ".loop/proof-reads.json";
 
@@ -151,13 +140,6 @@ export function loadRecords(graph: Graph, goal: string | null = GOAL): Records {
       wide.add(line.split("  --")[0]!.trim());
     }
   }
-  const observed = new Map<string, Observed>();
-  const seen = readJson(OBSERVED);
-  if (seen && typeof seen === "object") {
-    for (const [key, v] of Object.entries(seen as Record<string, Observed>)) {
-      if (v && Array.isArray(v.files) && Array.isArray(v.dirs) && Array.isArray(v.spawns)) observed.set(key, v);
-    }
-  }
   const proofReads = new Map<string, string[]>();
   const recorded = readJson(PROOF_READS);
   if (recorded && typeof recorded === "object") {
@@ -165,7 +147,7 @@ export function loadRecords(graph: Graph, goal: string | null = GOAL): Records {
       if (Array.isArray(v)) proofReads.set(group, v.filter((p): p is string => typeof p === "string"));
     }
   }
-  return { graph, checks: doc.check ?? [], reads, wide, observed, proofReads };
+  return { graph, checks: doc.check ?? [], reads, wide, proofReads };
 }
 
 /** A check's name, as the driver files its verdict: its `name`, else its `file`, else what it runs. */
@@ -226,23 +208,6 @@ function path(tree: Tree, top: string): Part[] {
     const label = files.length === 1 && files[0] === top ? top : `${top}/`;
     return [{ label, partition: partitionOf(top + (label.endsWith("/") ? "/" : "")), tier: "raw", digest: digest(top, ...(files.length ? files.map((f) => `${f}\x01${tree.raw(f)}`) : ["absent"])) }];
   });
-}
-
-/** The names directly under `dir` (`.` is the root), which a listing reads. */
-function listing(tree: Tree, dir: string): Part[] {
-  return cached(tree, `listing\0${dir}`, () => {
-    const names = new Set<string>();
-    for (const f of dir === "." ? tree.files : tree.under(dir)) {
-      const rest = dir === "." ? f : f.slice(dir.length + 1);
-      if (rest) names.add(rest.split("/")[0]!);
-    }
-    return [{ label: `${dir}/ (listing)`, partition: partitionOf(dir === "." ? "" : `${dir}/`), tier: "raw", digest: digest(dir, ...[...names].sort()) }];
-  });
-}
-
-/** The set of paths in the tree, which a test for whether a path exists reads. */
-function pathSet(tree: Tree): Part[] {
-  return cached(tree, "paths", () => [{ label: "<paths>", partition: "paths", tier: "raw", digest: digest("paths", ...tree.files) }]);
 }
 
 /** Every `Cargo.toml` in the tree, workspace member or not. */
@@ -431,7 +396,6 @@ export function roleOf(c: Check): Role {
   if (runs(argv, FUZZ)) return "fuzz";
   if (runs(argv, TSAN)) return "tsan";
   if (runsDbMatrix(argv)) return "db-matrix";
-  if (argv[0] === "python" && argv[1]?.startsWith("tools/")) return "gate";
   if (argv[0] === "bun") return "nv";
   if (argv[0] === "git" && argv[1] === "grep") return "grep";
   return "other";
@@ -506,12 +470,6 @@ function checkUnit(r: Records, c: Check): Unit {
     });
   }
 
-  if (argv[0] === "python" && cwd === "." && argv[1]?.startsWith("tools/") && argv[1].endsWith(".py") && argv[1] !== "tools/observe.py") {
-    const seen = r.observed.get([...argv, cwd].join("\0"));
-    if (!seen || c.setup) return wide;
-    return unit("observed", (t) => observedParts(t, g, seen) ?? everything(t));
-  }
-
   const groups = proofGroups(c);
   if (groups) return unit("observed", (t) => union(...groups.map((gr) => proofParts(t, r, gr))));
 
@@ -525,29 +483,3 @@ function checkUnit(r: Records, c: Check): Unit {
   return wide;
 }
 
-/** A Python gate's parts: the path set, every file it opened and every directory it listed, and
- * `nvs` at `shipped` when it started one. `undefined` when it started anything else. */
-function observedParts(tree: Tree, graph: Graph, seen: Observed): Part[] | undefined {
-  const lists: Part[][] = [pathSet(tree)];
-  let code = false;
-  for (let argv of seen.spawns) {
-    if (argv.length === 1) argv = argv[0]!.split(/\s+/).filter(Boolean);
-    const program = (argv[0] ?? "").replace(/\\/g, "/").split("/").pop()!.toLowerCase();
-    if ((program === "git" || program === "git.exe") && argv[1] === "ls-files") continue;
-    if (program !== "nvs" && program !== "nvs.exe") return undefined;
-    code = true;
-    for (const a of argv.slice(1)) {
-      if (/^([A-Za-z]:)?[\\/]/.test(a)) continue;
-      const rel = a.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-      if (rel && tree.under(rel).length > 0) lists.push(path(tree, rel));
-    }
-  }
-  const ignored = (rel: string) => rel.split("/").some((p) => NOT_INPUTS.has(p));
-  for (const rel of seen.files) {
-    if (rel.split("/")[0] === "target") code = true;
-    else if (!ignored(rel)) lists.push(path(tree, rel));
-  }
-  for (const rel of seen.dirs) if (!ignored(rel)) lists.push(listing(tree, rel));
-  if (code) lists.push(build(tree, graph, program("shipped")));
-  return union(...lists);
-}
