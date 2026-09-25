@@ -628,9 +628,12 @@ One file set per bullet.
 
 - **Ported to `bun nv <name>`:**
   - `bench`, `bench-load`, `bench-proxied`, `db-matrix`, `release`, `gen-attribution`;
-  - `ci-changes`, `ci-green`, `lints`, `loop-stats`, `machine`, `observe`, `proctree`;
-  - `relink`, `try`, `class-cards`, `exe-icons`, `origin`, `written`;
+  - `ci-changes`, `ci-green`, `lints`, `loop-stats`, `machine`;
+  - `relink`, `try`, `class-cards`, `exe-icons`, `origin`;
   - `webcrypto-vectors.mjs`.
+- **Not ported, and deleted by Stage 12:** `observe` records what a *Python* script reads, so it ends
+  with the last Python gate. `proctree` is the Python driver's halt key, which `nv loop` does not
+  have. `written` is `tools/nv/lib/written.ts`, a library with no command of its own.
 - **`nv loop-stats --guard`** counts the guard's denials per session and per rule, from the
   `guard: <rule>:` reasons in the session logs. A habit that comes back shows as a rising count.
 - **What stays as it is**, because its platform is its purpose: `tsan.sh`, `leak-check.sh`,

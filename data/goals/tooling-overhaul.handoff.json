@@ -1,31 +1,26 @@
 {
-  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. `bun nv audit ci` prints both of its `want` lines. `bun nv loop-stats` (`tools/nv/cmd/loop-stats.ts`) is the port of `tools/loop-stats.py`, with every report: the default one (per session, constants, head, drift, projection, group curve), `--attribute`, `--calibrate [--write]` and `--json`. It adds `--guard`: the guard's denials per rule and per session, read from `hook error: guard: <rule>:` tool results. A rule is flagged `RISING` when the later half of the sessions since its first denial counts more than the earlier half. The port also recognises `bun nv peek`, `nv orient` and `data/goals/`, which the Python tool misses. So its attribution differs from the Python tool's by a few percent, and its constants match exactly.\n\n`tools/loop-stats.py` is still on disk, and so are its citations (`AGENTS.md`, `docs/agent/*.md`). The same holds for every other Python tool ported so far. Deleting them and repointing the citations is Stage 12's work (`no Python`). `tool(\"loop-stats\")` in `tools/nv/cmd/orient.ts` already resolves to `bun nv loop-stats`, because the command file exists.",
+  "state": "**Goal `tooling-overhaul`: Stages 9 and 10 are done, and Stage 11 is in progress.** The cutover is on `main`. `main` stays frozen, and tag `pre-overhaul` is the rollback.\n\nBoth Stage 11 checks pass. The small tools are ported: `bun nv relink` (`tools/nv/cmd/relink.ts`), `bun nv exe-icons` and `bun nv origin`. The relink logic lives in `tools/nv/lib/relink.ts`. The driver's release build (`tools/nv/driver/accept.ts` `releaseCli`) and `nv proofs`' builds (`tools/nv/proofs/run.ts` `builtBinary`) now go through `linked`, so an editor holding `target/release/nvs.exe` no longer fails a release link. The TS driver had lost that behaviour at the cutover. `bun nv exe-icons` writes both icons byte-identical to the committed ones.\n\n`observe`, `proctree` and `written` are not ported, and the goal's Stage 11 bullet now says why: nothing in `tools/nv` runs `observe`, `nv loop` has no halt key for `proctree`, and `written` is `tools/nv/lib/written.ts`. Stage 12 deletes all three with the rest of the Python tools. Deleting the ported `.py` files and repointing their citations is Stage 12's work (`no Python`).",
   "next": {
     "stage": 11,
-    "title": "the small unported tools",
+    "title": "the two bench drivers",
     "files": [],
-    "note": "one file set: `tools/nv/main.ts` and one new `tools/nv/cmd/<name>.ts` for each Python tool below. Each is under 200 lines, so read it whole.",
+    "note": "one file set: `tools/nv/cmd/bench.ts`, `tools/nv/main.ts`, and one new `tools/nv/cmd/<name>.ts` for each Python tool below.",
     "items": [
       {
         "done": false,
-        "text": "**Port `tools/relink.py` to `bun nv relink`**: `tools/relink.py:1`, registered in `tools/nv/main.ts:55`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this."
+        "text": "**Port `tools/bench-load.py` to `bun nv bench-load`**: `tools/bench-load.py:1`, registered in `tools/nv/main.ts:57`. The goal's Stage 11 bullet `Ported to bun nv <name>` owns this. Read `tools/nv/cmd/bench.ts:395` for what it already shares."
       },
       {
         "done": false,
-        "text": "**Port `tools/exe-icons.py` to `bun nv exe-icons`**: `tools/exe-icons.py:1`. Same bullet."
-      },
-      {
-        "done": false,
-        "text": "**Port `tools/origin.py` to `bun nv origin`**: `tools/origin.py:1`. `tools/written.py:1` may already be covered by `tools/nv/lib/written.ts`. Check that before porting it."
-      },
-      {
-        "done": false,
-        "text": "**Port `tools/observe.py` and `tools/proctree.py`**: `tools/observe.py:1`, `tools/proctree.py:1`. Same bullet."
+        "text": "**Port `tools/bench-proxied.py` to `bun nv bench-proxied`**: `tools/bench-proxied.py:1`. It is long, so read it in regions. Same bullet."
       }
     ]
   },
   "backlog": [
-    "`tools/machine.py` (349 lines), `tools/bench-load.py` (314), `tools/bench-proxied.py` (579) and `tools/webcrypto-vectors.mjs` (1030) are the rest of Stage 11's port list. Each one is a group of its own. Owner: the goal's Stage 11 bullet.",
-    "Stage 12 deletes `tools/loop-stats.py` and every other ported Python tool, and repoints their citations to `bun nv`. Owner: `docs/agent/goals/tooling-overhaul.md` § Stage 12."
+    "Port `tools/machine.py` to `bun nv machine`: `tools/machine.py:1`. Goal Stage 11 bullet.",
+    "Port `tools/webcrypto-vectors.mjs` to a `bun nv` command. Goal Stage 11 bullet.",
+    "The Cargo-editing tools (`lints`, `release`) read manifests with `smol-toml`. Goal Stage 11 bullet.",
+    "The website's `tmLanguage` is rendered from the editor's grammar. Goal Stage 11 bullet.",
+    "`docs/setup.md` says Bun is installed and `bun install` runs after a clone. Goal Stage 11 bullet."
   ]
 }
