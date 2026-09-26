@@ -1,5 +1,5 @@
 {
-  "live": "core-os-and-2-more",
+  "live": "core-path",
   "goals": [
     "core-depth",
     "concurrency",
