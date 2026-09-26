@@ -22,8 +22,11 @@
 //! readers of cards print, and no program's behaviour.
 //!
 //! A path is absolute, `/`-separated on every platform and without Windows' `\\?\` prefix, and it
-//! is not canonicalized: a link reads as the path that was named. Each distinct line is written
-//! once per process. Several processes may append to one file, as an `nvs test` run and the case
+//! is not canonicalized: a link reads as the path that was named. A path longer than the
+//! operating system accepts is not written: no file system can be asked about it, so no change to
+//! the tree moves what a read or a test of it gives, and a program that tests every parent of a
+//! very long path would otherwise write a log that grows with the square of its length. Each
+//! distinct line is written once per process. Several processes may append to one file, as an `nvs test` run and the case
 //! processes it starts do, because each line goes out as one write to a file opened for appending.
 //!
 //! Without the variable nothing is written, and each call costs one atomic load. A log that is
@@ -158,6 +161,30 @@ pub fn shown(path: &Path) -> String {
     text.into_owned()
 }
 
+/// The longest path the operating system accepts: 32,767 UTF-16 units on Windows, and on every
+/// other platform 4,095 bytes, `PATH_MAX` less its terminating zero on Linux and more than any
+/// other system takes.
+const LONGEST_PATH: usize = if cfg!(windows) { 32_767 } else { 4_095 };
+
+/// Whether no file system could be asked about `path`, which [`shown`] spells as `shown`. Windows
+/// measures the absolute path it resolves, which is what `shown` holds; every other platform
+/// measures the path as it was named.
+fn unnameable(path: &Path, shown: &str) -> bool {
+    if cfg!(windows) {
+        shown.encode_utf16().count() > LONGEST_PATH
+    } else {
+        path.as_os_str().len() > LONGEST_PATH
+    }
+}
+
+/// Writes the line for `kind` and `path`, unless no file system could be asked about the path.
+fn write_path(kind: Kind, path: &Path) {
+    let shown = shown(path);
+    if !unnameable(path, &shown) {
+        write(kind, &shown);
+    }
+}
+
 static LOG: OnceLock<Option<Mutex<Log>>> = OnceLock::new();
 
 /// The process's log, opened on first use from [`LOG_ENV`].
@@ -265,7 +292,7 @@ pub fn every_card() {
 /// beneath it.
 pub fn tree(path: &Path) {
     if enabled() {
-        write(Kind::Tree, &shown(path));
+        write_path(Kind::Tree, path);
     }
 }
 
@@ -315,21 +342,21 @@ impl Drop for Quiet {
 /// Records that the file at `path` was read whole.
 pub fn file(path: &Path) {
     if enabled() {
-        write(Kind::File, &shown(path));
+        write_path(Kind::File, path);
     }
 }
 
 /// Records that the directory at `path` was listed.
 pub fn dir(path: &Path) {
     if enabled() {
-        write(Kind::Dir, &shown(path));
+        write_path(Kind::Dir, path);
     }
 }
 
 /// Records that `path` was tested for existence.
 pub fn exists(path: &Path) {
     if enabled() {
-        write(Kind::Exists, &shown(path));
+        write_path(Kind::Exists, path);
     }
 }
 
@@ -443,6 +470,22 @@ mod tests {
         );
         let ((), outside) = capture(|| ());
         assert!(outside.is_empty(), "a capture starts empty: {outside:?}");
+    }
+
+    #[test]
+    fn a_path_longer_than_the_system_accepts_writes_no_line() {
+        let longest = shown(Path::new("a"));
+        let base = longest.strip_suffix('a').unwrap_or(&longest).to_string();
+        let fits = format!("{base}{}", "x".repeat(LONGEST_PATH - base.len()));
+        let over = format!("{fits}x");
+        let ((), lines) = capture(|| {
+            exists(Path::new(&fits));
+            exists(Path::new(&over));
+            file(Path::new(&over));
+            dir(Path::new(&over));
+            tree(Path::new(&over));
+        });
+        assert_eq!(lines, [format!("exists\t{fits}")]);
     }
 
     #[test]

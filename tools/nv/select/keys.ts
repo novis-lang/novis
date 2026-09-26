@@ -21,6 +21,7 @@
 // an input (`target`, `.agent-tmp`, `.git`, ...), is no key: nothing a change to the tree can move.
 // Class and card names are lowercased because the compiler compares them without regard to ASCII case.
 
+import { closeSync, openSync, readSync } from "node:fs";
 import { isAbsolute, posix, resolve } from "node:path";
 import { NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import type { Reads } from "../lib/reads.ts";
@@ -91,41 +92,95 @@ export function repoPath(path: string, root: string = ROOT): string | null {
  * written by this repository's own code, so a line it cannot read means the reader is out of date. */
 export function logKeys(text: string, root: string = ROOT): Set<string> {
   const keys = new Set<string>();
-  for (const raw of text.split("\n")) {
-    const line = raw.replace(/\r$/, "");
-    if (line === "") continue;
-    const tab = line.indexOf("\t");
-    if (tab < 0) {
-      keys.add(WILD);
-      continue;
-    }
-    const kind = line.slice(0, tab);
-    const value = line.slice(tab + 1);
-    switch (kind) {
-      case "class":
-        keys.add(classKey(value));
-        break;
-      case "card":
-        keys.add(cardKey(value));
-        break;
-      case "named":
-        keys.add(`named:${value}`);
-        break;
-      case "file":
-      case "dir":
-      case "exists":
-      case "tree": {
-        const p = repoPath(value, root);
-        if (p === null) break;
-        if (p === "." && kind !== "tree") keys.add(`${kind}:.`);
-        else keys.add(`${kind}:${p}`);
-        break;
+  for (const raw of text.split("\n")) lineKey(keys, raw, root);
+  return keys;
+}
+
+/**
+ * The longest log line `logFileKeys` reads, in bytes: a kind, a tab and a path of 32,767 UTF-16 units,
+ * the most any file system takes. `nvs_footprint` writes no line for a longer path, since no change to
+ * the tree can move what a test of one answers.
+ */
+export const LONGEST_LOG_LINE = 128 * 1024;
+
+/**
+ * `logKeys` over the log at `path`, read a block at a time and never whole. A log is as long as what
+ * its processes touched, and a program that tests every parent of a long path writes one far larger
+ * than a string can hold. A line longer than `LONGEST_LOG_LINE` names no path, so it is no key.
+ */
+export function logFileKeys(path: string, root: string = ROOT): Set<string> {
+  const keys = new Set<string>();
+  const fd = openSync(path, "r");
+  try {
+    const block = Buffer.alloc(1 << 20);
+    let carry: Buffer[] = [];
+    let carried = 0;
+    let skipping = false;
+    for (;;) {
+      const n = readSync(fd, block, 0, block.length, null);
+      if (n === 0) break;
+      let start = 0;
+      for (let nl = block.indexOf(10, start); nl >= 0 && nl < n; nl = block.indexOf(10, start)) {
+        if (!skipping) {
+          const piece = block.subarray(start, nl);
+          const line = carried === 0 ? piece : Buffer.concat([...carry, piece]);
+          if (line.length <= LONGEST_LOG_LINE) lineKey(keys, line.toString("utf8"), root);
+        }
+        carry = [];
+        carried = 0;
+        skipping = false;
+        start = nl + 1;
       }
-      default:
-        keys.add(WILD);
+      if (start < n && !skipping) {
+        carried += n - start;
+        if (carried > LONGEST_LOG_LINE) {
+          skipping = true;
+          carry = [];
+          carried = 0;
+        } else carry.push(Buffer.from(block.subarray(start, n)));
+      }
     }
+    if (!skipping && carried > 0) lineKey(keys, Buffer.concat(carry).toString("utf8"), root);
+  } finally {
+    closeSync(fd);
   }
   return keys;
+}
+
+/** Adds the key one log line gives to `keys`. */
+function lineKey(keys: Set<string>, raw: string, root: string): void {
+  const line = raw.replace(/\r$/, "");
+  if (line === "") return;
+  const tab = line.indexOf("\t");
+  if (tab < 0) {
+    keys.add(WILD);
+    return;
+  }
+  const kind = line.slice(0, tab);
+  const value = line.slice(tab + 1);
+  switch (kind) {
+    case "class":
+      keys.add(classKey(value));
+      break;
+    case "card":
+      keys.add(cardKey(value));
+      break;
+    case "named":
+      keys.add(`named:${value}`);
+      break;
+    case "file":
+    case "dir":
+    case "exists":
+    case "tree": {
+      const p = repoPath(value, root);
+      if (p === null) break;
+      if (p === "." && kind !== "tree") keys.add(`${kind}:.`);
+      else keys.add(`${kind}:${p}`);
+      break;
+    }
+    default:
+      keys.add(WILD);
+  }
 }
 
 /** Held by an atom that listed every file name of the tree; moved by any path that came or went. */

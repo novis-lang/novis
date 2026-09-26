@@ -7,7 +7,7 @@ import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { CovMap, covFile, extract, ItemIndex, namesFromShow, namesToKeys, parseExport, recordedIn } from "../select/extract.ts";
-import { logKeys, repoPath } from "../select/keys.ts";
+import { LONGEST_LOG_LINE, logFileKeys, logKeys, repoPath } from "../select/keys.ts";
 import { scratch } from "./scratch.ts";
 
 const tree = scratch();
@@ -82,6 +82,27 @@ describe("extraction", () => {
     expect([...logKeys(log)].sort()).toEqual(["card:core\\process\\result", "class:*", "class:core\\math", "dir:docs/examples", "file:docs/examples/x.nvs", "named:Cargo.toml", "tree:."]);
     expect(logKeys("garbage without a tab\n").has("*")).toBe(true);
     expect(repoPath(`${ROOT}/crates/../Cargo.toml`)).toBe("Cargo.toml");
+  });
+
+  test("a log file is read a block at a time: lines across blocks join, and a line too long for any path is dropped", () => {
+    const at = (p: string) => join(ROOT, p).replace(/\\/g, "/");
+    // Every parent of a path far longer than any file system takes, the way a program that tests each
+    // parent of one writes them: past the longest line, the log holds no key.
+    const deep = at(`docs/${"inside/".repeat(40_000)}`);
+    const lines = ["class\tCore\\Math", `exists\t${deep}`, `file\t${at("docs/examples/x.nvs")}`, `exists\t${deep}more`];
+    // A block is 1 MiB: pad so a short line straddles the first block's end.
+    const pad = `exists\t${at(`docs/${"p".repeat((1 << 20) - 200 - at("docs/").length)}`)}`;
+    const text = [pad, "card\tCore\\Process\\Result", ...lines, "named\tCargo.toml"].join("\n");
+    tree.put("big.log", text);
+    const keys = logFileKeys(join(tree.root, "big.log"));
+    expect(keys.has("card:core\\process\\result")).toBe(true);
+    expect(keys.has("class:core\\math")).toBe(true);
+    expect(keys.has("file:docs/examples/x.nvs")).toBe(true);
+    expect(keys.has("named:Cargo.toml")).toBe(true);
+    expect([...keys].some((k) => k.length > LONGEST_LOG_LINE)).toBe(false);
+    // Every short line reads as `logKeys` reads it from a string.
+    const short = [...logKeys(text)].filter((k) => k.length <= LONGEST_LOG_LINE).sort();
+    expect([...keys].sort()).toEqual(short);
   });
 
   test("a record directory groups each atom's profiles, merge-pool ones included, with its log", () => {

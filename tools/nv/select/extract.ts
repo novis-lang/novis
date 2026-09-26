@@ -28,7 +28,7 @@ import { llvmTool } from "../lib/covws.ts";
 import { CACHE } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import type { Generated } from "./build.ts";
-import { fileWild, fnKey, logKeys, repoPath, WILD } from "./keys.ts";
+import { fileWild, fnKey, logFileKeys, repoPath, WILD } from "./keys.ts";
 import type { Keyed } from "./store.ts";
 
 /** Where a function's code is: a repo file, a generated file (`gen:<package>/<name>`), or null for code
@@ -292,7 +292,7 @@ export async function extract(rec: Recorded, objects: string[], covmap: CovMap, 
     }
   }
   if (rec.log) {
-    for (const k of logKeys(readFileSync(rec.log, "utf8"))) if (!keys.has(k)) keys.set(k, "");
+    for (const k of logFileKeys(rec.log)) if (!keys.has(k)) keys.set(k, "");
   }
   for (const f of rec.profraws) rmSync(f, { force: true });
   if (rec.log) rmSync(rec.log, { force: true });
