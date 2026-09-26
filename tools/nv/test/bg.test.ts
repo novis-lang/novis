@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { JOBS } from "../cmd/bg.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -7,8 +7,10 @@ import { run } from "../lib/proc.ts";
 
 const MAIN = join(ROOT, "tools", "nv", "main.ts");
 const started: string[] = [];
+const released: string[] = [];
 afterAll(() => {
   for (const id of started) rmSync(join(JOBS, id), { recursive: true, force: true });
+  for (const path of released) rmSync(path, { force: true });
 });
 
 const nv = (...args: string[]) => run([process.execPath, MAIN, "bg", ...args], { timeoutMs: 60_000 });
@@ -42,10 +44,20 @@ describe("nv bg", () => {
   });
 
   test("a job is listed while it runs and not after it ends", async () => {
-    const id = await startJob("await Bun.sleep(1500)");
-    expect((await nv("--list")).stdout).toContain(id);
-    expect((await nv("--wait", id)).code).toBe(0);
-    expect((await nv("--list")).stdout).not.toContain(id);
+    // The job runs until this file exists, so a slow machine cannot end it before `--list` looks.
+    const release = join(ROOT, ".agent-tmp", `bg-test-release-${process.pid}`);
+    try {
+      const id = await startJob(
+        `const { existsSync } = require("node:fs"); while (!existsSync(${JSON.stringify(release)})) await Bun.sleep(50)`,
+      );
+      expect((await nv("--list")).stdout).toContain(id);
+      writeFileSync(release, "");
+      expect((await nv("--wait", id)).code).toBe(0);
+      expect((await nv("--list")).stdout).not.toContain(id);
+    } finally {
+      writeFileSync(release, "");
+      released.push(release);
+    }
   });
 
   test("an id that names no job is a bad argument", async () => {

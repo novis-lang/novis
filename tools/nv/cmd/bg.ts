@@ -95,7 +95,10 @@ export function startJob(argv: string[]): string {
     windowsHide: true,
   });
   child.unref();
-  writeFileSync(join(dir, "job.json"), JSON.stringify({ ...job, pid: child.pid }, null, 2) + "\n");
+  // Written whole and then renamed, because the supervisor may already be reading this file.
+  const tmp = join(dir, "job.json.tmp");
+  writeFileSync(tmp, JSON.stringify({ ...job, pid: child.pid }, null, 2) + "\n");
+  renameSync(tmp, join(dir, "job.json"));
   return id;
 }
 
