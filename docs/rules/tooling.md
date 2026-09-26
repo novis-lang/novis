@@ -1802,4 +1802,12 @@ directory of the crates they build, and wait for the floor gate. That is the one
 check with `memoize = false` is never answered from the store, and `bun nv loop --goal-only --full`
 runs every atom of every check.
 
+**The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
+heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
+that the selection since the store's tree did not pick is a selection miss: it is printed, kept in the
+store until a full run finds the atom green again, and fails the run. `bun nv select --mutate tools/data/select-mutations.json` is the proof that the keys lose
+nothing: it applies one batch of breaking edits at a time, runs every atom that is not heavy against a
+copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
+reverts the edits.
+
 <sub>See also [`tooling/the-chain-names-its-live-goal`](tooling.md#tooling-the-chain-names-its-live-goal), [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program). Decided in [0226](../decisions/0226.md).</sub>

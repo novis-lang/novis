@@ -338,7 +338,20 @@ bun nv select --explain <atom>    # why one atom was selected or not: the key, t
 bun nv select --explain <check>   # what a plan check is made of, and why each of its atoms was selected or not
 bun nv select --stats             # counts only: atoms per kind and per reason, and the divergences
 bun nv select --seed              # record every atom from nothing, for a new platform or a lost store; long
+bun nv select --full              # run and record every atom that is not heavy, move the recorded tree, report each selection miss
+bun nv select --mutate FILE       # apply each batch of breaking edits FILE lists, run every atom on a store copy, require red ⊆ selected
+bun nv select --mutate FILE --batch N --jobs 16   # one batch only, 16 runs at once
 ```
+
+**The full run catches what the keys missed.** `--full` is the safety net ADR 0226 § 6 names: an atom
+red in it whose last verdict was green and which the selection did not pick is a selection miss. It is
+kept in the store under `select-miss:<platform>:<atom>` until a full run finds the atom green, and the
+command exits 1 while there is one. The loop runs it when the floor gate opens by its count. `--mutate
+tools/data/select-mutations.json` is the proof the keys lose no coverage: each batch is a few edits that
+each break something, applied together, and every atom that goes red must be one the selection picked.
+It never writes the real store: `NV_SELECT_STORE` names the file every `bun nv select` process opens in
+place of `.cache/select.sqlite`, and `--mutate` points it at a copy under `.agent-tmp/` that it deletes
+afterwards. The edits are reverted in a `finally`, and a batch fails when `git status` differs after it.
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
 runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
