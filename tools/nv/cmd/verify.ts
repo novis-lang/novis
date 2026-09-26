@@ -32,17 +32,20 @@
 // moved is selected: a test binary, a case of the two trees, and each step as one atom. A step that
 // executes no code of ours is keyed on the files it reads: `fmt` on every Rust file; `build`, `clippy`,
 // `doc` and the doc-tests on every file the dep-info cargo wrote names, and each build script's inputs;
-// the `bun nv` steps on what they were seen to read (`lib/reads.ts`, and in `bun test` through
-// `--preload`); `fuzz-lock` on the fuzz workspace's manifest and lock; the extension on its own
+// the `bun nv` steps on what they were seen to read (`lib/reads.ts`); the `nv` step's `tsc` on every
+// module under `tools/nv`, and each of its `bun test` files, run one process per file, as an atom of
+// its own on what that file was seen to read (`--preload`); `fuzz-lock` on the fuzz workspace's
+// manifest and lock; the extension on its own
 // directory. Whatever a step runs of `nvs` is recorded by coverage as well. `build` runs when it is
 // selected or when a later step that uses the binary runs. A step that is not selected is not started,
 // and prints `--` with the summary of its last green run. `--no-cache` selects everything.
 //
 // Every run records: each atom that ran records its footprint and verdict in the store, green or red.
-// A green run then moves the store's tree to the one it was selected against (`record.ts` `advance`):
-// every atom the change selected that this run did not run is marked owed first, so a proof program,
-// another case tree or a step `--fast` skipped stays selected for whoever runs it next. A red run moves
-// nothing, and its red atoms stay selected.
+// The run then moves the store's tree to the one it was selected against (`record.ts` `advance`),
+// whether it was green or red: every atom the change selected that this run did not run is marked
+// owed first, so a proof program, another case tree or a step `--fast` skipped stays selected for
+// whoever runs it next, and a red atom stays selected as red until a run of it is green. So the run
+// after one red test repeats that test, not the whole of the change's reach.
 //
 // `fmt` and `nvs-fmt` format rather than check, because a red `fmt` was only ever fixed by running the
 // formatter and verifying again. `fmt` runs first, so everything after it compiles the text the commit
@@ -97,10 +100,10 @@ import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { recordName } from "../proofs/run.ts";
-import { caseFiles, caseId } from "../select/atoms.ts";
+import { caseFiles, caseId, fileDef, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
-import { advance, depInfoPaths, fullChange, Recorder, recordCases } from "../select/record.ts";
+import { advance, depInfoPaths, fullChange, pool, Recorder, recordCases } from "../select/record.ts";
 import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
 import { type Keyed, SelectStore, testReads, type Verdict } from "../select/store.ts";
@@ -254,7 +257,8 @@ async function select(store: SelectStore, graph: Graph | null): Promise<{ change
   }
   const found = await discover(graph);
   const testNames = new Set(found.filter((d) => d.id.startsWith("test:")).map((d) => d.id.slice(5)));
-  const sel = query(store, change, { discovered: [...found, ...STEP_ATOMS.map((id) => ({ id, def: "" }))] });
+  const tests = nvTestFiles().map((f) => ({ id: nvTestId(f), def: fileDef(f) }));
+  const sel = query(store, change, { discovered: [...found, ...tests, ...STEP_ATOMS.map((id) => ({ id, def: "" }))] });
   return { change, sel, testNames };
 }
 
@@ -276,6 +280,7 @@ function casesToRun(r: Run, tree: string): string[] {
 /** Whether step `s` has anything to run, and why, before `build`'s dependence on the steps after it. */
 function wanted(r: Run, s: Step): boolean {
   if (s.name === "nvs-fmt") return (s.todo ?? []).length > 0;
+  if (s.name === "nv") return picked(r, NV_TSC) || nvTestsToRun(r).length > 0;
   if (s.name === "test") return testsToRun(r).length > 0 || (!r.opts.package && picked(r, DOC_TESTS));
   if (CASE_TREES.includes(s.name)) return casesToRun(r, s.name).length > 0;
   return s.atom !== undefined && picked(r, s.atom);
@@ -568,6 +573,78 @@ async function runCases(r: Run, s: Step): Promise<[number, string]> {
   return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
 }
 
+// ---- the tools' own gate ---------------------------------------------------------------------------
+
+/** `tsc` over the tools, the `nv` step's own atom. */
+const NV_TSC = "step:nv";
+const TSC = join(ROOT, "node_modules", "typescript", "bin", "tsc");
+/** What `tsc` reads besides the modules under `tools/nv`. */
+const TSC_INPUTS = ["package.json", "bun.lock", "tsconfig.json", "bunfig.toml"];
+const BUN_TEST_RE = /^\s*(\d+) pass\s*$[\s\S]*?^\s*(\d+) fail\s*$/m;
+
+/** The `bun test` files this run runs, repo-relative. */
+function nvTestsToRun(r: Run): string[] {
+  const files = nvTestFiles();
+  return r.opts.noCache ? files : files.filter((f) => r.sel.selected.has(nvTestId(f)));
+}
+
+/**
+ * The `nv` step: `tsc` when the change reaches what it reads, then each selected `bun test` file in a
+ * process of its own, a few at a time, each recorded as its own atom (`nvtest:<file>`): what it read
+ * through `lib/reads-preload.ts`, the modules it loaded, and any `nvs` it ran. So a test file that
+ * starts `git` holds the whole tree alone, and the rest are selected by what each one read. A red `tsc`
+ * stops the step before any test runs.
+ */
+async function runSelftest(r: Run, s: Step): Promise<[number, string]> {
+  const out: string[] = [];
+  if (picked(r, NV_TSC)) {
+    stepDetail(s.name, "tsc");
+    const [code, text] = await spawnOut([process.execPath, TSC, "--noEmit", "-p", "tsconfig.json"], ROOT, undefined, undefined, true);
+    const keys: Keyed = new Map([["tree:tools/nv", ""]]);
+    for (const f of TSC_INPUTS) maybe(keys, f);
+    r.store.recordRun(NV_TSC, { def: digest("tsc --noEmit -p tsconfig.json"), verdict: code === 0 ? "green" : "red", keys });
+    r.ran.add(NV_TSC);
+    if (code !== 0) return [1, `${text}\nnv selftest: tsc failed with exit ${code}`];
+    out.push("nv selftest: the types check");
+  } else out.push("nv selftest: the types check (the change reaches nothing tsc reads)");
+  const files = nvTestsToRun(r);
+  const nvs = covwsNvs();
+  let passed = 0;
+  let failed = 0;
+  let done = 0;
+  const reds: string[] = [];
+  const width = Math.max(1, Math.min(4, Math.floor((cpus().length || 4) / 4)));
+  await pool(files, width, async (file) => {
+    const id = nvTestId(file);
+    const name = recordName(id);
+    const log = join(r.rec.dir, `${name}.reads`);
+    rmSync(log, { force: true });
+    const [code, text] = await spawnOut([process.execPath, "test", "--preload", "./tools/nv/lib/reads-preload.ts", file], ROOT, { ...r.rec.env(name), NV_READS_LOG: log, NO_COLOR: "1" }, undefined, true);
+    const keys = nvKeys(log);
+    rmSync(log, { force: true });
+    for (const [k, d] of (await r.rec.keysOf(name, [nvs]))?.keys ?? []) keys.set(k, d);
+    keys.set(`file:${file}`, "");
+    const m = BUN_TEST_RE.exec(text);
+    passed += Number(m?.[1] ?? 0);
+    failed += Number(m?.[2] ?? 0);
+    const verdict: Verdict = code === 0 && m !== null ? "green" : "red";
+    if (verdict === "red") reds.push(`-- ${file}: exit ${code}\n${text}`);
+    r.store.recordRun(id, { def: fileDef(file), verdict, keys });
+    r.ran.add(id);
+    stepDetail(s.name, `${++done}/${files.length} test files`);
+  });
+  const all = nvTestFiles().length;
+  out.push(`${files.length} of ${all} test file(s) run`);
+  out.push(...reds);
+  out.push(` ${passed} pass`, ` ${failed} fail`);
+  if (reds.length > 0) {
+    out.push(`nv selftest: bun test failed in ${reds.length} file(s)`);
+    return [1, out.join("\n")];
+  }
+  out.push("nv selftest: every test passes");
+  return [0, out.join("\n")];
+}
+
 // ---- nvs-fmt ---------------------------------------------------------------------------------------
 
 /** The `.nvs` files git reports as new or modified under `NVS_FMT_TREES`, repo-relative. */
@@ -757,7 +834,9 @@ export const summaries: Record<string, (out: string) => string> = {
   nv(out) {
     if (out.includes("nv selftest: every test passes")) {
       const m = /^\s*(\d+) pass$/m.exec(out);
-      return m ? `the types check, ${m[1]} test(s) pass` : "the types check, every test passes";
+      const of = /^(\d+) of (\d+) test file\(s\) run/m.exec(out);
+      const files = of && of[1] !== of[2] ? `  (${of[1]} of ${of[2]} files run)` : "";
+      return (m ? `the types check, ${m[1]} test(s) pass` : "the types check, every test passes") + files;
     }
     if (out.includes("nv selftest: the types check")) return "the types check, and `bun test` failed -- check the log";
     return "`tsc` failed or did not run -- check the log";
@@ -819,13 +898,8 @@ function stepsFor(opts: Opts, r: () => Run): Step[] {
     steps.push(bunStep(r, "template", ["nv", "directives", "--check-template"]));
     steps.push(bunStep(r, "owners", ["nv", "owners", "--check"]));
     if (existsSync(join(ROOT, "package.json"))) {
-      // `tsc` checks every module under `tools/nv`, and `bun test` reads what its tests were seen to read.
-      steps.push(
-        bunStep(r, "nv", ["nv", "selftest"], (keys) => {
-          keys.set("tree:tools/nv", "");
-          for (const f of ["package.json", "bun.lock", "tsconfig.json", "bunfig.toml"]) keys.set(`file:${f}`, "");
-        }),
-      );
+      // `tsc` over every module under `tools/nv`, then each selected `bun test` file on its own.
+      steps.push(step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun", runner: (s) => runSelftest(r(), s) }));
     }
     if (existsSync(join(FUZZ, "Cargo.toml"))) {
       steps.push(
@@ -1171,11 +1245,11 @@ async function walk(r: Run): Promise<number> {
   const red: Step | null = stopped ?? (deferred as Step | null);
   progress(done, undefined, 0, red ? 1 : 0);
 
+  // Red or green, the tree moves: what ran is recorded with its verdict, a red atom stays selected as
+  // red, and what the change reached that did not run is owed.
   let owedNote = "";
-  if (red === null) {
-    const { owed } = advance(store, r.change, r.sel, r.ran, r.graph);
-    if (owed > 0) owedNote = `; ${owed} reached atom(s) verify does not run stay owed (\`bun nv select\` names them)`;
-  }
+  const { owed } = advance(store, r.change, r.sel, r.ran, r.graph);
+  if (owed > 0) owedNote = `; ${owed} reached atom(s) this run did not run stay owed (\`bun nv select\` names them)`;
 
   const total = (performance.now() - began) / 1000;
   const lines = () => {
@@ -1208,7 +1282,7 @@ async function walk(r: Run): Promise<number> {
   }
 
   store.putVerdict(lastSlot(red.name), "", "");
-  console.log(`verify: FAILED at ${red.name} (step ${steps.indexOf(red) + 1} of ${steps.length}) after ${clock(total)}${scope}${note}`);
+  console.log(`verify: FAILED at ${red.name} (step ${steps.indexOf(red) + 1} of ${steps.length}) after ${clock(total)}${scope}${note}${owedNote}`);
   lines();
   console.log(`  ${red.name.padEnd(13)} ${"---".padStart(6)}   exit ${red.code}`);
   const [body, hidden] = tail(red.out, opts.full ? 0 : TAIL_LINES);

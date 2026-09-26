@@ -7,9 +7,10 @@
 //
 // Each program that runs is recorded on the binary it ran on: its coverage and footprint log go under
 // the run's scratch directory through `NV_PROOF_RECORD`, a batch of programs at a time so the disk holds
-// one batch's counters, and a program that is skipped on this host holds its own file alone. A run with
-// no failure then moves the store's tree past the change (`advance`), with every other atom the change
-// reached marked owed.
+// one batch's counters, and a program that is skipped on this host holds its own file alone. The run,
+// green or red, then moves the store's tree past the change (`advance`), with every other atom the
+// change reached marked owed and a red program kept red. A run the sweep started leaves the tree to the
+// sweep (`NO_ADVANCE_ENV`).
 
 import { join } from "node:path";
 import { type Graph, metadata } from "../keys/graph.ts";
@@ -49,7 +50,6 @@ export async function runSelected(bin: Binary, programs: { what: What; path: str
   Object.assign(process.env, rec.tmpEnv);
   const results: Pass = { results: new Map(), width: 1, seconds: 0 };
   const ran = new Set<string>();
-  let failed = false;
   try {
     // What is not run is reported first, in one pass with no programs to run.
     const quiet = await runPrograms(bin, programs.filter((p) => unchanged.has(p.path)), opts, unchanged);
@@ -67,12 +67,12 @@ export async function runSelected(bin: Binary, programs: { what: What; path: str
         // A program skipped on this host ran nothing; it is selected again when its own file changes.
         if (keys.size === 0) keys.set(`file:${path}`, "");
         const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
-        if (verdict === "red") failed = true;
         rec.record(proofId(path), proofDef(path), verdict, keys);
         ran.add(proofId(path));
       });
     }
-    if (!failed) advance(store, change, sel, ran, graph);
+    // Red or green, the tree moves; a red program stays selected as red.
+    advance(store, change, sel, ran, graph);
   } finally {
     for (const [k, v] of Object.entries(saved)) {
       if (v === undefined) delete process.env[k];

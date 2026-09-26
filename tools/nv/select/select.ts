@@ -311,6 +311,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const defTouched = new Set<string>();
   for (const c of change.changes) {
     defTouched.add(`case:${c.path}`);
+    defTouched.add(`nvtest:${c.path}`);
     defTouched.add(`proof:${c.path.replace(/\.(out|in)$/, ".nvs")}`);
   }
   const tomlDirs = new Set(change.changes.filter((c) => c.path.endsWith("/nvs.toml")).map((c) => dirname(c.path)));

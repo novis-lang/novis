@@ -13,8 +13,9 @@
 // | `verdicts` | a slot's digest and verdict, for the memos this store replaces |
 //
 // An atom is `<kind>:<name>`: `case:tests/conformance/a.nvst`, `proof:docs/examples/.../01-x.nvs`,
-// `test:nvs-cli test footprint`, `nv:<check id>`, `step:<name>` for a step of `bun nv verify`,
-// `check:<check id>` for another plan check, and `heavy:<check id>` for one of the heavy set. A
+// `test:nvs-cli test footprint`, `nv:<check id>`, `nvtest:<file>` for one `bun test` file of the tools,
+// `step:<name>` for a step of `bun nv verify`, `check:<check id>` for another plan check, and
+// `heavy:<check id>` for one of the heavy set or a Linux leg. A
 // footprint is per platform, because what an atom does differs between Windows and the Linux leg.
 //
 // The recorded tree is a commit and an overlay: `base:<platform>` names the commit, and
@@ -36,8 +37,8 @@ export const SCHEMA = "1";
 /** The store's file. */
 export const STORE = join(CACHE, "select.sqlite");
 
-export type AtomKind = "case" | "proof" | "test" | "nv" | "step" | "check" | "heavy";
-export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "step", "check", "heavy"];
+export type AtomKind = "case" | "proof" | "test" | "nv" | "nvtest" | "step" | "check" | "heavy";
+export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "nvtest", "step", "check", "heavy"];
 
 /**
  * `owed` is an atom a change reached that the run which recorded the change did not run: the base
@@ -106,6 +107,9 @@ export class SelectStore {
     this.platform = platform;
     if (file !== ":memory:") mkdirSync(dirname(file), { recursive: true });
     this.db = new Database(file);
+    // A sweep's own process and the `bun nv` processes it starts write the store at once, so a writer
+    // waits for another's transaction rather than failing on it.
+    this.db.exec("PRAGMA busy_timeout = 60000");
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA synchronous = NORMAL");
     const schema = this.tryMeta("schema");

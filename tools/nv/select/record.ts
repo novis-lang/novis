@@ -8,11 +8,11 @@
 // a test binary gets a cache directory of its own, and a case or a proof program runs with the cache
 // off. Scratch goes under `.agent-tmp/select-rec/<label>-<pid>/`, which `close` deletes.
 //
-// `advance` records the tree a green run was selected against: the items of every changed Rust file,
-// the digests of what the build scripts generated, and the commit and overlay the change was read at.
-// The base is shared by every kind of atom, and a verify run runs only some of them, so each atom the
+// `advance` records the tree a run was selected against, green or red: the items of every changed Rust
+// file, the digests of what the build scripts generated, and the commit and overlay the change was read
+// at. The base is shared by every kind of atom, and a run runs only some of them, so each atom the
 // change selected and this run did not run is marked `owed` first: it stays selected until a run of it
-// is green, and moving the base can lose nothing.
+// is green, and moving the base can lose nothing. An atom that ran red stays `red`, selected again.
 
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
@@ -314,14 +314,19 @@ export function depInfoPaths(depsDir: string, repo: (p: string) => string | null
   return out;
 }
 
+/** Set by a run that starts another `bun nv` process which records into the same store: the inner run
+ * records what it ran and leaves the tree to the outer one, which moves it once for both. */
+export const NO_ADVANCE_ENV = "NV_SELECT_NO_ADVANCE";
+
 /**
- * Records the tree `change` was read at as the store's base, after a green run that ran the atoms in
- * `ran`. Each atom `sel` selected that this run did not run is marked owed first. The changed Rust
- * files' items replace the stored ones, the items that are gone leave every footprint, and each
- * generated file's digest is taken from the `covws` build as it stands.
+ * Records the tree `change` was read at as the store's base, after a run, green or red, that ran the
+ * atoms in `ran`. Each atom `sel` selected that this run did not run is marked owed first, and an atom
+ * that ran red keeps its red verdict, so both stay selected. The changed Rust files' items replace the
+ * stored ones, the items that are gone leave every footprint, and each generated file's digest is taken
+ * from the `covws` build as it stands. Nothing moves in a process `NO_ADVANCE_ENV` names.
  */
 export function advance(store: SelectStore, change: ChangeSet, sel: Selection | null, ran: Set<string>, graph: Graph | null, root: string = ROOT): { owed: number } {
-  if (!change.tree) return { owed: 0 };
+  if (!change.tree || process.env[NO_ADVANCE_ENV]) return { owed: 0 };
   const owed = sel ? store.owe([...sel.selected.keys()].filter((id) => !ran.has(id))) : 0;
   const rust = new Set(change.changes.filter((c) => c.path.endsWith(".rs")).map((c) => c.path));
   if (change.full) store.replaceItems([...change.view.values()]);
