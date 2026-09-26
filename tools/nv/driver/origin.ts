@@ -20,6 +20,8 @@
 export const HOST = "127.0.0.1";
 export const PORT = 8099;
 export const DELAY_MS = 25;
+/** The programs that talk to this origin: a check that runs one needs it up. */
+export const ORIGIN_PROGRAMS: readonly string[] = ["examples/http.nvs"];
 /** The request head is read to its blank line, and no further than this. */
 const HEAD_LIMIT = 8192;
 

@@ -24,8 +24,9 @@
 // line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
 // command at a time, rather than by starting a sweep. It and every sweep below hold `driver/origin.ts`'s
-// listener up while their checks run, since `examples/http.nvs` talks to it. Every sweep below first takes
-// `driver/sweep-lock.ts`'s lock, so one tree on this machine sweeps at a time; `--run` does not take it.
+// listener up while they run a check that talks to it, as the fixture of `examples/http.nvs` does. A sweep
+// below that uses the origin, a Linux leg or a perf guard first takes `driver/sweep-lock.ts`'s lock, so one
+// tree on this machine uses them at a time; a sweep that uses none of them, and `--run`, do not take it.
 //
 // `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance` over
 // `driver/runner.ts`'s `PlanSweep`: the change since the selection store's tree is read once, and a
@@ -147,7 +148,7 @@ import { Tree as ProcTree } from "../driver/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin, type Origin } from "../driver/origin.ts";
-import { takeSweepLock } from "../driver/sweep-lock.ts";
+import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
 import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, isCarried, owedChecks, tiers, withSetups } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
@@ -363,8 +364,8 @@ async function runChecks(filters: Filters): Promise<number> {
   const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: true, onRun: (what) => console.error(`  .. ${what}`), say: (l) => console.error(`  ${l}`) });
   sweep.batch(order);
   let red = 0;
-  const origin = await holdOrigin();
-  console.error(`  ${origin.line}`);
+  const origin = sharedResources(order, false, () => false).origin ? await holdOrigin() : null;
+  if (origin !== null) console.error(`  ${origin.line}`);
   try {
     for (const c of order) {
       const v = await sweep.check(c);
@@ -374,7 +375,7 @@ async function runChecks(filters: Filters): Promise<number> {
       if (v.fail !== "" || v.short !== "") red++;
     }
   } finally {
-    origin.close();
+    origin?.close();
     sweep.close();
   }
   console.log(`run: ${order.length - red} green, ${red} red, of ${order.length} ${order.length === 1 ? "check" : "checks"}`);
@@ -444,10 +445,12 @@ async function sweepOver(
   };
   // The legs run only with the floor gate open; a leg the change reached with the gate shut is owed.
   const runLegs = o.legs === true && o.gateOpen === true;
-  // Another tree's sweep would share the origin, the distro and the cores with this one. The time spent
-  // waiting for it is not this sweep's cost.
+  // A sweep that uses the origin, a Linux leg or a perf guard takes the lock, which another tree's sweep
+  // using one of them may hold. The time spent waiting for it is not this sweep's cost.
+  const need = sharedResources(checks.filter(reached), runLegs, legs.reached);
+  p.note(needLine(need));
   const asked = Date.now();
-  const lock = await takeSweepLock({ note: p.note });
+  const lock = need.lock ? await takeSweepLock({ note: p.note }) : null;
   const waited = Date.now() - asked;
   let result: AcceptanceResult;
   let owed = 0;
@@ -458,8 +461,10 @@ async function sweepOver(
       p.note("the Linux legs run `nvs` where nothing records a footprint: they keep the floor gate's cadence, keyed on what nvs-cli builds and the fixture trees");
       startWslBuild(legs);
     }
-    origin = await holdOrigin();
-    p.note(origin.line);
+    if (need.origin) {
+      origin = await holdOrigin();
+      p.note(origin.line);
+    }
     result = await acceptance(checks, {
       label: labelOf,
       sweep,
@@ -475,7 +480,7 @@ async function sweepOver(
     }
   } finally {
     origin?.close();
-    lock.release();
+    lock?.release();
     const closed = sweep.close();
     owed = closed.owed;
     const ran = Object.entries(closed.ran).map(([k, n]) => `${n} ${k}`).join(", ");
@@ -839,12 +844,12 @@ function floorSince(): number {
 }
 
 /**
- * `bun nv select --full` inside a turn, under the sweep lock: every atom that is not heavy runs and
- * records, and the store's tree moves past the change. Returns a red line naming the selection misses,
- * or a covws build that failed, and "" when there is neither.
+ * `bun nv select --full` inside a turn: every atom that is not heavy runs and records, and the store's
+ * tree moves past the change. `fullRun` takes the sweep lock itself while a plan check needs the origin.
+ * Returns a red line naming the selection misses, or a covws build that failed, and "" when there is
+ * neither.
  */
 async function fullRunTurn(note: (line: string) => void): Promise<string> {
-  const lock = await takeSweepLock({ note });
   const store = new SelectStore();
   try {
     const r = await fullRun(store, { say: note });
@@ -855,7 +860,6 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
     return `full run: ${r.misses.length} selection miss(es), red now and not selected by the change that broke them: ${named}${r.misses.length > 5 ? ", ..." : ""}`;
   } finally {
     store.close();
-    lock.release();
   }
 }
 

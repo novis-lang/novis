@@ -23,8 +23,9 @@
 import { cpus } from "node:os";
 import type { Check } from "../driver/accept.ts";
 import { heldByGate, tiers } from "../driver/accept.ts";
-import { withOrigin } from "../driver/origin.ts";
+import { holdOrigin } from "../driver/origin.ts";
 import { PlanSweep } from "../driver/runner.ts";
+import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -172,13 +173,22 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
         say(`select: tools tests ${++done}/${files.length}`);
       });
     }
-    // A plan check may talk to the local origin (`examples/http.nvs` does), so the origin is up while
-    // they run, as it is around a sweep's.
+    // The plan checks take the sweep lock and hold the origin up by the rule a sweep follows
+    // (`driver/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
+    // heavy check only when it is a setup.
     if (kinds.has("check")) {
-      await withOrigin(async (origin) => {
-        say(`select: ${origin.line}`);
-        for (const c of ownChecks(plan, label, (c) => sweep.groups.get(c.id)?.how)) await sweep.check(c);
-      });
+      const own = ownChecks(plan, label, (c) => sweep.groups.get(c.id)?.how);
+      const need = sharedResources(own, false, () => false);
+      say(`select: ${needLine(need)}`);
+      const lock = need.lock ? await takeSweepLock({ note: (l) => say(`select: ${l}`) }) : null;
+      const origin = need.origin ? await holdOrigin() : null;
+      try {
+        if (origin !== null) say(`select: ${origin.line}`);
+        for (const c of own) await sweep.check(c);
+      } finally {
+        origin?.close();
+        lock?.release();
+      }
     }
   } finally {
     r.close();
