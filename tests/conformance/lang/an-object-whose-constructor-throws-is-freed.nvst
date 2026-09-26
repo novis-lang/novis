@@ -1,0 +1,37 @@
+--TEST--
+An object whose constructor throws is freed with everything it already holds, `rule:classes/constructor-is-a-method-named-constructor`
+--FILE--
+<?nvs
+// Each `Half` holds 64 KiB before its constructor throws. 5000 rounds that each
+// kept one would pass the 256 MiB request limit, so a count printed at the end
+// means every round freed it.
+class Half
+{
+    private string $buffer;
+
+    public function constructor()
+    {
+        $this->buffer = Core\Str::repeat("a", 65536);
+        throw new RuntimeError("cannot finish");
+    }
+
+    public function size(): uint
+    {
+        return Core\Str::length($this->buffer);
+    }
+}
+
+uint $caught = 0;
+uint $round = 0;
+while ($round < 5000) {
+    try {
+        Half $half = new Half();
+        echo $half->size(), "\n";
+    } catch (RuntimeError $error) {
+        $caught = $caught + 1;
+    }
+    $round = $round + 1;
+}
+echo "caught=", $caught, "\n";
+--EXPECT--
+caught=5000

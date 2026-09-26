@@ -2338,7 +2338,7 @@ impl Emitter<'_, '_> {
         // is the declaration it resolved to.
         let label = fallback.unwrap_or(method).to_owned();
         let (cont, out_p) =
-            self.emit_invoke_at(inst, Callee::Indirect(callee), &label, receiver, args)?;
+            self.emit_invoke_at(inst, Callee::Indirect(callee), &label, receiver, args, None)?;
         if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
             let value = self.load_value(out_p, 0, ty)?;
             self.define(inst, value)?;
@@ -2473,7 +2473,7 @@ impl Emitter<'_, '_> {
         args: &[ValueId],
     ) -> Result<(Block, Value), CodegenError> {
         let callee = self.callee_ref(target)?;
-        self.emit_invoke_at(inst, Callee::Direct(callee), target, receiver, args)
+        self.emit_invoke_at(inst, Callee::Direct(callee), target, receiver, args, None)
     }
 
     /// [`Self::emit_invoke`]'s body, with the callee already decided — a
@@ -2489,6 +2489,7 @@ impl Emitter<'_, '_> {
         label: &str,
         receiver: Option<(Value, Ty)>,
         args: &[ValueId],
+        release_on_error: Option<Value>,
     ) -> Result<(Block, Value), CodegenError> {
         let label = self.emit_bytes(label.as_bytes())?;
         self.emit_call_probe("nvs_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
@@ -2541,7 +2542,7 @@ impl Emitter<'_, '_> {
             label,
             Some(status),
         )?;
-        let cont = self.emit_status_check(status, inst.on_error)?;
+        let cont = self.emit_status_check_releasing(status, inst.on_error, release_on_error)?;
         Ok((cont, out_p))
     }
 
@@ -2556,6 +2557,11 @@ impl Emitter<'_, '_> {
     /// refcounted parameter at scope exit — needs a reference of its own. So
     /// the receiver is retained before the call, exactly the retain
     /// `nvs_ir::lower` inserts at an ordinary `$obj->m()` site.
+    ///
+    /// A constructor that throws leaves the `New` result's reference with no
+    /// owner: the landing block was built before the result existed, so it
+    /// cannot name it. The error edge therefore releases the object itself
+    /// before it reaches the landing block.
     ///
     /// The descriptor address is a relocation against a named symbol: see
     /// [`crate::Classes`] for why it is not the immediate a JIT could bake in.
@@ -2591,8 +2597,14 @@ impl Emitter<'_, '_> {
         } else {
             Callee::Direct(self.callee_ref(ctor)?)
         };
-        let (cont, _out) =
-            self.emit_invoke_at(inst, callee, ctor, Some((object, Ty::Object)), args)?;
+        let (cont, _out) = self.emit_invoke_at(
+            inst,
+            callee,
+            ctor,
+            Some((object, Ty::Object)),
+            args,
+            Some(object),
+        )?;
         Ok(cont)
     }
 
@@ -3528,6 +3540,18 @@ impl Emitter<'_, '_> {
         status: Value,
         on_error: Option<BlockId>,
     ) -> Result<Block, CodegenError> {
+        self.emit_status_check_releasing(status, on_error, None)
+    }
+
+    /// [`Self::emit_status_check`], with one object released on the error edge
+    /// before the landing block runs: the reference an instruction's own result
+    /// owns when the instruction fails after it allocated that result.
+    fn emit_status_check_releasing(
+        &mut self,
+        status: Value,
+        on_error: Option<BlockId>,
+        release: Option<Value>,
+    ) -> Result<Block, CodegenError> {
         let Some(landing) = on_error else {
             return Err(internal(
                 "a status-returning instruction with no error edge",
@@ -3540,7 +3564,19 @@ impl Emitter<'_, '_> {
         let cont = self.b.create_block();
         let target = self.block(landing)?;
         let args = [codegen::ir::BlockArg::Value(status)];
-        self.b.ins().brif(failed, target, &args, cont, &[]);
+        match release {
+            None => {
+                self.b.ins().brif(failed, target, &args, cont, &[]);
+            }
+            Some(object) => {
+                let unwind = self.b.create_block();
+                self.b.ins().brif(failed, unwind, &[], cont, &[]);
+                self.b.switch_to_block(unwind);
+                let callee = self.runtime_ref("nvs_object_release", RuntimeSig::Refcount)?;
+                self.b.ins().call(callee, &[object]);
+                self.b.ins().jump(target, &args);
+            }
+        }
         self.b.switch_to_block(cont);
         Ok(cont)
     }
