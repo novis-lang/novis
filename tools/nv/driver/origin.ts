@@ -81,3 +81,13 @@ export async function holdOrigin(host = HOST, port = PORT, delayMs = DELAY_MS): 
     return { line: `origin: cannot bind ${host}:${port} -- ${e instanceof Error ? e.message : String(e)}`, close() {} };
   }
 }
+
+/** Runs `fn` with the origin up, and closes it when `fn` settles, whether it returned or threw. */
+export async function withOrigin<T>(fn: (origin: Origin) => Promise<T>, host = HOST, port = PORT, delayMs = DELAY_MS): Promise<T> {
+  const origin = await holdOrigin(host, port, delayMs);
+  try {
+    return await fn(origin);
+  } finally {
+    origin.close();
+  }
+}

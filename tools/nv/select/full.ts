@@ -23,6 +23,7 @@
 import { cpus } from "node:os";
 import type { Check } from "../driver/accept.ts";
 import { heldByGate, tiers } from "../driver/accept.ts";
+import { withOrigin } from "../driver/origin.ts";
 import { PlanSweep } from "../driver/runner.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
@@ -171,7 +172,14 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
         say(`select: tools tests ${++done}/${files.length}`);
       });
     }
-    if (kinds.has("check")) for (const c of ownChecks(plan, label, (c) => sweep.groups.get(c.id)?.how)) await sweep.check(c);
+    // A plan check may talk to the local origin (`examples/http.nvs` does), so the origin is up while
+    // they run, as it is around a sweep's.
+    if (kinds.has("check")) {
+      await withOrigin(async (origin) => {
+        say(`select: ${origin.line}`);
+        for (const c of ownChecks(plan, label, (c) => sweep.groups.get(c.id)?.how)) await sweep.check(c);
+      });
+    }
   } finally {
     r.close();
   }

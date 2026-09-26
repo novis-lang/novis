@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { holdOrigin } from "../driver/origin.ts";
+import { holdOrigin, withOrigin } from "../driver/origin.ts";
 
 const PORT = 18099;
 
@@ -19,4 +19,20 @@ test("the origin answers /ok with ok, any other path with 404, and leaves a seco
   } finally {
     origin.close();
   }
+});
+
+test("withOrigin serves while its function runs and closes the port after it throws", async () => {
+  const seen = await withOrigin(async () => (await fetch(`http://127.0.0.1:${PORT}/ok`)).status, "127.0.0.1", PORT, 5);
+  expect(seen).toBe(200);
+  await expect(
+    withOrigin(
+      async () => {
+        throw new Error("a check failed");
+      },
+      "127.0.0.1",
+      PORT,
+      5,
+    ),
+  ).rejects.toThrow("a check failed");
+  await expect(fetch(`http://127.0.0.1:${PORT}/ok`)).rejects.toThrow();
 });
