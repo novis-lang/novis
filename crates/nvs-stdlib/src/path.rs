@@ -79,8 +79,8 @@
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
-    Qual,
+    ClassDoc, Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -91,7 +91,7 @@ use crate::registry::{
 /// members, plus the `SEPARATOR` constant on [`CONSTANTS`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Path",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "basename",
@@ -195,65 +195,73 @@ pub const CLASS: CoreClass = CoreClass {
     constants: CONSTANTS,
 };
 
+/// `Core\Path`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads and builds file paths as text. It never touches the disk. Every method accepts \
+            `/` and `\\` as separators on every platform, and writes `Path::SEPARATOR`. This \
+            replaces PHP's `basename`, `dirname`, `pathinfo` and the string work around \
+            `DIRECTORY_SEPARATOR`.",
+};
+
 /// `Core\Path::basename`'s reference card — `rule:core-api/reference-card`.
 const BASENAME_DOC: MethodDoc = MethodDoc {
-    short: "Answers the name of `$path`'s last component, as `basename` and \
-            `pathinfo(…, PATHINFO_BASENAME)` do; a trailing separator is ignored, so `/a/b/` \
-            is `b`.",
+    short: "Returns the last part of `$path`: the file name, or the name of the last folder. A \
+            separator at the end is ignored, so `/srv/shop/` gives `shop`. This replaces PHP's \
+            `basename`.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The path, with `/` and `\\` both read as separators.",
+            desc: "The path. `/` and `\\` are both separators on every platform.",
             shape: &[],
         },
         ParamDoc {
             name: "withoutExtension",
-            desc: "Drop the extension from the name — `pathinfo`'s `PATHINFO_FILENAME`; the \
-                   default keeps it.",
+            desc: "When `true`, the extension is removed, so `report.pdf` gives `report`. The \
+                   default is `false`.",
             shape: &[],
         },
     ],
-    ret: "The last component's name; the empty string for a path that is nothing but a root, \
-          such as `/`.",
+    ret: "The name. For a path that is only a root, such as `/` or `C:\\`, the result is the \
+          empty string.",
     errors: &[],
 };
 
 /// `Core\Path::dirname`'s reference card — `rule:core-api/reference-card`.
 const DIRNAME_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$path` with `levels` components dropped from the end, as `dirname` does; \
-            the answer is always a usable directory.",
+    short: "Returns the folder that contains `$path`. The option `levels` goes up more than one \
+            folder. This replaces PHP's `dirname`.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The path, with `/` and `\\` both read as separators.",
+            desc: "The path. `/` and `\\` are both separators on every platform.",
             shape: &[],
         },
         ParamDoc {
             name: "levels",
-            desc: "How many components to drop; the default is one, `0` is the path itself with \
-                   its separators normalized rather than PHP's `ValueError`, and more than \
-                   there are stops at the root.",
+            desc: "How many parts to remove from the end. The default is `1`. With `0`, the result \
+                   is the path with its separators cleaned up. A number larger than the path \
+                   stops at the root.",
             shape: &[],
         },
     ],
-    ret: "The parent path, rendered with `Path::SEPARATOR`; the root for an absolute path and \
-          `.` for a relative one — including `''`, which is `.` here and `''` in PHP — once \
-          nothing is left.",
+    ret: "The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the \
+          root for an absolute path and `.` for a relative one. `dirname('')` is `.`, and PHP \
+          returns `''`.",
     errors: &[],
 };
 
 /// `Core\Path::extension`'s reference card — `rule:core-api/reference-card`.
 const EXTENSION_DOC: MethodDoc = MethodDoc {
-    short: "Answers the text after the last `.` of `$path`'s last component, without the dot, \
-            as `pathinfo(…, PATHINFO_EXTENSION)` does.",
+    short: "Returns the extension of the last part of `$path`: the text after the last `.`, \
+            without the dot. This replaces PHP's `pathinfo($path, PATHINFO_EXTENSION)`.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The path, with `/` and `\\` both read as separators.",
+        desc: "The path. `/` and `\\` are both separators on every platform.",
         shape: &[],
     }],
-    ret: "The extension, or `null` where there is none — a dotfile such as `.gitignore` and a \
-          trailing dot such as `report.` both have none, where PHP answers `gitignore` and \
-          `''`.",
+    ret: "The extension, or `null` when there is none. A name that starts with a dot, such as \
+          `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too. \
+          PHP returns `gitignore` and `''` for these two.",
     errors: &[],
 };
 
@@ -1176,6 +1184,7 @@ mod tests {
 
     /// Every row checked against PHP 8.5's `basename`, except the two this
     /// module diverges on deliberately.
+    // covers: Core\Path::basename
     #[test]
     fn basename_answers_the_last_components_name() {
         assert_eq!(basename("/a/b/c.txt", false), "c.txt");
@@ -1189,6 +1198,7 @@ mod tests {
         assert_eq!(basename("/a\\b", false), "b");
     }
 
+    // covers: Core\Path::basename
     #[test]
     fn basename_without_extension_drops_only_a_real_extension() {
         assert_eq!(basename("/a/b/c.txt", true), "c");
@@ -1200,6 +1210,7 @@ mod tests {
         assert_eq!(basename("report.", true), "report.");
     }
 
+    // covers: Core\Path::dirname
     #[test]
     fn dirname_walks_up_and_stops_at_a_root() {
         assert_eq!(dirname("/a/b/c.txt", 1), "/a/b");
@@ -1216,12 +1227,14 @@ mod tests {
 
     /// PHP throws a `ValueError` for `levels < 1`; this answers the path
     /// itself, with its separators normalized. See the member's own docs.
+    // covers: Core\Path::dirname
     #[test]
     fn dirname_at_zero_levels_is_the_path_normalized() {
         assert_eq!(dirname("/a\\b/c", 0), "/a/b/c");
         assert_eq!(dirname("a//b/", 0), "a/b");
     }
 
+    // covers: Core\Path::extension
     #[test]
     fn extension_is_absent_rather_than_empty() {
         assert_eq!(extension("a.txt").as_deref(), Some("txt"));

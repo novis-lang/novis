@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to get a file name without its extension.
+
+array<string> $paths = [
+    "/var/log/shop/orders.log",
+    "backups/database.tar.gz",
+    "/home/sam/.gitignore",
+    "README",
+];
+
+// `withoutExtension: true` removes the last dot and the text after it, so `database.tar.gz` gives `database.tar`.
+// A name that starts with a dot keeps its whole name.
+foreach ($paths as string $path) {
+    echo Core\Path::basename($path, {withoutExtension: true}), "\n";
+}

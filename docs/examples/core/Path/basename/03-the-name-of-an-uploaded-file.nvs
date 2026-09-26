@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to keep only the file name that a browser sends with an upload.
+
+class Upload {
+    // Some browsers send the whole path from the user's computer.
+    // `basename` keeps only the last part, so no folder names reach your storage.
+    public static function storedName(string $sentName): string {
+        string $name = Core\Path::basename($sentName);
+        if ($name == "" || $name == "." || $name == "..") {
+            return "upload.bin";
+        }
+        return $name;
+    }
+}
+
+// This prints `holiday.jpg`, `report.pdf`, `passwd` and `upload.bin`.
+echo Upload::storedName("holiday.jpg"), "\n";
+echo Upload::storedName("C:\\Users\\sam\\Documents\\report.pdf"), "\n";
+echo Upload::storedName("../../etc/passwd"), "\n";
+echo Upload::storedName("../"), "\n";
