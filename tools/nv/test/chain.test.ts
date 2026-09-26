@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Goal, goalPlan, graduatesTo, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, withFloor } from "../lib/chain.ts";
+import { currentPlan, type Goal, goalPlan, graduatesTo, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, withFloor } from "../lib/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
 import { goal, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -164,6 +164,32 @@ describe("the chain's live goal", () => {
       expect(sideGoal(tmp.root)).toBe("s");
       process.env[SIDE_ENV] = "../s";
       expect(sideGoal(tmp.root)).toBeNull();
+    } finally {
+      if (before === undefined) delete process.env[SIDE_ENV];
+      else process.env[SIDE_ENV] = before;
+    }
+  });
+
+  test("the current plan is the side goal's in a side run and the live goal's otherwise", () => {
+    tmp = seed();
+    const before = process.env[SIDE_ENV];
+    const plan = () => {
+      const p = currentPlan(tmp!.root);
+      return p === null ? null : [p.slug, p.goal.checks.map((c) => c.id)];
+    };
+    try {
+      delete process.env[SIDE_ENV];
+      expect(plan()).toEqual(["b", ["tb", "ta"]]);
+      process.env[SIDE_ENV] = "s";
+      mkdirSync(join(tmp.root, "docs/agent/goals/side"), { recursive: true });
+      writeFileSync(join(tmp.root, "docs/agent/goals/side/s.md"), "# Side goal — s\n");
+      // Prose with no record is a side run with no plan, and never the live goal's by mistake.
+      expect(plan()).toBeNull();
+      write(sideGoalType, "s", g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), tmp.root);
+      expect(plan()).toEqual(["s", ["ts", "ta"]]);
+      delete process.env[SIDE_ENV];
+      write(chain, "chain", { live: "gone", goals: ["a", "b", "c", "gone"] }, tmp.root);
+      expect(plan()).toBeNull();
     } finally {
       if (before === undefined) delete process.env[SIDE_ENV];
       else process.env[SIDE_ENV] = before;
