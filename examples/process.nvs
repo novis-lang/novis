@@ -17,18 +17,18 @@
 // `examples/process/say.bat` exists on disk: the third line below is
 // evidence about what the target *is*, not about whether it is there.
 //
-// The child is this repository's own `nvs`, which the loop driver has
-// already built — `Core\IO::exists` picks the platform's spelling rather
-// than a `Core\Env::OS` comparison, so the fixture reads the same on both
-// legs.
+// The child is this repository's own `nvs`: the one the pipeline runs this
+// fixture with, which it names in `NVS_BIN` on every leg. The environment is
+// outside the program's text, so the name comes back `tainted`, and
+// `Core\Taint::assertTrusted` carries the reason it may name a target. With
+// `NVS_BIN` unset, the name is one no grant covers, and the first call stops
+// the program with a capability denial that names it.
 //
 // The three lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not.
 
-string $nvs = 'target/debug/nvs';
-if (Core\IO::exists('target/debug/nvs.exe')) {
-    $nvs = 'target/debug/nvs.exe';
-}
+?tainted string $named = Core\Env::get('NVS_BIN');
+string $nvs = Core\Taint::assertTrusted($named ?? 'NVS_BIN is not set', 'the pipeline that runs this fixture names its own binary');
 
 // argv only: the subcommand and the script are elements, never a line.
 //

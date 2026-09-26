@@ -24,8 +24,8 @@
 // Two exceptions to "nothing git ignores" are written after the clean. `CARRIED` is an ignored file the
 // repository's own configuration names, which every program run from the root reads before it starts;
 // each is copied over the mount when the working tree has it, so the copy fails exactly when the checkout
-// would. And `target` is a link to the leg's own target directory, so a fixture that runs
-// `target/debug/nvs` runs the Linux build.
+// would. And `target` is a link to the leg's own target directory, so the grant `nvs.toml` writes under
+// `target` covers the Linux build a fixture finds in `NVS_BIN`.
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -66,8 +66,8 @@ export function carryLine(root: string): string {
 
 /**
  * The `bash` line that links the copy's `target` to the leg's target directory, which `mirrorPath` put the
- * copy beside. A fixture that runs this repository's own binary names it as `target/debug/nvs`, and
- * `nvs.toml` grants it by that path, so without the link the grant names nothing that exists and the
+ * copy beside. A fixture that runs this repository's own binary finds the leg's build in `NVS_BIN`, and
+ * `nvs.toml` grants it under `target`, so without the link the grant names nothing that exists and the
  * fixture stops at a capability error.
  */
 export function targetLine(mirror: string): string {

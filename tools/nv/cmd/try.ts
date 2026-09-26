@@ -30,6 +30,7 @@
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join, normalize, parse } from "node:path";
+import { covwsNvs } from "../lib/covws.ts";
 import { jobs as machineJobs } from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
@@ -39,7 +40,12 @@ export const summary = "run .nvst snippets beside their PHP twin, or a bundle be
 const USAGE = "usage: nv try [-h] [--keep] [--php PHP] [--bundle] [--expect LINE]\n              FILE [FILE ...]";
 
 const TMP = join(ROOT, ".agent-tmp");
-const BINARY = join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
+let binary = "";
+
+/** The `nvs` the snippets run on: `NVS_BIN` when it is set, and otherwise the pipeline's `covws` build. */
+function nvsBinary(): string {
+  return (binary ||= process.env.NVS_BIN || covwsNvs());
+}
 
 // A `--SECTION--` line in a `.nvst` file. `crates/nvs-test/src/case.rs` owns the full roster; only
 // `TEST`, `FILE`, `ORACLE` and `ORACLE-DIVERGES` mean anything here, and an unknown one is ignored.
@@ -164,7 +170,7 @@ async function one(path: string, keep: boolean, php: string, stem: string): Prom
   mkdirSync(TMP, { recursive: true });
   const nvsFile = join(TMP, `try-${stem}.nvs`);
   writeFileSync(nvsFile, body.replace(/^\n+/, ""));
-  const [nvsOut, nvsCode] = await exec([BINARY, "run", nvsFile]);
+  const [nvsOut, nvsCode] = await exec([nvsBinary(),"run", nvsFile]);
   out.push(`  nvs  exit ${nvsCode}`, ...gutter(nvsOut));
 
   const diverges = parts.get("ORACLE-DIVERGES");
@@ -204,13 +210,13 @@ async function bundled(path: string, keep: boolean, expect: string[], stem: stri
 
   mkdirSync(TMP, { recursive: true });
   const exe = join(TMP, process.platform === "win32" ? `bundle-${stem}.exe` : `bundle-${stem}`);
-  const [buildOut, buildCode] = await exec([BINARY, "build", "--compile", path, "-o", exe]);
+  const [buildOut, buildCode] = await exec([nvsBinary(),"build", "--compile", path, "-o", exe]);
   out.push(`  build  exit ${buildCode}`, ...gutter(buildOut));
   if (buildCode !== 0 || !existsSync(exe)) return [false, out];
 
   const [bundleOut, bundleCode] = await exec([exe]);
   out.push(`  bundle exit ${bundleCode}`, ...gutter(bundleOut));
-  const [runOut, runCode] = await exec([BINARY, "run", path]);
+  const [runOut, runCode] = await exec([nvsBinary(),"run", path]);
   out.push(`  nvs run exit ${runCode}`);
   if (!keep) remove(exe);
 
@@ -261,10 +267,10 @@ export async function run(args: string[]): Promise<number> {
     return 2;
   }
 
-  if (!existsSync(BINARY)) {
-    console.log(`nv try: ${join("target", "debug", basename(BINARY))} is not built.`);
-    console.log("        `cargo build` first -- and note that `nv verify` builds it too,");
-    console.log("        so a snippet run right after a green verification needs nothing.");
+  if (!existsSync(nvsBinary())) {
+    console.log(`nv try: ${nvsBinary()} is not built.`);
+    console.log("        `bun nv verify` builds it, so a snippet run right after a green");
+    console.log("        verification needs nothing.");
     return 2;
   }
 

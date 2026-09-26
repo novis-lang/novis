@@ -96,17 +96,18 @@ write = true
 # ADR 0044 § 4's refusal is by target kind and the door asks the capability
 # first, so a grant that named only the binary would make the second call a
 # capability denial and the fixture would still print `refused: no shell form`
-# while proving nothing. Scoped to the two paths rather than `true` because
-# that is the whole point of the member being path-scoped. `fs.read` is
-# `Core\IO::exists`'s, which picks the platform's spelling of the binary.
+# while proving nothing. Scoped to two directories rather than `true` because
+# that is the whole point of the member being path-scoped: `target`, where
+# every build of the binary the pipeline names in `NVS_BIN` lives, and the
+# fixture's own directory.
 [[app]]
 entry = "examples/process.nvs"
 
 [app.capabilities.fs]
-read = ["target/debug", "examples/process"]
+read = ["target", "examples/process"]
 
 [app.capabilities.process]
-exec = ["target/debug", "examples/process"]
+exec = ["target", "examples/process"]
 
 # `examples/http.nvs` talks to an origin on the loopback, which ADR 0058 § 3
 # denies by default — so this block is where that ADR's *other* half is written

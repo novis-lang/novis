@@ -1451,9 +1451,9 @@ async function runClosing(): Promise<void> {
   emit("                                    the PHP twins with no oracle case, the unasserted");
   emit("                                    error paths -- never an `ls tests/` plus a `grep`");
   emit();
-  emit("`target/debug/nvs.exe` IS ALREADY BUILT at the commit this session starts from -- the");
-  emit("driver builds it after every acceptance check. Run it. Do not `ls` it first, and");
-  emit("rebuild only once you have changed Rust yourself.");
+  emit("THE PIPELINE'S `nvs` IS ALREADY BUILT at the commit this session starts from, at");
+  emit("`target/covws/<host triple>/debug/nvs`: `bun nv try` runs it. Do not `ls` it first,");
+  emit("and let `bun nv verify` rebuild it once you have changed Rust yourself.");
   if (template) {
     emit();
     emit(`THE WRAP SKELETON -- \`${session} --template\` for this tree, so you do not call it.`);

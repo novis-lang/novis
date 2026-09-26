@@ -9,6 +9,8 @@
 //
 // - a fixture or an `{nvs}` command runs the covws `nvs` (`lib/covws.ts`) with its coverage and its
 //   footprint log going to the check's own atom, and the compile cache off;
+// - a fixture and a command find that same `nvs` in `NVS_BIN`, so a program or a script that starts
+//   `nvs` itself runs this tree's build and never a `target/debug` one somebody built by hand;
 // - a case runs through `nvs test --cases` (`recordCases`), shared with `nv verify`'s case trees;
 // - a test binary runs whole in its package's directory, shared with `nv verify`'s `test` step, which
 //   also keeps its last green lines for a check that names a test;
@@ -325,7 +327,7 @@ export class PlanSweep {
     const exe = await this.binary();
     if (typeof exe !== "string") return none(exe.fail);
     const args = [...(c.args ?? []), c.file ?? ""];
-    const got = await this.recorded([exe, "run", ...args], ".", `nvs run ${args.join(" ")}`, { NOVIS_NO_FILE_CACHE: "1" });
+    const got = await this.recorded([exe, "run", ...args], ".", `nvs run ${args.join(" ")}`, { NOVIS_NO_FILE_CACHE: "1", NVS_BIN: exe });
     const { o } = got;
     const keys: Keyed = new Map(got.keys);
     const fail = judgeProgram(c, o, `native ${c.file} [${this.label(c.stage)}]`);
@@ -342,7 +344,15 @@ export class PlanSweep {
       if (built.code !== 0) return none(`the release build failed -- ${label}: ${firstErrLine(built)}`);
     }
     const cwd = c.cwd ?? ".";
-    const { o, keys } = await this.recorded(argv, cwd, argv.join(" "), argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {});
+    const extra: Record<string, string> = argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {};
+    // A command names the pipeline's `nvs` to whatever it starts through `NVS_BIN`, built first, so a
+    // script that runs `nvs` itself runs this tree's build and records its footprint here. A command
+    // that measures the release CLI names its binary itself.
+    if (c.kind === "command" && !measuresReleaseCli(c)) {
+      const exe = await this.binary();
+      if (typeof exe === "string") extra.NVS_BIN = exe;
+    }
+    const { o, keys } = await this.recorded(argv, cwd, argv.join(" "), extra);
     const own: Keyed = new Map(keys);
     // What records nothing of its reads: a command's `commandKeys`, and any `cargo` run everything.
     if (!heavy && c.kind === "command" && !(argv[0] === "bun" && argv[1] === "nv")) for (const [k, d] of commandKeys(c)) own.set(k, d);

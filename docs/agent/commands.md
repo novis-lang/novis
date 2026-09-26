@@ -405,8 +405,8 @@ under `tests/differential/`, and `nvs test` runs the same two programs the same 
 translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
 `.nvst` test case* owns the format.
 
-`bun nv try` needs `target/debug/nvs` built; `nv verify` builds it, so a snippet run after a green
-verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
+`bun nv try` runs the pipeline's `covws` build of `nvs`, or the binary `NVS_BIN` names; `nv verify`
+builds it, so a snippet run after a green verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
 finding, not an error.
 
 ## Finishing a session: steps 4 and 5 in one call

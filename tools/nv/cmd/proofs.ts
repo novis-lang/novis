@@ -26,8 +26,8 @@
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
-// the audit reads the roster from the first built of `target/release`, `target/debug`, the proof binary
-// and the `covws` debug build, `--bless`, `--run` and `--verify` use the proof binary, and
+// the audit reads the roster from the first built of `target/release`, the proof binary and the `covws`
+// debug build, `--bless`, `--run` and `--verify` use the proof binary, and
 // `--record-perf` uses the release binary, each built first when it is not current. `--run` and
 // `--verify` on the proof binary run only the programs the change since the selection store's tree
 // reaches, record each, and report the rest green (`tools/nv/proofs/select.ts`); `--no-cache` runs
@@ -60,13 +60,13 @@ const USAGE = [
   "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
-/** What the binary is: the one named, or the first built of the release binary, a debug build by hand,
- * the proof binary and the pipeline's debug build. */
+/** What the binary is: the one named, or the first built of the release binary, the proof binary and
+ * the pipeline's debug build. */
 function binary(explicit: string | undefined): string | null {
   if (explicit !== undefined) return existsSync(explicit) ? explicit : null;
   const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
   const covws = `${COVWS_TARGET}/${hostTriple()}`;
-  for (const p of [`target/release/${exe}`, `target/debug/${exe}`, proofBinaryPath(), `${covws}/debug/${exe}`].map((x) => abs(x))) {
+  for (const p of [`target/release/${exe}`, proofBinaryPath(), `${covws}/debug/${exe}`].map((x) => abs(x))) {
     if (existsSync(p)) return p;
   }
   return null;

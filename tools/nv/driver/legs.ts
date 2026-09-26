@@ -143,12 +143,13 @@ export const LEG_NEEDS: Record<string, (leg: { afUnix: boolean }) => boolean> = 
 };
 
 
-/** The valgrind line for one fixture, run from the repository root where `repo` names it. */
+/** The valgrind line for one fixture, run from the repository root where `repo` names it, with the
+ * binary in `NVS_BIN` for a fixture that starts `nvs` itself, as every fixture run has it. */
 export function valgrindLine(repo: string, binary: string, file: string): string {
   const over = VALGRIND_CONFIG[file];
   const config = over === undefined ? "" : `--config nvs.toml --config ${q(over)} `;
   return (
-    `cd ${q(repo)} && valgrind --error-exitcode=${VALGRIND_ERROR} --leak-check=full ` +
+    `cd ${q(repo)} && NVS_BIN=${q(binary)} valgrind --error-exitcode=${VALGRIND_ERROR} --leak-check=full ` +
     `--errors-for-leak-kinds=definite --suppressions=tools/valgrind.supp -q ` +
     `${q(binary)} ${config}run ${q(file)}`
   );
@@ -487,7 +488,8 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
   return programFailLine(ordered, o.label);
 }
 
-/** One fixture on the WSL leg: its red line, or "" when it is green or the leg has not what it `needs`. */
+/** One fixture on the WSL leg, with the Linux build in `NVS_BIN` for a fixture that starts `nvs` itself:
+ * its red line, or "" when it is green or the leg has not what it `needs`. */
 async function wslProgram(
   o: LegsOptions,
   c: Check,
@@ -507,7 +509,7 @@ async function wslProgram(
   }
   if (!PROGRAM_KINDS.has(c.kind)) return "";
   const args = [...(c.args ?? []), c.file ?? ""];
-  const r = await shared(`cd ${q(repo)} && ${q(binary)} run ${args.map(q).join(" ")}`, `wsl ${c.file}`);
+  const r = await shared(`cd ${q(repo)} && NVS_BIN=${q(binary)} ${q(binary)} run ${args.map(q).join(" ")}`, `wsl ${c.file}`);
   return judgeProgram(c, r, label);
 }
 

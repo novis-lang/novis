@@ -32,6 +32,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, dirname, join, relative, sep } from "node:path";
+import { covwsNvs } from "../lib/covws.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, comparePaths, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
@@ -49,8 +50,13 @@ const TMP = join(ROOT, ".agent-tmp", "reference-examples");
 const PRIMER = join(ROOT, ".agent-tmp", "primer", "primer.md");
 /** Where `--agent-walk` assembles the program it hands `nvs check`, for the same reason. */
 const WALK = join(ROOT, ".agent-tmp", "agent-walk");
-/** `NVS_BIN` when it is set, which `nv verify` sets to the `covws` build's; otherwise the debug build. */
-const BINARY = process.env.NVS_BIN || join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
+let binary = "";
+
+/** The `nvs` this command runs: `NVS_BIN` when it is set, as `nv verify` and the acceptance sweep set
+ * it, and otherwise the pipeline's own `covws` build. */
+function nvsBinary(): string {
+  return (binary ||= process.env.NVS_BIN || covwsNvs());
+}
 
 /** Seconds per example; a hung example is a bug in the example. */
 const TIMEOUT = 60;
@@ -192,8 +198,8 @@ function classIntro(name: string): [Map<string, string>, string] | null {
 type Json = any;
 
 async function registry(): Promise<Json> {
-  if (!existsSync(BINARY)) throw new Fatal(`nv reference: no binary at ${rel(BINARY)} -- \`cargo build\` first`);
-  const p = await runProc([BINARY, "meta", "--json"]);
+  if (!existsSync(nvsBinary())) throw new Fatal(`nv reference: no binary at ${rel(nvsBinary())} -- \`bun nv verify\` builds it`);
+  const p = await runProc([nvsBinary(),"meta", "--json"]);
   if (p.code !== 0) throw new Fatal(`nv reference: \`nvs meta --json\` failed:\n${p.stderr}`);
   return JSON.parse(p.stdout);
 }
@@ -582,7 +588,7 @@ function normalize(s: string): string {
 
 /** The binary run once, with its output's newlines normalized. */
 async function ask(args: string[], cwd?: string) {
-  const p = await runProc([BINARY, ...args], { cwd: cwd ?? ROOT, timeoutMs: TIMEOUT * 1000 });
+  const p = await runProc([nvsBinary(),...args], { cwd: cwd ?? ROOT, timeoutMs: TIMEOUT * 1000 });
   return { ...p, stdout: p.stdout.replace(/\r\n/g, "\n"), stderr: p.stderr.replace(/\r\n/g, "\n") };
 }
 
@@ -603,7 +609,7 @@ async function runExample(ex: Example, keep: boolean): Promise<string | null> {
   const work = join(TMP, basename(dirname(ex.chapter)), `${stem}-${String(ex.index).padStart(2, "0")}`);
   lay(work, ex);
   const verb = ex.mode === "test" ? "test" : ex.mode === "error" ? "check" : "run";
-  const p = await runProc([BINARY, verb, "main.nvs"], { cwd: work, timeoutMs: TIMEOUT * 1000 });
+  const p = await runProc([nvsBinary(),verb, "main.nvs"], { cwd: work, timeoutMs: TIMEOUT * 1000 });
   if (p.timedOut) return `${where}: timed out after ${TIMEOUT}s`;
   const { stdout, stderr } = p;
   let problem: string | null = null;
