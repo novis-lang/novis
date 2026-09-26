@@ -199,7 +199,7 @@ pub mod request;
 pub mod run;
 pub mod section;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -208,7 +208,7 @@ use std::sync::mpsc;
 use std::thread;
 
 pub use case::{Case, Expectation, Oracle, ParseError, Subcommand};
-pub use run::{Options, Outcome};
+pub use run::{Options, Outcome, record_name, recording};
 
 /// The extension a case file carries.
 pub const EXTENSION: &str = "nvst";
@@ -270,6 +270,34 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
     Ok(())
 }
 
+/// The cases of `found` that `only` lists, in discovery order. A path is compared with either
+/// slash and without a leading `./`, so a list written on one platform names the cases another
+/// discovers.
+///
+/// # Errors
+///
+/// [`io::ErrorKind::NotFound`] naming the first listed path that is not one of `found`: a list
+/// that names a case no tree holds was made against another tree, and running the rest would
+/// report a pass for a case that never ran.
+pub fn listed(found: Vec<PathBuf>, only: &[PathBuf]) -> io::Result<Vec<PathBuf>> {
+    fn key(path: &Path) -> String {
+        let text = path.to_string_lossy().replace('\\', "/");
+        text.strip_prefix("./").unwrap_or(&text).to_owned()
+    }
+    let held: HashSet<String> = found.iter().map(|path| key(path)).collect();
+    if let Some(missing) = only.iter().find(|path| !held.contains(&key(path))) {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{}: not a case of the named trees", missing.display()),
+        ));
+    }
+    let wanted: HashSet<String> = only.iter().map(|path| key(path)).collect();
+    Ok(found
+        .into_iter()
+        .filter(|path| wanted.contains(&key(path)))
+        .collect())
+}
+
 /// Runs every case in `paths`, writing a report to `out`.
 ///
 /// The last line is always `N passed, M failed, K skipped` — the shape
@@ -287,8 +315,13 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 ///
 /// # Errors
 ///
-/// Fails on a discovery error, or when `out` cannot be written to. A failing
-/// *case* is not an error: it is counted in the returned [`Summary`], and so
+/// With [`Options::only`], the cases are the listed ones of those `paths` hold,
+/// judged and summed up the same way. With [`Options::record`], each case's
+/// processes are recorded ([`recording`]).
+///
+/// Fails on a discovery error, a listed case no tree holds, or when `out`
+/// cannot be written to. A failing *case* is not an error: it is counted in the
+/// returned [`Summary`], and so
 /// is a case whose process had to be killed for running past
 /// [`run::CASE_TIMEOUT`]. A wedged case is one failure with a reason on it,
 /// never a suite that stops reporting.
@@ -296,7 +329,12 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
     // Everything is parsed before anything runs, for two reasons: a malformed
     // case is reported without having spawned a compiler, and the PHP probe
     // below only happens when some case actually wants an oracle.
-    let parsed: Vec<(String, Result<Case, String>)> = discover(paths)?
+    let found = discover(paths)?;
+    let found = match &opts.only {
+        Some(only) => listed(found, only)?,
+        None => found,
+    };
+    let parsed: Vec<(String, Result<Case, String>)> = found
         .into_iter()
         .map(|path| (path.display().to_string(), read(&path)))
         .filter(|(label, _)| {
@@ -423,6 +461,35 @@ mod tests {
             }
             .is_success()
         );
+    }
+
+    #[test]
+    fn a_case_list_keeps_the_listed_cases_in_discovery_order() {
+        let found: Vec<PathBuf> = ["tree/a.nvst", r"tree\sub\b.nvst", "tree/c.nvst"]
+            .iter()
+            .map(PathBuf::from)
+            .collect();
+        let only = [
+            PathBuf::from("./tree/c.nvst"),
+            PathBuf::from("tree/sub/b.nvst"),
+        ];
+        let kept = listed(found, &only).expect("both are in the tree");
+        assert_eq!(
+            kept,
+            [
+                PathBuf::from(r"tree\sub\b.nvst"),
+                PathBuf::from("tree/c.nvst")
+            ]
+        );
+    }
+
+    #[test]
+    fn a_case_list_naming_a_case_the_tree_lacks_is_refused() {
+        let found = vec![PathBuf::from("tree/a.nvst")];
+        let error =
+            listed(found, &[PathBuf::from("tree/gone.nvst")]).expect_err("a case no tree holds");
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert!(error.to_string().contains("tree/gone.nvst"), "{error}");
     }
 
     #[test]

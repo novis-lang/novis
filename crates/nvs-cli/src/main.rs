@@ -478,6 +478,25 @@ enum Command {
         // is why the CLI surface lands before the client that reads it.
         #[arg(long, conflicts_with = "update")]
         list: bool,
+        /// Run only the `.nvst` case files this file lists, one path per
+        /// line, out of the trees named.
+        ///
+        /// A case is judged and counted exactly as a whole-tree run judges it,
+        /// and the summary counts the listed cases. A listed path that no named
+        /// tree holds is refused before anything runs.
+        #[arg(long, value_name = "FILE")]
+        cases: Option<PathBuf>,
+        /// Record each `.nvst` case into this directory, which is created
+        /// when it is not there.
+        ///
+        /// Every `nvs` process a case starts writes its coverage counters to
+        /// `<name>-<pid>.profraw` when the binary is built with coverage, and
+        /// the classes and files it used to `<name>.log`, and compiles with
+        /// no artifact cache. `<name>` is the case's path with `/` and `\`
+        /// as `~` and every other character that is not a letter, a digit,
+        /// `.`, `_` or `-` as `@` and two hex digits.
+        #[arg(long, value_name = "DIR")]
+        record: Option<PathBuf>,
     },
     /// Produce a build artifact from a checked program.
     ///
@@ -1438,6 +1457,8 @@ fn main() -> ExitCode {
             format,
             update,
             list,
+            cases,
+            record,
         } => run_test(
             &paths,
             filter,
@@ -1446,6 +1467,8 @@ fn main() -> ExitCode {
             format,
             update,
             list,
+            cases,
+            record,
             &cli.config,
             init,
         ),
@@ -2858,6 +2881,8 @@ fn run_test(
     format: runner::Format,
     update: bool,
     list: bool,
+    cases: Option<PathBuf>,
+    record: Option<PathBuf>,
     config: &[PathBuf],
     init: config::Init,
 ) -> ExitCode {
@@ -2879,6 +2904,14 @@ fn run_test(
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
             return ExitCode::FAILURE;
         };
+        if cases.is_some() || record.is_some() {
+            // Both name `.nvst` case files and the processes each one starts,
+            // and a program's `#[Test]` methods run in this one process.
+            eprintln!(
+                "error: `--cases` and `--record` run `.nvst` cases, not a program's `#[Test]` methods"
+            );
+            return ExitCode::FAILURE;
+        }
         let path = program.configured();
         // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
         // resolves it above its own compile: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact key is half
@@ -2949,6 +2982,40 @@ fn run_test(
     options.php = php;
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
+    }
+    if let Some(list) = &cases {
+        match std::fs::read_to_string(list) {
+            Ok(text) => {
+                options.only = Some(
+                    text.lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .map(PathBuf::from)
+                        .collect(),
+                );
+            }
+            Err(error) => {
+                eprintln!(
+                    "error: could not read the case list {}: {error}",
+                    list.display()
+                );
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    if let Some(dir) = &record {
+        // Absolute, because each case's processes run in a working directory of their own.
+        let made = std::fs::create_dir_all(dir).and_then(|()| std::path::absolute(dir));
+        match made {
+            Ok(dir) => options.record = Some(dir),
+            Err(error) => {
+                eprintln!(
+                    "error: could not use {} to record into: {error}",
+                    dir.display()
+                );
+                return ExitCode::FAILURE;
+            }
+        }
     }
 
     let mut out = std::io::stdout().lock();

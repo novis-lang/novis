@@ -68,6 +68,14 @@ pub struct Options {
     /// How long one case's process may run before it is killed and reported as
     /// a failure. [`CASE_TIMEOUT`] is the default and owns the reasoning.
     pub timeout: Duration,
+    /// Run only these case files of the trees, compared by path with either
+    /// slash. `None` runs every case the trees hold; [`crate::run()`] refuses a
+    /// listed file no tree holds.
+    pub only: Option<Vec<PathBuf>>,
+    /// Record each case into this directory: every `nvs` process the case
+    /// starts writes its coverage counters and its footprint log there, under
+    /// the case's [`record_name`], and compiles with no artifact cache.
+    pub record: Option<PathBuf>,
 }
 
 impl Options {
@@ -84,8 +92,54 @@ impl Options {
             filter: None,
             jobs: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
             timeout: CASE_TIMEOUT,
+            only: None,
+            record: None,
         })
     }
+}
+
+/// The file name a recorded case's files start with, from the path the report
+/// names it by: `/` and `\` become `~`, every other byte that is not an ASCII
+/// letter, digit, `.`, `_` or `-` becomes `@` and two hex digits, so two paths
+/// never share a name and none holds a `%` the profile runtime would expand.
+/// `tests/conformance/a b.nvst` is `tests~conformance~a@20b.nvst`.
+#[must_use]
+pub fn record_name(label: &str) -> String {
+    let mut name = String::with_capacity(label.len());
+    for byte in label.bytes() {
+        match byte {
+            b'/' | b'\\' => name.push('~'),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_' | b'-' => {
+                name.push(char::from(byte));
+            }
+            other => name.push_str(&format!("@{other:02x}")),
+        }
+    }
+    name
+}
+
+/// The environment every `nvs` process of `case` gets when [`Options::record`]
+/// names a directory: `LLVM_PROFILE_FILE` as `<dir>/<name>-%p.profraw`, one
+/// file per process, `NVS_FOOTPRINT_LOG` as `<dir>/<name>.log`, which they
+/// share, and `NOVIS_NO_FILE_CACHE`, so each compile runs whole. Empty when
+/// nothing is recorded.
+#[must_use]
+pub fn recording(case: &Case, opts: &Options) -> Vec<(String, String)> {
+    let Some(dir) = &opts.record else {
+        return Vec::new();
+    };
+    let name = record_name(&case.path.display().to_string());
+    vec![
+        (
+            "LLVM_PROFILE_FILE".to_owned(),
+            dir.join(format!("{name}-%p.profraw")).display().to_string(),
+        ),
+        (
+            "NVS_FOOTPRINT_LOG".to_owned(),
+            dir.join(format!("{name}.log")).display().to_string(),
+        ),
+        ("NOVIS_NO_FILE_CACHE".to_owned(), "1".to_owned()),
+    ]
 }
 
 /// What running one case came to.
@@ -136,6 +190,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         }
     }
 
+    let record = recording(case, opts);
     if let Some(source) = &case.skipif {
         match run_nvs(
             opts,
@@ -150,6 +205,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
                 request: None,
                 args: &[],
                 env: &case.env,
+                record: &record,
             },
         ) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
@@ -168,7 +224,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         }
     }
 
-    let outcome = judge(case, opts, workdir);
+    let outcome = judge(case, opts, workdir, &record);
 
     if let Some(source) = &case.clean {
         // `--CLEAN--`'s whole job is tidying up after the case; its own
@@ -184,13 +240,14 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
                 request: None,
                 args: &[],
                 env: &case.env,
+                record: &record,
             },
         );
     }
     outcome
 }
 
-fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
+fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)]) -> Outcome {
     // The child is a separate process, so a request reaches it as a file it is
     // pointed at — `crate::request` owns that format and why it is a file
     // rather than something in the environment.
@@ -214,6 +271,7 @@ fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
             request,
             args: &case.args,
             env: &case.env,
+            record,
         },
     ) {
         Ok(output) => output,
@@ -329,6 +387,8 @@ struct Invocation<'a> {
     args: &'a [String],
     /// `--ENV--`, which both halves of a differential case get.
     env: &'a [(String, String)],
+    /// [`recording`]'s variables, which only the `nvs` half gets.
+    record: &'a [(String, String)],
 }
 
 fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<Output> {
@@ -348,7 +408,13 @@ fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<O
     // boundary `nvs run`'s trailing arguments have on a real command line, and
     // the reason a case's arguments can name a `--dryRun` of their own.
     args.extend(run.args.iter().map(|arg| arg.as_ref() as &OsStr));
-    spawn(&opts.nvs, &args, workdir, run.env, opts.timeout)
+    spawn(
+        &opts.nvs,
+        &args,
+        workdir,
+        &[run.env, run.record],
+        opts.timeout,
+    )
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
@@ -369,7 +435,7 @@ fn run_php(
         &opts.php,
         &["oracle.php".as_ref()],
         workdir,
-        env,
+        &[env],
         opts.timeout,
     )
 }
@@ -377,11 +443,12 @@ fn run_php(
 /// Runs `program` in `workdir` and collects its output, for at most `timeout`.
 ///
 /// Like [`Command::output`] but with a deadline, which `std` has no version of.
+/// `env` is each list of variables to add, in order, so a later list wins.
 fn spawn(
     program: &Path,
     args: &[&OsStr],
     workdir: &Path,
-    env: &[(String, String)],
+    env: &[&[(String, String)]],
     timeout: Duration,
 ) -> io::Result<Output> {
     let mut child = Command::new(program)
@@ -392,7 +459,11 @@ fn spawn(
         // `NO_COLOR` below is set after it on purpose: a case that wanted
         // coloured output would be pinning escape codes, which no case is
         // about.
-        .envs(env.iter().map(|(name, value)| (name, value)))
+        .envs(
+            env.iter()
+                .flat_map(|list| list.iter())
+                .map(|(name, value)| (name, value)),
+        )
         // A diagnostic decides on colour by asking whether stderr is a
         // terminal, which a captured pipe is not — but a CI runner that sets
         // `CLICOLOR_FORCE` would still colour it, and escape codes in an
@@ -539,6 +610,56 @@ mod tests {
         assert_eq!(written, "<?nvs\n");
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_record_name_keeps_the_path_readable_and_two_paths_apart() {
+        assert_eq!(
+            record_name("tests/conformance/a b.nvst"),
+            "tests~conformance~a@20b.nvst"
+        );
+        assert_eq!(
+            record_name(r"tests\conformance\a b.nvst"),
+            "tests~conformance~a@20b.nvst",
+            "either slash names the same case"
+        );
+        assert_eq!(record_name("50%.nvst"), "50@25.nvst");
+        assert_ne!(record_name("a~b.nvst"), record_name("a/b.nvst"));
+        assert_eq!(record_name("D:/x.nvst"), "D@3a~x.nvst");
+    }
+
+    #[test]
+    fn a_recorded_case_names_its_profile_its_log_and_a_cold_compile() {
+        let case = crate::case::parse(
+            Path::new("tests/conformance/math.nvst"),
+            "--TEST--\nmath\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n",
+        )
+        .expect("the case parses");
+        let mut opts = Options::from_current_exe().expect("this binary has a path");
+        assert!(
+            recording(&case, &opts).is_empty(),
+            "nothing is recorded unless asked"
+        );
+
+        let dir = std::env::temp_dir().join("records");
+        opts.record = Some(dir.clone());
+        let vars = recording(&case, &opts);
+        let value = |name: &str| {
+            vars.iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_else(|| panic!("{name} is set: {vars:?}"))
+        };
+        let stem = "tests~conformance~math.nvst";
+        assert_eq!(
+            value("LLVM_PROFILE_FILE"),
+            dir.join(format!("{stem}-%p.profraw")).display().to_string()
+        );
+        assert_eq!(
+            value("NVS_FOOTPRINT_LOG"),
+            dir.join(format!("{stem}.log")).display().to_string()
+        );
+        assert_eq!(value("NOVIS_NO_FILE_CACHE"), "1");
     }
 
     #[test]

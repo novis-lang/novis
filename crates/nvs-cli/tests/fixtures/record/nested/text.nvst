@@ -1,0 +1,7 @@
+--TEST--
+a string length, for `tests/nvst_select.rs`
+--FILE--
+<?nvs
+echo Core\Str::length("four"), "\n";
+--EXPECT--
+4
