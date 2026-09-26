@@ -1,0 +1,13 @@
+<?nvs
+// Shows that the number is the highest point so far. It does not get smaller
+// when the program frees memory.
+
+uint $before = Core\Os::residentBytes();
+
+// This builds a text of 20 million characters, and then frees it.
+string $big = Core\Str::repeat("x", 20000000);
+$big = "";
+
+// The process used more memory while the text existed. That peak is kept, so
+// the new number is at least as large as the first one. This prints `yes`.
+echo Core\Os::residentBytes() >= $before ? "yes" : "no", "\n";

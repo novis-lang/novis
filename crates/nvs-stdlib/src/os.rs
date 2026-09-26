@@ -115,11 +115,11 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Os::pid`'s reference card — `rule:core-api/reference-card`.
 const PID_DOC: MethodDoc = MethodDoc {
-    short: "This process's identifier, as the operating system numbers it — `getmypid`. It is the \
-            whole process's and not this request's, so two requests served by one process read the \
-            same number.",
+    short: "Returns the number the operating system gives this process. This replaces PHP's \
+            `getmypid`. The number belongs to the whole process. Two requests served by the same \
+            process get the same number.",
     params: &[],
-    ret: "The process identifier.",
+    ret: "The process number, which is larger than 0.",
     errors: &[],
 };
 
@@ -151,15 +151,15 @@ const CPU_COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Os::residentBytes`'s reference card — `rule:core-api/reference-card`.
 const RESIDENT_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "The bytes of this **process's** resident set at its high-water mark — `getrusage`'s \
-            `ru_maxrss`, and the peak working set on Windows. A *request's* memory is \
-            `Core\\Budget`'s and never this: this figure covers every request the process has \
-            served and only ever grows.",
+    short: "Returns the most memory this process has used so far, in bytes. This replaces the \
+            `ru_maxrss` figure of PHP's `getrusage`. On Windows it is the peak working set. The \
+            number covers every request the process has served, so it never gets smaller. For \
+            the memory of one request, use `Core\\Budget`.",
     params: &[],
-    ret: "The process's resident bytes.",
+    ret: "The most memory the process has used, in bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The operating system would not report this process's memory.",
+        desc: "The operating system did not report the memory of this process.",
     }],
 };
 
@@ -318,7 +318,7 @@ mod tests {
     /// set differ on every run, and what could go wrong at this layer is a
     /// member wired to the wrong primitive, which shows up as a zero, an empty
     /// string or a throw rather than as a wrong-looking number.
-    // covers: Core\Os::hostname
+    // covers: Core\Os::hostname, Core\Os::pid, Core\Os::residentBytes
     #[test]
     fn pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer() {
         assert!(

@@ -1,22 +1,26 @@
 {
-  "state": "Goal `core-os-and-2-more`: `Core\\Os::cpuCount` and `Core\\Os::hostname` have all their feature proofs on disk: about, three examples each, an attack, a bench and a Rust `covers:` marker.\n`Core\\Os` now has its class card, and it is off `CLASSES_STILL_OWING_A_CARD`. The member cards of `cpuCount`, `hostname` and `loadAverage` were rewritten in the plain voice.\n`loadAverage` already carries its Rust `covers:` marker on `load_average_throws_on_windows_with_a_message_naming_the_platform`. It still owes about, examples, hostile and perf.\nEvery value in `Core\\Os` differs per machine, so each example prints a check (`yes`, `100`) and never the value itself.",
+  "state": "Goal `core-os-and-2-more`: every `Core\\Os` member has all its feature proofs, and `bun nv proofs --verify --group 'Core\\Os'` passes (check `dossier-core-os`).\n`loadAverage`'s first example carries `// requires: unix`. Its `.out` was written from a run of the WSL binary (`/var/tmp/nvs-target-wsl/debug/nvs`), because `--bless` refuses a skipped example on Windows. Examples 2 and 3, the attack and the bench catch the Windows `RuntimeError` and run everywhere.\n`pid` and `residentBytes` are credited to the Rust test `pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer` by one comma-separated `covers:` line. Their cards were rewritten in the plain voice.\nStill red: `dossier-core-out` and `dossier-core-password`. Neither class has a card, and none of their members has an example, an attack, a bench or a Rust `covers:` marker.",
   "next": {
-    "stage": 1,
-    "title": "the last member's proofs",
-    "files": [
-      "crates/nvs-stdlib/src/os.rs",
-      "docs/examples/core/Os/",
-      "tests/hostile/core/Os/",
-      "benches/members/core/Os/"
-    ],
+    "stage": 2,
+    "title": "the dossier",
+    "files": [],
+    "note": "one file set: `crates/nvs-stdlib/src/out.rs`, `crates/nvs-stdlib/src/password.rs`, `crates/nvs-stdlib/src/registry.rs`, and their trees under `docs/examples/core/`, `tests/hostile/core/`, `benches/members/core/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Os::loadAverage`** — owes about, examples, hostile, perf (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/os.rs:93`. It throws a `RuntimeError` on Windows. An example that reads the figures needs `// requires: unix` and is blessed on Linux (`docs/examples/README.md` § *`// requires: unix`*). An example that catches the throw and prints the same line on both platforms runs everywhere. The attack and the bench must survive both platforms: catch the throw in each step, and let the bench total count a throw as 0."
+        "text": "**`Core\\Out::capture`** — owes about, examples, hostile, perf, a Rust `covers:` marker and the `Core\\Out` class card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/out.rs:62`. The card goes above the class's `CLASS` row, and `Core\\Out` leaves `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5189`. `rule:security/capture-answers-the-carrier` says what the capture returns."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Password::hash`, `verify` and `needsRehash`** — each owes about, examples, hostile, perf and a Rust `covers:` marker, and the class owes its card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/password.rs:207`, `crates/nvs-stdlib/src/password.rs:216`, `crates/nvs-stdlib/src/password.rs:225`. A hash is different on every run, so an example prints a check and never the hash. A hash is slow on purpose, so the bench's iterations stay small."
+      },
+      {
+        "done": false,
+        "text": "**Record the figures** — `bun nv proofs --record-perf --group 'Core\\Out'` and the same for `Core\\Password`, after the benches exist (`rule:testing/member-perf-ledger`). `benches/members/core/Os/loadAverage.nvs:1` is a finished bench to compare with."
       }
     ]
   },
   "backlog": [
-    "Uint division: `uint / uint` is typed `uint|float` and `Core\\Math::intDiv` takes `int` only, so an example dividing a `uint` count uses `%` or a loop. No doc owns this yet."
+    "`Core\\Os::pid`'s figure recorded 0.0 ns/op. The call may be answered from a cached value, so a later remeasure is not a regression (`docs/perf/members.ndjson`)."
   ]
 }

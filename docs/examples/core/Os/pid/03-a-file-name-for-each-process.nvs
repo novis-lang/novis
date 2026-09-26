@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to give a temporary file a name that no other running process uses.
+// Two processes that write a report at the same time then do not overwrite each other.
+
+// The process number goes in the middle of the name.
+string $name = "report-" . Core\Os::pid() . ".tmp";
+
+// The name starts with `report-` and ends with `.tmp`. This prints `yes`.
+echo Core\Str::startsWith($name, "report-") && Core\Str::endsWith($name, ".tmp") ? "yes" : "no", "\n";
+
+// There is a number between the two parts, so the name is longer than
+// `report-.tmp`. This prints `yes`.
+echo Core\Str::length($name) > Core\Str::length("report-.tmp") ? "yes" : "no", "\n";

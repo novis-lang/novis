@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read the number the operating system gives this program's process.
+
+uint $pid = Core\Os::pid();
+
+// The number is different on every run, so this example does not print it.
+// Every process number is larger than 0, so this prints `yes`.
+echo $pid > 0 ? "yes" : "no", "\n";

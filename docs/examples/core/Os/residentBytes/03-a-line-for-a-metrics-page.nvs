@@ -1,0 +1,9 @@
+<?nvs
+// Shows how a server reports its memory on a metrics page. A monitoring tool
+// reads the page and warns somebody when the number gets too large.
+
+string $line = "process_peak_memory_bytes " . Core\Os::residentBytes();
+
+// The line starts with the name of the figure, then a space, then the number.
+// This prints `yes`.
+echo Core\Str::startsWith($line, "process_peak_memory_bytes ") ? "yes" : "no", "\n";

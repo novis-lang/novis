@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read the most memory this program's process has used so far.
+
+uint $bytes = Core\Os::residentBytes();
+
+// The number is different on every machine, so this example does not print it.
+// A running process always uses some memory, so this prints `yes`.
+echo $bytes > 0 ? "yes" : "no", "\n";

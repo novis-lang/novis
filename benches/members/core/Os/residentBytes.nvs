@@ -1,0 +1,22 @@
+<?nvs
+// Measures reading the most memory the process has used. A server does this
+// when it fills in a metrics page.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each reading is compared with the total, so no round can be left out.
+            if (Core\Os::residentBytes() > $total % 7) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

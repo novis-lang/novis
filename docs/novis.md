@@ -23174,9 +23174,9 @@ Keywords: pid, hostname, cpuCount, residentBytes, loadAverage
 Core\Os::pid(): uint
 ```
 
-This process's identifier, as the operating system numbers it — `getmypid`. It is the whole process's and not this request's, so two requests served by one process read the same number.
+Returns the number the operating system gives this process. This replaces PHP's `getmypid`. The number belongs to the whole process. Two requests served by the same process get the same number.
 
-**Returns** `uint` — The process identifier.
+**Returns** `uint` — The process number, which is larger than 0.
 
 <a id="core-core-os-hostname"></a>
 #### `Core\Os::hostname`
@@ -23211,11 +23211,11 @@ Returns how many CPU cores this program may use. A server or a container can lim
 Core\Os::residentBytes(): uint
 ```
 
-The bytes of this **process's** resident set at its high-water mark — `getrusage`'s `ru_maxrss`, and the peak working set on Windows. A *request's* memory is `Core\Budget`'s and never this: this figure covers every request the process has served and only ever grows.
+Returns the most memory this process has used so far, in bytes. This replaces the `ru_maxrss` figure of PHP's `getrusage`. On Windows it is the peak working set. The number covers every request the process has served, so it never gets smaller. For the memory of one request, use `Core\Budget`.
 
-**Returns** `uint` — The process's resident bytes.
+**Returns** `uint` — The most memory the process has used, in bytes.
 
-**Throws** `RuntimeError` — The operating system would not report this process's memory.
+**Throws** `RuntimeError` — The operating system did not report the memory of this process.
 
 <a id="core-core-os-loadaverage"></a>
 #### `Core\Os::loadAverage`

@@ -1,0 +1,15 @@
+<?nvs
+// Shows that the process number does not change while the program runs.
+
+uint $first = Core\Os::pid();
+
+// This loop builds a text, so some time passes between the two readings.
+string $text = "";
+uint $i = 0;
+while ($i < 1000) {
+    $text = $text . "x";
+    $i = $i + 1;
+}
+
+// The second reading is the same number. This prints `yes`.
+echo Core\Os::pid() == $first ? "yes" : "no", "\n";
