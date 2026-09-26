@@ -2933,6 +2933,13 @@ mod tests {
     /// first run of a program actually costs, and pricing the cold arm at less than it would
     /// flatter the cache.
     ///
+    /// **The artifact's first open is inside neither arm either.** On a host with an on-access
+    /// scanner, as a default Windows install has, the first open of a freshly written file waits
+    /// for the scan, and that wait can exceed the loader's own work and grows with whatever else
+    /// the scanner is reading, such as a release binary that was just linked. It is paid once per
+    /// published file, never by a later run's warm hit, so the test opens the file once between
+    /// the arms and times neither.
+    ///
     /// The margin is read off the **best pair** of runs rather than off each arm's own fastest,
     /// because the two halves of a pair are measured microseconds apart and so meet the same
     /// machine: a minimum taken over the whole sweep is free to pair a cold arm measured while the
@@ -3001,6 +3008,14 @@ mod tests {
                 provenance,
                 Provenance::Compiled,
                 "an empty cache holds nothing under this key"
+            );
+
+            // The first open of a file written a moment ago is the host's to price, not the
+            // loader's: an on-access scanner reads it whole, once per file, so a real warm start
+            // opening an artifact an earlier run published never meets it.
+            drop(
+                File::open(cache.path(artifact_key(digest, cache.env())))
+                    .expect("the cold arm published this artifact"),
             );
 
             let at = Instant::now();
