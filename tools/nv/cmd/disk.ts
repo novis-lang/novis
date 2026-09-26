@@ -58,6 +58,7 @@ import type { Dirent } from "node:fs";
 import { readdir, stat as statAsync } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+import { OLD } from "../import/lib.ts";
 import { covwsCargo } from "../lib/covws.ts";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
@@ -372,7 +373,7 @@ export const RETIRED_MEMOS = [
   ".agent-tmp/verify-test-green.json",
   ".agent-tmp/nv-key-tiers.json",
   ".loop/goal-green.json",
-  ".loop/dossier-green.json",
+  `.loop/${OLD}-green.json`,
   ".loop/check-reads.json",
   ".loop/check-times.ndjson",
   ".loop/floor-gate.json",
