@@ -135,6 +135,7 @@ import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
+import { verifiedByRecord } from "./verify.ts";
 
 export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
@@ -348,16 +349,17 @@ async function runChecks(filters: Filters): Promise<number> {
  * plan, so a unit is paired with the goal's check at the same position. A plan the two read differently
  * keys nothing, and every check runs.
  */
-async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string, string | null>; tree: Tree } | string> {
+async function checkKeys(goal: Goal, shown: Check[]): Promise<Keyed | string> {
   const graph = await metadata();
   if (!graph) return "`cargo metadata` failed, and every key needs the graph";
   const tree = await Tree.read();
   const records = loadRecords(graph);
   const all = goal.checks as Check[];
   const keys = new Map<string, string | null>();
+  const verified = new Set<string>();
   if (records.checks.length !== all.length || records.checks.some((raw, i) => checkName(raw) !== checkName(all[i]! as unknown as typeof raw))) {
     console.error("nv loop: the keys read the plan differently from the goal record, so the memo answers nothing this sweep");
-    return { keys, tree };
+    return { keys, tree, verified };
   }
   const all_units = units(records);
   const unitOf = new Map(all_units.flatMap((u) => (u.check === undefined ? [] : [[u.check, u] as const])));
@@ -372,7 +374,17 @@ async function checkKeys(goal: Goal, shown: Check[]): Promise<{ keys: Map<string
   for (const c of shown) keys.set(c.id, keyed(unitOf.get(at.get(c.id)!)));
   // Each leg is keyed under its own name, which no check id can be, since an id has no space.
   for (const leg of LEGS) keys.set(leg, keyed(all_units.find((u) => u.role === "leg" && u.name === leg)));
-  return { keys, tree };
+  const byRecord = verifiedByRecord(graph, tree, all_units);
+  for (const c of shown) if (keys.get(c.id) != null && byRecord(c)) verified.add(c.id);
+  return { keys, tree, verified };
+}
+
+/** Each check's key by id, the tree they were read over, and the checks `nv verify`'s last test run
+ * answers green over that tree. */
+interface Keyed {
+  keys: Map<string, string | null>;
+  tree: Tree;
+  verified: Set<string>;
 }
 
 /** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. The Linux legs say how many steps they will take, then each one they finish. */
@@ -393,11 +405,20 @@ async function sweepOver(
   goal: Goal,
   checks: Check[],
   labelOf: (n: number) => string,
-  keyed: { keys: Map<string, string | null>; tree: Tree },
+  keyed: Keyed,
   o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
 ): Promise<{ result: AcceptanceResult; secs: number }> {
   const memo = GreenMemo.load(join(ROOT, GREEN));
   const key = (c: Check) => keyed.keys.get(c.id) ?? null;
+  // A test check `nv verify` has just run green over these inputs is green here too, and is not run twice.
+  let taken = 0;
+  if (!o.full) {
+    for (const c of checks) {
+      if (!keyed.verified.has(c.id) || memo.answers(c, key(c))) continue;
+      memo.remember(c, key(c));
+      taken++;
+    }
+  }
   const started = Date.now();
   const p: Progress = o.progress ?? {
     run: (what) => console.error(`  .. ${what}`),
@@ -406,6 +427,7 @@ async function sweepOver(
     plan: () => {},
     step: () => {},
   };
+  if (taken > 0) p.note(`${taken} test check(s) taken from \`nv verify\`'s run over these inputs`);
   const sweep = new Sweep({ stageLabel: labelOf, onRun: p.run });
   // The two Linux legs, over the fixtures and suites this sweep reaches, run after its tiers.
   const legs: LegsOptions = {

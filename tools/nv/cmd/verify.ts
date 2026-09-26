@@ -72,10 +72,11 @@
 import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { subsetRun } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
-import { type Unit, isWide, loadRecords, units } from "../keys/checks.ts";
+import { type Unit, isWide, loadRecords, testTargets, units } from "../keys/checks.ts";
 import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
@@ -1132,6 +1133,46 @@ export function greenBinaries(): Map<string, { key: string; tests: string[] }> {
   return new Map(
     Object.entries(readObject<Green>(TEST_GREEN)).flatMap(([name, g]) => (typeof g?.key === "string" ? [[name, { key: g.key, tests: Array.isArray(g.tests) ? g.tests : [] }] as const] : [])),
   );
+}
+
+/**
+ * The checks `nv verify`'s last test run answers over `tree`: a `cargo test` check of that shape whose
+ * every binary passed a whole run under the key it has now, with every test the check names among the
+ * lines that run printed. Verify's run has already paid for these, so the loop's sweep takes them as
+ * green instead of running the binaries a second time.
+ */
+export function verifiedByRecord(graph: Graph, tree: Tree, all: Unit[]): (c: { kind: string; args?: string[]; tests?: string[] }) => boolean {
+  const tested = greenBinaries();
+  const binaries = new Map(all.filter((u) => u.role === "binary").map((u) => [u.name, u]));
+  const keys = new Map<string, string | null>();
+  const keyOfBinary = (name: string): string | null => {
+    if (!keys.has(name)) {
+      const u = binaries.get(name);
+      let k: string | null = null;
+      try {
+        k = u === undefined ? null : keyOf(name, u.parts(tree));
+      } catch {
+        k = null;
+      }
+      keys.set(name, k);
+    }
+    return keys.get(name)!;
+  };
+  return (c) => {
+    const args = c.args ?? [];
+    if (c.kind !== "cargo-named" || subsetRun(args) === null) return false;
+    const names = testTargets(graph, args)?.names ?? [];
+    if (names.length === 0) return false;
+    const lines: string[] = [];
+    for (const n of names) {
+      const g = tested.get(n);
+      const k = keyOfBinary(n);
+      if (g === undefined || k === null || g.key !== k) return false;
+      lines.push(...g.tests);
+    }
+    const text = lines.join("\n");
+    return (c.tests ?? []).every((t) => text.includes(t));
+  };
 }
 
 /** `--keys`: `{name: {key, wide}}` for every binary the last build recorded, keyed as `test` keys it. */

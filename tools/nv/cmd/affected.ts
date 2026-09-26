@@ -34,8 +34,8 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Check as AcceptCheck, GreenMemo, isCarried, isHeavy, plainCrateTest } from "../driver/accept.ts";
-import { type Unit, LEGS, checkName, loadRecords, testTargets, units } from "../keys/checks.ts";
+import { type Check as AcceptCheck, GreenMemo, isCarried, isHeavy } from "../driver/accept.ts";
+import { type Unit, LEGS, checkName, loadRecords, units } from "../keys/checks.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { type Part, keyOf } from "../keys/key.ts";
 import { partitionOf } from "../keys/partition.ts";
@@ -46,7 +46,7 @@ import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as proc } from "../lib/proc.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
-import { greenBinaries, stepGreen, stepNames } from "./verify.ts";
+import { greenBinaries, stepGreen, stepNames, verifiedByRecord } from "./verify.ts";
 
 export const summary = "what a change reaches and exactly what verifying it runs: nv affected [--since <rev> | --paths <p>...] [--run | --json]";
 
@@ -226,26 +226,8 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       return null;
     }
   };
-  const binaryKey = new Map<string, string | null>();
-  for (const u of all) {
-    if (u.role !== "binary") continue;
-    const now = partsOf(u, tree);
-    binaryKey.set(u.name, now === null ? null : keyOf(u.name, now));
-  }
   /** Whether `nv verify`'s record answers a `cargo test -p` check over the tree as it stands. */
-  const verified = (c: AcceptCheck): boolean => {
-    if (c.kind !== "cargo-named" || plainCrateTest(c.args ?? []) === null) return false;
-    const names = testTargets(graph, c.args ?? [])?.names ?? [];
-    if (names.length === 0) return false;
-    const lines: string[] = [];
-    for (const n of names) {
-      const g = tested.get(n);
-      if (g === undefined || g.key !== binaryKey.get(n)) return false;
-      lines.push(...g.tests);
-    }
-    const text = lines.join("\n");
-    return (c.tests ?? []).every((t) => text.includes(t));
-  };
+  const verified = verifiedByRecord(graph, tree, all);
 
   for (const u of all) {
     const now = partsOf(u, tree);
