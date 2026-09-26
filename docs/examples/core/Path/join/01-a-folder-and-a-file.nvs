@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to join a folder and a file name with `Core\Path::join`.
+
+// On Windows, `join` writes `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+class Show {
+    public static function slashes(string $path): string {
+        return Core\Str::replace($path, Core\Path::SEPARATOR, "/");
+    }
+}
+
+// This prints `/srv/shop/invoices/invoice-1042.pdf`.
+echo Show::slashes(Core\Path::join("/srv/shop", "invoices", "invoice-1042.pdf")), "\n";
+
+// A separator at the end of the folder is not doubled. This prints `logs/app.log`.
+echo Show::slashes(Core\Path::join("logs/", "app.log")), "\n";
+
+// With no parts to add, the result is the first path. This prints `/srv/shop`.
+echo Show::slashes(Core\Path::join("/srv/shop/")), "\n";

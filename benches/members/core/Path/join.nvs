@@ -1,0 +1,19 @@
+<?nvs
+// Measures joining a folder and a file name, as a program does before it opens or writes a file.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["invoice-1042.pdf", "holiday.jpeg", "orders.csv"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name joined next depends on the last result, so no round can be skipped.
+            $total = $total + Core\Str::length(Core\Path::join("/srv/shop/storage", $names[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

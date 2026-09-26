@@ -1,0 +1,21 @@
+<?nvs
+// Shows that only the first path decides where the result of `Core\Path::join` starts.
+
+class Show {
+    public static function slashes(string $path): string {
+        return Core\Str::replace($path, Core\Path::SEPARATOR, "/");
+    }
+}
+
+// The second part starts with `/`, and it is added after the first path.
+// This prints `/srv/shop/uploads/etc/passwd`.
+echo Show::slashes(Core\Path::join("/srv/shop/uploads", "/etc/passwd")), "\n";
+
+// A drive is added the same way. This prints `/srv/shop/uploads/Windows`.
+echo Show::slashes(Core\Path::join("/srv/shop/uploads", "C:\\Windows")), "\n";
+
+// `..` stays in the result. This prints `/srv/shop/uploads/../config`.
+// `Core\Path::normalize` then gives `/srv/shop/config`.
+string $up = Core\Path::join("/srv/shop/uploads", "..", "config");
+echo Show::slashes($up), "\n";
+echo Show::slashes(Core\Path::normalize($up)), "\n";
