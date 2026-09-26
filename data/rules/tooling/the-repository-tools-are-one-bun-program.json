@@ -12,6 +12,6 @@
   "guardedBy": [
     "tools/nv/cmd/audit.ts",
     "package.json",
-    "tools/nv/test/keys.test.ts"
+    "tools/nv/test/scan-tiers.test.ts"
   ]
 }
