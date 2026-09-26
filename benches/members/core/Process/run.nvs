@@ -1,0 +1,27 @@
+<?nvs
+// Measures running a small program and waiting for it to end, as a build script does for each tool it calls.
+// bench: iterations 100
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/bin/echo` on Linux and macOS, and `cmd.exe` with `echo` on Windows.
+        string $path = "/bin/echo";
+        array<array<string>> $lists = [["short"], ["a longer line"]];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $lists = [["/c", "echo", "short"], ["/c", "echo", "a longer line"]];
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The arguments of the next run depend on the last output, so no run can be skipped.
+            var $result = Core\Process::run($path, $lists[($total % 2) as int]);
+            $total = $total + Core\Bytes::length($result->stdout());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100), "\n";

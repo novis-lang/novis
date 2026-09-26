@@ -103,7 +103,9 @@ use std::sync::Mutex;
 
 use nvs_runtime::{Ctx, Fault, HeldChild, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// This class's fully-qualified name, in one place so the registry row, the
 /// [`crate::registry::CAPABILITIES`] row and every consumer that matches on it
@@ -128,7 +130,7 @@ const CHUNK: usize = 64 * 1024;
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "run",
@@ -172,46 +174,52 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Process`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Runs other programs. A program is started directly with a list of arguments, never \
+            through a shell, so an argument cannot add a second command. `run` waits for the \
+            program to end, and `spawn` returns a handle while it runs. Both need the \
+            `process.exec` capability. This replaces PHP's `exec`, `system`, `shell_exec`, \
+            `passthru`, `proc_open` and the backtick operator.",
+};
+
 /// `Core\Process::run`'s reference card — `rule:core-api/reference-card`.
 const RUN_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP's \
-            `exec`, `system`, `shell_exec`, `passthru` and the backtick operator, all of which \
-            differ only in what they do with the output. There is no command-line form of this \
-            member anywhere in the surface: nothing is escaped because there is nothing to escape \
-            into. Needs the `process.exec` capability for the target.",
+    short: "Runs the program at `$path` with the arguments in `$argv`, and waits until it ends. \
+            The program is started directly, never through a shell, so nothing needs escaping. \
+            Needs the `process.exec` capability for the program. This replaces PHP's `exec`, \
+            `system`, `shell_exec`, `passthru` and the backtick operator.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The program to start, absolute or relative to the working directory. It is \
-                   started directly, never through a shell, so a `PATH` lookup is the caller's \
-                   own to make.",
+            desc: "The program to start, as an absolute path or a path relative to the working \
+                   directory. `PATH` is not searched, so `ls` means a file named `ls` in the \
+                   working directory.",
             shape: &[],
         },
         ParamDoc {
             name: "argv",
-            desc: "The arguments, one element each — `[\"-n\", \"1\", $host]` and never \
-                   `\"-n 1 $host\"`. An element carrying a space, a quote or a semicolon is one \
-                   argument that contains those characters, on every platform.",
+            desc: "The arguments, one in each element: `[\"-n\", \"1\", $host]`. An element with \
+                   a space, a quote or a `;` in it is still one argument, on every platform.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Process\\Result` carrying the exit code and both captured streams. The child \
-          inherits none of this process's own standard streams — all three are piped — so a \
-          program that runs a child cannot have its own output interleaved with it.",
+    ret: "A `Core\\Process\\Result` with the exit code and everything the program wrote to its \
+          output and to its error output. The program cannot write to this program's own \
+          output, so the two never mix.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `process.exec` for this target, or the target \
-                   is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform \
-                   because starting one hands the argv it just built to a second parser. Or the \
-                   child wrote more than `[limits] max_output` across the two streams, in which \
-                   case it is killed and nothing is captured: the ceiling on a response is the \
-                   ceiling on one capture too.",
+            desc: "`process.exec` does not allow this program, or it is a `.bat`, `.cmd` or \
+                   `.ps1` file. Those are not allowed on any platform, because Windows starts \
+                   them through a shell. The error is also thrown when the program writes more \
+                   than `[limits] max_output` in total. Then the program is stopped and nothing \
+                   is returned.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, it is not executable, or the child could not be waited for.",
+            desc: "The program could not be started or waited for. For example, nothing is at \
+                   the path, or the file is not a program.",
         },
     ],
 };
@@ -1583,6 +1591,7 @@ mod tests {
     /// alone proves only that a small number stops something; reading the child's real output
     /// first is what says the tight ceiling was crossed by a child that had more to write, and it
     /// is `wait_off_core` under `u64::MAX` — the no-ceiling spelling — that reads it.
+    // covers: Core\Process::run
     #[test]
     fn a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded() {
         let me = std::env::current_exe().expect("a test binary knows its own path");

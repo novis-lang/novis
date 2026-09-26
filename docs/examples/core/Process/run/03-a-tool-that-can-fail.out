@@ -1,0 +1,10 @@
+basename
+dirname
+extension
+isAbsolute
+join
+normalize
+relativeTo
+split
+withExtension
+the tool failed with exit code 2

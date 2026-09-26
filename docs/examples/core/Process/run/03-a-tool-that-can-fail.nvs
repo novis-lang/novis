@@ -1,0 +1,25 @@
+<?nvs
+// Shows a small method that runs a tool, checks that it succeeded, and returns what it printed.
+// requires: unix
+
+class Tools {
+    public static function run(string $path, array<string> $arguments): string {
+        var $result = Core\Process::run($path, $arguments);
+        // A tool returns an exit code that is not `0` when it fails.
+        // Then this method throws an error with that exit code.
+        if ($result->exitCode() != 0) {
+            throw new RuntimeError("the tool failed with exit code " . $result->exitCode());
+        }
+        return $result->stdout() as string;
+    }
+}
+
+// `ls` lists the files in a folder. This folder exists, so the list is printed.
+echo Tools::run("/bin/ls", ["docs/examples/core/Path"]);
+
+// This folder does not exist, so `ls` fails and `Tools::run` throws.
+try {
+    echo Tools::run("/bin/ls", ["docs/no-such-folder"]);
+} catch (RuntimeError $failed) {
+    echo $failed->message, "\n";
+}

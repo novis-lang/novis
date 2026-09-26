@@ -12139,16 +12139,16 @@ Keywords: run, spawn
 Core\Process::run(string $path, array<string> $argv): Core\Process\Result
 ```
 
-Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP's `exec`, `system`, `shell_exec`, `passthru` and the backtick operator, all of which differ only in what they do with the output. There is no command-line form of this member anywhere in the surface: nothing is escaped because there is nothing to escape into. Needs the `process.exec` capability for the target.
+Runs the program at `$path` with the arguments in `$argv`, and waits until it ends. The program is started directly, never through a shell, so nothing needs escaping. Needs the `process.exec` capability for the program. This replaces PHP's `exec`, `system`, `shell_exec`, `passthru` and the backtick operator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The program to start, absolute or relative to the working directory. It is started directly, never through a shell, so a `PATH` lookup is the caller's own to make. |
-| `$argv` | `array<string>` | The arguments, one element each — `["-n", "1", $host]` and never `"-n 1 $host"`. An element carrying a space, a quote or a semicolon is one argument that contains those characters, on every platform. |
+| `$path` | `string` (sink) | The program to start, as an absolute path or a path relative to the working directory. `PATH` is not searched, so `ls` means a file named `ls` in the working directory. |
+| `$argv` | `array<string>` | The arguments, one in each element: `["-n", "1", $host]`. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
 
-**Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit code and both captured streams. The child inherits none of this process's own standard streams — all three are piped — so a program that runs a child cannot have its own output interleaved with it.
+**Returns** `Core\Process\Result` — A `Core\Process\Result` with the exit code and everything the program wrote to its output and to its error output. The program cannot write to this program's own output, so the two never mix.
 
-**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser. Or the child wrote more than `[limits] max_output` across the two streams, in which case it is killed and nothing is captured: the ceiling on a response is the ceiling on one capture too.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not executable, or the child could not be waited for.
+**Throws** `RuntimeError` — `process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` file. Those are not allowed on any platform, because Windows starts them through a shell. The error is also thrown when the program writes more than `[limits] max_output` in total. Then the program is stopped and nothing is returned.; `IOError` — The program could not be started or waited for. For example, nothing is at the path, or the file is not a program.
 
 <a id="core-core-process-spawn"></a>
 #### `Core\Process::spawn`

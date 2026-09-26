@@ -1,0 +1,77 @@
+<?nvs
+// Attack: `Core\Process::run` is given arguments that no operating system accepts, and a program
+// that never stops printing. Each call should throw an error or return a result. The runtime must not crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // Runs the program on this platform and returns one word: what happened.
+    // `/bin/echo` does not exist on Windows, and `cmd.exe` does not exist on Linux or macOS.
+    public static function say(array<string> $words): string
+    {
+        array<string> $windows = ['/c', 'echo'];
+        foreach ($words as string $word) {
+            $windows[] = $word;
+        }
+        string $unix = self::attempt('/bin/echo', $words);
+        string $other = self::attempt("C:\\Windows\\System32\\cmd.exe", $windows);
+        return $unix . ' / ' . $other;
+    }
+
+    public static function attempt(string $path, array<string> $arguments): string
+    {
+        try {
+            var $result = Core\Process::run($path, $arguments);
+            return 'ran, exit code ' . $result->exitCode() . ', '
+                . Core\Bytes::length($result->stdout()) . ' bytes';
+        } catch (IOError $failed) {
+            return 'IOError';
+        } catch (RuntimeError $refused) {
+            return 'RuntimeError';
+        }
+    }
+}
+
+// 1. An argument with a null byte in it. No operating system can pass that to a program.
+echo Attack::say(["before\u{0}after"]), "\n";
+
+// 2. A path with a null byte in it.
+echo Attack::attempt("/bin/echo\u{0}/../../sh", []), "\n";
+echo Attack::attempt("C:\\Windows\\System32\\cmd.exe\u{0}.bat", []), "\n";
+
+// 3. One argument of 4 MiB. Linux accepts at most 128 KiB, Windows at most 32 KiB.
+echo Attack::say([Core\Str::repeat('x', 4194304)]), "\n";
+
+// 4. One million short arguments, more than any system accepts in total.
+array<string> $many = [];
+int $i = 0;
+while ($i < 1000000) {
+    $many[] = 'xx';
+    $i = $i + 1;
+}
+echo Attack::say($many), "\n";
+
+// 5. An empty path, a folder, and a path that is only separators.
+echo Attack::attempt('', []), "\n";
+echo Attack::attempt('.', []), "\n";
+echo Attack::attempt('////', []), "\n";
+
+// 6. Arguments that are empty, that look like options, and that use other scripts.
+echo Attack::say(['', '--help', '-n', "\"; exit 7", 'données 報告 😀']), "\n";
+
+// 7. A program that never stops printing. It is stopped at the 1 MiB limit with a `RuntimeError`.
+echo Attack::attempt('/usr/bin/yes', ['a line that repeats']), "\n";
+echo Attack::attempt("C:\\Windows\\System32\\cmd.exe", ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats']), "\n";
+
+// 8. The same small program runs 100 times, and every result is freed.
+int $ran = 0;
+int $round = 0;
+while ($round < 100) {
+    if (Core\Str::contains(Attack::say(['round']), 'ran')) {
+        $ran = $ran + 1;
+    }
+    $round = $round + 1;
+}
+echo $ran, " of 100 ran\n";
+
+echo "the runtime is still standing\n";
