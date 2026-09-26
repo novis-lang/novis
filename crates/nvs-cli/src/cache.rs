@@ -1617,10 +1617,10 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
 /// § 7's directives, resolved into the cache a run consults — or [`None`] for a run that consults
 /// none.
 ///
-/// [`None`] is `opcache.file_cache = false`, a build that cannot identify itself, a host with no
-/// cache root to default to, and a directory § 5 refuses. A run without a cache is a run that
-/// compiles, which is the fallback every miss in this module already takes, so none of them stops
-/// anything.
+/// [`None`] is `opcache.file_cache = false`, [`NO_FILE_CACHE`] in the environment, a build that
+/// cannot identify itself, a host with no cache root to default to, and a directory § 5 refuses. A
+/// run without a cache is a run that compiles, which is the fallback every miss in this module
+/// already takes, so none of them stops anything.
 ///
 /// **One of them is reported: a `file_cache_dir` somebody wrote and § 5 refused.** The default
 /// directory is nobody's decision and its refusal is nobody's to act on, but an operator who named
@@ -1647,8 +1647,25 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
 ///
 /// A `file_cache_dir` somebody wrote, and § 5's reason for refusing it.
 pub(crate) fn placed(config: &nvs_config::Config) -> Result<Option<Cache>, (String, Untrusted)> {
+    placed_unless(config, std::env::var_os(NO_FILE_CACHE).as_deref())
+}
+
+/// The environment variable that turns the artifact cache off for one process, whatever the
+/// configuration says: nothing is looked up and nothing is written, so every unit is compiled.
+///
+/// It disables on **presence**, whatever it is set to, as `NOVIS_NO_INIT` does. What sets it is a
+/// run that must compile from cold and must write nothing outside its own tree — recording which
+/// parts of the compiler a program reaches, where a cache hit would skip the code generator — and
+/// such a run cannot edit the `nvs.toml` of each program it starts.
+pub(crate) const NO_FILE_CACHE: &str = "NOVIS_NO_FILE_CACHE";
+
+/// [`placed`], with the value of [`NO_FILE_CACHE`] handed in.
+fn placed_unless(
+    config: &nvs_config::Config,
+    switched_off: Option<&std::ffi::OsStr>,
+) -> Result<Option<Cache>, (String, Untrusted)> {
     let opcache = config.opcache.as_ref();
-    if opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
+    if switched_off.is_some() || opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
         return Ok(None);
     }
     if !nvs_config::cache::build_is_identified() {
@@ -1983,6 +2000,28 @@ mod tests {
     /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
     /// struct literal so the case covers the whole chain — the text an operator writes, the field
     /// the tree documents, and the root [`Cache::dir`] hands back.
+    /// `NOVIS_NO_FILE_CACHE` turns off a cache the configuration places, and its absence leaves
+    /// that cache where the configuration put it.
+    #[test]
+    fn the_environment_switch_turns_a_configured_cache_off() {
+        let root = scratch("switched-off");
+        let dir = root.join("artifacts");
+        let written = format!("[opcache]\nfile_cache_dir = '{}'\n", dir.display());
+        let config = parsed(&written).expect("the configuration parses");
+
+        let off = placed_unless(&config, Some(std::ffi::OsStr::new("1")));
+        assert!(matches!(off, Ok(None)), "the switch leaves no cache");
+        let empty = placed_unless(&config, Some(std::ffi::OsStr::new("")));
+        assert!(
+            matches!(empty, Ok(None)),
+            "an empty value is still presence"
+        );
+        let on = placed_unless(&config, None).expect("a directory this account owns");
+        assert_eq!(on.map(|cache| cache.dir().to_path_buf()), Some(dir));
+
+        drop(fs::remove_dir_all(&root));
+    }
+
     #[test]
     fn the_configured_cache_directory_is_read_from_the_key_the_tree_documents() {
         let root = scratch("configured");

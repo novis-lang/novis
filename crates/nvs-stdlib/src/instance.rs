@@ -398,6 +398,9 @@ static DESCRIPTORS: OnceLock<&'static ClassTable> = OnceLock::new();
 /// The table, building and leaking it if this is the first call.
 fn descriptors() -> &'static ClassTable {
     DESCRIPTORS.get_or_init(|| {
+        // Built from the whole registry for every program alike, so the lookups below are no
+        // program's use of a class.
+        let _quiet = nvs_footprint::Quiet::new();
         let mut table = ClassTable::new();
         for class in registry::CLASSES
             .iter()

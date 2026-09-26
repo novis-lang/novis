@@ -592,6 +592,11 @@ impl SignatureTable {
     /// name.
     #[must_use]
     pub fn get(&self, qname: &QName) -> Option<&ClassSignature> {
+        // A `Core` class's signatures are its registry row, seeded from the whole registry, so a
+        // lookup here is the program's use of that row.
+        if nvs_footprint::enabled() && qname.is_core() {
+            nvs_footprint::class(&qname.to_string());
+        }
         self.by_class.get(qname)
     }
 

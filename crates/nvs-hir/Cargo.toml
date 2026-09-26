@@ -17,6 +17,9 @@ doctest = false
 nvs-diagnostics.workspace = true
 nvs-syntax.workspace = true
 rustc-hash.workspace = true
+# The `require` walk and `autoload` record each path they test and each directory
+# they list when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 
 [lints]
 workspace = true

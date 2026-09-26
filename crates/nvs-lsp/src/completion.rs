@@ -722,6 +722,7 @@ fn is_name(ch: char) -> bool {
 /// than twice.
 fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
+    nvs_footprint::every_class();
     let core = registry::CLASSES
         .iter()
         .map(|class| (class.name, CompletionItemKind::CLASS))
@@ -1666,6 +1667,7 @@ enum Spelled {
 /// with the kind an item shows and the tier it ranks at when nothing nearer
 /// claims it.
 fn every_type(symbols: &SymbolIndex) -> Vec<(String, CompletionItemKind, Tier)> {
+    nvs_footprint::every_class();
     let core = registry::CLASSES
         .iter()
         .map(|class| (class.name.to_owned(), CompletionItemKind::CLASS))

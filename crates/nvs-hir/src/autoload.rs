@@ -518,6 +518,7 @@ impl AutoloadMap {
     /// docs hold the shape, and why every header carries a count.
     #[must_use]
     pub fn render(&self, base: &Path) -> String {
+        nvs_footprint::exists(base);
         let base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
 
         let mut entries: Vec<&Entry> = self.entries.iter().collect();
@@ -716,6 +717,7 @@ fn listing(dir: &Path) -> Option<Vec<(PathBuf, bool)>> {
                 .collect(),
         );
     }
+    nvs_footprint::dir(dir);
     let entries = std::fs::read_dir(dir).ok()?;
     Some(
         entries
@@ -733,6 +735,7 @@ fn is_dir(path: &Path) -> bool {
     if nvs_diagnostics::embedded::is_active() {
         return nvs_diagnostics::embedded::is_dir(path);
     }
+    nvs_footprint::exists(path);
     path.is_dir()
 }
 

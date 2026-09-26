@@ -161,6 +161,7 @@ crates/             the Cargo workspace
   nvs-lsp           `nvs lsp` — the Novis language server
   nvs-fmt           `nvs fmt` — the Novis formatter
   nvs-repo          how a test reaches a file outside its own package, recorded (dev-only)
+  nvs-footprint     what an `nvs` process resolved and read, logged for observed selection
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]
   serve-probe       the load generator of the server's throughput leg

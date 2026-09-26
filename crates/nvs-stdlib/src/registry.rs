@@ -2850,6 +2850,7 @@ pub const CONSTRUCTORS: &[(&str, &CoreMethod)] = &[
 /// is not a thing a program may write — which is every other name.
 #[must_use]
 pub fn constructor_of(class: &str) -> Option<&'static CoreMethod> {
+    nvs_footprint::class(class);
     CONSTRUCTORS
         .iter()
         .find(|(name, _)| *name == class)
@@ -3007,6 +3008,7 @@ pub const ENUMS: &[CoreEnum] = &[
 /// Looks a class up by its fully-qualified name.
 #[must_use]
 pub fn class(name: &str) -> Option<&'static CoreClass> {
+    nvs_footprint::class(name);
     CLASSES.iter().find(|class| class.name == name)
 }
 
@@ -3044,6 +3046,7 @@ pub fn link_targets() -> Vec<&'static str> {
 /// widened by the enums, which no clause may name and any expression may.
 #[must_use]
 pub fn type_names() -> Vec<&'static str> {
+    nvs_footprint::every_class();
     link_targets()
         .into_iter()
         .chain(ENUMS.iter().map(|core| core.name))
@@ -3071,6 +3074,7 @@ pub fn type_names() -> Vec<&'static str> {
 /// too, since nothing here will resolve a member on it either.
 #[must_use]
 pub fn class_renders(name: &str) -> bool {
+    nvs_footprint::class(name);
     nvs_runtime::is_carrier(name) || render_symbol(name).is_some()
 }
 
@@ -3181,6 +3185,7 @@ pub fn entry_parameter(class: &str, method: &str) -> Option<usize> {
 /// Whether `class::method` is one of [`WRITTEN_CLASS_MEMBERS`].
 #[must_use]
 pub fn takes_written_class(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
     WRITTEN_CLASS_MEMBERS
         .iter()
         .any(|(owner, name)| *owner == class && *name == method)
@@ -3234,6 +3239,7 @@ pub const SOURCE_MEMBERS: &[(&str, &str)] = &[
 /// Whether `class::method` is one of [`SOURCE_MEMBERS`].
 #[must_use]
 pub fn takes_source(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
     SOURCE_MEMBERS
         .iter()
         .any(|(owner, name)| *owner == class && *name == method)
@@ -3283,6 +3289,7 @@ pub const CALL_SITE_MEMBERS: &[(&str, &str)] = &[
 /// Whether `class::method` is one of [`CALL_SITE_MEMBERS`].
 #[must_use]
 pub fn takes_call_site(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
     CALL_SITE_MEMBERS
         .iter()
         .any(|(owner, name)| *owner == class && *name == method)
@@ -3335,6 +3342,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
 /// Whether `class::method` is one of [`PREPARED_MEMBERS`].
 #[must_use]
 pub fn takes_prepared(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
     PREPARED_MEMBERS
         .iter()
         .any(|(owner, name)| *owner == class && *name == method)
@@ -3459,6 +3467,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
 /// not one of [`ITERABLES`].
 #[must_use]
 pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
+    nvs_footprint::class(class);
     ITERABLES
         .iter()
         .find(|(name, _)| *name == class)
@@ -3481,6 +3490,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
 /// else answers a different question and is not this interface's member.
 #[must_use]
 pub fn implements_comparable(class: &str) -> bool {
+    nvs_footprint::class(class);
     CLASSES
         .iter()
         .find(|found| found.name == class)
@@ -3550,6 +3560,7 @@ pub fn implements_parses(class: &str) -> bool {
         matches!(member.params, [CoreTy::Text(Qual::Neutral)]) && member.defaults.is_empty()
     }
 
+    nvs_footprint::class(class);
     CLASSES
         .iter()
         .find(|found| found.name == class)
@@ -3575,6 +3586,7 @@ pub fn implements_parses(class: &str) -> bool {
 /// of [`GENERIC_CLASSES`], which is every other name in the program.
 #[must_use]
 pub fn class_type_params(class: &str) -> Option<&'static [&'static str]> {
+    nvs_footprint::class(class);
     GENERIC_CLASSES
         .iter()
         .find(|(name, _)| *name == class)
@@ -3584,6 +3596,7 @@ pub fn class_type_params(class: &str) -> Option<&'static [&'static str]> {
 /// Looks a `Core`-owned enum up by its fully-qualified name.
 #[must_use]
 pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
+    nvs_footprint::class(name);
     ENUMS.iter().find(|found| found.name == name)
 }
 
@@ -3617,6 +3630,7 @@ pub struct IdempotentRetry {
 /// is `post` and `patch` and nothing else `Core\Http\Client` offers.
 #[must_use]
 pub fn idempotent_retry_rule(class: &str, member: &str) -> Option<IdempotentRetry> {
+    nvs_footprint::class(class);
     (class == crate::http::CLIENT_NAME && matches!(member, "post" | "patch")).then_some(
         IdempotentRetry {
             asks: crate::http::RETRY_ATTEMPTS_OPTION,
@@ -3661,6 +3675,7 @@ pub struct RequestBody {
 /// asked at the call instead, by `crate::http`'s `judge_verb`.
 #[must_use]
 pub fn request_body_rule(class: &str, member: &str) -> Option<RequestBody> {
+    nvs_footprint::class(class);
     (class == crate::http::CLIENT_NAME
         && matches!(
             member,

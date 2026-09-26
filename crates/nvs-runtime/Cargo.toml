@@ -24,6 +24,9 @@ sanitizer = []
 
 [dependencies]
 bitflags.workspace = true
+# `capability`'s filesystem doors record what a program read when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 # ADR 0078 § 1: a request holds the configuration snapshot it cloned at start,
 # and `Ctx` is where per-request state lives — so the type crosses this edge
 # rather than the field being erased behind a trait object nothing else needs.

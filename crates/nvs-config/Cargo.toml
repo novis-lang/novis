@@ -41,6 +41,9 @@ base64.workspace = true
 blake3.workspace = true
 jiff.workspace = true
 nvs-diagnostics.workspace = true
+# `resolve::Disk` records each configuration file it reads and each path it
+# tests when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 nvs-render.workspace = true
 serde.workspace = true
 toml.workspace = true

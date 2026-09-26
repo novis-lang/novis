@@ -1,0 +1,21 @@
+[package]
+name = "nvs-footprint"
+description = "What an `nvs` process was seen to use — the `Core` classes it resolved and the files, directories and paths it read — written to the log `NVS_FOOTPRINT_LOG` names, for observed selection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+# Depends on no `nvs-*` crate and on nothing outside `std`, so every crate that
+# reads a file or resolves a class can call it without adding an edge upward.
+[dependencies]
+
+[lints]
+workspace = true

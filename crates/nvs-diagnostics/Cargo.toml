@@ -10,6 +10,8 @@ repository.workspace = true
 
 [dependencies]
 anstyle.workspace = true
+# `SourceMap::load` records each file it reads when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

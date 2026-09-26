@@ -157,6 +157,7 @@ pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
 /// renders this document rather than reading the registry a second time
 /// (`rule:tooling/one-json-several-renderers`).
 pub(crate) fn document() -> Value {
+    nvs_footprint::every_class();
     json!({
         "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),

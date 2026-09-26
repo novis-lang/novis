@@ -551,6 +551,7 @@ pub(crate) fn canonicalize(path: &Path) -> Option<PathBuf> {
     if nvs_diagnostics::embedded::is_active() {
         return nvs_diagnostics::embedded::canonicalize(path);
     }
+    nvs_footprint::exists(path);
     path.canonicalize().ok()
 }
 

@@ -129,20 +129,26 @@ pub trait Files {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Disk;
 
+// Every read and test below is recorded when `NVS_FOOTPRINT_LOG` names a log, which is how a
+// configuration file, an include and a secret file reach a program's footprint.
 impl Files for Disk {
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        nvs_footprint::exists(path);
         trust::check(path)
     }
 
     fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        nvs_footprint::exists(path);
         trust::canonical(path).map_err(|err| err.to_string())
     }
 
     fn read(&self, path: &Path) -> Result<String, String> {
+        nvs_footprint::file(path);
         std::fs::read_to_string(path).map_err(|err| err.to_string())
     }
 
     fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        nvs_footprint::file(path);
         std::fs::read(path).map_err(|err| err.to_string())
     }
 
@@ -151,6 +157,7 @@ impl Files for Disk {
     }
 
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        nvs_footprint::dir(dir);
         let entries = std::fs::read_dir(dir).map_err(|err| err.to_string())?;
         let mut paths = Vec::new();
         for entry in entries {
@@ -160,6 +167,7 @@ impl Files for Disk {
     }
 
     fn exists(&self, path: &Path) -> bool {
+        nvs_footprint::exists(path);
         path.exists()
     }
 }

@@ -17,6 +17,10 @@
 //! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
 //!
+//! Every door that reads also records what it read — the file, the directory listed or the path
+//! tested — through [`nvs_footprint`], which writes nothing unless `NVS_FOOTPRINT_LOG` names a log.
+//! Being the one way a program reaches the filesystem is what makes the doors the place to record it.
+//!
 //! **A context with no configuration grants nothing.** That is not a special case for tests — it is the
 //! same deny-by-default the absent block gets, and a request path that reached a capability check
 //! without a snapshot has a bug that should fail closed rather than quietly succeed.
@@ -467,6 +471,7 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
 /// the difference between the two messages to probe a directory it was never allowed to read.
 pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::file(path);
     File::open(path).map_err(|err| io_failure(member, path, &err))
 }
 
@@ -517,6 +522,9 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
     }
     if matches!(access, Access::Write | Access::Append | Access::ReadWrite) {
         require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    }
+    if matches!(access, Access::Read | Access::ReadWrite) {
+        nvs_footprint::file(path);
     }
     let mut options = std::fs::OpenOptions::new();
     match access {
@@ -731,6 +739,7 @@ fn pair(from: &Path, to: &Path) -> PathBuf {
 /// a failure here, because a member asking for a size has no answer for one.
 pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))
 }
 
@@ -760,6 +769,7 @@ pub fn metadata_if_present(
     member: &str,
 ) -> Result<Option<Metadata>, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     match std::fs::metadata(path) {
         Ok(found) => Ok(Some(found)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -792,6 +802,7 @@ pub fn metadata_if_present(
 /// resolved.
 pub fn resolve_existing(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))?;
     nvs_config::capability::resolved(path, &nvs_config::resolve::Disk).ok_or_else(|| {
         io_failure(
@@ -820,6 +831,7 @@ pub fn resolve_existing(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf,
 /// a parent directory it will not traverse, for instance, which is not the same as "no".
 pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     path.try_exists()
         .map_err(|err| io_failure(member, path, &err))
 }
@@ -846,6 +858,7 @@ pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
 /// booleans.
 pub fn readable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     Ok(permitted(path, false))
 }
 
@@ -865,6 +878,7 @@ pub fn readable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
 /// `path`, and nothing else.
 pub fn writable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    nvs_footprint::exists(path);
     Ok(permitted(path, true))
 }
 
@@ -972,6 +986,7 @@ pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fau
 /// was asking.
 pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<ReadDir, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_footprint::dir(path);
     std::fs::read_dir(path).map_err(|err| io_failure(member, path, &err))
 }
 

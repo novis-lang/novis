@@ -752,6 +752,7 @@ fn check_example(tag: &DocTag, src: &SourceFile, env: &mut Env<'_>) {
     }
 
     let base = src.path().and_then(Path::parent).unwrap_or(Path::new(""));
+    nvs_footprint::exists(&base.join(written));
     if !base.join(written).is_file() {
         env.diags.report(
             Diagnostic::error(

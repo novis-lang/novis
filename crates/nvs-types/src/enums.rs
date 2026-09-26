@@ -103,6 +103,15 @@ impl EnumTable {
     /// The entry for `qname`, or `None` if it names no declared enum.
     #[must_use]
     pub fn get(&self, qname: &QName) -> Option<&EnumInfo> {
+        self.entry(qname)
+    }
+
+    /// The entry for `qname`. A `Core` enum's entry is its registry row, seeded from the whole
+    /// registry, so a lookup of one is recorded as the program's use of that row.
+    fn entry(&self, qname: &QName) -> Option<&EnumInfo> {
+        if nvs_footprint::enabled() && qname.is_core() {
+            nvs_footprint::class(&qname.to_string());
+        }
         self.by_name.get(qname)
     }
 
@@ -115,15 +124,14 @@ impl EnumTable {
     /// diagnosed where the reference is, not here).
     #[must_use]
     pub fn backing_of(&self, qname: &QName) -> EnumBacking {
-        self.by_name
-            .get(qname)
+        self.entry(qname)
             .map_or(EnumBacking::Int, |info| info.backing)
     }
 
     /// The constant value of `qname::case`, or `None` if either names nothing.
     #[must_use]
     pub fn case(&self, qname: &QName, case: &str) -> Option<EnumValue> {
-        self.by_name.get(qname)?.cases.get(case).copied()
+        self.entry(qname)?.cases.get(case).copied()
     }
 
     /// Every entry, in no particular order — what `nvs_ir::lower` copies down

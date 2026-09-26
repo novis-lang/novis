@@ -1,0 +1,10 @@
+<?nvs
+namespace Footprint;
+
+class Helper
+{
+    public static function greet(): string
+    {
+        return "hi";
+    }
+}

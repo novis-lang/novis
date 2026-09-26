@@ -119,6 +119,7 @@ pub fn render() -> Tree {
         stamp: String::new(),
         lines: HashMap::new(),
     };
+    nvs_footprint::every_class();
     for class in registry::CLASSES {
         let (text, lines) = class_stub(class);
         tree.add(class.name, text, lines);

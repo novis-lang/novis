@@ -18,6 +18,9 @@ nvs-diagnostics.workspace = true
 nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-stdlib.workspace = true
+# A lookup of a `Core` class's seeded signatures or enum cases is recorded when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 rustc-hash.workspace = true
 # ADR 0118 § 3 puts the capability enum and the grant walk in `nvs-config`, and
 # ADR 0067 § 10 has `nvs check` ask one of its questions: `Env::grants` carries

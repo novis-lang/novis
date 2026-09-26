@@ -37,6 +37,9 @@ exporter = ["nvs-server/exporter"]
 # the two `Files` readers it is.
 nvs-config.workspace = true
 nvs-diagnostics.workspace = true
+# `nvs meta`'s whole-registry document and `LocalFiles` record what they read
+# when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-types.workspace = true

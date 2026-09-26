@@ -2195,6 +2195,7 @@ dependencies = [
  "nvs-db",
  "nvs-diagnostics",
  "nvs-fmt",
+ "nvs-footprint",
  "nvs-hir",
  "nvs-host",
  "nvs-ir",
@@ -2248,6 +2249,7 @@ dependencies = [
  "jiff",
  "libc",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-render",
  "nvs-repo",
  "serde",
@@ -2279,6 +2281,7 @@ version = "0.0.1"
 dependencies = [
  "anstyle",
  "insta",
+ "nvs-footprint",
 ]
 
 [[package]]
@@ -2291,10 +2294,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-footprint"
+version = "0.0.1"
+
+[[package]]
 name = "nvs-hir"
 version = "0.0.1"
 dependencies = [
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-syntax",
  "rustc-hash",
 ]
@@ -2341,6 +2349,7 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-hir",
  "nvs-repo",
  "nvs-stdlib",
@@ -2373,6 +2382,7 @@ dependencies = [
  "jiff",
  "libc",
  "nvs-config",
+ "nvs-footprint",
  "nvs-render",
  "nvs-repo",
  "rand",
@@ -2439,6 +2449,7 @@ dependencies = [
  "nvs-config",
  "nvs-db",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-host",
  "nvs-render",
  "nvs-repo",
@@ -2488,6 +2499,7 @@ version = "0.0.1"
 dependencies = [
  "nvs-config",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-hir",
  "nvs-repo",
  "nvs-stdlib",

@@ -43,6 +43,9 @@ use crate::ty::{TypeId, TypeInterner};
 /// signature is in place before the first user declaration is collected and
 /// long before any body is checked.
 pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
+    // Every class is seeded for every program, so the lookups the seeding makes are no program's
+    // use of a class; `SignatureTable::get` records the ones a program makes.
+    let _quiet = nvs_footprint::Quiet::new();
     for class in CLASSES {
         let qname = QName::parse(class.name);
         let mut methods = FxHashMap::default();

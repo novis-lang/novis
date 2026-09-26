@@ -79,6 +79,7 @@ impl nvs_config::resolve::Files for LocalFiles {
     /// because the resolver's cycle test compares files rather than spellings
     /// and a second canonicalizer is how a symlinked cycle gets through.
     fn trust(&self, path: &Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
+        nvs_footprint::exists(path);
         nvs_config::trust::canonical(path)
             .map_err(|err| nvs_config::trust::Untrusted::Unreadable(err.to_string()))
     }

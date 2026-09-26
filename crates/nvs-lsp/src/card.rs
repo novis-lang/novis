@@ -189,6 +189,7 @@ pub(crate) fn core_member_hover(owner: &str, member: &str) -> Option<String> {
 pub(crate) fn namespace_card(namespace: &str) -> Option<String> {
     let mut members: BTreeMap<&str, &str> = BTreeMap::new();
     let mut nested: BTreeSet<&str> = BTreeSet::new();
+    nvs_footprint::every_class();
     let classes = registry::CLASSES
         .iter()
         .map(|class| (class.name, class.doc.map_or("", |doc| doc.short)));

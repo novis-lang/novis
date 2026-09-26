@@ -108,6 +108,9 @@ impl CoreRoster<'_> {
             Self::Trusted => true,
             Self::Names(names) => {
                 let written = qname.to_string();
+                if qname.is_core() {
+                    nvs_footprint::class(&written);
+                }
                 names.iter().any(|name| name.eq_ignore_ascii_case(&written))
             }
         }

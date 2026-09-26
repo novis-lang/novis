@@ -1,0 +1,12 @@
+<?nvs
+require './helper.nvs';
+
+echo Core\Math::sqrt(16.0), "\n";
+echo Core\IO::read("data.txt");
+echo Core\Arr::count(Core\IO::list("listed")), "\n";
+if (Core\IO::exists("absent.txt")) {
+    echo "absent.txt is there\n";
+} else {
+    echo "absent.txt is not there\n";
+}
+echo Footprint\Helper::greet(), "\n";

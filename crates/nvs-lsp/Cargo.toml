@@ -35,6 +35,9 @@ nvs-diagnostics.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
+# A completion list, a namespace card and the stubs list every `Core` class,
+# which is recorded when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 # The `Core` registry, for the one answer that has no Novis declaration behind
 # it: a `Core` member documents itself in its registry row
 # (`rule:core-api/reference-card`), so `hover` reads the row rather than looking

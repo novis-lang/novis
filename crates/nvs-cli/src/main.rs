@@ -192,11 +192,20 @@ const VERSION: &str = concat!(
     ")"
 );
 
+/// The environment variables `nvs` reads, which `nvs --help` lists below the options.
+const ENVIRONMENT: &str = "\
+Environment:
+  NOVIS_NO_INIT        Do not write a `nvs.toml` when there is none to read, as `--no-init` does.
+  NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
+  NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
+                       tested to this file, one line each. Used to record what a test run needs.";
+
 #[derive(ClapParser)]
 #[command(
     name = "nvs",
     version = VERSION,
     about = header(),
+    after_long_help = ENVIRONMENT,
     arg_required_else_help = true
 )]
 struct Cli {

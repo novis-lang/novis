@@ -1,0 +1,3 @@
+# The configuration `tests/footprint.rs` expects the run to read and record.
+[capabilities.fs]
+read = ["."]

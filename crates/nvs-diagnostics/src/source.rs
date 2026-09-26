@@ -344,6 +344,7 @@ impl SourceMap {
                 return Err(error);
             }
         };
+        nvs_footprint::file(path);
         if text.len() > MAX_SOURCE_LEN {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -386,6 +387,7 @@ impl SourceMap {
     /// path is missing before it loads anything — `nvs-hir`'s `require` walk,
     /// whose canonicalize fails first — records it here.
     pub fn note_missing(&mut self, path: &Path) {
+        nvs_footprint::exists(path);
         self.missed.push(path.to_path_buf());
     }
 

@@ -15,6 +15,9 @@ doctest = false
 
 [dependencies]
 nvs-runtime.workspace = true
+# The registry's lookups record each class a program resolves when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 # `rule:core-classes/html-parsing`: `Core\Html::parse` is the WHATWG algorithm,
 # and the engine is Servo's. The workspace row is where the audit under
 # `rule:packaging/a-c-dependency-answers-two-questions` is written; what belongs
