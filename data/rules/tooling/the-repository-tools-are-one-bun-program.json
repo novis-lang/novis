@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0221",
-    "0224"
+    "0224",
+    "0226"
   ],
   "seeAlso": [
     "tooling/a-repository-fact-is-one-json-record",

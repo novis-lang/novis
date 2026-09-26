@@ -67,6 +67,7 @@
     "tooling/the-repository-tools-are-one-bun-program",
     "tooling/a-repository-fact-is-one-json-record",
     "tooling/a-rendered-file-is-committed-and-never-edited",
-    "tooling/the-chain-names-its-live-goal"
+    "tooling/the-chain-names-its-live-goal",
+    "tooling/a-check-runs-only-when-the-change-reaches-its-footprint"
   ]
 }

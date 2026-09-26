@@ -22,8 +22,9 @@ results, and a test that writes a setting writes it into that developer's own `s
 reasons this tier was once CI-only. If a pinned build will not start beside the developer's own editor,
 pin a different one; never drop a flag to make it start.
 
-**The host verdict is never memoized.** The check carries `memoize = false`, so the sweep re-runs it
-whatever the tree hashes to. Every other check's inputs are tracked bytes and the compiler version, which
-is what makes a remembered verdict sound; this one also reads a downloaded editor build and an installed
-package tree that `tools/nv/keys/tree.ts`'s walk prunes and never hashes, so a memo hit here would report a green
+**The host verdict is never remembered.** The check carries `memoize = false`, so no stored verdict
+answers for it, whatever changed. Every other check is selected by what its runs were observed to read
+in the tree, which is what makes a remembered verdict sound; this one also reads a downloaded editor
+build and an installed package tree that no footprint records, since only `nvs`, the test binaries and
+`bun nv` log what they read (`tools/nv/select/keys.ts`), so a remembered green here would report an
 editor run on a machine where no editor started.

@@ -4,7 +4,8 @@
   "because": [
     "0099",
     "0101",
-    "0185"
+    "0185",
+    "0226"
   ],
   "seeAlso": [
     "ide/highlighting-is-two-layers",

@@ -1,0 +1,20 @@
+{
+  "title": "A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build",
+  "status": "shipped",
+  "because": [
+    "0226"
+  ],
+  "seeAlso": [
+    "tooling/the-chain-names-its-live-goal",
+    "tooling/the-repository-tools-are-one-bun-program"
+  ],
+  "guardedBy": [
+    "tools/nv/test/select-store.test.ts",
+    "tools/nv/test/select-items.test.ts",
+    "tools/nv/test/select-extract.test.ts",
+    "tools/nv/test/select-query.test.ts",
+    "tools/nv/test/select-record.test.ts",
+    "tools/nv/test/select-checks.test.ts",
+    "crates/nvs-cli/tests/footprint.rs"
+  ]
+}

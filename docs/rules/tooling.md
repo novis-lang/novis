@@ -3,7 +3,7 @@
 
 # Tooling
 
-*24 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1689,16 +1689,17 @@ Every tool that builds, checks, renders or drives this repository is a subcomman
 `bun nv <command>`, written in TypeScript and run by Bun at the version `package.json` pins. Its one
 runtime dependency is `smol-toml`, which reads the TOML files the tree still has; `Bun.TOML` is never
 used, so one parser reads all of them. The dev dependencies are `typescript` and `@types/bun`, and any
-other dependency is a new decision. One part is Rust: `tools/nv-scan`, which the build keys read Rust
-source with, because only a parser reads Rust exactly. It is a crate outside the workspace, which
-`bun nv` builds and runs, and its dependencies are `syn`, `proc-macro2`, `quote` and `sha2` at the
-versions the workspace already locks. `bun nv audit python` fails on a tracked Python file it does not
+other dependency is a new decision. Two parts are Rust, each a crate outside the workspace that
+`bun nv` builds and runs. `tools/nv-scan` is what the check selection and the perf ledger read Rust
+source with, because only a parser reads Rust exactly; its dependencies are `syn`, `proc-macro2`,
+`quote` and `sha2` at the versions the workspace already locks. `tools/covwrap` is the compiler wrapper
+of the `covws` build, and it has no dependencies. `bun nv audit python` fails on a tracked Python file it does not
 name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
 program or a request.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md), [0224](../decisions/0224.md).</sub>
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
 
 <a id="tooling-a-repository-fact-is-one-json-record"></a>
 
@@ -1759,7 +1760,46 @@ once. A goal that has walked keeps its checks for this reason, and a switch copi
 A walked test check that the permanent suite already runs graduates: a plain `cargo test -p <crate>` or
 an `nvs test` over the conformance or differential tree is carried as its crate's or its tree's whole
 run, once, and `bun nv chain --check` fails when a test or case such a check names is gone.
-The runtime state under `.loop/` — the memo, the run's counts, the gate verdicts — stays git-ignored,
-because it is per machine and a fresh clone owes nothing it holds.
+The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and the run's
+counts and the gate verdicts under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0222](../decisions/0222.md), [0225](../decisions/0225.md).</sub>
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0222](../decisions/0222.md), [0225](../decisions/0225.md), [0226](../decisions/0226.md).</sub>
+
+<a id="tooling-a-check-runs-only-when-the-change-reaches-its-footprint"></a>
+
+## A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build
+
+`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`
+
+The acceptance sweep, `bun nv verify`, `bun nv affected` and `bun nv proofs` start only the atoms a
+change reaches, read from what each atom's green runs were observed to use. An atom is the smallest
+thing that runs on its own: one `.nvst` case, one proof program, one Rust test binary, one `bun nv`
+command, one tools test file, one other plan check. Every run of one records its footprint in
+`.cache/select.sqlite`: the Rust items that ran, from coverage, and the `Core` classes, cards, files,
+directories and paths it looked up, from the log `nvs` and the test binaries write. A selection turns
+the change since the recorded tree into keys and looks the atoms up under them. An atom that is new,
+last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
+starts. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
+`keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
+
+What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a
+static, a type or a table moves every item that names it, a `macro_rules!` every item that invokes it,
+a class table's changed row that row's class, and a card only what prints it. A doc-comment edit moves
+nothing. **Anything that cannot be attributed widens**: an unparseable file, an unmapped function or an
+unreadable record selects more, never less.
+
+The pipeline's one debug build is `covws` (`target/covws`, built by `tools/nv/lib/covws.ts` through
+`tools/covwrap`), which instruments the workspace's own crates and nothing else. Every debug `nvs` and
+test binary the sweep, verify, `bun nv try` and `bun nv reference` run is that build, handed to checks
+as `NVS_BIN`; `target/debug` is what a person builds by hand. A recorded run starts with an empty compile
+cache. A proof program is judged on the uninstrumented `target/proof` build and recorded in a second run
+on `covws`, which is never a verdict; when the two runs end differently, the program always runs until
+they agree.
+
+The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
+record nothing of what they compile. They are keyed on their observed reads plus every item and
+directory of the crates they build, and wait for the floor gate. That is the one predicted key left. A
+check with `memoize = false` is never answered from the store, and `bun nv loop --goal-only --full`
+runs every atom of every check.
+
+<sub>See also [`tooling/the-chain-names-its-live-goal`](tooling.md#tooling-the-chain-names-its-live-goal), [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program). Decided in [0226](../decisions/0226.md).</sub>

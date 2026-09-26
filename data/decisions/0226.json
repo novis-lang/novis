@@ -1,0 +1,12 @@
+{
+  "title": "a check runs only when the change reaches what its green runs were observed to use, and the pipeline builds, runs and records on one instrumented debug build",
+  "status": "accepted",
+  "scope": "how the acceptance sweep, `bun nv verify`, `bun nv affected` and `bun nv proofs` choose\nwhat to start, what they record, and which `nvs` they run. It does not change what a check asks, how\na check is judged, the plan's shape or the floor gate's cadence.",
+  "dependsOn": [
+    "0222",
+    "0224",
+    "0225"
+  ],
+  "dependsOnText": "[0222](0222.md) for the floor as a view over the walked goals, [0224](0224.md) for\n`tools/nv-scan` reading Rust with `syn`, and [0225](0225.md) for the graduated floor checks.",
+  "validatedBy": "`tools/nv/test/select-store.test.ts`, `select-items.test.ts`,\n`select-extract.test.ts`, `select-query.test.ts`, `select-record.test.ts` and\n`select-checks.test.ts`, and `crates/nvs-cli/tests/footprint.rs`."
+}

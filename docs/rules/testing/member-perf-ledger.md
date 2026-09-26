@@ -26,8 +26,8 @@ to certify that a member is as fast as it could be.
 
 **A figure is re-measured only when the implementing file's code changes.** A record's `impl_hash` is
 `bun nv proofs --impl-hash` of that file: the tokens the compiler reads, without comments, layout,
-test code or reference cards and the links to them — the `card` tier every build key
-already uses. A reference chapter that implements a language feature is hashed as its text. That
+test code or reference cards and the links to them — the `card` tier `tools/nv-scan` computes.
+A reference chapter that implements a language feature is hashed as its text. That
 currency rule is what makes a roster of hundreds affordable, and the code rather than the commit is
 what lets a session measure before the wrap commits the tests it spliced into that same file. A
 comment, a card or a reformat cannot change what the binary does, so none of them stales a figure.

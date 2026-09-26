@@ -10,5 +10,5 @@ once. A goal that has walked keeps its checks for this reason, and a switch copi
 A walked test check that the permanent suite already runs graduates: a plain `cargo test -p <crate>` or
 an `nvs test` over the conformance or differential tree is carried as its crate's or its tree's whole
 run, once, and `bun nv chain --check` fails when a test or case such a check names is gone.
-The runtime state under `.loop/` — the memo, the run's counts, the gate verdicts — stays git-ignored,
-because it is per machine and a fresh clone owes nothing it holds.
+The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and the run's
+counts and the gate verdicts under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
