@@ -1,0 +1,20 @@
+<?nvs
+// Measures reading the program id, as a program does when it builds a cache key
+// or a version label.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the length read this round is added to the total
+            // carried out of the round before.
+            $total = $total + Core\Str::length(Core\Program::id()) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

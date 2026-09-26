@@ -51,7 +51,7 @@
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -91,7 +91,7 @@ const ROW: CoreTy = CoreTy::Shape(&[&[
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&PROGRAM_CARD),
     methods: &[
         CoreMethod {
             name: "implementing",
@@ -126,53 +126,58 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Program`'s class card — `rule:core-api/reference-card`.
+const PROGRAM_CARD: ClassDoc = ClassDoc {
+    short: "Information about the whole program. `implementing` returns a new object of every \
+            class that implements an interface. `implementingWith` returns the same objects, each \
+            with one attribute of its class. Novis finds these classes when it compiles the \
+            program, so nothing is searched while it runs. `id` returns a text that identifies \
+            this version of the program.",
+};
+
 /// `Core\Program::implementing`'s reference card — `rule:core-api/reference-card`.
 const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
-    short: "Expands, at compile time, to an array literal of `new` expressions — one per \
-            non-abstract class in the program implementing the interface `T` written as the \
-            type argument. Nothing runs at run time, and the type argument is never optional: \
-            the call is always `Core\\Program::implementing<T>()`.",
+    short: "Returns a new object of every class that implements the interface `T`. You write the \
+            interface between `<` and `>`: `Core\\Program::implementing<Module>()`. Abstract \
+            classes are not included. Each class needs a constructor without arguments, or the \
+            program does not compile. Novis finds the classes when it compiles the program, so \
+            nothing is searched while it runs.",
     params: &[],
-    ret: "One fresh instance per implementing class, as an `array<T>`; an empty array when no \
-          class implements `T`.",
+    ret: "An `array<T>` with one new object per class, sorted by class name. Every call creates \
+          new objects. The array is empty when no class implements `T`.",
     errors: &[],
 };
 
 /// `Core\Program::implementingWith`'s reference card — `rule:core-api/reference-card`.
 const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Expands, at compile time, to `implementing<I>()`'s array with one attribute joined to \
-            each class: every row is `{instance: I, attribute: ?T}`, where `attribute` is the one \
-            attached literal on that class's own member `$member` — or on the class itself when \
-            `$member` is empty — that satisfies the shape `T`, and `null` where there is none. \
-            Nothing runs at run time, and both type arguments are written at the call: \
-            `Core\\Program::implementingWith<View, {path: string}>(\"render\")`.",
+    short: "Returns the same objects as `implementing<I>()`, each with one attribute of its class. \
+            You write the interface `I` and the shape `T` of the attribute between `<` and `>`: \
+            `Core\\Program::implementingWith<Page, {path: string}>(\"render\")`. Novis reads the \
+            attributes when it compiles the program, so nothing is searched while it runs.",
     params: &[ParamDoc {
         name: "member",
-        desc: "The member whose attributes are read on every class: a method name, a property or \
-               constructor-parameter name, or the empty string for the attributes on the class \
-               itself.",
+        desc: "The name of the method, property or constructor parameter that has the attribute. \
+               An empty string reads the attributes of the class itself.",
         shape: &[],
     }],
-    ret: "One row per non-abstract class implementing `I`, sorted by fully-qualified name, as an \
-          `array<{instance: I, attribute: ?T}>`; an empty array when no class implements `I`. Two \
-          matching attributes on one class do not compile.",
+    ret: "An array with one row per class, sorted by class name. Each row is \
+          `{instance: I, attribute: ?T}`. `attribute` is `null` when the class has no attribute \
+          of the shape `T`. Two matching attributes on one class do not compile.",
     errors: &[],
 };
 
 /// `Core\Program::id`'s reference card — `rule:core-api/reference-card`.
 const ID_DOC: MethodDoc = MethodDoc {
-    short: "This program's identity: `BLAKE3` over every compiled unit's content hash, in program \
-            order, combined with the digest of the environment they were compiled for. The same \
-            code on the same host answers the same thing on every run, and any change to either \
-            answers something else.",
+    short: "Returns a text that identifies this version of the program. It is a `BLAKE3` hash of \
+            all the compiled code and of the environment it was compiled for. The same code on \
+            the same server gives the same value on every run.",
     params: &[],
-    ret: "All 32 bytes as 64 lowercase hex characters, never truncated — take a prefix if a \
-          shorter one is wanted. It is safe to echo: it is a digest, so it reveals no source, \
-          though a reader who watches it can tell when a deployment last changed.",
+    ret: "64 lowercase hexadecimal characters. The value changes when the code or the environment \
+          changes. It is safe to print, because a hash does not show any source code.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "No host wrote an identity onto this context, so there is nothing to answer with \
-               and an invented value would be worse than none — callers key caches on this.",
+        desc: "The program was started without an identity. `nvs run` always gives a program \
+               one, so this happens only when a program is started some other way.",
     }],
 };
 
@@ -248,6 +253,7 @@ mod tests {
     /// What is asserted is the refusal *and* its sentence, because the sentence
     /// is the whole value of refusing: a member that answered `""` here would
     /// hand every such context the same cache key.
+    // covers: Core\Program::id
     #[test]
     fn id_refuses_a_context_no_host_wrote_an_identity_onto() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -274,6 +280,7 @@ mod tests {
     /// handed back whole, byte for byte and with nothing removed. 64 characters
     /// go in and 64 come out — this module truncates nothing, which is the one
     /// thing `rule:programs/program-id` forbids it to do.
+    // covers: Core\Program::id
     #[test]
     fn id_answers_the_identity_the_host_wrote_and_shortens_nothing() {
         let mut ctx = Ctx::new(OutputSink::Sink);
