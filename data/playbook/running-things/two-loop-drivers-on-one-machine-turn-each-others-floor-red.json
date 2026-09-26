@@ -1,0 +1,11 @@
+{
+  "lead": "Two loop drivers on one machine turn each other's floor red: `examples/http.nvs` gets a refused connection, the abi-probe fan-out guard fails, and the WSL differential loses a case.",
+  "body": "The drivers share port 8099's origin (one leaves the other's listener alone and then loses it), `/var/tmp/nvs-target-wsl`, and the cores the placed fan-out children run on. Before treating one of these as a regression, check `bun nv loop` processes with `Get-CimInstance Win32_Process -Filter \"Name='bun.exe'\"`, re-run the check alone (the fan-out guard alone, `nvs test tests/differential/` in WSL), and diff the failing test's file against `main`.",
+  "files": [
+    "examples/http.nvs"
+  ],
+  "until": {
+    "kind": "exists",
+    "arg": "tools/nv/driver/sweep-lock.ts"
+  }
+}
