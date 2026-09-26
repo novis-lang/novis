@@ -1,6 +1,6 @@
 {
   "lead": "`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two minutes for a verdict the debug binary already gives.",
-  "body": "A `.nvst` case a stale binary fails may simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit. Build `cargo build` and run `target/debug/nvs.exe`: it is the binary the driver builds after every acceptance check, so it is the cheap answer and usually the faithful one. `bun nv proofs` builds its own binary first, `target/proof/` for `--bless`, `--run` and `--verify` and `target/release/` for `--record-perf`, so make every `crates/` edit of the group before the first of those calls, because each edit buys another build.",
+  "body": "A `.nvst` case a stale binary fails may simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit. Run the pipeline's `target/covws/<host triple>/debug/nvs.exe` instead: it is already built at the commit the session starts from and `bun nv verify` rebuilds it, so it is the cheap answer and usually the faithful one. `bun nv proofs` builds its own binary first, `target/proof/` for `--bless`, `--run` and `--verify` and `target/release/` for `--record-perf`, so make every `crates/` edit of the group before the first of those calls, because each edit buys another build.",
   "files": [
     "tools/nv/proofs/run.ts"
   ],
