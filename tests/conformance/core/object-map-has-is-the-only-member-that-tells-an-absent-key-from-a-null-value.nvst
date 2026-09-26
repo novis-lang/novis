@@ -2,6 +2,7 @@
 `Core\ObjectMap<K, ?V>::get` answers `null` for a key it does not hold and for a key holding `null`, so `has` is the only member that tells the two apart, and every other member counts the second and not the first — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
+// covers: Core\ObjectMap::has
 // The *edge* shape, at the one place § 9's `?V` read gives up information: a
 // map's `get` returns `?V`, so with a nullable `V` the absent answer and a
 // stored `null` are the same value. That is the documented cost of having no

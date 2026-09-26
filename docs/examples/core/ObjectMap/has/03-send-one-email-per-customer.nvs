@@ -1,0 +1,40 @@
+<?nvs
+// Shows how to do a piece of work only once for each object, even when it appears many times.
+
+final class Customer {
+    public string $email;
+
+    public function constructor(string $email) {
+        $this->email = $email;
+    }
+}
+
+final class Order {
+    public Customer $customer;
+    public int $total;
+
+    public function constructor(Customer $customer, int $total) {
+        $this->customer = $customer;
+        $this->total = $total;
+    }
+}
+
+Customer $ana = new Customer("ana@example.com");
+Customer $li = new Customer("li@example.com");
+array<Order> $orders = [new Order($ana, 1200), new Order($li, 350), new Order($ana, 99)];
+
+// The map stores the date of the email sent to each customer.
+Core\ObjectMap<Customer, string> $sent = new Core\ObjectMap<Customer, string>();
+
+// Ana has two orders, but `has` finds her the second time.
+// This prints two lines, one for each customer.
+foreach ($orders as Order $order) {
+    if ($sent->has($order->customer)) {
+        continue;
+    }
+    echo "email to ", $order->customer->email, "\n";
+    $sent->set($order->customer, "2026-09-26");
+}
+
+// This prints 2.
+echo $sent->count(), "\n";

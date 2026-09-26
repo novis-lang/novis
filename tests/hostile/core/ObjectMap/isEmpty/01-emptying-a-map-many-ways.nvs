@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program fills and empties a map many times, in different ways, and checks it each time.
+// Every check should return `true` or `false`, and the program must not crash or leak.
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, mixed> $map = new Core\ObjectMap<mixed, mixed>();
+
+// 1. 100000 rounds of one `set` and one `remove`. The map is empty after each round.
+int $wrong = 0;
+int $i = 0;
+while ($i < 100000) {
+    Node $node = new Node();
+    $map->set($node, null);
+    if ($map->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $map->remove($node);
+    if (!$map->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo '1: ', $wrong, "\n";
+
+// 2. 500000 keys, then `clear`. The map is empty and takes new keys after it.
+int $k = 0;
+while ($k < 500000) {
+    $map->set(new Node(), $k);
+    $k = $k + 1;
+}
+echo '2: ', $map->isEmpty() ? 'y' : 'n';
+$map->clear();
+echo $map->isEmpty() ? 'y' : 'n', "\n";
+
+// 3. Removing a key that was never stored does not change the answer.
+$map->remove(new Node());
+echo '3: ', $map->isEmpty() ? 'y' : 'n', "\n";
+
+// 4. The map stores itself as a key and as a value, and is then cleared.
+$map->set($map, $map);
+echo '4: ', $map->isEmpty() ? 'y' : 'n';
+$map->clear();
+echo $map->isEmpty() ? 'y' : 'n', "\n";
+
+// 5. Ten thousand maps, each with one key, are checked and then dropped.
+int $full = 0;
+int $m = 0;
+while ($m < 10000) {
+    Core\ObjectMap<Node, int> $small = new Core\ObjectMap<Node, int>();
+    $small->set(new Node(), $m);
+    if (!$small->isEmpty()) {
+        $full = $full + 1;
+    }
+    $m = $m + 1;
+}
+echo '5: ', $full, "\n";

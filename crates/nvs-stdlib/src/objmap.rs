@@ -601,6 +601,60 @@ mod tests {
         }
     }
 
+    /// `has` and `isEmpty` follow the keys and never the values: a key
+    /// holding `null` is present and makes the map non-empty, and only
+    /// `remove` or `clear` takes it out — a map that read a `null` value as
+    /// an absent key would answer `false` and `true` on the second block.
+    // covers: Core\ObjectMap::has, Core\ObjectMap::isEmpty
+    #[test]
+    fn has_and_is_empty_follow_the_keys_and_not_the_values() {
+        let mut ctx = Ctx::buffered();
+        let map = call(nvs_core_object_map_new, &mut ctx, &[]).expect("a fresh map does not throw");
+        let has = |key: i64| on(map, nvs_core_object_map_has, &[Value::int(key)]).as_bool();
+        let empty = || on(map, nvs_core_object_map_is_empty, &[]).as_bool();
+
+        assert_eq!((has(1), empty()), (Some(false), Some(true)));
+
+        on(
+            map,
+            nvs_core_object_map_set,
+            &[Value::int(1), Value::null()],
+        );
+        assert_eq!(
+            (has(1), has(2), empty()),
+            (Some(true), Some(false), Some(false))
+        );
+        assert_eq!(
+            on(map, nvs_core_object_map_get, &[Value::int(1)]).tag(),
+            Some(nvs_runtime::Tag::Null)
+        );
+
+        on(map, nvs_core_object_map_remove, &[Value::int(2)]);
+        assert_eq!(
+            (has(1), empty()),
+            (Some(true), Some(false)),
+            "an absent key removes nothing"
+        );
+        on(map, nvs_core_object_map_remove, &[Value::int(1)]);
+        assert_eq!((has(1), empty()), (Some(false), Some(true)));
+
+        on(
+            map,
+            nvs_core_object_map_set,
+            &[Value::int(2), Value::int(20)],
+        );
+        on(map, nvs_core_object_map_clear, &[]);
+        assert_eq!((has(2), empty()), (Some(false), Some(true)));
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference the constructor produced"
+        )]
+        unsafe {
+            map.release();
+        }
+    }
+
     /// `clear` releases the reference the map held on every key and every
     /// value, and leaves a map that takes the next write like a fresh one —
     /// a clear that swapped the stores without releasing the old ones would
