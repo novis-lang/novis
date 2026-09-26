@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Check, GreenMemo, type Outcome } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
-import { type LegName, type LegsOptions, type LegsSeams, legSpec, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
+import { type LegName, type LegsOptions, type LegsSeams, legSpec, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
 import { CARRIED, carryLine, mirrorPath, targetLine } from "../driver/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -102,18 +102,22 @@ describe("linuxLegs", () => {
     expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(true);
   });
 
-  test("the legs say how many steps they will take, and finish exactly that many", async () => {
+  test("the legs are counted before they run, say that count as they begin, and finish exactly that many", async () => {
     const count = async (over: Partial<LegsOptions>, platform: NodeJS.Platform = "win32") => {
       const f = fake(undefined, platform);
-      const got = { planned: [] as number[], steps: 0 };
-      await linuxLegs(options(f, { ...over, onPlan: (n) => got.planned.push(n), onStep: () => void got.steps++ }));
+      const got = { before: 0, planned: [] as number[], steps: 0 };
+      const o = options(f, { ...over, onPlan: (n) => got.planned.push(n), onStep: () => void got.steps++ });
+      got.before = legSteps(o);
+      await linuxLegs(o);
       return got;
     };
     // The build, one setup check, two fixtures, one suite and two valgrind runs.
-    expect(await count({ setups: [migrate] })).toEqual({ planned: [7], steps: 7 });
-    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg" }) })).toEqual({ planned: [3], steps: 3 });
-    expect(await count({}, "linux")).toEqual({ planned: [3], steps: 3 });
-    expect(await count({ programs: [] })).toEqual({ planned: [], steps: 0 });
+    expect(await count({ setups: [migrate] })).toEqual({ before: 7, planned: [7], steps: 7 });
+    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg" }) })).toEqual({ before: 3, planned: [3], steps: 3 });
+    expect(await count({}, "linux")).toEqual({ before: 3, planned: [3], steps: 3 });
+    expect(await count({ programs: [] })).toEqual({ before: 0, planned: [], steps: 0 });
+    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg", "valgrind sweep": "key-valgrind sweep" }) })).toEqual({ before: 0, planned: [], steps: 0 });
+    expect(await count({ wslTarget: null })).toEqual({ before: 0, planned: [], steps: 0 });
   });
 
   test("with the floor gate shut, a green leg is not remembered", async () => {

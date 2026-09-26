@@ -93,7 +93,7 @@ export interface LegsOptions {
   label: (stage: number) => string;
   /** A process is starting / a step is reached, for the console. */
   onRun?: (what: string) => void;
-  /** How many steps the legs will take, said once they know: the build, then each setup check, fixture, suite and valgrind run still to judge. */
+  /** The legs begin, and take `steps` more: `legSteps`'s count, which a sweep has already added to its total. */
   onPlan?: (steps: number) => void;
   /** One of the steps `onPlan` counted is finished. */
   onStep?: () => void;
@@ -320,6 +320,29 @@ export function startWslBuild(o: Omit<LegsOptions, "suites" | "setups" | "files"
   return true;
 }
 
+/** The fixtures the valgrind sweep runs: each one the sweep reached, in the plan's order, less the skip list. */
+function valgrindTargets(o: Pick<LegsOptions, "programs" | "files" | "valgrindSkip">): string[] {
+  const reached = new Set(o.programs.map((c) => c.file ?? ""));
+  return o.files.filter((f) => reached.has(f) && !o.valgrindSkip.includes(f));
+}
+
+/**
+ * How many steps `linuxLegs` takes over `o`, or 0 when it skips both legs: the build, then each setup check,
+ * fixture, suite and valgrind run still to judge. It reads only the memo, the machine and `o`'s lists, so a
+ * sweep can count the legs into its total before its first check runs.
+ */
+export function legSteps(o: LegsOptions): number {
+  const s = seamsOf(o);
+  if (o.programs.length === 0) return 0;
+  const targets = valgrindTargets(o);
+  if (s.platform !== "win32") return answered(o, "valgrind sweep") || !s.hasValgrind() || targets.length === 0 ? 0 : 1 + targets.length;
+  if (o.wslTarget === null) return 0;
+  const legGreen = answered(o, "wsl leg");
+  const sweepGreen = answered(o, "valgrind sweep");
+  if ((legGreen && sweepGreen) || !s.hasWsl()) return 0;
+  return 1 + o.setups.length + (legGreen ? 0 : o.programs.length + o.suites.length) + (sweepGreen ? 0 : targets.length);
+}
+
 /** Runs the WSL leg (Windows with WSL) and the valgrind sweep. Returns "" when both are green, skipped or remembered, else the ledger line: the WSL leg's fixture reds as one `programFailLine`, then valgrind's `valgrind <file>: exit 97 -- <first error line>  (and N more: ...)`. */
 export async function linuxLegs(o: LegsOptions): Promise<string> {
   const s = seamsOf(o);
@@ -328,8 +351,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
     say("wsl leg and valgrind sweep skipped -- the sweep reached no fixture");
     return "";
   }
-  const reached = new Set(o.programs.map((c) => c.file ?? ""));
-  const targets = o.files.filter((f) => reached.has(f) && !o.valgrindSkip.includes(f));
+  const targets = valgrindTargets(o);
 
   if (s.platform !== "win32") {
     if (answered(o, "valgrind sweep")) {
@@ -341,7 +363,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
       return "";
     }
     if (targets.length === 0) return "";
-    o.onPlan?.(1 + targets.length);
+    o.onPlan?.(legSteps(o));
     say("cargo build");
     const built = await s.shell("native", `cd ${q(ROOT)} && cargo build --quiet`, TIMEOUT_MS);
     if (built.code !== 0) return `the native build failed -- ${firstErrLine(built)}`;
@@ -373,7 +395,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
 
   const repo = wslRepo(o.wslTarget);
   const binary = `${o.wslTarget}/debug/nvs`;
-  o.onPlan?.(1 + o.setups.length + (legGreen ? 0 : o.programs.length + o.suites.length) + (sweepGreen ? 0 : targets.length));
+  o.onPlan?.(legSteps(o));
   say("wsl build");
   const pending = inflight.get(o.wslTarget);
   inflight.delete(o.wslTarget);

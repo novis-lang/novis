@@ -243,10 +243,15 @@ class StatusLine {
     this.draw();
   }
 
-  /** Every planned step is behind the phase, and `steps` more follow as the part named `detail`: a sweep's Linux legs, counted once they know their work. */
-  extend(steps: number, detail: string): void {
-    this.done = this.total;
+  /** `steps` more belong to the phase's total: a sweep's Linux legs, counted before its first check runs. */
+  grow(steps: number): void {
     this.total += steps;
+    this.draw();
+  }
+
+  /** The last `steps` of the total begin, as the part named `detail`, and every step before them is behind the phase. */
+  reach(steps: number, detail: string): void {
+    this.done = Math.max(0, this.total - steps);
     this.detail = detail;
     this.draw();
   }

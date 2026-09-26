@@ -130,7 +130,7 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../driver/origin.ts";
 import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
-import { type LegsOptions, linuxLegs, startWslBuild } from "../driver/legs.ts";
+import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
@@ -387,11 +387,12 @@ interface Keyed {
   verified: Set<string>;
 }
 
-/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. The Linux legs say how many steps they will take, then each one they finish. */
+/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. The Linux legs' steps are counted before the sweep starts, then the legs say when they begin and each step they finish. */
 interface Progress {
   run: (what: string) => void;
   trace: (c: Check, answered: boolean) => void;
   note: (text: string) => void;
+  count: (steps: number) => void;
   plan: (steps: number) => void;
   step: () => void;
 }
@@ -424,6 +425,7 @@ async function sweepOver(
     run: (what) => console.error(`  .. ${what}`),
     trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
     note: (text) => console.error(`  ${text}`),
+    count: () => {},
     plan: () => {},
     step: () => {},
   };
@@ -448,7 +450,10 @@ async function sweepOver(
     onPlan: p.plan,
     onStep: p.step,
   };
-  if (o.legs) startWslBuild(legs);
+  if (o.legs) {
+    p.count(legSteps(legs));
+    startWslBuild(legs);
+  }
   let result: AcceptanceResult;
   const origin = await holdOrigin();
   p.note(origin.line);
@@ -1304,7 +1309,8 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
       say(`   .. ${at()}  ${nameOf(c)} [${labelOf(c.stage)}]${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
     },
     note: (text) => say(`   .. ${" ".repeat(7)}  ${text}`, C.GRAY),
-    plan: (steps) => TICKER.extend(steps, "linux legs"),
+    count: (steps) => TICKER.grow(steps),
+    plan: (steps) => TICKER.reach(steps, "linux legs"),
     step: () => TICKER.advance(),
   };
 }

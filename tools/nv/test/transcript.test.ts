@@ -73,10 +73,12 @@ describe("the console's helpers", () => {
     expect(TICKER.phase()).toBe("held");
   });
 
-  test("the Linux legs grow the sweep's count from where its checks end", () => {
+  test("the Linux legs are in the sweep's total from its start, and begin where its checks end", () => {
     TICKER.set({ phase: "acceptance sweep", total: 58, done: 0 });
+    TICKER.grow(40);
     for (let i = 0; i < 57; i++) TICKER.advance();
-    TICKER.extend(40, "linux legs");
+    expect(TICKER.phase()).toBe("acceptance sweep 57/98");
+    TICKER.reach(40, "linux legs");
     TICKER.advance();
     expect(TICKER.phase()).toBe("acceptance sweep 59/98, linux legs");
     TICKER.set({ phase: "cleaning disk" });
