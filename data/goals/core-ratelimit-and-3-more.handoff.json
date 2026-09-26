@@ -1,30 +1,26 @@
 {
-  "state": "Goal `core-ratelimit-and-3-more`. `Core\\RateLimit` and `Core\\RateLimit\\Decision` owe nothing: `bun nv proofs --verify --group` is green for both, and every perf figure is current against `crates/nvs-stdlib/src/ratelimit.rs` as it stands.\nA proof found a bug and it is fixed: a `$cost` larger than `$burst` could never be admitted, yet `shed` and `consume` answered a finite `retryAfter`. Both members now throw a `RuntimeError` for it (`admissible` in `crates/nvs-stdlib/src/ratelimit.rs`), pinned by `tests/conformance/core/ratelimit-shed-refuses-a-cost-past-the-burst.nvst` and `a_cost_past_the_burst_is_refused_rather_than_given_a_wait`.\nAny further edit to `ratelimit.rs` makes every `RateLimit` figure stale again: re-record with `bun nv proofs --record-perf --only '<feature>'`.\n`Core\\Reflect` and `Core\\Reflect\\AttributeInfo` are untouched: `Core\\Reflect` and `Core\\Reflect\\AttributeInfo` still sit in `CLASSES_STILL_OWING_A_CARD`.",
+  "state": "Goal `core-ratelimit-and-3-more`. `Core\\RateLimit`, `Core\\RateLimit\\Decision` and `Core\\Reflect` owe nothing: `bun nv proofs --verify --group` is green for all three, and every perf figure is current against `crates/nvs-stdlib/src/reflect.rs` and `crates/nvs-stdlib/src/ratelimit.rs` as they stand.\n`Core\\Reflect` and `Core\\Reflect\\AttributeInfo` both carry a class card now, and neither is in `CLASSES_STILL_OWING_A_CARD` any more.\n`Core\\Reflect\\AttributeInfo` is the last red check (`dossier-core-reflect-attributeinfo`): its five members `name`, `target`, `parameter`, `fields` and `field` each owe two test cases, three examples, an attack and a bench. The card is done.\nAny further edit to `reflect.rs` makes the three `Core\\Reflect` figures stale again: re-record with `bun nv proofs --record-perf --only '<feature>'` for `Core\\Reflect::typeOf`, `::forClass` and `::forObject` as well as for whatever `AttributeInfo` member lands.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, the `CLASSES_STILL_OWING_A_CARD` list in `crates/nvs-stdlib/src/registry.rs`, and the proof trees under `core/Reflect/` and `core/Reflect-AttributeInfo/`.",
+    "note": "one file set: the `ATTRIBUTE_INFO` members in `crates/nvs-stdlib/src/reflect.rs`, its test module, and the proof trees under `core/Reflect-AttributeInfo/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect`'s class card** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/reflect.rs:325` `crates/nvs-stdlib/src/registry.rs:5189`"
+        "text": "**Tests from both sides for all five `AttributeInfo` members** — one `.nvst` case under `tests/conformance/core/` carrying a `// covers:` line per member, and Rust `#[test]`s in `reflect.rs`'s test module with the same markers: an instance member is credited by a marker only. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:1482` `crates/nvs-stdlib/src/reflect.rs:2375`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect::typeOf`** — owes examples, hostile, perf and a Rust test carrying its `covers:` marker. `rule:tooling/reflection-and-source-parsing-are-core-features`. `crates/nvs-stdlib/src/reflect.rs:354`"
+        "text": "**Examples, an attack and a bench for `name`, `target`, `parameter`, `fields` and `field`** — reached through `Core\\Reflect::forClass(...)->attributes()`. `field` throws a `LogicError` for an unknown field and for a value it does not fold, which is what the attack aims at. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:2323`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\AttributeInfo`'s card and `::field`** — its `ClassDoc`, then two test cases (one Novis, one Rust), three examples, an attack and a bench. `crates/nvs-stdlib/src/reflect.rs:224` `crates/nvs-stdlib/src/reflect.rs:1515`"
-      },
-      {
-        "done": false,
-        "text": "**Record the benches** with `bun nv proofs --record-perf --only '<feature>'` once the last Rust edit is in. `crates/nvs-stdlib/src/reflect.rs:325`"
+        "text": "**Record the benches** with `bun nv proofs --record-perf --only '<feature>'` once the last Rust edit is in, and re-record the three `Core\\Reflect` members if `reflect.rs` moved. `crates/nvs-stdlib/src/reflect.rs:1482`"
       }
     ]
   },
   "backlog": [
-    "`consume` has no perf figure of its own, since no shared store is reachable from a bench. That is `data/proofs/policy.json`'s to say, and the group gate passes today."
+    "The other six `Core\\Reflect\\*Info` classes still sit in `CLASSES_STILL_OWING_A_CARD` (`crates/nvs-stdlib/src/registry.rs`); they belong to goal `core-class-cards`, not this one."
   ]
 }

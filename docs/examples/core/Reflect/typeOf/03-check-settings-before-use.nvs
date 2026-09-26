@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to check settings of unknown type before a program uses them.
+
+class Settings {
+    public static function check(string $key, mixed $value, Core\Reflect\TypeKind $wanted): bool {
+        if (Core\Reflect::typeOf($value) == $wanted) {
+            echo $key, ": ok\n";
+            return true;
+        }
+        echo $key, ": wrong kind of value\n";
+        return false;
+    }
+}
+
+// The port must be a whole number, the host a string and `debug` true or false.
+// Here the port was written as a string, so the check for `port` fails.
+mixed $port = "8080";
+mixed $host = "example.com";
+mixed $debug = false;
+
+int $failed = 0;
+if (!Settings::check("port", $port, Core\Reflect\TypeKind::Int)) {
+    $failed = $failed + 1;
+}
+if (!Settings::check("host", $host, Core\Reflect\TypeKind::Text)) {
+    $failed = $failed + 1;
+}
+if (!Settings::check("debug", $debug, Core\Reflect\TypeKind::Bool)) {
+    $failed = $failed + 1;
+}
+
+// This prints `1 setting(s) to fix`.
+echo $failed, " setting(s) to fix\n";

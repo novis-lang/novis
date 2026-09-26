@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `typeOf` checks the value a variable contains now, not its declared type.
+
+class Show {
+    public static function isText(mixed $value): string {
+        return Core\Reflect::typeOf($value) == Core\Reflect\TypeKind::Text ? "string" : "not a string";
+    }
+}
+
+// The variable first contains a number, then a string, then an array.
+// This prints `not a string`, then `string`, then `not a string`.
+mixed $slot = 7;
+echo Show::isText($slot), "\n";
+$slot = "seven";
+echo Show::isText($slot), "\n";
+$slot = [7, 7];
+echo Show::isText($slot), "\n";
+
+// An array is one value, so `typeOf` returns `Array` for it.
+// It does not look at the values inside. This prints `array`.
+echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Array ? "array" : "other", "\n";

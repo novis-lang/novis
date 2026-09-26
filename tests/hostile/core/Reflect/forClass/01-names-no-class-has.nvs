@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `forClass` is given names that no class has: empty, very long, with a zero byte,
+// with a leading backslash, and the name of a `Core` class. Each result should be `null`.
+
+class Account
+{
+    public int $id = 0;
+}
+
+class Probe
+{
+    public static function ask(string $name): string
+    {
+        return Core\Reflect::forClass($name) == null ? 'null' : 'found';
+    }
+}
+
+// 1. The empty string.
+echo Probe::ask(''), "\n";
+
+// 2. A name of 8 million characters.
+echo Probe::ask(Core\Str::repeat('Account', 1200000)), "\n";
+
+// 3. A real class name with a zero byte after it.
+echo Probe::ask("Account\0"), "\n";
+
+// 4. A leading backslash. A class name is written without one, so this is `null`.
+echo Probe::ask("\\Account"), "\n";
+
+// 5. A class of `Core` itself. Only the program's own classes are described.
+echo Probe::ask("Core\\Str"), "\n";
+
+// 6. The real name, 200000 times. Each description is freed before the next one.
+uint $found = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Core\Reflect::forClass('Account') != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";

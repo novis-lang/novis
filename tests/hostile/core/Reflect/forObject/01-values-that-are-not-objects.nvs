@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `forObject` is given values that are not objects, and many objects in a loop.
+// Each value that is not an object should throw a `RuntimeError`, and each object should be described.
+
+class Order
+{
+    public int $id = 0;
+    private string $secret = 'hidden';
+}
+
+class Probe
+{
+    public static function ask(mixed $value): string
+    {
+        try {
+            return Core\Reflect::forObject($value)->name();
+        } catch (RuntimeError $error) {
+            return 'error';
+        }
+    }
+}
+
+// 1. `null`, a number, a string and an empty array. Each one throws an error.
+echo Probe::ask(null), "\n";
+echo Probe::ask(-1), "\n";
+echo Probe::ask('Order'), "\n";
+echo Probe::ask([]), "\n";
+
+// 2. An array that contains an object. The array is not an object, so this throws an error.
+echo Probe::ask([new Order()]), "\n";
+
+// 3. A private property is not in the list code outside the class may read.
+echo Core\Arr::count(Core\Reflect::forObject(new Order())->readableProperties()), "\n";
+
+// 4. 200000 new objects, each described once. Every name is checked.
+uint $wrong = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Probe::ask(new Order()) != 'Order') {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo $wrong, "\n";

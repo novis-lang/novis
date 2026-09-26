@@ -1,0 +1,22 @@
+<?nvs
+// Shows that `forObject` describes the object's own class, also when a variable has the parent type.
+
+class Animal {
+    public string $name = "Rex";
+}
+
+class Dog extends Animal {
+    public string $breed = "Collie";
+}
+
+class Describe {
+    public static function print(Animal $animal): void {
+        var $info = Core\Reflect::forObject($animal);
+        echo $info->name(), ": ", Core\Str::join($info->readableProperties(), ", "), "\n";
+    }
+}
+
+// The parameter type is `Animal`. For a `Dog`, the description is the one of `Dog`.
+// This prints `Animal: name` and then `Dog: name, breed`.
+Describe::print(new Animal());
+Describe::print(new Dog());

@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to find out what kind of value a `mixed` variable contains.
+
+class Kind {
+    public static function label(mixed $value): string {
+        var $kind = Core\Reflect::typeOf($value);
+        if ($kind == Core\Reflect\TypeKind::Int) {
+            return "a whole number";
+        }
+        if ($kind == Core\Reflect\TypeKind::Float) {
+            return "a float";
+        }
+        if ($kind == Core\Reflect\TypeKind::Text) {
+            return "a string";
+        }
+        if ($kind == Core\Reflect\TypeKind::Bool) {
+            return "true or false";
+        }
+        if ($kind == Core\Reflect\TypeKind::Null) {
+            return "null";
+        }
+        return "something else";
+    }
+}
+
+// This prints one line for each of the five values.
+array<mixed> $values = [42, 1.5, "hello", true, null];
+foreach ($values as mixed $value) {
+    echo Kind::label($value), "\n";
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Shows a log line that names the class of a value, as a job queue does for a job it cannot run.
+
+class SendEmail {
+}
+
+class ResizeImage {
+}
+
+class Log {
+    public static function rejected(mixed $job): void {
+        // `forObject` throws an error for a value that is not an object,
+        // so the value is checked with `typeOf` first.
+        if (Core\Reflect::typeOf($job) != Core\Reflect\TypeKind::Object) {
+            echo "rejected: not a job\n";
+            return;
+        }
+        echo "rejected: ", Core\Reflect::forObject($job)->name(), "\n";
+    }
+}
+
+// This prints `rejected: SendEmail`, `rejected: ResizeImage` and `rejected: not a job`.
+Log::rejected(new SendEmail());
+Log::rejected(new ResizeImage());
+Log::rejected("send-email");

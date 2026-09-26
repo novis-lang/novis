@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to build the header line of a CSV file from the public properties of a class.
+
+class Customer {
+    public int $id = 0;
+    public string $name = "";
+    public string $email = "";
+    private string $passwordHash = "";
+}
+
+class Header {
+    public static function of(string $className): string {
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "";
+        }
+        // `readableProperties` returns only the properties this code may read.
+        // `passwordHash` is private, so it is not in the list.
+        return Core\Str::join($info->readableProperties(), ",");
+    }
+}
+
+// This prints `id,name,email`.
+echo Header::of("Customer"), "\n";

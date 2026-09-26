@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check a list of class names, for example names read from a setting.
+
+class CsvExport {
+}
+
+class PdfExport {
+}
+
+// The third name has a typing error, so `forClass` returns `null` for it.
+array<string> $configured = ["CsvExport", "PdfExport", "XmlExprot"];
+foreach ($configured as string $name) {
+    if (Core\Reflect::forClass($name) == null) {
+        echo $name, ": not found\n";
+    } else {
+        echo $name, ": ok\n";
+    }
+}
