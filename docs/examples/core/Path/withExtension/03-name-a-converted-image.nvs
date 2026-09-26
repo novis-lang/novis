@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to name the converted copy of an uploaded image, before the copy is written.
+
+class Thumbnails {
+    public static function pathFor(string $upload): string {
+        // The copy keeps the name of the upload and gets the `webp` extension.
+        string $name = Core\Path::withExtension(Core\Path::basename($upload), "webp");
+        return "/srv/shop/thumbnails/" . $name;
+    }
+}
+
+// This prints `/srv/shop/thumbnails/holiday.webp` and `/srv/shop/thumbnails/logo.webp`.
+echo Thumbnails::pathFor("uploads/2026/09/holiday.jpeg"), "\n";
+echo Thumbnails::pathFor("uploads/logo.png"), "\n";

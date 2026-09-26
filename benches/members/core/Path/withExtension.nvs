@@ -1,0 +1,23 @@
+<?nvs
+// Measures changing the extension of a short path, as a program does before it writes a converted file.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = [
+            "/srv/shop/invoices/invoice-1042.pdf",
+            "backups/database.tar.gz",
+            "uploads/2026/09/holiday.jpeg",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path changed next depends on the last result, so no round can be skipped.
+            $total = $total + Core\Str::length(Core\Path::withExtension($paths[$total % 3], "webp"));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

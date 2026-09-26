@@ -1,0 +1,48 @@
+<?nvs
+// Attack: `Core\Path::withExtension` is given very long names, very long extensions
+// and extensions it does not allow. Each call should return a path or throw an error.
+
+// 1. The name is 8 MiB long, and its extension is replaced.
+echo Core\Str::length(Core\Path::withExtension(Core\Str::repeat('x', 8388608) . '.txt', 'md')), "\n";
+
+// 2. The new extension is 8 MiB long.
+echo Core\Str::length(Core\Path::withExtension('file.txt', Core\Str::repeat('x', 8388608))), "\n";
+
+// 3. The name has four million dots, and the last extension is removed.
+echo Core\Str::length(Core\Path::withExtension(Core\Str::repeat('a.', 4194304) . 'gz', null)), "\n";
+
+// 4. The path has one million folders.
+echo Core\Str::length(Core\Path::withExtension(Core\Str::repeat('d/', 1048576) . 'f.txt', 'md')), "\n";
+
+// 5. The new extension is 8 MiB of dots. It starts with a dot, so it throws.
+try {
+    echo Core\Path::withExtension('file.txt', Core\Str::repeat('.', 8388608)), "\n";
+} catch (RuntimeError $error) {
+    echo 'step 5: the extension was refused', "\n";
+}
+
+// 6. The new extension has a separator at its very end.
+try {
+    echo Core\Path::withExtension('file.txt', Core\Str::repeat('x', 1048576) . '\\'), "\n";
+} catch (RuntimeError $error) {
+    echo 'step 6: the extension was refused', "\n";
+}
+
+// 7. The path is 8 MiB of separators, so it has no file name.
+try {
+    echo Core\Path::withExtension(Core\Str::repeat("/\\", 4194304), 'txt'), "\n";
+} catch (RuntimeError $error) {
+    echo 'step 7: the path was refused', "\n";
+}
+
+// 8. The extension is empty.
+try {
+    echo Core\Path::withExtension('file.txt', ''), "\n";
+} catch (RuntimeError $error) {
+    echo 'step 8: the extension was refused', "\n";
+}
+
+// 9. The name and the extension have emoji, a null byte and characters from other scripts.
+echo Core\Path::withExtension("報告.\u{0}😀", "données\u{0}"), "\n";
+
+echo 'the runtime is still standing', "\n";
