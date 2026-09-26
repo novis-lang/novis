@@ -1,32 +1,21 @@
 {
-  "state": "Goal `core-objectmap`. `Core\\ObjectMap` has its class card, and `clear`, `count`, `get`, `has`, `isEmpty` and `set` have every feature proof: about, examples, attack, bench with a recorded figure, and a Novis and a Rust test each.\n`has` and `isEmpty` record 0 allocations. `set` records 1 allocation of 50 bytes per overwrite: the value store is written through `NvsArray::set`, which takes an owned `NvsStr` key, so an overwrite builds the chain key on the heap even though the entry already exists (`crates/nvs-stdlib/src/objmap.rs:382`). The bench declares no allocation count; the Backlog carries the fix.\n`bun nv proofs --owed --group 'Core\\ObjectMap'` names what is left: `remove` (examples, hostile, perf), `keys` and `values` (examples, hostile, perf, and a Novis test each).",
+  "state": "Goal `core-objectmap` is met. Every one of `Core\\ObjectMap`'s nine features has every feature proof: about, three examples, an attack, a bench with a recorded figure, and a Novis and a Rust test each. `bun nv proofs --verify --group 'Core\\ObjectMap'` reports nothing owed, 27 examples and 9 attacks passing.\n`has`, `isEmpty` and `remove` of an absent key record 0 allocations. `keys` and `values` record 2 allocations of 176 bytes per call, the new list. `set` records 1 allocation per overwrite, which is the gap record `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json`, owned by M12.\nThe chain moves on to `core-objectset`, which starts from its own handoff record.",
   "next": {
-    "stage": 1,
-    "title": "member proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [
       "crates/nvs-stdlib/src/objmap.rs",
-      "docs/examples/core/ObjectMap/",
-      "tests/hostile/core/ObjectMap/",
-      "benches/members/core/ObjectMap/",
-      "tests/conformance/core/object-map-*.nvst"
+      "docs/examples/core/ObjectMap/"
     ],
-    "note": "Run `bun nv proofs --id '<member>'` first.",
+    "note": "Nothing is open.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\ObjectMap::remove`** — owes examples, hostile, perf (check `about` with `--id`). Its Rust test is `the_two_stores_stay_paired_through_set_and_remove`, and `tests/conformance/core/object-map-get-and-remove-on-an-absent-key.nvst` calls it. A bench that removes and re-adds one key will allocate on the re-add; measure a remove of an absent key for `allocations 0`, or declare none. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:434`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\ObjectMap::keys`** — owes examples, hostile, perf and a Novis test: add `// covers: Core\\ObjectMap::keys` to `tests/conformance/core/object-map-keys-on-identity.nvst`. It returns a new list, so its bench allocates. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:476`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\ObjectMap::values`** — the same as `keys`, and the same case can carry both markers. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:486`"
+        "done": true,
+        "text": "**`Core\\ObjectMap::remove`, `::keys` and `::values` have every feature proof** — `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:434`"
       }
     ]
   },
   "backlog": [
-    "`Core\\ObjectMap::set` allocates its chain key on every overwrite. A borrowed-key replace on `NvsArray` (beside `NvsArray::set`, `crates/nvs-runtime/src/array.rs:953`) would take it to 0; then add `// bench: allocations 0` to `benches/members/core/ObjectMap/set.nvs` and re-record. `Core\\ObjectSet` may share the cost. Owner: this goal, after the member proofs."
+    "`Core\\ObjectMap::set` overwrite allocates the chain key: needs a borrowed-key replace on `NvsArray` (`crates/nvs-runtime/src/array.rs:428`). Owned by M12 in `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json`."
   ]
 }

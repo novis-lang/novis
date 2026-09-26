@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/objmap.rs",
+  "title": "A `Core\\ObjectMap::set` that replaces an existing value still allocates the entry's key.",
+  "text": "`benches/members/core/ObjectMap/set.nvs` counts 1 allocation of 50 bytes for each overwrite of a key the map already has. `nvs_core_object_map_set` writes the value store through `NvsArray::set`, which takes an owned `NvsStr`, so the chain key `identity_store::locate` built on the stack is copied to the heap even though the entry exists and only its value changes. Closing it is a replace-in-place on `NvsArray` that takes a borrowed key and returns the old value, which is a change to the runtime's array type and not a proof slice; the bench then declares `allocations 0`.",
+  "milestone": "M12"
+}
