@@ -1,0 +1,20 @@
+<?nvs
+// Measures drawing one random float, as a program does to decide whether to log a request.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every draw is compared and counted, so no round can be left out.
+            $total = $total + ((Core\Random::float() < 0.5 ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) > 0 ? "done" : "none", "\n";

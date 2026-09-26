@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to add a random part to the wait before a retry. Clients that failed
+// together then do not all retry at the same moment.
+
+float $wait = 100.0;
+uint $attempt = 1;
+while ($attempt <= 4) {
+    // The wait is the base time plus up to half of it again.
+    float $withJitter = $wait + $wait * 0.5 * Core\Random::float();
+
+    // The random part changes on every run, so this prints the range the wait is in.
+    bool $inRange = $withJitter >= $wait && $withJitter < $wait * 1.5;
+    echo "attempt ", $attempt, ": ", $inRange ? "between " . ($wait as string) . " and " . (($wait * 1.5) as string) . " ms" : "outside the range", "\n";
+
+    $wait = $wait * 2.0;
+    $attempt = $attempt + 1;
+}
