@@ -66,26 +66,44 @@ export const PROGRAM_KINDS = new Set(["exact", "ordered", "contains", "min-bytes
 /** `nvs test`'s summary line. */
 export const SUMMARY_RE = /(\d+)\s+passed,\s+(\d+)\s+failed/;
 
+/** The line `bun run` adds when a package script fails, which says nothing the script did not. */
+const SCRIPT_EXIT = /^error: script "[^"]*" exited with code -?\d+$/;
+
+/** The lines of stdout's tail a verdict quotes when neither stream names the failure. */
+const TAIL_LINES = 3;
+
 /**
  * The one line that names a failure, which every verdict quotes. A `cargo test` run names the failed test
  * on stdout and says only `error: test failed` on stderr, after the build's warnings, so the pick is the
- * most specific line either stream holds: a failed test, then a panic, then the first `error` line, then
- * stderr's first line, then stdout's last.
+ * most specific line either stream holds: a failed test, then a panic (Rust's or Bun's own), then a
+ * failed proof program, then the first `error` line, then stderr's first line, then stdout's last few
+ * joined by ` | `. `bun run`'s own `error: script ... exited with code N` is the pick only when the script
+ * printed nothing else: a red `bun nv` check quotes what the script printed.
  */
 export function firstErrLine(r: Outcome): string {
-  const err = r.err.trim() === "" ? [] : r.err.trim().split(/\r?\n/);
-  const out = r.out.trim() === "" ? [] : r.out.trim().split(/\r?\n/);
+  const lines = (text: string) => (text.trim() === "" ? [] : text.trim().split(/\r?\n/).filter((l) => !SCRIPT_EXIT.test(l.trim())));
+  const err = lines(r.err);
+  const out = lines(r.out);
   const both = [...out, ...err];
   const picks: ((l: string) => boolean)[] = [
     (l) => l.startsWith("test ") && l.endsWith("... FAILED"),
     (l) => l.startsWith("thread '") && l.includes("panicked at"),
+    (l) => l.startsWith("panic("),
+    (l) => /^\s*FAIL\s/.test(l),
     (l) => l.startsWith("error"),
   ];
   for (const pick of picks) {
     const hit = both.find(pick);
-    if (hit !== undefined) return hit;
+    if (hit !== undefined) return hit.trim();
   }
-  return err[0] || (out[out.length - 1] ?? "");
+  if (err.length > 0) return err[0]!;
+  const tail = out
+    .filter((l) => l.trim() !== "")
+    .slice(-TAIL_LINES)
+    .map((l) => l.trim())
+    .join(" | ");
+  // A script that printed nothing else has only `bun run`'s line to quote.
+  return tail || r.err.trim().split(/\r?\n/)[0]!;
 }
 
 /** `text`'s lines with CRLF normalised away and the trailing newline dropped. */
@@ -320,13 +338,15 @@ export function proofSections(out: string): Map<string, { passed: boolean; lines
 /**
  * What `nv proofs --verify` over `groups` alone would have done, cut from a batched run over more groups.
  * One group prints its lines with no `==` and `--` lines around them, as a run over one group does. A
- * group the batch printed no verdict for fails with the batch's own output, which says why it stopped.
+ * group the batch printed no verdict for fails with the batch's own output, which says why it stopped,
+ * and a last line naming the group.
  */
 export function proofOutcome(groups: string[], batch: Outcome): Outcome {
   const sections = proofSections(batch.out);
   const missing = groups.find((g) => !sections.has(g));
   if (missing !== undefined) {
-    return { code: batch.code === 0 ? 1 : batch.code, out: batch.out, err: batch.err.trim() !== "" ? batch.err : `the batched \`nv proofs --verify\` printed no verdict for ${missing}` };
+    const why = [batch.err.trim(), `the batched \`nv proofs --verify\` printed no verdict for ${missing}`].filter((l) => l !== "");
+    return { code: batch.code === 0 ? 1 : batch.code, out: batch.out, err: why.join("\n") };
   }
   const mine = groups.map((g) => sections.get(g)!);
   const lines = groups.length === 1 ? mine[0]!.lines.slice(1, -1) : mine.flatMap((s) => s.lines);

@@ -34,10 +34,18 @@ describe("firstErrLine", () => {
     expect(firstErrLine({ code: 101, out: "", err })).toBe("thread 'a::b' panicked at src/x.rs:1");
     expect(firstErrLine({ code: 1, out: "", err: "warning: x\nerror[E0308]: mismatched" })).toBe("error[E0308]: mismatched");
   });
-  test("stderr's first line, then stdout's last", () => {
+  test("stderr's first line, then stdout's last few", () => {
     expect(firstErrLine({ code: 1, out: "a\nb\n", err: "why\nmore" })).toBe("why");
-    expect(firstErrLine({ code: 1, out: "a\nlast\n", err: "" })).toBe("last");
+    expect(firstErrLine({ code: 1, out: "a\nlast\n", err: "" })).toBe("a | last");
+    expect(firstErrLine({ code: 1, out: "one\ntwo\n\nthree\nfour\n", err: "" })).toBe("two | three | four");
     expect(firstErrLine({ code: 1, out: "", err: "" })).toBe("");
+  });
+  test("a red `bun nv` check quotes what the script printed, never `bun run`'s exit line", () => {
+    const script = 'error: script "nv" exited with code 1';
+    const proofs = "== Core\\Attributes\n  FAIL  tests/hostile/a.nvs: still running after 10s\nproofs hostile: 1 ok, 1 failed\n";
+    expect(firstErrLine({ code: 1, out: proofs, err: script })).toBe("FAIL  tests/hostile/a.nvs: still running after 10s");
+    expect(firstErrLine({ code: 1, out: "nv plan: M9 has no status\nsee --help\n", err: script })).toBe("nv plan: M9 has no status | see --help");
+    expect(firstErrLine({ code: 1, out: "", err: `nv verify: the fmt step failed\n${script}` })).toBe("nv verify: the fmt step failed");
   });
 });
 
@@ -148,14 +156,21 @@ describe("the batched proofs run", () => {
     expect(proofOutcome(["Core\\Env"], batch)).toEqual({ code: 0, out: "nv proofs gate: nothing owed in Core\\Env (2 features).\nproofs examples: 9 ok, 0 skipped, 0 known-gap, 0 failed\n", err: "" });
     const heap = proofOutcome(["Core\\Heap"], batch);
     expect(heap.code).toBe(1);
-    expect(judgeCommand(check({ want: ["nothing owed", "0 failed"] }), heap, "L")).toBe("L: exit 1 -- proofs hostile: 0 ok, 0 skipped, 0 known-gap, 1 failed");
+    expect(judgeCommand(check({ want: ["nothing owed", "0 failed"] }), heap, "L")).toBe("L: exit 1 -- FAIL  tests/hostile/core/Heap/01.nvs: exit 3");
     const both = proofOutcome(["Core\\Env", "Core\\Heap"], batch);
     expect(both.code).toBe(1);
     expect(both.out).toBe(`${out.replaceAll("\r", "").trimEnd()}\n`);
   });
 
   test("a group the batch printed no verdict for fails with the batch's own reason", () => {
-    expect(proofOutcome(["Core\\Str"], { code: 1, out: "", err: "nv proofs: no group 'Core\\\\Str'." })).toEqual({ code: 1, out: "", err: "nv proofs: no group 'Core\\\\Str'." });
+    expect(proofOutcome(["Core\\Str"], { code: 1, out: "", err: "nv proofs: no group 'Core\\\\Str'." })).toEqual({
+      code: 1,
+      out: "",
+      err: "nv proofs: no group 'Core\\\\Str'.\nthe batched `nv proofs --verify` printed no verdict for Core\\Str",
+    });
+    // A batch Bun itself stopped: the verdict quotes Bun's panic, never `bun run`'s exit line.
+    const crashed = { code: 3, out: "== Core\\Str\n", err: '====\npanic(main thread): integer does not fit in destination type\noh no: Bun has crashed.\nerror: script "nv" exited with code 3' };
+    expect(firstErrLine(proofOutcome(["Core\\Str"], crashed))).toBe("panic(main thread): integer does not fit in destination type");
     expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).code).toBe(1);
     expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).err).toBe("the batched `nv proofs --verify` printed no verdict for Core\\Str");
   });
