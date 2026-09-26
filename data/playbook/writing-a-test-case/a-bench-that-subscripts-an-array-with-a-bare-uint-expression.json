@@ -1,0 +1,11 @@
+{
+  "lead": "A bench that subscripts an array with a bare `uint` expression counts two allocations per round that are not the member's.",
+  "body": "`$keys[$total % 3]` allocated twice per access, where `$keys[($total % 3) as int]` allocated nothing, so a reader's bench declaring `// bench: allocations 0` fails and blames the member. Cast the index with `as int` and bind the element to a typed local, the way `benches/members/core/Ast-Node/offset.nvs` does.",
+  "files": [
+    "benches/members/core/Ast-Node/offset.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "benches/members/core/Ast-Node/offset.nvs:as int"
+  }
+}

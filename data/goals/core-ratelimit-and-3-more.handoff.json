@@ -1,23 +1,31 @@
 {
-  "state": "Goal `core-ratelimit-and-3-more`. `Core\\RateLimit::consume` has all its feature proofs: `about.md`, three examples, one attack, a Rust test carrying its `covers:` marker, and a perf skip in `data/proofs/policy.json` that follows `Core\\Cache::shared`'s, because the sweep runs no store. `Core\\RateLimit` and `Core\\RateLimit\\Decision` both carry class cards now, so neither is in `CLASSES_STILL_OWING_A_CARD`.\nNo shared store is reachable from an example, an attack or a bench. Every `consume` call there throws the `cache.shared` capability refusal. `shed` needs no store, which is why `consume`'s third example falls back to it.",
+  "state": "Goal `core-ratelimit-and-3-more`. `Core\\RateLimit::consume` and `::shed` have all their feature proofs, so the `Core\\RateLimit` group owes nothing but a fresh perf figure whenever `crates/nvs-stdlib/src/ratelimit.rs` moves again (`bun nv proofs --record-perf --only '<feature>'`).\n`Core\\RateLimit\\Decision::allowed` has all its proofs. Every one of the four `Decision` readers is covered from both sides now: `tests/conformance/core/ratelimit-decision-readers-agree-with-the-sweep.nvst` and the Rust test `the_four_readers_answer_the_decisions_own_slots` carry all four `covers:` markers. An instance member owes no `about.md`.\nNo shared store is reachable from an example, an attack or a bench, so every `Decision` there is built through `shed`. `shed`'s recorded figure is 10 allocations per call; nothing in the goal asks for less.\n`Core\\Reflect` and `Core\\Reflect\\AttributeInfo` are untouched: `Core\\Reflect` still sits in `CLASSES_STILL_OWING_A_CARD`.",
   "next": {
-    "stage": 1,
-    "title": "member proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/ratelimit.rs` and the proof trees under `core/RateLimit/` and `core/RateLimit-Decision/`.",
+    "note": "one file set: the proof trees under `core/RateLimit-Decision/` (examples, hostile, benches), built through `shed` as `allowed`'s are.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\RateLimit::shed`** — owes examples, hostile, perf, tests. It runs in-process, so its bench is real: chain the key off the running total and declare iterations. `shed_is_per_core_and_approximate_and_says_so` and `shed_is_the_same_gcra_over_the_cores_own_memory` exist and only need a `// covers:` marker. `rule:core-classes/ratelimit-two-members`. `crates/nvs-stdlib/src/ratelimit.rs:182`"
+        "text": "**`Core\\RateLimit\\Decision::limit`** — owes examples, hostile, perf; its tests are covered. Three examples, one attack, one bench with `// bench: allocations 0`, since it returns a `uint`. `docs/examples/core/RateLimit-Decision/allowed/` is the shape. `rule:core-classes/ratelimit-gcra`. `crates/nvs-stdlib/src/ratelimit.rs:328`"
       },
       {
         "done": false,
-        "text": "**`Core\\RateLimit\\Decision::allowed`** — owes examples, hostile, perf, tests. The class card is already written. Build decisions through `shed`, since `consume` cannot answer without a store. `rule:core-classes/ratelimit-gcra`. `crates/nvs-stdlib/src/ratelimit.rs:327`"
+        "text": "**`Core\\RateLimit\\Decision::remaining`** — owes examples, hostile, perf. `remaining` counts after the arrival was charged and is `0` when refused. `rule:core-classes/ratelimit-gcra`. `crates/nvs-stdlib/src/ratelimit.rs:337`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\RateLimit\\Decision::retryAfter`** — owes examples, hostile, perf. The exact wait is just under the drain interval, so an example rounds it up with `toMilliseconds() % 1000` the way `docs/examples/core/RateLimit/shed/03-protect-a-slow-page.nvs` does. It returns a `Duration`, so its bench declares no allocation count. `rule:core-classes/ratelimit-gcra`. `crates/nvs-stdlib/src/ratelimit.rs:346`"
+      },
+      {
+        "done": false,
+        "text": "**Record the three benches** with `bun nv proofs --record-perf --only '<feature>'` once the last Rust edit of the session is in. `crates/nvs-stdlib/src/ratelimit.rs:314`"
       }
     ]
   },
   "backlog": [
-    "`Core\\RateLimit\\Decision`'s `limit`, `remaining` and `retryAfter`, after `allowed` — `bun nv proofs --owed`.",
-    "`consume`'s examples can show only the unconfigured refusal and the `shed` fallback. A loopback store fixture for `docs/examples/` would let them show a real decision — `docs/examples/README.md` § *A grant the examples need*."
+    "Subscripting an array with a bare `uint` expression costs two allocations per access, and `as int` costs none (measured on `benches/members/core/RateLimit/shed.nvs`: 12 against 10). A latency finding for the codegen of `[]`; not checked where the allocation happens.",
+    "`Core\\Reflect::typeOf` and `Core\\Reflect\\AttributeInfo::field`: class cards (remove both from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`), examples, attacks, benches, Rust `covers:` markers — `crates/nvs-stdlib/src/reflect.rs`."
   ]
 }

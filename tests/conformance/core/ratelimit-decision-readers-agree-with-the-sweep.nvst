@@ -2,6 +2,8 @@
 A Core\RateLimit\Decision's three readers agree with the sweep that produced them, over two windows of different widths — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
+// covers: Core\RateLimit\Decision::allowed, Core\RateLimit\Decision::limit
+// covers: Core\RateLimit\Decision::remaining, Core\RateLimit\Decision::retryAfter
 // § 3's four fields are four readers over one decision, and each of them reads
 // right on its own line for a reader that grew its own arithmetic: a `limit`
 // that answered a remembered number, a `remaining` that counted its own calls
