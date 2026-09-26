@@ -60,6 +60,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   relink: () => import("./cmd/relink.ts"),
   render: () => import("./cmd/render.ts"),
   rules: () => import("./cmd/rules.ts"),
+  select: () => import("./cmd/select.ts"),
   selftest: () => import("./cmd/selftest.ts"),
   session: () => import("./cmd/session.ts"),
   splice: () => import("./cmd/splice.ts"),

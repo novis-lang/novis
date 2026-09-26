@@ -5,7 +5,7 @@
 // every tools module that imports `node:fs` or `node:fs/promises` gets `reads-fs.ts` or
 // `reads-fsp.ts` instead, which note each path a call reads, lists or tests and then make the call.
 // `Bun.file` and `Bun.spawn` are wrapped the same way. At exit the process appends one JSON line to the
-// log. A `bun nv` process it starts inherits the variable and appends its own line, so one log holds
+// log, which also names every tools module Bun's registry holds by then (`readModules`). A `bun nv` process it starts inherits the variable and appends its own line, so one log holds
 // every process one check ran, and `readLog` is their union.
 //
 // A module loaded before `install` is never rewritten, so this module imports `paths.ts` alone, which
@@ -96,13 +96,39 @@ export function install(log: string): void {
     };
   }
   process.on("exit", () => {
-    const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned };
+    const modules = Object.keys(require.cache)
+      .map((m) => inTree(m))
+      .filter((m): m is string => m !== null && m.endsWith(".ts"))
+      .sort();
+    const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, modules };
     try {
       appendFileSync(log, `${JSON.stringify(line)}\n`);
     } catch {
       // A record that cannot be written leaves the check keyed on everything, which is never unsafe.
     }
   });
+}
+
+/** The TypeScript modules every process of the log at `path` had loaded when it exited, repo-relative
+ * and sorted: Bun's module registry, read at exit, so a module loaded by a dynamic import counts only
+ * when it was loaded. Empty when the log holds none. */
+export function readModules(path: string): string[] {
+  const out = new Set<string>();
+  let text = "";
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return [];
+  }
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      for (const m of (JSON.parse(line) as { modules?: string[] }).modules ?? []) out.add(m);
+    } catch {
+      return [];
+    }
+  }
+  return [...out].sort();
 }
 
 /** The union of every line in the log at `path`, or null when it holds none. */

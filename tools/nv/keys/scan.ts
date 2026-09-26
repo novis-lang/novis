@@ -129,11 +129,12 @@ export interface FileItems {
   items: Item[];
 }
 
-/** Each file's items, in order, from one run of the scanner. Paths are relative to the repository
- * root; class attribution reads every file of the batch, so a caller passes every file at once. */
-export function scanItems(files: string[]): FileItems[] {
+/** Each file's items, in order, from one run of the scanner. Paths are relative to `root`, the repository
+ * root unless another tree is named; class attribution reads every file of the batch, so a caller passes
+ * every file at once. */
+export function scanItems(files: string[], root: string = abs(".")): FileItems[] {
   if (files.length === 0) return [];
-  const r = Bun.spawnSync([helper(), "--items", abs(".")], { stdin: Buffer.from(files.join("\n") + "\n"), stdout: "pipe", stderr: "pipe" });
+  const r = Bun.spawnSync([helper(), "--items", root], { stdin: Buffer.from(files.join("\n") + "\n"), stdout: "pipe", stderr: "pipe" });
   if (r.exitCode !== 0) throw new Error(`nv-scan --items failed:\n${r.stderr.toString()}`);
   const lines = r.stdout.toString().split("\n").filter((l) => l !== "");
   if (lines.length !== files.length) throw new Error(`nv-scan --items answered ${lines.length} of ${files.length} file(s)`);
