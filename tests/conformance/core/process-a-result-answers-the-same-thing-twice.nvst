@@ -2,6 +2,9 @@
 Every `Core\Process\Result` member answers the same thing on a second call — a captured stream is a value the result holds, not a pipe that drains, and all three members are asserted to agree with themselves — `rule:core-classes/process-run`
 --FILE--
 <?nvs
+// covers: Core\Process\Result::exitCode
+// covers: Core\Process\Result::stdout
+// covers: Core\Process\Result::stderr
 // One question asked of all three members, so that a member which grew its own
 // answer fails here while still reading correctly on its own line — the
 // *agreement* shape, over the rule `rule:core-classes/process-run` states once for the whole

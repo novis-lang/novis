@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read what a program printed, as text.
+// requires: unix
+
+var $result = Core\Process::run("/bin/echo", ["Hello from another program"]);
+
+// `stdout()` returns `bytes`. `as string` converts them to text.
+string $text = $result->stdout() as string;
+
+// `echo` ends its output with a new line. `Core\Str::trim` removes it.
+// This prints `[Hello from another program]`.
+echo "[", Core\Str::trim($text), "]\n";

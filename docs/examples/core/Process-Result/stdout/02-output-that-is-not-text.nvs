@@ -1,0 +1,18 @@
+<?nvs
+// Shows that the output of a program can be data that is not text.
+// requires: unix
+
+// `printf` writes three bytes here. The last one, `\xff`, is not valid UTF-8.
+var $result = Core\Process::run("/usr/bin/printf", ["AB\\xff"]);
+bytes $data = $result->stdout();
+
+// `bytes` can contain any data. This prints `3`.
+echo Core\Bytes::length($data), "\n";
+
+// The data is not valid text, so `as string` throws an error.
+try {
+    string $text = $data as string;
+    echo $text, "\n";
+} catch (RuntimeError $notText) {
+    echo "not text: ", $notText->message, "\n";
+}

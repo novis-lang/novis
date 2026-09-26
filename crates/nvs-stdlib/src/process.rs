@@ -475,8 +475,10 @@ const STDERR_SLOT: usize = 2;
 ///
 /// `-1` and not a throw: a child that a signal stopped *ran*, and its output is
 /// as real as any other child's, so a caller who cares which happened compares
-/// against a number rather than catching. No exit status a process can report
-/// is negative, so the value cannot collide with one.
+/// against a number rather than catching. On Unix an exit status is `0..=255`,
+/// so the value cannot collide with one. Windows has no signals and every exit
+/// carries a code, read as an `i32`, so `-1` there is a child that exited with
+/// `0xFFFFFFFF` and never this constant.
 const SIGNALLED: i32 = -1;
 
 /// `rule:core-classes/process-run`'s `ProcessResult` — what [`nvs_core_process_run`] answers with.
@@ -488,7 +490,7 @@ const SIGNALLED: i32 = -1;
 /// to compute and nothing left to fail.
 pub(crate) const RESULT: CoreClass = CoreClass {
     name: RESULT_NAME,
-    doc: None,
+    doc: Some(&RESULT_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -523,31 +525,40 @@ pub(crate) const RESULT: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Process\Result`'s class card — `rule:core-api/reference-card`.
+const RESULT_CARD: ClassDoc = ClassDoc {
+    short: "The result of a program that has ended. `Core\\Process::run` and \
+            `Core\\Process\\Handle::wait` return one. `exitCode` returns the program's exit code, \
+            and `stdout` and `stderr` return what it wrote to its output and its error output. \
+            The program has already ended, so these methods never throw an error.",
+};
+
 /// `Core\Process\Result::exitCode`'s reference card — `rule:core-api/reference-card`.
 const EXIT_CODE_DOC: MethodDoc = MethodDoc {
-    short: "The status the child exited with — `$?`, and the third out-parameter `exec` writes.",
+    short: "Returns the exit code of the program. Most programs return `0` when they succeed, and \
+            another number when they fail.",
     params: &[],
-    ret: "The exit status, `0` for success by the convention every operating system shares, and \
-          `-1` for a child a signal stopped before it could report one.",
+    ret: "The exit code, as an `int`. On Linux and macOS, it is `-1` when a signal stopped the \
+          program before it could return an exit code.",
     errors: &[],
 };
 
 /// `Core\Process\Result::stdout`'s reference card — `rule:core-api/reference-card`.
 const STDOUT_DOC: MethodDoc = MethodDoc {
-    short: "Everything the child wrote to its standard output, captured whole.",
+    short: "Returns everything the program wrote to its standard output.",
     params: &[],
-    ret: "The octets, as `bytes` and not `string`: Novis guarantees a `string` is UTF-8, and a \
-          child process makes no such promise about what it writes. A caller who knows the output \
-          is text writes `as string`, which throws on a sequence that is not.",
+    ret: "The output, as `bytes`. A program can write data that is not valid text, so the result \
+          is not a `string`. Use `as string` to convert it to text. That throws an error if the \
+          output is not valid UTF-8.",
     errors: &[],
 };
 
 /// `Core\Process\Result::stderr`'s reference card — `rule:core-api/reference-card`.
 const STDERR_DOC: MethodDoc = MethodDoc {
-    short: "Everything the child wrote to its standard error, captured whole and kept separate \
-            from `stdout` — the stream PHP's `exec` discards and `shell_exec` merges.",
+    short: "Returns everything the program wrote to its standard error. Programs write their error \
+            messages and warnings there. This output is never mixed with `stdout`.",
     params: &[],
-    ret: "The octets, as `bytes`, for the reason `stdout` states.",
+    ret: "The error output, as `bytes`. Use `as string` to convert it to text.",
     errors: &[],
 };
 
@@ -1529,6 +1540,58 @@ mod tests {
             late.release();
             result.release();
             handle.release();
+        }
+    }
+
+    /// A result's three members read its three slots, and a second round reads the same values:
+    /// `stdout` and `stderr` answer a reference of their own, so releasing an answer leaves the
+    /// result's capture intact. The output is not UTF-8, because a child's output need not be.
+    // covers: Core\Process\Result::exitCode
+    // covers: Core\Process\Result::stdout
+    // covers: Core\Process\Result::stderr
+    #[test]
+    fn a_results_members_read_its_slots_and_each_capture_outlives_a_released_answer() {
+        let mut ctx = Ctx::buffered();
+        let result = crate::instance::build(
+            &RESULT,
+            [
+                Value::int(3),
+                Value::bytes(NvsStr::new(b"out\xff")),
+                Value::bytes(NvsStr::new(b"err")),
+            ],
+        );
+        let captures: [(nvs_runtime::NvsFn, &[u8]); 2] = [
+            (super::nvs_core_process_result_stdout, b"out\xff"),
+            (super::nvs_core_process_result_stderr, b"err"),
+        ];
+        for _ in 0..2 {
+            let code = nvs_runtime::call(
+                super::nvs_core_process_result_exit_code,
+                &mut ctx,
+                &[result],
+            )
+            .expect("a result's status is a slot read");
+            assert_eq!(code.as_int(), Some(3), "`exitCode` answered another status");
+            for (member, want) in captures {
+                let answered = nvs_runtime::call(member, &mut ctx, &[result])
+                    .expect("a result's capture is a slot read");
+                assert_eq!(
+                    answered.as_bytes(),
+                    Some(want),
+                    "a capture changed between reads"
+                );
+                #[expect(
+                    unsafe_code,
+                    reason = "`captured` retained the slot, so this scope owns the answer"
+                )]
+                unsafe {
+                    answered.release();
+                }
+            }
+        }
+        #[expect(unsafe_code, reason = "this scope owns the result it built")]
+        unsafe {
+            result.release();
         }
     }
 

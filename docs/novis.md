@@ -12186,9 +12186,9 @@ Keywords: exitCode, stdout, stderr
 $result->exitCode(): int
 ```
 
-The status the child exited with — `$?`, and the third out-parameter `exec` writes.
+Returns the exit code of the program. Most programs return `0` when they succeed, and another number when they fail.
 
-**Returns** `int` — The exit status, `0` for success by the convention every operating system shares, and `-1` for a child a signal stopped before it could report one.
+**Returns** `int` — The exit code, as an `int`. On Linux and macOS, it is `-1` when a signal stopped the program before it could return an exit code.
 
 <a id="core-core-process-result-stdout"></a>
 #### `Core\Process\Result->stdout`
@@ -12197,9 +12197,9 @@ The status the child exited with — `$?`, and the third out-parameter `exec` wr
 $result->stdout(): bytes
 ```
 
-Everything the child wrote to its standard output, captured whole.
+Returns everything the program wrote to its standard output.
 
-**Returns** `bytes` — The octets, as `bytes` and not `string`: Novis guarantees a `string` is UTF-8, and a child process makes no such promise about what it writes. A caller who knows the output is text writes `as string`, which throws on a sequence that is not.
+**Returns** `bytes` — The output, as `bytes`. A program can write data that is not valid text, so the result is not a `string`. Use `as string` to convert it to text. That throws an error if the output is not valid UTF-8.
 
 <a id="core-core-process-result-stderr"></a>
 #### `Core\Process\Result->stderr`
@@ -12208,9 +12208,9 @@ Everything the child wrote to its standard output, captured whole.
 $result->stderr(): bytes
 ```
 
-Everything the child wrote to its standard error, captured whole and kept separate from `stdout` — the stream PHP's `exec` discards and `shell_exec` merges.
+Returns everything the program wrote to its standard error. Programs write their error messages and warnings there. This output is never mixed with `stdout`.
 
-**Returns** `bytes` — The octets, as `bytes`, for the reason `stdout` states.
+**Returns** `bytes` — The error output, as `bytes`. Use `as string` to convert it to text.
 
 <a id="core-core-process-handle"></a>
 ### `Core\Process\Handle`

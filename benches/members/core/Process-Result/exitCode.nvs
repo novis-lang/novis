@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading the exit code of a program that has ended, as a script does before it decides whether a tool succeeded.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        // Two programs run once, before the loop: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
+        array<Core\Process\Result> $results = [];
+        if (Core\Path::SEPARATOR == "\\") {
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "exit 1"]);
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "exit 2"]);
+        } else {
+            $results[] = Core\Process::run("/bin/sh", ["-c", "exit 1"]);
+            $results[] = Core\Process::run("/bin/sh", ["-c", "exit 2"]);
+        }
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The next result depends on the total so far, so no round can be skipped.
+            $total = $total + $results[$total % 2]->exitCode();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,66 @@
+<?nvs
+// Attack: programs print exactly the 1 MiB limit, one byte more, output that is not text, and
+// output that never ends. Each run should return a result or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // Runs a shell command: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
+    // It returns one line: the size of the output, or the error that was thrown.
+    public static function size(string $unix, string $windows): string
+    {
+        try {
+            Core\Process\Result $result = Core\Path::SEPARATOR == "\\"
+                ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', $windows])
+                : Core\Process::run('/bin/sh', ['-c', $unix]);
+            return Core\Bytes::length($result->stdout()) . ' bytes';
+        } catch (RuntimeError $tooMuch) {
+            return 'RuntimeError';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. Exactly 1 MiB, and then one byte more. The first is allowed, the second throws.
+echo 'at the limit: ', Attack::size('head -c 1048576 /dev/zero', 'exit 0'), "\n";
+echo 'one byte past: ', Attack::size('head -c 1048577 /dev/zero', 'exit 0'), "\n";
+
+// 2. Output that never ends. It passes the limit, so `run` throws `RuntimeError`.
+echo 'endless: ', Attack::size(
+    'trap "" PIPE; while :; do echo a line that repeats; done',
+    'for /l %i in (0,0,1) do @echo a line that repeats',
+), "\n";
+
+// 3. Zero bytes and bytes that are not UTF-8. Converting them to text throws an error.
+var $binary = Core\Path::SEPARATOR == "\\"
+    ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo ok'])
+    : Core\Process::run('/bin/sh', ['-c', "printf '\\000\\377\\376\\300'"]);
+echo 'binary: ', Core\Bytes::length($binary->stdout()), " bytes\n";
+try {
+    string $text = $binary->stdout() as string;
+    echo 'as text: ', Core\Str::length($text), " characters\n";
+} catch (RuntimeError $notText) {
+    echo "as text: an error\n";
+}
+
+// 4. 20 results of 512 KiB each are kept at the same time. Each read returns the whole output.
+array<Core\Process\Result> $kept = [];
+int $made = 0;
+while ($made < 20) {
+    try {
+        $kept[] = Core\Path::SEPARATOR == "\\"
+            ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo kept'])
+            : Core\Process::run('/bin/sh', ['-c', 'head -c 524288 /dev/zero']);
+    } catch (RuntimeError $tooMuch) {
+        echo "kept: a limit\n";
+    }
+    $made = $made + 1;
+}
+uint $total = 0;
+foreach ($kept as Core\Process\Result $one) {
+    $total = $total + Core\Bytes::length($one->stdout()) + Core\Bytes::length($one->stdout());
+}
+echo 'kept ', $made, ' results, read ', $total, " bytes\n";
+
+echo "the runtime is still standing\n";

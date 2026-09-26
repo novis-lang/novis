@@ -1,0 +1,59 @@
+<?nvs
+// Attack: programs write to both outputs so that together they reach the 1 MiB limit, or pass
+// it by one byte, or never stop. Each run should return a result or throw an error.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // Runs a shell command: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
+    // It returns one line: the sizes of the two outputs, or the error that was thrown.
+    public static function sizes(string $unix, string $windows): string
+    {
+        try {
+            Core\Process\Result $result = Core\Path::SEPARATOR == "\\"
+                ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', $windows])
+                : Core\Process::run('/bin/sh', ['-c', $unix]);
+            return Core\Bytes::length($result->stdout()) . ' and '
+                . Core\Bytes::length($result->stderr()) . ' bytes';
+        } catch (RuntimeError $tooMuch) {
+            return 'RuntimeError';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. 1 MiB of errors, and then one byte more. The first is allowed, the second throws.
+echo 'at the limit: ', Attack::sizes('head -c 1048576 /dev/zero >&2', 'exit 0'), "\n";
+echo 'one byte past: ', Attack::sizes('head -c 1048577 /dev/zero >&2', 'exit 0'), "\n";
+
+// 2. Half the limit on each output, and then one byte more on the error output.
+// The limit counts both outputs together, so the second run throws.
+echo 'half and half: ', Attack::sizes(
+    'head -c 524288 /dev/zero; head -c 524288 /dev/zero >&2',
+    'exit 0',
+), "\n";
+echo 'half and half and one: ', Attack::sizes(
+    'head -c 524288 /dev/zero; head -c 524289 /dev/zero >&2',
+    'exit 0',
+), "\n";
+
+// 3. Errors that never end, while the normal output stays empty.
+echo 'endless errors: ', Attack::sizes(
+    'trap "" PIPE; while :; do echo a line that repeats >&2; done',
+    'for /l %i in (0,0,1) do @echo a line that repeats 1>&2',
+), "\n";
+
+// 4. 200 short runs, each read twice. Memory should not grow.
+int $runs = 0;
+uint $total = 0;
+while ($runs < 200) {
+    var $result = Core\Path::SEPARATOR == "\\"
+        ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo warning 1>&2'])
+        : Core\Process::run('/bin/sh', ['-c', 'echo warning >&2']);
+    $total = $total + Core\Bytes::length($result->stderr()) + Core\Bytes::length($result->stderr());
+    $runs = $runs + 1;
+}
+echo $runs, ' runs, ', $total, " bytes\n";
+
+echo "the runtime is still standing\n";

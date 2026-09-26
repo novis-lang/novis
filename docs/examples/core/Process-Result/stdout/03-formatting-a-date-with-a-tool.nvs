@@ -1,0 +1,19 @@
+<?nvs
+// Shows a small method that asks a system tool for one value and returns it as clean text.
+// requires: unix
+
+class Dates {
+    // `date` formats a Unix timestamp. `-u` uses UTC, so the result is the same everywhere.
+    public static function day(int $timestamp): string {
+        var $result = Core\Process::run("/bin/date", ["-u", "-d", "@" . $timestamp, "+%Y-%m-%d"]);
+        if ($result->exitCode() != 0) {
+            throw new RuntimeError("date failed with exit code " . $result->exitCode());
+        }
+        // The output ends with a new line. `Core\Str::trim` removes it.
+        return Core\Str::trim($result->stdout() as string);
+    }
+}
+
+// This prints `2023-11-14` and then `1970-01-01`.
+echo Dates::day(1700000000), "\n";
+echo Dates::day(0), "\n";

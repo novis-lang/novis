@@ -1,0 +1,4 @@
+exitCode
+stderr
+stdout
+could not list the folder: /bin/ls: cannot access '/no-such-folder': No such file or directory

@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading the output of a program that has ended, as a server does after it runs a converter.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Two programs run once, before the loop: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
+        array<Core\Process\Result> $results = [];
+        if (Core\Path::SEPARATOR == "\\") {
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo done"]);
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo a longer line"]);
+        } else {
+            $results[] = Core\Process::run("/bin/sh", ["-c", "echo done"]);
+            $results[] = Core\Process::run("/bin/sh", ["-c", "echo a longer line"]);
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The next result depends on the total so far, so no round can be skipped.
+            $total = $total + Core\Bytes::length($results[($total % 2) as int]->stdout());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

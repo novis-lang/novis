@@ -1,0 +1,4 @@
+ok:     the examples folder exists
+ok:     the settings file exists
+failed: the backup folder exists (exit code 1)
+The job does not start: 1 check failed.

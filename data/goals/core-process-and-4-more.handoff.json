@@ -1,24 +1,23 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process` and `Core\\Process\\Handle` are green: all five `Handle` members have their feature proofs, `wait` included. `HANDLE_WAIT_DOC` is in the plain voice. `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\n`wait` now stops the child when either pipe reaches `[limits] max_output`. It shares `read_bounded`'s `stop` with `run`. A child that ignored `SIGPIPE` made it hang before. `tests/conformance/core/process-handle-wait-stops-a-child-that-writes-past-max-output.nvst` pins that.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file>`, and write the `.out` with Write from what it printed. The attacks and benches run on both platforms: they pick `/bin/sh` or `cmd.exe` by `Core\\Path::SEPARATOR`. A `.nvst` with a `--FILE nvs.toml--` section runs with `target/debug/nvs.exe test <file>`, not `bun nv try`. Any change to `process.rs` makes every `Core\\Process*` perf figure stale: `bun nv proofs --record-perf --group 'Core\\Process\\Handle'` (and `'Core\\Process'`) re-measures them, uncommitted tree included.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle` and `Core\\Process\\Result` are green: `Result` has its class card (`RESULT_CARD`), its three member cards are in the plain voice, and `exitCode`, `stdout` and `stderr` have all their feature proofs. `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\n`nvs agent show <Class>` now prints a class's `ClassDoc` prose above its members (`crates/nvs-cli/src/agent.rs`'s `push_class_card`). Before this, no class card reached the binary's help.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --bin nvs` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file> 2>&1`, and write the `.out` with Write from what it printed. The attacks and benches run on both platforms: they pick `/bin/sh` or `cmd.exe` by `Core\\Path::SEPARATOR`. `Core\\Bytes::length` returns `uint`, so a total it feeds is `uint` and an array index made from it is `(... ) as int`. `as string` over bytes that are not UTF-8 throws `RuntimeError`.\n\nThe driver's last sweep reported `proofs: Core\\IO (2/2)` red with a bare `exit 1`. Re-run at the start of this session, it was green with nothing owed and no failure, so it read as a one-off rather than a regression.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/process.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Process-Result/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/program.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Program/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Process\\Result`'s class card** — add its `ClassDoc` above the class's `CLASS` row, the way `HANDLE_CARD` sits above `HANDLE`, and delete it from `CLASSES_STILL_OWING_A_CARD`. Read the three member cards' voice while there. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/process.rs:489` `crates/nvs-stdlib/src/registry.rs:5189`"
+        "text": "**`Core\\Program`'s class card** — add its `ClassDoc` above `CLASS`, the way `RESULT_CARD` sits above `RESULT` in `crates/nvs-stdlib/src/process.rs`, delete it from `CLASSES_STILL_OWING_A_CARD`, and bring the member cards to the plain voice. Check it with `nvs agent show 'Core\\Program'`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/program.rs:92` `crates/nvs-stdlib/src/registry.rs:5248`"
       },
       {
         "done": false,
-        "text": "**`Core\\Process\\Result::exitCode`, `stdout`, `stderr`** — about, three examples, attack, bench and two tests each carrying `// covers:`. The `.nvst` cases that call `wait()->stdout()` and `->exitCode()` are the Novis side; `two_writes_reach_a_spawned_child_and_wait_closes_its_input` reads the stderr slot from Rust. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/process.rs:790`"
+        "text": "**`Core\\Program::implementing`, `implementingWith`, `id`** — about, three examples, attack, bench and the tests `bun nv proofs --group 'Core\\Program' --show` names; `id` owes a Rust test carrying `// covers:`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/program.rs:115`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Program` — class card, then `id` and its other members' proofs. `crates/nvs-stdlib/src/program.rs`.",
-    "`Core\\Queue` — class card, then `purge` and the rest. `crates/nvs-stdlib/src/queue.rs`.",
-    "Possible: a grandchild that keeps the pipes open after `wait` or `run` stops the child may keep the drain waiting (not checked). If an attack shows it, the owner is `crates/nvs-stdlib/src/process.rs`'s module doc."
+    "`Core\\Queue`'s class card and member proofs, after `Core\\Program` — `crates/nvs-stdlib/src/queue.rs`, `rule:testing/feature-proofs`.",
+    "`Core\\Html` and `Core\\Html\\Markup` still owe cards; `a_class_name_resolves_to_a_card_listing_its_members` in `crates/nvs-cli/tests/agent.rs` pins `Core\\Html\\Markup`'s card as the bare class line, and changes when that card lands — goal `core-class-cards`."
   ]
 }
